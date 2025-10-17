@@ -1,0 +1,2 @@
+export { StyleManager } from './styleManager';
+

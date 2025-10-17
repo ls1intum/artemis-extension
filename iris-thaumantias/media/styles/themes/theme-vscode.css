@@ -1,0 +1,56 @@
+body.theme-vscode {
+  --theme-background: var(--vscode-sideBar-background);
+  --theme-foreground: var(--vscode-sideBar-foreground);
+  --theme-card-background: var(--vscode-editor-background);
+  --theme-border: var(--vscode-sideBar-border);
+  --theme-border-color: var(--vscode-sideBar-border);
+  --theme-background-secondary: var(--vscode-editorWidget-background);
+  --theme-secondary-background: var(--vscode-editorWidget-background);
+  --theme-tertiary-background: var(--vscode-editor-background);
+
+  --theme-button-background: var(--vscode-button-background);
+  --theme-button-foreground: var(--vscode-button-foreground);
+  --theme-button-hover: var(--vscode-button-hoverBackground);
+  --theme-button-hover-background: var(--vscode-button-hoverBackground);
+  --theme-button-active: var(--vscode-button-hoverBackground);
+
+  --theme-input-background: var(--vscode-input-background);
+  --theme-input-foreground: var(--vscode-input-foreground);
+  --theme-input-border: var(--vscode-input-border);
+  --theme-input-focus: var(--vscode-focusBorder);
+
+  --theme-success: var(--vscode-terminal-ansiGreen);
+  --theme-success-rgb: 63, 185, 80;
+  --theme-error: var(--vscode-errorForeground);
+  --theme-info: var(--vscode-terminal-ansiBlue);
+  --theme-warning: #f59e0b;
+
+  --theme-container-padding: 12px;
+  --theme-container-radius: 3px;
+  --theme-element-spacing: 12px;
+  --theme-form-spacing: 8px;
+
+  --theme-box-shadow: none;
+  --theme-backdrop: none;
+  --theme-transition: none;
+
+  --theme-font-family: var(--vscode-font-family);
+  --theme-font-size: var(--vscode-font-size);
+  --theme-font-weight: 400;
+  --theme-line-height: 1.4;
+  --theme-monospace-font: var(--vscode-terminal-fontFamily, 'Courier New', monospace);
+
+  --theme-link-color: var(--vscode-textLink-foreground);
+  --theme-link-hover: var(--vscode-textLink-activeForeground);
+  --theme-hover-background: var(--vscode-list-hoverBackground);
+
+  --theme-muted: var(--vscode-descriptionForeground);
+  --theme-muted-color: var(--vscode-descriptionForeground);
+  --theme-muted-foreground: var(--vscode-descriptionForeground);
+
+  --theme-primary-color: var(--vscode-focusBorder);
+  --theme-primary-color-rgb: 0, 122, 255;
+  --theme-accent: var(--vscode-focusBorder);
+  --theme-accent-background: var(--theme-button-background);
+  --theme-accent-foreground: var(--theme-button-foreground);
+}

@@ -1,0 +1,575 @@
+        body {
+            font-family: var(--theme-font-family);
+            color: var(--theme-foreground);
+            background: var(--theme-background);
+            margin: 0;
+            padding: 0 16px 16px 16px;
+            position: relative;
+            min-height: calc(100vh - 32px);
+            transition: var(--theme-transition);
+        }
+        
+        .header {
+            margin-bottom: var(--theme-element-spacing);
+            padding-bottom: 16px;
+            border-bottom: 1px solid var(--theme-border);
+        }
+        
+        .header h1 {
+            color: var(--theme-foreground);
+            margin: 0 0 8px 0;
+            font-size: 24px;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .search-container {
+            margin-top: 16px;
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .search-input {
+            flex: 1;
+            background: var(--theme-input-background);
+            color: var(--theme-input-foreground);
+            border: 1px solid var(--theme-input-border);
+            border-radius: var(--theme-container-radius);
+            padding: 10px 14px;
+            font-size: 14px;
+            font-family: var(--theme-font-family);
+            transition: var(--theme-transition);
+            box-sizing: border-box;
+        }
+        
+        .reload-courses-btn {
+            background: var(--theme-button-background);
+            color: var(--theme-button-foreground);
+            border: 1px solid var(--theme-border);
+            border-radius: var(--theme-container-radius);
+            padding: 10px 16px;
+            font-size: 14px;
+            font-family: var(--theme-font-family);
+            cursor: pointer;
+            transition: var(--theme-transition);
+            white-space: nowrap;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        
+        .reload-courses-btn:hover {
+            background: var(--theme-button-hover);
+            transform: translateY(-1px);
+        }
+        
+        .reload-courses-btn:active {
+            transform: translateY(0);
+        }
+
+        .search-input:focus {
+            outline: none;
+            border-color: var(--theme-input-focus);
+            box-shadow: 0 0 0 2px var(--theme-input-focus);
+        }
+
+        .search-input::placeholder {
+            color: var(--theme-foreground);
+            opacity: 0.5;
+        }
+
+        /* Filter and Sort Controls */
+        .controls-container {
+            margin-top: 16px;
+            background: var(--theme-card-background);
+            border: 1px solid var(--theme-border);
+            border-radius: var(--theme-container-radius);
+            overflow: hidden;
+            box-shadow: var(--theme-box-shadow);
+        }
+
+        .controls-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 16px;
+            background: var(--theme-input-background);
+            border-bottom: 1px solid var(--theme-border);
+            cursor: pointer;
+            transition: var(--theme-transition);
+        }
+
+        /* Default hover - no background change */
+        .controls-header:hover {
+            /* Default: no hover effect, will be overridden by theme-specific styles */
+        }
+
+        /* VS Code theme: subtle outline on hover */
+        .theme-vscode .controls-header:hover {
+            background: var(--theme-input-background); /* Keep same background */
+            outline: 1px solid var(--vscode-focusBorder);
+            outline-offset: -1px;
+        }
+
+        /* Modern theme: background and text color change */
+        .theme-modern .controls-header:hover {
+            background: var(--theme-button-background);
+            color: var(--theme-button-foreground);
+        }
+
+        /* Synthwave theme: keep existing hover effect */
+        .theme-synthwave .controls-header:hover {
+            background: var(--theme-button-background);
+            color: var(--theme-button-foreground);
+        }
+
+        .controls-header-title {
+            color: var(--theme-foreground);
+            font-size: 12px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin: 0;
+        }
+
+        .controls-toggle {
+            color: var(--theme-foreground);
+            font-size: 16px;
+            transition: var(--theme-transition);
+            opacity: 0.7;
+        }
+
+        /* Make sure title and toggle pick up modern hover text color */
+        .theme-modern .controls-header:hover .controls-header-title,
+        .theme-modern .controls-header:hover .controls-toggle {
+            color: var(--theme-button-foreground) !important;
+        }
+
+        .controls-container.expanded .controls-toggle {
+            transform: rotate(180deg);
+        }
+
+        .controls-content {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s ease-out;
+        }
+
+        .controls-container.expanded .controls-content {
+            max-height: 200px;
+        }
+
+        .controls-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr auto;
+            gap: 20px;
+            align-items: end;
+            padding: 16px;
+        }
+
+        .control-section {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .control-section-title {
+            color: var(--theme-foreground);
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            opacity: 0.8;
+            margin: 0;
+        }
+
+        .control-row {
+            display: flex;
+            gap: 12px;
+        }
+
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            flex: 1;
+        }
+
+        .control-label {
+            color: var(--theme-foreground);
+            font-size: 11px;
+            font-weight: 600;
+            opacity: 0.7;
+            margin: 0;
+        }
+
+        .control-select {
+            background: var(--theme-input-background);
+            color: var(--theme-input-foreground);
+            border: 1px solid var(--theme-input-border);
+            border-radius: calc(var(--theme-container-radius) * 0.6);
+            padding: 8px 12px;
+            font-size: 13px;
+            font-family: var(--theme-font-family);
+            transition: var(--theme-transition);
+            cursor: pointer;
+            width: 100%;
+        }
+
+        .control-select:focus {
+            outline: none;
+            border-color: var(--theme-input-focus);
+            box-shadow: 0 0 0 2px var(--theme-input-focus);
+        }
+
+        .control-select:hover {
+            border-color: var(--theme-input-focus);
+        }
+
+        /* Clear filters button section */
+        .clear-section {
+            display: flex;
+            flex-direction: column;
+            justify-content: end;
+            align-items: center;
+        }
+
+        .clear-filters-btn {
+            background: transparent;
+            color: var(--theme-foreground);
+            border: 1px solid var(--theme-border);
+            border-radius: calc(var(--theme-container-radius) * 0.6);
+            padding: 8px 16px;
+            font-size: 12px;
+            font-family: var(--theme-font-family);
+            cursor: pointer;
+            transition: var(--theme-transition);
+            opacity: 0.7;
+            white-space: nowrap;
+        }
+
+        .clear-filters-btn:hover:not(:disabled) {
+            opacity: 1;
+            background: var(--theme-input-background);
+            border-color: var(--theme-input-focus);
+        }
+
+        .clear-filters-btn:disabled {
+            opacity: 0.3;
+            cursor: not-allowed;
+        }
+
+        /* Responsive design */
+        @media (max-width: 768px) {
+            .controls-grid {
+                grid-template-columns: 1fr;
+                gap: 16px;
+            }
+
+            .filter-section .control-row {
+                flex-direction: column;
+                gap: 8px;
+            }
+
+            .clear-section {
+                align-items: stretch;
+            }
+
+            .controls-container.expanded .controls-content {
+                max-height: 300px;
+            }
+        }
+
+        /* Modern theme specific styling */
+        .theme-modern .controls-container {
+            background: var(--theme-background);
+        }
+
+        .theme-modern .controls-header {
+            background: var(--theme-card-background);
+        }
+        
+        .back-link-container {
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            background: var(--theme-background);
+            padding: 16px 0 8px 0;
+            margin: 0;
+        }
+        
+        .back-link {
+            cursor: pointer;
+            font-size: 14px;
+            display: inline-block;
+            text-decoration: none;
+        }
+        
+        /* VSCode and Modern themes use link color */
+        .theme-vscode .back-link,
+        .theme-modern .back-link {
+            color: var(--vscode-textLink-foreground);
+        }
+        
+        .theme-vscode .back-link:hover,
+        .theme-modern .back-link:hover {
+            color: var(--vscode-textLink-activeForeground);
+        }
+        
+        /* Synthwave theme keeps green */
+        .theme-synthwave .back-link {
+            color: var(--theme-success);
+        }
+        
+        .theme-synthwave .back-link:hover {
+            opacity: 0.8;
+        }
+        
+        .courses-container {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        
+        .course-item {
+            background: var(--theme-card-background);
+            border: 1px solid var(--theme-border);
+            padding: 16px;
+            cursor: pointer;
+            overflow: hidden; /* prevent overflow beyond rounded corners */
+            position: relative;
+        }
+        
+        .course-color-indicator {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 4px;
+            height: 100%;
+        }
+        
+        .course-content {
+            margin-left: 12px;
+        }
+        
+        /* VSCode theme course items */
+        .theme-vscode .course-item {
+            border-radius: 3px;
+            transition: none;
+        }
+        
+        .theme-vscode .course-color-indicator {
+            border-radius: 3px 0 0 3px;
+        }
+        
+        .theme-vscode .course-item:hover {
+            border-color: var(--vscode-focusBorder);
+        }
+        
+        /* Modern theme course items */
+        .theme-modern .course-item {
+            border-radius: 8px;
+            transition: all 0.15s ease-in-out;
+        }
+        
+        .theme-modern .course-color-indicator {
+            border-radius: 8px 0 0 8px;
+        }
+        
+        .theme-modern .course-item:hover {
+            background: var(--theme-button-background);
+            border-color: var(--vscode-focusBorder);
+            box-shadow: 0 0 0 1px var(--vscode-focusBorder), 0 4px 12px rgba(0, 0, 0, 0.1);
+        }
+        
+        .theme-modern .course-item:hover .course-title,
+        .theme-modern .course-item:hover .course-description,
+        .theme-modern .course-item:hover .course-stats {
+            color: var(--theme-button-foreground);
+        }
+        
+        /* Theme-specific text contrast improvements */
+        .theme-vscode .course-description {
+            opacity: 0.95;
+        }
+        
+        .theme-vscode .course-stats {
+            opacity: 0.9;
+        }
+        
+        .theme-modern .course-description {
+            opacity: 0.95;
+        }
+        
+        .theme-modern .course-stats {
+            opacity: 0.9;
+        }
+        
+        .theme-synthwave .course-description,
+        .theme-synthwave .course-stats {
+            opacity: 1;
+            color: #ffffff;
+        }
+        
+        /* Synthwave theme course items */
+        .theme-synthwave .course-item {
+            border-radius: 8px;
+            transition: var(--theme-transition);
+            box-shadow: var(--theme-box-shadow);
+        }
+        
+        .theme-synthwave .course-color-indicator {
+            border-radius: 8px 0 0 8px;
+        }
+        
+        .theme-synthwave .course-item:hover {
+            border-color: var(--theme-input-focus);
+            transform: translateY(-1px);
+            box-shadow: 0 0 15px rgba(255, 0, 110, 0.3);
+        }
+        
+        .course-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 8px;
+        }
+        
+        .course-title {
+            font-weight: 600;
+            color: var(--theme-foreground);
+            font-size: 16px;
+            flex: 1;
+        }
+        
+        .course-semester {
+            font-size: 12px;
+            color: var(--theme-button-foreground);
+            background: var(--theme-button-background);
+            padding: 4px 8px;
+            border-radius: 4px;
+            white-space: nowrap; /* keep pill on one line */
+        }
+        
+        .course-description {
+            color: var(--theme-foreground);
+            opacity: 0.9;
+            font-size: 14px;
+            margin-bottom: 12px;
+            line-height: 1.4;
+        }
+        
+        .course-stats {
+            display: flex;
+            gap: 16px;
+            font-size: 12px;
+            color: var(--theme-foreground);
+            opacity: 0.85;
+        }
+        
+        .no-courses {
+            text-align: center;
+            color: var(--theme-foreground);
+            opacity: 0.6;
+            font-style: italic;
+            padding: 32px 0;
+        }
+
+        /* Load archived courses button */
+        .load-archived-section {
+            margin-top: 32px;
+            text-align: center;
+        }
+
+        .load-archived-btn {
+            background: var(--theme-button-background);
+            color: var(--theme-button-foreground);
+            border: 1px solid var(--theme-border);
+            border-radius: var(--theme-container-radius);
+            padding: 12px 24px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: var(--theme-transition);
+        }
+
+        .load-archived-btn:hover {
+            background: var(--theme-button-hover);
+            transform: translateY(-1px);
+        }
+
+        /* Section separator */
+        .section-separator {
+            display: flex;
+            align-items: center;
+            margin: 32px 0 24px 0;
+        }
+
+        .separator-line {
+            flex: 1;
+            height: 1px;
+            background: var(--theme-border);
+        }
+
+        .separator-text {
+            padding: 0 16px;
+            color: var(--theme-foreground);
+            font-weight: 600;
+            font-size: 14px;
+            opacity: 0.8;
+        }
+
+        /* Archived courses styling */
+        .archived-course {
+            opacity: 0.8;
+            margin-bottom: 12px; /* Add extra space between archived courses */
+        }
+
+        .archived-course .course-semester.archived {
+            background: var(--theme-border);
+            color: var(--theme-foreground);
+            opacity: 0.7;
+        }
+
+        .archived-label {
+            color: var(--theme-foreground);
+            opacity: 0.6;
+            font-style: italic;
+        }
+
+        /* Add spacing to the archived courses container */
+        .archived-courses-container {
+            margin-top: 8px;
+        }
+
+        .archived-courses-container .course-item:not(:last-child) {
+            margin-bottom: 16px; /* Increase spacing between archived course items */
+        }
+
+        /* Search functionality */
+        .course-item.hidden {
+            display: none;
+        }
+
+        .search-results-info {
+            color: var(--theme-foreground);
+            opacity: 0.7;
+            font-size: 12px;
+            margin-bottom: 16px;
+            text-align: center;
+        }
+
+        .no-search-results {
+            text-align: center;
+            color: var(--theme-foreground);
+            opacity: 0.6;
+            font-style: italic;
+            padding: 32px 0;
+        }
+
+        .section-separator.hidden {
+            display: none;
+        }

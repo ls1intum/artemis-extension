@@ -1,0 +1,40 @@
+@startuml
+
+hide circle
+
+class Witch #text:testsColor(<testid>309797</testid>){
+  <color:testsColor(<testid>309796</testid>)>{static}-PILOTS_RETIREMENT_AGE: int</color>
+  <color:testsColor(<testid>309796</testid>)>-name: String</color>
+  <color:testsColor(<testid>309796</testid>)>-age: int</color>
+  <color:testsColor(<testid>309796</testid>)>-experiencedBroomOperator: boolean</color>
+
+  
+  <color:testsColor(<testid>309811</testid>)>+welcomePassengers(): String</color>
+  <color:testsColor(<testid>309814</testid>)>{static}+isRetired(age: int): boolean</color>
+}
+
+
+class Flight #text:testsColor(<testid>309800</testid>) {
+  <color:testsColor(<testid>309799</testid>)>-from: String</color>
+  <color:testsColor(<testid>309799</testid>)>-to: String</color>
+  <color:testsColor(<testid>309799</testid>)>-duration: double</color>
+  
+  <color:testsColor(<testid>309798</testid>)>+getEstimatedDistance(): double</color>
+  <color:testsColor(<testid>309808</testid>)>+getEstimatedTimeWithMaxVelocity(): double</color>
+}
+
+class Broom #text:testsColor(<testid>309794</testid>) {
+  <color:testsColor(<testid>309795</testid>)>-avgVelocity: double</color>
+  <color:testsColor(<testid>309795</testid>)>-currentVelocity: double</color>
+  
+  <color:testsColor(testCalculateMaxVelocity())>+calculateMaxVelocity(): double</color>
+  <color:testsColor(testDistanceBetweenCurrentAndAverage())>+distanceBetweenCurrentAndAverage():double</color>
+}
+
+Broom o-- Witch
+Flight o-- Broom
+
+hide empty fields
+hide empty methods
+
+@enduml
