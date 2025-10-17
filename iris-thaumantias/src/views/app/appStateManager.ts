@@ -1,7 +1,7 @@
 import { ArtemisApiService } from '../../api';
 import { getRecommendedExtensionsByCategory, type RecommendedExtensionCategory } from '../../utils/recommendedExtensions';
 
-export type AppState = 'login' | 'dashboard' | 'course-list' | 'course-detail' | 'exercise-detail' | 'ai-config' | 'service-status' | 'recommended-extensions';
+export type AppState = 'login' | 'dashboard' | 'course-list' | 'course-detail' | 'exercise-detail' | 'ai-config' | 'service-status' | 'recommended-extensions' | 'git-credentials';
 
 export interface UserInfo {
     username: string;
@@ -192,6 +192,10 @@ export class AppStateManager {
             this._recommendedExtensions = getRecommendedExtensionsByCategory();
         }
         this._currentState = 'recommended-extensions';
+    }
+
+    public showGitCredentials(): void {
+        this._currentState = 'git-credentials';
     }
 
     public isLoggedIn(): boolean {

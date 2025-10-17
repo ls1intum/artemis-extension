@@ -9,6 +9,7 @@ export interface WebViewActionHandler {
     showAiConfig(): void;
     showServiceStatus(): void;
     showRecommendedExtensions(): void;
+    showGitCredentials(): void;
     openJsonInEditor(data: any): Promise<void>;
     openExerciseDetails(exerciseId: number): Promise<void>;
     openExerciseFullscreen(exerciseData: any): Promise<void>;

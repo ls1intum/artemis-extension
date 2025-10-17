@@ -42,6 +42,7 @@ export class DashboardView {
         const logoutIcon = IconDefinitions.getIcon('logout');
         const puzzleIcon = IconDefinitions.getIcon('puzzle');
         const exerciseIcon = IconDefinitions.getIcon('exercise');
+        const gitIcon = IconDefinitions.getIcon('git');
         
         // Get the path to the iris logo image
         let irisLogoSrc = '';
@@ -207,6 +208,10 @@ export class DashboardView {
                     <span class="action-btn-icon">${webIcon}</span>
                     Open Artemis in browser
                 </button>
+                <button class="action-btn" id="gitCredentialsBtn">
+                    <span class="action-btn-icon">${gitIcon}</span>
+                    Git Credentials
+                </button>
                 <button class="action-btn" id="openSettingsBtn">
                     <span class="action-btn-icon">${gearIcon}</span>
                     Open Settings
@@ -228,6 +233,7 @@ export class DashboardView {
         const checkServiceStatusBtn = document.getElementById('checkServiceStatusBtn');
         const recommendedExtensionsBtn = document.getElementById('recommendedExtensionsBtn');
         const openWebsiteBtn = document.getElementById('openWebsiteBtn');
+        const gitCredentialsBtn = document.getElementById('gitCredentialsBtn');
         const openSettingsBtn = document.getElementById('openSettingsBtn');
         const logoutBtn = document.getElementById('logoutBtn');
         
@@ -276,6 +282,12 @@ export class DashboardView {
         if (openWebsiteBtn) {
             openWebsiteBtn.addEventListener('click', () => {
                 vscode.postMessage({ command: 'openWebsite' });
+            });
+        }
+
+        if (gitCredentialsBtn) {
+            gitCredentialsBtn.addEventListener('click', () => {
+                vscode.postMessage({ command: 'showGitCredentials' });
             });
         }
         
