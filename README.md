@@ -169,8 +169,25 @@ For a complete list and more information, visit [https://artemisapp.github.io](h
 - Node.js (v22.x or higher)
 - npm
 - VS Code (version 1.97.0 or higher)
+- (Optional) vsce: `npm install -g @vscode/vsce`
 
 ### Building the Extension
+
+#### Using Build Script
+
+**Full Build with Validation:**
+```bash
+./build-extension.sh
+```
+This script will:
+- Clean previous builds
+- Install dependencies
+- Run type checking
+- Run linting
+- Build the production bundle
+- Package as .vsix (if vsce is installed)
+
+#### Manual Build
 
 1. Clone the repository:
    ```bash
@@ -197,6 +214,18 @@ For a complete list and more information, visit [https://artemisapp.github.io](h
    ```bash
    npm run package
    ```
+
+#### Packaging for Distribution
+
+To create a `.vsix` file for distribution:
+```bash
+# Install vsce if not already installed
+npm install -g @vscode/vsce
+
+# Package the extension
+cd iris-thaumantias
+vsce package
+```
 
 ### Project Structure
 

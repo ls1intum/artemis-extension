@@ -7,12 +7,14 @@ Thank you for your interest in contributing! This guide will help you get starte
 ```bash
 # Clone the repository
 git clone https://github.com/ls1intum/artemis-extension.git
-cd artemis-extension/iris-thaumantias
+cd artemis-extension
 
-# Install dependencies
+# Build the extension (full validation)
+./build-extension.sh
+
+# OR manual approach for development
+cd iris-thaumantias
 npm install
-
-# Start development mode
 npm run watch
 
 # In VS Code, press F5 to launch Extension Development Host
