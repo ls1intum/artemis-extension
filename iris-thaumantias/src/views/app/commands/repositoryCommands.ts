@@ -354,7 +354,7 @@ export class RepositoryCommandModule {
                 if (currentUser?.login) {
                     username = currentUser.login;
                 }
-            } catch {}
+            } catch { }
 
             try {
                 const url = new URL(repositoryUri);
@@ -485,50 +485,17 @@ export class RepositoryCommandModule {
         }
 
         const choice = await vscode.window.showWarningMessage(
-            'Git needs your name and email before Artemis can submit your changes.',
+            'Git identity not configured. Artemis and Git need your name and email to submit changes. Without them, submissions fail with "Please tell me who you are."',
             { modal: true },
-            'Configure now'
+            'Configure Git Identity'
         );
 
-        if (choice !== 'Configure now') {
-            throw new Error('Submission cancelled. Configure Git user.name and user.email to continue.');
+        if (choice === 'Configure Git Identity') {
+            // Navigate to the Git Credentials Helper view
+            this.context.sendMessage({ command: 'showGitCredentials' });
         }
 
-        const nameInput = await vscode.window.showInputBox({
-            title: 'Git User Name',
-            prompt: 'Enter the name Git should use for Artemis submissions.',
-            value: existingName || '',
-            ignoreFocusOut: true,
-            validateInput: value => value.trim().length > 0 ? undefined : 'Name cannot be empty'
-        });
-
-        if (!nameInput) {
-            throw new Error('Submission cancelled. Git user name is required.');
-        }
-
-        const emailInput = await vscode.window.showInputBox({
-            title: 'Git Email Address',
-            prompt: 'Enter the email Git should use for Artemis submissions.',
-            value: existingEmail || '',
-            ignoreFocusOut: true,
-            validateInput: value => /\S+@\S+\.\S+/.test(value.trim()) ? undefined : 'Enter a valid email address'
-        });
-
-        if (!emailInput) {
-            throw new Error('Submission cancelled. Git email is required.');
-        }
-
-        const trimmedName = nameInput.trim();
-        const trimmedEmail = emailInput.trim();
-
-        try {
-            await execFileAsync('git', ['config', '--global', 'user.name', trimmedName]);
-            await execFileAsync('git', ['config', '--global', 'user.email', trimmedEmail]);
-            vscode.window.showInformationMessage('Git author information updated for future submissions.');
-        } catch (error: any) {
-            console.error('Failed to configure Git identity:', error);
-            throw new Error('Failed to configure Git identity. Please run git config manually and try again.');
-        }
+        throw new Error('Please configure Git identity in the helper, then try submitting again.');
     }
 
     private async getGitConfigValue(key: string, cwd: string): Promise<string | undefined> {

@@ -2,20 +2,11 @@
 
 All notable changes to the Artemis VS Code extension will be documented in this file.
 
-## [Unreleased]
-
-### Added
-- **Git Credentials Helper Page**: New dedicated view to help students configure Git identity (user.name and user.email) for Artemis submissions
-  - Explains why Git identity matters for submissions
-  - Form to set global Git identity with validation
-  - Copyable Git commands for viewing and configuring identity
-  - Full theme support with Modern theme hover animations
-  - Status feedback for successful configuration
-
 ## [0.1.3] - 2025-10-17
 
 ### Added
 - **Styling Infrastructure**: Introduced a `StyleManager` and dedicated `media/styles` assets so webviews share base, view, component, and theme styles without inline duplication.
+- **Git Credentials Helper**: New view to configure Git identity (user.name/email) for Artemis submissions with copyable commands and theme-aware styling
 
 ### Changed
 - **Theme Handling**: Consolidated theme tokens into reusable CSS files and expanded the token set (`--theme-*`) to support richer differentiation (hover, muted, accent, outline) across all themes.
