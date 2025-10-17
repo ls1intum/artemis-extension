@@ -1,0 +1,54 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "type": "npm",
+      "script": "watch",
+      "path": "iris-thaumantias/",
+      "label": "npm: watch - iris-thaumantias",
+      "group": "build",
+      "problemMatcher": "$tsc-watch",
+      "isBackground": true,
+      "presentation": {
+        "reveal": "never"
+      }
+    },
+    {
+      "type": "npm",
+      "script": "compile",
+      "path": "iris-thaumantias/",
+      "label": "npm: compile - iris-thaumantias",
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "problemMatcher": [
+        "$tsc",
+        "$eslint-stylish"
+      ]
+    },
+    {
+      "type": "npm",
+      "script": "package",
+      "path": "iris-thaumantias/",
+      "label": "npm: package - iris-thaumantias",
+      "group": "build",
+      "problemMatcher": []
+    },
+    {
+      "type": "npm",
+      "script": "pretest",
+      "path": "iris-thaumantias/",
+      "label": "npm: pretest - iris-thaumantias",
+      "group": "test",
+      "problemMatcher": []
+    },
+    {
+      "type": "shell",
+      "command": "./build-extension.sh",
+      "label": "Build Extension (Full)",
+      "group": "build",
+      "problemMatcher": []
+    }
+  ]
+}

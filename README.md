@@ -317,18 +317,62 @@ artemis-extension/
 - `npm run check-types` - Type check without emitting
 - `npm run test` - Run tests
 
-### Testing Locally
+### Running the Extension Locally
 
+#### Quick Start
 1. Open the project in VS Code
-2. Press `F5` to open a new Extension Development Host window
-3. The extension will be loaded and ready to test
-4. Use the Artemis icon in the activity bar to test functionality
+2. Press `F5` (or click Run → Start Debugging)
+3. Select "Run Extension" from the dropdown (if prompted)
+4. A new Extension Development Host window will open with your extension loaded
+5. Click the Artemis icon in the activity bar to test functionality
+
+#### Available Launch Configurations
+
+The project includes three launch configurations (press `F5` and select):
+
+1. **Run Extension** (Recommended for development)
+   - Automatically starts watch mode
+   - Recompiles on file changes
+   - Best for active development
+
+2. **Run Extension (No Watch)**
+   - Runs the extension without watch mode
+   - Use when you just want to test without auto-recompilation
+
+3. **Extension Tests**
+   - Runs the extension test suite
+   - Automatically compiles tests before running
+
+#### Development Workflow
+
+**Option 1: Automatic (Recommended)**
+```bash
+# Just press F5 in VS Code
+# Watch mode starts automatically
+# Make changes → See them reflected automatically
+```
+
+**Option 2: Manual Watch Mode**
+```bash
+cd iris-thaumantias
+npm run watch
+# Then press F5 in VS Code
+```
 
 ### Debugging
 
-- Set breakpoints in TypeScript files
-- Use VS Code's Debug Console to inspect variables
-- Check the Output panel (select "Artemis" or "Extension Host") for logs
+- **Set breakpoints**: Click in the gutter next to line numbers in TypeScript files
+- **Debug Console**: View and execute code in the debug context
+- **Variables panel**: Inspect variables and their values
+- **Call Stack**: See the execution path
+- **Output panel**: Check "Artemis" or "Extension Host" for logs
+- **Problems panel**: View TypeScript and ESLint errors
+
+#### Debug Tips
+- Use `console.log()` for quick debugging (appears in Debug Console)
+- Set conditional breakpoints for specific scenarios
+- Use "Restart" (Ctrl+Shift+F5) to reload the extension with changes
+- Check the "Extension Host" output panel for extension errors
 
 ## Contributing
 

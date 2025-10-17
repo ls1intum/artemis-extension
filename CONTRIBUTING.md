@@ -9,16 +9,20 @@ Thank you for your interest in contributing! This guide will help you get starte
 git clone https://github.com/ls1intum/artemis-extension.git
 cd artemis-extension
 
-# Build the extension (full validation)
-./build-extension.sh
-
-# OR manual approach for development
+# Install dependencies
 cd iris-thaumantias
 npm install
-npm run watch
+cd ..
 
-# In VS Code, press F5 to launch Extension Development Host
+# Open in VS Code and press F5
+# OR run full build first
+./build-extension.sh
 ```
+
+**Then in VS Code:**
+1. Press `F5` to start debugging
+2. Choose "Run Extension" (with watch mode)
+3. Test your changes in the Extension Development Host window
 
 ## Development Workflow
 
