@@ -45,8 +45,8 @@ body.theme-modern {
   --theme-font-family-mono: var(--vscode-editor-font-family);
 
   /* Button shadows */
-  --theme-button-shadow: 0 2px 8px rgba(0,0,0,0.1);
-  --theme-button-shadow-hover: 0 4px 12px rgba(0,0,0,0.15);
+  --theme-button-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  --theme-button-shadow-hover: 0 4px 12px rgba(0, 0, 0, 0.15);
 
   --theme-container-padding: 28px;
   --theme-container-radius: 12px;
@@ -77,4 +77,3 @@ body.theme-modern {
   --theme-accent-background: var(--theme-button-background);
   --theme-accent-foreground: var(--theme-button-foreground);
 }
-
