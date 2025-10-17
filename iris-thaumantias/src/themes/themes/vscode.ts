@@ -24,6 +24,31 @@ export const vscodeTheme: Theme = {
     successColor: 'var(--vscode-terminal-ansiGreen)',
     errorColor: 'var(--vscode-errorForeground)', 
     infoColor: 'var(--vscode-terminal-ansiBlue)',
+    warningColor: 'var(--vscode-editorWarning-foreground)',
+    
+    // Status backgrounds and borders
+    successBackground: 'rgba(38, 166, 91, 0.12)',
+    successBorder: 'rgba(38, 166, 91, 0.4)',
+    successForeground: 'var(--vscode-testing-iconPassed)',
+    errorBackground: 'rgba(229, 83, 83, 0.12)',
+    errorBorder: 'rgba(229, 83, 83, 0.4)',
+    errorForeground: 'var(--vscode-problemsErrorIcon-foreground)',
+    infoBackground: 'rgba(71, 155, 255, 0.12)',
+    infoBorder: 'rgba(71, 155, 255, 0.4)',
+    infoForeground: 'var(--vscode-problemsInfoIcon-foreground)',
+    warningBackground: 'rgba(255, 179, 71, 0.12)',
+    warningBorder: 'rgba(255, 179, 71, 0.4)',
+    warningForeground: 'var(--vscode-problemsWarningIcon-foreground)',
+    
+    // Code elements
+    codeBackground: 'var(--vscode-editor-inactiveSelectionBackground)',
+    codeForeground: 'var(--vscode-editor-foreground)',
+    fontFamilyMono: 'var(--vscode-editor-font-family)',
+    
+    // Additional UI
+    accent: 'var(--vscode-textLink-activeForeground)',
+    buttonShadow: 'none',
+    buttonShadowHover: 'none',
     
     // Layout - VSCode native spacing and sizing
     containerPadding: '12px',

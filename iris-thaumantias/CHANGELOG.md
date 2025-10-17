@@ -4,6 +4,14 @@ All notable changes to the Artemis VS Code extension will be documented in this 
 
 ## [Unreleased]
 
+### Added
+- **Git Credentials Helper Page**: New dedicated view to help students configure Git identity (user.name and user.email) for Artemis submissions
+  - Explains why Git identity matters for submissions
+  - Form to set global Git identity with validation
+  - Copyable Git commands for viewing and configuring identity
+  - Full theme support with Modern theme hover animations
+  - Status feedback for successful configuration
+
 ## [0.1.3] - 2025-10-17
 
 ### Added

@@ -24,6 +24,31 @@ export const synthwaveTheme: Theme = {
     successColor: '#39ff14',
     errorColor: '#ff073a',
     infoColor: '#00f5ff',
+    warningColor: '#ffbd39',
+    
+    // Status backgrounds and borders
+    successBackground: 'rgba(57, 255, 20, 0.15)',
+    successBorder: 'rgba(57, 255, 20, 0.5)',
+    successForeground: '#39ff14',
+    errorBackground: 'rgba(255, 7, 58, 0.15)',
+    errorBorder: 'rgba(255, 7, 58, 0.5)',
+    errorForeground: '#ff073a',
+    infoBackground: 'rgba(0, 245, 255, 0.15)',
+    infoBorder: 'rgba(0, 245, 255, 0.5)',
+    infoForeground: '#00f5ff',
+    warningBackground: 'rgba(255, 189, 57, 0.15)',
+    warningBorder: 'rgba(255, 189, 57, 0.5)',
+    warningForeground: '#ffbd39',
+    
+    // Code elements
+    codeBackground: 'rgba(0, 245, 255, 0.1)',
+    codeForeground: '#00f5ff',
+    fontFamilyMono: '"Courier New", Consolas, "SF Mono", Monaco, monospace',
+    
+    // Additional UI
+    accent: '#ff006e',
+    buttonShadow: '0 0 20px rgba(255, 0, 110, 0.4)',
+    buttonShadowHover: '0 0 30px rgba(255, 0, 110, 0.6)',
     
     // Layout - retro spacing with sharp edges
     containerPadding: '24px',

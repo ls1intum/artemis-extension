@@ -22,6 +22,31 @@ export interface Theme {
     successColor: string;
     errorColor: string;
     infoColor: string;
+    warningColor: string;
+    
+    // Status backgrounds and borders
+    successBackground: string;
+    successBorder: string;
+    successForeground: string;
+    errorBackground: string;
+    errorBorder: string;
+    errorForeground: string;
+    infoBackground: string;
+    infoBorder: string;
+    infoForeground: string;
+    warningBackground: string;
+    warningBorder: string;
+    warningForeground: string;
+    
+    // Code elements
+    codeBackground: string;
+    codeForeground: string;
+    fontFamilyMono: string;
+    
+    // Additional UI
+    accent: string;
+    buttonShadow: string;
+    buttonShadowHover: string;
     
     // Layout properties
     containerPadding: string;

@@ -23,7 +23,30 @@ body.theme-vscode {
   --theme-success-rgb: 63, 185, 80;
   --theme-error: var(--vscode-errorForeground);
   --theme-info: var(--vscode-terminal-ansiBlue);
-  --theme-warning: #f59e0b;
+  --theme-warning: var(--vscode-editorWarning-foreground);
+
+  /* Status backgrounds and borders */
+  --theme-success-background: rgba(38, 166, 91, 0.12);
+  --theme-success-border: rgba(38, 166, 91, 0.4);
+  --theme-success-foreground: var(--vscode-testing-iconPassed);
+  --theme-error-background: rgba(229, 83, 83, 0.12);
+  --theme-error-border: rgba(229, 83, 83, 0.4);
+  --theme-error-foreground: var(--vscode-problemsErrorIcon-foreground);
+  --theme-info-background: rgba(71, 155, 255, 0.12);
+  --theme-info-border: rgba(71, 155, 255, 0.4);
+  --theme-info-foreground: var(--vscode-problemsInfoIcon-foreground);
+  --theme-warning-background: rgba(255, 179, 71, 0.12);
+  --theme-warning-border: rgba(255, 179, 71, 0.4);
+  --theme-warning-foreground: var(--vscode-problemsWarningIcon-foreground);
+
+  /* Code elements */
+  --theme-code-background: var(--vscode-editor-inactiveSelectionBackground);
+  --theme-code-foreground: var(--vscode-editor-foreground);
+  --theme-font-family-mono: var(--vscode-editor-font-family);
+
+  /* Button shadows */
+  --theme-button-shadow: none;
+  --theme-button-shadow-hover: none;
 
   --theme-container-padding: 12px;
   --theme-container-radius: 3px;
@@ -50,7 +73,8 @@ body.theme-vscode {
 
   --theme-primary-color: var(--vscode-focusBorder);
   --theme-primary-color-rgb: 0, 122, 255;
-  --theme-accent: var(--vscode-focusBorder);
+  --theme-accent: var(--vscode-textLink-activeForeground);
   --theme-accent-background: var(--theme-button-background);
   --theme-accent-foreground: var(--theme-button-foreground);
 }
+

@@ -37,11 +37,11 @@ export class GitCredentialsView {
     </style>
 </head>
 <body class="theme-${currentTheme}">
-    <div class="git-credentials-container">
-        <div class="back-link-container">
-            <div class="back-link" id="backToDashboardLink">← Back to Dashboard</div>
-        </div>
+    <div class="back-link-container">
+        <div class="back-link" onclick="backToDashboard()">← Back to Dashboard</div>
+    </div>
 
+    <div class="git-credentials-container">
         <header class="view-header">
             <h1 class="view-title">
                 <span class="view-icon">${gitIcon}</span>
@@ -88,10 +88,17 @@ export class GitCredentialsView {
         </section>
 
         <section class="tips-section">
-            <h2>Tips</h2>
+            <h2>Tips & Useful Commands</h2>
             <ul>
-                <li>Use <code>git config user.name</code> / <code>git config user.email</code> without <code>--global</code> if you want repo-specific values.</li>
-                <li>Git credentials (username/password or token) are managed separately via Git’s credential helper.</li>
+                <li>
+                    View your current Git identity:
+                    <div class="command-group">
+                        <code class="copyable-command" onclick="copyCommand('git config user.name')" title="Click to copy">git config user.name</code>
+                        <code class="copyable-command" onclick="copyCommand('git config user.email')" title="Click to copy">git config user.email</code>
+                    </div>
+                </li>
+                <li>Use these commands without <code>--global</code> if you want to set repo-specific values instead of global ones.</li>
+                <li>Git credentials (username/password or token) are managed separately via Git's credential helper.</li>
                 <li>You can rerun this helper anytime if you change your preferred name or email.</li>
             </ul>
         </section>
@@ -105,7 +112,6 @@ export class GitCredentialsView {
         const emailInput = $('emailInput');
         const identityForm = $('identityForm');
         const statusMessage = $('statusMessage');
-        const backToDashboardLink = $('backToDashboardLink');
 
         const setStatus = (type, message) => {
             if (!statusMessage) {
@@ -117,11 +123,32 @@ export class GitCredentialsView {
             statusMessage.classList.toggle('visible', Boolean(message));
         };
 
-        if (backToDashboardLink) {
-            backToDashboardLink.addEventListener('click', () => {
-                vscode.postMessage({ command: 'backToDashboard' });
+        window.backToDashboard = function() {
+            vscode.postMessage({ command: 'backToDashboard' });
+        };
+
+        window.copyCommand = function(command) {
+            vscode.postMessage({ 
+                command: 'copyToClipboard',
+                text: command
             });
-        }
+            
+            // Visual feedback
+            const allCommands = document.querySelectorAll('.copyable-command');
+            allCommands.forEach(cmd => {
+                if (cmd.textContent.trim() === command.replace(/\\"/g, '"')) {
+                    const originalText = cmd.innerHTML;
+                    cmd.innerHTML = '✓ Copied!';
+                    cmd.style.background = 'var(--theme-success-background)';
+                    cmd.style.color = 'var(--theme-success-foreground)';
+                    setTimeout(() => {
+                        cmd.innerHTML = originalText;
+                        cmd.style.background = '';
+                        cmd.style.color = '';
+                    }, 1500);
+                }
+            });
+        };
 
         if (identityForm) {
             identityForm.addEventListener('submit', (event) => {
