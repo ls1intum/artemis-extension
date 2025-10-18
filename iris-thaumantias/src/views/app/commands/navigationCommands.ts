@@ -22,6 +22,7 @@ export class NavigationCommandModule {
             showAiConfig: this.handleShowAiConfig,
             showServiceStatus: this.handleShowServiceStatus,
             showRecommendedExtensions: this.handleShowRecommendedExtensions,
+            showGitCredentials: this.handleShowGitCredentials,
             loadArchivedCourses: this.handleLoadArchivedCourses,
             reloadCourses: this.handleReloadCourses,
             viewArchivedCourse: this.handleViewArchivedCourse,
@@ -163,6 +164,10 @@ export class NavigationCommandModule {
 
     private handleShowRecommendedExtensions = async (): Promise<void> => {
         this.context.actionHandler.showRecommendedExtensions();
+    };
+
+    private handleShowGitCredentials = async (): Promise<void> => {
+        this.context.actionHandler.showGitCredentials();
     };
 
     private handleLoadArchivedCourses = async (): Promise<void> => {

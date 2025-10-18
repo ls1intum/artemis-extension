@@ -297,6 +297,13 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
         }
     }
 
+    public showGitCredentials(): void {
+        this._appStateManager.showGitCredentials();
+        if (this._view) {
+            this.render();
+        }
+    }
+
     public showCourseDetail(courseData: any): void {
         this._appStateManager.showCourseDetail(courseData);
         

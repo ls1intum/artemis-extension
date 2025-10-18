@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
-import { execFile } from 'child_process';
+import { execFile, spawn } from 'child_process';
 import { promisify } from 'util';
 import type { CommandContext, CommandMap } from './types';
 import { VSCODE_CONFIG } from '../../../utils';
@@ -35,6 +35,9 @@ export class RepositoryCommandModule {
             copyCloneUrl: this.handleCopyCloneUrl,
             pullChanges: this.handlePullChanges,
             submitExercise: this.handleSubmitExercise,
+            saveGitCredentials: this.handleSaveGitCredentials,
+            saveGitIdentity: this.handleSaveGitIdentity,
+            requestGitIdentity: this.handleRequestGitIdentity,
         };
     }
 
@@ -351,7 +354,7 @@ export class RepositoryCommandModule {
                 if (currentUser?.login) {
                     username = currentUser.login;
                 }
-            } catch {}
+            } catch { }
 
             try {
                 const url = new URL(repositoryUri);
@@ -444,6 +447,8 @@ export class RepositoryCommandModule {
                 );
                 const messageText = (commitMessage && commitMessage.trim()) || configuredDefault;
 
+                await this.ensureGitIdentityConfigured(cwd);
+
                 progress.report({ message: 'Committing changes...' });
                 await execFileAsync('git', ['commit', '-m', messageText], { cwd });
 
@@ -466,10 +471,217 @@ export class RepositoryCommandModule {
         } catch (error: any) {
             console.error('Submit exercise error:', error);
             const errorMessage = error instanceof Error ? error.message : 'Failed to submit exercise.';
-            vscode.window.showErrorMessage(errorMessage);
+
+            // Don't show error notification if user is being directed to Git Credentials Helper
+            if (errorMessage !== 'GIT_IDENTITY_NOT_CONFIGURED') {
+                vscode.window.showErrorMessage(errorMessage);
+            }
+
             this.context.sendMessage({ command: 'submissionResult', success: false, error: errorMessage });
         }
     };
+
+    private async ensureGitIdentityConfigured(cwd: string): Promise<void> {
+        const existingName = await this.getGitConfigValue('user.name', cwd);
+        const existingEmail = await this.getGitConfigValue('user.email', cwd);
+
+        if (existingName && existingEmail) {
+            return;
+        }
+
+        const choice = await vscode.window.showWarningMessage(
+            'Git identity not configured. Artemis and Git need your name and email to submit changes. Without them, submissions fail with "Please tell me who you are."',
+            { modal: true },
+            'Configure Git Identity'
+        );
+
+        if (choice === 'Configure Git Identity') {
+            // Navigate to the Git Credentials Helper view
+            this.context.actionHandler.showGitCredentials();
+        }
+
+        throw new Error('Please configure Git identity in the helper, then try submitting again.');
+    }
+
+    private async getGitConfigValue(key: string, cwd: string): Promise<string | undefined> {
+        const readValue = async (args: string[], options?: { cwd?: string }) => {
+            try {
+                const { stdout } = await execFileAsync('git', args, options);
+                const stdoutString = typeof stdout === 'string' ? stdout : stdout.toString('utf8');
+                const value = stdoutString.trim();
+                return value.length > 0 ? value : undefined;
+            } catch {
+                return undefined;
+            }
+        };
+
+        const local = await readValue(['config', '--get', key], { cwd });
+        if (local) {
+            return local;
+        }
+
+        return await readValue(['config', '--global', '--get', key]);
+    }
+
+    private handleSaveGitIdentity = async (message: any): Promise<void> => {
+        const rawName = typeof message?.name === 'string' ? message.name.trim() : '';
+        const rawEmail = typeof message?.email === 'string' ? message.email.trim() : '';
+
+        const sendResult = (status: 'success' | 'error' | 'warning' | 'info', text: string) => {
+            this.context.sendMessage({
+                command: 'gitCredentialsResult',
+                status,
+                message: text
+            });
+        };
+
+        if (!rawName) {
+            sendResult('warning', 'Name cannot be empty.');
+            vscode.window.showErrorMessage('Please provide a name before saving your Git identity.');
+            return;
+        }
+
+        if (!rawEmail || !/\S+@\S+\.\S+/.test(rawEmail)) {
+            sendResult('warning', 'Enter a valid email address.');
+            vscode.window.showErrorMessage('Please provide a valid email address before saving your Git identity.');
+            return;
+        }
+
+        try {
+            await execFileAsync('git', ['config', '--global', 'user.name', rawName]);
+            await execFileAsync('git', ['config', '--global', 'user.email', rawEmail]);
+            sendResult('success', 'Git identity saved globally.');
+            vscode.window.showInformationMessage('Git author information saved globally.');
+        } catch (error: any) {
+            console.error('Failed to save Git identity globally:', error);
+            const messageText = error instanceof Error ? error.message : 'Unknown error';
+            sendResult('error', `Failed to save Git identity: ${messageText}`);
+            vscode.window.showErrorMessage(`Failed to save Git identity: ${messageText}`);
+        }
+    };
+
+    private handleRequestGitIdentity = async (): Promise<void> => {
+        const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+        const cwd = workspaceFolder?.uri.fsPath ?? process.cwd();
+
+        const name = await this.getGitConfigValue('user.name', cwd);
+        const email = await this.getGitConfigValue('user.email', cwd);
+
+        this.context.sendMessage({
+            command: 'gitIdentityInfo',
+            name: name ?? '',
+            email: email ?? ''
+        });
+    };
+
+    private handleSaveGitCredentials = async (message: any): Promise<void> => {
+        const rawUsername = typeof message?.username === 'string' ? message.username.trim() : '';
+        const rawToken = typeof message?.token === 'string' ? message.token.trim() : '';
+        const rawServerUrl = typeof message?.serverUrl === 'string' ? message.serverUrl.trim() : '';
+
+        const config = vscode.workspace.getConfiguration(VSCODE_CONFIG.ARTEMIS_SECTION);
+        const configuredServerUrl = config.get<string>(VSCODE_CONFIG.SERVER_URL_KEY, 'https://artemis.cit.tum.de');
+        const serverUrl = rawServerUrl || configuredServerUrl;
+
+        const sendResult = (status: 'success' | 'error' | 'warning' | 'info', text: string) => {
+            this.context.sendMessage({
+                command: 'gitCredentialsResult',
+                status,
+                message: text
+            });
+        };
+
+        if (!rawUsername) {
+            sendResult('warning', 'Username is required.');
+            vscode.window.showErrorMessage('Please provide a username before saving Git credentials.');
+            return;
+        }
+
+        if (!rawToken) {
+            sendResult('warning', 'Token is required.');
+            vscode.window.showErrorMessage('Please provide a VCS token before saving Git credentials.');
+            return;
+        }
+
+        let host: string;
+        try {
+            const parsedUrl = new URL(serverUrl);
+            host = parsedUrl.host;
+            if (!host) {
+                throw new Error('Missing host in server URL.');
+            }
+        } catch (error) {
+            console.error('Invalid Artemis server URL:', error);
+            sendResult('error', 'Invalid Artemis server URL.');
+            vscode.window.showErrorMessage('Invalid Artemis server URL. Please verify the value and try again.');
+            return;
+        }
+
+        try {
+            await execFileAsync('git', ['--version']);
+        } catch {
+            sendResult('error', 'Git is not available on the PATH.');
+            vscode.window.showErrorMessage('Git is not available on this system. Please install Git and try again.');
+            return;
+        }
+
+        try {
+            await this.ensureCredentialHelperConfigured();
+        } catch (error: any) {
+            console.error('Failed to configure credential helper:', error);
+            const messageText = error instanceof Error ? error.message : 'Unknown error';
+            sendResult('error', `Failed to configure credential helper: ${messageText}`);
+            vscode.window.showErrorMessage(`Failed to configure Git credential helper: ${messageText}`);
+            return;
+        }
+
+        try {
+            await this.storeCredentialEntry(host, rawUsername, rawToken);
+            const successMessage = `Saved Git credentials for ${host}.`;
+            sendResult('success', successMessage);
+            vscode.window.showInformationMessage(successMessage);
+        } catch (error: any) {
+            console.error('Failed to store credential entry:', error);
+            const messageText = error instanceof Error ? error.message : 'Unknown error';
+            sendResult('error', `Failed to save credentials: ${messageText}`);
+            vscode.window.showErrorMessage(`Failed to save Git credentials: ${messageText}`);
+        }
+    };
+
+    private async ensureCredentialHelperConfigured(): Promise<void> {
+        try {
+            const { stdout } = await execFileAsync('git', ['config', '--global', '--get', 'credential.helper']);
+            if (!stdout || stdout.trim().length === 0) {
+                await execFileAsync('git', ['config', '--global', 'credential.helper', 'store']);
+            }
+        } catch {
+            await execFileAsync('git', ['config', '--global', 'credential.helper', 'store']);
+        }
+    }
+
+    private async storeCredentialEntry(host: string, username: string, password: string): Promise<void> {
+        const input = `protocol=https\nhost=${host}\nusername=${username}\npassword=${password}\n\n`;
+
+        await new Promise<void>((resolve, reject) => {
+            const child = spawn('git', ['credential', 'approve']);
+            let stderr = '';
+
+            child.on('error', (error) => reject(error));
+            child.stderr.on('data', (data) => {
+                stderr += data.toString();
+            });
+            child.on('close', (code) => {
+                if (code === 0) {
+                    resolve();
+                } else {
+                    reject(new Error(stderr.trim() || `git credential approve exited with code ${code}`));
+                }
+            });
+
+            child.stdin.write(input);
+            child.stdin.end();
+        });
+    }
 
     private registerWorkspaceListeners(): void {
         if (this.workspaceListenersRegistered) {

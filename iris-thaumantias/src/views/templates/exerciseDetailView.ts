@@ -28,16 +28,16 @@ export class ExerciseDetailView {
         const styles = this._styleManager.getStyles(currentTheme, [
             'views/exercise-detail.css'
         ]);
-        
+
         if (!exerciseData) {
             return this._getEmptyStateHtml(themeCSS, currentTheme, styles);
         }
-        
+
         return this._getExerciseDetailHtml(exerciseData, themeCSS, currentTheme, hideDeveloperTools, styles);
     }
 
     private _getEmptyStateHtml(themeCSS: string, currentTheme: string, styles: string): string {
-    return `<!DOCTYPE html>
+        return `<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -72,7 +72,7 @@ export class ExerciseDetailView {
 
     private _getExerciseDetailHtml(exerciseData: any, themeCSS: string, currentTheme: string, hideDeveloperTools: boolean, styles: string): string {
         const exercise = exerciseData?.exercise;
-        
+
         if (!exercise) {
             return this._getEmptyStateHtml(themeCSS, currentTheme, styles);
         }
@@ -86,15 +86,15 @@ export class ExerciseDetailView {
         const bonusPoints = exercise.bonusPoints || 0;
         const releaseDate = exercise.releaseDate ? new Date(exercise.releaseDate).toLocaleString() : 'No release date';
         const mode = exercise.mode?.toLowerCase().replace('_', ' ') || 'Unknown';
-        const includedInScore = exercise.includedInOverallScore === 'NOT_INCLUDED' ? 'Not included in overall score' : 
-                              exercise.includedInOverallScore === 'INCLUDED_COMPLETELY' ? 'Included in overall score' : 
-                              'Partially included in score';
+        const includedInScore = exercise.includedInOverallScore === 'NOT_INCLUDED' ? 'Not included in overall score' :
+            exercise.includedInOverallScore === 'INCLUDED_COMPLETELY' ? 'Included in overall score' :
+                'Partially included in score';
         const filePattern = exercise.filePattern ? exercise.filePattern.split(',').map((ext: string) => ext.trim().toUpperCase()).join(', ') : '';
-        
+
         // Extract problem statement and process markdown links
         let problemStatement = exercise.problemStatement || 'No description available';
         const downloadLinks: { text: string; url: string }[] = [];
-        
+
         // Extract markdown links for file downloads
         const markdownLinkRegex = /\[([^\]]+)\]\(([^)]+)\)/g;
         let match;
@@ -106,7 +106,7 @@ export class ExerciseDetailView {
                 });
             }
         }
-        
+
         // Remove markdown links from problem statement for cleaner display
         problemStatement = problemStatement.replace(markdownLinkRegex, '$1');
 
@@ -138,14 +138,14 @@ export class ExerciseDetailView {
             });
             return placeholder;
         });
-        
+
         // Clean up excessive whitespace and normalize line breaks
         problemStatement = problemStatement
             .replace(/\r\n/g, '\n')  // Normalize line endings
             .replace(/\n{3,}/g, '\n\n')  // Replace 3+ line breaks with 2
             .replace(/[ \t]+/g, ' ')  // Replace multiple spaces/tabs with single space
             .trim();  // Remove leading/trailing whitespace
-        
+
         // Convert numbered tasks with [task][task name](<testid>...) pattern to container with structured layout
         problemStatement = problemStatement.replace(
             /(^|\n)\s*(\d+)\.\s*\[task\](?:\[([^\]]+)\])?(?:\(([^)]*)\))?\s*([^\n]*)/g,
@@ -212,10 +212,10 @@ export class ExerciseDetailView {
                 return `${prefix}<div class="task-container">${headerHtml}${descriptionHtml}</div>`;
             }
         );
-        
+
         // Convert backticks to code tags for syntax highlighting AFTER tasks
         problemStatement = problemStatement.replace(/`([^`]+)`/g, '<code>$1</code>');
-        
+
         // Convert markdown headers to proper HTML - from largest to smallest to avoid conflicts
         problemStatement = problemStatement
             .replace(/^###### (.*$)/gm, '<h6>$1</h6>')
@@ -224,23 +224,23 @@ export class ExerciseDetailView {
             .replace(/^### (.*$)/gm, '<h3>$1</h3>')
             .replace(/^## (.*$)/gm, '<h2>$1</h2>')
             .replace(/^# (.*$)/gm, '<h1>$1</h1>');
-        
+
         // Convert --- to horizontal rule
         problemStatement = problemStatement.replace(/^---$/gm, '<hr>');
-        
+
         // Convert **bold** to <strong>
         problemStatement = problemStatement.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
-        
+
         // Convert bullet points (- item) to proper HTML lists
         problemStatement = problemStatement.replace(/^- (.+)$/gm, '<li>$1</li>');
-        
+
         // Wrap consecutive <li> items in <ul> tags
         problemStatement = problemStatement.replace(/(<li>.*?<\/li>(?:\s*<li>.*?<\/li>)*)/gs, '<ul>$1</ul>');
-        
+
         // Convert double line breaks to paragraphs
         problemStatement = problemStatement.replace(/\n\n/g, '</p><p>');
         problemStatement = '<p>' + problemStatement + '</p>';
-        
+
         // Clean up empty paragraphs and fix paragraph around other elements
         problemStatement = problemStatement
             .replace(/<p><\/p>/g, '')  // Remove empty paragraphs
@@ -257,7 +257,7 @@ export class ExerciseDetailView {
         for (const block of codeBlocks) {
             problemStatement = problemStatement.replace(block.placeholder, block.html);
         }
-        
+
         // Course information
         const course = exercise.course;
         const courseName = course?.title || 'Unknown Course';
@@ -339,56 +339,56 @@ export class ExerciseDetailView {
     
 
     ${(() => {
-    const hasParticipation = Array.isArray(exercise.studentParticipations) && exercise.studentParticipations.length > 0;
-    const firstParticipation = hasParticipation ? exercise.studentParticipations[0] : undefined;
-    const participationId = firstParticipation?.id;
-    const rawExerciseType = exercise.type || exercise.exerciseType || '';
-    const normalizedExerciseType = typeof rawExerciseType === 'string' ? rawExerciseType.toLowerCase() : '';
-    const isProgrammingExercise = normalizedExerciseType === 'programming';
-    const isQuizExercise = normalizedExerciseType === 'quiz';
-        
-        // Get latest submission and build status
-        let buildStatusHtml = '';
-        if (hasParticipation && firstParticipation?.submissions && firstParticipation.submissions.length > 0) {
-            
-            // Find the latest submission by date (submissions may not be sorted)
-            const latestSubmission = firstParticipation.submissions.reduce((latest: any, current: any) => {
-                const latestDate = new Date(latest.submissionDate);
-                const currentDate = new Date(current.submissionDate);
-                return currentDate > latestDate ? current : latest;
-            });
-            
-            const latestResult = latestSubmission.results && latestSubmission.results.length > 0 
-                ? latestSubmission.results[latestSubmission.results.length - 1] : null;
-            
-            // Only show build status for programming exercises
-            if (isProgrammingExercise) {
-                const buildFailed = latestSubmission.buildFailed;
-                const scorePercentage = latestResult ? latestResult.score : 0; // This is 0-100
-                const maxPoints = exercise.maxPoints || 0;
-                const scorePoints = Math.round((scorePercentage / 100) * maxPoints * 100) / 100; // Convert to points
-                const successful = latestResult ? latestResult.successful : false;
-                
-                // Calculate test statistics
-                const totalTests = latestResult?.testCaseCount || 0;
-                const passedTests = latestResult?.passedTestCaseCount || 0;
-                const hasTestInfo = totalTests > 0;
-                
-                // Generate status badge (logic shared with websocket handler)
-                let statusBadge = '';
-                if (buildFailed) {
-                    statusBadge = '<span class="status-badge failed">Build Failed</span>';
-                } else if (hasTestInfo) {
-                    const passPercentage = (passedTests / totalTests) * 100;
-                    const badgeClass = passPercentage >= 90 ? 'success' : passPercentage >= 75 ? 'partial' : 'failed';
-                    statusBadge = `<span class="status-badge ${badgeClass}">${passedTests}/${totalTests} tests passed</span>`;
-                } else {
-                    statusBadge = successful 
-                        ? '<span class="status-badge success">Build Success</span>'
-                        : '<span class="status-badge failed">Tests Failed</span>';
-                }
-                
-                buildStatusHtml = `
+                const hasParticipation = Array.isArray(exercise.studentParticipations) && exercise.studentParticipations.length > 0;
+                const firstParticipation = hasParticipation ? exercise.studentParticipations[0] : undefined;
+                const participationId = firstParticipation?.id;
+                const rawExerciseType = exercise.type || exercise.exerciseType || '';
+                const normalizedExerciseType = typeof rawExerciseType === 'string' ? rawExerciseType.toLowerCase() : '';
+                const isProgrammingExercise = normalizedExerciseType === 'programming';
+                const isQuizExercise = normalizedExerciseType === 'quiz';
+
+                // Get latest submission and build status
+                let buildStatusHtml = '';
+                if (hasParticipation && firstParticipation?.submissions && firstParticipation.submissions.length > 0) {
+
+                    // Find the latest submission by date (submissions may not be sorted)
+                    const latestSubmission = firstParticipation.submissions.reduce((latest: any, current: any) => {
+                        const latestDate = new Date(latest.submissionDate);
+                        const currentDate = new Date(current.submissionDate);
+                        return currentDate > latestDate ? current : latest;
+                    });
+
+                    const latestResult = latestSubmission.results && latestSubmission.results.length > 0
+                        ? latestSubmission.results[latestSubmission.results.length - 1] : null;
+
+                    // Only show build status for programming exercises
+                    if (isProgrammingExercise) {
+                        const buildFailed = latestSubmission.buildFailed;
+                        const scorePercentage = latestResult ? latestResult.score : 0; // This is 0-100
+                        const maxPoints = exercise.maxPoints || 0;
+                        const scorePoints = Math.round((scorePercentage / 100) * maxPoints * 100) / 100; // Convert to points
+                        const successful = latestResult ? latestResult.successful : false;
+
+                        // Calculate test statistics
+                        const totalTests = latestResult?.testCaseCount || 0;
+                        const passedTests = latestResult?.passedTestCaseCount || 0;
+                        const hasTestInfo = totalTests > 0;
+
+                        // Generate status badge (logic shared with websocket handler)
+                        let statusBadge = '';
+                        if (buildFailed) {
+                            statusBadge = '<span class="status-badge failed">Build Failed</span>';
+                        } else if (hasTestInfo) {
+                            const passPercentage = (passedTests / totalTests) * 100;
+                            const badgeClass = passPercentage >= 90 ? 'success' : passPercentage >= 75 ? 'partial' : 'failed';
+                            statusBadge = `<span class="status-badge ${badgeClass}">${passedTests}/${totalTests} tests passed</span>`;
+                        } else {
+                            statusBadge = successful
+                                ? '<span class="status-badge success">Build Success</span>'
+                                : '<span class="status-badge failed">Tests Failed</span>';
+                        }
+
+                        buildStatusHtml = `
                     <div class="build-status">
                         <div class="build-status-title">Latest Build Status</div>
                         <div class="build-status-info">
@@ -417,37 +417,37 @@ export class ExerciseDetailView {
                         </div>` : ''}
                     </div>
                 `;
-            } else if (!isQuizExercise) {
-                // For non-programming exercises, show submission status
-                const submitted = latestSubmission.submitted;
-                const empty = latestSubmission.empty;
-                const scorePercentage = latestResult ? latestResult.score : 0; // This is 0-100
-                const maxPoints = exercise.maxPoints || 0;
-                const scorePoints = Math.round((scorePercentage / 100) * maxPoints * 100) / 100; // Convert to points
-                
-                let statusBadge = '';
-                let statusText = '';
-                if (submitted && !empty) {
-                    statusBadge = '<span class="status-badge success">Submitted</span>';
-                    statusText = 'Latest Submission Status';
-                } else if (!empty) {
-                    statusBadge = '<span class="status-badge building">Draft Saved</span>';
-                    statusText = 'Current Status';
-                } else {
-                    statusBadge = '<span class="status-badge failed">No Submission</span>';
-                    statusText = 'Submission Status';
-                }
-                
-                let scoreDisplay = '';
-                if (latestResult) {
-                    scoreDisplay = `
+                    } else if (!isQuizExercise) {
+                        // For non-programming exercises, show submission status
+                        const submitted = latestSubmission.submitted;
+                        const empty = latestSubmission.empty;
+                        const scorePercentage = latestResult ? latestResult.score : 0; // This is 0-100
+                        const maxPoints = exercise.maxPoints || 0;
+                        const scorePoints = Math.round((scorePercentage / 100) * maxPoints * 100) / 100; // Convert to points
+
+                        let statusBadge = '';
+                        let statusText = '';
+                        if (submitted && !empty) {
+                            statusBadge = '<span class="status-badge success">Submitted</span>';
+                            statusText = 'Latest Submission Status';
+                        } else if (!empty) {
+                            statusBadge = '<span class="status-badge building">Draft Saved</span>';
+                            statusText = 'Current Status';
+                        } else {
+                            statusBadge = '<span class="status-badge failed">No Submission</span>';
+                            statusText = 'Submission Status';
+                        }
+
+                        let scoreDisplay = '';
+                        if (latestResult) {
+                            scoreDisplay = `
                         <div class="score-info">
                             Score: <span class="score-points">${scorePoints}/${maxPoints} (${scorePercentage.toFixed(2)}%)</span> ${maxPoints === 1 ? 'point' : 'points'}
                         </div>
                     `;
-                }
-                
-                buildStatusHtml = `
+                        }
+
+                        buildStatusHtml = `
                     <div class="build-status">
                         <div class="build-status-title">${statusText}</div>
                         <div class="build-status-info">
@@ -456,11 +456,11 @@ export class ExerciseDetailView {
                         </div>
                     </div>
                 `;
-            }
-        }
+                    }
+                }
 
-        if (hasParticipation && isProgrammingExercise && !buildStatusHtml) {
-            buildStatusHtml = `
+                if (hasParticipation && isProgrammingExercise && !buildStatusHtml) {
+                    buildStatusHtml = `
                 <div class="build-status build-status--empty">
                     <div class="build-status-title">Latest Build Status</div>
                     <div class="build-status-info">
@@ -468,18 +468,18 @@ export class ExerciseDetailView {
                     </div>
                 </div>
             `;
-        }
-        
-        const changeStatusHtml = hasParticipation && isProgrammingExercise ? `
+                }
+
+                const changeStatusHtml = hasParticipation && isProgrammingExercise ? `
             <div class=\"changes-status\" id=\"changesStatus\" data-state=\"checking\">
                 <span class=\"changes-status-indicator\"></span>
                 <span id=\"changesStatusText\">Checking workspace status...</span>
             </div>
         ` : '';
 
-        const actionsHtml = hasParticipation
-            ? (isProgrammingExercise
-                ? `<div class=\"participation-actions\">
+                const actionsHtml = hasParticipation
+                    ? (isProgrammingExercise
+                        ? `<div class=\"participation-actions\">
                     ${changeStatusHtml}
                     <div class=\"cloned-repo-notice\" id=\"clonedRepoNotice\" style=\"display: none;\">
                         <span id=\"clonedRepoMessage\">Repository recently cloned.</span> <a href=\"#\" class=\"open-repo-link\" onclick=\"openClonedRepository(); return false;\">Open now</a>
@@ -515,50 +515,51 @@ export class ExerciseDetailView {
                         </div>
                     </div>
                 </div>`
-                : `<div class=\"participation-actions\">
+                        : `<div class=\"participation-actions\">
                     <div class=\"action-button-row\">
                         <button class=\"participate-btn\" onclick=\"openExerciseInBrowser()\">Open in browser</button>
                     </div>
                 </div>`)
-            : (isProgrammingExercise
-                ? `<div class=\"participation-actions not-participated\">
+                    : (isProgrammingExercise
+                        ? `<div class=\"participation-actions not-participated\">
                     <div class=\"action-button-row\">
                         <button class=\"participate-btn\" onclick=\"participateInExercise()\">Participate</button>
                         <button class=\"participate-btn secondary\" onclick=\"openExerciseInBrowser()\">Open in browser</button>
                     </div>
                 </div>`
-                : `<div class=\"participation-actions not-participated\">
+                        : `<div class=\"participation-actions not-participated\">
                     <div class=\"action-button-row\">
                         <button class=\"participate-btn\" onclick=\"openExerciseInBrowser()\">Open in browser</button>
                     </div>
                 </div>`);
 
-        // Determine participation info based on exercise type
-        let participationStatus = '';
-        let participationMessage = '';
-        
-        if (isProgrammingExercise) {
-            participationStatus = hasParticipation ? 'Repository Ready' : 'Not Participating Yet';
-            participationMessage = hasParticipation ? 'You have already started this exercise.' : 'You have not started this exercise yet.';
-        } else {
-            // For non-programming exercises (quiz, modeling, text, file-upload)
-            const cleanedType = normalizedExerciseType.replace(/_/g, ' ').replace(/-/g, ' ');
-            const exerciseTypeDisplay = cleanedType
-                ? cleanedType.charAt(0).toUpperCase() + cleanedType.slice(1)
-                : 'Course';
-            const exerciseTypePlain = cleanedType || 'course';
-            participationStatus = `${exerciseTypeDisplay} Exercise`;
-            participationMessage = `This is a ${exerciseTypePlain} exercise. Complete it in the browser.`;
-        }
+                // Determine participation info based on exercise type
+                let participationStatus = '';
+                let participationMessage = '';
 
-        return `<div class=\"participation-section\" data-has-participation=\"${hasParticipation}\" data-participation-id=\"${participationId || ''}\">
+                if (isProgrammingExercise) {
+                    participationStatus = hasParticipation ? 'Repository Ready' : 'Not Participating Yet';
+                    participationMessage = hasParticipation ? 'You have already started this exercise.' : 'You have not started this exercise yet.';
+                } else {
+                    // For non-programming exercises (quiz, modeling, text, file-upload)
+                    const cleanedType = normalizedExerciseType.replace(/_/g, ' ').replace(/-/g, ' ');
+                    const exerciseTypeDisplay = cleanedType
+                        ? cleanedType.charAt(0).toUpperCase() + cleanedType.slice(1)
+                        : 'Course';
+                    const exerciseTypePlain = cleanedType || 'course';
+                    participationStatus = `${exerciseTypeDisplay} Exercise`;
+                    participationMessage = `This is a ${exerciseTypePlain} exercise. Complete it in the browser.`;
+                }
+
+                return `<div class=\"participation-section\" data-has-participation=\"${hasParticipation}\" data-participation-id=\"${participationId || ''}\">
         <div class=\"participation-info\">
             <div class=\"participation-status\">${participationStatus}</div>
             <div class=\"participation-message\">${participationMessage}</div>
         </div>
         ${actionsHtml}
         ${buildStatusHtml}
-    </div>`; })()}
+    </div>`;
+            })()}
 
     <div class="content-section iris-assist-section">
         <div class="iris-assist-content">
@@ -1116,6 +1117,10 @@ export class ExerciseDetailView {
             if (!iconElement) {
                 return;
             }
+            
+            // Only show when disconnected - hide all other states
+            iconElement.style.display = status === 'disconnected' ? 'flex' : 'none';
+            
             iconElement.className = 'repo-status-icon ' + status + (hasChanges ? ' has-changes' : '');
             iconElement.textContent = icon;
             iconElement.title = tooltip;

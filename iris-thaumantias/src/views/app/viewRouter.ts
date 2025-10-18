@@ -9,6 +9,7 @@ import { ExerciseDetailView } from '../templates/exerciseDetailView';
 import { LoginView } from '../templates/loginView';
 import { ServiceStatusView } from '../templates/serviceStatusView';
 import { RecommendedExtensionsView } from '../templates/recommendedExtensionsView';
+import { GitCredentialsView } from '../templates/gitCredentialsView';
 
 /**
  * Maps application state to the appropriate webview HTML.
@@ -23,6 +24,7 @@ export class ViewRouter {
     private readonly _aiCheckerView: AiCheckerView;
     private readonly _serviceStatusView: ServiceStatusView;
     private readonly _recommendedExtensionsView: RecommendedExtensionsView;
+    private readonly _gitCredentialsView: GitCredentialsView;
 
     constructor(
         private readonly _appStateManager: AppStateManager,
@@ -40,6 +42,7 @@ export class ViewRouter {
         this._aiCheckerView = new AiCheckerView(this._extensionContext, this._styleManager);
         this._serviceStatusView = new ServiceStatusView(this._extensionContext, this._styleManager);
         this._recommendedExtensionsView = new RecommendedExtensionsView(this._styleManager);
+        this._gitCredentialsView = new GitCredentialsView(this._extensionContext, this._styleManager);
     }
 
     public getHtml(): string {
@@ -80,6 +83,10 @@ export class ViewRouter {
             case 'recommended-extensions': {
                 const categories = this._appStateManager.recommendedExtensions || [];
                 return this._recommendedExtensionsView.generateHtml(categories);
+            }
+            case 'git-credentials': {
+                const userInfo = this._appStateManager.userInfo;
+                return this._gitCredentialsView.generateHtml(userInfo);
             }
             case 'login':
             default:

@@ -23,7 +23,30 @@ body.theme-synthwave {
   --theme-success-rgb: 57, 255, 20;
   --theme-error: #ff073a;
   --theme-info: #00f5ff;
-  --theme-warning: #ffb300;
+  --theme-warning: #ffbd39;
+
+  /* Status backgrounds and borders */
+  --theme-success-background: rgba(57, 255, 20, 0.15);
+  --theme-success-border: rgba(57, 255, 20, 0.5);
+  --theme-success-foreground: #39ff14;
+  --theme-error-background: rgba(255, 7, 58, 0.15);
+  --theme-error-border: rgba(255, 7, 58, 0.5);
+  --theme-error-foreground: #ff073a;
+  --theme-info-background: rgba(0, 245, 255, 0.15);
+  --theme-info-border: rgba(0, 245, 255, 0.5);
+  --theme-info-foreground: #00f5ff;
+  --theme-warning-background: rgba(255, 189, 57, 0.15);
+  --theme-warning-border: rgba(255, 189, 57, 0.5);
+  --theme-warning-foreground: #ffbd39;
+
+  /* Code elements */
+  --theme-code-background: rgba(0, 245, 255, 0.1);
+  --theme-code-foreground: #00f5ff;
+  --theme-font-family-mono: "Courier New", Consolas, "SF Mono", Monaco, monospace;
+
+  /* Button shadows */
+  --theme-button-shadow: 0 0 20px rgba(255, 0, 110, 0.4);
+  --theme-button-shadow-hover: 0 0 30px rgba(255, 0, 110, 0.6);
 
   --theme-container-padding: 24px;
   --theme-container-radius: 8px;
@@ -50,7 +73,7 @@ body.theme-synthwave {
 
   --theme-primary-color: #ff006e;
   --theme-primary-color-rgb: 255, 0, 110;
-  --theme-accent: #00f5ff;
+  --theme-accent: #ff006e;
   --theme-accent-background: linear-gradient(135deg, #ff006e 0%, #8338ec 100%);
   --theme-accent-foreground: #ffffff;
 }
