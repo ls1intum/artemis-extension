@@ -91,13 +91,13 @@ export class GitCredentialsView {
             <h2>Tips & Useful Commands</h2>
             <ul>
                 <li>
-                    View your current Git identity:
+                    View or change your Git identity manually:
                     <div class="command-group">
                         <code class="copyable-command" onclick="copyCommand('git config user.name')" title="Click to copy">git config user.name</code>
                         <code class="copyable-command" onclick="copyCommand('git config user.email')" title="Click to copy">git config user.email</code>
                     </div>
                 </li>
-                <li>Use these commands without <code>--global</code> if you want to set repo-specific values instead of global ones.</li>
+                <li>The form above saves your identity globally for all repositories on this computer.</li>
                 <li>Git credentials (username/password or token) are managed separately via Git's credential helper.</li>
                 <li>You can rerun this helper anytime if you change your preferred name or email.</li>
             </ul>
