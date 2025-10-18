@@ -471,7 +471,12 @@ export class RepositoryCommandModule {
         } catch (error: any) {
             console.error('Submit exercise error:', error);
             const errorMessage = error instanceof Error ? error.message : 'Failed to submit exercise.';
-            vscode.window.showErrorMessage(errorMessage);
+            
+            // Don't show error notification if user is being directed to Git Credentials Helper
+            if (errorMessage !== 'GIT_IDENTITY_NOT_CONFIGURED') {
+                vscode.window.showErrorMessage(errorMessage);
+            }
+            
             this.context.sendMessage({ command: 'submissionResult', success: false, error: errorMessage });
         }
     };
@@ -492,7 +497,7 @@ export class RepositoryCommandModule {
 
         if (choice === 'Configure Git Identity') {
             // Navigate to the Git Credentials Helper view
-            this.context.sendMessage({ command: 'showGitCredentials' });
+            this.context.actionHandler.showGitCredentials();
         }
 
         throw new Error('Please configure Git identity in the helper, then try submitting again.');
