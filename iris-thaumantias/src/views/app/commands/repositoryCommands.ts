@@ -471,12 +471,12 @@ export class RepositoryCommandModule {
         } catch (error: any) {
             console.error('Submit exercise error:', error);
             const errorMessage = error instanceof Error ? error.message : 'Failed to submit exercise.';
-            
+
             // Don't show error notification if user is being directed to Git Credentials Helper
             if (errorMessage !== 'GIT_IDENTITY_NOT_CONFIGURED') {
                 vscode.window.showErrorMessage(errorMessage);
             }
-            
+
             this.context.sendMessage({ command: 'submissionResult', success: false, error: errorMessage });
         }
     };
