@@ -2,6 +2,11 @@
 
 All notable changes to the Artemis VS Code extension will be documented in this file.
 
+## [0.1.4] - 2025-10-18
+
+### Fixed
+- **Test Results Loading Freeze**: Added 15-second timeout to prevent infinite "Loading test results..." state when API requests hang or fail, includes retry button
+
 ## [0.1.3] - 2025-10-17
 
 ### Added

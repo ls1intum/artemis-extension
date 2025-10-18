@@ -609,6 +609,9 @@ export class ExerciseDetailView {
         // Store PlantUML diagrams for rendering
         const plantUmlDiagrams = ${JSON.stringify(plantUmlDiagrams)};
         
+        // Timeout for test results fetching to prevent infinite loading
+        let fetchTestResultsTimeout = null;
+        
         // Auto-render PlantUML diagrams
         function renderPlantUmlDiagram(index, plantUml) {
             const placeholder = document.querySelector(\`.plantuml-placeholder[data-index="\${index}"]\`);
@@ -848,11 +851,30 @@ export class ExerciseDetailView {
                 return;
             }
 
+            // Clear any existing timeout
+            if (fetchTestResultsTimeout) {
+                clearTimeout(fetchTestResultsTimeout);
+            }
+
+            // Set a timeout to prevent infinite loading (15 seconds)
+            fetchTestResultsTimeout = setTimeout(() => {
+                if (container && !container.dataset.loaded) {
+                    container.innerHTML = 
+                        '<div class="test-results-loading">' +
+                        'Loading timed out. The request took too long.<br>' +
+                        '<button onclick="fetchTestResults()" style="margin-top: 12px; padding: 8px 16px; cursor: pointer;">Retry</button>' +
+                        '</div>';
+                    container.dataset.loaded = 'true';
+                    console.warn('Test results fetch timed out after 10 seconds');
+                }
+            }, 10000);
+
             try {
                 const ex = exerciseData.exercise || exerciseData;
                 const participations = ex.studentParticipations || [];
 
                 if (!participations.length) {
+                    clearTimeout(fetchTestResultsTimeout);
                     container.innerHTML = '<div class="test-results-loading">No participation found</div>';
                     return;
                 }
@@ -861,6 +883,7 @@ export class ExerciseDetailView {
                 const submissions = participation.submissions || [];
 
                 if (!submissions.length) {
+                    clearTimeout(fetchTestResultsTimeout);
                     container.innerHTML = '<div class="test-results-loading">No submissions found</div>';
                     return;
                 }
@@ -875,6 +898,7 @@ export class ExerciseDetailView {
                 const results = latestSubmission.results || [];
 
                 if (!results.length) {
+                    clearTimeout(fetchTestResultsTimeout);
                     container.innerHTML = '<div class="test-results-loading">No results found</div>';
                     return;
                 }
@@ -888,12 +912,19 @@ export class ExerciseDetailView {
                     resultId: latestResult.id
                 });
             } catch (e) {
+                clearTimeout(fetchTestResultsTimeout);
                 console.error('Error fetching test results:', e);
                 container.innerHTML = '<div class="test-results-loading">Error loading test results</div>';
             }
         };
 
         window.renderTestResults = function(testCases) {
+            // Clear the timeout since results have arrived
+            if (fetchTestResultsTimeout) {
+                clearTimeout(fetchTestResultsTimeout);
+                fetchTestResultsTimeout = null;
+            }
+
             const container = document.getElementById('testResultsContainer');
             if (!container) {
                 return;
