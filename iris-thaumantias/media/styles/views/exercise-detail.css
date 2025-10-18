@@ -206,8 +206,8 @@
             height: 14px;
         }
         .points-badge {
-            background: var(--theme-success);
-            color: white;
+            background: var(--theme-accent);
+            color: var(--theme-button-foreground);
             padding: 4px 8px;
             border-radius: 4px;
             font-size: 11px;

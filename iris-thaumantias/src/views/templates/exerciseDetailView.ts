@@ -1116,6 +1116,10 @@ export class ExerciseDetailView {
             if (!iconElement) {
                 return;
             }
+            
+            // Only show when disconnected - hide all other states
+            iconElement.style.display = status === 'disconnected' ? 'flex' : 'none';
+            
             iconElement.className = 'repo-status-icon ' + status + (hasChanges ? ' has-changes' : '');
             iconElement.textContent = icon;
             iconElement.title = tooltip;

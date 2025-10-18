@@ -7,6 +7,7 @@ All notable changes to the Artemis VS Code extension will be documented in this 
 ### Added
 - **Styling Infrastructure**: Introduced a `StyleManager` and dedicated `media/styles` assets so webviews share base, view, component, and theme styles without inline duplication.
 - **Git Credentials Helper**: New view to configure Git identity (user.name/email) for Artemis submissions with copyable commands and theme-aware styling
+- **Automated Git Identity Flow**: When submitting without configured Git identity, users are now automatically directed to the Git Credentials Helper with a clear explanation
 
 ### Changed
 - **Theme Handling**: Consolidated theme tokens into reusable CSS files and expanded the token set (`--theme-*`) to support richer differentiation (hover, muted, accent, outline) across all themes.
@@ -15,6 +16,7 @@ All notable changes to the Artemis VS Code extension will be documented in this 
 
 ### Improved
 - **Recommended Extensions View**: Added installed status badges and version display to mirror the AI Checker experience
+- **Exercise Details UI**: Points badge now uses theme accent color for better consistency; repository status icon only shows when there's an issue (disconnected state)
 
 ### Fixed
 - **PlantUML Diagram Scaling**: Fixed SVG diagrams squeezing in fullscreen view - diagrams now resize properly while maintaining aspect ratio
