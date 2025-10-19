@@ -13,7 +13,7 @@ import { ViewRouter } from '../app/viewRouter';
 import { ExerciseDetailView } from '../templates/exerciseDetailView';
 import { CourseDetailView } from '../templates/courseDetailView';
 import { StyleManager } from '../styles';
-import { ExerciseRegistry } from './chatWebviewProvider';
+import { ExerciseRegistry } from './exerciseRegistry';
 import { WebSocketMessageHandler, ResultDTO, ProgrammingSubmission, SubmissionProcessingMessage } from '../../types';
 
 export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebViewActionHandler {
