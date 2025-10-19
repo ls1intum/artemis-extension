@@ -23,6 +23,7 @@ export class IrisChatView {
 
         const trashIcon = IconDefinitions.getIcon('trash');
         const stethoscopeIcon = IconDefinitions.getIcon('stethoscope');
+        const questionMarkIcon = IconDefinitions.getIcon('question-mark');
 
         return `<!DOCTYPE html>
 <html lang="en">
@@ -192,8 +193,8 @@ export class IrisChatView {
                 <h4 class="menu-section-title">Chat Options</h4>
                 <div class="menu-item" onclick="clearHistory()">
                     ${trashIcon}
-                    <div>
-                        <div>Clear History</div>
+                    <div class="menu-item-content">
+                        <div class="menu-item-title">Clear History</div>
                         <div class="menu-item-description">Reset chat and remove all saved conversations</div>
                     </div>
                 </div>
@@ -202,17 +203,17 @@ export class IrisChatView {
             <div class="menu-section">
                 <h4 class="menu-section-title">Help</h4>
                 <div class="menu-item" onclick="openHelpPopup()">
-                    ❓
-                    <div>
-                        <div>Chat Context Guide</div>
+                    ${questionMarkIcon}
+                    <div class="menu-item-content">
+                        <div class="menu-item-title">Chat Context Guide</div>
                         <div class="menu-item-description">Learn how contexts impact responses</div>
                     </div>
                 </div>
                 ${showDiagnostics ? `
                 <div class="menu-item" onclick="openDiagnostics()">
                     ${stethoscopeIcon}
-                    <div>
-                        <div>Diagnostics</div>
+                    <div class="menu-item-content">
+                        <div class="menu-item-title">Diagnostics</div>
                         <div class="menu-item-description">View detailed context and session state</div>
                     </div>
                 </div>

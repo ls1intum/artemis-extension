@@ -149,7 +149,13 @@ export class IconDefinitions {
         'artemis-logo': `<svg xmlns="http://www.w3.org/2000/svg" width="232" height="204" viewBox="0 0 232 204" fill="none">
             <path fill-rule="evenodd" clip-rule="evenodd" d="M151 66L112 99.8764L229 201L151 66Z" stroke="currentColor" stroke-width="6"/>
             <path fill-rule="evenodd" clip-rule="evenodd" d="M0 198.5L153.5 65L115.5 0L0 198.5Z" fill="currentColor"/>
-        </svg>`
+        </svg>`,
+
+        'question-mark': `<svg width="800px" height="800px" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22Z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M9 9C9 5.49997 14.5 5.5 14.5 9C14.5 11.5 12 10.9999 12 13.9999" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M12 18.01L12.01 17.9989" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>`,
     };
 
     /**

@@ -120,7 +120,6 @@ body {
 
 .theme-modern .context-bean-header:hover {
     background: var(--theme-button-background);
-    transform: translateY(-1px);
 }
 
 .theme-modern .context-bean-header:hover .context-text,
@@ -130,6 +129,7 @@ body {
 
 .theme-modern .context-bean-header:hover .context-subtext,
 .theme-modern .context-bean-header:hover .context-dropdown-arrow {
+    color: var(--theme-button-foreground);
     opacity: 0.85;
 }
 
@@ -803,8 +803,7 @@ body {
     position: fixed;
     top: 0;
     right: 0;
-    width: min(420px, 100%);
-    max-width: 420px;
+    width: 100%;
     height: 100%;
     background: var(--theme-card-background);
     border-left: 1px solid var(--theme-border);
@@ -865,25 +864,92 @@ body {
     display: flex;
     gap: 12px;
     align-items: center;
-    padding: 10px 0;
+    padding: 10px 8px;
     cursor: pointer;
     border-radius: 8px;
     transition: var(--theme-transition);
+}
+
+.theme-vscode .menu-item {
+    border-radius: 3px;
+    transition: none;
+    padding: 10px 8px;
+    border: 1px solid transparent;
+}
+
+.theme-vscode .menu-item:hover {
+    background: var(--vscode-list-hoverBackground);
+    border-color: var(--vscode-focusBorder);
+}
+
+.theme-vscode .menu-item:hover svg {
+    color: var(--theme-foreground);
+}
+
+.theme-modern .menu-item {
+    border-radius: 8px;
+    transition: all 0.15s ease-in-out;
+}
+
+.theme-modern .menu-item:hover {
+    background: var(--theme-button-background);
+}
+
+.theme-modern .menu-item:hover .menu-item-title,
+.theme-modern .menu-item:hover .menu-item-description {
+    color: var(--theme-button-foreground);
+}
+
+.theme-modern .menu-item:hover svg {
+    color: var(--theme-button-foreground);
+}
+
+.theme-synthwave .menu-item {
+    border-radius: 8px;
+    transition: var(--theme-transition);
+}
+
+.theme-synthwave .menu-item:hover {
+    background: var(--theme-button-background);
+    box-shadow: 0 0 15px rgba(255, 0, 110, 0.3);
+}
+
+.theme-synthwave .menu-item:hover .menu-item-title,
+.theme-synthwave .menu-item:hover .menu-item-description {
+    color: #ffffff !important;
+}
+
+.theme-synthwave .menu-item:hover svg {
+    color: #ffffff !important;
 }
 
 .menu-item svg {
     width: 18px;
     height: 18px;
     color: var(--theme-foreground);
+    flex-shrink: 0;
+    transition: var(--theme-transition);
 }
 
-.menu-item:hover {
-    background: var(--theme-button-background);
-    padding-left: 8px;
+.menu-item-content {
+    flex: 1;
+}
+
+.menu-item-title {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--theme-foreground);
 }
 
 .menu-item-description {
     font-size: 11px;
+    color: var(--theme-muted);
+    margin-top: 2px;
+}
+
+.theme-modern .menu-item-description {
+    color: var(--theme-foreground);
+    opacity: 0.7;
 }
 
 .menu-info {
@@ -906,9 +972,5 @@ body {
 
     .chat-input-container {
         padding: 12px;
-    }
-
-    .side-menu {
-        width: 88%;
     }
 }
