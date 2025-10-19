@@ -9,6 +9,8 @@ import {
     ChatContextType,
     ContextSnapshot,
 } from './contextTypes';
+import { ArtemisApiService } from '../../api';
+import { ArtemisWebsocketService } from '../../services';
 
 type ChatContextReason =
     | 'user-selected'
@@ -26,19 +28,81 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
     private readonly _styleManager: StyleManager;
     private readonly _contextStore: ContextStore;
     private readonly _disposables: vscode.Disposable[] = [];
+    private _currentArtemisSessionId?: number;
+    private _irisUnsubscribe?: () => void;
 
     constructor(
         private readonly _extensionUri: vscode.Uri,
         private readonly _extensionContext: vscode.ExtensionContext,
+        private readonly _artemisApiService?: ArtemisApiService,
+        private readonly _websocketService?: ArtemisWebsocketService,
     ) {
         this._styleManager = new StyleManager(this._extensionUri);
         this._contextStore = new ContextStore(this._extensionContext);
     }
 
     public dispose(): void {
+        // Unsubscribe from Iris WebSocket
+        if (this._irisUnsubscribe) {
+            this._irisUnsubscribe();
+            this._irisUnsubscribe = undefined;
+        }
+
         while (this._disposables.length > 0) {
             const disposable = this._disposables.pop();
             disposable?.dispose();
+        }
+    }
+
+    private _handleIrisWebSocketMessage(data: any): void {
+        console.log('🔔 Received Iris WebSocket message:', JSON.stringify(data, null, 2));
+
+        if (!this._view) {
+            console.log('⚠️ No view available to display message');
+            return;
+        }
+
+        // Handle different message types
+        if (data.type === 'MESSAGE' && data.message) {
+            console.log('Processing MESSAGE type');
+            // Extract content from the message
+            let content = '';
+            const msg = data.message;
+
+            if (msg.content && Array.isArray(msg.content) && msg.content.length > 0) {
+                content = msg.content.map((item: any) => {
+                    if (item.textContent) {
+                        return item.textContent;
+                    }
+                    return item.toString();
+                }).join('\n');
+            } else if (typeof msg.content === 'string') {
+                content = msg.content;
+            }
+
+            console.log('Extracted content:', content);
+            console.log('Message sender:', msg.sender);
+
+            // Only show assistant messages (user messages were already shown)
+            if (msg.sender !== 'USER' && content) {
+                console.log('Sending assistant message to webview');
+                this._view.webview.postMessage({
+                    command: 'addMessage',
+                    message: {
+                        role: 'assistant',
+                        content: content,
+                        timestamp: msg.sentAt ? new Date(msg.sentAt).getTime() : Date.now()
+                    }
+                });
+            } else {
+                console.log('Skipping message (either USER message or no content)');
+            }
+        } else if (data.type === 'STATUS') {
+            // Handle status updates (e.g., "Iris is thinking...")
+            console.log('📊 Iris status update:', data);
+            // TODO: Show status indicator in UI
+        } else {
+            console.log('⚠️ Unknown message type or format:', data);
         }
     }
 
@@ -264,10 +328,37 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
             selectedAt: Date.now(),
         });
 
+        // Reset Iris session when context changes
+        this._currentArtemisSessionId = undefined;
+
+        // Clear chat messages
+        if (this._view) {
+            this._view.webview.postMessage({ command: 'clearChatMessages' });
+        }
+
         this._postSnapshot();
 
         const label = contextType === 'exercise' ? 'Exercise' : contextType === 'course' ? 'Course' : 'Context';
         vscode.window.showInformationMessage(`${label} context set to: ${itemName}`);
+
+        // Initialize Iris session and load messages
+        this._loadIrisMessages().catch(err => {
+            console.error('Error loading Iris messages:', err);
+        });
+    }
+
+    private async _loadIrisMessages(): Promise<void> {
+        const activeContext = this._contextStore.getActiveContext();
+        if (!activeContext || !this._artemisApiService || !this._view) {
+            return;
+        }
+
+        try {
+            await this._initializeIrisSession(activeContext);
+        } catch (error: any) {
+            console.error('Failed to load Iris messages:', error);
+            vscode.window.showWarningMessage(`Could not load previous messages: ${error.message}`);
+        }
     }
 
     private _handleSwitchContext(): void {
@@ -414,12 +505,197 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
         });
     }
 
-    private _handleChatMessage(message: any): void {
-        if (message?.text) {
-            this._contextStore.incrementActiveSessionMessageCount();
+    private async _handleChatMessage(message: any): Promise<void> {
+        if (!message?.text) {
+            return;
         }
-        vscode.window.showInformationMessage(`Chat message: ${message.text}`);
-        this._postSnapshot();
+
+        const activeContext = this._contextStore.getActiveContext();
+        if (!activeContext) {
+            vscode.window.showErrorMessage('Please select a course or exercise context first');
+            return;
+        }
+
+        if (!this._artemisApiService) {
+            vscode.window.showErrorMessage('Artemis API service not available');
+            return;
+        }
+
+        try {
+            // Show user message immediately
+            if (this._view) {
+                this._view.webview.postMessage({
+                    command: 'addMessage',
+                    message: {
+                        role: 'user',
+                        content: message.text,
+                        timestamp: Date.now()
+                    }
+                });
+            }
+
+            // Get or create Iris session
+            if (!this._currentArtemisSessionId) {
+                await this._initializeIrisSession(activeContext);
+            }
+
+            if (!this._currentArtemisSessionId) {
+                throw new Error('Failed to initialize Iris session');
+            }
+
+            // Send message to Iris
+            // The response will come through WebSocket, so we don't need to wait for it here
+            await this._artemisApiService.sendChatMessage(
+                this._currentArtemisSessionId,
+                message.text
+            );
+
+            console.log('Message sent to Iris, waiting for WebSocket response...');
+
+            // Note: The assistant's response will arrive via WebSocket
+            // and will be handled by _handleIrisWebSocketMessage()
+
+            this._contextStore.incrementActiveSessionMessageCount();
+            this._postSnapshot();
+
+        } catch (error: any) {
+            console.error('Error sending chat message:', error);
+            vscode.window.showErrorMessage(`Failed to send message: ${error.message}`);
+
+            if (this._view) {
+                this._view.webview.postMessage({
+                    command: 'addMessage',
+                    message: {
+                        role: 'error',
+                        content: `Error: ${error.message}`,
+                        timestamp: Date.now()
+                    }
+                });
+            }
+        }
+    }
+
+    private async _initializeIrisSession(context: ActiveContext): Promise<void> {
+        if (!this._artemisApiService) {
+            return;
+        }
+
+        try {
+            console.log(`Initializing Iris session for ${context.type}: ${context.title} (ID: ${context.id})`);
+
+            let session;
+            if (context.type === 'course') {
+                session = await this._artemisApiService.getCurrentCourseChat(context.id);
+            } else if (context.type === 'exercise') {
+                session = await this._artemisApiService.getCurrentExerciseChat(context.id);
+            } else {
+                throw new Error(`Unsupported context type: ${context.type}`);
+            }
+
+            console.log(`Iris session initialized with ID: ${session.id}`);
+            this._currentArtemisSessionId = session.id;
+
+            // Unsubscribe from previous session if any
+            if (this._irisUnsubscribe) {
+                console.log('Unsubscribing from previous Iris session');
+                this._irisUnsubscribe();
+                this._irisUnsubscribe = undefined;
+            }
+
+            // Subscribe to WebSocket messages for this session
+            if (this._websocketService) {
+                const isConnected = this._websocketService.isConnected();
+                console.log('WebSocket service status:', { isConnected });
+
+                if (isConnected) {
+                    console.log('Subscribing to Iris WebSocket for session:', session.id);
+                    try {
+                        this._irisUnsubscribe = this._websocketService.subscribeToIrisSession(
+                            session.id,
+                            (data: any) => this._handleIrisWebSocketMessage(data)
+                        );
+                        console.log('Successfully subscribed to Iris WebSocket');
+                    } catch (error) {
+                        console.error('Failed to subscribe to Iris WebSocket:', error);
+                        vscode.window.showErrorMessage('Failed to connect to Iris WebSocket. Messages may not appear in real-time.');
+                    }
+                } else {
+                    console.log('WebSocket not connected, attempting to connect...');
+                    // Try to connect the WebSocket
+                    try {
+                        await this._websocketService.connect();
+                        console.log('WebSocket connected, now subscribing to Iris session:', session.id);
+                        this._irisUnsubscribe = this._websocketService.subscribeToIrisSession(
+                            session.id,
+                            (data: any) => this._handleIrisWebSocketMessage(data)
+                        );
+                    } catch (error) {
+                        console.error('Failed to connect WebSocket:', error);
+                        vscode.window.showWarningMessage('WebSocket not connected. You may need to connect manually via "Artemis: Connect to WebSocket"');
+                    }
+                }
+            } else {
+                console.error('WebSocket service not provided to ChatWebviewProvider');
+                vscode.window.showWarningMessage('WebSocket service not available. Real-time messages will not work.');
+            }
+
+            // Load existing messages if any
+            if (session.id) {
+                console.log('Fetching messages for session:', session.id);
+                const messages = await this._artemisApiService.getChatMessages(session.id);
+                console.log(`Received ${messages?.length || 0} messages from Iris`);
+
+                if (this._view && messages && messages.length > 0) {
+                    console.log('Sending messages to webview:', messages);
+
+                    const formattedMessages = messages.map((msg: any) => {
+                        console.log('Message:', msg);
+
+                        // Extract content from the message structure
+                        let content = '';
+                        if (msg.content && Array.isArray(msg.content) && msg.content.length > 0) {
+                            // Content is an array of content items
+                            content = msg.content.map((item: any) => {
+                                if (item.textContent) {
+                                    return item.textContent;
+                                }
+                                return item.toString();
+                            }).join('\n');
+                        } else if (typeof msg.content === 'string') {
+                            content = msg.content;
+                        } else if (msg.message) {
+                            content = msg.message;
+                        } else {
+                            content = JSON.stringify(msg.content);
+                        }
+
+                        return {
+                            role: msg.sender === 'USER' ? 'user' : 'assistant',
+                            content: content,
+                            timestamp: msg.sentAt ? new Date(msg.sentAt).getTime() : Date.now()
+                        };
+                    });
+
+                    // Small delay to ensure webview is ready
+                    setTimeout(() => {
+                        if (this._view) {
+                            this._view.webview.postMessage({
+                                command: 'loadMessages',
+                                messages: formattedMessages
+                            });
+                            console.log('Messages sent to webview');
+                        }
+                    }, 100);
+                } else {
+                    console.log('No messages to load or view not ready');
+                }
+            }
+
+            vscode.window.showInformationMessage(`Connected to Iris for ${context.title}`);
+        } catch (error: any) {
+            console.error('Error initializing Iris session:', error);
+            throw new Error(`Failed to connect to Iris: ${error.message}`);
+        }
     }
 
     private _handleClearHistory(): void {
@@ -481,6 +757,7 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
 
     public createNewSession(): void {
         this._contextStore.createSession();
+        this._currentArtemisSessionId = undefined;
         this._postSnapshot();
         if (this._view) {
             this._view.webview.postMessage({ command: 'clearChatMessages' });

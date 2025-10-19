@@ -148,7 +148,7 @@ export class ArtemisApiService {
     // Authenticate user with username and password
     async authenticate(username: string, password: string, rememberMe: boolean = false): Promise<any> {
         const url = `${this.getServerUrl()}${CONFIG.API.ENDPOINTS.AUTHENTICATE}`;
-        
+
         const response = await fetch(url, {
             method: 'POST',
             headers: {
@@ -190,11 +190,11 @@ export class ArtemisApiService {
         }
 
         const data = await response.json() as any;
-        
+
         // Extract JWT cookie from Set-Cookie header
         const setCookieHeader = response.headers.get('set-cookie');
         let jwtCookie = '';
-        
+
         if (setCookieHeader) {
             const jwtMatch = setCookieHeader.match(new RegExp(`${CONFIG.AUTH_COOKIE_NAME}=([^;]+)`));
             if (jwtMatch) {
@@ -247,6 +247,116 @@ export class ArtemisApiService {
         const response = await this.makeRequest(endpoint);
         return response.text();
     }
+
+    // ============ IRIS CHAT API ============
+
+    // Get Iris settings for a course
+    async getIrisCourseChatSettings(courseId: number): Promise<any> {
+        const response = await this.makeRequest(`/api/iris/courses/${courseId}/iris-settings`);
+        return response.json();
+    }
+
+    // Get Iris settings for an exercise
+    async getIrisExerciseChatSettings(exerciseId: number): Promise<any> {
+        const response = await this.makeRequest(`/api/iris/exercises/${exerciseId}/iris-settings`);
+        return response.json();
+    }
+
+    // Get or create current chat session for a course
+    async getCurrentCourseChat(courseId: number): Promise<any> {
+        const response = await this.makeRequest(
+            `/api/iris/course-chat/${courseId}/sessions/current`,
+            { method: 'POST' }
+        );
+        return response.json();
+    }
+
+    // Get or create current chat session for an exercise
+    async getCurrentExerciseChat(exerciseId: number): Promise<any> {
+        const response = await this.makeRequest(
+            `/api/iris/programming-exercise-chat/${exerciseId}/sessions/current`,
+            { method: 'POST' }
+        );
+        return response.json();
+    }
+
+    // Get all chat sessions for a course
+    async getCourseChatSessions(courseId: number): Promise<any[]> {
+        const response = await this.makeRequest(`/api/iris/course-chat/${courseId}/sessions`);
+        return response.json() as Promise<any[]>;
+    }
+
+    // Get all chat sessions for an exercise
+    async getExerciseChatSessions(exerciseId: number): Promise<any[]> {
+        const response = await this.makeRequest(`/api/iris/programming-exercise-chat/${exerciseId}/sessions`);
+        return response.json() as Promise<any[]>;
+    }
+
+    // Get messages for a chat session
+    async getChatMessages(sessionId: number): Promise<any[]> {
+        const response = await this.makeRequest(`/api/iris/sessions/${sessionId}/messages`);
+        return response.json() as Promise<any[]>;
+    }
+
+    // Send a message to Iris
+    async sendChatMessage(sessionId: number, content: string): Promise<any> {
+        const messagePayload = {
+            sentAt: new Date().toISOString(),
+            content: [
+                {
+                    textContent: content,
+                    type: 'text'
+                }
+            ]
+        };
+
+        const response = await this.makeRequest(
+            `/api/iris/sessions/${sessionId}/messages`,
+            {
+                method: 'POST',
+                body: JSON.stringify(messagePayload)
+            }
+        );
+        return response.json();
+    }
+
+    // Create a new chat session for a course
+    async createCourseChatSession(courseId: number): Promise<any> {
+        const response = await this.makeRequest(
+            `/api/iris/course-chat/${courseId}/sessions`,
+            { method: 'POST' }
+        );
+        return response.json();
+    }
+
+    // Create a new chat session for an exercise
+    async createExerciseChatSession(exerciseId: number): Promise<any> {
+        const response = await this.makeRequest(
+            `/api/iris/programming-exercise-chat/${exerciseId}/sessions`,
+            { method: 'POST' }
+        );
+        return response.json();
+    }
+
+    // Mark a message as helpful
+    async markMessageHelpful(sessionId: number, messageId: number, helpful: boolean): Promise<void> {
+        await this.makeRequest(
+            `/api/iris/sessions/${sessionId}/messages/${messageId}/helpful`,
+            {
+                method: 'PUT',
+                body: JSON.stringify(helpful)
+            }
+        );
+    }
+
+    // Resend a message
+    async resendChatMessage(sessionId: number, messageId: number): Promise<any> {
+        const response = await this.makeRequest(
+            `/api/iris/sessions/${sessionId}/messages/${messageId}/resend`,
+            { method: 'POST' }
+        );
+        return response.json();
+    }
 }
 
 // Example usage in your extension:
@@ -264,4 +374,9 @@ const courses = await apiService.getCourses();
 
 // Get exercises for a course
 const exercises = await apiService.getExercises(courseId);
+
+// Iris Chat
+const session = await apiService.getCurrentCourseChat(courseId);
+const messages = await apiService.getChatMessages(session.id);
+await apiService.sendChatMessage(session.id, "Hello Iris!");
 */

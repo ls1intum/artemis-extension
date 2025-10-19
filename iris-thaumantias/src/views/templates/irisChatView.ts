@@ -114,8 +114,7 @@ export class IrisChatView {
             <div class="welcome-message">
                 <p class="welcome-text">
                     Welcome to Iris Chat!<br>
-                    <strong>Note: Chat responses are currently disabled.</strong><br>
-                    Select or search for a context to begin organising your conversations.
+                    Select or search for a context to begin chatting with Iris.
                 </p>
             </div>
         </div>
@@ -125,7 +124,7 @@ export class IrisChatView {
                 <textarea
                     class="chat-input"
                     id="chatInput"
-                    placeholder="Chat input is currently disabled"
+                    placeholder="Select a context to start chatting"
                     rows="1"
                     disabled
                     readonly
@@ -591,14 +590,124 @@ export class IrisChatView {
             });
         }
 
+        // Chat message handling
+        function addMessageToChat(message) {
+            console.log('Adding message to chat:', message);
+            const chatMessages = document.getElementById('chatMessages');
+            
+            // Remove welcome message if present
+            const welcomeMsg = chatMessages.querySelector('.welcome-message');
+            if (welcomeMsg) {
+                welcomeMsg.remove();
+            }
+
+            const messageDiv = document.createElement('div');
+            messageDiv.className = \`chat-message \${message.role}\`;
+            
+            const time = new Date(message.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            
+            messageDiv.innerHTML = \`
+                <div class="message-header">
+                    <span class="message-sender">\${message.role === 'user' ? 'You' : 'Iris'}</span>
+                    <span class="message-time">\${time}</span>
+                </div>
+                <div class="message-content">\${escapeHtml(message.content)}</div>
+            \`;
+            
+            chatMessages.appendChild(messageDiv);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+
+        function loadMessages(messages) {
+            console.log('Loading messages:', messages);
+            const chatMessages = document.getElementById('chatMessages');
+            chatMessages.innerHTML = '';
+            
+            if (!messages || messages.length === 0) {
+                console.log('No messages to load');
+                return;
+            }
+            
+            messages.forEach(msg => addMessageToChat(msg));
+            console.log(\`Loaded \${messages.length} messages\`);
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        function sendMessage() {
+            const input = document.getElementById('chatInput');
+            const text = input.value.trim();
+            
+            if (!text || !irisState.context) {
+                return;
+            }
+
+            // Send to extension
+            vscode.postMessage({
+                command: 'sendMessage',
+                text: text
+            });
+
+            // Clear input
+            input.value = '';
+            input.style.height = 'auto';
+        }
+
+        // Enable/disable chat input based on context
+        function updateChatInputState() {
+            const input = document.getElementById('chatInput');
+            const button = document.getElementById('sendButton');
+            
+            if (irisState.context) {
+                input.disabled = false;
+                input.readOnly = false;
+                input.placeholder = 'Ask Iris a question...';
+                button.disabled = false;
+            } else {
+                input.disabled = true;
+                input.readOnly = true;
+                input.placeholder = 'Select a context to start chatting';
+                button.disabled = true;
+            }
+        }
+
+        // Setup chat input handlers
+        const chatInput = document.getElementById('chatInput');
+        const sendButton = document.getElementById('sendButton');
+
+        if (chatInput) {
+            chatInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    sendMessage();
+                }
+            });
+
+            chatInput.addEventListener('input', () => {
+                chatInput.style.height = 'auto';
+                chatInput.style.height = chatInput.scrollHeight + 'px';
+            });
+        }
+
+        if (sendButton) {
+            sendButton.addEventListener('click', sendMessage);
+        }
+
         window.addEventListener('message', event => {
             const message = event.data;
+            console.log('Received message from extension:', message);
+            
             switch (message.command) {
                 case 'updateIrisState':
                     if (message.state) {
                         irisState = message.state;
                         updateContextBean();
                         updateDropdownContent();
+                        updateChatInputState();
                         saveState();
                     }
                     break;
@@ -613,6 +722,7 @@ export class IrisChatView {
                         arrow.textContent = '▲';
                         updateContextBean();
                         updateDropdownContent();
+                        updateChatInputState();
                         const input = document.getElementById('contextSearchInput');
                         if (input) {
                             input.value = '';
@@ -629,6 +739,16 @@ export class IrisChatView {
                         </div>
                     \`;
                     break;
+                case 'addMessage':
+                    if (message.message) {
+                        addMessageToChat(message.message);
+                    }
+                    break;
+                case 'loadMessages':
+                    if (message.messages) {
+                        loadMessages(message.messages);
+                    }
+                    break;
             }
         });
 
@@ -642,6 +762,7 @@ export class IrisChatView {
 
         updateContextBean();
         updateDropdownContent();
+        updateChatInputState();
     </script>
 </body>
 </html>`;
