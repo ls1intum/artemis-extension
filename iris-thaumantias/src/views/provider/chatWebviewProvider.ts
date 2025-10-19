@@ -138,6 +138,8 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
             if (webviewView.visible) {
                 this._postSnapshot();
                 void this._detectWorkspaceExercise();
+                // Load Iris messages if context is already selected
+                void this._loadIrisMessagesIfNeeded();
             }
         });
         this._disposables.push(visibilityListener);
@@ -159,6 +161,8 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
 
         this._postSnapshot();
         void this._detectWorkspaceExercise();
+        // Load Iris messages if context is already selected
+        void this._loadIrisMessagesIfNeeded();
     }
 
     private _mapReasonToSource(reason: ChatContextReason): 'workspace-detected' | 'user-selected' | 'system-default' {
@@ -358,6 +362,16 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
         } catch (error: any) {
             console.error('Failed to load Iris messages:', error);
             vscode.window.showWarningMessage(`Could not load previous messages: ${error.message}`);
+        }
+    }
+
+    private async _loadIrisMessagesIfNeeded(): Promise<void> {
+        const activeContext = this._contextStore.getActiveContext();
+        
+        // Only load if there's an active context and we haven't initialized yet
+        if (activeContext && !this._currentArtemisSessionId) {
+            console.log('Active context found on startup, loading Iris messages...');
+            await this._loadIrisMessages();
         }
     }
 
