@@ -638,6 +638,18 @@ export class IrisChatView {
                 return;
             }
 
+            // Check if we have the required IDs
+            const activeSession = irisState.sessions.find(session => session.id === irisState.activeSessionId);
+            if (!activeSession || !activeSession.artemisSessionId) {
+                console.warn('No active Artemis session found');
+                return;
+            }
+
+            if (!message.id) {
+                console.warn('Message has no ID, cannot submit feedback');
+                return;
+            }
+
             // Remove selection from all buttons
             allButtons.forEach(btn => {
                 btn.classList.remove('selected');
@@ -654,6 +666,8 @@ export class IrisChatView {
             // Send feedback to extension
             vscode.postMessage({
                 command: 'messageFeedback',
+                sessionId: activeSession.artemisSessionId,
+                messageId: message.id,
                 feedback: feedbackType,
                 message: message
             });

@@ -89,6 +89,7 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
                 this._view.webview.postMessage({
                     command: 'addMessage',
                     message: {
+                        id: msg.id,
                         role: 'assistant',
                         content: content,
                         timestamp: msg.sentAt ? new Date(msg.sentAt).getTime() : Date.now()
@@ -216,6 +217,7 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
     private _serializeSession(session: StoredSession) {
         return {
             id: session.id,
+            artemisSessionId: session.artemisSessionId,
             preview: session.preview,
             messageCount: session.messageCount,
             createdAt: session.createdAt,
@@ -348,7 +350,7 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
                 this._postSnapshot();
                 break;
             case 'messageFeedback':
-                this._handleMessageFeedback(message.feedback, message.message);
+                this._handleMessageFeedback(message);
                 break;
             default:
                 console.log('Unhandled message in chat view:', message);
@@ -921,30 +923,34 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
         }
     }
 
-    private _handleMessageFeedback(feedback: string, message: any): void {
-        console.log('Message feedback received:', feedback, 'for message:', message);
+    private async _handleMessageFeedback(message: any): Promise<void> {
+        const sessionId: number | undefined = message.sessionId;
+        const messageId: number | undefined = message.messageId;
+        const feedback: string | undefined = message.feedback;
 
-        // Here you can send the feedback to the backend API if needed
-        // For now, we'll just log it
+        console.log('Message feedback received:', { sessionId, messageId, feedback });
 
-        if (feedback === 'positive') {
-            console.log('User found this message helpful');
-            // Optionally: vscode.window.showInformationMessage('Thanks for your feedback!');
-        } else if (feedback === 'negative') {
-            console.log('User found this message could be better');
-            // Optionally: vscode.window.showInformationMessage('Thanks for your feedback! We\'ll work on improving.');
+        if (!sessionId || !messageId || !feedback) {
+            console.warn('Missing required feedback data:', { sessionId, messageId, feedback });
+            return;
         }
 
-        // If you have an API endpoint to send feedback, you can call it here:
-        // if (this._artemisApiService && this._currentArtemisSessionId) {
-        //     this._artemisApiService.sendMessageFeedback(
-        //         this._currentArtemisSessionId,
-        //         message.timestamp,
-        //         feedback
-        //     ).catch(err => {
-        //         console.error('Failed to send feedback to server:', err);
-        //     });
-        // }
+        if (!this._artemisApiService) {
+            console.warn('Artemis API service not available');
+            return;
+        }
+
+        try {
+            const isHelpful = feedback === 'positive';
+            await this._artemisApiService.markMessageHelpful(sessionId, messageId, isHelpful);
+            console.log(`Feedback submitted: ${feedback} for message ${messageId} in session ${sessionId}`);
+            
+            // Optional: Show user confirmation
+            // vscode.window.showInformationMessage('Thanks for your feedback!');
+        } catch (error) {
+            console.error('Failed to send feedback to server:', error);
+            vscode.window.showErrorMessage('Failed to submit feedback. Please try again.');
+        }
     }
 
     private async _initializeIrisSession(context: ActiveContext): Promise<void> {
@@ -1084,6 +1090,7 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
                         }
 
                         return {
+                            id: msg.id,
                             role: msg.sender === 'USER' ? 'user' : 'assistant',
                             content: content,
                             timestamp: msg.sentAt ? new Date(msg.sentAt).getTime() : Date.now()
@@ -1304,6 +1311,7 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
                                 }
 
                                 return {
+                                    id: msg.id,
                                     role: msg.sender === 'USER' ? 'user' : 'assistant',
                                     content: content,
                                     timestamp: msg.sentAt ? new Date(msg.sentAt).getTime() : Date.now()
