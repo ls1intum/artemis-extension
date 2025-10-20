@@ -619,7 +619,7 @@ export class IrisChatView {
         function addMessageToChat(message) {
             console.log('Adding message to chat:', message);
             const chatMessages = document.getElementById('chatMessages');
-            
+
             // Remove welcome message if present
             const welcomeMsg = chatMessages.querySelector('.welcome-message');
             if (welcomeMsg) {
@@ -628,9 +628,9 @@ export class IrisChatView {
 
             const messageDiv = document.createElement('div');
             messageDiv.className = \`chat-message \${message.role}\`;
-            
+
             const time = new Date(message.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-            
+
             messageDiv.innerHTML = \`
                 <div class="message-header">
                     <span class="message-sender">\${message.role === 'user' ? 'You' : 'Iris'}</span>
@@ -638,10 +638,17 @@ export class IrisChatView {
                 </div>
                 <div class="message-content">\${escapeHtml(message.content)}</div>
             \`;
-            
+
             chatMessages.appendChild(messageDiv);
             chatMessages.scrollTop = chatMessages.scrollHeight;
-            
+
+            // Show thinking indicator after user message, hide after assistant message
+            if (message.role === 'user') {
+                showThinkingIndicator();
+            } else {
+                hideThinkingIndicator();
+            }
+
             // Update new session button state
             updateNewSessionButtonState();
         }
@@ -667,10 +674,42 @@ export class IrisChatView {
             return div.innerHTML;
         }
 
+        function showThinkingIndicator() {
+            const chatMessages = document.getElementById('chatMessages');
+
+            // Remove any existing thinking indicator
+            const existing = chatMessages.querySelector('.thinking-indicator');
+            if (existing) {
+                existing.remove();
+            }
+
+            // Create thinking indicator
+            const thinkingDiv = document.createElement('div');
+            thinkingDiv.className = 'message assistant-message thinking-indicator';
+            thinkingDiv.innerHTML = \`
+                <div class="thinking-dots">
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                </div>
+            \`;
+
+            chatMessages.appendChild(thinkingDiv);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+
+        function hideThinkingIndicator() {
+            const chatMessages = document.getElementById('chatMessages');
+            const existing = chatMessages.querySelector('.thinking-indicator');
+            if (existing) {
+                existing.remove();
+            }
+        }
+
         function sendMessage() {
             const input = document.getElementById('chatInput');
             const text = input.value.trim();
-            
+
             if (!text || !irisState.context) {
                 return;
             }
