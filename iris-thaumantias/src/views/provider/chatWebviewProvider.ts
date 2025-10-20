@@ -347,6 +347,9 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
             case 'chatViewReady':
                 this._postSnapshot();
                 break;
+            case 'messageFeedback':
+                this._handleMessageFeedback(message.feedback, message.message);
+                break;
             default:
                 console.log('Unhandled message in chat view:', message);
                 break;
@@ -916,6 +919,32 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
                 });
             }
         }
+    }
+
+    private _handleMessageFeedback(feedback: string, message: any): void {
+        console.log('Message feedback received:', feedback, 'for message:', message);
+
+        // Here you can send the feedback to the backend API if needed
+        // For now, we'll just log it
+
+        if (feedback === 'positive') {
+            console.log('User found this message helpful');
+            // Optionally: vscode.window.showInformationMessage('Thanks for your feedback!');
+        } else if (feedback === 'negative') {
+            console.log('User found this message could be better');
+            // Optionally: vscode.window.showInformationMessage('Thanks for your feedback! We\'ll work on improving.');
+        }
+
+        // If you have an API endpoint to send feedback, you can call it here:
+        // if (this._artemisApiService && this._currentArtemisSessionId) {
+        //     this._artemisApiService.sendMessageFeedback(
+        //         this._currentArtemisSessionId,
+        //         message.timestamp,
+        //         feedback
+        //     ).catch(err => {
+        //         console.error('Failed to send feedback to server:', err);
+        //     });
+        // }
     }
 
     private async _initializeIrisSession(context: ActiveContext): Promise<void> {

@@ -724,6 +724,72 @@ body {
     word-wrap: break-word;
 }
 
+.message-feedback {
+    display: flex;
+    gap: 6px;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.2s ease, visibility 0.2s ease;
+    margin-top: 8px;
+}
+
+/* Show feedback buttons on hover or when feedback is selected */
+.chat-message:hover .message-feedback,
+.message-feedback.has-feedback {
+    opacity: 1;
+    visibility: visible;
+}
+
+.feedback-button {
+    background: var(--theme-background);
+    border: 1px solid var(--theme-border);
+    border-radius: 4px;
+    padding: 4px 8px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+    color: var(--theme-text);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.feedback-button svg {
+    width: 13px;
+    height: 13px;
+    pointer-events: none;
+}
+
+.feedback-button:hover:not(.selected) {
+    background: var(--theme-hover-background);
+    border-color: var(--theme-accent);
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.15);
+}
+
+.feedback-button:active {
+    transform: scale(0.95);
+}
+
+.feedback-button.selected {
+    background: var(--theme-accent);
+    border-color: var(--theme-accent);
+    color: white;
+}
+
+.feedback-button.thumbs-up.selected {
+    background: #22c55e;
+    border-color: #22c55e;
+}
+
+.feedback-button.thumbs-down.selected {
+    background: #ef4444;
+    border-color: #ef4444;
+}
+
+.feedback-button.selected:hover {
+    transform: scale(1.05);
+}
+
 .chat-input-container {
     border-top: 1px solid var(--theme-border);
     padding: 16px;
