@@ -249,6 +249,10 @@ export class ContextStore {
         if (!active) {
             return this.snapshot();
         }
+
+        // Clean up empty sessions before creating a new one
+        this.cleanupEmptySessions();
+
         const key = getContextKey(active.type, active.id);
         const session: StoredSession = {
             id: `session-${now()}`,
@@ -265,15 +269,78 @@ export class ContextStore {
         return this.snapshot();
     }
 
+    public createSessionWithDetails(
+        preview: string,
+        messageCount: number,
+        createdAt: number,
+        artemisSessionId?: number,
+        messages?: any[]
+    ): ContextSnapshot {
+        const active = this.state.activeContext;
+        if (!active) {
+            return this.snapshot();
+        }
+
+        const key = getContextKey(active.type, active.id);
+        const session: StoredSession = {
+            id: `session-${createdAt}`,
+            contextKey: key,
+            preview,
+            messageCount,
+            createdAt,
+            lastActivity: createdAt,
+            artemisSessionId,
+            messages,
+            messagesLoadedAt: messages ? Date.now() : undefined,
+        };
+        const sessions = this.state.sessions[key] ?? [];
+        this.state.sessions[key] = [session, ...sessions];
+        this.saveState();
+        return this.snapshot();
+    }
+
     public switchSession(sessionId: string): ContextSnapshot {
         const active = this.state.activeContext;
         if (!active) {
             return this.snapshot();
         }
+
+        // Clean up empty sessions when switching
+        this.cleanupEmptySessions();
+
         const key = getContextKey(active.type, active.id);
         const sessions = this.state.sessions[key] ?? [];
         if (sessions.some(session => session.id === sessionId)) {
             this.state.activeSessionId = sessionId;
+            this.saveState();
+        }
+        return this.snapshot();
+    }
+
+    public clearSessionsForContext(contextKey: string): ContextSnapshot {
+        // Remove all sessions for the specified context
+        delete this.state.sessions[contextKey];
+
+        // If the active session was in this context, clear it
+        const snapshot = this.snapshot();
+        if (snapshot.activeSession?.contextKey === contextKey) {
+            this.state.activeSessionId = null;
+        }
+
+        this.saveState();
+        return this.snapshot();
+    }
+
+    public switchToFirstSession(): ContextSnapshot {
+        const active = this.state.activeContext;
+        if (!active) {
+            return this.snapshot();
+        }
+
+        const key = getContextKey(active.type, active.id);
+        const sessions = this.state.sessions[key] ?? [];
+        if (sessions.length > 0) {
+            this.state.activeSessionId = sessions[0].id;
             this.saveState();
         }
         return this.snapshot();
@@ -294,6 +361,52 @@ export class ContextStore {
         session.messageCount += 1;
         session.lastActivity = now();
         this.state.activeSessionId = session.id;
+        this.saveState();
+    }
+
+    public cleanupEmptySessions(): void {
+        const active = this.state.activeContext;
+        if (!active) {
+            return;
+        }
+        const key = getContextKey(active.type, active.id);
+        const sessions = this.state.sessions[key];
+        if (!sessions || sessions.length === 0) {
+            return;
+        }
+
+        // Keep only sessions with messages OR the active session
+        const activeSessionId = this.state.activeSessionId;
+        const filteredSessions = sessions.filter(
+            session => session.messageCount > 0 || session.id === activeSessionId
+        );
+
+        // Update state if we removed any sessions
+        if (filteredSessions.length !== sessions.length) {
+            this.state.sessions[key] = filteredSessions;
+            this.saveState();
+        }
+    }
+
+    public setArtemisSessionId(artemisSessionId: number | undefined): void {
+        const active = this.state.activeContext;
+        if (!active) {
+            return;
+        }
+        const key = getContextKey(active.type, active.id);
+        const sessions = this.state.sessions[key];
+        if (!sessions || sessions.length === 0) {
+            return;
+        }
+        const session = sessions.find(s => s.id === this.state.activeSessionId) ?? sessions[0];
+        session.artemisSessionId = artemisSessionId;
+        this.saveState();
+    }
+
+    public clearAllSessions(): void {
+        // Clear all session data but keep exercises and courses
+        this.state.sessions = {};
+        this.state.activeSessionId = null;
         this.saveState();
     }
 

@@ -293,9 +293,14 @@ body {
     transition: var(--theme-transition);
 }
 
-.dropdown-action-btn:hover {
+.dropdown-action-btn:hover:not(:disabled) {
     background: var(--theme-button-background);
     color: var(--theme-button-foreground);
+}
+
+.dropdown-action-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
 }
 
 .theme-vscode .dropdown-action-btn {

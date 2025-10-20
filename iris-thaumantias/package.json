@@ -43,6 +43,11 @@
         "icon": "$(heart)"
       },
       {
+        "command": "artemis.resetIrisChat",
+        "title": "Reset Iris Chat Sessions (Debug)",
+        "icon": "$(refresh)"
+      },
+      {
         "command": "artemis.checkWebSocketStatus",
         "title": "Check WebSocket Connection Status",
         "icon": "$(broadcast)"

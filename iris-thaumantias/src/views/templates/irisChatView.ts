@@ -24,6 +24,7 @@ export class IrisChatView {
         const trashIcon = IconDefinitions.getIcon('trash');
         const stethoscopeIcon = IconDefinitions.getIcon('stethoscope');
         const questionMarkIcon = IconDefinitions.getIcon('question-mark');
+        const refreshIcon = IconDefinitions.getIcon('refresh');
 
         return `<!DOCTYPE html>
 <html lang="en">
@@ -83,7 +84,7 @@ export class IrisChatView {
                         <div class="session-list" id="sessionList"></div>
                         <div class="dropdown-divider"></div>
                         <div class="dropdown-section">
-                            <button class="dropdown-action-btn" onclick="createNewSession()">
+                            <button class="dropdown-action-btn" id="newSessionBtn" onclick="createNewSession()" disabled>
                                 ➕ New Conversation
                             </button>
                             <button class="dropdown-action-btn" onclick="requestContextSwitch()">
@@ -214,6 +215,20 @@ export class IrisChatView {
                     <div class="menu-item-content">
                         <div class="menu-item-title">Diagnostics</div>
                         <div class="menu-item-description">View detailed context and session state</div>
+                    </div>
+                </div>
+                <div class="menu-item" onclick="debugSessions()">
+                    ${stethoscopeIcon}
+                    <div class="menu-item-content">
+                        <div class="menu-item-title">Debug Sessions (Raw)</div>
+                        <div class="menu-item-description">View raw Artemis session data</div>
+                    </div>
+                </div>
+                <div class="menu-item" onclick="resetChatSessions()">
+                    ${refreshIcon}
+                    <div class="menu-item-content">
+                        <div class="menu-item-title">Reset Sessions</div>
+                        <div class="menu-item-description">Clear all local chat session data</div>
                     </div>
                 </div>
                 ` : ''}
@@ -358,7 +373,17 @@ export class IrisChatView {
 
         window.openDiagnostics = function() {
             vscode.postMessage({ command: 'openDiagnostics' });
-            closeSideMenu();
+            closeMenu();
+        };
+
+        window.debugSessions = function() {
+            vscode.postMessage({ command: 'debugSessions' });
+            closeMenu();
+        };
+
+        window.resetChatSessions = function() {
+            vscode.postMessage({ command: 'resetChatSessions' });
+            closeMenu();
         };
 
         function updateContextBean() {
@@ -616,6 +641,9 @@ export class IrisChatView {
             
             chatMessages.appendChild(messageDiv);
             chatMessages.scrollTop = chatMessages.scrollHeight;
+            
+            // Update new session button state
+            updateNewSessionButtonState();
         }
 
         function loadMessages(messages) {
@@ -625,6 +653,7 @@ export class IrisChatView {
             
             if (!messages || messages.length === 0) {
                 console.log('No messages to load');
+                updateNewSessionButtonState();
                 return;
             }
             
@@ -672,6 +701,27 @@ export class IrisChatView {
                 input.readOnly = true;
                 input.placeholder = 'Select a context to start chatting';
                 button.disabled = true;
+            }
+        }
+
+        // Enable/disable new session button based on message count
+        function updateNewSessionButtonState() {
+            const newSessionBtn = document.getElementById('newSessionBtn');
+            if (!newSessionBtn) {
+                return;
+            }
+
+            // Get current message count from the chat
+            const chatMessages = document.getElementById('chatMessages');
+            const messageElements = chatMessages.querySelectorAll('.chat-message');
+            const hasMessages = messageElements.length > 0;
+
+            newSessionBtn.disabled = !hasMessages;
+            
+            if (!hasMessages) {
+                newSessionBtn.title = 'Send at least one message before creating a new conversation';
+            } else {
+                newSessionBtn.title = 'Create a new conversation';
             }
         }
 
@@ -738,6 +788,7 @@ export class IrisChatView {
                             <p class="welcome-text">New conversation created! 🎉</p>
                         </div>
                     \`;
+                    updateNewSessionButtonState();
                     break;
                 case 'addMessage':
                     if (message.message) {

@@ -280,16 +280,51 @@ export class ArtemisApiService {
         return response.json();
     }
 
-    // Get all chat sessions for a course
+    // Get all chat sessions for a course (metadata only, lightweight)
     async getCourseChatSessions(courseId: number): Promise<any[]> {
         const response = await this.makeRequest(`/api/iris/course-chat/${courseId}/sessions`);
         return response.json() as Promise<any[]>;
     }
 
-    // Get all chat sessions for an exercise
+    // Get all chat sessions for an exercise (metadata only, lightweight)
     async getExerciseChatSessions(exerciseId: number): Promise<any[]> {
         const response = await this.makeRequest(`/api/iris/programming-exercise-chat/${exerciseId}/sessions`);
         return response.json() as Promise<any[]>;
+    }
+
+    // Get all chat sessions for a course WITH messages (heavy operation)
+    // Uses the chat-history endpoint which returns full session data
+    async getCourseChatSessionsWithMessages(courseId: number): Promise<any[]> {
+        const response = await this.makeRequest(`/api/iris/chat-history/${courseId}/sessions`);
+        return response.json() as Promise<any[]>;
+    }
+
+    // Get all chat sessions for an exercise WITH messages (heavy operation)
+    // This fetches session list first, then fetches messages for each session
+    async getExerciseChatSessionsWithMessages(exerciseId: number): Promise<any[]> {
+        // First get the session list (metadata only)
+        const sessions = await this.getExerciseChatSessions(exerciseId);
+
+        // Then fetch messages for each session
+        const sessionsWithMessages = await Promise.all(
+            sessions.map(async (session) => {
+                try {
+                    const messages = await this.getChatMessages(session.id);
+                    return {
+                        ...session,
+                        messages: messages
+                    };
+                } catch (error) {
+                    console.warn(`Failed to fetch messages for session ${session.id}:`, error);
+                    return {
+                        ...session,
+                        messages: []
+                    };
+                }
+            })
+        );
+
+        return sessionsWithMessages;
     }
 
     // Get messages for a chat session

@@ -119,6 +119,34 @@ export async function activate(context: vscode.ExtensionContext) {
 		}
 	});
 
+	// Register Iris chat reset command (debug)
+	const resetIrisChatCommand = vscode.commands.registerCommand('artemis.resetIrisChat', async () => {
+		const confirmation = await vscode.window.showWarningMessage(
+			'This will clear all local Iris chat session data and reload from Artemis. Continue?',
+			{ modal: true },
+			'Yes, Reset',
+			'Cancel'
+		);
+
+		if (confirmation !== 'Yes, Reset') {
+			return;
+		}
+
+		try {
+			await vscode.window.withProgress({
+				location: vscode.ProgressLocation.Notification,
+				title: "Resetting Iris Chat Sessions...",
+				cancellable: false
+			}, async () => {
+				// Clear all local session data
+				chatWebviewProvider.clearAllSessions();
+				vscode.window.showInformationMessage('✅ Iris chat sessions have been reset. Local session data cleared.');
+			});
+		} catch (error: any) {
+			vscode.window.showErrorMessage(`Failed to reset Iris chat: ${error.message}`);
+		}
+	});
+
 	// Register Iris health check command
 	const checkIrisHealthCommand = vscode.commands.registerCommand('artemis.checkIrisHealth', async () => {
 		try {
@@ -448,6 +476,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
 	context.subscriptions.push(loginCommand);
 	context.subscriptions.push(logoutCommand);
+	context.subscriptions.push(resetIrisChatCommand);
 	context.subscriptions.push(checkIrisHealthCommand);
 	context.subscriptions.push(checkWebSocketStatusCommand);
 	context.subscriptions.push(connectWebSocketCommand);
