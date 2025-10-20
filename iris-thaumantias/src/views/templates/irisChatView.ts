@@ -663,6 +663,9 @@ export class IrisChatView {
                 feedbackContainer.classList.add('has-feedback');
             }
 
+            // Update the message object's helpful field
+            message.helpful = feedbackType === 'positive' ? true : false;
+
             // Send feedback to extension
             vscode.postMessage({
                 command: 'messageFeedback',
@@ -717,7 +720,28 @@ export class IrisChatView {
 
             // Add event listeners for feedback buttons if this is an assistant message
             if (message.role === 'assistant') {
+                const feedbackContainer = messageDiv.querySelector('.message-feedback');
                 const feedbackButtons = messageDiv.querySelectorAll('.feedback-button');
+                
+                // Apply existing feedback state if present
+                if (message.helpful === true) {
+                    const thumbsUpBtn = messageDiv.querySelector('.thumbs-up');
+                    if (thumbsUpBtn) {
+                        thumbsUpBtn.classList.add('selected');
+                        if (feedbackContainer) {
+                            feedbackContainer.classList.add('has-feedback');
+                        }
+                    }
+                } else if (message.helpful === false) {
+                    const thumbsDownBtn = messageDiv.querySelector('.thumbs-down');
+                    if (thumbsDownBtn) {
+                        thumbsDownBtn.classList.add('selected');
+                        if (feedbackContainer) {
+                            feedbackContainer.classList.add('has-feedback');
+                        }
+                    }
+                }
+                
                 feedbackButtons.forEach(button => {
                     button.addEventListener('click', function(event) {
                         event.stopPropagation();

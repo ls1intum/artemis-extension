@@ -92,7 +92,8 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
                         id: msg.id,
                         role: 'assistant',
                         content: content,
-                        timestamp: msg.sentAt ? new Date(msg.sentAt).getTime() : Date.now()
+                        timestamp: msg.sentAt ? new Date(msg.sentAt).getTime() : Date.now(),
+                        helpful: msg.helpful // true, false, or null
                     }
                 });
             } else {
@@ -1093,7 +1094,8 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
                             id: msg.id,
                             role: msg.sender === 'USER' ? 'user' : 'assistant',
                             content: content,
-                            timestamp: msg.sentAt ? new Date(msg.sentAt).getTime() : Date.now()
+                            timestamp: msg.sentAt ? new Date(msg.sentAt).getTime() : Date.now(),
+                            helpful: msg.helpful // true, false, or null
                         };
                     });
 
@@ -1314,7 +1316,8 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
                                     id: msg.id,
                                     role: msg.sender === 'USER' ? 'user' : 'assistant',
                                     content: content,
-                                    timestamp: msg.sentAt ? new Date(msg.sentAt).getTime() : Date.now()
+                                    timestamp: msg.sentAt ? new Date(msg.sentAt).getTime() : Date.now(),
+                                    helpful: msg.helpful // true, false, or null
                                 };
                             });
 
