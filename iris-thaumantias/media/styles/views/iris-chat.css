@@ -662,9 +662,11 @@ body {
 .chat-message {
     margin-bottom: 16px;
     padding: 12px;
+    padding-bottom: 20px;
     border-radius: 8px;
     max-width: 85%;
     animation: fadeIn 0.3s ease-in-out;
+    position: relative;
 }
 
 @keyframes fadeIn {
@@ -730,7 +732,10 @@ body {
     opacity: 0;
     visibility: hidden;
     transition: opacity 0.2s ease, visibility 0.2s ease;
-    margin-top: 8px;
+    position: absolute;
+    bottom: 0;
+    left: 12px;
+    transform: translateY(50%);
 }
 
 /* Show feedback buttons on hover or when feedback is selected */
