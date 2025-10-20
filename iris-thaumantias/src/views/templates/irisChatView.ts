@@ -121,6 +121,15 @@ export class IrisChatView {
         </div>
 
         <div class="chat-input-container">
+            <div class="websocket-status-banner" id="websocketStatusBanner" style="display: none;">
+                <div class="websocket-status-content">
+                    <span class="websocket-status-icon">⚠️</span>
+                    <span class="websocket-status-text">WebSocket disconnected</span>
+                </div>
+                <button class="websocket-reconnect-btn" id="reconnectButton" onclick="reconnectWebSocket()">
+                    Reconnect
+                </button>
+            </div>
             <div class="chat-input-wrapper">
                 <textarea
                     class="chat-input"
@@ -786,10 +795,21 @@ export class IrisChatView {
             sendButton.addEventListener('click', sendMessage);
         }
 
+        window.reconnectWebSocket = function() {
+            vscode.postMessage({ command: 'reconnectWebSocket' });
+        };
+
+        function updateWebSocketStatus(isConnected) {
+            const banner = document.getElementById('websocketStatusBanner');
+            if (banner) {
+                banner.style.display = isConnected ? 'none' : 'flex';
+            }
+        }
+
         window.addEventListener('message', event => {
             const message = event.data;
             console.log('Received message from extension:', message);
-            
+
             switch (message.command) {
                 case 'updateIrisState':
                     if (message.state) {
@@ -837,6 +857,11 @@ export class IrisChatView {
                 case 'loadMessages':
                     if (message.messages) {
                         loadMessages(message.messages);
+                    }
+                    break;
+                case 'updateWebSocketStatus':
+                    if (typeof message.isConnected === 'boolean') {
+                        updateWebSocketStatus(message.isConnected);
                     }
                     break;
             }

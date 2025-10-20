@@ -163,6 +163,42 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
         void this._detectWorkspaceExercise();
         // Load Iris messages if context is already selected
         void this._loadIrisMessagesIfNeeded();
+
+        // Start monitoring WebSocket status
+        this._startWebSocketMonitoring();
+    }
+
+    private _startWebSocketMonitoring(): void {
+        if (!this._websocketService) {
+            return;
+        }
+
+        // Register for connection state changes
+        this._websocketService.onConnectionStateChange((isConnected: boolean) => {
+            console.log('WebSocket connection state changed:', isConnected);
+            this._updateWebSocketStatus(isConnected);
+
+            // If reconnected and we have an active session, resubscribe
+            if (isConnected && this._currentArtemisSessionId) {
+                console.log('WebSocket reconnected, resubscribing to session:', this._currentArtemisSessionId);
+
+                // Unsubscribe from old subscription if any
+                if (this._irisUnsubscribe) {
+                    this._irisUnsubscribe();
+                }
+
+                // Subscribe to the current session
+                try {
+                    this._irisUnsubscribe = this._websocketService!.subscribeToIrisSession(
+                        this._currentArtemisSessionId,
+                        (data: any) => this._handleIrisWebSocketMessage(data)
+                    );
+                    console.log('Successfully resubscribed to Iris session');
+                } catch (error) {
+                    console.error('Failed to resubscribe to Iris session:', error);
+                }
+            }
+        });
     }
 
     private _mapReasonToSource(reason: ChatContextReason): 'workspace-detected' | 'user-selected' | 'system-default' {
@@ -304,6 +340,9 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
                 break;
             case 'resetChatSessions':
                 this._handleResetSessions();
+                break;
+            case 'reconnectWebSocket':
+                this._handleReconnectWebSocket();
                 break;
             case 'chatViewReady':
                 this._postSnapshot();
@@ -815,6 +854,17 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
         }
 
         try {
+            // Check WebSocket connection before sending
+            if (this._websocketService && !this._websocketService.isConnected()) {
+                console.log('WebSocket not connected, attempting to connect...');
+                try {
+                    await this._websocketService.connect();
+                } catch (error) {
+                    console.error('Failed to connect WebSocket:', error);
+                    vscode.window.showWarningMessage('WebSocket connection failed. You may not receive responses in real-time.');
+                }
+            }
+
             // Show user message immediately
             if (this._view) {
                 this._view.webview.postMessage({
@@ -1066,6 +1116,57 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
         this._postSnapshot();
 
         console.log('All Iris sessions cleared');
+    }
+
+    private async _handleReconnectWebSocket(): Promise<void> {
+        if (!this._websocketService) {
+            vscode.window.showErrorMessage('WebSocket service not available');
+            return;
+        }
+
+        try {
+            const isConnected = this._websocketService.isConnected();
+            if (isConnected) {
+                vscode.window.showInformationMessage('WebSocket is already connected');
+                this._updateWebSocketStatus(true);
+                return;
+            }
+
+            vscode.window.showInformationMessage('Reconnecting to WebSocket...');
+            await this._websocketService.connect();
+
+            // If we have an active Iris session, resubscribe to it
+            if (this._currentArtemisSessionId && this._websocketService.isConnected()) {
+                console.log('Resubscribing to Iris session after reconnect:', this._currentArtemisSessionId);
+
+                // Unsubscribe from old subscription if any
+                if (this._irisUnsubscribe) {
+                    this._irisUnsubscribe();
+                }
+
+                // Subscribe to the current session
+                this._irisUnsubscribe = this._websocketService.subscribeToIrisSession(
+                    this._currentArtemisSessionId,
+                    (data: any) => this._handleIrisWebSocketMessage(data)
+                );
+            }
+
+            this._updateWebSocketStatus(true);
+            vscode.window.showInformationMessage('Successfully reconnected to WebSocket');
+        } catch (error: any) {
+            console.error('Failed to reconnect WebSocket:', error);
+            vscode.window.showErrorMessage(`Failed to reconnect: ${error.message}`);
+            this._updateWebSocketStatus(false);
+        }
+    }
+
+    private _updateWebSocketStatus(isConnected: boolean): void {
+        if (this._view) {
+            this._view.webview.postMessage({
+                command: 'updateWebSocketStatus',
+                isConnected: isConnected
+            });
+        }
     }
 
     private async _handleResetSessions(): Promise<void> {

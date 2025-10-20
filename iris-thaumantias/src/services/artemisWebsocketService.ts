@@ -23,9 +23,19 @@ export class ArtemisWebsocketService {
     private _reconnectDelay: number = 3000; // 3 seconds
     private _subscriptions: Map<string, StompSubscription> = new Map();
     private _messageHandlers: WebSocketMessageHandler[] = [];
+    private _connectionStateCallbacks: Array<(isConnected: boolean) => void> = [];
 
     constructor(authManager: AuthManager) {
         this._authManager = authManager;
+    }
+
+    /**
+     * Register a callback for connection state changes
+     */
+    public onConnectionStateChange(callback: (isConnected: boolean) => void): void {
+        this._connectionStateCallbacks.push(callback);
+        // Immediately notify of current state
+        callback(this._isConnected);
     }
 
     /**
@@ -394,6 +404,9 @@ export class ArtemisWebsocketService {
         this._reconnectAttempts = 0;
         this._log('✅ Connected to Artemis WebSocket');
 
+        // Notify all connection state callbacks
+        this._notifyConnectionStateChange(true);
+
         // Auto-subscribe to personal topics
         this.subscribeToPersonalResults();
         this.subscribeToPersonalSubmissions();
@@ -405,11 +418,24 @@ export class ArtemisWebsocketService {
         this._subscriptions.clear();
         this._log('Disconnected from Artemis WebSocket');
 
+        // Notify all connection state callbacks
+        this._notifyConnectionStateChange(false);
+
         // Attempt reconnection if within limit
         if (this._reconnectAttempts < this._maxReconnectAttempts) {
             this._reconnectAttempts++;
             this._log(`Will attempt reconnection (${this._reconnectAttempts}/${this._maxReconnectAttempts})`);
         }
+    }
+
+    private _notifyConnectionStateChange(isConnected: boolean): void {
+        this._connectionStateCallbacks.forEach(callback => {
+            try {
+                callback(isConnected);
+            } catch (error) {
+                this._log(`Error in connection state callback: ${error}`);
+            }
+        });
     }
 
     private _onError(message: string): void {
