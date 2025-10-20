@@ -30,6 +30,7 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
     private readonly _disposables: vscode.Disposable[] = [];
     private _currentArtemisSessionId?: number;
     private _irisUnsubscribe?: () => void;
+    private _currentIrisSettings?: any; // Cached Iris settings for current context
 
     constructor(
         private readonly _extensionUri: vscode.Uri,
@@ -429,6 +430,65 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
         }
     }
 
+    private async _checkAndLoadIrisSettings(context: ActiveContext): Promise<boolean> {
+        if (!this._artemisApiService) {
+            console.warn('Artemis API service not available');
+            return false;
+        }
+
+        try {
+            console.log(`Checking Iris settings for ${context.type}: ${context.title}`);
+
+            // Fetch settings based on context type
+            let settings: any;
+            if (context.type === 'course') {
+                settings = await this._artemisApiService.getIrisCourseChatSettings(context.id);
+            } else if (context.type === 'exercise') {
+                settings = await this._artemisApiService.getIrisExerciseChatSettings(context.id);
+            } else {
+                console.warn(`Unsupported context type for Iris: ${context.type}`);
+                return false;
+            }
+
+            // Store settings for later use
+            this._currentIrisSettings = settings;
+
+            // Check if Iris chat is enabled
+            const chatSettings = context.type === 'course' 
+                ? settings?.irisChatSettings 
+                : settings?.irisProgrammingExerciseChatSettings;
+
+            if (!chatSettings?.enabled) {
+                const contextLabel = context.type === 'course' ? 'course' : 'exercise';
+                vscode.window.showWarningMessage(
+                    `Iris chat is not enabled for this ${contextLabel}. Please contact your instructor.`
+                );
+                console.log('Iris chat is disabled in settings');
+                return false;
+            }
+
+            console.log('Iris chat is enabled, settings loaded:', {
+                enabled: chatSettings.enabled,
+                rateLimit: chatSettings.rateLimit,
+                rateLimitTimeframeHours: chatSettings.rateLimitTimeframeHours
+            });
+
+            return true;
+        } catch (error: any) {
+            console.error('Error checking Iris settings:', error);
+            
+            // If it's a 403, Iris is probably disabled
+            if (error.status === 403 || error.message?.includes('403')) {
+                vscode.window.showWarningMessage('Iris is not available for this context.');
+                return false;
+            }
+
+            // For other errors, show a generic message but don't block
+            vscode.window.showWarningMessage(`Could not load Iris settings: ${error.message}`);
+            return false;
+        }
+    }
+
     private async _loadAllSessionsForContext(): Promise<void> {
         const activeContext = this._contextStore.getActiveContext();
         if (!activeContext || !this._artemisApiService || !this._view) {
@@ -438,6 +498,19 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
 
         try {
             console.log(`Loading all Iris sessions for ${activeContext.type}: ${activeContext.title} (ID: ${activeContext.id})`);
+
+            // Step 0: Check if Iris is enabled for this context
+            const isEnabled = await this._checkAndLoadIrisSettings(activeContext);
+            if (!isEnabled) {
+                console.log('Iris is disabled, not loading sessions');
+                // Clear any existing sessions and show empty state
+                if (this._view) {
+                    this._view.webview.postMessage({ 
+                        command: 'clearChatMessages' 
+                    });
+                }
+                return;
+            }
 
             // Step 1: Fetch session metadata (fast, lightweight)
             let artemisSessionsMetadata: any[] = [];
@@ -577,6 +650,7 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
 
         // Reset Iris session when context changes
         this._currentArtemisSessionId = undefined;
+        this._currentIrisSettings = undefined; // Clear cached settings
 
         // Clear chat messages
         if (this._view) {
@@ -610,6 +684,7 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
 
         // Reset Iris session when context changes
         this._currentArtemisSessionId = undefined;
+        this._currentIrisSettings = undefined; // Clear cached settings
 
         // Clear chat messages
         if (this._view) {
@@ -857,6 +932,14 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
         if (!this._artemisApiService) {
             vscode.window.showErrorMessage('Artemis API service not available');
             return;
+        }
+
+        // Check if Iris is enabled (use cached settings if available)
+        if (!this._currentIrisSettings) {
+            const isEnabled = await this._checkAndLoadIrisSettings(activeContext);
+            if (!isEnabled) {
+                return; // Error message already shown in _checkAndLoadIrisSettings
+            }
         }
 
         try {
