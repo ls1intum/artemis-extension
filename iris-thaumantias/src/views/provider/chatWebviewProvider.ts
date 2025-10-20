@@ -737,7 +737,35 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
             );
 
             report += `📊 TOTAL SESSIONS FOUND: ${artemisSessionsListFromServer.length}\n`;
+            report += `   (All sessions are for ${activeContext.type} ${activeContext.id}: ${activeContext.title})\n`;
             report += '='.repeat(80) + '\n\n';
+
+            // Also check local storage
+            const snapshot = this._contextStore.snapshot();
+            const contextKey = `${activeContext.type}:${activeContext.id}`;
+            const localSessions = snapshot.sessions.filter(s => s.contextKey === contextKey);
+
+            report += `💾 LOCAL STORAGE INFO:\n`;
+            report += `   Context Key: ${contextKey}\n`;
+            report += `   Local Sessions for this context: ${localSessions.length}\n`;
+            report += `   All Local Sessions (all contexts): ${snapshot.sessions.length}\n`;
+            if (snapshot.sessions.length > localSessions.length) {
+                const otherContexts = new Set(snapshot.sessions.map(s => s.contextKey).filter(k => k !== contextKey));
+                report += `   ⚠️  WARNING: Found sessions from other contexts: ${Array.from(otherContexts).join(', ')}\n`;
+            }
+            report += '\n';
+
+            // Show what snapshot.sessions contains (this is what the UI displays)
+            report += `📋 SNAPSHOT SESSIONS (what UI shows):\n`;
+            report += `   Total in snapshot: ${snapshot.sessions.length}\n`;
+            if (snapshot.sessions.length > 0) {
+                snapshot.sessions.forEach((s, idx) => {
+                    report += `   ${idx + 1}. Session ${s.id} (artemisId: ${s.artemisSessionId}) - contextKey: ${s.contextKey}\n`;
+                    report += `      Preview: "${s.preview}"\n`;
+                    report += `      Messages: ${s.messageCount}\n`;
+                });
+            }
+            report += '\n' + '='.repeat(80) + '\n\n';
 
             if (artemisSessionsListFromServer.length === 0) {
                 report += '⚠️  No sessions found on Artemis for this context.\n';
