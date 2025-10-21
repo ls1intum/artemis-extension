@@ -200,11 +200,11 @@ export class IrisChatView {
         <div class="side-menu-content">
             <div class="menu-section">
                 <h4 class="menu-section-title">Chat Options</h4>
-                <div class="menu-item" onclick="clearHistory()">
-                    ${trashIcon}
+                <div class="menu-item" onclick="resetChatSessions()">
+                    ${refreshIcon}
                     <div class="menu-item-content">
-                        <div class="menu-item-title">Clear History</div>
-                        <div class="menu-item-description">Reset chat and remove all saved conversations</div>
+                        <div class="menu-item-title">Reset & Sync Sessions</div>
+                        <div class="menu-item-description">Clear local data and reload from server</div>
                     </div>
                 </div>
             </div>
@@ -231,13 +231,6 @@ export class IrisChatView {
                     <div class="menu-item-content">
                         <div class="menu-item-title">Debug Sessions (Raw)</div>
                         <div class="menu-item-description">View raw Artemis session data</div>
-                    </div>
-                </div>
-                <div class="menu-item" onclick="resetChatSessions()">
-                    ${refreshIcon}
-                    <div class="menu-item-content">
-                        <div class="menu-item-title">Reset Sessions</div>
-                        <div class="menu-item-description">Clear all local chat session data</div>
                     </div>
                 </div>
                 ` : ''}

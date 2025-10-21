@@ -307,9 +307,6 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
             case 'sendMessage':
                 this._handleChatMessage(message);
                 break;
-            case 'clearHistory':
-                this._handleClearHistory();
-                break;
             case 'selectChatContext':
                 this._handleContextSelection(message.context, message.itemId, message.itemName, message.itemShortName);
                 break;
@@ -1211,15 +1208,6 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
             console.error('Error initializing Iris session:', error);
             throw new Error(`Failed to connect to Iris: ${error.message}`);
         }
-    }
-
-    private _handleClearHistory(): void {
-        this._contextStore.clearAll();
-        this._postSnapshot();
-        if (this._view) {
-            this._view.webview.postMessage({ command: 'clearChatMessages' });
-        }
-        vscode.window.showInformationMessage('Chat history cleared');
     }
 
     public clearAllSessions(): void {
