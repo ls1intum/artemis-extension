@@ -7,6 +7,7 @@ All notable changes to the Artemis VS Code extension will be documented in this 
 ### Changed
 - **Exercise Detail Participate Button**: Renamed action to "Start Exercise" to better reflect the flow for initiating work
 - **Iris Chat Menu Consolidation**: Merged "Clear History" and "Reset Sessions" into a single "Reset & Sync Sessions" button that clears local data and reloads from the Artemis server
+- **Iris Session Storage**: Chat sessions and messages are no longer persisted to local storage - they are fetched fresh from Artemis on each extension load for data privacy and consistency
 
 ### Fixed
 - **Test Results Loading Freeze**: Added 15-second timeout to prevent infinite "Loading test results..." state when API requests hang or fail, includes retry button

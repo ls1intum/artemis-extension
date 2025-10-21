@@ -83,7 +83,12 @@ export class ContextStore {
         if (raw.version !== STORE_VERSION) {
             return this.migrateState(raw);
         }
-        return raw;
+        // Don't load sessions from storage - always start fresh
+        return {
+            ...raw,
+            sessions: {},
+            activeSessionId: null,
+        };
     }
 
     private migrateState(previous: StoredState): StoredState {
@@ -113,7 +118,13 @@ export class ContextStore {
     }
 
     private saveState(): void {
-        void this.context.globalState.update(STORE_KEY, this.state);
+        // Don't persist sessions and activeSessionId - only save exercise/course tracking
+        const stateToPersist: StoredState = {
+            ...this.state,
+            sessions: {}, // Never persist sessions
+            activeSessionId: null, // Never persist active session
+        };
+        void this.context.globalState.update(STORE_KEY, stateToPersist);
     }
 
     public snapshot(): ContextSnapshot {

@@ -1291,8 +1291,7 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
         const confirmation = await vscode.window.showWarningMessage(
             'This will clear all local Iris chat session data and reload all sessions from Artemis. Continue?',
             { modal: true },
-            'Yes, Reset & Reload',
-            'Cancel'
+            'Yes, Reset & Reload'
         );
 
         if (confirmation === 'Yes, Reset & Reload') {
