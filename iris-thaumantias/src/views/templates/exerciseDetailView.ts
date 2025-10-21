@@ -523,7 +523,7 @@ export class ExerciseDetailView {
                     : (isProgrammingExercise
                         ? `<div class=\"participation-actions not-participated\">
                     <div class=\"action-button-row\">
-                        <button class=\"participate-btn\" onclick=\"participateInExercise()\">Participate</button>
+                        <button class=\"participate-btn\" onclick=\"participateInExercise()\">Start Exercise</button>
                         <button class=\"participate-btn secondary\" onclick=\"openExerciseInBrowser()\">Open in browser</button>
                     </div>
                 </div>`

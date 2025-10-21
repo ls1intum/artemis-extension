@@ -4,6 +4,9 @@ All notable changes to the Artemis VS Code extension will be documented in this 
 
 ## [0.1.4] - 2025-10-18
 
+### Changed
+- **Exercise Detail Participate Button**: Renamed action to "Start Exercise" to better reflect the flow for initiating work
+
 ### Fixed
 - **Test Results Loading Freeze**: Added 15-second timeout to prevent infinite "Loading test results..." state when API requests hang or fail, includes retry button
 

@@ -423,8 +423,17 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
     private async _loadIrisMessagesIfNeeded(): Promise<void> {
         const activeContext = this._contextStore.getActiveContext();
 
-        // Only load if there's an active context and we haven't initialized yet
-        if (activeContext && !this._currentArtemisSessionId) {
+        if (!activeContext) {
+            return;
+        }
+
+        // If we have an active session ID, just reload the messages for that session
+        // (this handles the case when the sidebar is reopened and the webview is recreated)
+        if (this._currentArtemisSessionId) {
+            console.log('Active session found on view reopen, reloading messages...');
+            await this._loadIrisMessages();
+        } else {
+            // No session initialized yet, load all sessions for the context
             console.log('Active context found on startup, loading Iris messages...');
             await this._loadAllSessionsForContext();
         }
