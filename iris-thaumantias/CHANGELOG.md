@@ -11,6 +11,7 @@ All notable changes to the Artemis VS Code extension will be documented in this 
 
 ### Fixed
 - **Test Results Loading Freeze**: Added 15-second timeout to prevent infinite "Loading test results..." state when API requests hang or fail, includes retry button
+- **Latest Result Selection**: Fixed result selection logic to use `completionDate` instead of ID when determining the latest test result. This ensures that when multiple builds complete out of order (e.g., due to varying build times), the most recently completed result is always displayed, matching Artemis web frontend behavior
 
 ## [0.1.3] - 2025-10-17
 

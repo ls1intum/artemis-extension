@@ -22,6 +22,43 @@ export class ExerciseDetailView {
         return IconDefinitions.getIcon('uploadMessage');
     }
 
+    // Get latest submission by ID (matches Artemis frontend approach)
+    // IDs are database auto-increment, guaranteed to be sequential with submission time
+    private _getLatestSubmission(participation: any): any | undefined {
+        if (!participation || !Array.isArray(participation.submissions) || participation.submissions.length === 0) {
+            return undefined;
+        }
+
+        return participation.submissions.reduce((latest: any, current: any) => {
+            const latestId = typeof latest?.id === 'number' ? latest.id : -Infinity;
+            const currentId = typeof current?.id === 'number' ? current.id : -Infinity;
+            return currentId > latestId ? current : latest;
+        });
+    }
+
+    // Get latest result by completionDate (matches Artemis frontend approach)
+    // Results can complete out of order due to varying build times
+    // Uses completionDate to ensure the most recently completed result is returned
+    private _getLatestResult(submission: any): any | undefined {
+        if (!submission || !Array.isArray(submission.results) || submission.results.length === 0) {
+            return undefined;
+        }
+
+        return submission.results.reduce((latest: any, current: any) => {
+            const latestDate = latest?.completionDate ? new Date(latest.completionDate).getTime() : -Infinity;
+            const currentDate = current?.completionDate ? new Date(current.completionDate).getTime() : -Infinity;
+            
+            // Fallback to ID if completionDates are equal or missing (rare edge case)
+            if (latestDate === currentDate) {
+                const latestId = typeof latest?.id === 'number' ? latest.id : -Infinity;
+                const currentId = typeof current?.id === 'number' ? current.id : -Infinity;
+                return currentId > latestId ? current : latest;
+            }
+            
+            return currentDate > latestDate ? current : latest;
+        });
+    }
+
     public generateHtml(exerciseData: any, hideDeveloperTools: boolean = false): string {
         const themeCSS = this._themeManager.getThemeCSS();
         const currentTheme = this._themeManager.getCurrentTheme();
@@ -349,17 +386,10 @@ export class ExerciseDetailView {
 
                 // Get latest submission and build status
                 let buildStatusHtml = '';
-                if (hasParticipation && firstParticipation?.submissions && firstParticipation.submissions.length > 0) {
+                const latestSubmission = hasParticipation ? this._getLatestSubmission(firstParticipation) : undefined;
+                if (hasParticipation && latestSubmission) {
 
-                    // Find the latest submission by date (submissions may not be sorted)
-                    const latestSubmission = firstParticipation.submissions.reduce((latest: any, current: any) => {
-                        const latestDate = new Date(latest.submissionDate);
-                        const currentDate = new Date(current.submissionDate);
-                        return currentDate > latestDate ? current : latest;
-                    });
-
-                    const latestResult = latestSubmission.results && latestSubmission.results.length > 0
-                        ? latestSubmission.results[latestSubmission.results.length - 1] : null;
+                    const latestResult = this._getLatestResult(latestSubmission) ?? null;
 
                     // Only show build status for programming exercises
                     if (isProgrammingExercise) {
@@ -379,7 +409,7 @@ export class ExerciseDetailView {
                         if (buildFailed) {
                             statusBadge = '<span class="status-badge failed">Build Failed</span>';
                         } else if (hasTestInfo) {
-                            const passPercentage = (passedTests / totalTests) * 100;
+                            const passPercentage = totalTests > 0 ? (passedTests / totalTests) * 100 : 0;
                             const badgeClass = passPercentage >= 90 ? 'success' : passPercentage >= 75 ? 'partial' : 'failed';
                             statusBadge = `<span class="status-badge ${badgeClass}">${passedTests}/${totalTests} tests passed</span>`;
                         } else {
@@ -605,6 +635,150 @@ export class ExerciseDetailView {
         
         // Make exercise data available globally for WebSocket handlers
         window.exerciseData = exerciseData;
+
+        function getActiveExercise() {
+            const raw = window.exerciseData;
+            if (!raw) {
+                return null;
+            }
+            if (raw.exercise && typeof raw.exercise === 'object') {
+                return raw.exercise;
+            }
+            return raw;
+        }
+
+        function getStudentParticipations() {
+            const exercise = getActiveExercise();
+            const participations = exercise?.studentParticipations;
+            return Array.isArray(participations) ? participations : [];
+        }
+
+        // Get latest submission by ID (matches Artemis frontend)
+        // IDs are database auto-increment, guaranteed sequential with submission time
+        function getLatestSubmission(participation) {
+            const submissions = participation?.submissions;
+            if (!Array.isArray(submissions) || submissions.length === 0) {
+                return undefined;
+            }
+            return submissions.reduce((latest, current) => {
+                const latestId = typeof latest?.id === 'number' ? latest.id : -Infinity;
+                const currentId = typeof current?.id === 'number' ? current.id : -Infinity;
+                return currentId > latestId ? current : latest;
+            });
+        }
+
+        // Get latest result by completionDate (matches Artemis frontend)
+        // Results can complete out of order due to varying build times
+        // Uses completionDate to ensure the most recently completed result is returned
+        function getLatestResult(submission) {
+            const results = submission?.results;
+            if (!Array.isArray(results) || results.length === 0) {
+                return undefined;
+            }
+            return results.reduce((latest, current) => {
+                const latestDate = latest?.completionDate ? new Date(latest.completionDate).getTime() : -Infinity;
+                const currentDate = current?.completionDate ? new Date(current.completionDate).getTime() : -Infinity;
+                
+                // Fallback to ID if completionDates are equal or missing (rare edge case)
+                if (latestDate === currentDate) {
+                    const latestId = typeof latest?.id === 'number' ? latest.id : -Infinity;
+                    const currentId = typeof current?.id === 'number' ? current.id : -Infinity;
+                    return currentId > latestId ? current : latest;
+                }
+                
+                return currentDate > latestDate ? current : latest;
+            });
+        }
+
+        function matchesActiveExercise(entity) {
+            const exercise = getActiveExercise();
+            if (!exercise || !exercise.id) {
+                return true;
+            }
+
+            const candidateIds = [
+                entity?.exercise?.id,
+                entity?.participation?.exercise?.id,
+                entity?.submission?.participation?.exercise?.id
+            ].filter((id) => typeof id === 'number');
+
+            if (candidateIds.length === 0) {
+                return true;
+            }
+
+            return candidateIds.every((id) => id === exercise.id);
+        }
+
+        function resolveParticipationById(participations, participationId) {
+            if (typeof participationId !== 'number') {
+                return undefined;
+            }
+            return participations.find((participation) => participation.id === participationId);
+        }
+
+        function resolveParticipationForSubmission(submission) {
+            const participations = getStudentParticipations();
+            if (!submission || participations.length === 0) {
+                return undefined;
+            }
+
+            if (!matchesActiveExercise(submission)) {
+                return undefined;
+            }
+
+            const participationId = submission?.participation?.id;
+            if (typeof participationId === 'number') {
+                return resolveParticipationById(participations, participationId);
+            }
+
+            return participations.length === 1 ? participations[0] : undefined;
+        }
+
+        function resolveParticipationForResult(result) {
+            const participations = getStudentParticipations();
+            if (!result || participations.length === 0) {
+                return undefined;
+            }
+
+            if (!matchesActiveExercise(result)) {
+                return undefined;
+            }
+
+            const participationId =
+                (result?.participation && typeof result.participation.id === 'number'
+                    ? result.participation.id
+                    : undefined) ??
+                (result?.submission && result.submission.participation && typeof result.submission.participation.id === 'number'
+                    ? result.submission.participation.id
+                    : undefined);
+
+            if (typeof participationId === 'number') {
+                return resolveParticipationById(participations, participationId);
+            }
+
+            return participations.length === 1 ? participations[0] : undefined;
+        }
+
+        function findLatestSubmissionContext() {
+            const participations = getStudentParticipations();
+            let latestContext;
+
+            participations.forEach((participation) => {
+                const candidate = getLatestSubmission(participation);
+                if (!candidate) {
+                    return;
+                }
+                const candidateId = typeof candidate?.id === 'number' ? candidate.id : -Infinity;
+                const latestId = latestContext?.submission?.id;
+                const currentLatestId = typeof latestId === 'number' ? latestId : -Infinity;
+                
+                if (!latestContext || candidateId > currentLatestId) {
+                    latestContext = { participation, submission: candidate };
+                }
+            });
+
+            return latestContext;
+        }
         
         // Store PlantUML diagrams for rendering
         const plantUmlDiagrams = ${JSON.stringify(plantUmlDiagrams)};
@@ -732,42 +906,30 @@ export class ExerciseDetailView {
 
         window.showSubmissionDetails = function() {
             try {
-                const ex = exerciseData.exercise || exerciseData;
-                const participations = ex.studentParticipations || [];
+                const participations = getStudentParticipations();
 
                 if (!participations.length) {
                     vscode.postMessage({ command: 'alert', text: 'No participation found. Start the exercise first.' });
                     return;
                 }
 
-                const participation = participations[0];
-                const submissions = participation.submissions || [];
+                const latestContext = findLatestSubmissionContext();
 
-                if (!submissions.length) {
+                if (!latestContext) {
                     vscode.postMessage({ command: 'alert', text: 'No submissions found yet.' });
                     return;
                 }
 
-                // Find the latest submission by date
-                const latestSubmission = submissions.reduce((latest, current) => {
-                    const latestDate = new Date(latest.submissionDate);
-                    const currentDate = new Date(current.submissionDate);
-                    return currentDate > latestDate ? current : latest;
-                });
+                const latestResult = getLatestResult(latestContext.submission);
 
-                const results = latestSubmission.results || [];
-
-                if (!results.length) {
+                if (!latestResult) {
                     vscode.postMessage({ command: 'alert', text: 'No results found for the latest submission.' });
                     return;
                 }
 
-                // Get the latest result
-                const latestResult = results[results.length - 1];
-
                 vscode.postMessage({
                     command: 'showSubmissionDetails',
-                    participationId: participation.id,
+                    participationId: latestContext.participation.id,
                     resultId: latestResult.id
                 });
             } catch (e) {
@@ -870,45 +1032,36 @@ export class ExerciseDetailView {
             }, 10000);
 
             try {
-                const ex = exerciseData.exercise || exerciseData;
-                const participations = ex.studentParticipations || [];
+                const participations = getStudentParticipations();
 
                 if (!participations.length) {
                     clearTimeout(fetchTestResultsTimeout);
                     container.innerHTML = '<div class="test-results-loading">No participation found</div>';
+                    container.dataset.loaded = 'true';
                     return;
                 }
 
-                const participation = participations[0];
-                const submissions = participation.submissions || [];
+                const latestContext = findLatestSubmissionContext();
 
-                if (!submissions.length) {
+                if (!latestContext) {
                     clearTimeout(fetchTestResultsTimeout);
                     container.innerHTML = '<div class="test-results-loading">No submissions found</div>';
+                    container.dataset.loaded = 'true';
                     return;
                 }
 
-                // Find the latest submission by date
-                const latestSubmission = submissions.reduce((latest, current) => {
-                    const latestDate = new Date(latest.submissionDate);
-                    const currentDate = new Date(current.submissionDate);
-                    return currentDate > latestDate ? current : latest;
-                });
+                const latestResult = getLatestResult(latestContext.submission);
 
-                const results = latestSubmission.results || [];
-
-                if (!results.length) {
+                if (!latestResult) {
                     clearTimeout(fetchTestResultsTimeout);
                     container.innerHTML = '<div class="test-results-loading">No results found</div>';
+                    container.dataset.loaded = 'true';
                     return;
                 }
-
-                // Get the latest result
-                const latestResult = results[results.length - 1];
 
                 vscode.postMessage({
                     command: 'fetchTestResults',
-                    participationId: participation.id,
+                    participationId: latestContext.participation.id,
                     resultId: latestResult.id
                 });
             } catch (e) {
@@ -1697,65 +1850,72 @@ export class ExerciseDetailView {
         function handleNewResult(result) {
             console.log('📊 Received new result from WebSocket:', result);
 
-            // Update exerciseData with the new result
-            if (result && window.exerciseData) {
-                const ex = window.exerciseData.exercise || window.exerciseData;
-                const participations = ex.studentParticipations || [];
-                
-                if (participations.length > 0) {
-                    const participation = participations[0];
-                    const submissions = participation.submissions || [];
-                    
-                    if (submissions.length > 0) {
-                        // Find the submission this result belongs to
-                        let targetSubmission = null;
-                        
-                        // If result has a submission reference, find it by ID
-                        if (result.submission && result.submission.id) {
-                            targetSubmission = submissions.find(s => s.id === result.submission.id);
-                        }
-                        
-                        // If not found or no submission reference, use the latest submission
-                        if (!targetSubmission) {
-                            targetSubmission = submissions.reduce((latest, current) => {
-                                const latestDate = new Date(latest.submissionDate);
-                                const currentDate = new Date(current.submissionDate);
-                                return currentDate > latestDate ? current : latest;
-                            });
-                        }
-                        
-                        if (targetSubmission) {
-                            // Initialize results array if it doesn't exist
-                            if (!targetSubmission.results) {
-                                targetSubmission.results = [];
-                            }
-                            
-                            // Check if this result already exists (by ID)
-                            const existingIndex = targetSubmission.results.findIndex(r => r.id === result.id);
-                            
-                            if (existingIndex >= 0) {
-                                // Update existing result
-                                targetSubmission.results[existingIndex] = result;
-                            } else {
-                                // Add new result
-                                targetSubmission.results.push(result);
-                            }
-                            
-                            console.log('✅ Updated exerciseData with new result. Submission results:', targetSubmission.results.length);
-                        }
-                    }
-                }
+            if (!result || !window.exerciseData) {
+                return;
             }
 
-            const scorePercentage = result.score !== undefined && result.score !== null ? result.score : 0;
+            const participation = resolveParticipationForResult(result);
+
+            if (!participation) {
+                console.log('ℹ️ Ignoring result that does not belong to the active exercise or participation.');
+                return;
+            }
+
+            if (!Array.isArray(participation.submissions)) {
+                participation.submissions = [];
+            }
+
+            let targetSubmission = null;
+
+            if (result.submission && typeof result.submission.id === 'number') {
+                targetSubmission = participation.submissions.find((submission) => submission.id === result.submission.id);
+            }
+
+            if (!targetSubmission) {
+                targetSubmission = getLatestSubmission(participation);
+            }
+
+            if (!targetSubmission) {
+                targetSubmission = {
+                    id: typeof result?.submission?.id === 'number' ? result.submission.id : Date.now(),
+                    submissionDate: result.completionDate || new Date().toISOString(),
+                    results: []
+                };
+                participation.submissions.push(targetSubmission);
+            }
+
+            if (!Array.isArray(targetSubmission.results)) {
+                targetSubmission.results = [];
+            }
+
+            if (!targetSubmission.submissionDate && result.completionDate) {
+                targetSubmission.submissionDate = result.completionDate;
+            }
+
+            if (result.submission && typeof result.submission.buildFailed === 'boolean') {
+                targetSubmission.buildFailed = result.submission.buildFailed;
+            }
+
+            const existingIndex = targetSubmission.results.findIndex((r) => r.id === result.id);
+
+            if (existingIndex >= 0) {
+                targetSubmission.results[existingIndex] = result;
+            } else {
+                targetSubmission.results.push(result);
+            }
+
+            console.log('✅ Updated exerciseData with new result. Submission results:', targetSubmission.results.length);
+
+            const exercise = getActiveExercise();
+            const scorePercentage = typeof result.score === 'number' ? result.score : 0;
             const successful = result.successful === true;
-            const maxPoints = window.exerciseData?.maxPoints || 1;
+            const maxPoints = exercise?.maxPoints || 0;
             const scorePoints = Math.round((scorePercentage / 100) * maxPoints * 100) / 100;
 
             const totalTests = result.testCaseCount || 0;
             const passedTests = result.passedTestCaseCount || 0;
             const hasTestInfo = totalTests > 0;
-            const buildFailed = result.submission?.buildFailed || false;
+            const buildFailed = targetSubmission.buildFailed ?? result.submission?.buildFailed ?? false;
 
             const buildStatusSection = ensureBuildStatusSection();
             if (buildStatusSection) {
@@ -1809,35 +1969,40 @@ export class ExerciseDetailView {
 
         function handleNewSubmission(submission) {
             console.log('📤 Received new submission from WebSocket:', submission);
-            setSubmitLoading(true);
-            
-            // Update exerciseData with the new submission
-            if (submission && window.exerciseData) {
-                const ex = window.exerciseData.exercise || window.exerciseData;
-                const participations = ex.studentParticipations || [];
-                
-                if (participations.length > 0) {
-                    const participation = participations[0];
-                    
-                    // Initialize submissions array if it doesn't exist
-                    if (!participation.submissions) {
-                        participation.submissions = [];
-                    }
-                    
-                    // Check if this submission already exists (by ID)
-                    const existingIndex = participation.submissions.findIndex(s => s.id === submission.id);
-                    
-                    if (existingIndex >= 0) {
-                        // Update existing submission
-                        participation.submissions[existingIndex] = submission;
-                    } else {
-                        // Add new submission
-                        participation.submissions.push(submission);
-                    }
-                    
-                    console.log('✅ Updated exerciseData with new submission. Total submissions:', participation.submissions.length);
-                }
+
+            if (!submission || !window.exerciseData) {
+                return;
             }
+
+            const participation = resolveParticipationForSubmission(submission);
+
+            if (!participation) {
+                console.log('ℹ️ Ignoring submission that does not belong to the active exercise or participation.');
+                return;
+            }
+
+            if (!Array.isArray(participation.submissions)) {
+                participation.submissions = [];
+            }
+
+            if (!submission.submissionDate) {
+                submission.submissionDate = new Date().toISOString();
+            }
+
+            const existingIndex = participation.submissions.findIndex((s) => s.id === submission.id);
+
+            if (existingIndex >= 0) {
+                participation.submissions[existingIndex] = {
+                    ...participation.submissions[existingIndex],
+                    ...submission
+                };
+            } else {
+                participation.submissions.push(submission);
+            }
+
+            console.log('✅ Updated exerciseData with new submission. Total submissions:', participation.submissions.length);
+
+            setSubmitLoading(true);
             
             const buildStatusSection = ensureBuildStatusSection();
             renderBuildProgress(buildStatusSection, '🔄 Submission received, queuing build...', 5, true);
