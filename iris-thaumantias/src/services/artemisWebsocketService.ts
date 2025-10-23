@@ -3,11 +3,11 @@ import WebSocket from 'ws';
 import * as vscode from 'vscode';
 import { AuthManager } from '../auth';
 import { VSCODE_CONFIG } from '../utils';
-import { 
-    ResultDTO, 
-    ProgrammingSubmission, 
+import {
+    ResultDTO,
+    ProgrammingSubmission,
     SubmissionProcessingMessage,
-    WebSocketMessageHandler 
+    WebSocketMessageHandler
 } from '../types';
 
 /**
@@ -23,9 +23,19 @@ export class ArtemisWebsocketService {
     private _reconnectDelay: number = 3000; // 3 seconds
     private _subscriptions: Map<string, StompSubscription> = new Map();
     private _messageHandlers: WebSocketMessageHandler[] = [];
+    private _connectionStateCallbacks: Array<(isConnected: boolean) => void> = [];
 
     constructor(authManager: AuthManager) {
         this._authManager = authManager;
+    }
+
+    /**
+     * Register a callback for connection state changes
+     */
+    public onConnectionStateChange(callback: (isConnected: boolean) => void): void {
+        this._connectionStateCallbacks.push(callback);
+        // Immediately notify of current state
+        callback(this._isConnected);
     }
 
     /**
@@ -48,7 +58,7 @@ export class ArtemisWebsocketService {
         try {
             const serverUrl = this._getServerUrl();
             this._log(`Connecting to Artemis WebSocket...`);
-            
+
             const cookie = await this._authManager.getCookieHeader();
 
             if (!cookie) {
@@ -59,7 +69,7 @@ export class ArtemisWebsocketService {
 
             // Extract JWT token from cookie
             const jwtToken = this._extractJwtFromCookie(cookie);
-            
+
             if (!jwtToken) {
                 const errorMsg = 'Failed to extract JWT token from cookie';
                 this._log(`⚠️ ${errorMsg}`);
@@ -77,18 +87,18 @@ export class ArtemisWebsocketService {
                 reconnectDelay: this._reconnectDelay,
                 heartbeatIncoming: 10000,
                 heartbeatOutgoing: 10000,
-                
+
                 webSocketFactory: () => {
                     const ws = new WebSocket(wsUrl, {
                         headers: {
                             'Cookie': cookie
                         }
                     });
-                    
+
                     ws.on('error', (err) => {
                         this._log(`WebSocket error: ${err.message}`);
                     });
-                    
+
                     return ws as any;
                 },
 
@@ -125,7 +135,7 @@ export class ArtemisWebsocketService {
     public async disconnect(): Promise<void> {
         if (this._client) {
             this._log('Disconnecting from Artemis WebSocket');
-            
+
             // Unsubscribe from all topics
             this._subscriptions.forEach((subscription, topic) => {
                 subscription.unsubscribe();
@@ -161,7 +171,7 @@ export class ArtemisWebsocketService {
             try {
                 const result: ResultDTO = JSON.parse(message.body);
                 this._log(`Received new result: score=${result.score}, successful=${result.successful}`);
-                
+
                 // Notify all handlers
                 this._messageHandlers.forEach(handler => {
                     if (handler.onNewResult) {
@@ -196,7 +206,7 @@ export class ArtemisWebsocketService {
             try {
                 const submission: ProgrammingSubmission = JSON.parse(message.body);
                 this._log(`Received new submission: ${submission.id}`);
-                
+
                 // Notify all handlers
                 this._messageHandlers.forEach(handler => {
                     if (handler.onNewSubmission) {
@@ -231,7 +241,7 @@ export class ArtemisWebsocketService {
             try {
                 const processingMsg: SubmissionProcessingMessage = JSON.parse(message.body);
                 this._log(`Received submission processing update: participationId=${processingMsg.participationId}`);
-                
+
                 // Notify all handlers
                 this._messageHandlers.forEach(handler => {
                     if (handler.onSubmissionProcessing) {
@@ -245,6 +255,68 @@ export class ArtemisWebsocketService {
 
         this._subscriptions.set(topic, subscription);
         this._log(`Subscribed to ${topic}`);
+    }
+
+    /**
+     * Subscribe to Iris chat session updates
+     * Topic format: /user/topic/iris/{sessionId} for authenticated user-specific messages
+     */
+    public subscribeToIrisSession(sessionId: number, onMessage: (message: any) => void): () => void {
+        if (!this._isConnected || !this._client) {
+            this._log('Cannot subscribe: not connected');
+            throw new Error('WebSocket not connected');
+        }
+
+        // Use /user/topic/ prefix for user-specific authenticated messages
+        const topic = `/user/topic/iris/${sessionId}`;
+
+        // Check if already subscribed
+        if (this._subscriptions.has(topic)) {
+            this._log(`Already subscribed to ${topic}`);
+            // Return unsubscribe function for existing subscription
+            return () => {
+                const sub = this._subscriptions.get(topic);
+                if (sub) {
+                    sub.unsubscribe();
+                    this._subscriptions.delete(topic);
+                    this._log(`Unsubscribed from ${topic}`);
+                }
+            };
+        }
+
+        const subscription = this._client.subscribe(topic, (message: IMessage) => {
+            try {
+                const data = JSON.parse(message.body);
+                this._log(`Received Iris message for session ${sessionId}: ${JSON.stringify(data).substring(0, 100)}`);
+                onMessage(data);
+            } catch (error) {
+                this._log(`Error processing Iris message: ${error}`);
+            }
+        });
+
+        this._subscriptions.set(topic, subscription);
+        this._log(`✅ Subscribed to Iris session: ${topic}`);
+
+        // Return unsubscribe function
+        return () => {
+            subscription.unsubscribe();
+            this._subscriptions.delete(topic);
+            this._log(`Unsubscribed from ${topic}`);
+        };
+    }
+
+    /**
+     * Unsubscribe from a specific Iris session
+     */
+    public unsubscribeFromIrisSession(sessionId: number): void {
+        const topic = `/user/topic/iris/${sessionId}`;
+        const subscription = this._subscriptions.get(topic);
+
+        if (subscription) {
+            subscription.unsubscribe();
+            this._subscriptions.delete(topic);
+            this._log(`Unsubscribed from ${topic}`);
+        }
     }
 
     /**
@@ -286,7 +358,7 @@ export class ArtemisWebsocketService {
     }> {
         const serverUrl = this._getServerUrl();
         const wsUrl = this._buildWebSocketUrl(serverUrl);
-        
+
         const info = {
             isConnected: this._isConnected,
             clientConnected: this._client?.connected || false,
@@ -301,7 +373,7 @@ export class ArtemisWebsocketService {
             hasJwtToken: false,
             cookiePreview: undefined as string | undefined
         };
-        
+
         try {
             const cookie = await this._authManager.getCookieHeader();
             info.hasCookie = !!cookie;
@@ -314,7 +386,7 @@ export class ArtemisWebsocketService {
             info.hasCookie = false;
             info.hasJwtToken = false;
         }
-        
+
         return info;
     }
 
@@ -331,7 +403,10 @@ export class ArtemisWebsocketService {
         this._isConnected = true;
         this._reconnectAttempts = 0;
         this._log('✅ Connected to Artemis WebSocket');
-        
+
+        // Notify all connection state callbacks
+        this._notifyConnectionStateChange(true);
+
         // Auto-subscribe to personal topics
         this.subscribeToPersonalResults();
         this.subscribeToPersonalSubmissions();
@@ -342,12 +417,25 @@ export class ArtemisWebsocketService {
         this._isConnected = false;
         this._subscriptions.clear();
         this._log('Disconnected from Artemis WebSocket');
-        
+
+        // Notify all connection state callbacks
+        this._notifyConnectionStateChange(false);
+
         // Attempt reconnection if within limit
         if (this._reconnectAttempts < this._maxReconnectAttempts) {
             this._reconnectAttempts++;
             this._log(`Will attempt reconnection (${this._reconnectAttempts}/${this._maxReconnectAttempts})`);
         }
+    }
+
+    private _notifyConnectionStateChange(isConnected: boolean): void {
+        this._connectionStateCallbacks.forEach(callback => {
+            try {
+                callback(isConnected);
+            } catch (error) {
+                this._log(`Error in connection state callback: ${error}`);
+            }
+        });
     }
 
     private _onError(message: string): void {
@@ -364,12 +452,12 @@ export class ArtemisWebsocketService {
         // Convert HTTP(S) URL to WS(S) URL
         const url = new URL(serverUrl);
         const protocol = url.protocol === 'https:' ? 'wss:' : 'ws:';
-        
+
         // Artemis uses /websocket/websocket to bypass SockJS and use STOMP directly
         // Source: webapp/app/shared/service/websocket.service.ts line 166
         // const url = `//${window.location.host}/websocket/websocket`;
         const wsEndpoint = `${protocol}//${url.host}/websocket/websocket`;
-        
+
         this._log(`Using direct STOMP endpoint (no SockJS): ${wsEndpoint}`);
         return wsEndpoint;
     }

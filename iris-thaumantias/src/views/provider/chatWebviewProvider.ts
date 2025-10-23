@@ -1,150 +1,114 @@
 import * as vscode from 'vscode';
 import { IrisChatView } from '../templates/irisChatView';
 import { StyleManager } from '../styles';
+import { ExerciseRegistry } from './exerciseRegistry';
+import { ContextStore } from './contextStore';
+import {
+    ActiveContext,
+    StoredSession,
+    ChatContextType,
+    ContextSnapshot,
+} from './contextTypes';
+import { ArtemisApiService } from '../../api';
+import { ArtemisWebsocketService } from '../../services';
 
-// Global exercise registry for repository URL matching
-interface ExerciseRegistryEntry {
-    id: number;
-    title: string;
-    repositoryUri: string;
-    shortName?: string;
-}
+type ChatContextReason =
+    | 'user-selected'
+    | 'auto-workspace'
+    | 'auto-first'
+    | 'auto-recent'
+    | 'default'
+    | 'workspace-detected';
 
-// Chat context types
-type ChatContextType = 'exercise' | 'course' | 'lecture' | 'general';
-
-type ChatContextReason = 
-    | 'user-selected'           // User manually selected this context
-    | 'auto-workspace'          // Auto-selected because it matches workspace
-    | 'auto-first'              // Auto-selected as first available
-    | 'auto-recent'             // Auto-selected as most recently opened
-    | 'default';                // Default context
-
-interface ChatContext {
-    type: ChatContextType;
-    id: number;
-    title: string;
-    reason: ChatContextReason;
-    timestamp: number;          // When this context was selected
-}
-
-class ExerciseRegistry {
-    private static instance: ExerciseRegistry;
-    private exercises: Map<number, ExerciseRegistryEntry> = new Map();
-
-    static getInstance(): ExerciseRegistry {
-        if (!ExerciseRegistry.instance) {
-            ExerciseRegistry.instance = new ExerciseRegistry();
-        }
-        return ExerciseRegistry.instance;
-    }
-
-    public registerExercise(id: number, title: string, repositoryUri: string, shortName?: string): void {
-        this.exercises.set(id, { id, title, repositoryUri, shortName });
-    }
-
-    public registerFromCourseData(courseData: any): void {
-        const exercises = courseData?.course?.exercises || courseData?.exercises || [];
-        
-        let registeredCount = 0;
-        const registered: string[] = [];
-        const skipped: string[] = [];
-        
-        for (const exercise of exercises) {
-            const participations = exercise.studentParticipations || [];
-            
-            if (participations.length > 0 && participations[0].repositoryUri) {
-                this.registerExercise(
-                    exercise.id,
-                    exercise.title,
-                    participations[0].repositoryUri,
-                    exercise.shortName
-                );
-                registeredCount++;
-                registered.push(`${exercise.id}: ${exercise.title}`);
-            } else {
-                skipped.push(`${exercise.id}: ${exercise.title} (no repo URI)`);
-            }
-        }
-        
-        console.log(`📚 [Exercise Registry] Processed ${exercises.length} exercises: ${registeredCount} registered, ${skipped.length} skipped. Total in registry: ${this.exercises.size}`);
-        if (registered.length > 0) {
-            console.log(`   ✅ Registered: ${registered.join(', ')}`);
-        }
-        if (skipped.length > 0 && skipped.length <= 3) {
-            console.log(`   ⏭️  Skipped: ${skipped.join(', ')}`);
-        } else if (skipped.length > 3) {
-            console.log(`   ⏭️  Skipped ${skipped.length} exercises (no repository URIs)`);
-        }
-    }
-
-    public findByRepositoryUrl(repoUrl: string): ExerciseRegistryEntry | null {
-        const normalizeUrl = (url: string) => {
-            return url
-                .replace(/^git@([^:]+):/, 'https://$1/')
-                .replace(/^https?:\/\/[^@]*@/, 'https://')
-                .replace(/\.git$/, '')
-                .replace(/\/$/, '')
-                .toLowerCase();
-        };
-
-        const normalizedSearchUrl = normalizeUrl(repoUrl);
-        
-        for (const exercise of this.exercises.values()) {
-            if (normalizeUrl(exercise.repositoryUri) === normalizedSearchUrl) {
-                return exercise;
-            }
-        }
-        
-        return null;
-    }
-
-    public getAllExercises(): ExerciseRegistryEntry[] {
-        return Array.from(this.exercises.values());
-    }
-
-    public clear(): void {
-        this.exercises.clear();
-    }
-}
-
-// Export for use in other providers
-export { ExerciseRegistry };
-
-export class ChatWebviewProvider implements vscode.WebviewViewProvider {
+export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.Disposable {
     public static readonly viewType = 'iris.chatView';
 
     private _view?: vscode.WebviewView;
     private _irisChatView?: IrisChatView;
-    private _openExercises: Map<number, { 
-        title: string; 
-        id: number;
-        shortName?: string; // Exercise short name (e.g., "S11E02")
-        releaseDate?: string; 
-        dueDate?: string;
-        lastViewed?: number; // Timestamp when last viewed
-        score?: number; // Completion score (0-100)
-    }> = new Map();
-    private _openCourses: Map<number, { 
-        title: string; 
-        id: number;
-        shortName?: string; // Course short name (e.g., "ios25")
-        lastViewed?: number; // Timestamp when last viewed
-    }> = new Map();
-    private _exerciseQueue: number[] = [];
-    private _courseQueue: number[] = [];
-    private readonly MAX_EXERCISES = 5;
-    private readonly MAX_COURSES = 3;
-    private _selectedContext?: ChatContext; // Store the currently selected chat context
     private readonly _styleManager: StyleManager;
+    private readonly _contextStore: ContextStore;
+    private readonly _disposables: vscode.Disposable[] = [];
+    private _currentArtemisSessionId?: number;
+    private _irisUnsubscribe?: () => void;
+    private _currentIrisSettings?: any; // Cached Iris settings for current context
 
     constructor(
         private readonly _extensionUri: vscode.Uri,
         private readonly _extensionContext: vscode.ExtensionContext,
-    ) { 
+        private readonly _artemisApiService?: ArtemisApiService,
+        private readonly _websocketService?: ArtemisWebsocketService,
+    ) {
         this._styleManager = new StyleManager(this._extensionUri);
-        // Don't create IrisChatView here - wait until resolveWebviewView
+        this._contextStore = new ContextStore(this._extensionContext);
     }
+
+    public dispose(): void {
+        // Unsubscribe from Iris WebSocket
+        if (this._irisUnsubscribe) {
+            this._irisUnsubscribe();
+            this._irisUnsubscribe = undefined;
+        }
+
+        while (this._disposables.length > 0) {
+            const disposable = this._disposables.pop();
+            disposable?.dispose();
+        }
+    }
+
+    private _handleIrisWebSocketMessage(data: any): void {
+        console.log('🔔 Received Iris WebSocket message:', JSON.stringify(data, null, 2));
+
+        if (!this._view) {
+            console.log('⚠️ No view available to display message');
+            return;
+        }
+
+        // Handle different message types
+        if (data.type === 'MESSAGE' && data.message) {
+            console.log('Processing MESSAGE type');
+            // Extract content from the message
+            let content = '';
+            const msg = data.message;
+
+            if (msg.content && Array.isArray(msg.content) && msg.content.length > 0) {
+                content = msg.content.map((item: any) => {
+                    if (item.textContent) {
+                        return item.textContent;
+                    }
+                    return item.toString();
+                }).join('\n');
+            } else if (typeof msg.content === 'string') {
+                content = msg.content;
+            }
+
+            console.log('Extracted content:', content);
+            console.log('Message sender:', msg.sender);
+
+            // Only show assistant messages (user messages were already shown)
+            if (msg.sender !== 'USER' && content) {
+                console.log('Sending assistant message to webview');
+                this._view.webview.postMessage({
+                    command: 'addMessage',
+                    message: {
+                        id: msg.id,
+                        role: 'assistant',
+                        content: content,
+                        timestamp: msg.sentAt ? new Date(msg.sentAt).getTime() : Date.now(),
+                        helpful: msg.helpful // true, false, or null
+                    }
+                });
+            } else {
+                console.log('Skipping message (either USER message or no content)');
+            }
+        } else if (data.type === 'STATUS') {
+            // Handle status updates (e.g., "Iris is thinking...")
+            console.log('📊 Iris status update:', data);
+            // TODO: Show status indicator in UI
+        } else {
+            console.log('⚠️ Unknown message type or format:', data);
+        }
+    }
+
     private _getOrCreateIrisChatView(): IrisChatView {
         if (!this._irisChatView) {
             this._irisChatView = new IrisChatView(this._extensionContext, this._styleManager);
@@ -154,345 +118,144 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider {
 
     public resolveWebviewView(
         webviewView: vscode.WebviewView,
-        context: vscode.WebviewViewResolveContext,
+        _context: vscode.WebviewViewResolveContext,
         _token: vscode.CancellationToken,
     ) {
         this._view = webviewView;
 
         webviewView.webview.options = {
-            // Allow scripts in the webview
             enableScripts: true,
-            localResourceRoots: [
-                this._extensionUri
-            ]
+            localResourceRoots: [this._extensionUri],
         };
 
-        // Set up message handling for the chat functionality
-        webviewView.webview.onDidReceiveMessage(
-            message => {
-                this._handleMessage(message);
-            },
-            undefined,
-            []
-        );
-
-        // Read developer tools setting
         const config = vscode.workspace.getConfiguration('artemis');
         const showDeveloperTools = !config.get<boolean>('hideDeveloperTools', true);
-
         webviewView.webview.html = this._getOrCreateIrisChatView().generateHtml(webviewView.webview, showDeveloperTools);
 
-        // Give webview time to initialize, then send exercises and courses
-        setTimeout(() => {
-            // Detect workspace exercise and send all exercises
-            this._detectAndSendExercises();
-            
-            // Send all currently tracked courses
-            this._sendCourses();
-        }, 150);
+        const messageListener = webviewView.webview.onDidReceiveMessage(message => {
+            this._handleMessage(message);
+        });
+        this._disposables.push(messageListener);
 
-        // Resend exercises and courses when view becomes visible again
-        webviewView.onDidChangeVisibility(() => {
+        const visibilityListener = webviewView.onDidChangeVisibility(() => {
             if (webviewView.visible) {
-                this._detectAndSendExercises();
-                this._sendCourses();
+                this._postSnapshot();
+                void this._detectWorkspaceExercise();
+                // Load Iris messages if context is already selected
+                void this._loadIrisMessagesIfNeeded();
             }
         });
+        this._disposables.push(visibilityListener);
 
-        // Listen for workspace folder changes
-        vscode.workspace.onDidChangeWorkspaceFolders(() => {
-            this._detectAndSendExercises();
+        const workspaceListener = vscode.workspace.onDidChangeWorkspaceFolders(() => {
+            void this._detectWorkspaceExercise();
         });
+        this._disposables.push(workspaceListener);
 
-        // Listen for configuration changes to re-render when settings change
-        vscode.workspace.onDidChangeConfiguration(event => {
-            if (event.affectsConfiguration('artemis.hideDeveloperTools') || 
-                event.affectsConfiguration('artemis.theme')) {
+        const configListener = vscode.workspace.onDidChangeConfiguration(event => {
+            if (
+                event.affectsConfiguration('artemis.hideDeveloperTools') ||
+                event.affectsConfiguration('artemis.theme')
+            ) {
                 this.refreshTheme();
             }
         });
+        this._disposables.push(configListener);
+
+        this._postSnapshot();
+        void this._detectWorkspaceExercise();
+        // Load Iris messages if context is already selected
+        void this._loadIrisMessagesIfNeeded();
+
+        // Start monitoring WebSocket status
+        this._startWebSocketMonitoring();
     }
 
-    private async _detectAndSendExercises(): Promise<void> {
-        // Detect workspace exercise
-        await this._detectWorkspaceExercise();
-        // Send all exercises including workspace one
-        this._sendExercises();
-    }
+    private _startWebSocketMonitoring(): void {
+        if (!this._websocketService) {
+            return;
+        }
 
-    private _addExerciseToQueue(exerciseId: number, exerciseTitle: string, releaseDate?: string, dueDate?: string, shortName?: string): void {
-        // Check if already exists
-        if (!this._openExercises.has(exerciseId)) {
-            this._exerciseQueue.push(exerciseId);
-            
-            // Enforce max limit (FIFO)
-            if (this._exerciseQueue.length > this.MAX_EXERCISES) {
-                const oldestId = this._exerciseQueue.shift();
-                if (oldestId !== undefined) {
-                    this._openExercises.delete(oldestId);
+        // Register for connection state changes
+        this._websocketService.onConnectionStateChange((isConnected: boolean) => {
+            console.log('WebSocket connection state changed:', isConnected);
+            this._updateWebSocketStatus(isConnected);
+
+            // If reconnected and we have an active session, resubscribe
+            if (isConnected && this._currentArtemisSessionId) {
+                console.log('WebSocket reconnected, resubscribing to session:', this._currentArtemisSessionId);
+
+                // Unsubscribe from old subscription if any
+                if (this._irisUnsubscribe) {
+                    this._irisUnsubscribe();
+                }
+
+                // Subscribe to the current session
+                try {
+                    this._irisUnsubscribe = this._websocketService!.subscribeToIrisSession(
+                        this._currentArtemisSessionId,
+                        (data: any) => this._handleIrisWebSocketMessage(data)
+                    );
+                    console.log('Successfully resubscribed to Iris session');
+                } catch (error) {
+                    console.error('Failed to resubscribe to Iris session:', error);
                 }
             }
-        }
-        
-        this._openExercises.set(exerciseId, { 
-            title: exerciseTitle, 
-            id: exerciseId,
-            shortName, 
-            releaseDate, 
-            dueDate,
-            lastViewed: Date.now() // Set view timestamp
-        });
-        
-        // Re-sort queue by priority
-        this._sortExerciseQueue();
-    }
-
-    private _addCourseToQueue(courseId: number, courseTitle: string, shortName?: string): void {
-        // Check if already exists
-        if (!this._openCourses.has(courseId)) {
-            this._courseQueue.push(courseId);
-            
-            // Enforce max limit (FIFO)
-            if (this._courseQueue.length > this.MAX_COURSES) {
-                const oldestId = this._courseQueue.shift();
-                if (oldestId !== undefined) {
-                    this._openCourses.delete(oldestId);
-                }
-            }
-        }
-        
-        this._openCourses.set(courseId, { 
-            title: courseTitle, 
-            id: courseId,
-            shortName,
-            lastViewed: Date.now() // Set view timestamp
-        });
-        
-        // Re-sort queue by priority
-        this._sortCourseQueue();
-    }
-
-    /**
-     * Calculate priority score for an exercise
-     * Higher score = higher priority
-     */
-    private _calculateExercisePriority(exerciseId: number): number {
-        const exercise = this._openExercises.get(exerciseId);
-        if (!exercise) {
-            return 0;
-        }
-
-        let priority = 0;
-        const now = Date.now();
-        const msPerDay = 24 * 60 * 60 * 1000;
-
-        // 1. Workspace bonus: +1000
-        if (exercise.title.includes('(Workspace)')) {
-            priority += 1000;
-        }
-
-        // 2. Released in last 7 days: +100
-        if (exercise.releaseDate) {
-            const releaseTime = new Date(exercise.releaseDate).getTime();
-            const daysSinceRelease = (now - releaseTime) / msPerDay;
-            if (daysSinceRelease >= 0 && daysSinceRelease <= 7) {
-                priority += 100;
-            }
-        }
-
-        // 3. Due in next 7 days: +200 (closer deadline = more points)
-        if (exercise.dueDate) {
-            const dueTime = new Date(exercise.dueDate).getTime();
-            const daysUntilDue = (dueTime - now) / msPerDay;
-            if (daysUntilDue >= 0 && daysUntilDue <= 7) {
-                // Closer deadline gets more points (200 for due today, 170 for 7 days away)
-                priority += Math.max(200 - Math.floor(daysUntilDue * 30 / 7), 170);
-            }
-        }
-
-        // 4. Recently viewed: +50
-        if (exercise.lastViewed) {
-            const hoursSinceView = (now - exercise.lastViewed) / (60 * 60 * 1000);
-            if (hoursSinceView <= 24) {
-                priority += 50;
-            }
-        }
-
-        // 5. Base score: Release date timestamp (newer = higher)
-        if (exercise.releaseDate) {
-            // Normalize to small number (days since epoch / 1000)
-            const releaseTime = new Date(exercise.releaseDate).getTime();
-            priority += Math.floor(releaseTime / msPerDay / 1000);
-        }
-
-        // 6. Completed exercises (score = 100) get lower priority: -100
-        if (exercise.score === 100) {
-            priority -= 100;
-        }
-
-        return priority;
-    }
-
-    /**
-     * Calculate priority score for a course
-     * Higher score = higher priority
-     */
-    private _calculateCoursePriority(courseId: number): number {
-        const course = this._openCourses.get(courseId);
-        if (!course) {
-            return 0;
-        }
-
-        let priority = 0;
-        const now = Date.now();
-        const msPerDay = 24 * 60 * 60 * 1000;
-
-        // 1. Has workspace exercise: +800
-        const hasWorkspaceExercise = Array.from(this._openExercises.values())
-            .some(ex => ex.title.includes('(Workspace)'));
-        if (hasWorkspaceExercise) {
-            // Check if any workspace exercise belongs to this course (would need course-exercise mapping)
-            // For now, just boost the most recently viewed course if workspace exists
-            priority += 800;
-        }
-
-        // 2. Recently viewed: +100
-        if (course.lastViewed) {
-            const hoursSinceView = (now - course.lastViewed) / (60 * 60 * 1000);
-            if (hoursSinceView <= 24) {
-                priority += 100;
-            }
-        }
-
-        // 3. Base score: Last viewed timestamp (normalized like exercises)
-        if (course.lastViewed) {
-            // Normalize to small number (days since epoch / 1000) - same as exercises
-            priority += Math.floor(course.lastViewed / msPerDay / 1000);
-        }
-
-        return priority;
-    }
-
-    /**
-     * Get detailed breakdown of exercise priority score for diagnostics
-     */
-    private _getExercisePriorityBreakdown(exercise: { 
-        title: string; 
-        id: number;
-        shortName?: string;
-        releaseDate?: string; 
-        dueDate?: string;
-        lastViewed?: number;
-        score?: number;
-    }): string[] {
-        const breakdown: string[] = [];
-        const now = Date.now();
-        const msPerDay = 24 * 60 * 60 * 1000;
-
-        // 1. Workspace bonus
-        if (exercise.title.includes('(Workspace)')) {
-            breakdown.push('+1000 (Workspace exercise)');
-        }
-
-        // 2. Recently released
-        if (exercise.releaseDate) {
-            const releaseTime = new Date(exercise.releaseDate).getTime();
-            const daysSinceRelease = (now - releaseTime) / msPerDay;
-            if (daysSinceRelease >= 0 && daysSinceRelease <= 7) {
-                breakdown.push(`+100 (Released ${Math.floor(daysSinceRelease)} days ago)`);
-            }
-        }
-
-        // 3. Due soon
-        if (exercise.dueDate) {
-            const dueTime = new Date(exercise.dueDate).getTime();
-            const daysUntilDue = (dueTime - now) / msPerDay;
-            if (daysUntilDue >= 0 && daysUntilDue <= 7) {
-                const points = Math.max(200 - Math.floor(daysUntilDue * 30 / 7), 170);
-                breakdown.push(`+${points} (Due in ${Math.floor(daysUntilDue)} days)`);
-            }
-        }
-
-        // 4. Recently viewed
-        if (exercise.lastViewed) {
-            const hoursSinceView = (now - exercise.lastViewed) / (60 * 60 * 1000);
-            if (hoursSinceView <= 24) {
-                breakdown.push(`+50 (Viewed ${Math.floor(hoursSinceView)} hours ago)`);
-            }
-        }
-
-        // 5. Base score from release date
-        if (exercise.releaseDate) {
-            const releaseTime = new Date(exercise.releaseDate).getTime();
-            const baseScore = Math.floor(releaseTime / msPerDay / 1000);
-            breakdown.push(`+${baseScore} (Base score from release date)`);
-        }
-
-        // 6. Completed penalty
-        if (exercise.score === 100) {
-            breakdown.push('-100 (Already completed)');
-        }
-
-        return breakdown;
-    }
-
-    /**
-     * Get detailed breakdown of course priority score for diagnostics
-     */
-    private _getCoursePriorityBreakdown(course: {
-        title: string;
-        id: number;
-        shortName?: string;
-        lastViewed?: number;
-    }): string[] {
-        const breakdown: string[] = [];
-        const now = Date.now();
-
-        // 1. Workspace exercise bonus
-        const hasWorkspaceExercise = Array.from(this._openExercises.values())
-            .some(ex => ex.title.includes('(Workspace)'));
-        if (hasWorkspaceExercise) {
-            breakdown.push('+800 (Has workspace exercise)');
-        }
-
-        // 2. Recently viewed
-        if (course.lastViewed) {
-            const hoursSinceView = (now - course.lastViewed) / (60 * 60 * 1000);
-            if (hoursSinceView <= 24) {
-                breakdown.push(`+100 (Viewed ${Math.floor(hoursSinceView)} hours ago)`);
-            }
-        }
-
-        // 3. Base score (normalized like exercises)
-        if (course.lastViewed) {
-            const msPerDay = 24 * 60 * 60 * 1000;
-            const baseScore = Math.floor(course.lastViewed / msPerDay / 1000);
-            breakdown.push(`+${baseScore} (Base score from last view)`);
-        }
-
-        return breakdown;
-    }
-
-    /**
-     * Sort exercise queue by priority (highest first)
-     */
-    private _sortExerciseQueue(): void {
-        this._exerciseQueue.sort((a, b) => {
-            const priorityA = this._calculateExercisePriority(a);
-            const priorityB = this._calculateExercisePriority(b);
-            return priorityB - priorityA; // Descending order
         });
     }
 
-    /**
-     * Sort course queue by priority (highest first)
-     */
-    private _sortCourseQueue(): void {
-        this._courseQueue.sort((a, b) => {
-            const priorityA = this._calculateCoursePriority(a);
-            const priorityB = this._calculateCoursePriority(b);
-            return priorityB - priorityA; // Descending order
+    private _mapReasonToSource(reason: ChatContextReason): 'workspace-detected' | 'user-selected' | 'system-default' {
+        switch (reason) {
+            case 'user-selected':
+                return 'user-selected';
+            case 'auto-workspace':
+            case 'workspace-detected':
+                return 'workspace-detected';
+            default:
+                return 'system-default';
+        }
+    }
+
+    private _serializeSession(session: StoredSession) {
+        return {
+            id: session.id,
+            artemisSessionId: session.artemisSessionId,
+            preview: session.preview,
+            messageCount: session.messageCount,
+            createdAt: session.createdAt,
+            lastActivity: session.lastActivity,
+        };
+    }
+
+    private _serializeSnapshot(snapshot: ContextSnapshot) {
+        return {
+            context: snapshot.activeContext,
+            activeSessionId: snapshot.activeSession?.id ?? null,
+            sessions: snapshot.sessions.map(session => this._serializeSession(session)),
+            recentExercises: snapshot.recentExercises,
+            recentCourses: snapshot.recentCourses,
+            allExercises: snapshot.allExercises,
+            allCourses: snapshot.allCourses,
+        };
+    }
+
+    private _postSnapshot(options: { showContextPicker?: boolean } = {}): void {
+        if (!this._view) {
+            return;
+        }
+        const snapshot = this._contextStore.snapshot();
+        const payload = this._serializeSnapshot(snapshot);
+        this._view.webview.postMessage({
+            command: 'updateIrisState',
+            state: payload,
         });
+
+        if (options.showContextPicker) {
+            this._view.webview.postMessage({
+                command: 'showContextPicker',
+                state: payload,
+            });
+        }
     }
 
     private async _detectWorkspaceExercise(): Promise<void> {
@@ -506,271 +269,87 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider {
             const { promisify } = require('util');
             const execAsync = promisify(exec);
 
-            // Get git remote URL
             const { stdout } = await execAsync('git remote get-url origin', {
-                cwd: workspaceFolder.uri.fsPath
+                cwd: workspaceFolder.uri.fsPath,
             });
 
             const repoUrl = stdout.trim();
+            if (!repoUrl) {
+                return;
+            }
 
-            // Check against exercise registry using exact URL matching
             const registry = ExerciseRegistry.getInstance();
             const matchedExercise = registry.findByRepositoryUrl(repoUrl);
-            
-            if (matchedExercise) {
-                console.log('✅ [Workspace] Matched:', matchedExercise.title);
-                
-                // Check if this exercise is already in open exercises
-                const existingEntry = this._openExercises.get(matchedExercise.id);
-                if (existingEntry) {
-                    // Update existing entry with (Workspace) marker, preserve dates
-                    const baseTitle = existingEntry.title.replace(' (Workspace)', '');
-                    this._openExercises.set(matchedExercise.id, {
-                        title: `${baseTitle} (Workspace)`,
-                        id: matchedExercise.id,
-                        shortName: existingEntry.shortName,
-                        releaseDate: existingEntry.releaseDate,
-                        dueDate: existingEntry.dueDate
-                    });
-                } else {
-                    // Add new entry with (Workspace) marker
-                    this._addExerciseToQueue(matchedExercise.id, `${matchedExercise.title} (Workspace)`, undefined, undefined, matchedExercise.shortName);
-                }
-            } else {
-                console.log('⚠️  [Workspace] No match found. Ensure course is loaded first.');
+            if (!matchedExercise) {
+                return;
             }
+
+            const baseTitle = matchedExercise.title.replace(/ \\(Workspace\\)$/i, '');
+            const displayTitle = `${baseTitle} (Workspace)`;
+
+            this._contextStore.registerExercise({
+                id: matchedExercise.id,
+                title: displayTitle,
+                shortName: matchedExercise.shortName,
+                repositoryUri: matchedExercise.repositoryUri,
+                source: 'workspace-detected',
+                isWorkspace: true,
+            });
+
+            this._postSnapshot();
         } catch (error) {
-            // Not a git repository - that's okay
-        }
-    }
-
-    private _sendExercises(): void {
-        if (this._view) {
-            // Prepare exercises list with isWorkspace flag
-            const exercises = Array.from(this._openExercises.values()).map(ex => ({
-                ...ex,
-                isWorkspace: ex.title.includes('(Workspace)')
-            }));
-            
-            // Auto-select workspace exercise if it exists, otherwise select first exercise
-            let contextToSend = null;
-            if (!this._selectedContext && exercises.length > 0) {
-                const workspaceExercise = exercises.find(ex => ex.isWorkspace);
-                if (workspaceExercise) {
-                    this._setContext('exercise', workspaceExercise.id, workspaceExercise.title, 'auto-workspace');
-                    contextToSend = {
-                        type: 'exercise',
-                        id: workspaceExercise.id,
-                        title: workspaceExercise.title,
-                        shortName: workspaceExercise.shortName
-                    };
-                    console.log(`📌 [Iris Chat] Auto-selected workspace exercise: ${workspaceExercise.title}`);
-                } else {
-                    this._setContext('exercise', exercises[0].id, exercises[0].title, 'auto-first');
-                    contextToSend = {
-                        type: 'exercise',
-                        id: exercises[0].id,
-                        title: exercises[0].title,
-                        shortName: exercises[0].shortName
-                    };
-                    console.log(`📌 [Iris Chat] Auto-selected first exercise: ${exercises[0].title}`);
-                }
-            } else if (this._selectedContext && this._selectedContext.type === 'exercise') {
-                // If context already exists, send it to webview to sync
-                const selectedExercise = exercises.find(ex => ex.id === this._selectedContext!.id);
-                if (selectedExercise) {
-                    contextToSend = {
-                        type: 'exercise',
-                        id: selectedExercise.id,
-                        title: selectedExercise.title,
-                        shortName: selectedExercise.shortName
-                    };
-                    console.log(`📌 [Iris Chat] Sending existing context to webview: ${selectedExercise.title}`);
-                }
-            }
-            
-            setTimeout(() => {
-                if (this._view) {
-                    this._view.webview.postMessage({
-                        command: 'updateDetectedExercises',
-                        exercises: exercises
-                    });
-                    
-                    // Send context to webview (either auto-selected or existing)
-                    if (contextToSend) {
-                        this._view.webview.postMessage({
-                            command: 'autoSelectContext',
-                            context: contextToSend
-                        });
-                    }
-                }
-            }, 100);
-        }
-    }
-
-    private _sendCourses(): void {
-        if (this._view) {
-            const courses = Array.from(this._openCourses.values());
-            
-            console.log(`📚 [Iris Chat] Sending ${courses.length} tracked courses to webview`);
-            
-            // Check if we need to send a course context
-            let contextToSend = null;
-            if (this._selectedContext && this._selectedContext.type === 'course') {
-                const selectedCourse = courses.find(c => c.id === this._selectedContext!.id);
-                if (selectedCourse) {
-                    contextToSend = {
-                        type: 'course',
-                        id: selectedCourse.id,
-                        title: selectedCourse.title,
-                        shortName: selectedCourse.shortName
-                    };
-                    console.log(`📌 [Iris Chat] Sending existing course context to webview: ${selectedCourse.title}`);
-                }
-            }
-            
-            if (courses.length > 0) {
-                setTimeout(() => {
-                    if (this._view) {
-                        this._view.webview.postMessage({
-                            command: 'updateDetectedCourses',
-                            courses: courses
-                        });
-                        
-                        // Send course context to webview if it exists
-                        if (contextToSend) {
-                            this._view.webview.postMessage({
-                                command: 'autoSelectContext',
-                                context: contextToSend
-                            });
-                        }
-                    }
-                }, 100);
-            }
-        }
-    }
-
-    public refreshTheme(): void {
-        if (this._view) {
-            // Read developer tools setting
-            const config = vscode.workspace.getConfiguration('artemis');
-            const showDeveloperTools = !config.get<boolean>('hideDeveloperTools', true);
-            
-            this._view.webview.html = this._getOrCreateIrisChatView().generateHtml(this._view.webview, showDeveloperTools);
-        }
-    }
-
-    public updateDetectedExercise(exerciseTitle: string, exerciseId: number, releaseDate?: string, dueDate?: string, shortName?: string): void {
-        this._addExerciseToQueue(exerciseId, exerciseTitle, releaseDate, dueDate, shortName);
-        
-        if (this._view) {
-            setTimeout(() => {
-                if (this._view) {
-                    this._view.webview.postMessage({
-                        command: 'updateDetectedExercises',
-                        exercises: Array.from(this._openExercises.values())
-                    });
-                }
-            }, 50);
-        }
-    }
-
-    public removeDetectedExercise(exerciseId: number): void {
-        this._openExercises.delete(exerciseId);
-        
-        // Remove from queue
-        const index = this._exerciseQueue.indexOf(exerciseId);
-        if (index > -1) {
-            this._exerciseQueue.splice(index, 1);
-        }
-        
-        if (this._view) {
-            this._view.webview.postMessage({
-                command: 'updateDetectedExercises',
-                exercises: Array.from(this._openExercises.values())
-            });
-        }
-    }
-
-    public updateDetectedCourse(courseTitle: string, courseId: number, shortName?: string): void {
-        this._addCourseToQueue(courseId, courseTitle, shortName);
-        
-        console.log(`📚 [Iris Chat] Course detected: ${courseTitle} (ID: ${courseId})`);
-        console.log(`📚 [Iris Chat] Total courses tracked: ${this._openCourses.size}`);
-        console.log(`📚 [Iris Chat] View exists: ${!!this._view}`);
-        
-        // Auto-select if no context is set and this is the first course
-        if (!this._selectedContext && this._openCourses.size === 1) {
-            this._setContext('course', courseId, courseTitle, 'auto-first');
-            console.log(`📌 [Iris Chat] Auto-selected first course: ${courseTitle}`);
-        }
-        
-        if (this._view) {
-            const coursesArray = Array.from(this._openCourses.values());
-            console.log(`📚 [Iris Chat] Sending ${coursesArray.length} courses to webview:`, coursesArray);
-            setTimeout(() => {
-                if (this._view) {
-                    this._view.webview.postMessage({
-                        command: 'updateDetectedCourses',
-                        courses: coursesArray
-                    });
-                }
-            }, 50);
-        } else {
-            console.warn('📚 [Iris Chat] Cannot send courses - view not initialized yet');
-        }
-    }
-
-    public removeDetectedCourse(courseId: number): void {
-        this._openCourses.delete(courseId);
-        
-        // Remove from queue
-        const index = this._courseQueue.indexOf(courseId);
-        if (index > -1) {
-            this._courseQueue.splice(index, 1);
-        }
-        
-        // Clear context if the removed course was selected
-        if (this._selectedContext?.type === 'course' && this._selectedContext.id === courseId) {
-            this.clearContext();
-        }
-        
-        if (this._view) {
-            this._view.webview.postMessage({
-                command: 'updateDetectedCourses',
-                courses: Array.from(this._openCourses.values())
-            });
+            // Not a git repository or command failed - ignore silently
         }
     }
 
     private _handleMessage(message: any): void {
         switch (message.command) {
             case 'sendMessage':
-                // Handle chat message sending
                 this._handleChatMessage(message);
                 break;
-            case 'clearHistory':
-                // Handle clear history
-                this._handleClearHistory();
-                break;
             case 'selectChatContext':
-                // Handle unified context selection (new format from irisChatView)
                 this._handleContextSelection(message.context, message.itemId, message.itemName, message.itemShortName);
                 break;
-            case 'selectExerciseContext':
-                // Handle exercise context selection (legacy)
+            case 'selectExerciseContext': // Legacy
                 this._handleExerciseSelection(message.exerciseId);
                 break;
-            case 'selectCourseContext':
-                // Handle course context selection (legacy)
+            case 'selectCourseContext': // Legacy
                 this._handleCourseSelection(message.courseId);
                 break;
+            case 'createNewSession':
+                this.createNewSession();
+                break;
+            case 'switchSession':
+                if (typeof message.sessionId === 'string') {
+                    this.switchToSession(message.sessionId);
+                }
+                break;
+            case 'switchContext':
+                this._handleSwitchContext();
+                break;
             case 'openDiagnostics':
-                // Handle diagnostics request (async)
-                this._handleOpenDiagnostics(message.selectionModeInfo).catch(err => {
+                this._handleOpenDiagnostics().catch(err => {
                     console.error('Error opening diagnostics:', err);
                     vscode.window.showErrorMessage('Failed to open diagnostics report');
                 });
+                break;
+            case 'debugSessions':
+                this._handleDebugSessions().catch((err: any) => {
+                    console.error('Error debugging sessions:', err);
+                    vscode.window.showErrorMessage('Failed to fetch debug session data');
+                });
+                break;
+            case 'resetChatSessions':
+                this._handleResetSessions();
+                break;
+            case 'reconnectWebSocket':
+                this._handleReconnectWebSocket();
+                break;
+            case 'chatViewReady':
+                this._postSnapshot();
+                break;
+            case 'messageFeedback':
+                this._handleMessageFeedback(message);
                 break;
             default:
                 console.log('Unhandled message in chat view:', message);
@@ -779,287 +358,1300 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider {
     }
 
     private _handleContextSelection(contextType: ChatContextType, itemId: number, itemName: string, itemShortName?: string): void {
-        this._setContext(contextType, itemId, itemName, 'user-selected');
-        
-        console.log(`📌 [Iris Chat] User selected ${contextType} context: ${itemName} (ID: ${itemId}, Short: ${itemShortName || 'N/A'})`);
-        
-        // Optionally show a notification to the user
-        const contextTypeLabel = contextType === 'exercise' ? 'Exercise' : contextType === 'course' ? 'Course' : 'Context';
-        vscode.window.showInformationMessage(`${contextTypeLabel} context set to: ${itemName}`);
+        if (contextType === 'exercise') {
+            this._contextStore.registerExercise({
+                id: itemId,
+                title: itemName,
+                shortName: itemShortName,
+                source: 'user-selected',
+            });
+        } else if (contextType === 'course') {
+            this._contextStore.registerCourse({
+                id: itemId,
+                title: itemName,
+                shortName: itemShortName,
+                source: 'user-selected',
+            });
+        }
+
+        this._contextStore.setActiveContext({
+            type: contextType,
+            id: itemId,
+            title: itemName,
+            shortName: itemShortName,
+            source: 'user-selected',
+            locked: false,
+            selectedAt: Date.now(),
+        });
+
+        // Reset Iris session when context changes
+        this._currentArtemisSessionId = undefined;
+
+        // Clear chat messages
+        if (this._view) {
+            this._view.webview.postMessage({ command: 'clearChatMessages' });
+        }
+
+        this._postSnapshot();
+
+        const label = contextType === 'exercise' ? 'Exercise' : contextType === 'course' ? 'Course' : 'Context';
+        vscode.window.showInformationMessage(`${label} context set to: ${itemName}`);
+
+        // Load all sessions for the new context and initialize
+        this._loadAllSessionsForContext().catch((err: any) => {
+            console.error('Error loading Iris sessions:', err);
+        });
+    }
+
+    private async _loadIrisMessages(): Promise<void> {
+        const activeContext = this._contextStore.getActiveContext();
+        if (!activeContext || !this._artemisApiService || !this._view) {
+            return;
+        }
+
+        try {
+            await this._initializeIrisSession(activeContext);
+        } catch (error: any) {
+            console.error('Failed to load Iris messages:', error);
+            vscode.window.showWarningMessage(`Could not load previous messages: ${error.message}`);
+        }
+    }
+
+    private async _loadIrisMessagesIfNeeded(): Promise<void> {
+        const activeContext = this._contextStore.getActiveContext();
+
+        if (!activeContext) {
+            return;
+        }
+
+        // If we have an active session ID, just reload the messages for that session
+        // (this handles the case when the sidebar is reopened and the webview is recreated)
+        if (this._currentArtemisSessionId) {
+            console.log('Active session found on view reopen, reloading messages...');
+            await this._loadIrisMessages();
+        } else {
+            // No session initialized yet, load all sessions for the context
+            console.log('Active context found on startup, loading Iris messages...');
+            await this._loadAllSessionsForContext();
+        }
+    }
+
+    private async _checkAndLoadIrisSettings(context: ActiveContext): Promise<boolean> {
+        if (!this._artemisApiService) {
+            console.warn('Artemis API service not available');
+            return false;
+        }
+
+        try {
+            console.log(`Checking Iris settings for ${context.type}: ${context.title}`);
+
+            // Fetch settings based on context type
+            let settings: any;
+            if (context.type === 'course') {
+                settings = await this._artemisApiService.getIrisCourseChatSettings(context.id);
+            } else if (context.type === 'exercise') {
+                settings = await this._artemisApiService.getIrisExerciseChatSettings(context.id);
+            } else {
+                console.warn(`Unsupported context type for Iris: ${context.type}`);
+                return false;
+            }
+
+            // Store settings for later use
+            this._currentIrisSettings = settings;
+
+            // Check if Iris chat is enabled
+            const chatSettings = context.type === 'course' 
+                ? settings?.irisChatSettings 
+                : settings?.irisProgrammingExerciseChatSettings;
+
+            if (!chatSettings?.enabled) {
+                const contextLabel = context.type === 'course' ? 'course' : 'exercise';
+                vscode.window.showWarningMessage(
+                    `Iris chat is not enabled for this ${contextLabel}. Please contact your instructor.`
+                );
+                console.log('Iris chat is disabled in settings');
+                return false;
+            }
+
+            console.log('Iris chat is enabled, settings loaded:', {
+                enabled: chatSettings.enabled,
+                rateLimit: chatSettings.rateLimit,
+                rateLimitTimeframeHours: chatSettings.rateLimitTimeframeHours
+            });
+
+            return true;
+        } catch (error: any) {
+            console.error('Error checking Iris settings:', error);
+            
+            // If it's a 403, Iris is probably disabled
+            if (error.status === 403 || error.message?.includes('403')) {
+                vscode.window.showWarningMessage('Iris is not available for this context.');
+                return false;
+            }
+
+            // For other errors, show a generic message but don't block
+            vscode.window.showWarningMessage(`Could not load Iris settings: ${error.message}`);
+            return false;
+        }
+    }
+
+    private async _loadAllSessionsForContext(): Promise<void> {
+        const activeContext = this._contextStore.getActiveContext();
+        if (!activeContext || !this._artemisApiService || !this._view) {
+            console.log('Cannot load sessions: missing context, API service, or view');
+            return;
+        }
+
+        try {
+            console.log(`Loading all Iris sessions for ${activeContext.type}: ${activeContext.title} (ID: ${activeContext.id})`);
+
+            // Step 0: Check if Iris is enabled for this context
+            const isEnabled = await this._checkAndLoadIrisSettings(activeContext);
+            if (!isEnabled) {
+                console.log('Iris is disabled, not loading sessions');
+                // Clear any existing sessions and show empty state
+                if (this._view) {
+                    this._view.webview.postMessage({ 
+                        command: 'clearChatMessages' 
+                    });
+                }
+                return;
+            }
+
+            // Step 1: Fetch session metadata (fast, lightweight)
+            let artemisSessionsMetadata: any[] = [];
+            if (activeContext.type === 'course') {
+                artemisSessionsMetadata = await this._artemisApiService.getCourseChatSessions(activeContext.id);
+            } else if (activeContext.type === 'exercise') {
+                artemisSessionsMetadata = await this._artemisApiService.getExerciseChatSessions(activeContext.id);
+            } else {
+                console.log(`Unsupported context type: ${activeContext.type}`);
+                return;
+            }
+
+            console.log(`Fetched ${artemisSessionsMetadata.length} session(s) metadata from Artemis`);
+
+            // Step 2: Fetch messages for each session (to display in list)
+            const artemisSessionsListFromServer: any[] = await Promise.all(
+                artemisSessionsMetadata.map(async (session) => {
+                    if (!this._artemisApiService) {
+                        return { ...session, messages: [] };
+                    }
+                    try {
+                        console.log(`Fetching messages for session ${session.id}...`);
+                        const messages = await this._artemisApiService.getChatMessages(session.id);
+                        return {
+                            ...session,
+                            messages: messages
+                        };
+                    } catch (error) {
+                        console.warn(`Failed to fetch messages for session ${session.id}:`, error);
+                        return {
+                            ...session,
+                            messages: []
+                        };
+                    }
+                })
+            );
+
+            console.log(`Fetched messages for all ${artemisSessionsListFromServer.length} sessions`);
+
+            // CLEAR all existing sessions for this context to avoid stale data
+            const contextKey = `${activeContext.type}:${activeContext.id}`;
+            console.log(`Clearing all existing sessions for context ${contextKey} before loading fresh data from Artemis`);
+            this._contextStore.clearSessionsForContext(contextKey);
+
+            // Import all sessions from Artemis
+            if (artemisSessionsListFromServer.length > 0) {
+                // Sort sessions by creation date (newest first)
+                artemisSessionsListFromServer.sort((a, b) => {
+                    const dateA = a.creationDate ? new Date(a.creationDate).getTime() : 0;
+                    const dateB = b.creationDate ? new Date(b.creationDate).getTime() : 0;
+                    return dateB - dateA;
+                });
+
+                console.log(`Importing ${artemisSessionsListFromServer.length} sessions from Artemis`);
+
+                for (const artemisSession of artemisSessionsListFromServer) {
+
+                    // Create local session for each Artemis session
+                    const messageCount = artemisSession.messages?.length || 0;
+                    const createdAt = artemisSession.creationDate ? new Date(artemisSession.creationDate).getTime() : Date.now();
+
+                    // Create preview from first user message or use default
+                    let preview = 'New conversation';
+                    if (artemisSession.messages && artemisSession.messages.length > 0) {
+                        const firstUserMsg = artemisSession.messages.find((m: any) => m.sender === 'USER');
+                        if (firstUserMsg?.content?.[0]?.textContent) {
+                            preview = firstUserMsg.content[0].textContent.substring(0, 50);
+                        }
+                    }
+
+                    console.log(`Importing session ${artemisSession.id}: ${messageCount} messages, preview: "${preview}"`);
+
+                    // Create local session with Artemis session ID and messages
+                    this._contextStore.createSessionWithDetails(
+                        preview,
+                        messageCount,
+                        createdAt,
+                        artemisSession.id,
+                        artemisSession.messages || []
+                    );
+                }
+
+                console.log(`Imported ${artemisSessionsListFromServer.length} sessions for ${activeContext.type} ${activeContext.id}`);
+            }
+
+            // Get the latest snapshot after importing sessions
+            const updatedSnapshot = this._contextStore.snapshot();
+
+            // If there are sessions, switch to the first one and load its messages
+            if (updatedSnapshot.sessions.length > 0) {
+                // Switch to the first (most recent) session
+                this._contextStore.switchToFirstSession();
+
+                // Load messages for the first session
+                await this._loadIrisMessages();
+            } else {
+                // No sessions exist, create a new one
+                console.log('No sessions found, creating a new one');
+                this._contextStore.createSession();
+                await this._createNewIrisSession();
+            }
+
+            // Post updated snapshot to show sessions in UI
+            this._postSnapshot();
+
+        } catch (error: any) {
+            console.error('Error loading sessions for context:', error);
+            vscode.window.showWarningMessage(`Could not load sessions: ${error.message}`);
+
+            // Fall back to creating a new session
+            this._contextStore.createSession();
+            await this._createNewIrisSession();
+            this._postSnapshot();
+        }
+    }
+
+    private _handleSwitchContext(): void {
+        this._contextStore.unlockActiveContext();
+        this._postSnapshot({ showContextPicker: true });
     }
 
     private _handleCourseSelection(courseId: number): void {
-        const course = this._openCourses.get(courseId);
-        const courseTitle = course ? course.title : `Course ${courseId}`;
-        
-        this._setContext('course', courseId, courseTitle, 'user-selected');
-        
-        console.log(`📌 [Iris Chat] User selected course context: ${courseTitle} (ID: ${courseId})`);
+        const latest = this._contextStore.registerCourse({
+            id: courseId,
+            title: `Course ${courseId}`,
+        });
+        const course = latest.recentCourses.find(course => course.id === courseId) ?? latest.allCourses.find(c => c.id === courseId);
+        this._contextStore.setActiveContext({
+            type: 'course',
+            id: courseId,
+            title: course?.title ?? `Course ${courseId}`,
+            shortName: course?.shortName,
+            source: 'user-selected',
+            locked: false,
+            selectedAt: Date.now(),
+        });
+
+        // Reset Iris session when context changes
+        this._currentArtemisSessionId = undefined;
+        this._currentIrisSettings = undefined; // Clear cached settings
+
+        // Clear chat messages
+        if (this._view) {
+            this._view.webview.postMessage({ command: 'clearChatMessages' });
+        }
+
+        this._postSnapshot();
+
+        // Load all sessions for the new context
+        this._loadAllSessionsForContext().catch((err: any) => {
+            console.error('Error loading Iris sessions:', err);
+        });
     }
 
     private _handleExerciseSelection(exerciseId: number): void {
-        const exercise = this._openExercises.get(exerciseId);
-        const exerciseTitle = exercise ? exercise.title : `Exercise ${exerciseId}`;
-        
-        this._setContext('exercise', exerciseId, exerciseTitle, 'user-selected');
-        
-        console.log(`📌 [Iris Chat] User selected exercise context: ${exerciseTitle} (ID: ${exerciseId})`);
-        
-        // Optionally show a notification to the user
-        vscode.window.showInformationMessage(`Exercise context set to: ${exerciseTitle}`);
+        const latest = this._contextStore.registerExercise({
+            id: exerciseId,
+            title: `Exercise ${exerciseId}`,
+        });
+        const exercise =
+            latest.recentExercises.find(ex => ex.id === exerciseId) ?? latest.allExercises.find(ex => ex.id === exerciseId);
+        this._contextStore.setActiveContext({
+            type: 'exercise',
+            id: exerciseId,
+            title: exercise?.title ?? `Exercise ${exerciseId}`,
+            shortName: exercise?.shortName,
+            source: 'user-selected',
+            locked: false,
+            selectedAt: Date.now(),
+        });
+
+        // Reset Iris session when context changes
+        this._currentArtemisSessionId = undefined;
+        this._currentIrisSettings = undefined; // Clear cached settings
+
+        // Clear chat messages
+        if (this._view) {
+            this._view.webview.postMessage({ command: 'clearChatMessages' });
+        }
+
+        this._postSnapshot();
+
+        vscode.window.showInformationMessage(`Exercise context set to: ${exercise?.title ?? `Exercise ${exerciseId}`}`);
+
+        // Load all sessions for the new context
+        this._loadAllSessionsForContext().catch((err: any) => {
+            console.error('Error loading Iris sessions:', err);
+        });
     }
 
-    /**
-     * Set the chat context with type, ID, title, and reason
-     */
-    private _setContext(type: ChatContextType, id: number, title: string, reason: ChatContextReason): void {
-        this._selectedContext = {
-            type,
-            id,
-            title,
-            reason,
-            timestamp: Date.now()
-        };
+    private async _handleOpenDiagnostics(): Promise<void> {
+        const snapshot = this._contextStore.snapshot();
+        let report = '='.repeat(80) + '\n';
+        report += '🐛 IRIS CHAT DIAGNOSTICS\n';
+        report += 'Generated at: ' + new Date().toISOString() + '\n';
+        report += '='.repeat(80) + '\n\n';
+
+        report += '📌 ACTIVE CONTEXT:\n';
+        if (snapshot.activeContext) {
+            report += `  Type: ${snapshot.activeContext.type}\n`;
+            report += `  ID: ${snapshot.activeContext.id}\n`;
+            report += `  Title: ${snapshot.activeContext.title}\n`;
+            report += `  Short Name: ${snapshot.activeContext.shortName ?? '—'}\n`;
+            report += `  Source: ${snapshot.activeContext.source}\n`;
+            report += `  Locked: ${snapshot.activeContext.locked}\n`;
+            report += `  Selected At: ${new Date(snapshot.activeContext.selectedAt).toISOString()}\n`;
+        } else {
+            report += '  No context selected\n';
+        }
+
+        report += '\n💬 ACTIVE SESSION:\n';
+        if (snapshot.activeSession) {
+            report += `  ID: ${snapshot.activeSession.id}\n`;
+            report += `  Preview: ${snapshot.activeSession.preview}\n`;
+            report += `  Messages: ${snapshot.activeSession.messageCount}\n`;
+            report += `  Created: ${new Date(snapshot.activeSession.createdAt).toISOString()}\n`;
+            report += `  Last Activity: ${new Date(snapshot.activeSession.lastActivity).toISOString()}\n`;
+        } else {
+            report += '  No session available\n';
+        }
+
+        report += `\n🗂️  SESSIONS (${snapshot.sessions.length} total):\n`;
+        if (snapshot.sessions.length > 0) {
+            snapshot.sessions.forEach((session, idx) => {
+                report += `  ${idx + 1}. ${session.id}\n`;
+                report += `     Preview: ${session.preview}\n`;
+                report += `     Messages: ${session.messageCount}\n`;
+                report += `     Created: ${new Date(session.createdAt).toISOString()}\n`;
+                report += `     Last Activity: ${new Date(session.lastActivity).toISOString()}\n`;
+            });
+        } else {
+            report += '  No sessions recorded\n';
+        }
+
+        report += `\n💻 RECENT EXERCISES (${snapshot.recentExercises.length}):\n`;
+        if (snapshot.recentExercises.length > 0) {
+            snapshot.recentExercises.forEach((exercise, idx) => {
+                report += `  ${idx + 1}. [${exercise.id}] ${exercise.title}${exercise.isWorkspace ? ' ⭐' : ''}\n`;
+                report += `     Short Name: ${exercise.shortName ?? '—'}\n`;
+                report += `     Priority: ${exercise.priority}\n`;
+                if (exercise.releaseDate) {
+                    report += `     Release: ${exercise.releaseDate}\n`;
+                }
+                if (exercise.dueDate) {
+                    report += `     Due: ${exercise.dueDate}\n`;
+                }
+                if (exercise.lastViewed) {
+                    report += `     Last Viewed: ${new Date(exercise.lastViewed).toISOString()}\n`;
+                }
+            });
+        } else {
+            report += '  No recent exercises tracked\n';
+        }
+
+        report += `\n📚 RECENT COURSES (${snapshot.recentCourses.length}):\n`;
+        if (snapshot.recentCourses.length > 0) {
+            snapshot.recentCourses.forEach((course, idx) => {
+                report += `  ${idx + 1}. [${course.id}] ${course.title}\n`;
+                report += `     Short Name: ${course.shortName ?? '—'}\n`;
+                report += `     Priority: ${course.priority}\n`;
+                if (course.lastViewed) {
+                    report += `     Last Viewed: ${new Date(course.lastViewed).toISOString()}\n`;
+                }
+            });
+        } else {
+            report += '  No recent courses tracked\n';
+        }
+
+        const registry = ExerciseRegistry.getInstance();
+        const registeredExercises = registry.getAllExercises();
+        report += `\n📘 EXERCISE REGISTRY (${registeredExercises.length} total):\n`;
+        if (registeredExercises.length > 0) {
+            registeredExercises.forEach((exercise, idx) => {
+                report += `  ${idx + 1}. [${exercise.id}] ${exercise.title}\n`;
+                report += `     Repository: ${exercise.repositoryUri}\n`;
+            });
+        } else {
+            report += '  Registry is empty\n';
+        }
+
+        const document = await vscode.workspace.openTextDocument({
+            content: report,
+            language: 'plaintext',
+        });
+        await vscode.window.showTextDocument(document, {
+            preview: false,
+            viewColumn: vscode.ViewColumn.Active,
+        });
     }
 
-    /**
-     * Get the currently selected chat context
-     */
-    public getSelectedContext(): ChatContext | undefined {
-        return this._selectedContext;
+    private async _handleDebugSessions(): Promise<void> {
+        const activeContext = this._contextStore.getActiveContext();
+        if (!activeContext) {
+            vscode.window.showWarningMessage('No context selected. Please select an exercise or course first.');
+            return;
+        }
+
+        if (!this._artemisApiService) {
+            vscode.window.showErrorMessage('Artemis API service not available');
+            return;
+        }
+
+        try {
+            let report = '='.repeat(80) + '\n';
+            report += '🔍 RAW ARTEMIS SESSION DEBUG DATA\n';
+            report += 'Generated at: ' + new Date().toISOString() + '\n';
+            report += '='.repeat(80) + '\n\n';
+
+            report += '📌 CURRENT CONTEXT:\n';
+            report += `  Type: ${activeContext.type}\n`;
+            report += `  ID: ${activeContext.id}\n`;
+            report += `  Title: ${activeContext.title}\n`;
+            report += `  Short Name: ${activeContext.shortName ?? '—'}\n\n`;
+
+            report += '🌐 FETCHING SESSIONS FROM ARTEMIS...\n\n';
+
+            // Fetch session metadata first
+            let artemisSessionsMetadata: any[] = [];
+            if (activeContext.type === 'course') {
+                artemisSessionsMetadata = await this._artemisApiService.getCourseChatSessions(activeContext.id);
+            } else if (activeContext.type === 'exercise') {
+                artemisSessionsMetadata = await this._artemisApiService.getExerciseChatSessions(activeContext.id);
+            } else {
+                report += `❌ Unsupported context type: ${activeContext.type}\n`;
+            }
+
+            // Fetch messages for all sessions
+            const artemisSessionsListFromServer: any[] = await Promise.all(
+                artemisSessionsMetadata.map(async (session) => {
+                    try {
+                        const messages = await this._artemisApiService!.getChatMessages(session.id);
+                        return {
+                            ...session,
+                            messages: messages
+                        };
+                    } catch (error) {
+                        console.warn(`Failed to fetch messages for session ${session.id}:`, error);
+                        return {
+                            ...session,
+                            messages: []
+                        };
+                    }
+                })
+            );
+
+            report += `📊 TOTAL SESSIONS FOUND: ${artemisSessionsListFromServer.length}\n`;
+            report += `   (All sessions are for ${activeContext.type} ${activeContext.id}: ${activeContext.title})\n`;
+            report += '='.repeat(80) + '\n\n';
+
+            // Also check local storage
+            const snapshot = this._contextStore.snapshot();
+            const contextKey = `${activeContext.type}:${activeContext.id}`;
+            const localSessions = snapshot.sessions.filter(s => s.contextKey === contextKey);
+
+            report += `💾 LOCAL STORAGE INFO:\n`;
+            report += `   Context Key: ${contextKey}\n`;
+            report += `   Local Sessions for this context: ${localSessions.length}\n`;
+            report += `   All Local Sessions (all contexts): ${snapshot.sessions.length}\n`;
+            if (snapshot.sessions.length > localSessions.length) {
+                const otherContexts = new Set(snapshot.sessions.map(s => s.contextKey).filter(k => k !== contextKey));
+                report += `   ⚠️  WARNING: Found sessions from other contexts: ${Array.from(otherContexts).join(', ')}\n`;
+            }
+            report += '\n';
+
+            // Show what snapshot.sessions contains (this is what the UI displays)
+            report += `📋 SNAPSHOT SESSIONS (what UI shows):\n`;
+            report += `   Total in snapshot: ${snapshot.sessions.length}\n`;
+            if (snapshot.sessions.length > 0) {
+                snapshot.sessions.forEach((s, idx) => {
+                    report += `   ${idx + 1}. Session ${s.id} (artemisId: ${s.artemisSessionId}) - contextKey: ${s.contextKey}\n`;
+                    report += `      Preview: "${s.preview}"\n`;
+                    report += `      Messages: ${s.messageCount}\n`;
+                });
+            }
+            report += '\n' + '='.repeat(80) + '\n\n';
+
+            if (artemisSessionsListFromServer.length === 0) {
+                report += '⚠️  No sessions found on Artemis for this context.\n';
+            } else {
+                artemisSessionsListFromServer.forEach((session, idx) => {
+                    report += `SESSION ${idx + 1}:\n`;
+                    report += '-'.repeat(80) + '\n';
+                    report += JSON.stringify(session, null, 2);
+                    report += '\n\n';
+                });
+            }
+
+            report += '='.repeat(80) + '\n';
+            report += 'END OF DEBUG DATA\n';
+            report += '='.repeat(80) + '\n';
+
+            const document = await vscode.workspace.openTextDocument({
+                content: report,
+                language: 'json',
+            });
+            await vscode.window.showTextDocument(document, {
+                preview: false,
+                viewColumn: vscode.ViewColumn.Active,
+            });
+
+            vscode.window.showInformationMessage(`Found ${artemisSessionsListFromServer.length} session(s) on Artemis`);
+        } catch (error: any) {
+            console.error('Error fetching debug session data:', error);
+            vscode.window.showErrorMessage(`Failed to fetch sessions from Artemis: ${error.message}`);
+        }
     }
 
-    /**
-     * Get the currently selected exercise ID (for backward compatibility)
-     */
+    private async _handleChatMessage(message: any): Promise<void> {
+        if (!message?.text) {
+            return;
+        }
+
+        const activeContext = this._contextStore.getActiveContext();
+        if (!activeContext) {
+            vscode.window.showErrorMessage('Please select a course or exercise context first');
+            return;
+        }
+
+        if (!this._artemisApiService) {
+            vscode.window.showErrorMessage('Artemis API service not available');
+            return;
+        }
+
+        // Check if Iris is enabled (use cached settings if available)
+        if (!this._currentIrisSettings) {
+            const isEnabled = await this._checkAndLoadIrisSettings(activeContext);
+            if (!isEnabled) {
+                return; // Error message already shown in _checkAndLoadIrisSettings
+            }
+        }
+
+        try {
+            // Check WebSocket connection before sending
+            if (this._websocketService && !this._websocketService.isConnected()) {
+                console.log('WebSocket not connected, attempting to connect...');
+                try {
+                    await this._websocketService.connect();
+                } catch (error) {
+                    console.error('Failed to connect WebSocket:', error);
+                    vscode.window.showWarningMessage('WebSocket connection failed. You may not receive responses in real-time.');
+                }
+            }
+
+            // Show user message immediately
+            if (this._view) {
+                this._view.webview.postMessage({
+                    command: 'addMessage',
+                    message: {
+                        role: 'user',
+                        content: message.text,
+                        timestamp: Date.now()
+                    }
+                });
+            }
+
+            // Get or create Iris session
+            if (!this._currentArtemisSessionId) {
+                await this._initializeIrisSession(activeContext);
+            }
+
+            if (!this._currentArtemisSessionId) {
+                throw new Error('Failed to initialize Iris session');
+            }
+
+            // Send message to Iris
+            // The response will come through WebSocket, so we don't need to wait for it here
+            await this._artemisApiService.sendChatMessage(
+                this._currentArtemisSessionId,
+                message.text
+            );
+
+            console.log('Message sent to Iris, waiting for WebSocket response...');
+
+            // Note: The assistant's response will arrive via WebSocket
+            // and will be handled by _handleIrisWebSocketMessage()
+
+            this._contextStore.incrementActiveSessionMessageCount();
+            this._postSnapshot();
+
+        } catch (error: any) {
+            console.error('Error sending chat message:', error);
+            vscode.window.showErrorMessage(`Failed to send message: ${error.message}`);
+
+            if (this._view) {
+                this._view.webview.postMessage({
+                    command: 'addMessage',
+                    message: {
+                        role: 'error',
+                        content: `Error: ${error.message}`,
+                        timestamp: Date.now()
+                    }
+                });
+            }
+        }
+    }
+
+    private async _handleMessageFeedback(message: any): Promise<void> {
+        const sessionId: number | undefined = message.sessionId;
+        const messageId: number | undefined = message.messageId;
+        const feedback: string | undefined = message.feedback;
+
+        console.log('Message feedback received:', { sessionId, messageId, feedback });
+
+        if (!sessionId || !messageId || !feedback) {
+            console.warn('Missing required feedback data:', { sessionId, messageId, feedback });
+            return;
+        }
+
+        if (!this._artemisApiService) {
+            console.warn('Artemis API service not available');
+            return;
+        }
+
+        try {
+            const isHelpful = feedback === 'positive';
+            await this._artemisApiService.markMessageHelpful(sessionId, messageId, isHelpful);
+            console.log(`Feedback submitted: ${feedback} for message ${messageId} in session ${sessionId}`);
+            
+            // Optional: Show user confirmation
+            // vscode.window.showInformationMessage('Thanks for your feedback!');
+        } catch (error) {
+            console.error('Failed to send feedback to server:', error);
+            vscode.window.showErrorMessage('Failed to submit feedback. Please try again.');
+        }
+    }
+
+    private async _initializeIrisSession(context: ActiveContext): Promise<void> {
+        if (!this._artemisApiService) {
+            return;
+        }
+
+        try {
+            console.log(`Initializing Iris session for ${context.type}: ${context.title} (ID: ${context.id})`);
+
+            // Check if we have a stored Artemis session ID for this local session
+            const snapshot = this._contextStore.snapshot();
+            const activeLocalSession = snapshot.activeSession;
+
+            console.log('Active local session:', {
+                id: activeLocalSession?.id,
+                messageCount: activeLocalSession?.messageCount,
+                artemisSessionId: activeLocalSession?.artemisSessionId,
+                createdAt: activeLocalSession?.createdAt ? new Date(activeLocalSession.createdAt).toISOString() : 'unknown'
+            });
+
+            let session;
+            if (activeLocalSession?.artemisSessionId) {
+                // We have a stored Artemis session ID, use it directly
+                console.log('Using stored Artemis session ID:', activeLocalSession.artemisSessionId);
+                session = { id: activeLocalSession.artemisSessionId };
+            } else {
+                // No stored session, get or create the current one
+                console.log('No stored session, fetching current session from Artemis');
+                if (context.type === 'course') {
+                    session = await this._artemisApiService.getCurrentCourseChat(context.id);
+                } else if (context.type === 'exercise') {
+                    session = await this._artemisApiService.getCurrentExerciseChat(context.id);
+                } else {
+                    throw new Error(`Unsupported context type: ${context.type}`);
+                }
+
+                // Store the Artemis session ID for future use (only for new mappings)
+                console.log('Storing NEW Artemis session ID mapping:', session.id);
+                this._storeArtemisSessionId(session.id);
+            }
+
+            console.log(`Iris session initialized with ID: ${session.id}`);
+            this._currentArtemisSessionId = session.id;
+
+            // Unsubscribe from previous session if any
+            if (this._irisUnsubscribe) {
+                console.log('Unsubscribing from previous Iris session');
+                this._irisUnsubscribe();
+                this._irisUnsubscribe = undefined;
+            }
+
+            // Subscribe to WebSocket messages for this session
+            if (this._websocketService) {
+                const isConnected = this._websocketService.isConnected();
+                console.log('WebSocket service status:', { isConnected });
+
+                if (isConnected) {
+                    console.log('Subscribing to Iris WebSocket for session:', session.id);
+                    try {
+                        this._irisUnsubscribe = this._websocketService.subscribeToIrisSession(
+                            session.id,
+                            (data: any) => this._handleIrisWebSocketMessage(data)
+                        );
+                        console.log('Successfully subscribed to Iris WebSocket');
+                    } catch (error) {
+                        console.error('Failed to subscribe to Iris WebSocket:', error);
+                        vscode.window.showErrorMessage('Failed to connect to Iris WebSocket. Messages may not appear in real-time.');
+                    }
+                } else {
+                    console.log('WebSocket not connected, attempting to connect...');
+                    // Try to connect the WebSocket
+                    try {
+                        await this._websocketService.connect();
+                        console.log('WebSocket connected, now subscribing to Iris session:', session.id);
+                        this._irisUnsubscribe = this._websocketService.subscribeToIrisSession(
+                            session.id,
+                            (data: any) => this._handleIrisWebSocketMessage(data)
+                        );
+                    } catch (error) {
+                        console.error('Failed to connect WebSocket:', error);
+                        vscode.window.showWarningMessage('WebSocket not connected. You may need to connect manually via "Artemis: Connect to WebSocket"');
+                    }
+                }
+            } else {
+                console.error('WebSocket service not provided to ChatWebviewProvider');
+                vscode.window.showWarningMessage('WebSocket service not available. Real-time messages will not work.');
+            }
+
+            // Load existing messages if any
+            if (session.id) {
+                console.log('Fetching messages for session:', session.id);
+                const messages = await this._artemisApiService.getChatMessages(session.id);
+                console.log(`Received ${messages?.length || 0} messages from Iris`);
+
+                // If we expected messages but got none, the stored session might be stale
+                if (activeLocalSession?.messageCount && activeLocalSession.messageCount > 0 &&
+                    (!messages || messages.length === 0)) {
+                    console.log('Warning: Expected', activeLocalSession.messageCount, 'messages but got none. Stored session might be stale.');
+                    console.log('Clearing stale Artemis session ID mapping...');
+
+                    // Clear the stale mapping
+                    this._storeArtemisSessionId(undefined as any);
+
+                    vscode.window.showWarningMessage(
+                        'This conversation\'s messages could not be found on the server. They may have been deleted. The session mapping has been reset.',
+                        'Create New Conversation'
+                    ).then(selection => {
+                        if (selection === 'Create New Conversation') {
+                            this.createNewSession();
+                        }
+                    });
+                }
+
+                if (this._view && messages && messages.length > 0) {
+                    console.log('Sending messages to webview:', messages);
+
+                    const formattedMessages = messages.map((msg: any) => {
+                        console.log('Message:', msg);
+
+                        // Extract content from the message structure
+                        let content = '';
+                        if (msg.content && Array.isArray(msg.content) && msg.content.length > 0) {
+                            // Content is an array of content items
+                            content = msg.content.map((item: any) => {
+                                if (item.textContent) {
+                                    return item.textContent;
+                                }
+                                return item.toString();
+                            }).join('\n');
+                        } else if (typeof msg.content === 'string') {
+                            content = msg.content;
+                        } else if (msg.message) {
+                            content = msg.message;
+                        } else {
+                            content = JSON.stringify(msg.content);
+                        }
+
+                        return {
+                            id: msg.id,
+                            role: msg.sender === 'USER' ? 'user' : 'assistant',
+                            content: content,
+                            timestamp: msg.sentAt ? new Date(msg.sentAt).getTime() : Date.now(),
+                            helpful: msg.helpful // true, false, or null
+                        };
+                    });
+
+                    // Small delay to ensure webview is ready
+                    setTimeout(() => {
+                        if (this._view) {
+                            this._view.webview.postMessage({
+                                command: 'loadMessages',
+                                messages: formattedMessages
+                            });
+                            console.log('Messages sent to webview');
+                        }
+                    }, 100);
+                } else {
+                    console.log('No messages to load or view not ready');
+                }
+            }
+
+            vscode.window.showInformationMessage(`Connected to Iris for ${context.title}`);
+        } catch (error: any) {
+            console.error('Error initializing Iris session:', error);
+            throw new Error(`Failed to connect to Iris: ${error.message}`);
+        }
+    }
+
+    public clearAllSessions(): void {
+        console.log('Clearing all local Iris sessions...');
+
+        // Unsubscribe from current WebSocket
+        if (this._irisUnsubscribe) {
+            this._irisUnsubscribe();
+            this._irisUnsubscribe = undefined;
+        }
+
+        // Clear current session ID
+        this._currentArtemisSessionId = undefined;
+
+        // Clear all sessions in the context store
+        this._contextStore.clearAllSessions();
+
+        // Clear chat UI
+        if (this._view) {
+            this._view.webview.postMessage({ command: 'clearChatMessages' });
+        }
+
+        // Post updated snapshot
+        this._postSnapshot();
+
+        console.log('All Iris sessions cleared');
+    }
+
+    private async _handleReconnectWebSocket(): Promise<void> {
+        if (!this._websocketService) {
+            vscode.window.showErrorMessage('WebSocket service not available');
+            return;
+        }
+
+        try {
+            const isConnected = this._websocketService.isConnected();
+            if (isConnected) {
+                vscode.window.showInformationMessage('WebSocket is already connected');
+                this._updateWebSocketStatus(true);
+                return;
+            }
+
+            vscode.window.showInformationMessage('Reconnecting to WebSocket...');
+            await this._websocketService.connect();
+
+            // If we have an active Iris session, resubscribe to it
+            if (this._currentArtemisSessionId && this._websocketService.isConnected()) {
+                console.log('Resubscribing to Iris session after reconnect:', this._currentArtemisSessionId);
+
+                // Unsubscribe from old subscription if any
+                if (this._irisUnsubscribe) {
+                    this._irisUnsubscribe();
+                }
+
+                // Subscribe to the current session
+                this._irisUnsubscribe = this._websocketService.subscribeToIrisSession(
+                    this._currentArtemisSessionId,
+                    (data: any) => this._handleIrisWebSocketMessage(data)
+                );
+            }
+
+            this._updateWebSocketStatus(true);
+            vscode.window.showInformationMessage('Successfully reconnected to WebSocket');
+        } catch (error: any) {
+            console.error('Failed to reconnect WebSocket:', error);
+            vscode.window.showErrorMessage(`Failed to reconnect: ${error.message}`);
+            this._updateWebSocketStatus(false);
+        }
+    }
+
+    private _updateWebSocketStatus(isConnected: boolean): void {
+        if (this._view) {
+            this._view.webview.postMessage({
+                command: 'updateWebSocketStatus',
+                isConnected: isConnected
+            });
+        }
+    }
+
+    private async _handleResetSessions(): Promise<void> {
+        const confirmation = await vscode.window.showWarningMessage(
+            'This will clear all local Iris chat session data and reload all sessions from Artemis. Continue?',
+            { modal: true },
+            'Yes, Reset & Reload'
+        );
+
+        if (confirmation === 'Yes, Reset & Reload') {
+            this.clearAllSessions();
+
+            // If there's an active context, reload all sessions from Artemis
+            const activeContext = this._contextStore.getActiveContext();
+            if (activeContext && this._artemisApiService) {
+                try {
+                    console.log('Fetching all Iris sessions from Artemis for context:', activeContext.title);
+
+                    // Step 1: Fetch session metadata
+                    let artemisSessionsMetadata: any[] = [];
+                    if (activeContext.type === 'course') {
+                        artemisSessionsMetadata = await this._artemisApiService.getCourseChatSessions(activeContext.id);
+                    } else if (activeContext.type === 'exercise') {
+                        artemisSessionsMetadata = await this._artemisApiService.getExerciseChatSessions(activeContext.id);
+                    }
+
+                    console.log(`Fetched ${artemisSessionsMetadata.length} session(s) metadata from Artemis`);
+
+                    // Step 2: Fetch messages for all sessions
+                    const artemisSessionsListFromServer: any[] = await Promise.all(
+                        artemisSessionsMetadata.map(async (session) => {
+                            try {
+                                const messages = await this._artemisApiService!.getChatMessages(session.id);
+                                return {
+                                    ...session,
+                                    messages: messages
+                                };
+                            } catch (error) {
+                                console.warn(`Failed to fetch messages for session ${session.id}:`, error);
+                                return {
+                                    ...session,
+                                    messages: []
+                                };
+                            }
+                        })
+                    );
+
+                    console.log(`Fetched messages for all ${artemisSessionsListFromServer.length} sessions`);
+
+                    // Import all sessions from Artemis
+                    if (artemisSessionsListFromServer.length > 0) {
+                        // Sort sessions by creation date (newest first)
+                        artemisSessionsListFromServer.sort((a, b) => {
+                            const dateA = a.creationDate ? new Date(a.creationDate).getTime() : 0;
+                            const dateB = b.creationDate ? new Date(b.creationDate).getTime() : 0;
+                            return dateB - dateA;
+                        });
+
+                        for (const artemisSession of artemisSessionsListFromServer) {
+                            // Create local session for each Artemis session
+                            const messageCount = artemisSession.messages?.length || 0;
+                            const createdAt = artemisSession.creationDate ? new Date(artemisSession.creationDate).getTime() : Date.now();
+
+                            // Create preview from first user message or use default
+                            let preview = 'New conversation';
+                            if (artemisSession.messages && artemisSession.messages.length > 0) {
+                                const firstUserMsg = artemisSession.messages.find((m: any) => m.sender === 'USER');
+                                if (firstUserMsg?.content?.[0]?.textContent) {
+                                    preview = firstUserMsg.content[0].textContent.substring(0, 50);
+                                }
+                            }
+
+                            console.log(`Importing session ${artemisSession.id}: ${messageCount} messages, preview: "${preview}"`);
+
+                            // Create local session with messages
+                            this._contextStore.createSessionWithDetails(
+                                preview,
+                                messageCount,
+                                createdAt,
+                                artemisSession.id,
+                                artemisSession.messages || []
+                            );
+                        }
+
+                        // Switch to the first (most recent) session
+                        this._contextStore.switchToFirstSession();
+
+                        // Post updated snapshot to show sessions in UI
+                        this._postSnapshot();
+
+                        // Get the first session's messages from the data we already have
+                        const firstSession = artemisSessionsListFromServer[0];
+                        if (firstSession.messages && firstSession.messages.length > 0) {
+                            const formattedMessages = firstSession.messages.map((msg: any) => {
+                                let content = '';
+                                if (msg.content && Array.isArray(msg.content) && msg.content.length > 0) {
+                                    content = msg.content.map((item: any) => {
+                                        if (item.textContent) {
+                                            return item.textContent;
+                                        }
+                                        return item.toString();
+                                    }).join('\n');
+                                } else if (typeof msg.content === 'string') {
+                                    content = msg.content;
+                                }
+
+                                return {
+                                    id: msg.id,
+                                    role: msg.sender === 'USER' ? 'user' : 'assistant',
+                                    content: content,
+                                    timestamp: msg.sentAt ? new Date(msg.sentAt).getTime() : Date.now(),
+                                    helpful: msg.helpful // true, false, or null
+                                };
+                            });
+
+                            // Send messages to webview
+                            if (this._view) {
+                                this._view.webview.postMessage({
+                                    command: 'loadMessages',
+                                    messages: formattedMessages
+                                });
+                            }
+
+                            // Store the Artemis session ID and subscribe to WebSocket
+                            this._currentArtemisSessionId = firstSession.id;
+
+                            if (this._websocketService && this._websocketService.isConnected()) {
+                                console.log('Subscribing to WebSocket for session:', firstSession.id);
+                                this._irisUnsubscribe = this._websocketService.subscribeToIrisSession(
+                                    firstSession.id,
+                                    (data: any) => this._handleIrisWebSocketMessage(data)
+                                );
+                            }
+                        }
+
+                        vscode.window.showInformationMessage(
+                            `✅ Loaded ${artemisSessionsListFromServer.length} session(s) from Artemis`
+                        );
+                    } else {
+                        vscode.window.showInformationMessage('✅ No existing sessions found on Artemis');
+                    }
+                } catch (error: any) {
+                    console.error('Failed to reload sessions from Artemis:', error);
+                    vscode.window.showWarningMessage('Sessions cleared, but failed to reload from Artemis: ' + error.message);
+                }
+            } else {
+                vscode.window.showInformationMessage('✅ Iris chat sessions have been reset');
+            }
+        }
+    }
+
+    public refreshTheme(): void {
+        if (this._view) {
+            const config = vscode.workspace.getConfiguration('artemis');
+            const showDeveloperTools = !config.get<boolean>('hideDeveloperTools', true);
+            this._view.webview.html = this._getOrCreateIrisChatView().generateHtml(this._view.webview, showDeveloperTools);
+            this._postSnapshot();
+        }
+    }
+
+    public updateDetectedExercise(
+        exerciseTitle: string,
+        exerciseId: number,
+        releaseDate?: string,
+        dueDate?: string,
+        shortName?: string,
+    ): void {
+        this._contextStore.registerExercise({
+            id: exerciseId,
+            title: exerciseTitle,
+            shortName,
+            releaseDate,
+            dueDate,
+            source: 'system-default',
+            isWorkspace: /\\(Workspace\\)/i.test(exerciseTitle),
+        });
+        this._postSnapshot();
+    }
+
+    public removeDetectedExercise(exerciseId: number): void {
+        this._contextStore.removeExercise(exerciseId);
+        this._postSnapshot();
+    }
+
+    public updateDetectedCourse(courseTitle: string, courseId: number, shortName?: string): void {
+        this._contextStore.registerCourse({
+            id: courseId,
+            title: courseTitle,
+            shortName,
+            source: 'system-default',
+        });
+        this._postSnapshot();
+    }
+
+    public removeDetectedCourse(courseId: number): void {
+        this._contextStore.removeCourse(courseId);
+        this._postSnapshot();
+    }
+
+    public createNewSession(): void {
+        console.log('Creating new session');
+
+        // Unsubscribe from old WebSocket session
+        if (this._irisUnsubscribe) {
+            console.log('Unsubscribing from previous Iris session');
+            this._irisUnsubscribe();
+            this._irisUnsubscribe = undefined;
+        }
+
+        this._contextStore.createSession();
+        this._currentArtemisSessionId = undefined;
+        this._postSnapshot();
+
+        if (this._view) {
+            this._view.webview.postMessage({ command: 'clearChatMessages' });
+        }
+
+        // Create a brand new Iris session on the backend
+        this._createNewIrisSession().catch(err => {
+            console.error('Error creating new Iris session:', err);
+        });
+    }
+
+    private async _createNewIrisSession(): Promise<void> {
+        const activeContext = this._contextStore.getActiveContext();
+        if (!activeContext || !this._artemisApiService || !this._view) {
+            console.log('Cannot create new session: missing context, API service, or view');
+            return;
+        }
+
+        try {
+            console.log('Creating NEW Iris session for', activeContext.type, activeContext.id);
+
+            // Create a brand new session instead of getting the current one
+            let newSession;
+            if (activeContext.type === 'course') {
+                newSession = await this._artemisApiService.createCourseChatSession(activeContext.id);
+            } else if (activeContext.type === 'exercise') {
+                newSession = await this._artemisApiService.createExerciseChatSession(activeContext.id);
+            } else {
+                throw new Error(`Unsupported context type: ${activeContext.type}`);
+            }
+
+            console.log('New Iris session created with ID:', newSession.id);
+            this._currentArtemisSessionId = newSession.id;
+
+            // Store the Artemis session ID in the local session
+            this._storeArtemisSessionId(newSession.id);
+
+            // Subscribe to WebSocket for the new session
+            if (this._websocketService && this._websocketService.isConnected()) {
+                console.log('Subscribing to new Iris WebSocket session:', newSession.id);
+                this._irisUnsubscribe = this._websocketService.subscribeToIrisSession(
+                    newSession.id,
+                    (data: any) => this._handleIrisWebSocketMessage(data)
+                );
+                console.log('Successfully subscribed to new Iris WebSocket session');
+            }
+
+            vscode.window.showInformationMessage('New conversation started!');
+        } catch (error: any) {
+            console.error('Failed to create new Iris session:', error);
+            vscode.window.showErrorMessage(`Failed to create new conversation: ${error.message}`);
+        }
+    }
+
+    private _storeArtemisSessionId(artemisSessionId: number): void {
+        // Store the Artemis session ID in the active local session
+        this._contextStore.setArtemisSessionId(artemisSessionId);
+        this._postSnapshot();
+    }
+
+    public switchToSession(sessionId: string): void {
+        console.log('Switching to session:', sessionId);
+
+        // Unsubscribe from old WebSocket session
+        if (this._irisUnsubscribe) {
+            console.log('Unsubscribing from previous Iris session');
+            this._irisUnsubscribe();
+            this._irisUnsubscribe = undefined;
+        }
+
+        this._contextStore.switchSession(sessionId);
+        this._currentArtemisSessionId = undefined;
+        this._postSnapshot();
+
+        if (this._view) {
+            this._view.webview.postMessage({ command: 'clearChatMessages' });
+        }
+
+        // Load messages for the switched session
+        this._loadIrisMessages().catch(err => {
+            console.error('Error loading messages for switched session:', err);
+        });
+    }
+
+    public getSelectedContext(): ActiveContext | null {
+        return this._contextStore.getActiveContext();
+    }
+
     public getSelectedExerciseId(): number | undefined {
-        return this._selectedContext?.type === 'exercise' ? this._selectedContext.id : undefined;
+        const active = this._contextStore.getActiveContext();
+        return active?.type === 'exercise' ? active.id : undefined;
     }
 
-    /**
-     * Get the currently selected exercise details (for backward compatibility)
-     */
     public getSelectedExercise(): { title: string; id: number } | undefined {
-        if (this._selectedContext?.type === 'exercise') {
+        const active = this._contextStore.getActiveContext();
+        if (active?.type === 'exercise') {
             return {
-                id: this._selectedContext.id,
-                title: this._selectedContext.title
+                id: active.id,
+                title: active.title,
             };
         }
         return undefined;
     }
 
-    /**
-     * Set context to a course
-     */
-    public setCourseContext(courseId: number, courseTitle: string, reason: ChatContextReason = 'user-selected', shortName?: string): void {
-        this._addCourseToQueue(courseId, courseTitle, shortName);
-        this._setContext('course', courseId, courseTitle, reason);
-        console.log(`📌 [Iris Chat] Course context set: ${courseTitle} (ID: ${courseId}, reason: ${reason})`);
-
-        if (this._view) {
-            this._view.webview.postMessage({
-                command: 'autoSelectContext',
-                context: {
-                    type: 'course',
-                    id: courseId,
-                    title: courseTitle,
-                    shortName: shortName
-                }
-            });
-        }
+    public setCourseContext(
+        courseId: number,
+        courseTitle: string,
+        reason: ChatContextReason = 'user-selected',
+        shortName?: string,
+    ): void {
+        this._contextStore.registerCourse({
+            id: courseId,
+            title: courseTitle,
+            shortName,
+            source: this._mapReasonToSource(reason),
+        });
+        this._contextStore.setActiveContext({
+            type: 'course',
+            id: courseId,
+            title: courseTitle,
+            shortName,
+            source: this._mapReasonToSource(reason),
+            locked: reason === 'workspace-detected',
+            selectedAt: Date.now(),
+        });
+        this._postSnapshot();
     }
 
-    /**
-     * Set context to an exercise (public method for external use)
-     */
-    public setExerciseContext(exerciseId: number, exerciseTitle: string, reason: ChatContextReason = 'user-selected', shortName?: string): void {
-        this._addExerciseToQueue(exerciseId, exerciseTitle, undefined, undefined, shortName);
-        this._setContext('exercise', exerciseId, exerciseTitle, reason);
-        console.log(`📌 [Iris Chat] Exercise context set: ${exerciseTitle} (ID: ${exerciseId}, reason: ${reason})`);
-
-        if (this._view) {
-            this._view.webview.postMessage({
-                command: 'autoSelectContext',
-                context: {
-                    type: 'exercise',
-                    id: exerciseId,
-                    title: exerciseTitle,
-                    shortName: shortName
-                }
-            });
-        }
+    public setExerciseContext(
+        exerciseId: number,
+        exerciseTitle: string,
+        reason: ChatContextReason = 'user-selected',
+        shortName?: string,
+    ): void {
+        this._contextStore.registerExercise({
+            id: exerciseId,
+            title: exerciseTitle,
+            shortName,
+            source: this._mapReasonToSource(reason),
+            isWorkspace: reason === 'workspace-detected' || reason === 'auto-workspace',
+        });
+        this._contextStore.setActiveContext({
+            type: 'exercise',
+            id: exerciseId,
+            title: exerciseTitle,
+            shortName,
+            source: this._mapReasonToSource(reason),
+            locked: reason === 'workspace-detected' || reason === 'auto-workspace',
+            selectedAt: Date.now(),
+        });
+        this._postSnapshot();
     }
 
-    /**
-     * Clear the current context
-     */
     public clearContext(): void {
-        this._selectedContext = undefined;
-        console.log(`📌 [Iris Chat] Context cleared`);
-    }
-
-    private async _handleOpenDiagnostics(selectionModeInfo?: any): Promise<void> {
-        // Build the entire diagnostics report as a single string
-        let report = '='.repeat(80) + '\n';
-        report += '🐛 IRIS CHAT DIAGNOSTICS\n';
-        report += 'Generated at: ' + new Date().toISOString() + '\n';
-        report += '='.repeat(80) + '\n';
-        
-        // 1. Selected Context
-        report += '\n📌 SELECTED CONTEXT:\n';
-        if (this._selectedContext) {
-            report += `  Type: ${this._selectedContext.type}\n`;
-            report += `  ID: ${this._selectedContext.id}\n`;
-            report += `  Title: ${this._selectedContext.title}\n`;
-            report += `  Reason: ${this._selectedContext.reason}\n`;
-            report += `  Selected at: ${new Date(this._selectedContext.timestamp).toISOString()}\n`;
-        } else {
-            report += '  No context selected\n';
-        }
-        
-        // 1.5 Selection Mode State
-        if (selectionModeInfo) {
-            report += '\n🎛️  SELECTION MODE STATE:\n';
-            report += `  Current Mode: ${selectionModeInfo.currentMode}\n`;
-            report += `  Saved State Mode: ${selectionModeInfo.savedStateMode}\n`;
-            report += `  UI Button Text: ${selectionModeInfo.uiButtonText}\n`;
-            report += `  UI Button Class: ${selectionModeInfo.uiButtonClass}\n`;
-            report += '\n  UI Element Visibility:\n';
-            report += `    Search Container: ${selectionModeInfo.searchContainerDisplay}\n`;
-            report += `    Quick Select: ${selectionModeInfo.quickSelectDisplay}\n`;
-            report += `    Exercises Section: ${selectionModeInfo.exercisesSectionDisplay}\n`;
-            report += `    Courses Section: ${selectionModeInfo.coursesSectionDisplay}\n`;
-        }
-        
-        // 2. Tracked Exercises with Priority Scores
-        report += `\n🎯 TRACKED EXERCISES (${this._openExercises.size}):\n`;
-        if (this._openExercises.size > 0) {
-            // Sort by priority for the report
-            const exercisesWithPriority = Array.from(this._openExercises.values())
-                .map(ex => ({
-                    exercise: ex,
-                    priority: this._calculateExercisePriority(ex.id),
-                    scoreBreakdown: this._getExercisePriorityBreakdown(ex)
-                }))
-                .sort((a, b) => b.priority - a.priority);
-
-            exercisesWithPriority.forEach((item, idx) => {
-                const ex = item.exercise;
-                const isWorkspace = ex.title.includes('(Workspace)');
-                report += `  ${idx + 1}. [${ex.id}] ${ex.title}${isWorkspace ? ' ⭐' : ''}\n`;
-                report += `     Priority Score: ${item.priority}\n`;
-                
-                // Show score breakdown
-                if (item.scoreBreakdown.length > 0) {
-                    report += `     Score Breakdown:\n`;
-                    item.scoreBreakdown.forEach((reason: string) => {
-                        report += `       ${reason}\n`;
-                    });
-                }
-                
-                if (ex.shortName) {
-                    report += `     Short Name: ${ex.shortName}\n`;
-                }
-                if (ex.releaseDate) {
-                    report += `     Release: ${ex.releaseDate}\n`;
-                }
-                if (ex.dueDate) {
-                    report += `     Due: ${ex.dueDate}\n`;
-                }
-                if (ex.score !== undefined) {
-                    report += `     Completion: ${ex.score}%\n`;
-                }
-                if (ex.lastViewed) {
-                    report += `     Last Viewed: ${new Date(ex.lastViewed).toISOString()}\n`;
-                }
-                report += '\n';
-            });
-            report += `  Queue order: [${this._exerciseQueue.join(', ')}]\n`;
-        } else {
-            report += '  No exercises detected\n';
-        }
-        
-        // 3. Tracked Courses with Priority Scores
-        report += `\n📚 TRACKED COURSES (${this._openCourses.size}):\n`;
-        if (this._openCourses.size > 0) {
-            // Sort by priority for the report
-            const coursesWithPriority = Array.from(this._openCourses.values())
-                .map(course => ({
-                    course: course,
-                    priority: this._calculateCoursePriority(course.id),
-                    scoreBreakdown: this._getCoursePriorityBreakdown(course)
-                }))
-                .sort((a, b) => b.priority - a.priority);
-
-            coursesWithPriority.forEach((item, idx) => {
-                const course = item.course;
-                report += `  ${idx + 1}. [${course.id}] ${course.title}\n`;
-                report += `     Priority Score: ${item.priority}\n`;
-                
-                // Show score breakdown
-                if (item.scoreBreakdown.length > 0) {
-                    report += `     Score Breakdown:\n`;
-                    item.scoreBreakdown.forEach((reason: string) => {
-                        report += `       ${reason}\n`;
-                    });
-                }
-                
-                if (course.shortName) {
-                    report += `     Short Name: ${course.shortName}\n`;
-                }
-                if (course.lastViewed) {
-                    report += `     Last Viewed: ${new Date(course.lastViewed).toISOString()}\n`;
-                }
-                report += '\n';
-            });
-            report += `  Queue order: [${this._courseQueue.join(', ')}]\n`;
-        } else {
-            report += '  No courses detected\n';
-        }
-        
-        // 4. Exercise Registry
-        const registry = ExerciseRegistry.getInstance();
-        const allExercises = registry.getAllExercises();
-        report += `\n📚 EXERCISE REGISTRY (${allExercises.length} total):\n`;
-        if (allExercises.length > 0) {
-            allExercises.forEach((ex, idx) => {
-                report += `  ${idx + 1}. [${ex.id}] ${ex.title}\n`;
-                report += `     Repository: ${ex.repositoryUri}\n`;
-            });
-        } else {
-            report += '  Registry is empty\n';
-        }
-        
-        // 5. View State
-        report += '\n🖼️  VIEW STATE:\n';
-        report += `  View initialized: ${!!this._view}\n`;
-        report += `  View visible: ${this._view?.visible ?? 'N/A'}\n`;
-        
-        report += '\n' + '='.repeat(80) + '\n';
-        report += '\nThis report can be shared for debugging purposes.\n';
-        report += 'Please remove any sensitive information before sharing.\n';
-        
-        // Open a new untitled document and paste the diagnostics
-        const document = await vscode.workspace.openTextDocument({
-            content: report,
-            language: 'plaintext'
-        });
-        
-        await vscode.window.showTextDocument(document, {
-            preview: false,
-            viewColumn: vscode.ViewColumn.Active
-        });
-    }
-
-    private _handleChatMessage(message: any): void {
-        // For now, just acknowledge the message
-        // In a real implementation, this would send to Iris API
-        vscode.window.showInformationMessage(`Chat message: ${message.text}`);
-    }
-
-    private _handleClearHistory(): void {
-        // Handle clearing chat history
-        vscode.window.showInformationMessage('Chat history cleared');
+        this._contextStore.clearActiveContext();
+        this._postSnapshot();
     }
 }

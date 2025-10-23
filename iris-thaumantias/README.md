@@ -2,6 +2,21 @@
 
 Seamlessly integrate **Artemis: Interactive Learning with Individual Feedback** directly into your VS Code environment. This extension brings the power of Artemis—an innovative platform for interactive learning, programming exercises, and AI-powered tutoring—right to your IDE, enabling students to access personalized support, exercise materials, and intelligent feedback without leaving their development workspace.
 
+## Screenshots
+
+### Dashboard & Course Overview
+![Dashboard](media/screenshots/dashboard.png)
+*Access your courses, exercises, and get started with Iris AI tutor from the main dashboard*
+
+### Iris AI Chat - Intelligent Tutoring
+![Iris Chat](media/screenshots/iris-chat.png)
+*Get context-aware help from Iris AI tutor without leaving VS Code*
+
+### Real-Time Build Status & Test Results
+![Test Results](media/screenshots/test-results.png)
+*Monitor your submission results and test case performance in real-time*
+
+
 ## Features
 
 ### 🎓 Artemis Integration

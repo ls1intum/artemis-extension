@@ -24,7 +24,7 @@ export async function activate(context: vscode.ExtensionContext) {
 	// Helper function to update authentication context
 	const updateAuthContext = async (isAuthenticated: boolean) => {
 		await vscode.commands.executeCommand('setContext', 'iris:authenticated', isAuthenticated);
-		
+
 		// Connect/disconnect WebSocket based on authentication status
 		if (isAuthenticated) {
 			// Wait a bit to ensure auth cookie is stored before connecting
@@ -45,11 +45,11 @@ export async function activate(context: vscode.ExtensionContext) {
 	const initializeAuthContext = async () => {
 		try {
 			const isAuthenticated = await authManager.hasArtemisToken();
-			
+
 			// Only set the context, don't try to connect WebSocket yet
 			// WebSocket will connect after user explicitly logs in
 			await vscode.commands.executeCommand('setContext', 'iris:authenticated', isAuthenticated);
-			
+
 			// If already authenticated (from previous session), try to connect WebSocket
 			// but only if we can actually get the cookie
 			if (isAuthenticated) {
@@ -77,19 +77,19 @@ export async function activate(context: vscode.ExtensionContext) {
 
 	// Register the Artemis login view provider with dependencies
 	const artemisWebviewProvider = new ArtemisWebviewProvider(context.extensionUri, context, authManager, artemisApiService);
-	
+
 	// Pass the auth context updater to the webview provider
 	artemisWebviewProvider.setAuthContextUpdater(updateAuthContext);
-	
+
 	// Pass the WebSocket service to enable real-time updates
 	artemisWebviewProvider.setWebsocketService(artemisWebsocketService);
-	
+
 	context.subscriptions.push(
 		vscode.window.registerWebviewViewProvider(ArtemisWebviewProvider.viewType, artemisWebviewProvider)
 	);
 
 	// Register the Chat view provider
-	const chatWebviewProvider = new ChatWebviewProvider(context.extensionUri, context);
+	const chatWebviewProvider = new ChatWebviewProvider(context.extensionUri, context, artemisApiService, artemisWebsocketService);
 	context.subscriptions.push(
 		vscode.window.registerWebviewViewProvider(ChatWebviewProvider.viewType, chatWebviewProvider)
 	);
@@ -110,12 +110,40 @@ export async function activate(context: vscode.ExtensionContext) {
 			await authManager.clear();
 			await updateAuthContext(false);
 			vscode.window.showInformationMessage('Successfully logged out of Artemis');
-			
+
 			// Switch back to login state
 			artemisWebviewProvider.showLogin();
 		} catch (error) {
 			console.error('Logout error:', error);
 			vscode.window.showErrorMessage('Error during logout');
+		}
+	});
+
+	// Register Iris chat reset command (debug)
+	const resetIrisChatCommand = vscode.commands.registerCommand('artemis.resetIrisChat', async () => {
+		const confirmation = await vscode.window.showWarningMessage(
+			'This will clear all local Iris chat session data and reload from Artemis. Continue?',
+			{ modal: true },
+			'Yes, Reset',
+			'Cancel'
+		);
+
+		if (confirmation !== 'Yes, Reset') {
+			return;
+		}
+
+		try {
+			await vscode.window.withProgress({
+				location: vscode.ProgressLocation.Notification,
+				title: "Resetting Iris Chat Sessions...",
+				cancellable: false
+			}, async () => {
+				// Clear all local session data
+				chatWebviewProvider.clearAllSessions();
+				vscode.window.showInformationMessage('✅ Iris chat sessions have been reset. Local session data cleared.');
+			});
+		} catch (error: any) {
+			vscode.window.showErrorMessage(`Failed to reset Iris chat: ${error.message}`);
 		}
 	});
 
@@ -136,16 +164,16 @@ export async function activate(context: vscode.ExtensionContext) {
 			}, async (progress) => {
 				try {
 					const healthStatus = await artemisApiService.checkIrisHealth();
-					
+
 					if (healthStatus.active === true) {
 						const rateLimitInfo = healthStatus.rateLimitInfo;
-						
+
 						let message = '✅ Iris is active and healthy!';
 						if (rateLimitInfo) {
 							const currentMessages = rateLimitInfo.currentMessageCount || 0;
 							const rateLimit = rateLimitInfo.rateLimit || 0;
 							const timeframeHours = rateLimitInfo.rateLimitTimeframeHours || 0;
-							
+
 							if (rateLimit > 0) {
 								message += `\n📊 Rate Limit: ${currentMessages}/${rateLimit} messages`;
 								if (timeframeHours > 0) {
@@ -153,7 +181,7 @@ export async function activate(context: vscode.ExtensionContext) {
 								}
 							}
 						}
-						
+
 						vscode.window.showInformationMessage(message);
 					} else {
 						vscode.window.showWarningMessage('⚠️ Iris is currently inactive or unavailable.');
@@ -161,7 +189,7 @@ export async function activate(context: vscode.ExtensionContext) {
 				} catch (error) {
 					console.error('Iris health check failed:', error);
 					let errorMessage = '❌ Failed to check Iris health status.';
-					
+
 					if (error instanceof Error) {
 						if (error.message.includes('Authentication failed')) {
 							errorMessage += ' Please log in again.';
@@ -171,7 +199,7 @@ export async function activate(context: vscode.ExtensionContext) {
 							errorMessage += ` Error: ${error.message}`;
 						}
 					}
-					
+
 					vscode.window.showErrorMessage(errorMessage);
 				}
 			});
@@ -187,7 +215,7 @@ export async function activate(context: vscode.ExtensionContext) {
 			const debugInfo = await artemisWebsocketService.getDebugInfoAsync();
 			const isConnected = artemisWebsocketService.isConnected();
 			const icon = isConnected ? '🟢' : '🔴';
-			
+
 			// Create detailed status message
 			const statusLines = [
 				`${icon} **WebSocket Status**`,
@@ -200,12 +228,12 @@ export async function activate(context: vscode.ExtensionContext) {
 				`**Subscriptions (${debugInfo.subscriptionCount}):**`,
 				...debugInfo.subscriptions.map(sub => `• ${sub}`),
 			];
-			
+
 			// Add helpful message if not connected due to authentication
 			if (!isConnected && !debugInfo.hasCookie) {
 				statusLines.push(``, `⚠️ **Not connected - Please log in to Artemis first**`);
 			}
-			
+
 			statusLines.push(
 				``,
 				`**Configuration:**`,
@@ -216,19 +244,19 @@ export async function activate(context: vscode.ExtensionContext) {
 				`• Has Cookie: ${debugInfo.hasCookie ? 'Yes ✅' : 'No ❌'}`,
 				`• Has JWT Token: ${debugInfo.hasJwtToken ? 'Yes ✅' : 'No ❌'}`,
 			);
-			
+
 			if (debugInfo.cookiePreview) {
 				statusLines.push(`• Cookie Preview: ${debugInfo.cookiePreview}`);
 			}
-			
+
 			statusLines.push(
 				``,
 				`**Reconnection:**`,
 				`• Attempts: ${debugInfo.reconnectAttempts}/${debugInfo.maxReconnectAttempts}`,
 			);
-			
+
 			const message = statusLines.join('\n');
-			
+
 			// Different actions based on connection state
 			let actions: string[];
 			if (!debugInfo.hasCookie) {
@@ -241,14 +269,14 @@ export async function activate(context: vscode.ExtensionContext) {
 				// Connected
 				actions = ['Show Details', 'Copy to Clipboard'];
 			}
-			
+
 			// Show in a modal with action buttons
 			const action = await vscode.window.showInformationMessage(
 				`${icon} WebSocket: ${isConnected ? 'Connected' : 'Disconnected'}${!debugInfo.hasCookie ? ' (Not logged in)' : ''}`,
 				{ modal: false },
 				...actions
 			);
-			
+
 			if (action === 'Login to Artemis') {
 				// Open the Artemis sidebar to login
 				await vscode.commands.executeCommand('artemis.loginView.focus');
@@ -281,7 +309,7 @@ export async function activate(context: vscode.ExtensionContext) {
 	const connectWebSocketCommand = vscode.commands.registerCommand('artemis.connectWebSocket', async () => {
 		try {
 			const isAuthenticated = await authManager.hasArtemisToken();
-			
+
 			if (!isAuthenticated) {
 				const action = await vscode.window.showWarningMessage(
 					'Please log in to Artemis before connecting to WebSocket',
@@ -304,13 +332,13 @@ export async function activate(context: vscode.ExtensionContext) {
 				} catch (error) {
 					const errorMsg = error instanceof Error ? error.message : 'Unknown error';
 					vscode.window.showErrorMessage(`❌ Failed to connect to WebSocket: ${errorMsg}`);
-					
+
 					// Offer to check status
 					const action = await vscode.window.showErrorMessage(
 						'WebSocket connection failed. Check the Developer Console for details.',
 						'Check Status'
 					);
-					
+
 					if (action === 'Check Status') {
 						vscode.commands.executeCommand('artemis.checkWebSocketStatus');
 					}
@@ -336,10 +364,10 @@ export async function activate(context: vscode.ExtensionContext) {
 
 				// Determine if we should use dark theme
 				const isDarkTheme = vscode.window.activeColorTheme.kind === vscode.ColorThemeKind.Dark;
-				
+
 				// Render the PlantUML diagram
 				const svgContent = await artemisApiService.renderPlantUmlToSvg(processedPlantUml, isDarkTheme);
-				
+
 				// Create HTML content for the webview
 				const htmlContent = `
 					<!DOCTYPE html>
@@ -394,7 +422,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
 				// Set the HTML content
 				panel.webview.html = htmlContent;
-				
+
 				vscode.window.showInformationMessage('✅ PlantUML diagram rendered successfully!');
 			} catch (error) {
 				const errorMsg = error instanceof Error ? error.message : 'Unknown error';
@@ -408,11 +436,11 @@ export async function activate(context: vscode.ExtensionContext) {
 	const configChangeListener = vscode.workspace.onDidChangeConfiguration(event => {
 		if (event.affectsConfiguration(`${VSCODE_CONFIG.ARTEMIS_SECTION}.${VSCODE_CONFIG.SERVER_URL_KEY}`)) {
 			console.log('Artemis server URL configuration changed');
-			
+
 			// Optionally show a message to the user about the server URL change
 			const config = vscode.workspace.getConfiguration(VSCODE_CONFIG.ARTEMIS_SECTION);
 			const newServerUrl = config.get<string>(VSCODE_CONFIG.SERVER_URL_KEY);
-			
+
 			if (newServerUrl) {
 				vscode.window.showInformationMessage(
 					`Artemis server URL updated to: ${newServerUrl}. You may need to log in again if you were authenticated to a different server.`,
@@ -429,18 +457,18 @@ export async function activate(context: vscode.ExtensionContext) {
 				});
 			}
 		}
-		
+
 		if (event.affectsConfiguration(`${VSCODE_CONFIG.ARTEMIS_SECTION}.${VSCODE_CONFIG.THEME_KEY}`)) {
 			console.log('Artemis theme configuration changed');
-			
+
 			// Refresh both webviews to apply the new theme
 			artemisWebviewProvider.refreshTheme();
 			chatWebviewProvider.refreshTheme();
 		}
-		
+
 		if (event.affectsConfiguration(`${VSCODE_CONFIG.ARTEMIS_SECTION}.${VSCODE_CONFIG.SHOW_IRIS_EXPLANATION_KEY}`)) {
 			console.log('Artemis showIrisExplanation configuration changed');
-			
+
 			// Refresh the main webview to show/hide the Iris explanation
 			artemisWebviewProvider.refreshTheme();
 		}
@@ -448,6 +476,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
 	context.subscriptions.push(loginCommand);
 	context.subscriptions.push(logoutCommand);
+	context.subscriptions.push(resetIrisChatCommand);
 	context.subscriptions.push(checkIrisHealthCommand);
 	context.subscriptions.push(checkWebSocketStatusCommand);
 	context.subscriptions.push(connectWebSocketCommand);
@@ -457,4 +486,4 @@ export async function activate(context: vscode.ExtensionContext) {
 }
 
 // This method is called when your extension is deactivated
-export function deactivate() {}
+export function deactivate() { }

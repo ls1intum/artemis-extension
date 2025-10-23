@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 import type { CommandContext, CommandMap } from './types';
 
 export class IrisCommandModule {
-    constructor(private readonly context: CommandContext) {}
+    constructor(private readonly context: CommandContext) { }
 
     public getHandlers(): CommandMap {
         return {

@@ -251,6 +251,41 @@
             font-weight: 600;
         }
 
+        .due-date-badge {
+            background: var(--theme-info-background);
+            color: var(--theme-info-foreground);
+            border: 1px solid var(--theme-info-border);
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            flex-shrink: 0;
+        }
+
+        .due-date-badge.due-soon {
+            background: var(--theme-error-background);
+            color: var(--theme-error-foreground);
+            border: 1px solid var(--theme-error-border);
+        }
+
+        /* VS Code theme: More minimal, native look */
+        .theme-vscode .due-date-badge {
+            background: transparent;
+            color: var(--vscode-foreground);
+            border: 1px solid var(--vscode-widget-border);
+            opacity: 0.8;
+            font-size: 11px;
+            padding: 3px 7px;
+        }
+
+        .theme-vscode .due-date-badge.due-soon {
+            background: transparent;
+            color: var(--vscode-errorForeground);
+            border: 1px solid var(--vscode-errorForeground);
+            opacity: 1;
+        }
+
         .exercise-info-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));

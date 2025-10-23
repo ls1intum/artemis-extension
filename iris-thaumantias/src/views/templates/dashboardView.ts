@@ -135,18 +135,20 @@ export class DashboardView {
                 </div>
                 <div class="iris-info">
                     <h3 class="iris-title">Chat with Iris</h3>
-                    <p class="iris-subtitle">Your AI programming assistant</p>
+                    <p class="iris-subtitle">Your AI programming assistant is ready!</p>
                 </div>
             </div>
             <div class="iris-usage-explanation">
-                <h4>How to use Iris in this extension:</h4>
+                <h4>Using Iris in VS Code:</h4>
                 <ol>
-                    <li><strong>Access Iris anywhere:</strong> Find the Iris chat icon in the Activity Bar (left sidebar) for quick access, or start a chat directly from course and exercise views</li>
-                    <li><strong>Smart context detection:</strong> Iris automatically detects your current exercise and course context to provide relevant, personalized assistance</li>
-                    <li><strong>Configure your experience:</strong> Enable/disable Iris, select your preferred AI model, and manage privacy settings through the extension settings</li>
-                    <li><strong>Control context sharing:</strong> Choose whether to share your code and exercise context with Iris for more accurate help</li>
-                    <li><strong>Get instant help:</strong> Ask programming questions, receive debugging support, and get guidance tailored to your specific exercises</li>
+                    <li><strong>Open Iris Chat:</strong> Click the Iris icon in the Activity Bar (left sidebar) or use the chat buttons in exercise and course views</li>
+                    <li><strong>Select your context:</strong> Choose an exercise or course to get context-aware assistance tailored to your current work</li>
+                    <li><strong>Start chatting:</strong> Ask questions about your code, exercises, or course material - Iris will help guide you with hints and explanations</li>
+                    <li><strong>Multiple conversations:</strong> Create separate chat sessions for different topics and switch between them anytime</li>
                 </ol>
+                <p class="iris-note">
+                    <strong>Note:</strong> Iris can make mistakes. Always verify important information. Iris only has access to your submitted code.
+                </p>
                 <p class="iris-note">
                     <strong>Tip:</strong> You can hide this explanation by disabling "Show Iris Explanation" in the Artemis extension settings.
                 </p>

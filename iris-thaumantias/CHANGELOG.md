@@ -2,6 +2,31 @@
 
 All notable changes to the Artemis VS Code extension will be documented in this file.
 
+## [0.2.0] - 2025-10-23
+
+### Added
+
+#### Iris AI Chat Integration 🤖
+- **Iris Chat is now live!** The AI-powered virtual tutor from Artemis is fully integrated into VS Code
+- Chat with Iris about your exercises and courses with context-aware assistance
+- Real-time message streaming via WebSocket for instant responses
+- Multi-session support - create and switch between different conversation threads
+- Smart context detection automatically selects your currently open exercise
+- Session management with sync to Artemis server
+- Full markdown support in chat messages including code blocks
+- AI disclaimer banner reminding users about Iris limitations and submitted code access
+
+## [0.1.4] - 2025-10-18
+
+### Changed
+- **Exercise Detail Participate Button**: Renamed action to "Start Exercise" to better reflect the flow for initiating work
+- **Iris Chat Menu Consolidation**: Merged "Clear History" and "Reset Sessions" into a single "Reset & Sync Sessions" button that clears local data and reloads from the Artemis server
+- **Iris Session Storage**: Chat sessions and messages are no longer persisted to local storage - they are fetched fresh from Artemis on each extension load for data privacy and consistency
+
+### Fixed
+- **Test Results Loading Freeze**: Added 15-second timeout to prevent infinite "Loading test results..." state when API requests hang or fail, includes retry button
+- **Latest Result Selection**: Fixed result selection logic to use `completionDate` instead of ID when determining the latest test result. This ensures that when multiple builds complete out of order (e.g., due to varying build times), the most recently completed result is always displayed, matching Artemis web frontend behavior
+
 ## [0.1.3] - 2025-10-17
 
 ### Added
