@@ -747,6 +747,71 @@ body {
     word-wrap: break-word;
 }
 
+/* Code styling in messages - matching problem statement style */
+.message-content code {
+    color: var(--vscode-textLink-foreground);
+    background: transparent;
+    padding: 0;
+    border-radius: 0;
+    font-family: inherit;
+    font-size: inherit;
+    border: none;
+}
+
+.message-content pre.code-block {
+    background: rgba(0, 0, 0, 0.04);
+    border: 1px solid rgba(0, 0, 0, 0.12);
+    border-radius: 6px;
+    padding: 12px;
+    font-family: var(--theme-monospace-font, monospace);
+    font-size: 13px;
+    line-height: 1.5;
+    overflow-x: auto;
+    margin: 15px 0;
+}
+
+.message-content pre.code-block code {
+    color: inherit;
+    font-family: inherit;
+    font-size: inherit;
+    background: transparent;
+}
+
+/* Theme-specific code styling */
+.theme-vscode .message-content code {
+    color: var(--vscode-textLink-foreground);
+}
+
+.theme-modern .message-content code {
+    color: var(--vscode-textLink-foreground);
+}
+
+.theme-synthwave .message-content code {
+    color: #00f5ff;
+}
+
+.theme-vscode .message-content pre.code-block,
+.theme-modern .message-content pre.code-block {
+    background: rgba(0, 122, 204, 0.06);
+    border-color: rgba(0, 122, 204, 0.2);
+}
+
+.theme-synthwave .message-content pre.code-block {
+    background: rgba(0, 245, 255, 0.08);
+    border-color: rgba(0, 245, 255, 0.3);
+    color: #00f5ff;
+    text-shadow: 0 0 3px rgba(0, 245, 255, 0.3);
+}
+
+.message-content strong {
+    font-weight: 600;
+    color: var(--theme-foreground);
+}
+
+.message-content em {
+    font-style: italic;
+}
+
 .message-feedback {
     display: flex;
     gap: 6px;

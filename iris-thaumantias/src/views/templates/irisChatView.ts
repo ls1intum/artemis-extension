@@ -720,7 +720,7 @@ export class IrisChatView {
                     <span class="message-sender">\${message.role === 'user' ? 'You' : 'Iris'}</span>
                     <span class="message-time">\${time}</span>
                 </div>
-                <div class="message-content">\${escapeHtml(message.content)}</div>
+                <div class="message-content">\${formatMessageContent(message.content)}</div>
                 \${feedbackButtons}
             \`;
 
@@ -789,6 +789,41 @@ export class IrisChatView {
             const div = document.createElement('div');
             div.textContent = text;
             return div.innerHTML;
+        }
+
+        function formatMessageContent(text) {
+            // First, escape HTML to prevent XSS
+            let formatted = escapeHtml(text);
+            
+            // Parse code blocks FIRST with placeholders to protect from line break conversion
+            // Match and consume newlines around code blocks so they don't become <br> tags
+            const codeBlockPlaceholders = [];
+            formatted = formatted.replace(/(\\n\\n)?\\n*\`\`\`(\\w+)?\\n([\\s\\S]*?)\`\`\`\\n*(\\n\\n)?/g, (match, beforeNewlines, language, code, afterNewlines) => {
+                const index = codeBlockPlaceholders.length;
+                const classAttr = language ? ' class="language-' + escapeHtml(language) + '"' : '';
+                const placeholder = '___CODEBLOCK_' + index + '___';
+                codeBlockPlaceholders.push('<pre class="code-block"><code' + classAttr + '>' + code.trimEnd() + '</code></pre>');
+                return placeholder;
+            });
+            
+            // Parse inline code (single backticks)
+            formatted = formatted.replace(/\`([^\`]+)\`/g, '<code>$1</code>');
+            
+            // Parse bold: **text**
+            formatted = formatted.replace(/\\*\\*(.+?)\\*\\*/g, '<strong>$1</strong>');
+            
+            // Parse italic: *text* (but not if part of **)
+            formatted = formatted.replace(/(?<!\\*)\\*(?!\\*)(.+?)(?<!\\*)\\*(?!\\*)/g, '<em>$1</em>');
+            
+            // Convert line breaks to <br> (code blocks are protected by placeholders)
+            formatted = formatted.replace(/\\n/g, '<br>');
+            
+            // Restore code blocks from placeholders
+            codeBlockPlaceholders.forEach((codeBlock, index) => {
+                formatted = formatted.replace('___CODEBLOCK_' + index + '___', codeBlock);
+            });
+            
+            return formatted;
         }
 
         function showThinkingIndicator() {
