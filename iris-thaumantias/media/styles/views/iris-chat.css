@@ -25,6 +25,14 @@ body {
     box-shadow: var(--theme-box-shadow);
     min-height: 48px;
     position: relative;
+    gap: 12px;
+}
+
+.chat-header-logo {
+    height: 32px;
+    width: auto;
+    flex-shrink: 0;
+    filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.4));
 }
 
 .chat-title {

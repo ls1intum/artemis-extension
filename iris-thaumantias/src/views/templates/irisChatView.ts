@@ -26,6 +26,15 @@ export class IrisChatView {
         const questionMarkIcon = IconDefinitions.getIcon('question-mark');
         const refreshIcon = IconDefinitions.getIcon('refresh');
 
+        // Get the path to the iris logo image
+        let irisLogoSrc = '';
+        if (webview) {
+            const irisLogoUri = vscode.Uri.file(
+                this._extensionContext.asAbsolutePath('media/iris-logo-big-left.png')
+            );
+            irisLogoSrc = webview.asWebviewUri(irisLogoUri).toString();
+        }
+
         return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -40,6 +49,7 @@ export class IrisChatView {
 <body class="theme-${currentTheme}">
     <div class="chat-container">
         <div class="chat-header">
+            ${irisLogoSrc ? `<img src="${irisLogoSrc}" alt="Iris Logo" class="chat-header-logo" />` : ''}
             <h1 class="chat-title">Chat with Iris</h1>
             <button class="burger-menu" onclick="toggleSideMenu()" title="Menu">
                 <div class="burger-icon">
