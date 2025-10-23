@@ -143,6 +143,12 @@ export class IrisChatView {
                     Send
                 </button>
             </div>
+            <div class="iris-disclaimer-banner">
+                <span class="disclaimer-text">
+                    Iris only has access to your submitted code.
+                    Iris can make mistakes. Consider verifying important information. 
+                </span>
+            </div>
         </div>
     </div>
 
