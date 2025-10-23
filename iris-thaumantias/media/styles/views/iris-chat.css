@@ -205,11 +205,62 @@ body {
 }
 
 .context-lock-icon {
-    font-size: 14px;
+    width: 14px;
+    height: 14px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.context-lock-icon svg {
+    width: 100%;
+    height: 100%;
+    fill: currentColor;
 }
 
 .context-icon {
-    font-size: 18px;
+    width: 18px;
+    height: 18px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.context-icon svg {
+    width: 100%;
+    height: 100%;
+    fill: currentColor;
+}
+
+.button-icon {
+    width: 14px;
+    height: 14px;
+    display: inline-flex;
+    align-items: center;
+    vertical-align: middle;
+    margin-right: 6px;
+}
+
+.button-icon svg {
+    width: 100%;
+    height: 100%;
+    fill: currentColor;
+}
+
+.lock-indicator {
+    width: 12px;
+    height: 12px;
+    display: inline-flex;
+    align-items: center;
+    vertical-align: middle;
+    margin-right: 4px;
+}
+
+.lock-indicator svg {
+    width: 100%;
+    height: 100%;
+    fill: currentColor;
+    opacity: 0.7;
 }
 
 .context-text-container {
@@ -441,6 +492,18 @@ body {
 .session-active-indicator {
     color: var(--theme-highlight);
     font-weight: 700;
+    width: 14px;
+    height: 14px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin-right: 4px;
+}
+
+.session-active-indicator svg {
+    width: 100%;
+    height: 100%;
+    fill: currentColor;
 }
 
 .session-item-title {
@@ -529,7 +592,18 @@ body {
 }
 
 .context-item-icon {
-    font-size: 18px;
+    width: 18px;
+    height: 18px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.context-item-icon svg {
+    width: 100%;
+    height: 100%;
+    fill: currentColor;
 }
 
 .context-item-content {
@@ -631,7 +705,18 @@ body {
 }
 
 .search-result-icon {
-    font-size: 18px;
+    width: 18px;
+    height: 18px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.search-result-icon svg {
+    width: 100%;
+    height: 100%;
+    fill: currentColor;
 }
 
 .search-result-content {
@@ -1083,7 +1168,18 @@ body {
 }
 
 .help-icon {
-    font-size: 20px;
+    width: 20px;
+    height: 20px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.help-icon svg {
+    width: 100%;
+    height: 100%;
+    fill: currentColor;
 }
 
 .help-section-content ul {

@@ -25,6 +25,12 @@ export class IrisChatView {
         const stethoscopeIcon = IconDefinitions.getIcon('stethoscope');
         const questionMarkIcon = IconDefinitions.getIcon('question-mark');
         const refreshIcon = IconDefinitions.getIcon('refresh');
+        const courseIcon = IconDefinitions.getIcon('course');
+        const exerciseIcon = IconDefinitions.getIcon('exercise');
+        const lockIcon = IconDefinitions.getIcon('shield');
+        const checkIcon = `<svg viewBox="0 0 16 16" fill="currentColor"><path d="M13.78 4.22a.75.75 0 010 1.06l-7.25 7.25a.75.75 0 01-1.06 0L2.22 9.28a.75.75 0 011.06-1.06L6 10.94l6.72-6.72a.75.75 0 011.06 0z"/></svg>`;
+        const plusIcon = `<svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 2a.75.75 0 01.75.75v4.5h4.5a.75.75 0 010 1.5h-4.5v4.5a.75.75 0 01-1.5 0v-4.5h-4.5a.75.75 0 010-1.5h4.5v-4.5A.75.75 0 018 2z"/></svg>`;
+        const switchIcon = `<svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 2a.75.75 0 01.75.75v4.5h4.5a.75.75 0 010 1.5h-4.5v4.5a.75.75 0 01-1.5 0v-4.5h-4.5a.75.75 0 010-1.5h4.5v-4.5A.75.75 0 018 2z"/></svg>`;
 
         // Get the path to the iris logo image
         let irisLogoSrc = '';
@@ -64,8 +70,8 @@ export class IrisChatView {
             <div class="context-bean" id="contextBean">
                 <div class="context-bean-header" onclick="toggleContextDropdown()">
                     <div class="context-info">
-                        <span class="context-lock-icon" id="contextLockIcon" style="display: none;">🔒</span>
-                        <span class="context-icon" id="contextIcon">📚</span>
+                        <span class="context-lock-icon" id="contextLockIcon" style="display: none;">${lockIcon}</span>
+                        <span class="context-icon" id="contextIcon">${courseIcon}</span>
                         <div class="context-text-container">
                             <span class="context-text" id="contextText">No context selected</span>
                             <span class="context-subtext" id="contextSubtext" style="display: none;"></span>
@@ -95,10 +101,10 @@ export class IrisChatView {
                         <div class="dropdown-divider"></div>
                         <div class="dropdown-section">
                             <button class="dropdown-action-btn" id="newSessionBtn" onclick="createNewSession()" disabled>
-                                ➕ New Conversation
+                                <span class="button-icon">${plusIcon}</span> New Conversation
                             </button>
                             <button class="dropdown-action-btn" onclick="requestContextSwitch()">
-                                🔄 Switch to Different Context
+                                <span class="button-icon">${switchIcon}</span> Switch to Different Context
                             </button>
                         </div>
                     </div>
@@ -175,7 +181,7 @@ export class IrisChatView {
             <div class="help-sections">
                 <div class="help-section">
                     <div class="help-section-header">
-                        <span class="help-icon">💻</span>
+                        <span class="help-icon">${exerciseIcon}</span>
                         <h3>Exercises</h3>
                     </div>
                     <div class="help-section-content">
@@ -190,7 +196,7 @@ export class IrisChatView {
                 </div>
                 <div class="help-section">
                     <div class="help-section-header">
-                        <span class="help-icon">📚</span>
+                        <span class="help-icon">${courseIcon}</span>
                         <h3>Courses</h3>
                     </div>
                     <div class="help-section-content">
@@ -410,9 +416,12 @@ export class IrisChatView {
             const contextText = document.getElementById('contextText');
             const contextSubtext = document.getElementById('contextSubtext');
 
+            const courseIconSvg = \`${courseIcon}\`;
+            const exerciseIconSvg = \`${exerciseIcon}\`;
+
             if (!irisState.context) {
                 lockIcon.style.display = 'none';
-                contextIcon.textContent = '📚';
+                contextIcon.innerHTML = courseIconSvg;
                 contextText.textContent = 'No context selected';
                 contextSubtext.textContent = 'Click to choose or search';
                 contextSubtext.style.display = 'block';
@@ -420,7 +429,7 @@ export class IrisChatView {
             }
 
             lockIcon.style.display = irisState.context.locked ? 'inline' : 'none';
-            contextIcon.textContent = irisState.context.type === 'course' ? '📚' : '💻';
+            contextIcon.innerHTML = irisState.context.type === 'course' ? courseIconSvg : exerciseIconSvg;
 
             let title = irisState.context.title;
             if (title.includes('(Workspace)')) {
@@ -484,10 +493,11 @@ export class IrisChatView {
                 const element = document.createElement('div');
                 element.className = 'session-item' + (isActive ? ' active' : '');
                 element.onclick = () => window.selectSession(session.id);
+                const checkIconSvg = \`${checkIcon}\`;
                 element.innerHTML = \`
                     <div class="session-item-content">
                         <div class="session-item-header">
-                            \${isActive ? '<span class="session-active-indicator">✓</span>' : ''}
+                            \${isActive ? '<span class="session-active-indicator">' + checkIconSvg + '</span>' : ''}
                             <span class="session-item-title">\${session.preview || 'Conversation'}</span>
                         </div>
                         <div class="session-item-meta">
@@ -511,15 +521,17 @@ export class IrisChatView {
             if (irisState.recentExercises.length === 0) {
                 exercisesList.innerHTML = '<div class="context-empty">No exercises yet</div>';
             } else {
+                const exerciseIconSvg = \`${exerciseIcon}\`;
+                const lockIconSvg = \`${lockIcon}\`;
                 irisState.recentExercises.forEach(exercise => {
                     const element = document.createElement('div');
                     element.className = 'context-item';
                     element.onclick = () => window.selectContext('exercise', exercise.id, exercise.title, exercise.shortName);
                     const isWorkspace = exercise.isWorkspace || /\\(Workspace\\)/i.test(exercise.title);
                     element.innerHTML = \`
-                        <div class="context-item-icon">💻</div>
+                        <div class="context-item-icon">\${exerciseIconSvg}</div>
                         <div class="context-item-content">
-                            <div class="context-item-title">\${isWorkspace ? '🔒 ' : ''}\${exercise.title}</div>
+                            <div class="context-item-title">\${isWorkspace ? '<span class="lock-indicator">' + lockIconSvg + '</span> ' : ''}\${exercise.title}</div>
                             \${exercise.shortName ? \`<div class="context-item-subtitle">\${exercise.shortName}</div>\` : ''}
                         </div>
                     \`;
@@ -530,12 +542,13 @@ export class IrisChatView {
             if (irisState.recentCourses.length === 0) {
                 coursesList.innerHTML = '<div class="context-empty">No courses yet</div>';
             } else {
+                const courseIconSvg = \`${courseIcon}\`;
                 irisState.recentCourses.forEach(course => {
                     const element = document.createElement('div');
                     element.className = 'context-item';
                     element.onclick = () => window.selectContext('course', course.id, course.title, course.shortName);
                     element.innerHTML = \`
-                        <div class="context-item-icon">📚</div>
+                        <div class="context-item-icon">\${courseIconSvg}</div>
                         <div class="context-item-content">
                             <div class="context-item-title">\${course.title}</div>
                             \${course.shortName ? \`<div class="context-item-subtitle">\${course.shortName}</div>\` : ''}
@@ -575,15 +588,17 @@ export class IrisChatView {
                 const section = document.createElement('div');
                 section.className = 'search-section';
                 section.innerHTML = '<div class="search-section-header">Exercises</div>';
+                const exerciseIconSvg = \`${exerciseIcon}\`;
+                const lockIconSvg = \`${lockIcon}\`;
                 matchingExercises.forEach(item => {
                     const element = document.createElement('div');
                     element.className = 'search-result-item';
                     element.onclick = () => window.selectContext('exercise', item.id, item.title, item.shortName);
                     const isWorkspace = item.isWorkspace || /\\(Workspace\\)/i.test(item.title);
                     element.innerHTML = \`
-                        <div class="search-result-icon">💻</div>
+                        <div class="search-result-icon">\${exerciseIconSvg}</div>
                         <div class="search-result-content">
-                            <div class="search-result-title">\${isWorkspace ? '🔒 ' : ''}\${item.title}</div>
+                            <div class="search-result-title">\${isWorkspace ? '<span class="lock-indicator">' + lockIconSvg + '</span> ' : ''}\${item.title}</div>
                             \${item.shortName ? \`<div class="search-result-subtitle">\${item.shortName}</div>\` : ''}
                         </div>
                     \`;
@@ -596,12 +611,13 @@ export class IrisChatView {
                 const section = document.createElement('div');
                 section.className = 'search-section';
                 section.innerHTML = '<div class="search-section-header">Courses</div>';
+                const courseIconSvg = \`${courseIcon}\`;
                 matchingCourses.forEach(item => {
                     const element = document.createElement('div');
                     element.className = 'search-result-item';
                     element.onclick = () => window.selectContext('course', item.id, item.title, item.shortName);
                     element.innerHTML = \`
-                        <div class="search-result-icon">📚</div>
+                        <div class="search-result-icon">\${courseIconSvg}</div>
                         <div class="search-result-content">
                             <div class="search-result-title">\${item.title}</div>
                             \${item.shortName ? \`<div class="search-result-subtitle">\${item.shortName}</div>\` : ''}
