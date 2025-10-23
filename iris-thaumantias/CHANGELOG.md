@@ -2,6 +2,20 @@
 
 All notable changes to the Artemis VS Code extension will be documented in this file.
 
+## [0.2.0] - 2025-10-23
+
+### Added
+
+#### Iris AI Chat Integration 🤖
+- **Iris Chat is now live!** The AI-powered virtual tutor from Artemis is fully integrated into VS Code
+- Chat with Iris about your exercises and courses with context-aware assistance
+- Real-time message streaming via WebSocket for instant responses
+- Multi-session support - create and switch between different conversation threads
+- Smart context detection automatically selects your currently open exercise
+- Session management with sync to Artemis server
+- Full markdown support in chat messages including code blocks
+- AI disclaimer banner reminding users about Iris limitations and submitted code access
+
 ## [0.1.4] - 2025-10-18
 
 ### Changed
