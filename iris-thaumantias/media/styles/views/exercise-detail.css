@@ -269,6 +269,23 @@
             border: 1px solid var(--theme-error-border);
         }
 
+        /* VS Code theme: More minimal, native look */
+        .theme-vscode .due-date-badge {
+            background: transparent;
+            color: var(--vscode-foreground);
+            border: 1px solid var(--vscode-widget-border);
+            opacity: 0.8;
+            font-size: 11px;
+            padding: 3px 7px;
+        }
+
+        .theme-vscode .due-date-badge.due-soon {
+            background: transparent;
+            color: var(--vscode-errorForeground);
+            border: 1px solid var(--vscode-errorForeground);
+            opacity: 1;
+        }
+
         .exercise-info-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
