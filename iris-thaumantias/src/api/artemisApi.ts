@@ -393,25 +393,3 @@ export class ArtemisApiService {
         return response.json();
     }
 }
-
-// Example usage in your extension:
-/*
-const apiService = new ArtemisApiService(authManager);
-
-// Check if authenticated
-const isLoggedIn = await apiService.isAuthenticated();
-
-// Get user info
-const user = await apiService.getCurrentUser();
-
-// Get courses
-const courses = await apiService.getCourses();
-
-// Get exercises for a course
-const exercises = await apiService.getExercises(courseId);
-
-// Iris Chat
-const session = await apiService.getCurrentCourseChat(courseId);
-const messages = await apiService.getChatMessages(session.id);
-await apiService.sendChatMessage(session.id, "Hello Iris!");
-*/

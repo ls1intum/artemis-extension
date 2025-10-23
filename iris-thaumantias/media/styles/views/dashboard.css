@@ -116,14 +116,15 @@
             margin-bottom: 8px;
         }
         .iris-note {
-            background: var(--theme-card-background);
-            border: 1px solid var(--theme-border);
-            border-radius: 6px;
-            padding: 12px;
             color: var(--theme-foreground);
             font-size: 13px;
-            margin: 0;
-            opacity: 0.9;
+            margin: 12px 0 0 0;
+            padding: 4px 0;
+            opacity: 0.8;
+            line-height: 1.5;
+        }
+        .iris-note:first-of-type {
+            margin-top: 20px;
         }
         .btn-icon {
             font-size: 16px;
