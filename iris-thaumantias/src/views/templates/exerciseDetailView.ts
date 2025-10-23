@@ -122,6 +122,34 @@ export class ExerciseDetailView {
         const maxPoints = exercise.maxPoints || 0;
         const bonusPoints = exercise.bonusPoints || 0;
         const releaseDate = exercise.releaseDate ? new Date(exercise.releaseDate).toLocaleString() : 'No release date';
+        
+        // Calculate due date and time remaining
+        let dueDateDisplay = 'No due date';
+        let timeRemainingDisplay = '';
+        let isDueSoon = false;
+        if (exercise.dueDate) {
+            const dueDate = new Date(exercise.dueDate);
+            const now = new Date();
+            const timeRemaining = dueDate.getTime() - now.getTime();
+            const hoursRemaining = timeRemaining / (1000 * 60 * 60);
+            const daysRemaining = Math.floor(hoursRemaining / 24);
+            const remainingHours = Math.floor(hoursRemaining % 24);
+            
+            dueDateDisplay = dueDate.toLocaleString();
+            
+            if (timeRemaining < 0) {
+                timeRemainingDisplay = 'Overdue';
+                isDueSoon = true;
+            } else if (hoursRemaining < 24) {
+                timeRemainingDisplay = `Due in ${Math.floor(hoursRemaining)}h`;
+                isDueSoon = true;
+            } else if (daysRemaining < 7) {
+                timeRemainingDisplay = `Due in ${daysRemaining}d ${remainingHours}h`;
+            } else {
+                timeRemainingDisplay = `Due in ${daysRemaining} days`;
+            }
+        }
+        
         const mode = exercise.mode?.toLowerCase().replace('_', ' ') || 'Unknown';
         const includedInScore = exercise.includedInOverallScore === 'NOT_INCLUDED' ? 'Not included in overall score' :
             exercise.includedInOverallScore === 'INCLUDED_COMPLETELY' ? 'Included in overall score' :
@@ -331,6 +359,7 @@ export class ExerciseDetailView {
                     <div class="exercise-meta">
                         <div class="exercise-type-icon">${exerciseIcon}</div>
                         <div class="points-badge">${maxPoints} ${maxPoints === 1 ? 'point' : 'points'}${bonusPoints > 0 ? ` + ${bonusPoints} bonus` : ''}</div>
+                        ${timeRemainingDisplay ? `<div class="due-date-badge ${isDueSoon ? 'due-soon' : ''}">${timeRemainingDisplay}</div>` : ''}
                         <button class="repo-status-icon unknown" id="repoStatusIcon" onclick="checkRepositoryStatus(true)" title="Check repository status">
                             ?
                         </button>
