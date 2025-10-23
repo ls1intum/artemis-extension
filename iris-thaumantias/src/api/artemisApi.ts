@@ -75,9 +75,30 @@ export class ArtemisApiService {
     }
 
     // Get exercise details for a specific exercise
+    // According to Artemis frontend code, this endpoint already includes:
+    // - studentParticipations with ALL submissions and results
+    // No query parameters or additional enrichment needed
     async getExerciseDetails(exerciseId: number): Promise<any> {
         const response = await this.makeRequest(`/api/exercise/exercises/${exerciseId}/details`);
-        return response.json();
+        const exerciseData: any = await response.json();
+
+        // Debug: Log what we actually received
+        if (exerciseData.exercise?.studentParticipations?.length > 0) {
+            for (const participation of exerciseData.exercise.studentParticipations) {
+                const submissionCount = participation.submissions?.length || 0;
+                const resultCount = participation.results?.length || 0;
+                console.log(`📊 Participation ${participation.id}: ${submissionCount} submissions, ${resultCount} results`);
+
+                if (submissionCount === 0) {
+                    console.warn(`⚠️ Participation ${participation.id} has no submissions array or it's empty`);
+                    console.log('Participation data:', JSON.stringify(participation, null, 2));
+                }
+            }
+        } else {
+            console.warn('⚠️ No student participations found in exercise details response');
+        }
+
+        return exerciseData;
     }
 
     // Get participations for the current user

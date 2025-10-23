@@ -410,7 +410,7 @@ export class ExerciseDetailView {
                             statusBadge = '<span class="status-badge failed">Build Failed</span>';
                         } else if (hasTestInfo) {
                             const passPercentage = totalTests > 0 ? (passedTests / totalTests) * 100 : 0;
-                            const badgeClass = passPercentage >= 90 ? 'success' : passPercentage >= 75 ? 'partial' : 'failed';
+                            const badgeClass = passPercentage >= 80 ? 'success' : passPercentage >= 40 ? 'partial' : 'failed';
                             statusBadge = `<span class="status-badge ${badgeClass}">${passedTests}/${totalTests} tests passed</span>`;
                         } else {
                             statusBadge = successful
@@ -1472,9 +1472,9 @@ export class ExerciseDetailView {
                 const passPercentage = (passedTests / totalTests) * 100;
                 let badgeClass = 'failed';
                 
-                if (passPercentage >= 90) {
+                if (passPercentage >= 80) {
                     badgeClass = 'success';
-                } else if (passPercentage >= 75) {
+                } else if (passPercentage >= 40) {
                     badgeClass = 'partial';
                 }
                 
