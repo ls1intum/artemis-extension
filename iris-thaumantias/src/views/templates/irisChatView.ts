@@ -472,7 +472,14 @@ export class IrisChatView {
                 return;
             }
 
-            irisState.sessions.forEach(session => {
+            // Sort sessions by lastActivity, newest first
+            const sortedSessions = [...irisState.sessions].sort((a, b) => {
+                const dateA = new Date(a.lastActivity).getTime();
+                const dateB = new Date(b.lastActivity).getTime();
+                return dateB - dateA; // Descending order (newest first)
+            });
+
+            sortedSessions.forEach(session => {
                 const isActive = session.id === irisState.activeSessionId;
                 const element = document.createElement('div');
                 element.className = 'session-item' + (isActive ? ' active' : '');

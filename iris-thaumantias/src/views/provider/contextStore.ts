@@ -351,7 +351,13 @@ export class ContextStore {
         const key = getContextKey(active.type, active.id);
         const sessions = this.state.sessions[key] ?? [];
         if (sessions.length > 0) {
-            this.state.activeSessionId = sessions[0].id;
+            // Sort sessions by lastActivity, newest first
+            const sortedSessions = [...sessions].sort((a, b) => {
+                const dateA = new Date(a.lastActivity).getTime();
+                const dateB = new Date(b.lastActivity).getTime();
+                return dateB - dateA;
+            });
+            this.state.activeSessionId = sortedSessions[0].id;
             this.saveState();
         }
         return this.snapshot();
@@ -514,7 +520,13 @@ export class ContextStore {
         if (!sessions || sessions.length === 0) {
             this.createSession();
         } else {
-            this.state.activeSessionId = sessions[0].id;
+            // Sort sessions by lastActivity, newest first
+            const sortedSessions = [...sessions].sort((a, b) => {
+                const dateA = new Date(a.lastActivity).getTime();
+                const dateB = new Date(b.lastActivity).getTime();
+                return dateB - dateA;
+            });
+            this.state.activeSessionId = sortedSessions[0].id;
         }
     }
 
