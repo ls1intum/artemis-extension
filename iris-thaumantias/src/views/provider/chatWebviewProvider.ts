@@ -276,9 +276,6 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
             this._irisUnsubscribe = undefined;
         }
 
-        if (this._view) {
-            this._view.webview.postMessage({ command: 'clearChatMessages' });
-        }
     }
 
     private async _detectWorkspaceExercise(): Promise<void> {
@@ -609,6 +606,11 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
             const contextKey = `${targetContext.type}:${targetContext.id}`;
             console.log(`Clearing all existing sessions for context ${contextKey} before loading fresh data from Artemis`);
             this._contextStore.clearSessionsForContext(contextKey);
+
+            // Clear chat messages immediately after clearing sessions to avoid showing old messages
+            if (this._view) {
+                this._view.webview.postMessage({ command: 'clearChatMessages' });
+            }
 
             // Import all sessions from Artemis
             if (artemisSessionsListFromServer.length > 0) {
@@ -1711,7 +1713,10 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
 
         this._resetSessionStateForContextChange();
 
-        // Don't post snapshot yet - wait for sessions to load first
+        // Clear messages immediately to avoid showing old context messages
+        if (this._view) {
+            this._view.webview.postMessage({ command: 'clearChatMessages' });
+        }
 
         vscode.window.showInformationMessage(`Course context set to: ${courseTitle}`);
 
@@ -1781,7 +1786,10 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
 
         this._resetSessionStateForContextChange();
 
-        // Don't post snapshot yet - wait for sessions to load first
+        // Clear messages immediately to avoid showing old context messages
+        if (this._view) {
+            this._view.webview.postMessage({ command: 'clearChatMessages' });
+        }
 
         vscode.window.showInformationMessage(`Exercise context set to: ${exerciseTitle}`);
         
