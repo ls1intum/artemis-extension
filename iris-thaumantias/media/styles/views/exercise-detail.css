@@ -1598,20 +1598,66 @@
         }
 
         /* Markdown tables */
+        .problem-statement .table-wrapper {
+            margin: 14px 0;
+            border-radius: 6px;
+            border: 1px solid rgba(0, 0, 0, 0.12);
+            overflow: hidden;
+        }
+
         .problem-statement table.markdown-table {
             border-collapse: collapse;
             width: 100%;
-            margin: 14px 0;
+            margin: 0;
             font-size: 14px;
-            border: 1px solid rgba(0, 0, 0, 0.12);
-            border-radius: 6px;
-            overflow: hidden;
+            border: none;
+            table-layout: auto;
         }
 
         .problem-statement table.markdown-table th,
         .problem-statement table.markdown-table td {
             padding: 10px 12px;
             border: 1px solid rgba(0, 0, 0, 0.12);
+            word-wrap: break-word;
+            overflow-wrap: break-word;
+            vertical-align: top;
+        }
+
+        /* Scale down font on smaller screens */
+        @media (max-width: 800px) {
+            .problem-statement table.markdown-table {
+                font-size: 13px;
+            }
+            
+            .problem-statement table.markdown-table th,
+            .problem-statement table.markdown-table td {
+                padding: 9px 11px;
+            }
+        }
+
+        @media (max-width: 600px) {
+            .problem-statement table.markdown-table {
+                font-size: 12px;
+            }
+            
+            .problem-statement table.markdown-table th,
+            .problem-statement table.markdown-table td {
+                padding: 8px 10px;
+            }
+        }
+
+        @media (max-width: 400px) {
+            .problem-statement table.markdown-table {
+                font-size: 11px;
+            }
+            
+            .problem-statement table.markdown-table td {
+                padding: 6px 8px;
+            }
+            
+            .problem-statement table.markdown-table th {
+                padding: 7px 8px;
+            }
         }
 
         .problem-statement table.markdown-table thead {
@@ -1632,8 +1678,8 @@
         }
 
         /* Theme-specific table styling */
-        .theme-vscode .problem-statement table.markdown-table,
-        .theme-modern .problem-statement table.markdown-table {
+        .theme-vscode .problem-statement .table-wrapper,
+        .theme-modern .problem-statement .table-wrapper {
             border-color: rgba(0, 122, 204, 0.2);
         }
 
@@ -1654,7 +1700,7 @@
             color: var(--vscode-textLink-foreground);
         }
 
-        .theme-synthwave .problem-statement table.markdown-table {
+        .theme-synthwave .problem-statement .table-wrapper {
             border-color: rgba(0, 245, 255, 0.3);
         }
 

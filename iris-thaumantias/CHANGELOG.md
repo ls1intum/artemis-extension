@@ -2,6 +2,15 @@
 
 All notable changes to the Artemis VS Code extension will be documented in this file.
 
+## [0.2.1] - 2025-10-25
+
+### Added
+- **Markdown Table Rendering**: Problem statements now properly render markdown tables with full styling support
+  - Responsive table design that scales down on smaller screens
+  - Theme-aware styling for VSCode, Modern, and Synthwave themes
+  - Automatic text wrapping and font size adjustment for readability
+  - Support for text alignment (left, center, right) via markdown table syntax
+
 ## [0.2.0] - 2025-10-23
 
 ### Added

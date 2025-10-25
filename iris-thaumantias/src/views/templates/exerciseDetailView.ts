@@ -234,7 +234,7 @@ export class ExerciseDetailView {
             );
             
             // Build HTML table
-            let tableHtml = '<table class="markdown-table">\n<thead>\n<tr>\n';
+            let tableHtml = '<div class="table-wrapper"><table class="markdown-table">\n<thead>\n<tr>\n';
             headers.forEach((header: string, i: number) => {
                 const align = alignments[i] ? ` style="text-align: ${alignments[i]}"` : '';
                 tableHtml += `<th${align}>${header}</th>\n`;
@@ -249,7 +249,7 @@ export class ExerciseDetailView {
                 });
                 tableHtml += '</tr>\n';
             });
-            tableHtml += '</tbody>\n</table>';
+            tableHtml += '</tbody>\n</table></div>';
             
             return tableHtml;
         });
@@ -360,8 +360,8 @@ export class ExerciseDetailView {
             .replace(/(<\/div>)<\/p>/g, '$1')  // Don't wrap tasks in paragraphs
             .replace(/<p>(<pre class="code-block">)/g, '$1')  // Don't wrap code blocks in paragraphs
             .replace(/(<\/pre>)<\/p>/g, '$1')  // Don't wrap code blocks in paragraphs
-            .replace(/<p>(<table class="markdown-table">)/g, '$1')  // Don't wrap tables in paragraphs
-            .replace(/(<\/table>)<\/p>/g, '$1');  // Don't wrap tables in paragraphs
+            .replace(/<p>(<div class="table-wrapper">)/g, '$1')  // Don't wrap tables in paragraphs
+            .replace(/(<\/div>)<\/p>/g, '$1');  // Don't wrap div closings in paragraphs
 
         // Restore preserved code blocks
         for (const block of codeBlocks) {
