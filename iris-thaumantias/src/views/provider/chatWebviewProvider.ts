@@ -347,6 +347,9 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
             case 'switchContext':
                 this._handleSwitchContext();
                 break;
+            case 'switchToWorkspaceContext':
+                this._handleSwitchToWorkspaceContext();
+                break;
             case 'openDiagnostics':
                 this._handleOpenDiagnostics().catch(err => {
                     console.error('Error opening diagnostics:', err);
@@ -716,6 +719,29 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
     private _handleSwitchContext(): void {
         this._contextStore.unlockActiveContext();
         this._postSnapshot({ showContextPicker: true });
+    }
+
+    private _handleSwitchToWorkspaceContext(): void {
+        // Find the workspace exercise from recent exercises
+        const snapshot = this._contextStore.snapshot();
+        const workspaceExercise = snapshot.recentExercises.find(exercise => 
+            exercise.isWorkspace || /\(Workspace\)/i.test(exercise.title)
+        );
+
+        if (!workspaceExercise) {
+            vscode.window.showWarningMessage('No workspace exercise detected. Open a workspace folder with a git repository.');
+            return;
+        }
+
+        // Switch to the workspace exercise context
+        this.setExerciseContext(
+            workspaceExercise.id,
+            workspaceExercise.title,
+            'workspace-detected',
+            workspaceExercise.shortName,
+            workspaceExercise.releaseDate,
+            workspaceExercise.dueDate
+        );
     }
 
     private _handleCourseSelection(courseId: number): void {
