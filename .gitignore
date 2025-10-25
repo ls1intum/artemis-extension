@@ -41,3 +41,8 @@ logs
 
 # OS
 *.DS_Store
+package-lock*.json
+npm-shrinkwrap.json
+yarn.lock
+pnpm-lock.yaml
+pnpm-lock.yml
