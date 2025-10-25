@@ -9,7 +9,7 @@
   "preRelease": false,
   "repository": {
     "type": "git",
-    "url": "https://github.com/ls1intum/MA"
+    "url": "https://github.com/ls1intum/artemis-extension"
   },
   "engines": {
     "vscode": "^1.97.0"
