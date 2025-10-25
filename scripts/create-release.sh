@@ -67,7 +67,7 @@ if [ -z "$VERSION" ]; then
 fi
 
 print_success "Version: ${VERSION}"
-TAG="v${VERSION}"
+TAG="${VERSION}"
 
 # Check if tag already exists
 if git rev-parse "$TAG" >/dev/null 2>&1; then
