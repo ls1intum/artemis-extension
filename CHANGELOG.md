@@ -203,3 +203,5 @@ All notable changes to the Artemis VS Code extension will be documented in this 
 - Artemis authentication system
 - Basic UI framework with theme support
 - Iris health status checking command
+
+Thanks for using the Artemis VS Code extension!
