@@ -14,7 +14,7 @@ NC='\033[0m' # No Color
 
 # Configuration
 EXTENSION_DIR="iris-thaumantias"
-ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 BUILD_DIR="${ROOT_DIR}/${EXTENSION_DIR}"
 
 # Functions
