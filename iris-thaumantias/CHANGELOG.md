@@ -10,6 +10,16 @@ All notable changes to the Artemis VS Code extension will be documented in this 
   - Theme-aware styling for VSCode, Modern, and Synthwave themes
   - Automatic text wrapping and font size adjustment for readability
   - Support for text alignment (left, center, right) via markdown table syntax
+- **Workspace Context Switcher**: Added a "Switch to Workspace" button in the Iris chat dropdown to quickly switch to the workspace exercise context
+  - Button is disabled when no workspace exercise is detected
+  - Uses shield icon for visual consistency with workspace exercise indicators
+  - Automatically switches context to the detected workspace exercise with a single click
+
+### Fixed
+- **Ask Iris Button Context**: Fixed the "Ask Iris" button to correctly set the workspace exercise context when invoked from a workspace folder
+- **Context Switching Flash**: Fixed issue where old chat messages briefly appeared when switching between exercise/course contexts
+  - Messages are now cleared immediately when context changes to prevent visual flash
+  - Improved synchronization between context switching and message loading
 
 ## [0.2.0] - 2025-10-23
 
