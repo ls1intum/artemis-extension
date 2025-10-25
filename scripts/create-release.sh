@@ -173,9 +173,9 @@ print_info "Enter a release title (or press Enter to use just version number):"
 read -p "Title: " RELEASE_SUFFIX
 
 if [ -n "$RELEASE_SUFFIX" ]; then
-    RELEASE_TITLE="v${VERSION} - ${RELEASE_SUFFIX}"
+    RELEASE_TITLE="${VERSION} - ${RELEASE_SUFFIX}"
 else
-    RELEASE_TITLE="v${VERSION}"
+    RELEASE_TITLE="${VERSION}"
 fi
 
 print_info "Release title: ${RELEASE_TITLE}"
