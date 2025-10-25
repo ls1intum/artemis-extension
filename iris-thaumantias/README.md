@@ -5,15 +5,15 @@ Seamlessly integrate **Artemis: Interactive Learning with Individual Feedback** 
 ## Screenshots
 
 ### Dashboard & Course Overview
-![Dashboard](media/screenshots/dashboard.png)
+![Dashboard](https://raw.githubusercontent.com/ls1intum/artemis-extension/main/iris-thaumantias/media/screenshots/dashboard.png)
 *Access your courses, exercises, and get started with Iris AI tutor from the main dashboard*
 
 ### Iris AI Chat - Intelligent Tutoring
-![Iris Chat](media/screenshots/iris-chat.png)
+![Iris Chat](https://raw.githubusercontent.com/ls1intum/artemis-extension/main/iris-thaumantias/media/screenshots/iris-chat.png)
 *Get context-aware help from Iris AI tutor without leaving VS Code*
 
 ### Real-Time Build Status & Test Results
-![Test Results](media/screenshots/test-results.png)
+![Test Results](https://raw.githubusercontent.com/ls1intum/artemis-extension/main/iris-thaumantias/media/screenshots/test-results.png)
 *Monitor your submission results and test case performance in real-time*
 
 
