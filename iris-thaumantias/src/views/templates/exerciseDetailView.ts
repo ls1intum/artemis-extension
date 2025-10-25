@@ -211,6 +211,49 @@ export class ExerciseDetailView {
             .replace(/[ \t]+/g, ' ')  // Replace multiple spaces/tabs with single space
             .trim();  // Remove leading/trailing whitespace
 
+        // Convert markdown tables to HTML tables
+        // Match tables: header row, separator row, and data rows
+        const tableRegex = /^(\|[^\n]+\|\r?\n)(\|[\s:|-]+\|\r?\n)((?:\|[^\n]+\|\r?\n?)+)/gm;
+        problemStatement = problemStatement.replace(tableRegex, (match: string, headerRow: string, separatorRow: string, dataRows: string) => {
+            // Parse header
+            const headers = headerRow.trim().split('|').filter((cell: string) => cell.trim()).map((cell: string) => cell.trim());
+            
+            // Parse separator to detect alignment
+            const separators = separatorRow.trim().split('|').filter((cell: string) => cell.trim());
+            const alignments = separators.map((sep: string) => {
+                const trimmed = sep.trim();
+                if (trimmed.startsWith(':') && trimmed.endsWith(':')) return 'center';
+                if (trimmed.endsWith(':')) return 'right';
+                if (trimmed.startsWith(':')) return 'left';
+                return '';
+            });
+            
+            // Parse data rows
+            const rows = dataRows.trim().split('\n').map((row: string) => 
+                row.trim().split('|').filter((cell: string) => cell.trim()).map((cell: string) => cell.trim())
+            );
+            
+            // Build HTML table
+            let tableHtml = '<div class="table-wrapper"><table class="markdown-table">\n<thead>\n<tr>\n';
+            headers.forEach((header: string, i: number) => {
+                const align = alignments[i] ? ` style="text-align: ${alignments[i]}"` : '';
+                tableHtml += `<th${align}>${header}</th>\n`;
+            });
+            tableHtml += '</tr>\n</thead>\n<tbody>\n';
+            
+            rows.forEach((row: string[]) => {
+                tableHtml += '<tr>\n';
+                row.forEach((cell: string, i: number) => {
+                    const align = alignments[i] ? ` style="text-align: ${alignments[i]}"` : '';
+                    tableHtml += `<td${align}>${cell}</td>\n`;
+                });
+                tableHtml += '</tr>\n';
+            });
+            tableHtml += '</tbody>\n</table></div>';
+            
+            return tableHtml;
+        });
+
         // Convert numbered tasks with [task][task name](<testid>...) pattern to container with structured layout
         problemStatement = problemStatement.replace(
             /(^|\n)\s*(\d+)\.\s*\[task\](?:\[([^\]]+)\])?(?:\(([^)]*)\))?\s*([^\n]*)/g,
@@ -316,7 +359,9 @@ export class ExerciseDetailView {
             .replace(/<p>(<div class="task-container">)/g, '$1')  // Don't wrap tasks in paragraphs
             .replace(/(<\/div>)<\/p>/g, '$1')  // Don't wrap tasks in paragraphs
             .replace(/<p>(<pre class="code-block">)/g, '$1')  // Don't wrap code blocks in paragraphs
-            .replace(/(<\/pre>)<\/p>/g, '$1');  // Don't wrap code blocks in paragraphs
+            .replace(/(<\/pre>)<\/p>/g, '$1')  // Don't wrap code blocks in paragraphs
+            .replace(/<p>(<div class="table-wrapper">)/g, '$1')  // Don't wrap tables in paragraphs
+            .replace(/(<\/div>)<\/p>/g, '$1');  // Don't wrap div closings in paragraphs
 
         // Restore preserved code blocks
         for (const block of codeBlocks) {

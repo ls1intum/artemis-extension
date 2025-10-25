@@ -31,6 +31,7 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
     private _currentArtemisSessionId?: number;
     private _irisUnsubscribe?: () => void;
     private _currentIrisSettings?: any; // Cached Iris settings for current context
+    private _contextLoadToken = 0;
 
     constructor(
         private readonly _extensionUri: vscode.Uri,
@@ -258,6 +259,25 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
         }
     }
 
+    private _isCurrentContext(expected: ActiveContext, loadToken: number): boolean {
+        if (loadToken !== this._contextLoadToken) {
+            return false;
+        }
+        const current = this._contextStore.getActiveContext();
+        return !!current && current.type === expected.type && current.id === expected.id;
+    }
+
+    private _resetSessionStateForContextChange(): void {
+        this._currentArtemisSessionId = undefined;
+        this._currentIrisSettings = undefined;
+
+        if (this._irisUnsubscribe) {
+            this._irisUnsubscribe();
+            this._irisUnsubscribe = undefined;
+        }
+
+    }
+
     private async _detectWorkspaceExercise(): Promise<void> {
         const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
         if (!workspaceFolder) {
@@ -327,6 +347,9 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
             case 'switchContext':
                 this._handleSwitchContext();
                 break;
+            case 'switchToWorkspaceContext':
+                this._handleSwitchToWorkspaceContext();
+                break;
             case 'openDiagnostics':
                 this._handleOpenDiagnostics().catch(err => {
                     console.error('Error opening diagnostics:', err);
@@ -392,12 +415,13 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
             this._view.webview.postMessage({ command: 'clearChatMessages' });
         }
 
-        this._postSnapshot();
+        // Don't post snapshot yet - wait for sessions to load first
 
         const label = contextType === 'exercise' ? 'Exercise' : contextType === 'course' ? 'Course' : 'Context';
         vscode.window.showInformationMessage(`${label} context set to: ${itemName}`);
 
         // Load all sessions for the new context and initialize
+        // The snapshot will be posted after sessions are loaded
         this._loadAllSessionsForContext().catch((err: any) => {
             console.error('Error loading Iris sessions:', err);
         });
@@ -497,16 +521,36 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
 
     private async _loadAllSessionsForContext(): Promise<void> {
         const activeContext = this._contextStore.getActiveContext();
+        
+        console.log('🔄 [LOAD SESSIONS] Starting _loadAllSessionsForContext');
+        console.log('🔄 [LOAD SESSIONS] Active context:', activeContext);
+        
         if (!activeContext || !this._artemisApiService || !this._view) {
-            console.log('Cannot load sessions: missing context, API service, or view');
+            console.log('🔄 [LOAD SESSIONS] Cannot load sessions: missing context, API service, or view', {
+                hasContext: !!activeContext,
+                hasApiService: !!this._artemisApiService,
+                hasView: !!this._view
+            });
             return;
         }
 
+        const targetContext: ActiveContext = { ...activeContext };
+        const loadToken = ++this._contextLoadToken;
+
+        console.log('🔄 [LOAD SESSIONS] Target context for loading:', targetContext);
+        console.log('🔄 [LOAD SESSIONS] Load token:', loadToken);
+
         try {
-            console.log(`Loading all Iris sessions for ${activeContext.type}: ${activeContext.title} (ID: ${activeContext.id})`);
+            console.log(`🔄 [LOAD SESSIONS] Loading all Iris sessions for ${activeContext.type}: ${activeContext.title} (ID: ${activeContext.id})`);
 
             // Step 0: Check if Iris is enabled for this context
             const isEnabled = await this._checkAndLoadIrisSettings(activeContext);
+
+            if (!this._isCurrentContext(targetContext, loadToken)) {
+                console.log('Context changed while checking Iris settings, aborting load');
+                return;
+            }
+
             if (!isEnabled) {
                 console.log('Iris is disabled, not loading sessions');
                 // Clear any existing sessions and show empty state
@@ -557,9 +601,19 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
             console.log(`Fetched messages for all ${artemisSessionsListFromServer.length} sessions`);
 
             // CLEAR all existing sessions for this context to avoid stale data
-            const contextKey = `${activeContext.type}:${activeContext.id}`;
+            if (!this._isCurrentContext(targetContext, loadToken)) {
+                console.log('Context changed before clearing sessions, aborting load');
+                return;
+            }
+
+            const contextKey = `${targetContext.type}:${targetContext.id}`;
             console.log(`Clearing all existing sessions for context ${contextKey} before loading fresh data from Artemis`);
             this._contextStore.clearSessionsForContext(contextKey);
+
+            // Clear chat messages immediately after clearing sessions to avoid showing old messages
+            if (this._view) {
+                this._view.webview.postMessage({ command: 'clearChatMessages' });
+            }
 
             // Import all sessions from Artemis
             if (artemisSessionsListFromServer.length > 0) {
@@ -573,6 +627,11 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
                 console.log(`Importing ${artemisSessionsListFromServer.length} sessions from Artemis`);
 
                 for (const artemisSession of artemisSessionsListFromServer) {
+
+                    if (!this._isCurrentContext(targetContext, loadToken)) {
+                        console.log('Context changed while importing sessions, aborting load');
+                        return;
+                    }
 
                     // Create local session for each Artemis session
                     const messageCount = artemisSession.messages?.length || 0;
@@ -607,24 +666,48 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
 
             // If there are sessions, switch to the first one and load its messages
             if (updatedSnapshot.sessions.length > 0) {
+                if (!this._isCurrentContext(targetContext, loadToken)) {
+                    console.log('Context changed before switching to first session, aborting load');
+                    return;
+                }
+
                 // Switch to the first (most recent) session
                 this._contextStore.switchToFirstSession();
 
                 // Load messages for the first session
+                if (!this._isCurrentContext(targetContext, loadToken)) {
+                    console.log('Context changed before loading messages, aborting load');
+                    return;
+                }
+
                 await this._loadIrisMessages();
             } else {
                 // No sessions exist, create a new one
                 console.log('No sessions found, creating a new one');
+                if (!this._isCurrentContext(targetContext, loadToken)) {
+                    console.log('Context changed before creating new session, aborting load');
+                    return;
+                }
                 this._contextStore.createSession();
                 await this._createNewIrisSession();
             }
 
             // Post updated snapshot to show sessions in UI
+            if (!this._isCurrentContext(targetContext, loadToken)) {
+                console.log('Context changed before posting snapshot, aborting load');
+                return;
+            }
+
             this._postSnapshot();
 
         } catch (error: any) {
             console.error('Error loading sessions for context:', error);
             vscode.window.showWarningMessage(`Could not load sessions: ${error.message}`);
+
+            if (!this._isCurrentContext(targetContext, loadToken)) {
+                console.log('Context changed during error handling, skipping fallback session creation');
+                return;
+            }
 
             // Fall back to creating a new session
             this._contextStore.createSession();
@@ -636,6 +719,29 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
     private _handleSwitchContext(): void {
         this._contextStore.unlockActiveContext();
         this._postSnapshot({ showContextPicker: true });
+    }
+
+    private _handleSwitchToWorkspaceContext(): void {
+        // Find the workspace exercise from recent exercises
+        const snapshot = this._contextStore.snapshot();
+        const workspaceExercise = snapshot.recentExercises.find(exercise => 
+            exercise.isWorkspace || /\(Workspace\)/i.test(exercise.title)
+        );
+
+        if (!workspaceExercise) {
+            vscode.window.showWarningMessage('No workspace exercise detected. Open a workspace folder with a git repository.');
+            return;
+        }
+
+        // Switch to the workspace exercise context
+        this.setExerciseContext(
+            workspaceExercise.id,
+            workspaceExercise.title,
+            'workspace-detected',
+            workspaceExercise.shortName,
+            workspaceExercise.releaseDate,
+            workspaceExercise.dueDate
+        );
     }
 
     private _handleCourseSelection(courseId: number): void {
@@ -663,9 +769,10 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
             this._view.webview.postMessage({ command: 'clearChatMessages' });
         }
 
-        this._postSnapshot();
+        // Don't post snapshot yet - wait for sessions to load first
 
         // Load all sessions for the new context
+        // The snapshot will be posted after sessions are loaded
         this._loadAllSessionsForContext().catch((err: any) => {
             console.error('Error loading Iris sessions:', err);
         });
@@ -697,11 +804,12 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
             this._view.webview.postMessage({ command: 'clearChatMessages' });
         }
 
-        this._postSnapshot();
+        // Don't post snapshot yet - wait for sessions to load first
 
         vscode.window.showInformationMessage(`Exercise context set to: ${exercise?.title ?? `Exercise ${exerciseId}`}`);
 
         // Load all sessions for the new context
+        // The snapshot will be posted after sessions are loaded
         this._loadAllSessionsForContext().catch((err: any) => {
             console.error('Error loading Iris sessions:', err);
         });
@@ -1613,6 +1721,12 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
             shortName,
             source: this._mapReasonToSource(reason),
         });
+        
+        // Clear any existing sessions for this context before loading new ones
+        const contextKey = `course:${courseId}`;
+        this._contextStore.clearSessionsForContext(contextKey);
+        
+        // Set context without automatically ensuring a session (we'll load from server first)
         this._contextStore.setActiveContext({
             type: 'course',
             id: courseId,
@@ -1621,8 +1735,20 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
             source: this._mapReasonToSource(reason),
             locked: reason === 'workspace-detected',
             selectedAt: Date.now(),
-        });
-        this._postSnapshot();
+        }, false);
+
+        this._resetSessionStateForContextChange();
+
+        // Clear messages immediately to avoid showing old context messages
+        if (this._view) {
+            this._view.webview.postMessage({ command: 'clearChatMessages' });
+        }
+
+        vscode.window.showInformationMessage(`Course context set to: ${courseTitle}`);
+
+        // Load sessions for the new context, then update UI
+        // The snapshot will be posted after sessions are loaded
+        void this._loadAllSessionsForContext();
     }
 
     public setExerciseContext(
@@ -1630,14 +1756,47 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
         exerciseTitle: string,
         reason: ChatContextReason = 'user-selected',
         shortName?: string,
+        releaseDate?: string,
+        dueDate?: string,
     ): void {
+        console.log('📍 [SET EXERCISE CONTEXT] Called with:', {
+            exerciseId,
+            exerciseTitle,
+            shortName,
+            releaseDate,
+            dueDate,
+            reason,
+            source: this._mapReasonToSource(reason)
+        });
+
+        console.log('📍 [SET EXERCISE CONTEXT] Current active context BEFORE:', this._contextStore.getActiveContext());
+
         this._contextStore.registerExercise({
             id: exerciseId,
             title: exerciseTitle,
             shortName,
+            releaseDate,
+            dueDate,
             source: this._mapReasonToSource(reason),
             isWorkspace: reason === 'workspace-detected' || reason === 'auto-workspace',
         });
+        
+        console.log('📍 [SET EXERCISE CONTEXT] Exercise registered. Active context AFTER registerExercise:', 
+            this._contextStore.getActiveContext());
+        
+        // Clear any existing sessions for this context before loading new ones
+        const contextKey = `exercise:${exerciseId}`;
+        console.log('📍 [SET EXERCISE CONTEXT] Clearing sessions for context key:', contextKey);
+        this._contextStore.clearSessionsForContext(contextKey);
+        
+        // Set context without automatically ensuring a session (we'll load from server first)
+        console.log('📍 [SET EXERCISE CONTEXT] Setting active context to:', {
+            type: 'exercise',
+            id: exerciseId,
+            title: exerciseTitle,
+            shortName
+        });
+
         this._contextStore.setActiveContext({
             type: 'exercise',
             id: exerciseId,
@@ -1646,8 +1805,25 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
             source: this._mapReasonToSource(reason),
             locked: reason === 'workspace-detected' || reason === 'auto-workspace',
             selectedAt: Date.now(),
-        });
-        this._postSnapshot();
+        }, false);
+
+        console.log('📍 [SET EXERCISE CONTEXT] Active context AFTER setActiveContext:', 
+            this._contextStore.getActiveContext());
+
+        this._resetSessionStateForContextChange();
+
+        // Clear messages immediately to avoid showing old context messages
+        if (this._view) {
+            this._view.webview.postMessage({ command: 'clearChatMessages' });
+        }
+
+        vscode.window.showInformationMessage(`Exercise context set to: ${exerciseTitle}`);
+        
+        console.log('📍 [SET EXERCISE CONTEXT] Starting to load sessions for context...');
+        
+        // Load sessions for the new context, then update UI
+        // The snapshot will be posted after sessions are loaded
+        void this._loadAllSessionsForContext();
     }
 
     public clearContext(): void {

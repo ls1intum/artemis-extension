@@ -28,6 +28,7 @@ export class IrisChatView {
         const courseIcon = IconDefinitions.getIcon('course');
         const exerciseIcon = IconDefinitions.getIcon('exercise');
         const lockIcon = IconDefinitions.getIcon('shield');
+        const workspaceIcon = IconDefinitions.getIcon('workspace');
         const checkIcon = `<svg viewBox="0 0 16 16" fill="currentColor"><path d="M13.78 4.22a.75.75 0 010 1.06l-7.25 7.25a.75.75 0 01-1.06 0L2.22 9.28a.75.75 0 011.06-1.06L6 10.94l6.72-6.72a.75.75 0 011.06 0z"/></svg>`;
         const plusIcon = `<svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 2a.75.75 0 01.75.75v4.5h4.5a.75.75 0 010 1.5h-4.5v4.5a.75.75 0 01-1.5 0v-4.5h-4.5a.75.75 0 010-1.5h4.5v-4.5A.75.75 0 018 2z"/></svg>`;
         const switchIcon = `<svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 2a.75.75 0 01.75.75v4.5h4.5a.75.75 0 010 1.5h-4.5v4.5a.75.75 0 01-1.5 0v-4.5h-4.5a.75.75 0 010-1.5h4.5v-4.5A.75.75 0 018 2z"/></svg>`;
@@ -102,6 +103,9 @@ export class IrisChatView {
                         <div class="dropdown-section">
                             <button class="dropdown-action-btn" id="newSessionBtn" onclick="createNewSession()" disabled>
                                 <span class="button-icon">${plusIcon}</span> New Conversation
+                            </button>
+                            <button class="dropdown-action-btn" id="workspaceContextBtn" onclick="switchToWorkspaceContext()" disabled>
+                                <span class="button-icon">${lockIcon}</span> Switch to Workspace
                             </button>
                             <button class="dropdown-action-btn" onclick="requestContextSwitch()">
                                 <span class="button-icon">${switchIcon}</span> Switch to Different Context
@@ -384,6 +388,11 @@ export class IrisChatView {
             closeDropdown();
         };
 
+        window.switchToWorkspaceContext = function() {
+            vscode.postMessage({ command: 'switchToWorkspaceContext' });
+            closeDropdown();
+        };
+
         window.requestContextSwitch = function() {
             vscode.postMessage({ command: 'switchContext' });
         };
@@ -465,6 +474,7 @@ export class IrisChatView {
                 sessionSection.style.display = 'block';
                 contextPickerSection.style.display = 'none';
                 renderSessionList();
+                updateWorkspaceButtonState();
             } else {
                 sessionSection.style.display = 'none';
                 contextPickerSection.style.display = 'block';
@@ -936,6 +946,27 @@ export class IrisChatView {
                 newSessionBtn.title = 'Send at least one message before creating a new conversation';
             } else {
                 newSessionBtn.title = 'Create a new conversation';
+            }
+        }
+
+        // Enable/disable workspace context button based on availability
+        function updateWorkspaceButtonState() {
+            const workspaceBtn = document.getElementById('workspaceContextBtn');
+            if (!workspaceBtn) {
+                return;
+            }
+
+            // Check if there's a workspace exercise in recent exercises
+            const hasWorkspaceExercise = irisState.recentExercises?.some(exercise => 
+                exercise.isWorkspace || /\(Workspace\)/i.test(exercise.title)
+            );
+
+            workspaceBtn.disabled = !hasWorkspaceExercise;
+            
+            if (!hasWorkspaceExercise) {
+                workspaceBtn.title = 'No workspace exercise detected';
+            } else {
+                workspaceBtn.title = 'Switch to workspace exercise context';
             }
         }
 
