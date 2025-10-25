@@ -2,6 +2,11 @@
 
 All notable changes to the Artemis VS Code extension will be documented in this file. 
 
+## [0.2.2] - 2025-10-25
+
+### Fixed
+- **Repository URL**: Fixed the repository URL in package.json to point to the correct GitHub repository for proper resource linking
+
 ## [0.2.1] - 2025-10-25
 
 ### Added
