@@ -1,5 +1,7 @@
 # Artemis VS Code Extension
 
+> 📋 [View Changelog](../CHANGELOG.md) | [Installation](#installation) | [Features](#features)
+
 Seamlessly integrate **Artemis: Interactive Learning with Individual Feedback** directly into your VS Code environment. This extension brings the power of Artemis—an innovative platform for interactive learning, programming exercises, and AI-powered tutoring—right to your IDE, enabling students to access personalized support, exercise materials, and intelligent feedback without leaving their development workspace.
 
 ## Screenshots

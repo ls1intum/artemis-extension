@@ -1,9 +1,11 @@
 # Artemis VS Code Extension - Developer Documentation
 
-> 📘 **Documentation Guide**:
+> [View Changelog](CHANGELOG.md)
+
+> **Documentation Guide**:
 > - **This README**: Development setup and contributor guide
 > - **[Extension README](iris-thaumantias/README.md)**: User-facing documentation (VS Code Marketplace)
-> - **[Documentation Strategy](DOCUMENTATION.md)**: How we maintain both READMEs
+
 
 This repository contains the VS Code extension for **Artemis: Interactive Learning with Individual Feedback**. The extension integrates Artemis—an innovative platform for interactive learning, programming exercises, and AI-powered tutoring—directly into the VS Code IDE, enabling students to access personalized support, exercise materials, and intelligent feedback without leaving their development workspace.
 
