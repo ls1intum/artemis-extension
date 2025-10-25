@@ -164,22 +164,40 @@ export class ContextStore {
     }
 
     public registerExercise(input: ExerciseInput): ContextSnapshot {
+        console.log('🔧 [CONTEXT STORE] registerExercise called with:', input);
+        console.log('🔧 [CONTEXT STORE] Current active context:', this.state.activeContext);
+        
         const entry = this.upsertExercise(input);
         this.recalculateExercisePriorities();
         this.trimExerciseHistory();
 
         if (input.source === 'workspace-detected') {
-            this.setActiveContext({
-                type: 'exercise',
-                id: entry.id,
-                title: entry.title,
-                shortName: entry.shortName,
-                source: 'workspace-detected',
-                locked: true,
-                selectedAt: now(),
-            });
+            // Only override the active context if:
+            // 1. There is no active context, OR
+            // 2. The active context is NOT user-selected (respect explicit user choices)
+            const shouldOverride = !this.state.activeContext || 
+                                   this.state.activeContext.source !== 'user-selected';
+            
+            if (shouldOverride) {
+                console.log('🔧 [CONTEXT STORE] Source is workspace-detected, setting active context to workspace exercise');
+                this.setActiveContext({
+                    type: 'exercise',
+                    id: entry.id,
+                    title: entry.title,
+                    shortName: entry.shortName,
+                    source: 'workspace-detected',
+                    locked: true,
+                    selectedAt: now(),
+                });
+            } else {
+                console.log('🔧 [CONTEXT STORE] Workspace exercise detected, but user has explicitly selected another context - NOT overriding');
+            }
         } else if (!this.state.activeContext) {
+            console.log('🔧 [CONTEXT STORE] No active context exists, calling autoSelectContext()');
             this.autoSelectContext();
+            console.log('🔧 [CONTEXT STORE] After autoSelectContext, active context is:', this.state.activeContext);
+        } else {
+            console.log('🔧 [CONTEXT STORE] Active context already exists, not changing it:', this.state.activeContext);
         }
 
         this.saveState();
@@ -227,12 +245,21 @@ export class ContextStore {
         return this.snapshot();
     }
 
-    public setActiveContext(context: ActiveContext): ContextSnapshot {
+    public setActiveContext(context: ActiveContext, ensureSession: boolean = true): ContextSnapshot {
+        console.log('🔧 [CONTEXT STORE] setActiveContext called with:', context);
+        console.log('🔧 [CONTEXT STORE] ensureSession:', ensureSession);
+        console.log('🔧 [CONTEXT STORE] Previous active context:', this.state.activeContext);
+        
         this.state.activeContext = {
             ...context,
             selectedAt: now(),
         };
-        this.ensureSessionForActive();
+        
+        console.log('🔧 [CONTEXT STORE] New active context set to:', this.state.activeContext);
+        
+        if (ensureSession) {
+            this.ensureSessionForActive();
+        }
         this.saveState();
         return this.snapshot();
     }
@@ -329,12 +356,14 @@ export class ContextStore {
     }
 
     public clearSessionsForContext(contextKey: string): ContextSnapshot {
+        const active = this.state.activeContext;
+        const activeContextKey = active ? getContextKey(active.type, active.id) : null;
+        const shouldClearActiveSession = activeContextKey === contextKey && this.state.activeSessionId !== null;
+
         // Remove all sessions for the specified context
         delete this.state.sessions[contextKey];
 
-        // If the active session was in this context, clear it
-        const snapshot = this.snapshot();
-        if (snapshot.activeSession?.contextKey === contextKey) {
+        if (shouldClearActiveSession) {
             this.state.activeSessionId = null;
         }
 

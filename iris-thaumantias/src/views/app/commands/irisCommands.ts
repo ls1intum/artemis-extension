@@ -18,23 +18,45 @@ export class IrisCommandModule {
         const releaseDate: string | undefined = message.releaseDate;
         const dueDate: string | undefined = message.dueDate;
 
+        console.log('🎯 [ASK IRIS] Button clicked with data:', {
+            exerciseId,
+            exerciseTitle,
+            exerciseShortName,
+            releaseDate,
+            dueDate
+        });
+
         if (!exerciseId) {
+            console.error('🎯 [ASK IRIS] ERROR: Missing exercise ID');
             vscode.window.showWarningMessage('Unable to open Iris chat: missing exercise information.');
             return;
         }
 
+        console.log('🎯 [ASK IRIS] Focusing Iris chat view...');
         await vscode.commands.executeCommand('iris.chatView.focus');
 
         const chatProvider = (global as any).chatWebviewProvider;
         const title = exerciseTitle || `Exercise ${exerciseId}`;
 
-        if (chatProvider && typeof chatProvider.updateDetectedExercise === 'function') {
-            chatProvider.updateDetectedExercise(title, exerciseId, releaseDate, dueDate, exerciseShortName);
-        }
+        console.log('🎯 [ASK IRIS] Chat provider available:', !!chatProvider);
+        console.log('🎯 [ASK IRIS] Calling setExerciseContext with:', {
+            exerciseId,
+            title,
+            reason: 'user-selected',
+            shortName: exerciseShortName,
+            releaseDate,
+            dueDate
+        });
+
+        // Note: We don't call updateDetectedExercise here because it can trigger
+        // autoSelectContext() which might select the wrong exercise based on priority.
+        // The setExerciseContext call below will properly register and set the context.
 
         if (chatProvider && typeof chatProvider.setExerciseContext === 'function') {
-            chatProvider.setExerciseContext(exerciseId, title, 'user-selected', exerciseShortName);
+            chatProvider.setExerciseContext(exerciseId, title, 'user-selected', exerciseShortName, releaseDate, dueDate);
+            console.log('🎯 [ASK IRIS] setExerciseContext called successfully');
         } else {
+            console.warn('🎯 [ASK IRIS] WARNING: Chat provider is unavailable or does not support exercise context selection');
             console.warn('Iris chat provider is unavailable or does not support exercise context selection.');
         }
     };
