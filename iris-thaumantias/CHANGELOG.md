@@ -20,6 +20,7 @@ All notable changes to the Artemis VS Code extension will be documented in this 
 - **Context Switching Flash**: Fixed issue where old chat messages briefly appeared when switching between exercise/course contexts
   - Messages are now cleared immediately when context changes to prevent visual flash
   - Improved synchronization between context switching and message loading
+- **README Images**: Updated README screenshot URLs to use absolute GitHub URLs for proper display in VS Code Marketplace
 
 ## [0.2.0] - 2025-10-23
 
