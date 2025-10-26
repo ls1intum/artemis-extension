@@ -67,7 +67,7 @@ if [ -z "$VERSION" ]; then
 fi
 
 print_success "Version: ${VERSION}"
-TAG="v${VERSION}"
+TAG="${VERSION}"
 
 # Check if tag already exists
 if git rev-parse "$TAG" >/dev/null 2>&1; then
@@ -167,7 +167,19 @@ print_success "Found .vsix file: $(basename "$VSIX_FILE")"
 # Create GitHub release
 print_step "Creating GitHub release..."
 
-RELEASE_TITLE="v${VERSION} - $(echo "$CHANGELOG_CONTENT" | head -n 1 | sed 's/^### *//')"
+# Prompt for optional release title
+echo ""
+print_info "Enter a release title (or press Enter to use just version number):"
+read -p "Title: " RELEASE_SUFFIX
+
+if [ -n "$RELEASE_SUFFIX" ]; then
+    RELEASE_TITLE="${VERSION} - ${RELEASE_SUFFIX}"
+else
+    RELEASE_TITLE="${VERSION}"
+fi
+
+print_info "Release title: ${RELEASE_TITLE}"
+echo ""
 
 gh release create "$TAG" \
     --title "$RELEASE_TITLE" \
