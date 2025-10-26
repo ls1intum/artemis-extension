@@ -12,7 +12,7 @@
     "url": "https://github.com/ls1intum/artemis-extension"
   },
   "engines": {
-    "vscode": "^1.97.0"
+    "vscode": "1.97.0"
   },
   "categories": [
     "Education",
@@ -155,21 +155,21 @@
     "clean": "rm -rf dist out *.vsix"
   },
   "devDependencies": {
-    "@types/mocha": "^10.0.10",
-    "@types/node": "22.x",
-    "@types/vscode": "^1.97.0",
-    "@types/ws": "^8.18.1",
-    "@typescript-eslint/eslint-plugin": "^8.42.0",
-    "@typescript-eslint/parser": "^8.42.0",
-    "@vscode/test-cli": "^0.0.11",
-    "@vscode/test-electron": "^2.5.2",
-    "esbuild": "^0.25.9",
-    "eslint": "^9.34.0",
-    "npm-run-all": "^4.1.5",
-    "typescript": "^5.9.2"
+    "@types/mocha": "10.0.10",
+    "@types/node": "22.18.12",
+    "@types/vscode": "1.105.0",
+    "@types/ws": "8.18.1",
+    "@typescript-eslint/eslint-plugin": "8.46.2",
+    "@typescript-eslint/parser": "8.46.2",
+    "@vscode/test-cli": "0.0.12",
+    "@vscode/test-electron": "2.5.2",
+    "esbuild": "0.25.11",
+    "eslint": "9.38.0",
+    "npm-run-all": "4.1.5",
+    "typescript": "5.9.3"
   },
   "dependencies": {
-    "@stomp/stompjs": "^7.2.0",
-    "ws": "^8.18.3"
+    "@stomp/stompjs": "7.2.1",
+    "ws": "8.18.3"
   }
 }
