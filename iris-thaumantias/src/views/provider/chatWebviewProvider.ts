@@ -11,6 +11,7 @@ import {
 } from './contextTypes';
 import { ArtemisApiService } from '../../api';
 import { ArtemisWebsocketService } from '../../services';
+import { collectUncommittedFiles } from '../../utils';
 
 type ChatContextReason =
     | 'user-selected'
@@ -1089,11 +1090,59 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
                 throw new Error('Failed to initialize Iris session');
             }
 
+            // Collect uncommitted files from the current workspace
+            let uncommittedFiles: Map<string, string> | undefined;
+            
+            // Check if the user has enabled sending uncommitted changes
+            const sendUncommittedChanges = vscode.workspace.getConfiguration('artemis.iris').get<boolean>('sendUncommittedChanges', true);
+            
+            if (sendUncommittedChanges) {
+                try {
+                    const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+                    uncommittedFiles = await collectUncommittedFiles(workspaceFolder);
+                    
+                    if (uncommittedFiles.size > 0) {
+                        console.log(`📁 Sending ${uncommittedFiles.size} uncommitted file(s) to Iris: ${Array.from(uncommittedFiles.keys()).join(', ')}`);
+                    }
+                } catch (error: any) {
+                    console.error('Error collecting uncommitted files:', error);
+                    
+                    // Show user-friendly error message based on error type
+                    if (error.message?.includes('Git')) {
+                        vscode.window.showWarningMessage(
+                            'Failed to collect uncommitted files from Git. Iris will only see your repository content.',
+                            'OK'
+                        );
+                    } else if (error.code === 'ENOENT') {
+                        vscode.window.showWarningMessage(
+                            'Some files could not be read. Iris might not have full context of your changes.',
+                            'OK'
+                        );
+                    } else {
+                        vscode.window.showWarningMessage(
+                            'Could not collect uncommitted changes. Iris will work with repository content only.',
+                            'Disable Feature',
+                            'OK'
+                        ).then(selection => {
+                            if (selection === 'Disable Feature') {
+                                vscode.workspace.getConfiguration('artemis.iris').update('sendUncommittedChanges', false, true);
+                            }
+                        });
+                    }
+                    
+                    // Continue without uncommitted files - this is not a critical error
+                    uncommittedFiles = undefined;
+                }
+            } else {
+                console.log('📁 Uncommitted changes sending is disabled by user setting');
+            }
+
             // Send message to Iris
             // The response will come through WebSocket, so we don't need to wait for it here
             await this._artemisApiService.sendChatMessage(
                 this._currentArtemisSessionId,
-                message.text
+                message.text,
+                uncommittedFiles
             );
 
             console.log('Message sent to Iris, waiting for WebSocket response...');

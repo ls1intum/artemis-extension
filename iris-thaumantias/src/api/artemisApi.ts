@@ -355,8 +355,12 @@ export class ArtemisApiService {
     }
 
     // Send a message to Iris
-    async sendChatMessage(sessionId: number, content: string): Promise<any> {
-        const messagePayload = {
+    async sendChatMessage(
+        sessionId: number, 
+        content: string, 
+        uncommittedFiles?: Map<string, string>
+    ): Promise<any> {
+        const messagePayload: any = {
             sentAt: new Date().toISOString(),
             content: [
                 {
@@ -366,14 +370,48 @@ export class ArtemisApiService {
             ]
         };
 
-        const response = await this.makeRequest(
-            `/api/iris/sessions/${sessionId}/messages`,
-            {
-                method: 'POST',
-                body: JSON.stringify(messagePayload)
+        // Add uncommitted files if provided
+        // Note: Only add if non-empty to maintain backward compatibility
+        // Older Artemis backends will ignore unknown fields (Jackson default behavior)
+        if (uncommittedFiles && uncommittedFiles.size > 0) {
+            messagePayload.uncommittedFiles = Object.fromEntries(uncommittedFiles);
+            console.log(`Sending ${uncommittedFiles.size} uncommitted files to Iris`);
+        }
+
+        try {
+            const response = await this.makeRequest(
+                `/api/iris/sessions/${sessionId}/messages`,
+                {
+                    method: 'POST',
+                    body: JSON.stringify(messagePayload)
+                }
+            );
+            return response.json();
+        } catch (error: any) {
+            // If sending with uncommittedFiles fails, retry without them
+            // This handles the case where the backend doesn't support the feature yet
+            if (uncommittedFiles && uncommittedFiles.size > 0 && error.status === 400) {
+                console.warn('Failed to send uncommitted files, retrying without them (backend might not support this feature yet)');
+                const fallbackPayload = {
+                    sentAt: new Date().toISOString(),
+                    content: [
+                        {
+                            textContent: content,
+                            type: 'text'
+                        }
+                    ]
+                };
+                const fallbackResponse = await this.makeRequest(
+                    `/api/iris/sessions/${sessionId}/messages`,
+                    {
+                        method: 'POST',
+                        body: JSON.stringify(fallbackPayload)
+                    }
+                );
+                return fallbackResponse.json();
             }
-        );
-        return response.json();
+            throw error;
+        }
     }
 
     // Create a new chat session for a course

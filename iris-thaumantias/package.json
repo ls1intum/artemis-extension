@@ -12,7 +12,7 @@
     "url": "https://github.com/ls1intum/artemis-extension"
   },
   "engines": {
-    "vscode": "1.97.0"
+    "vscode": "^1.97.0"
   },
   "categories": [
     "Education",
@@ -119,6 +119,11 @@
           "type": "boolean",
           "default": true,
           "description": "Show the 'How to use Iris' explanation on the dashboard"
+        },
+        "artemis.iris.sendUncommittedChanges": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Allow Iris to access your uncommitted file changes (unsaved, unstaged, and unpushed files). When enabled, Iris can see your current work-in-progress code to provide better assistance. **Privacy**: Only files from your current workspace are sent, and only when you send a message to Iris."
         },
         "artemis.hideDeveloperTools": {
           "type": "boolean",
