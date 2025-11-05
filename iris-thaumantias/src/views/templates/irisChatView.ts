@@ -1,48 +1,54 @@
-import * as vscode from 'vscode';
-import { ThemeManager } from '../../themes';
-import { IconDefinitions } from '../../utils/iconDefinitions';
-import { StyleManager } from '../styles';
+import * as vscode from "vscode";
+import { ThemeManager } from "../../themes";
+import { IconDefinitions } from "../../utils/iconDefinitions";
+import { StyleManager } from "../styles";
 
 export class IrisChatView {
-    private _themeManager: ThemeManager;
-    private _extensionContext: vscode.ExtensionContext;
-    private _styleManager: StyleManager;
+  private _themeManager: ThemeManager;
+  private _extensionContext: vscode.ExtensionContext;
+  private _styleManager: StyleManager;
 
-    constructor(extensionContext: vscode.ExtensionContext, styleManager: StyleManager) {
-        this._themeManager = new ThemeManager();
-        this._extensionContext = extensionContext;
-        this._styleManager = styleManager;
+  constructor(
+    extensionContext: vscode.ExtensionContext,
+    styleManager: StyleManager
+  ) {
+    this._themeManager = new ThemeManager();
+    this._extensionContext = extensionContext;
+    this._styleManager = styleManager;
+  }
+
+  public generateHtml(
+    webview?: vscode.Webview,
+    showDiagnostics: boolean = false
+  ): string {
+    const themeCSS = this._themeManager.getThemeCSS();
+    const currentTheme = this._themeManager.getCurrentTheme();
+    const styles = this._styleManager.getStyles(currentTheme, [
+      "views/iris-chat.css",
+    ]);
+
+    const trashIcon = IconDefinitions.getIcon("trash");
+    const stethoscopeIcon = IconDefinitions.getIcon("stethoscope");
+    const questionMarkIcon = IconDefinitions.getIcon("question-mark");
+    const refreshIcon = IconDefinitions.getIcon("refresh");
+    const courseIcon = IconDefinitions.getIcon("course");
+    const exerciseIcon = IconDefinitions.getIcon("exercise");
+    const lockIcon = IconDefinitions.getIcon("shield");
+    const workspaceIcon = IconDefinitions.getIcon("workspace");
+    const checkIcon = `<svg viewBox="0 0 16 16" fill="currentColor"><path d="M13.78 4.22a.75.75 0 010 1.06l-7.25 7.25a.75.75 0 01-1.06 0L2.22 9.28a.75.75 0 011.06-1.06L6 10.94l6.72-6.72a.75.75 0 011.06 0z"/></svg>`;
+    const plusIcon = `<svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 2a.75.75 0 01.75.75v4.5h4.5a.75.75 0 010 1.5h-4.5v4.5a.75.75 0 01-1.5 0v-4.5h-4.5a.75.75 0 010-1.5h4.5v-4.5A.75.75 0 018 2z"/></svg>`;
+    const switchIcon = `<svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 2a.75.75 0 01.75.75v4.5h4.5a.75.75 0 010 1.5h-4.5v4.5a.75.75 0 01-1.5 0v-4.5h-4.5a.75.75 0 010-1.5h4.5v-4.5A.75.75 0 018 2z"/></svg>`;
+
+    // Get the path to the iris logo image
+    let irisLogoSrc = "";
+    if (webview) {
+      const irisLogoUri = vscode.Uri.file(
+        this._extensionContext.asAbsolutePath("media/iris-logo-big-left.png")
+      );
+      irisLogoSrc = webview.asWebviewUri(irisLogoUri).toString();
     }
 
-    public generateHtml(webview?: vscode.Webview, showDiagnostics: boolean = false): string {
-        const themeCSS = this._themeManager.getThemeCSS();
-        const currentTheme = this._themeManager.getCurrentTheme();
-        const styles = this._styleManager.getStyles(currentTheme, [
-            'views/iris-chat.css'
-        ]);
-
-        const trashIcon = IconDefinitions.getIcon('trash');
-        const stethoscopeIcon = IconDefinitions.getIcon('stethoscope');
-        const questionMarkIcon = IconDefinitions.getIcon('question-mark');
-        const refreshIcon = IconDefinitions.getIcon('refresh');
-        const courseIcon = IconDefinitions.getIcon('course');
-        const exerciseIcon = IconDefinitions.getIcon('exercise');
-        const lockIcon = IconDefinitions.getIcon('shield');
-        const workspaceIcon = IconDefinitions.getIcon('workspace');
-        const checkIcon = `<svg viewBox="0 0 16 16" fill="currentColor"><path d="M13.78 4.22a.75.75 0 010 1.06l-7.25 7.25a.75.75 0 01-1.06 0L2.22 9.28a.75.75 0 011.06-1.06L6 10.94l6.72-6.72a.75.75 0 011.06 0z"/></svg>`;
-        const plusIcon = `<svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 2a.75.75 0 01.75.75v4.5h4.5a.75.75 0 010 1.5h-4.5v4.5a.75.75 0 01-1.5 0v-4.5h-4.5a.75.75 0 010-1.5h4.5v-4.5A.75.75 0 018 2z"/></svg>`;
-        const switchIcon = `<svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 2a.75.75 0 01.75.75v4.5h4.5a.75.75 0 010 1.5h-4.5v4.5a.75.75 0 01-1.5 0v-4.5h-4.5a.75.75 0 010-1.5h4.5v-4.5A.75.75 0 018 2z"/></svg>`;
-
-        // Get the path to the iris logo image
-        let irisLogoSrc = '';
-        if (webview) {
-            const irisLogoUri = vscode.Uri.file(
-                this._extensionContext.asAbsolutePath('media/iris-logo-big-left.png')
-            );
-            irisLogoSrc = webview.asWebviewUri(irisLogoUri).toString();
-        }
-
-        return `<!DOCTYPE html>
+    return `<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -56,7 +62,11 @@ export class IrisChatView {
 <body class="theme-${currentTheme}">
     <div class="chat-container">
         <div class="chat-header">
-            ${irisLogoSrc ? `<img src="${irisLogoSrc}" alt="Iris Logo" class="chat-header-logo" />` : ''}
+            ${
+              irisLogoSrc
+                ? `<img src="${irisLogoSrc}" alt="Iris Logo" class="chat-header-logo" />`
+                : ""
+            }
             <h1 class="chat-title">Chat with Iris</h1>
             <button class="burger-menu" onclick="toggleSideMenu()" title="Menu">
                 <div class="burger-icon">
@@ -165,7 +175,7 @@ export class IrisChatView {
             </div>
             <div class="iris-disclaimer-banner">
                 <span class="disclaimer-text">
-                    Iris only has access to your submitted code.
+                    Iris has access to your uncommitted changes (<a href="#" onclick="openUncommittedChangesSettings(); return false;" class="settings-link">configurable</a>).
                     Iris can make mistakes. Consider verifying important information. 
                 </span>
             </div>
@@ -244,7 +254,9 @@ export class IrisChatView {
                         <div class="menu-item-description">Learn how contexts impact responses</div>
                     </div>
                 </div>
-                ${showDiagnostics ? `
+                ${
+                  showDiagnostics
+                    ? `
                 <div class="menu-item" onclick="openDiagnostics()">
                     ${stethoscopeIcon}
                     <div class="menu-item-content">
@@ -259,7 +271,9 @@ export class IrisChatView {
                         <div class="menu-item-description">View raw Artemis session data</div>
                     </div>
                 </div>
-                ` : ''}
+                `
+                    : ""
+                }
             </div>
 
             <div class="menu-section">
@@ -307,6 +321,13 @@ export class IrisChatView {
         window.closeHelpPopup = function() {
             document.getElementById('helpOverlay').classList.remove('open');
             document.getElementById('helpPopup').classList.remove('open');
+        };
+
+        window.openUncommittedChangesSettings = function() {
+            vscode.postMessage({
+                command: 'openSettings',
+                setting: 'artemis.iris.sendUncommittedChanges'
+            });
         };
 
         let irisState = {
@@ -1078,5 +1099,5 @@ export class IrisChatView {
     </script>
 </body>
 </html>`;
-    }
+  }
 }

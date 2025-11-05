@@ -115,9 +115,32 @@ cd "${ROOT_DIR}/${EXTENSION_DIR}"
 # Run the package script
 npm run package
 
+# Temporarily downgrade @types/vscode for VSIX packaging to match engines.vscode
+print_step "Temporarily adjusting @types/vscode for packaging..."
+ORIGINAL_TYPES_VERSION=$(grep -o '"@types/vscode": "[^"]*"' package.json | cut -d'"' -f4)
+if [[ "$OSTYPE" == "darwin"* ]]; then
+    sed -i '' 's/"@types\/vscode": "[^"]*"/"@types\/vscode": "1.97.0"/' package.json
+else
+    sed -i 's/"@types\/vscode": "[^"]*"/"@types\/vscode": "1.97.0"/' package.json
+fi
+
+# Install the downgraded version temporarily
+npm install --silent
+
 # Create VSIX file
 print_step "Creating VSIX package..."
 npx @vscode/vsce package
+
+# Restore original @types/vscode version
+print_step "Restoring @types/vscode to ${ORIGINAL_TYPES_VERSION}..."
+if [[ "$OSTYPE" == "darwin"* ]]; then
+    sed -i '' "s/\"@types\/vscode\": \"[^\"]*\"/\"@types\/vscode\": \"${ORIGINAL_TYPES_VERSION}\"/" package.json
+else
+    sed -i "s/\"@types\/vscode\": \"[^\"]*\"/\"@types\/vscode\": \"${ORIGINAL_TYPES_VERSION}\"/" package.json
+fi
+
+# Reinstall with original version
+npm install --silent
 
 VSIX_FILE="${ROOT_DIR}/${EXTENSION_DIR}/${EXTENSION_DIR}-${NEW_VERSION}.vsix"
 
