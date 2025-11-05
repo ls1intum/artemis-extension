@@ -3,6 +3,15 @@
 All notable changes to the Artemis VS Code extension will be documented in this file.
 
 
+## [0.2.4] - 2025-11-05
+
+### Changed
+
+- **Iris Chat Disclaimer**: Updated disclaimer text to accurately reflect that Iris has access to uncommitted changes
+  - Changed from "Iris only has access to your submitted code" to "Iris has access to your uncommitted changes"
+  - Added clickable settings link for quick access to privacy configuration
+  - Users can now easily toggle the uncommitted changes feature directly from the chat interface
+
 ## [0.2.3] - 2025-11-05
 
 ### Added
