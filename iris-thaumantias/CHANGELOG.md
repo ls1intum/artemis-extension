@@ -2,7 +2,8 @@
 
 All notable changes to the Artemis VS Code extension will be documented in this file.
 
-## [Unreleased]
+
+## [0.2.3] - 2025-11-05
 
 ### Added
 
