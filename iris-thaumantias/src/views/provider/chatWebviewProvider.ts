@@ -375,6 +375,11 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
             case 'messageFeedback':
                 this._handleMessageFeedback(message);
                 break;
+            case 'openSettings':
+                if (message.setting) {
+                    vscode.commands.executeCommand('workbench.action.openSettings', message.setting);
+                }
+                break;
             default:
                 console.log('Unhandled message in chat view:', message);
                 break;
