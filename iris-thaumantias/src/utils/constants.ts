@@ -22,7 +22,7 @@ export const CONFIG = {
             VCS_TOKEN: '/api/core/account/participation-vcs-access-token',
             START_PARTICIPATION: '/api/exercise/exercises/{exerciseId}/participations',
         },
-        USER_AGENT: 'VS Code Extension - Iris Thaumantias',
+        USER_AGENT: 'VS Code Extension',
     },
 } as const;
 
@@ -34,3 +34,6 @@ export const VSCODE_CONFIG = {
     SHOW_IRIS_EXPLANATION_KEY: 'showIrisExplanation',
     DEFAULT_COMMIT_MESSAGE_KEY: 'defaultCommitMessage',
 } as const;
+
+// File processing constants
+export const MAX_FILE_SIZE_BYTES = 1024 * 1024; // 1MB - Maximum file size for content inclusion

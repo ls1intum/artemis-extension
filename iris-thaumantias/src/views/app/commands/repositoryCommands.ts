@@ -3,7 +3,7 @@ import * as path from 'path';
 import { execFile, spawn } from 'child_process';
 import { promisify } from 'util';
 import type { CommandContext, CommandMap } from './types';
-import { VSCODE_CONFIG } from '../../../utils';
+import { VSCODE_CONFIG, checkWorkspaceFiles } from '../../../utils';
 
 const execFileAsync = promisify(execFile);
 
@@ -184,10 +184,12 @@ export class RepositoryCommandModule {
 
                     if (isConnected) {
                         try {
-                            const { stdout: statusStdout } = await execFileAsync('git', ['status', '--porcelain'], {
-                                cwd: workspaceFolder.uri.fsPath
+                            // Use unified workspace file checker (lightweight)
+                            const result = await checkWorkspaceFiles(workspaceFolder, {
+                                includeContent: false,
+                                applyFilters: false
                             });
-                            hasChanges = statusStdout.trim().length > 0;
+                            hasChanges = result.hasChanges;
                         } catch (statusError: any) {
                             console.warn('Failed to determine repository changes:', statusError);
                             hasChanges = false;
@@ -432,8 +434,14 @@ export class RepositoryCommandModule {
                 cancellable: false
             }, async progress => {
                 progress.report({ message: 'Preparing repository...' });
-                const { stdout: statusStdout } = await execFileAsync('git', ['status', '--porcelain'], { cwd });
-                if (!statusStdout.trim()) {
+                
+                // Use unified workspace file checker (lightweight)
+                const result = await checkWorkspaceFiles(workspaceFolder, {
+                    includeContent: false,
+                    applyFilters: false
+                });
+                
+                if (!result.hasChanges) {
                     throw new Error('No local changes detected to submit.');
                 }
 

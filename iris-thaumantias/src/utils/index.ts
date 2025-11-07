@@ -2,5 +2,4 @@ export * from './constants';
 export * from './iconDefinitions';
 export * from './aiExtensionsBlocklist';
 export * from './plantUmlProcessor';
-export * from './uncommittedFilesCollector';
-export * from './gitStatusChecker';
+export * from './workspaceFileChecker';

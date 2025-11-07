@@ -11,7 +11,7 @@ import {
 } from './contextTypes';
 import { ArtemisApiService } from '../../api';
 import { ArtemisWebsocketService } from '../../services';
-import { collectUncommittedFiles, collectUncommittedFilesWithStatus, checkGitStatus } from '../../utils';
+import { checkWorkspaceFiles } from '../../utils';
 
 type ChatContextReason =
     | 'user-selected'
@@ -277,12 +277,16 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
 
             console.log('[File Monitor] Checking git status in:', workspaceFolder.uri.fsPath);
             
-            // Use lightweight git status check (same as exercise details page)
-            const { hasChanges, changedFiles } = await checkGitStatus(workspaceFolder);
+            // Use unified workspace file checker (lightweight - no content, no filters)
+            const result = await checkWorkspaceFiles(workspaceFolder, {
+                includeContent: false,
+                applyFilters: false,
+                includeStatus: false
+            });
             
-            console.log('[File Monitor] Changed files from git:', JSON.stringify(changedFiles));
+            console.log('[File Monitor] Changed files from git:', JSON.stringify(result.files.map(f => f.path)));
             
-            if (!hasChanges || changedFiles.length === 0) {
+            if (!result.hasChanges) {
                 console.log('[File Monitor] No changes detected');
                 this._view.webview.postMessage({
                     command: 'updateReferencedFiles',
@@ -293,15 +297,14 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
                 return;
             }
 
-            console.log(`[File Monitor] Found ${changedFiles.length} changed files via git status`);
+            console.log(`[File Monitor] Found ${result.totalCount} changed files via git status`);
             
-            // For live display, just show the file count without full analysis
-            // Full analysis with exclusions will happen when actually sending the message
+            // For live display, just show the file paths
             this._view.webview.postMessage({
                 command: 'updateReferencedFiles',
-                includedFiles: changedFiles,
+                includedFiles: result.files.map(f => f.path),
                 excludedFiles: [],
-                totalCount: changedFiles.length
+                totalCount: result.totalCount
             });
         } catch (error) {
             // Silently fail for live updates - don't show errors to user
@@ -1232,20 +1235,36 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
             if (sendUncommittedChanges) {
                 try {
                     const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
-                    // Do full file collection with filtering (same as before)
-                    uncommittedFiles = await collectUncommittedFiles(workspaceFolder);
+                    
+                    // Use unified checker with full options (content + filters + status)
+                    const result = await checkWorkspaceFiles(workspaceFolder, {
+                        includeContent: true,
+                        applyFilters: true,
+                        includeStatus: true,
+                        checkUnpushed: true,
+                        includeDirty: true
+                    });
+                    
+                    // Convert to Map for backward compatibility
+                    uncommittedFiles = new Map();
+                    result.files
+                        .filter(f => f.status === 'included' && f.content !== undefined)
+                        .forEach(f => uncommittedFiles!.set(f.path, f.content!));
                     
                     if (uncommittedFiles.size > 0) {
                         console.log(`📁 Sending ${uncommittedFiles.size} uncommitted file(s) to Iris`);
                         
-                        // Update display with detailed analysis right before sending
-                        const { includedFiles, excludedFiles } = await collectUncommittedFilesWithStatus(workspaceFolder);
+                        // Update display with detailed analysis
                         if (this._view) {
+                            const excludedFiles = result.files
+                                .filter(f => f.status === 'excluded')
+                                .map(f => ({ path: f.path, reason: f.reason || 'Excluded' }));
+                                
                             this._view.webview.postMessage({
                                 command: 'updateReferencedFiles',
-                                includedFiles: Array.from(includedFiles.keys()),
+                                includedFiles: Array.from(uncommittedFiles.keys()),
                                 excludedFiles: excludedFiles,
-                                totalCount: includedFiles.size + excludedFiles.length
+                                totalCount: result.totalCount
                             });
                         }
                     }
