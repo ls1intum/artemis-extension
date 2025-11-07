@@ -8,16 +8,46 @@ const execFileAsync = promisify(execFile);
 const readFileAsync = promisify(fs.readFile);
 const statAsync = promisify(fs.stat);
 
-const EXCLUDED_EXTENSIONS = new Set([
-    '.class', '.jar', '.war', '.ear', '.zip', '.tar', '.gz',
-    '.exe', '.dll', '.so', '.dylib', '.bin', '.dat',
-    '.png', '.jpg', '.jpeg', '.gif', '.bmp', '.ico', '.svg',
-    '.mp3', '.mp4', '.avi', '.mov', '.pdf', '.doc', '.docx'
+// Whitelist of allowed file extensions (source code and configs only)
+const ALLOWED_EXTENSIONS = new Set([
+    // Programming languages
+    '.java', '.kt', '.scala', '.groovy',           // JVM languages
+    '.py', '.pyw',                                  // Python
+    '.js', '.jsx', '.ts', '.tsx', '.mjs', '.cjs',  // JavaScript/TypeScript
+    '.c', '.cpp', '.cc', '.cxx', '.h', '.hpp',     // C/C++
+    '.cs', '.vb',                                   // .NET
+    '.go',                                          // Go
+    '.rs',                                          // Rust
+    '.swift',                                       // Swift
+    '.php',                                         // PHP
+    '.rb',                                          // Ruby
+    '.r',                                           // R
+    '.m', '.mm',                                    // Objective-C
+    '.sql',                                         // SQL
+    '.sh', '.bash', '.zsh', '.fish',               // Shell scripts
+    '.ps1', '.psm1',                                // PowerShell
+    
+    // Markup & Data
+    '.html', '.htm', '.xml', '.xhtml',             // Markup
+    '.css', '.scss', '.sass', '.less',             // Stylesheets
+    '.json', '.yaml', '.yml', '.toml',             // Config formats
+    '.md', '.markdown', '.rst', '.txt',            // Documentation
+    
+    // Build & Config files
+    '.gradle', '.properties', '.pro',               // Build configs
+    '.cmake', '.mk',                                // Build systems
+    '.dockerfile',                                  // Docker
+    
+    // Other
+    '.gitignore', '.gitattributes',                // Git configs
+    '.env', '.envrc',                               // Environment files
 ]);
 
 const EXCLUDED_DIRECTORIES = new Set([
     'node_modules', 'target', 'build', 'dist', 'out', '.git',
-    'bin', 'obj', '.gradle', '.idea', '.vscode', 'coverage'
+    'bin', 'obj', '.gradle', '.idea', '.vscode', 'coverage',
+    '__pycache__', '.pytest_cache', '.mypy_cache',
+    'vendor', 'packages', 'deps',
 ]);
 
 export interface FileCheckOptions {
@@ -194,10 +224,22 @@ async function shouldExcludeFile(folder: vscode.WorkspaceFolder, relativePath: s
         }
     }
 
-    // Check for excluded extensions
+    // Whitelist check: only allow specific extensions
     const ext = relativePath.substring(relativePath.lastIndexOf('.')).toLowerCase();
-    if (EXCLUDED_EXTENSIONS.has(ext)) {
-        return `Binary/excluded extension (${ext})`;
+    
+    // Special case: files without extensions (like Dockerfile, Makefile, etc.)
+    const fileName = pathParts[pathParts.length - 1];
+    const hasNoExtension = !fileName.includes('.') || fileName.startsWith('.');
+    const isSpecialFile = hasNoExtension && (
+        fileName.toLowerCase() === 'dockerfile' ||
+        fileName.toLowerCase() === 'makefile' ||
+        fileName.toLowerCase() === 'rakefile' ||
+        fileName.toLowerCase() === 'gradlew' ||
+        fileName.toLowerCase() === 'mvnw'
+    );
+    
+    if (!isSpecialFile && !ALLOWED_EXTENSIONS.has(ext)) {
+        return `File type not allowed (${ext || 'no extension'})`;
     }
 
     // Check file size
