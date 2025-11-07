@@ -111,9 +111,60 @@ export async function checkWorkspaceFiles(
     // 1. Get dirty files from VS Code (if requested)
     if (includeDirty) {
         const dirtyFiles = vscode.workspace.textDocuments
-            .filter(doc => doc.isDirty && !doc.isUntitled)
+            .filter(doc => doc.isDirty && !doc.isUntitled && doc.uri.scheme === 'file')
             .map(doc => vscode.workspace.asRelativePath(doc.uri, false));
-        dirtyFiles.forEach(file => allFiles.add(file));
+        
+        // Check if files are gitignored using VS Code's Git extension
+        const gitExtension = vscode.extensions.getExtension('vscode.git');
+        if (gitExtension && dirtyFiles.length > 0) {
+            try {
+                if (!gitExtension.isActive) {
+                    await gitExtension.activate();
+                }
+                const git = gitExtension.exports.getAPI(1);
+                if (git && git.repositories.length > 0) {
+                    const repo = folder ? 
+                        git.repositories.find((r: any) => r.rootUri.fsPath === folder.uri.fsPath) : 
+                        git.repositories[0];
+                    
+                    if (repo) {
+                        // Check each dirty file to see if it's gitignored
+                        for (const file of dirtyFiles) {
+                            const fileUri = vscode.Uri.joinPath(folder.uri, file);
+                            try {
+                                // Use Git API to check if file is ignored
+                                const isIgnored = await repo.status(fileUri).then(
+                                    () => false, // File is tracked, not ignored
+                                    () => true   // File is not tracked (likely ignored)
+                                );
+                                
+                                if (!isIgnored) {
+                                    allFiles.add(file);
+                                } else {
+                                    console.log(`[Workspace File Checker] Skipping gitignored dirty file: ${file}`);
+                                }
+                            } catch {
+                                // If we can't determine, include it to be safe
+                                allFiles.add(file);
+                            }
+                        }
+                    } else {
+                        // No repo found, include all dirty files
+                        dirtyFiles.forEach(file => allFiles.add(file));
+                    }
+                } else {
+                    // Git not available, include all dirty files
+                    dirtyFiles.forEach(file => allFiles.add(file));
+                }
+            } catch (error) {
+                console.error('[Workspace File Checker] Error checking gitignore status:', error);
+                // On error, include all dirty files to be safe
+                dirtyFiles.forEach(file => allFiles.add(file));
+            }
+        } else {
+            // Git extension not available, include all dirty files
+            dirtyFiles.forEach(file => allFiles.add(file));
+        }
     }
 
     // 2. Get files from git status
