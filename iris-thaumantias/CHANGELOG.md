@@ -3,6 +3,12 @@
 All notable changes to the Artemis VS Code extension will be documented in this file.
 
 
+## [0.2.5] - 2025-11-07
+
+### Changed
+
+- **Code Cleanup**: Removed unused cache fields and implementations for better maintainability
+
 ## [0.2.4] - 2025-11-05
 
 ### Changed

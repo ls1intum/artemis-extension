@@ -46,8 +46,6 @@ export interface StoredSession {
     createdAt: number;
     lastActivity: number;
     artemisSessionId?: number; // The Iris session ID from the backend
-    messages?: any[]; // Cached messages from Artemis
-    messagesLoadedAt?: number; // Timestamp when messages were fetched
 }
 
 export interface ContextSnapshot {

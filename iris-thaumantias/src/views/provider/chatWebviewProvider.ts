@@ -31,7 +31,6 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
     private readonly _disposables: vscode.Disposable[] = [];
     private _currentArtemisSessionId?: number;
     private _irisUnsubscribe?: () => void;
-    private _currentIrisSettings?: any; // Cached Iris settings for current context
     private _contextLoadToken = 0;
 
     constructor(
@@ -270,7 +269,6 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
 
     private _resetSessionStateForContextChange(): void {
         this._currentArtemisSessionId = undefined;
-        this._currentIrisSettings = undefined;
 
         if (this._irisUnsubscribe) {
             this._irisUnsubscribe();
@@ -485,9 +483,6 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
                 console.warn(`Unsupported context type for Iris: ${context.type}`);
                 return false;
             }
-
-            // Store settings for later use
-            this._currentIrisSettings = settings;
 
             // Check if Iris chat is enabled
             const chatSettings = context.type === 'course' 
@@ -768,7 +763,6 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
 
         // Reset Iris session when context changes
         this._currentArtemisSessionId = undefined;
-        this._currentIrisSettings = undefined; // Clear cached settings
 
         // Clear chat messages
         if (this._view) {
@@ -803,7 +797,6 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
 
         // Reset Iris session when context changes
         this._currentArtemisSessionId = undefined;
-        this._currentIrisSettings = undefined; // Clear cached settings
 
         // Clear chat messages
         if (this._view) {
@@ -1054,12 +1047,10 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
             return;
         }
 
-        // Check if Iris is enabled (use cached settings if available)
-        if (!this._currentIrisSettings) {
-            const isEnabled = await this._checkAndLoadIrisSettings(activeContext);
-            if (!isEnabled) {
-                return; // Error message already shown in _checkAndLoadIrisSettings
-            }
+        // Check if Iris is enabled
+        const isEnabled = await this._checkAndLoadIrisSettings(activeContext);
+        if (!isEnabled) {
+            return; // Error message already shown in _checkAndLoadIrisSettings
         }
 
         try {

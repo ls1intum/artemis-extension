@@ -328,8 +328,6 @@ export class ContextStore {
             createdAt,
             lastActivity: createdAt,
             artemisSessionId,
-            messages,
-            messagesLoadedAt: messages ? Date.now() : undefined,
         };
         const sessions = this.state.sessions[key] ?? [];
         this.state.sessions[key] = [session, ...sessions];
