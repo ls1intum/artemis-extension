@@ -277,11 +277,11 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
 
             console.log('[File Monitor] Checking git status in:', workspaceFolder.uri.fsPath);
             
-            // Use unified workspace file checker (lightweight - no content, no filters)
+            // Use unified workspace file checker with filters and status
             const result = await checkWorkspaceFiles(workspaceFolder, {
                 includeContent: false,
-                applyFilters: false,
-                includeStatus: false
+                applyFilters: true,      // Apply filters to show only what will be sent
+                includeStatus: true      // Include status/reason for all files
             });
             
             console.log('[File Monitor] Changed files from git:', JSON.stringify(result.files.map(f => f.path)));
@@ -297,13 +297,21 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
                 return;
             }
 
-            console.log(`[File Monitor] Found ${result.totalCount} changed files via git status`);
+            console.log(`[File Monitor] Found ${result.totalCount} changed files (${result.includedCount} will be sent, ${result.excludedCount} excluded)`);
             
-            // For live display, just show the file paths
+            // Separate included and excluded files with reasons
+            const includedFiles = result.files
+                .filter(f => f.status === 'included')
+                .map(f => f.path);
+            
+            const excludedFiles = result.files
+                .filter(f => f.status === 'excluded')
+                .map(f => ({ path: f.path, reason: f.reason || 'Excluded' }));
+            
             this._view.webview.postMessage({
                 command: 'updateReferencedFiles',
-                includedFiles: result.files.map(f => f.path),
-                excludedFiles: [],
+                includedFiles: includedFiles,
+                excludedFiles: excludedFiles,
                 totalCount: result.totalCount
             });
         } catch (error) {
