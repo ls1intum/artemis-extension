@@ -11,7 +11,7 @@ import {
 } from './contextTypes';
 import { ArtemisApiService } from '../../api';
 import { ArtemisWebsocketService } from '../../services';
-import { collectUncommittedFiles } from '../../utils';
+import { collectUncommittedFiles, collectUncommittedFilesWithStatus, checkGitStatus } from '../../utils';
 
 type ChatContextReason =
     | 'user-selected'
@@ -32,6 +32,8 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
     private _currentArtemisSessionId?: number;
     private _irisUnsubscribe?: () => void;
     private _contextLoadToken = 0;
+    private _fileUpdateTimer?: NodeJS.Timeout;
+    private _lastFileUpdate = 0;
 
     constructor(
         private readonly _extensionUri: vscode.Uri,
@@ -44,6 +46,12 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
     }
 
     public dispose(): void {
+        // Clear file update timer
+        if (this._fileUpdateTimer) {
+            clearInterval(this._fileUpdateTimer);
+            this._fileUpdateTimer = undefined;
+        }
+
         // Unsubscribe from Iris WebSocket
         if (this._irisUnsubscribe) {
             this._irisUnsubscribe();
@@ -144,6 +152,8 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
                 void this._detectWorkspaceExercise();
                 // Load Iris messages if context is already selected
                 void this._loadIrisMessagesIfNeeded();
+                // Update referenced files display
+                void this._updateReferencedFilesDisplay();
             }
         });
         this._disposables.push(visibilityListener);
@@ -160,6 +170,10 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
             ) {
                 this.refreshTheme();
             }
+            if (event.affectsConfiguration('artemis.iris.sendUncommittedChanges')) {
+                // Update file display when setting changes
+                void this._updateReferencedFilesDisplay();
+            }
         });
         this._disposables.push(configListener);
 
@@ -170,6 +184,129 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
 
         // Start monitoring WebSocket status
         this._startWebSocketMonitoring();
+
+        // Start monitoring file changes for live updates
+        this._startFileMonitoring();
+    }
+
+    private _startFileMonitoring(): void {
+        console.log('[File Monitor] Starting file monitoring...');
+        
+        // Listen to document save events
+        const saveListener = vscode.workspace.onDidSaveTextDocument(() => {
+            console.log('[File Monitor] Document saved, updating...');
+            void this._updateReferencedFilesDisplay();
+        });
+        this._disposables.push(saveListener);
+
+        // Listen to document change events (throttled)
+        const changeListener = vscode.workspace.onDidChangeTextDocument(() => {
+            this._scheduleFileUpdate();
+        });
+        this._disposables.push(changeListener);
+
+        // Listen to Git changes
+        const gitExtension = vscode.extensions.getExtension('vscode.git');
+        if (gitExtension) {
+            Promise.resolve(gitExtension.activate()).then(() => {
+                console.log('[File Monitor] Git extension activated');
+                const git = gitExtension.exports.getAPI(1);
+                if (git) {
+                    console.log('[File Monitor] Git API available, watching', git.repositories.length, 'repositories');
+                    // Listen to repository state changes
+                    git.repositories.forEach((repo: any) => {
+                        const repoListener = repo.state.onDidChange(() => {
+                            console.log('[File Monitor] Git state changed, updating...');
+                            void this._updateReferencedFilesDisplay();
+                        });
+                        this._disposables.push(repoListener);
+                    });
+                }
+            }).catch(() => {
+                console.log('[File Monitor] Git extension not available');
+            });
+        }
+
+        // Periodic update (every 5 seconds) as a fallback
+        this._fileUpdateTimer = setInterval(() => {
+            console.log('[File Monitor] Periodic update...');
+            void this._updateReferencedFilesDisplay();
+        }, 5000);
+
+        // Initial update
+        console.log('[File Monitor] Running initial update...');
+        void this._updateReferencedFilesDisplay();
+    }
+
+    private _scheduleFileUpdate(): void {
+        // Throttle updates to avoid excessive calls while typing
+        const now = Date.now();
+        if (now - this._lastFileUpdate < 2000) { // Wait at least 2 seconds between updates
+            return;
+        }
+        this._lastFileUpdate = now;
+        void this._updateReferencedFilesDisplay();
+    }
+
+    private async _updateReferencedFilesDisplay(): Promise<void> {
+        if (!this._view) {
+            console.log('[File Monitor] No view available');
+            return;
+        }
+
+        // Check if feature is enabled
+        const sendUncommittedChanges = vscode.workspace.getConfiguration('artemis.iris').get<boolean>('sendUncommittedChanges', true);
+        if (!sendUncommittedChanges) {
+            console.log('[File Monitor] Feature disabled, clearing display');
+            // Clear the display if feature is disabled
+            this._view.webview.postMessage({
+                command: 'updateReferencedFiles',
+                includedFiles: [],
+                excludedFiles: [],
+                totalCount: 0
+            });
+            return;
+        }
+
+        try {
+            const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+            if (!workspaceFolder) {
+                console.log('[File Monitor] No workspace folder');
+                return;
+            }
+
+            console.log('[File Monitor] Checking git status in:', workspaceFolder.uri.fsPath);
+            
+            // Use lightweight git status check (same as exercise details page)
+            const { hasChanges, changedFiles } = await checkGitStatus(workspaceFolder);
+            
+            console.log('[File Monitor] Changed files from git:', JSON.stringify(changedFiles));
+            
+            if (!hasChanges || changedFiles.length === 0) {
+                console.log('[File Monitor] No changes detected');
+                this._view.webview.postMessage({
+                    command: 'updateReferencedFiles',
+                    includedFiles: [],
+                    excludedFiles: [],
+                    totalCount: 0
+                });
+                return;
+            }
+
+            console.log(`[File Monitor] Found ${changedFiles.length} changed files via git status`);
+            
+            // For live display, just show the file count without full analysis
+            // Full analysis with exclusions will happen when actually sending the message
+            this._view.webview.postMessage({
+                command: 'updateReferencedFiles',
+                includedFiles: changedFiles,
+                excludedFiles: [],
+                totalCount: changedFiles.length
+            });
+        } catch (error) {
+            // Silently fail for live updates - don't show errors to user
+            console.error('[File Monitor] Error updating referenced files display:', error);
+        }
     }
 
     private _startWebSocketMonitoring(): void {
@@ -1095,10 +1232,22 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
             if (sendUncommittedChanges) {
                 try {
                     const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+                    // Do full file collection with filtering (same as before)
                     uncommittedFiles = await collectUncommittedFiles(workspaceFolder);
                     
                     if (uncommittedFiles.size > 0) {
-                        console.log(`📁 Sending ${uncommittedFiles.size} uncommitted file(s) to Iris: ${Array.from(uncommittedFiles.keys()).join(', ')}`);
+                        console.log(`📁 Sending ${uncommittedFiles.size} uncommitted file(s) to Iris`);
+                        
+                        // Update display with detailed analysis right before sending
+                        const { includedFiles, excludedFiles } = await collectUncommittedFilesWithStatus(workspaceFolder);
+                        if (this._view) {
+                            this._view.webview.postMessage({
+                                command: 'updateReferencedFiles',
+                                includedFiles: Array.from(includedFiles.keys()),
+                                excludedFiles: excludedFiles,
+                                totalCount: includedFiles.size + excludedFiles.length
+                            });
+                        }
                     }
                 } catch (error: any) {
                     console.error('Error collecting uncommitted files:', error);

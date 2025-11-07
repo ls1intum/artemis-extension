@@ -5,9 +5,21 @@ All notable changes to the Artemis VS Code extension will be documented in this 
 
 ## [0.2.5] - 2025-11-07
 
+### Added
+
+- **Live Referenced Files Display**: Iris chat now shows real-time file status information
+  - **Live updates**: File list updates automatically as you type, save, commit, or stage changes
+  - **Lightweight monitoring**: Uses same `git status --porcelain` method as exercise details page for performance
+  - Shows "x/y files referenced" where x/y = changed files detected by Git
+  - Click to expand and see list of changed file paths
+  - **On message send**: Full analysis runs showing included/excluded files with reasons
+  - Updates every 5 seconds, on save, on document change, and on Git state changes
+  - Provides full transparency about what context Iris has access to in real-time
+
 ### Changed
 
 - **Code Cleanup**: Removed unused cache fields and implementations for better maintainability
+- **Reduced Duplication**: Reuses git status checking logic from exercise details page instead of duplicating code
 
 ## [0.2.4] - 2025-11-05
 

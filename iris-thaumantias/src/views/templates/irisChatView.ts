@@ -38,6 +38,10 @@ export class IrisChatView {
     const checkIcon = `<svg viewBox="0 0 16 16" fill="currentColor"><path d="M13.78 4.22a.75.75 0 010 1.06l-7.25 7.25a.75.75 0 01-1.06 0L2.22 9.28a.75.75 0 011.06-1.06L6 10.94l6.72-6.72a.75.75 0 011.06 0z"/></svg>`;
     const plusIcon = `<svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 2a.75.75 0 01.75.75v4.5h4.5a.75.75 0 010 1.5h-4.5v4.5a.75.75 0 01-1.5 0v-4.5h-4.5a.75.75 0 010-1.5h4.5v-4.5A.75.75 0 018 2z"/></svg>`;
     const switchIcon = `<svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 2a.75.75 0 01.75.75v4.5h4.5a.75.75 0 010 1.5h-4.5v4.5a.75.75 0 01-1.5 0v-4.5h-4.5a.75.75 0 010-1.5h4.5v-4.5A.75.75 0 018 2z"/></svg>`;
+    // VS Code icons for file status
+    const fileIcon = `<svg viewBox="0 0 16 16" fill="currentColor"><path d="M9.5 1H4a1 1 0 00-1 1v12a1 1 0 001 1h8a1 1 0 001-1V5.5L9.5 1zM4 0a2 2 0 00-2 2v12a2 2 0 002 2h8a2 2 0 002-2V5.5L9.5 0H4z"/><path d="M9.5 1v4H13L9.5 1z"/></svg>`;
+    const closeIcon = `<svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 8.707l3.646 3.647.708-.707L8.707 8l3.647-3.646-.707-.708L8 7.293 4.354 3.646l-.707.708L7.293 8l-3.646 3.646.707.708L8 8.707z"/></svg>`;
+    const chevronIcon = `<svg viewBox="0 0 16 16" fill="currentColor"><path d="M7.976 10.072l4.357-4.357.62.618L8.284 11h-.618L3 6.333l.619-.618 4.357 4.357z"/></svg>`;
 
     // Get the path to the iris logo image
     let irisLogoSrc = "";
@@ -159,6 +163,16 @@ export class IrisChatView {
                 <button class="websocket-reconnect-btn" id="reconnectButton" onclick="reconnectWebSocket()">
                     Reconnect
                 </button>
+            </div>
+            <div class="referenced-files-banner" id="referencedFilesBanner" style="display: none;">
+                <div class="referenced-files-header" onclick="toggleReferencedFiles()">
+                    <span class="referenced-files-icon">${fileIcon}</span>
+                    <span class="referenced-files-text" id="referencedFilesText">0 files referenced</span>
+                    <span class="referenced-files-arrow" id="referencedFilesArrow">${chevronIcon}</span>
+                </div>
+                <div class="referenced-files-list" id="referencedFilesList" style="display: none;">
+                    <!-- File list will be populated dynamically -->
+                </div>
             </div>
             <div class="chat-input-wrapper">
                 <textarea
@@ -1017,6 +1031,78 @@ export class IrisChatView {
             vscode.postMessage({ command: 'reconnectWebSocket' });
         };
 
+        window.toggleReferencedFiles = function() {
+            const list = document.getElementById('referencedFilesList');
+            const arrow = document.getElementById('referencedFilesArrow');
+            if (list && arrow) {
+                const isExpanded = list.style.display !== 'none';
+                list.style.display = isExpanded ? 'none' : 'block';
+                // Rotate the chevron arrow
+                arrow.style.transform = isExpanded ? 'rotate(0deg)' : 'rotate(180deg)';
+            }
+        };
+
+        const fileIconSvg = \`${fileIcon}\`;
+        const closeIconSvg = \`${closeIcon}\`;
+
+        function updateReferencedFiles(data) {
+            console.log('[Referenced Files] Update called with:', data);
+            const banner = document.getElementById('referencedFilesBanner');
+            const text = document.getElementById('referencedFilesText');
+            const list = document.getElementById('referencedFilesList');
+            
+            const includedFiles = data.includedFiles || [];
+            const excludedFiles = data.excludedFiles || [];
+            const totalCount = data.totalCount || (includedFiles.length + excludedFiles.length);
+
+            console.log('[Referenced Files] Counts:', { includedFiles: includedFiles.length, excludedFiles: excludedFiles.length, totalCount });
+
+            if (totalCount === 0) {
+                console.log('[Referenced Files] No files, hiding banner');
+                if (banner) banner.style.display = 'none';
+                return;
+            }
+
+            // Show banner and update count with x/y format
+            console.log('[Referenced Files] Showing banner');
+            if (banner) banner.style.display = 'flex';
+            if (text) {
+                text.textContent = \`\${includedFiles.length}/\${totalCount} file\${totalCount !== 1 ? 's' : ''} referenced\`;
+            }
+
+            // Populate file list with included files first, then excluded
+            if (list) {
+                let html = '';
+                
+                // Add included files
+                if (includedFiles.length > 0) {
+                    html += includedFiles.map(file => \`
+                        <div class="referenced-file-item included" title="\${file}">
+                            <span class="file-icon">\${fileIconSvg}</span>
+                            <span class="file-name">\${file}</span>
+                            <span class="file-status">Will be sent</span>
+                        </div>
+                    \`).join('');
+                }
+                
+                // Add excluded files
+                if (excludedFiles.length > 0) {
+                    if (includedFiles.length > 0) {
+                        html += '<div class="file-list-divider">Excluded files</div>';
+                    }
+                    html += excludedFiles.map(file => \`
+                        <div class="referenced-file-item excluded" title="\${file.path} - \${file.reason || 'Excluded'}">
+                            <span class="file-icon">\${closeIconSvg}</span>
+                            <span class="file-name">\${file.path}</span>
+                            <span class="file-status">\${file.reason || 'Excluded'}</span>
+                        </div>
+                    \`).join('');
+                }
+                
+                list.innerHTML = html;
+            }
+        }
+
         function updateWebSocketStatus(isConnected) {
             const banner = document.getElementById('websocketStatusBanner');
             if (banner) {
@@ -1066,6 +1152,15 @@ export class IrisChatView {
                         </div>
                     \`;
                     updateNewSessionButtonState();
+                    break;
+                case 'updateReferencedFiles':
+                    if (message.includedFiles !== undefined) {
+                        updateReferencedFiles({
+                            includedFiles: message.includedFiles,
+                            excludedFiles: message.excludedFiles || [],
+                            totalCount: message.totalCount
+                        });
+                    }
                     break;
                 case 'addMessage':
                     if (message.message) {

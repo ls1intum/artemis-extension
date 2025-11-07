@@ -1033,6 +1033,160 @@ body {
     transform: translateY(0);
 }
 
+/* Referenced Files Banner */
+.referenced-files-banner {
+    display: flex;
+    flex-direction: column;
+    padding: 10px 14px;
+    margin-bottom: 12px;
+    background: rgba(59, 130, 246, 0.1);
+    border: 1px solid rgba(59, 130, 246, 0.3);
+    border-radius: 6px;
+    animation: slideDown 0.3s ease-out;
+}
+
+.referenced-files-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    user-select: none;
+}
+
+.referenced-files-header:hover {
+    opacity: 0.8;
+}
+
+.referenced-files-icon {
+    font-size: 14px;
+    display: flex;
+    align-items: center;
+}
+
+.referenced-files-icon svg {
+    width: 16px;
+    height: 16px;
+    fill: currentColor;
+}
+
+.referenced-files-text {
+    flex: 1;
+    font-size: 13px;
+    font-weight: 500;
+    color: rgb(37, 99, 235);
+}
+
+.referenced-files-arrow {
+    font-size: 10px;
+    color: rgb(37, 99, 235);
+    transition: transform 0.2s ease;
+    display: flex;
+    align-items: center;
+}
+
+.referenced-files-arrow svg {
+    width: 12px;
+    height: 12px;
+    fill: currentColor;
+}
+
+.referenced-files-list {
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px solid rgba(59, 130, 246, 0.2);
+    max-height: 200px;
+    overflow-y: auto;
+}
+
+.referenced-file-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 8px;
+    margin-bottom: 4px;
+    background: rgba(59, 130, 246, 0.05);
+    border-radius: 4px;
+    font-size: 12px;
+    color: var(--theme-foreground);
+    transition: var(--theme-transition);
+}
+
+.referenced-file-item:hover {
+    background: rgba(59, 130, 246, 0.15);
+}
+
+.referenced-file-item.included {
+    background: rgba(34, 197, 94, 0.05);
+    border-left: 3px solid rgba(34, 197, 94, 0.5);
+    padding-left: 12px; /* Extra padding to account for border */
+}
+
+.referenced-file-item.included:hover {
+    background: rgba(34, 197, 94, 0.15);
+}
+
+.referenced-file-item.excluded {
+    background: rgba(239, 68, 68, 0.05);
+    border-left: 3px solid rgba(239, 68, 68, 0.5);
+    padding-left: 12px; /* Extra padding to account for border */
+    opacity: 0.7;
+}
+
+.referenced-file-item.excluded:hover {
+    background: rgba(239, 68, 68, 0.15);
+    opacity: 1;
+}
+
+.referenced-file-item .file-icon {
+    font-size: 14px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+    height: 16px;
+}
+
+.referenced-file-item .file-icon svg {
+    width: 14px;
+    height: 14px;
+    fill: currentColor;
+}
+
+.referenced-file-item.included .file-icon {
+    color: rgb(34, 197, 94);
+}
+
+.referenced-file-item.excluded .file-icon {
+    color: rgb(239, 68, 68);
+}
+
+.referenced-file-item .file-name {
+    flex: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-family: var(--vscode-editor-font-family, 'Menlo', 'Monaco', 'Courier New', monospace);
+}
+
+.referenced-file-item .file-status {
+    font-size: 10px;
+    opacity: 0.7;
+    flex-shrink: 0;
+    font-style: italic;
+}
+
+.file-list-divider {
+    margin: 12px 0 8px 0;
+    padding: 4px 8px;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--theme-foreground);
+    opacity: 0.6;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
 .chat-input-wrapper {
     display: flex;
     gap: 12px;

@@ -6,6 +6,8 @@ import * as path from 'path';
  */
 const MAX_FILE_SIZE = 1 * 1024 * 1024;
 
+export { MAX_FILE_SIZE }; // Export for use in other modules
+
 /**
  * File extensions to exclude from uncommitted files
  */
@@ -63,6 +65,162 @@ export async function collectUncommittedFiles(workspaceFolder?: vscode.Workspace
     await collectUnpushedFiles(uncommittedFiles, workspaceFolder);
 
     return uncommittedFiles;
+}
+
+export interface FileStatus {
+    path: string;
+    included: boolean; // Whether file will be sent to Iris
+    reason?: string;   // Reason for exclusion (if excluded)
+}
+
+/**
+ * Collects detailed information about all uncommittedfiles including which ones are excluded and why
+ * 
+ * @param workspaceFolder Optional workspace folder to limit the search
+ * @returns Object with included files (content), excluded files (with reasons), and total count
+ */
+export async function collectUncommittedFilesWithStatus(
+    workspaceFolder?: vscode.WorkspaceFolder
+): Promise<{
+    includedFiles: Map<string, string>;
+    excludedFiles: FileStatus[];
+    allFiles: FileStatus[];
+}> {
+    const includedFiles = new Map<string, string>();
+    const excludedFiles: FileStatus[] = [];
+    const processedPaths = new Set<string>();
+
+    async function processFile(uri: vscode.Uri, category: 'dirty' | 'git' | 'unpushed'): Promise<void> {
+        const relativePath = getRelativePath(uri, workspaceFolder);
+        if (!relativePath || processedPaths.has(relativePath)) {
+            return;
+        }
+        processedPaths.add(relativePath);
+
+        // Check for exclusions
+        if (shouldExcludeFile(uri)) {
+            const ext = path.extname(relativePath);
+            if (EXCLUDED_EXTENSIONS.has(ext)) {
+                excludedFiles.push({ path: relativePath, included: false, reason: `Binary/excluded extension (${ext})` });
+            } else {
+                const dirName = path.basename(path.dirname(uri.fsPath));
+                excludedFiles.push({ path: relativePath, included: false, reason: `Excluded directory (${dirName})` });
+            }
+            return;
+        }
+
+        // Check if binary
+        if (await isBinaryFile(uri)) {
+            excludedFiles.push({ path: relativePath, included: false, reason: 'Binary file' });
+            return;
+        }
+
+        try {
+            const document = await vscode.workspace.openTextDocument(uri);
+            const content = document.getText();
+
+            // Check file size
+            const size = Buffer.byteLength(content, 'utf8');
+            if (size > MAX_FILE_SIZE) {
+                const sizeMB = (size / (1024 * 1024)).toFixed(2);
+                excludedFiles.push({ path: relativePath, included: false, reason: `Too large (${sizeMB} MB)` });
+                return;
+            }
+
+            includedFiles.set(relativePath, content);
+        } catch (error) {
+            excludedFiles.push({ path: relativePath, included: false, reason: 'Cannot read file' });
+        }
+    }
+
+    // Collect dirty files
+    const dirtyDocuments = vscode.workspace.textDocuments.filter(doc => {
+        if (!doc.isDirty || doc.uri.scheme !== 'file') {
+            return false;
+        }
+        if (workspaceFolder && !doc.uri.fsPath.startsWith(workspaceFolder.uri.fsPath)) {
+            return false;
+        }
+        return true;
+    });
+
+    for (const doc of dirtyDocuments) {
+        await processFile(doc.uri, 'dirty');
+    }
+
+    // Collect Git modified files
+    const gitExtension = vscode.extensions.getExtension('vscode.git');
+    if (gitExtension) {
+        if (!gitExtension.isActive) {
+            await gitExtension.activate();
+        }
+        const git = gitExtension.exports.getAPI(1);
+        if (git) {
+            const repositories = workspaceFolder
+                ? git.repositories.filter((repo: any) => repo.rootUri.fsPath === workspaceFolder.uri.fsPath)
+                : git.repositories;
+
+            for (const repository of repositories) {
+                const state = repository.state;
+                const changedFiles = [
+                    ...(state.workingTreeChanges || []),
+                    ...(state.indexChanges || []),
+                ];
+
+                for (const change of changedFiles) {
+                    if (change.uri && change.status !== 6) { // 6 = DELETED
+                        await processFile(change.uri, 'git');
+                    }
+                }
+            }
+
+            // Collect unpushed files
+            const { execSync } = await import('child_process');
+            for (const repository of repositories) {
+                try {
+                    const head = repository.state.HEAD;
+                    if (!head || !head.upstream || (head.ahead || 0) === 0) {
+                        continue;
+                    }
+
+                    const upstream = `${head.upstream.remote}/${head.upstream.name}`;
+                    const repoPath = repository.rootUri.fsPath;
+
+                    const output = execSync(`git diff --name-only ${upstream}..HEAD`, {
+                        cwd: repoPath,
+                        encoding: 'utf8',
+                        timeout: 10000,
+                        stdio: ['pipe', 'pipe', 'pipe']
+                    });
+
+                    const changedFilesPaths = output.trim().split('\n').filter(Boolean);
+
+                    for (const filePath of changedFilesPaths) {
+                        const fullPath = path.join(repoPath, filePath);
+                        const fileUri = vscode.Uri.file(fullPath);
+
+                        try {
+                            const stat = await vscode.workspace.fs.stat(fileUri);
+                            if (stat.type === vscode.FileType.File) {
+                                await processFile(fileUri, 'unpushed');
+                            }
+                        } catch {
+                            // File might be deleted, skip
+                        }
+                    }
+                } catch (error) {
+                    // Error with unpushed files, skip this repository
+                }
+            }
+        }
+    }
+
+    const allFiles: FileStatus[] = [
+        ...Array.from(includedFiles.keys()).map(path => ({ path, included: true })),
+        ...excludedFiles
+    ];
+
+    return { includedFiles, excludedFiles, allFiles };
 }
 
 /**
