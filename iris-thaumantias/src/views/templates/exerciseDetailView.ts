@@ -1,81 +1,111 @@
-import * as vscode from 'vscode';
-import { ThemeManager } from '../../themes';
-import { IconDefinitions } from '../../utils';
-import { StyleManager } from '../styles';
-import { BackLinkComponent } from '../components/backLinkComponent';
+import * as vscode from "vscode";
+import { ThemeManager } from "../../themes";
+import { IconDefinitions } from "../../utils";
+import { StyleManager } from "../styles";
+import { BackLinkComponent } from "../components/backLinkComponent";
 
 export class ExerciseDetailView {
-    private _themeManager: ThemeManager;
-    private _extensionContext: vscode.ExtensionContext;
-    private _styleManager: StyleManager;
+  private _themeManager: ThemeManager;
+  private _extensionContext: vscode.ExtensionContext;
+  private _styleManager: StyleManager;
 
-    constructor(extensionContext: vscode.ExtensionContext, styleManager: StyleManager) {
-        this._themeManager = new ThemeManager();
-        this._extensionContext = extensionContext;
-        this._styleManager = styleManager;
+  constructor(
+    extensionContext: vscode.ExtensionContext,
+    styleManager: StyleManager
+  ) {
+    this._themeManager = new ThemeManager();
+    this._extensionContext = extensionContext;
+    this._styleManager = styleManager;
+  }
+
+  private _getExerciseIcon(type: string): string {
+    return IconDefinitions.getIcon(type);
+  }
+
+  private _getUploadMessageIcon(): string {
+    return IconDefinitions.getIcon("uploadMessage");
+  }
+
+  // Get latest submission by ID (matches Artemis frontend approach)
+  // IDs are database auto-increment, guaranteed to be sequential with submission time
+  private _getLatestSubmission(participation: any): any | undefined {
+    if (
+      !participation ||
+      !Array.isArray(participation.submissions) ||
+      participation.submissions.length === 0
+    ) {
+      return undefined;
     }
 
-    private _getExerciseIcon(type: string): string {
-        return IconDefinitions.getIcon(type);
+    return participation.submissions.reduce((latest: any, current: any) => {
+      const latestId = typeof latest?.id === "number" ? latest.id : -Infinity;
+      const currentId =
+        typeof current?.id === "number" ? current.id : -Infinity;
+      return currentId > latestId ? current : latest;
+    });
+  }
+
+  // Get latest result by completionDate (matches Artemis frontend approach)
+  // Results can complete out of order due to varying build times
+  // Uses completionDate to ensure the most recently completed result is returned
+  private _getLatestResult(submission: any): any | undefined {
+    if (
+      !submission ||
+      !Array.isArray(submission.results) ||
+      submission.results.length === 0
+    ) {
+      return undefined;
     }
 
-    private _getUploadMessageIcon(): string {
-        return IconDefinitions.getIcon('uploadMessage');
+    return submission.results.reduce((latest: any, current: any) => {
+      const latestDate = latest?.completionDate
+        ? new Date(latest.completionDate).getTime()
+        : -Infinity;
+      const currentDate = current?.completionDate
+        ? new Date(current.completionDate).getTime()
+        : -Infinity;
+
+      // Fallback to ID if completionDates are equal or missing (rare edge case)
+      if (latestDate === currentDate) {
+        const latestId = typeof latest?.id === "number" ? latest.id : -Infinity;
+        const currentId =
+          typeof current?.id === "number" ? current.id : -Infinity;
+        return currentId > latestId ? current : latest;
+      }
+
+      return currentDate > latestDate ? current : latest;
+    });
+  }
+
+  public generateHtml(
+    exerciseData: any,
+    hideDeveloperTools: boolean = false
+  ): string {
+    const themeCSS = this._themeManager.getThemeCSS();
+    const currentTheme = this._themeManager.getCurrentTheme();
+    const styles = this._styleManager.getStyles(currentTheme, [
+      "views/exercise-detail.css",
+    ]);
+
+    if (!exerciseData) {
+      return this._getEmptyStateHtml(themeCSS, currentTheme, styles);
     }
 
-    // Get latest submission by ID (matches Artemis frontend approach)
-    // IDs are database auto-increment, guaranteed to be sequential with submission time
-    private _getLatestSubmission(participation: any): any | undefined {
-        if (!participation || !Array.isArray(participation.submissions) || participation.submissions.length === 0) {
-            return undefined;
-        }
+    return this._getExerciseDetailHtml(
+      exerciseData,
+      themeCSS,
+      currentTheme,
+      hideDeveloperTools,
+      styles
+    );
+  }
 
-        return participation.submissions.reduce((latest: any, current: any) => {
-            const latestId = typeof latest?.id === 'number' ? latest.id : -Infinity;
-            const currentId = typeof current?.id === 'number' ? current.id : -Infinity;
-            return currentId > latestId ? current : latest;
-        });
-    }
-
-    // Get latest result by completionDate (matches Artemis frontend approach)
-    // Results can complete out of order due to varying build times
-    // Uses completionDate to ensure the most recently completed result is returned
-    private _getLatestResult(submission: any): any | undefined {
-        if (!submission || !Array.isArray(submission.results) || submission.results.length === 0) {
-            return undefined;
-        }
-
-        return submission.results.reduce((latest: any, current: any) => {
-            const latestDate = latest?.completionDate ? new Date(latest.completionDate).getTime() : -Infinity;
-            const currentDate = current?.completionDate ? new Date(current.completionDate).getTime() : -Infinity;
-            
-            // Fallback to ID if completionDates are equal or missing (rare edge case)
-            if (latestDate === currentDate) {
-                const latestId = typeof latest?.id === 'number' ? latest.id : -Infinity;
-                const currentId = typeof current?.id === 'number' ? current.id : -Infinity;
-                return currentId > latestId ? current : latest;
-            }
-            
-            return currentDate > latestDate ? current : latest;
-        });
-    }
-
-    public generateHtml(exerciseData: any, hideDeveloperTools: boolean = false): string {
-        const themeCSS = this._themeManager.getThemeCSS();
-        const currentTheme = this._themeManager.getCurrentTheme();
-        const styles = this._styleManager.getStyles(currentTheme, [
-            'views/exercise-detail.css'
-        ]);
-
-        if (!exerciseData) {
-            return this._getEmptyStateHtml(themeCSS, currentTheme, styles);
-        }
-
-        return this._getExerciseDetailHtml(exerciseData, themeCSS, currentTheme, hideDeveloperTools, styles);
-    }
-
-    private _getEmptyStateHtml(themeCSS: string, currentTheme: string, styles: string): string {
-        return `<!DOCTYPE html>
+  private _getEmptyStateHtml(
+    themeCSS: string,
+    currentTheme: string,
+    styles: string
+  ): string {
+    return `<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -88,7 +118,10 @@ export class ExerciseDetailView {
 
 </head>
 <body class="theme-${currentTheme}">
-    ${BackLinkComponent.generateHtml({ command: 'backToCourseDetails', label: '← Back to Course' })}
+    ${BackLinkComponent.generateHtml({
+      command: "backToCourseDetails",
+      label: "← Back to Course",
+    })}
     
     <div class="empty-state">
         <h2>Exercise Details</h2>
@@ -102,285 +135,372 @@ export class ExerciseDetailView {
     </script>
 </body>
 </html>`;
+  }
+
+  private _getExerciseDetailHtml(
+    exerciseData: any,
+    themeCSS: string,
+    currentTheme: string,
+    hideDeveloperTools: boolean,
+    styles: string
+  ): string {
+    const exercise = exerciseData?.exercise;
+
+    if (!exercise) {
+      return this._getEmptyStateHtml(themeCSS, currentTheme, styles);
     }
 
-    private _getExerciseDetailHtml(exerciseData: any, themeCSS: string, currentTheme: string, hideDeveloperTools: boolean, styles: string): string {
-        const exercise = exerciseData?.exercise;
+    const exerciseTitle = exercise.title || "Unknown Exercise";
+    const exerciseType =
+      exercise.type
+        ?.replace(/_/g, " ")
+        .replace(/\b\w/g, (l: string) => l.toUpperCase()) || "Unknown";
+    const exerciseIcon = this._getExerciseIcon(exercise.type);
+    const uploadMessageIcon = this._getUploadMessageIcon();
+    const starAssistIcon = IconDefinitions.getIcon("star_4_edges");
+    const maxPoints = exercise.maxPoints || 0;
+    const bonusPoints = exercise.bonusPoints || 0;
+    const releaseDate = exercise.releaseDate
+      ? new Date(exercise.releaseDate).toLocaleString()
+      : "No release date";
 
-        if (!exercise) {
-            return this._getEmptyStateHtml(themeCSS, currentTheme, styles);
-        }
+    // Calculate due date and time remaining
+    let dueDateDisplay = "No due date";
+    let timeRemainingDisplay = "";
+    let isDueSoon = false;
+    if (exercise.dueDate) {
+      const dueDate = new Date(exercise.dueDate);
+      const now = new Date();
+      const timeRemaining = dueDate.getTime() - now.getTime();
+      const hoursRemaining = timeRemaining / (1000 * 60 * 60);
+      const daysRemaining = Math.floor(hoursRemaining / 24);
+      const remainingHours = Math.floor(hoursRemaining % 24);
 
-        const exerciseTitle = exercise.title || 'Unknown Exercise';
-        const exerciseType = exercise.type?.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase()) || 'Unknown';
-        const exerciseIcon = this._getExerciseIcon(exercise.type);
-        const uploadMessageIcon = this._getUploadMessageIcon();
-        const starAssistIcon = IconDefinitions.getIcon('star_4_edges');
-        const maxPoints = exercise.maxPoints || 0;
-        const bonusPoints = exercise.bonusPoints || 0;
-        const releaseDate = exercise.releaseDate ? new Date(exercise.releaseDate).toLocaleString() : 'No release date';
-        
-        // Calculate due date and time remaining
-        let dueDateDisplay = 'No due date';
-        let timeRemainingDisplay = '';
-        let isDueSoon = false;
-        if (exercise.dueDate) {
-            const dueDate = new Date(exercise.dueDate);
-            const now = new Date();
-            const timeRemaining = dueDate.getTime() - now.getTime();
-            const hoursRemaining = timeRemaining / (1000 * 60 * 60);
-            const daysRemaining = Math.floor(hoursRemaining / 24);
-            const remainingHours = Math.floor(hoursRemaining % 24);
-            
-            dueDateDisplay = dueDate.toLocaleString();
-            
-            if (timeRemaining < 0) {
-                timeRemainingDisplay = 'Overdue';
-                isDueSoon = true;
-            } else if (hoursRemaining < 24) {
-                timeRemainingDisplay = `Due in ${Math.floor(hoursRemaining)}h`;
-                isDueSoon = true;
-            } else if (daysRemaining < 7) {
-                timeRemainingDisplay = `Due in ${daysRemaining}d ${remainingHours}h`;
-            } else {
-                timeRemainingDisplay = `Due in ${daysRemaining} days`;
-            }
-        }
-        
-        const mode = exercise.mode?.toLowerCase().replace('_', ' ') || 'Unknown';
-        const includedInScore = exercise.includedInOverallScore === 'NOT_INCLUDED' ? 'Not included in overall score' :
-            exercise.includedInOverallScore === 'INCLUDED_COMPLETELY' ? 'Included in overall score' :
-                'Partially included in score';
-        const filePattern = exercise.filePattern ? exercise.filePattern.split(',').map((ext: string) => ext.trim().toUpperCase()).join(', ') : '';
+      dueDateDisplay = dueDate.toLocaleString();
 
-        // Extract problem statement and process markdown links
-        let problemStatement = exercise.problemStatement || 'No description available';
-        const downloadLinks: { text: string; url: string }[] = [];
+      if (timeRemaining < 0) {
+        timeRemainingDisplay = "Overdue";
+        isDueSoon = true;
+      } else if (hoursRemaining < 24) {
+        timeRemainingDisplay = `Due in ${Math.floor(hoursRemaining)}h`;
+        isDueSoon = true;
+      } else if (daysRemaining < 7) {
+        timeRemainingDisplay = `Due in ${daysRemaining}d ${remainingHours}h`;
+      } else {
+        timeRemainingDisplay = `Due in ${daysRemaining} days`;
+      }
+    }
 
-        // Extract markdown links for file downloads
-        const markdownLinkRegex = /\[([^\]]+)\]\(([^)]+)\)/g;
-        let match;
-        while ((match = markdownLinkRegex.exec(problemStatement)) !== null) {
-            if (match[2].includes('/api/core/files/') || match[1].includes('.pdf') || match[1].includes('.png')) {
-                downloadLinks.push({
-                    text: match[1],
-                    url: match[2]
-                });
-            }
-        }
+    const mode = exercise.mode?.toLowerCase().replace("_", " ") || "Unknown";
+    const includedInScore =
+      exercise.includedInOverallScore === "NOT_INCLUDED"
+        ? "Not included in overall score"
+        : exercise.includedInOverallScore === "INCLUDED_COMPLETELY"
+        ? "Included in overall score"
+        : "Partially included in score";
+    const filePattern = exercise.filePattern
+      ? exercise.filePattern
+          .split(",")
+          .map((ext: string) => ext.trim().toUpperCase())
+          .join(", ")
+      : "";
 
-        // Remove markdown links from problem statement for cleaner display
-        problemStatement = problemStatement.replace(markdownLinkRegex, '$1');
+    // Extract problem statement and process markdown links
+    let problemStatement =
+      exercise.problemStatement || "No description available";
+    const downloadLinks: { text: string; url: string }[] = [];
 
-        // Extract PlantUML diagrams and replace with placeholders for auto-rendering
-        const plantUmlRegex = /@startuml([^@]*)@enduml/g;
-        const plantUmlDiagrams: string[] = [];
-        let plantUmlIndex = 0;
-        problemStatement = problemStatement.replace(plantUmlRegex, (match: string) => {
-            plantUmlDiagrams.push(match);
-            const placeholder = `<div class="plantuml-placeholder" data-index="${plantUmlIndex}" data-plantuml="${encodeURIComponent(match)}">Loading PlantUML diagram...</div>`;
-            plantUmlIndex++;
-            return placeholder;
+    // Extract markdown links for file downloads
+    const markdownLinkRegex = /\[([^\]]+)\]\(([^)]+)\)/g;
+    let match;
+    while ((match = markdownLinkRegex.exec(problemStatement)) !== null) {
+      if (
+        match[2].includes("/api/core/files/") ||
+        match[1].includes(".pdf") ||
+        match[1].includes(".png")
+      ) {
+        downloadLinks.push({
+          text: match[1],
+          url: match[2],
+        });
+      }
+    }
+
+    // Remove markdown links from problem statement for cleaner display
+    problemStatement = problemStatement.replace(markdownLinkRegex, "$1");
+
+    // Extract PlantUML diagrams and replace with placeholders for auto-rendering
+    const plantUmlRegex = /@startuml([^@]*)@enduml/g;
+    const plantUmlDiagrams: string[] = [];
+    let plantUmlIndex = 0;
+    problemStatement = problemStatement.replace(
+      plantUmlRegex,
+      (match: string) => {
+        plantUmlDiagrams.push(match);
+        const placeholder = `<div class="plantuml-placeholder" data-index="${plantUmlIndex}" data-plantuml="${encodeURIComponent(
+          match
+        )}">Loading PlantUML diagram...</div>`;
+        plantUmlIndex++;
+        return placeholder;
+      }
+    );
+
+    // Preserve fenced code blocks before further processing
+    const codeBlocks: Array<{ placeholder: string; html: string }> = [];
+    problemStatement = problemStatement.replace(
+      /```(\w+)?\n([\s\S]*?)```/g,
+      (
+        _fullMatch: string,
+        language: string | undefined,
+        codeContent: string
+      ) => {
+        const index = codeBlocks.length;
+        const placeholder = `__CODE_BLOCK_${index}__`;
+        const escapedCode = codeContent
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/"/g, "&quot;");
+        const classAttr = language ? ` class="language-${language}"` : "";
+        codeBlocks.push({
+          placeholder,
+          html: `<pre class="code-block"><code${classAttr}>${escapedCode.trimEnd()}</code></pre>`,
+        });
+        return placeholder;
+      }
+    );
+
+    // Clean up excessive whitespace and normalize line breaks
+    problemStatement = problemStatement
+      .replace(/\r\n/g, "\n") // Normalize line endings
+      .replace(/\n{3,}/g, "\n\n") // Replace 3+ line breaks with 2
+      .replace(/[ \t]+/g, " ") // Replace multiple spaces/tabs with single space
+      .trim(); // Remove leading/trailing whitespace
+
+    // Convert markdown tables to HTML tables
+    // Match tables: header row, separator row, and data rows
+    const tableRegex =
+      /^(\|[^\n]+\|\r?\n)(\|[\s:|-]+\|\r?\n)((?:\|[^\n]+\|\r?\n?)+)/gm;
+    problemStatement = problemStatement.replace(
+      tableRegex,
+      (
+        match: string,
+        headerRow: string,
+        separatorRow: string,
+        dataRows: string
+      ) => {
+        // Parse header
+        const headers = headerRow
+          .trim()
+          .split("|")
+          .filter((cell: string) => cell.trim())
+          .map((cell: string) => cell.trim());
+
+        // Parse separator to detect alignment
+        const separators = separatorRow
+          .trim()
+          .split("|")
+          .filter((cell: string) => cell.trim());
+        const alignments = separators.map((sep: string) => {
+          const trimmed = sep.trim();
+          if (trimmed.startsWith(":") && trimmed.endsWith(":")) {
+            return "center";
+          }
+          if (trimmed.endsWith(":")) {
+            return "right";
+          }
+          if (trimmed.startsWith(":")) {
+            return "left";
+          }
+          return "";
         });
 
-        // Preserve fenced code blocks before further processing
-        const codeBlocks: Array<{ placeholder: string; html: string }> = [];
-        problemStatement = problemStatement.replace(/```(\w+)?\n([\s\S]*?)```/g, (_fullMatch: string, language: string | undefined, codeContent: string) => {
-            const index = codeBlocks.length;
-            const placeholder = `__CODE_BLOCK_${index}__`;
-            const escapedCode = codeContent
-                .replace(/&/g, '&amp;')
-                .replace(/</g, '&lt;')
-                .replace(/>/g, '&gt;')
-                .replace(/"/g, '&quot;');
-            const classAttr = language ? ` class="language-${language}"` : '';
-            codeBlocks.push({
-                placeholder,
-                html: `<pre class="code-block"><code${classAttr}>${escapedCode.trimEnd()}</code></pre>`
-            });
-            return placeholder;
+        // Parse data rows
+        const rows = dataRows
+          .trim()
+          .split("\n")
+          .map((row: string) =>
+            row
+              .trim()
+              .split("|")
+              .filter((cell: string) => cell.trim())
+              .map((cell: string) => cell.trim())
+          );
+
+        // Build HTML table
+        let tableHtml =
+          '<div class="table-wrapper"><table class="markdown-table">\n<thead>\n<tr>\n';
+        headers.forEach((header: string, i: number) => {
+          const align = alignments[i]
+            ? ` style="text-align: ${alignments[i]}"`
+            : "";
+          tableHtml += `<th${align}>${header}</th>\n`;
         });
+        tableHtml += "</tr>\n</thead>\n<tbody>\n";
 
-        // Clean up excessive whitespace and normalize line breaks
-        problemStatement = problemStatement
-            .replace(/\r\n/g, '\n')  // Normalize line endings
-            .replace(/\n{3,}/g, '\n\n')  // Replace 3+ line breaks with 2
-            .replace(/[ \t]+/g, ' ')  // Replace multiple spaces/tabs with single space
-            .trim();  // Remove leading/trailing whitespace
-
-        // Convert markdown tables to HTML tables
-        // Match tables: header row, separator row, and data rows
-        const tableRegex = /^(\|[^\n]+\|\r?\n)(\|[\s:|-]+\|\r?\n)((?:\|[^\n]+\|\r?\n?)+)/gm;
-        problemStatement = problemStatement.replace(tableRegex, (match: string, headerRow: string, separatorRow: string, dataRows: string) => {
-            // Parse header
-            const headers = headerRow.trim().split('|').filter((cell: string) => cell.trim()).map((cell: string) => cell.trim());
-            
-            // Parse separator to detect alignment
-            const separators = separatorRow.trim().split('|').filter((cell: string) => cell.trim());
-            const alignments = separators.map((sep: string) => {
-                const trimmed = sep.trim();
-                if (trimmed.startsWith(':') && trimmed.endsWith(':')) {
-                    return 'center';
-                }
-                if (trimmed.endsWith(':')) {
-                    return 'right';
-                }
-                if (trimmed.startsWith(':')) {
-                    return 'left';
-                }
-                return '';
-            });
-            
-            // Parse data rows
-            const rows = dataRows.trim().split('\n').map((row: string) => 
-                row.trim().split('|').filter((cell: string) => cell.trim()).map((cell: string) => cell.trim())
-            );
-            
-            // Build HTML table
-            let tableHtml = '<div class="table-wrapper"><table class="markdown-table">\n<thead>\n<tr>\n';
-            headers.forEach((header: string, i: number) => {
-                const align = alignments[i] ? ` style="text-align: ${alignments[i]}"` : '';
-                tableHtml += `<th${align}>${header}</th>\n`;
-            });
-            tableHtml += '</tr>\n</thead>\n<tbody>\n';
-            
-            rows.forEach((row: string[]) => {
-                tableHtml += '<tr>\n';
-                row.forEach((cell: string, i: number) => {
-                    const align = alignments[i] ? ` style="text-align: ${alignments[i]}"` : '';
-                    tableHtml += `<td${align}>${cell}</td>\n`;
-                });
-                tableHtml += '</tr>\n';
-            });
-            tableHtml += '</tbody>\n</table></div>';
-            
-            return tableHtml;
+        rows.forEach((row: string[]) => {
+          tableHtml += "<tr>\n";
+          row.forEach((cell: string, i: number) => {
+            const align = alignments[i]
+              ? ` style="text-align: ${alignments[i]}"`
+              : "";
+            tableHtml += `<td${align}>${cell}</td>\n`;
+          });
+          tableHtml += "</tr>\n";
         });
+        tableHtml += "</tbody>\n</table></div>";
 
-        // Convert numbered tasks with [task][task name](<testid>...) pattern to container with structured layout
-        problemStatement = problemStatement.replace(
-            /(^|\n)\s*(\d+)\.\s*\[task\](?:\[([^\]]+)\])?(?:\(([^)]*)\))?\s*([^\n]*)/g,
-            (_match: string, prefix: string, index: string, explicitTitle: string | undefined, testsBlock: string | undefined, remainder: string) => {
-                const stripTaskMetadata = (text: string) => {
-                    if (!text) {
-                        return '';
-                    }
+        return tableHtml;
+      }
+    );
 
-                    let cleaned = text
-                        .replace(/<testid>\s*\d+\s*<\/testid>/gi, ' ')
-                        .replace(/\btest[A-Za-z0-9_]*\s*\(\s*\)/gi, ' ')
-                        .replace(/\b\d{4,}\b/g, ' ')
-                        .replace(/\s*,\s*/g, ' ');
+    // Convert numbered tasks with [task][task name](<testid>...) pattern to container with structured layout
+    problemStatement = problemStatement.replace(
+      /(^|\n)\s*(\d+)\.\s*\[task\](?:\[([^\]]+)\])?(?:\(([^)]*)\))?\s*([^\n]*)/g,
+      (
+        _match: string,
+        prefix: string,
+        index: string,
+        explicitTitle: string | undefined,
+        testsBlock: string | undefined,
+        remainder: string
+      ) => {
+        const stripTaskMetadata = (text: string) => {
+          if (!text) {
+            return "";
+          }
 
-                    cleaned = cleaned
-                        .replace(/\(\s*\)/g, ' ')
-                        .replace(/\s{2,}/g, ' ')
-                        .replace(/^\s+|\s+$/g, '')
-                        .replace(/^[,;:]+/, '')
-                        .replace(/[,;:]+$/, '')
-                        .replace(/[()]+$/, '')
-                        .replace(/^[()]+/, '')
-                        .trim();
+          let cleaned = text
+            .replace(/<testid>\s*\d+\s*<\/testid>/gi, " ")
+            .replace(/\btest[A-Za-z0-9_]*\s*\(\s*\)/gi, " ")
+            .replace(/\b\d{4,}\b/g, " ")
+            .replace(/\s*,\s*/g, " ");
 
-                    return cleaned;
-                };
+          cleaned = cleaned
+            .replace(/\(\s*\)/g, " ")
+            .replace(/\s{2,}/g, " ")
+            .replace(/^\s+|\s+$/g, "")
+            .replace(/^[,;:]+/, "")
+            .replace(/[,;:]+$/, "")
+            .replace(/[()]+$/, "")
+            .replace(/^[()]+/, "")
+            .trim();
 
-                const normalizedRemainder = remainder?.trim() || '';
+          return cleaned;
+        };
 
-                let headerText = explicitTitle?.trim() || '';
-                let bodyText = '';
+        const normalizedRemainder = remainder?.trim() || "";
 
-                if (!headerText && normalizedRemainder) {
-                    const firstSentenceMatch = normalizedRemainder.match(/^(.{1,120}?[.!?])(\s+.*)?$/);
-                    if (firstSentenceMatch) {
-                        headerText = firstSentenceMatch[1].trim();
-                        bodyText = (firstSentenceMatch[2] || '').trim();
-                    } else {
-                        headerText = normalizedRemainder;
-                    }
-                } else {
-                    bodyText = normalizedRemainder;
-                }
+        let headerText = explicitTitle?.trim() || "";
+        let bodyText = "";
 
-                if (testsBlock) {
-                    headerText = headerText.replace(testsBlock, '');
-                    bodyText = bodyText.replace(testsBlock, '');
-                }
-
-                headerText = stripTaskMetadata(headerText);
-                bodyText = stripTaskMetadata(bodyText);
-
-                if (!headerText) {
-                    headerText = `Task ${index}`;
-                }
-
-                const descriptionHtml = bodyText
-                    ? `<div class="task-body">${bodyText}</div>`
-                    : '';
-
-                const headerHtml = `<div class="task-header">Task ${index}${headerText ? `: ${headerText}` : ''}</div>`;
-
-                return `${prefix}<div class="task-container">${headerHtml}${descriptionHtml}</div>`;
-            }
-        );
-
-        // Convert backticks to code tags for syntax highlighting AFTER tasks
-        problemStatement = problemStatement.replace(/`([^`]+)`/g, '<code>$1</code>');
-
-        // Convert markdown headers to proper HTML - from largest to smallest to avoid conflicts
-        problemStatement = problemStatement
-            .replace(/^###### (.*$)/gm, '<h6>$1</h6>')
-            .replace(/^##### (.*$)/gm, '<h5>$1</h5>')
-            .replace(/^#### (.*$)/gm, '<h4>$1</h4>')
-            .replace(/^### (.*$)/gm, '<h3>$1</h3>')
-            .replace(/^## (.*$)/gm, '<h2>$1</h2>')
-            .replace(/^# (.*$)/gm, '<h1>$1</h1>');
-
-        // Convert --- to horizontal rule
-        problemStatement = problemStatement.replace(/^---$/gm, '<hr>');
-
-        // Convert **bold** to <strong>
-        problemStatement = problemStatement.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
-
-        // Convert bullet points (- item) to proper HTML lists
-        problemStatement = problemStatement.replace(/^- (.+)$/gm, '<li>$1</li>');
-
-        // Wrap consecutive <li> items in <ul> tags
-        problemStatement = problemStatement.replace(/(<li>.*?<\/li>(?:\s*<li>.*?<\/li>)*)/gs, '<ul>$1</ul>');
-
-        // Convert double line breaks to paragraphs
-        problemStatement = problemStatement.replace(/\n\n/g, '</p><p>');
-        problemStatement = '<p>' + problemStatement + '</p>';
-
-        // Clean up empty paragraphs and fix paragraph around other elements
-        problemStatement = problemStatement
-            .replace(/<p><\/p>/g, '')  // Remove empty paragraphs
-            .replace(/<p>(<h[1-6]>)/g, '$1')  // Don't wrap headers in paragraphs
-            .replace(/(<\/h[1-6]>)<\/p>/g, '$1')  // Don't wrap headers in paragraphs
-            .replace(/<p>(<ul>)/g, '$1')  // Don't wrap lists in paragraphs
-            .replace(/(<\/ul>)<\/p>/g, '$1')  // Don't wrap lists in paragraphs
-            .replace(/<p>(<div class="task-container">)/g, '$1')  // Don't wrap tasks in paragraphs
-            .replace(/(<\/div>)<\/p>/g, '$1')  // Don't wrap tasks in paragraphs
-            .replace(/<p>(<pre class="code-block">)/g, '$1')  // Don't wrap code blocks in paragraphs
-            .replace(/(<\/pre>)<\/p>/g, '$1')  // Don't wrap code blocks in paragraphs
-            .replace(/<p>(<div class="table-wrapper">)/g, '$1')  // Don't wrap tables in paragraphs
-            .replace(/(<\/div>)<\/p>/g, '$1');  // Don't wrap div closings in paragraphs
-
-        // Restore preserved code blocks
-        for (const block of codeBlocks) {
-            problemStatement = problemStatement.replace(block.placeholder, block.html);
+        if (!headerText && normalizedRemainder) {
+          const firstSentenceMatch = normalizedRemainder.match(
+            /^(.{1,120}?[.!?])(\s+.*)?$/
+          );
+          if (firstSentenceMatch) {
+            headerText = firstSentenceMatch[1].trim();
+            bodyText = (firstSentenceMatch[2] || "").trim();
+          } else {
+            headerText = normalizedRemainder;
+          }
+        } else {
+          bodyText = normalizedRemainder;
         }
 
-        // Course information
-        const course = exercise.course;
-        const courseName = course?.title || 'Unknown Course';
-        const semester = course?.semester || 'No semester';
-        const exerciseId = exercise.id || 0;
-        const exerciseShortName = exercise.shortName || '';
-        const releaseDateRaw = exercise.releaseDate || exercise.startDate || '';
-        const dueDateRaw = exercise.dueDate || '';
+        if (testsBlock) {
+          headerText = headerText.replace(testsBlock, "");
+          bodyText = bodyText.replace(testsBlock, "");
+        }
 
-        return `<!DOCTYPE html>
+        headerText = stripTaskMetadata(headerText);
+        bodyText = stripTaskMetadata(bodyText);
+
+        if (!headerText) {
+          headerText = `Task ${index}`;
+        }
+
+        const descriptionHtml = bodyText
+          ? `<div class="task-body">${bodyText}</div>`
+          : "";
+
+        const headerHtml = `<div class="task-header">Task ${index}${
+          headerText ? `: ${headerText}` : ""
+        }</div>`;
+
+        return `${prefix}<div class="task-container">${headerHtml}${descriptionHtml}</div>`;
+      }
+    );
+
+    // Convert backticks to code tags for syntax highlighting AFTER tasks
+    problemStatement = problemStatement.replace(
+      /`([^`]+)`/g,
+      "<code>$1</code>"
+    );
+
+    // Convert markdown headers to proper HTML - from largest to smallest to avoid conflicts
+    problemStatement = problemStatement
+      .replace(/^###### (.*$)/gm, "<h6>$1</h6>")
+      .replace(/^##### (.*$)/gm, "<h5>$1</h5>")
+      .replace(/^#### (.*$)/gm, "<h4>$1</h4>")
+      .replace(/^### (.*$)/gm, "<h3>$1</h3>")
+      .replace(/^## (.*$)/gm, "<h2>$1</h2>")
+      .replace(/^# (.*$)/gm, "<h1>$1</h1>");
+
+    // Convert --- to horizontal rule
+    problemStatement = problemStatement.replace(/^---$/gm, "<hr>");
+
+    // Convert **bold** to <strong>
+    problemStatement = problemStatement.replace(
+      /\*\*(.*?)\*\*/g,
+      "<strong>$1</strong>"
+    );
+
+    // Convert bullet points (- item) to proper HTML lists
+    problemStatement = problemStatement.replace(/^- (.+)$/gm, "<li>$1</li>");
+
+    // Wrap consecutive <li> items in <ul> tags
+    problemStatement = problemStatement.replace(
+      /(<li>.*?<\/li>(?:\s*<li>.*?<\/li>)*)/gs,
+      "<ul>$1</ul>"
+    );
+
+    // Convert double line breaks to paragraphs
+    problemStatement = problemStatement.replace(/\n\n/g, "</p><p>");
+    problemStatement = "<p>" + problemStatement + "</p>";
+
+    // Clean up empty paragraphs and fix paragraph around other elements
+    problemStatement = problemStatement
+      .replace(/<p><\/p>/g, "") // Remove empty paragraphs
+      .replace(/<p>(<h[1-6]>)/g, "$1") // Don't wrap headers in paragraphs
+      .replace(/(<\/h[1-6]>)<\/p>/g, "$1") // Don't wrap headers in paragraphs
+      .replace(/<p>(<ul>)/g, "$1") // Don't wrap lists in paragraphs
+      .replace(/(<\/ul>)<\/p>/g, "$1") // Don't wrap lists in paragraphs
+      .replace(/<p>(<div class="task-container">)/g, "$1") // Don't wrap tasks in paragraphs
+      .replace(/(<\/div>)<\/p>/g, "$1") // Don't wrap tasks in paragraphs
+      .replace(/<p>(<pre class="code-block">)/g, "$1") // Don't wrap code blocks in paragraphs
+      .replace(/(<\/pre>)<\/p>/g, "$1") // Don't wrap code blocks in paragraphs
+      .replace(/<p>(<div class="table-wrapper">)/g, "$1") // Don't wrap tables in paragraphs
+      .replace(/(<\/div>)<\/p>/g, "$1"); // Don't wrap div closings in paragraphs
+
+    // Restore preserved code blocks
+    for (const block of codeBlocks) {
+      problemStatement = problemStatement.replace(
+        block.placeholder,
+        block.html
+      );
+    }
+
+    // Course information
+    const course = exercise.course;
+    const courseName = course?.title || "Unknown Course";
+    const semester = course?.semester || "No semester";
+    const exerciseId = exercise.id || 0;
+    const exerciseShortName = exercise.shortName || "";
+    const releaseDateRaw = exercise.releaseDate || exercise.startDate || "";
+    const dueDateRaw = exercise.dueDate || "";
+
+    return `<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -393,7 +513,11 @@ export class ExerciseDetailView {
 </head>
 <body class="theme-${currentTheme}">
     <div class="back-link-container">
-        ${BackLinkComponent.generateHtml({ command: 'backToCourseDetails', label: '← Back to Course', wrap: false })}
+        ${BackLinkComponent.generateHtml({
+          command: "backToCourseDetails",
+          label: "← Back to Course",
+          wrap: false,
+        })}
         <button class="fullscreen-btn" id="fullscreenBtn" onclick="toggleFullscreen()" title="Open exercise in new editor tab">
             ⛶
         </button>
@@ -406,8 +530,16 @@ export class ExerciseDetailView {
                     <div class="exercise-title">${exerciseTitle}</div>
                     <div class="exercise-meta">
                         <div class="exercise-type-icon">${exerciseIcon}</div>
-                        <div class="points-badge">${maxPoints} ${maxPoints === 1 ? 'point' : 'points'}${bonusPoints > 0 ? ` + ${bonusPoints} bonus` : ''}</div>
-                        ${timeRemainingDisplay ? `<div class="due-date-badge ${isDueSoon ? 'due-soon' : ''}">${timeRemainingDisplay}</div>` : ''}
+                        <div class="points-badge">${maxPoints} ${
+      maxPoints === 1 ? "point" : "points"
+    }${bonusPoints > 0 ? ` + ${bonusPoints} bonus` : ""}</div>
+                        ${
+                          timeRemainingDisplay
+                            ? `<div class="due-date-badge ${
+                                isDueSoon ? "due-soon" : ""
+                              }">${timeRemainingDisplay}</div>`
+                            : ""
+                        }
                         <button class="repo-status-icon unknown" id="repoStatusIcon" onclick="checkRepositoryStatus(true)" title="Check repository status">
                             ?
                         </button>
@@ -441,75 +573,110 @@ export class ExerciseDetailView {
                         <span class="course-semester">${semester}</span>
                     </div>
                 </div>
-                ${filePattern ? `
+                ${
+                  filePattern
+                    ? `
                 <div class="info-item">
                     <div class="info-label">File Formats</div>
                     <div class="info-value">${filePattern}</div>
                 </div>
-                ` : ''}
+                `
+                    : ""
+                }
             </div>
         </div>
     </details>
     
 
     ${(() => {
-                const hasParticipation = Array.isArray(exercise.studentParticipations) && exercise.studentParticipations.length > 0;
-                const firstParticipation = hasParticipation ? exercise.studentParticipations[0] : undefined;
-                const participationId = firstParticipation?.id;
-                const rawExerciseType = exercise.type || exercise.exerciseType || '';
-                const normalizedExerciseType = typeof rawExerciseType === 'string' ? rawExerciseType.toLowerCase() : '';
-                const isProgrammingExercise = normalizedExerciseType === 'programming';
-                const isQuizExercise = normalizedExerciseType === 'quiz';
+      const hasParticipation =
+        Array.isArray(exercise.studentParticipations) &&
+        exercise.studentParticipations.length > 0;
+      const firstParticipation = hasParticipation
+        ? exercise.studentParticipations[0]
+        : undefined;
+      const participationId = firstParticipation?.id;
+      const rawExerciseType = exercise.type || exercise.exerciseType || "";
+      const normalizedExerciseType =
+        typeof rawExerciseType === "string"
+          ? rawExerciseType.toLowerCase()
+          : "";
+      const isProgrammingExercise = normalizedExerciseType === "programming";
+      const isQuizExercise = normalizedExerciseType === "quiz";
 
-                // Get latest submission and build status
-                let buildStatusHtml = '';
-                const latestSubmission = hasParticipation ? this._getLatestSubmission(firstParticipation) : undefined;
-                if (hasParticipation && latestSubmission) {
+      // Get latest submission and build status
+      let buildStatusHtml = "";
+      const latestSubmission = hasParticipation
+        ? this._getLatestSubmission(firstParticipation)
+        : undefined;
+      if (hasParticipation && latestSubmission) {
+        const latestResult = this._getLatestResult(latestSubmission) ?? null;
 
-                    const latestResult = this._getLatestResult(latestSubmission) ?? null;
+        // Only show build status for programming exercises
+        if (isProgrammingExercise) {
+          const buildFailed = latestSubmission.buildFailed;
+          const scorePercentage = latestResult ? latestResult.score : 0; // This is 0-100
+          const maxPoints = exercise.maxPoints || 0;
+          const scorePoints =
+            Math.round((scorePercentage / 100) * maxPoints * 100) / 100; // Convert to points
+          const successful = latestResult ? latestResult.successful : false;
 
-                    // Only show build status for programming exercises
-                    if (isProgrammingExercise) {
-                        const buildFailed = latestSubmission.buildFailed;
-                        const scorePercentage = latestResult ? latestResult.score : 0; // This is 0-100
-                        const maxPoints = exercise.maxPoints || 0;
-                        const scorePoints = Math.round((scorePercentage / 100) * maxPoints * 100) / 100; // Convert to points
-                        const successful = latestResult ? latestResult.successful : false;
+          // Calculate test statistics
+          const totalTests = latestResult?.testCaseCount || 0;
+          const passedTests = latestResult?.passedTestCaseCount || 0;
+          const hasTestInfo = totalTests > 0;
 
-                        // Calculate test statistics
-                        const totalTests = latestResult?.testCaseCount || 0;
-                        const passedTests = latestResult?.passedTestCaseCount || 0;
-                        const hasTestInfo = totalTests > 0;
+          // Generate status badge (logic shared with websocket handler)
+          let statusBadge = "";
+          if (buildFailed) {
+            statusBadge =
+              '<span class="status-badge failed">Build Failed</span>';
+          } else if (hasTestInfo) {
+            const passPercentage =
+              totalTests > 0 ? (passedTests / totalTests) * 100 : 0;
+            const badgeClass =
+              passPercentage >= 80
+                ? "success"
+                : passPercentage >= 40
+                ? "partial"
+                : "failed";
+            statusBadge = `<span class="status-badge ${badgeClass}">${passedTests}/${totalTests} tests passed</span>`;
+          } else {
+            statusBadge = successful
+              ? '<span class="status-badge success">Build Success</span>'
+              : '<span class="status-badge failed">Tests Failed</span>';
+          }
 
-                        // Generate status badge (logic shared with websocket handler)
-                        let statusBadge = '';
-                        if (buildFailed) {
-                            statusBadge = '<span class="status-badge failed">Build Failed</span>';
-                        } else if (hasTestInfo) {
-                            const passPercentage = totalTests > 0 ? (passedTests / totalTests) * 100 : 0;
-                            const badgeClass = passPercentage >= 80 ? 'success' : passPercentage >= 40 ? 'partial' : 'failed';
-                            statusBadge = `<span class="status-badge ${badgeClass}">${passedTests}/${totalTests} tests passed</span>`;
-                        } else {
-                            statusBadge = successful
-                                ? '<span class="status-badge success">Build Success</span>'
-                                : '<span class="status-badge failed">Tests Failed</span>';
-                        }
-
-                        buildStatusHtml = `
+          buildStatusHtml = `
                     <div class="build-status">
                         <div class="build-status-title">Latest Build Status</div>
                         <div class="build-status-info">
                             ${statusBadge}
                             <div class="score-info">
-                                Score: <span class="score-points">${scorePoints}/${maxPoints} (${scorePercentage.toFixed(2)}%)</span> ${maxPoints === 1 ? 'point' : 'points'}
+                                Score: <span class="score-points">${scorePoints}/${maxPoints} (${scorePercentage.toFixed(
+            2
+          )}%)</span> ${maxPoints === 1 ? "point" : "points"}
                             </div>
                         </div>
-                        ${hasTestInfo ? `<div class="test-results-toggle-container">
-                            <a href="#" class="test-results-toggle" onclick="toggleTestResults(event)" id="testResultsToggle">
+                        <div class="test-results-toggle-container">
+                            ${
+                              buildFailed
+                                ? `<a href="#" class="build-log-link" onclick="viewBuildLog(event, ${participationId}, ${latestResult?.id})" id="buildLogLink">
+                                View build log
+                            </a>`
+                                : ""
+                            }
+                            ${
+                              hasTestInfo
+                                ? `<a href="#" class="test-results-toggle" onclick="toggleTestResults(event)" id="testResultsToggle">
                                 See test results
-                            </a>
+                            </a>`
+                                : ""
+                            }
                         </div>
-                        <div class="test-results-modal" id="testResultsModal" aria-hidden="true" onclick="handleTestResultsBackdrop(event)">
+                        ${
+                          hasTestInfo
+                            ? `<div class="test-results-modal" id="testResultsModal" aria-hidden="true" onclick="handleTestResultsBackdrop(event)">
                             <div class="test-results-modal-content">
                                 <div class="test-results-modal-header">
                                     <div class="test-results-modal-title">Test Results</div>
@@ -521,40 +688,47 @@ export class ExerciseDetailView {
                                     </div>
                                 </div>
                             </div>
-                        </div>` : ''}
+                        </div>`
+                            : ""
+                        }
                     </div>
                 `;
-                    } else if (!isQuizExercise) {
-                        // For non-programming exercises, show submission status
-                        const submitted = latestSubmission.submitted;
-                        const empty = latestSubmission.empty;
-                        const scorePercentage = latestResult ? latestResult.score : 0; // This is 0-100
-                        const maxPoints = exercise.maxPoints || 0;
-                        const scorePoints = Math.round((scorePercentage / 100) * maxPoints * 100) / 100; // Convert to points
+        } else if (!isQuizExercise) {
+          // For non-programming exercises, show submission status
+          const submitted = latestSubmission.submitted;
+          const empty = latestSubmission.empty;
+          const scorePercentage = latestResult ? latestResult.score : 0; // This is 0-100
+          const maxPoints = exercise.maxPoints || 0;
+          const scorePoints =
+            Math.round((scorePercentage / 100) * maxPoints * 100) / 100; // Convert to points
 
-                        let statusBadge = '';
-                        let statusText = '';
-                        if (submitted && !empty) {
-                            statusBadge = '<span class="status-badge success">Submitted</span>';
-                            statusText = 'Latest Submission Status';
-                        } else if (!empty) {
-                            statusBadge = '<span class="status-badge building">Draft Saved</span>';
-                            statusText = 'Current Status';
-                        } else {
-                            statusBadge = '<span class="status-badge failed">No Submission</span>';
-                            statusText = 'Submission Status';
-                        }
+          let statusBadge = "";
+          let statusText = "";
+          if (submitted && !empty) {
+            statusBadge = '<span class="status-badge success">Submitted</span>';
+            statusText = "Latest Submission Status";
+          } else if (!empty) {
+            statusBadge =
+              '<span class="status-badge building">Draft Saved</span>';
+            statusText = "Current Status";
+          } else {
+            statusBadge =
+              '<span class="status-badge failed">No Submission</span>';
+            statusText = "Submission Status";
+          }
 
-                        let scoreDisplay = '';
-                        if (latestResult) {
-                            scoreDisplay = `
+          let scoreDisplay = "";
+          if (latestResult) {
+            scoreDisplay = `
                         <div class="score-info">
-                            Score: <span class="score-points">${scorePoints}/${maxPoints} (${scorePercentage.toFixed(2)}%)</span> ${maxPoints === 1 ? 'point' : 'points'}
+                            Score: <span class="score-points">${scorePoints}/${maxPoints} (${scorePercentage.toFixed(
+              2
+            )}%)</span> ${maxPoints === 1 ? "point" : "points"}
                         </div>
                     `;
-                        }
+          }
 
-                        buildStatusHtml = `
+          buildStatusHtml = `
                     <div class="build-status">
                         <div class="build-status-title">${statusText}</div>
                         <div class="build-status-info">
@@ -563,11 +737,11 @@ export class ExerciseDetailView {
                         </div>
                     </div>
                 `;
-                    }
-                }
+        }
+      }
 
-                if (hasParticipation && isProgrammingExercise && !buildStatusHtml) {
-                    buildStatusHtml = `
+      if (hasParticipation && isProgrammingExercise && !buildStatusHtml) {
+        buildStatusHtml = `
                 <div class="build-status build-status--empty">
                     <div class="build-status-title">Latest Build Status</div>
                     <div class="build-status-info">
@@ -575,18 +749,21 @@ export class ExerciseDetailView {
                     </div>
                 </div>
             `;
-                }
+      }
 
-                const changeStatusHtml = hasParticipation && isProgrammingExercise ? `
+      const changeStatusHtml =
+        hasParticipation && isProgrammingExercise
+          ? `
             <div class=\"changes-status\" id=\"changesStatus\" data-state=\"checking\">
                 <span class=\"changes-status-indicator\"></span>
                 <span id=\"changesStatusText\">Checking workspace status...</span>
             </div>
-        ` : '';
+        `
+          : "";
 
-                const actionsHtml = hasParticipation
-                    ? (isProgrammingExercise
-                        ? `<div class=\"participation-actions\">
+      const actionsHtml = hasParticipation
+        ? isProgrammingExercise
+          ? `<div class=\"participation-actions\">
                     ${changeStatusHtml}
                     <div class=\"cloned-repo-notice\" id=\"clonedRepoNotice\" style=\"display: none;\">
                         <span id=\"clonedRepoMessage\">Repository recently cloned.</span> <a href=\"#\" class=\"open-repo-link\" onclick=\"openClonedRepository(); return false;\">Open now</a>
@@ -622,43 +799,51 @@ export class ExerciseDetailView {
                         </div>
                     </div>
                 </div>`
-                        : `<div class=\"participation-actions\">
+          : `<div class=\"participation-actions\">
                     <div class=\"action-button-row\">
                         <button class=\"participate-btn\" onclick=\"openExerciseInBrowser()\">Open in browser</button>
                     </div>
-                </div>`)
-                    : (isProgrammingExercise
-                        ? `<div class=\"participation-actions not-participated\">
+                </div>`
+        : isProgrammingExercise
+        ? `<div class=\"participation-actions not-participated\">
                     <div class=\"action-button-row\">
                         <button class=\"participate-btn\" onclick=\"participateInExercise()\">Start Exercise</button>
                         <button class=\"participate-btn secondary\" onclick=\"openExerciseInBrowser()\">Open in browser</button>
                     </div>
                 </div>`
-                        : `<div class=\"participation-actions not-participated\">
+        : `<div class=\"participation-actions not-participated\">
                     <div class=\"action-button-row\">
                         <button class=\"participate-btn\" onclick=\"openExerciseInBrowser()\">Open in browser</button>
                     </div>
-                </div>`);
+                </div>`;
 
-                // Determine participation info based on exercise type
-                let participationStatus = '';
-                let participationMessage = '';
+      // Determine participation info based on exercise type
+      let participationStatus = "";
+      let participationMessage = "";
 
-                if (isProgrammingExercise) {
-                    participationStatus = hasParticipation ? 'Repository Ready' : 'Not Participating Yet';
-                    participationMessage = hasParticipation ? 'You have already started this exercise.' : 'You have not started this exercise yet.';
-                } else {
-                    // For non-programming exercises (quiz, modeling, text, file-upload)
-                    const cleanedType = normalizedExerciseType.replace(/_/g, ' ').replace(/-/g, ' ');
-                    const exerciseTypeDisplay = cleanedType
-                        ? cleanedType.charAt(0).toUpperCase() + cleanedType.slice(1)
-                        : 'Course';
-                    const exerciseTypePlain = cleanedType || 'course';
-                    participationStatus = `${exerciseTypeDisplay} Exercise`;
-                    participationMessage = `This is a ${exerciseTypePlain} exercise. Complete it in the browser.`;
-                }
+      if (isProgrammingExercise) {
+        participationStatus = hasParticipation
+          ? "Repository Ready"
+          : "Not Participating Yet";
+        participationMessage = hasParticipation
+          ? "You have already started this exercise."
+          : "You have not started this exercise yet.";
+      } else {
+        // For non-programming exercises (quiz, modeling, text, file-upload)
+        const cleanedType = normalizedExerciseType
+          .replace(/_/g, " ")
+          .replace(/-/g, " ");
+        const exerciseTypeDisplay = cleanedType
+          ? cleanedType.charAt(0).toUpperCase() + cleanedType.slice(1)
+          : "Course";
+        const exerciseTypePlain = cleanedType || "course";
+        participationStatus = `${exerciseTypeDisplay} Exercise`;
+        participationMessage = `This is a ${exerciseTypePlain} exercise. Complete it in the browser.`;
+      }
 
-                return `<div class=\"participation-section\" data-has-participation=\"${hasParticipation}\" data-participation-id=\"${participationId || ''}\">
+      return `<div class=\"participation-section\" data-has-participation=\"${hasParticipation}\" data-participation-id=\"${
+        participationId || ""
+      }\">
         <div class=\"participation-info\">
             <div class=\"participation-status\">${participationStatus}</div>
             <div class=\"participation-message\">${participationMessage}</div>
@@ -666,7 +851,7 @@ export class ExerciseDetailView {
         ${actionsHtml}
         ${buildStatusHtml}
     </div>`;
-            })()}
+    })()}
 
     <div class="content-section iris-assist-section">
         <div class="iris-assist-content">
@@ -683,28 +868,40 @@ export class ExerciseDetailView {
         <div class="section-title">Exercise Description</div>
         <div class="problem-statement">${problemStatement}</div>
         
-        ${downloadLinks.length > 0 ? `
+        ${
+          downloadLinks.length > 0
+            ? `
         <div class="downloads-section">
             <div class="section-title">Downloads</div>
             <div class="download-links">
-                ${downloadLinks.map(link => `
+                ${downloadLinks
+                  .map(
+                    (link) => `
                     <a href="#" class="download-link" onclick="downloadFile('${link.url}', '${link.text}')">
                         <span class="download-icon">📄</span>
                         ${link.text}
                     </a>
-                `).join('')}
+                `
+                  )
+                  .join("")}
             </div>
         </div>
-        ` : ''}
+        `
+            : ""
+        }
     </div>
     
-    ${!hideDeveloperTools ? `
+    ${
+      !hideDeveloperTools
+        ? `
     <div class="action-buttons">
         <button class="btn btn-primary" onclick="openInEditor()">Open Raw JSON</button>
         <button class="btn" onclick="copyToClipboard()">Copy Exercise Data</button>
         <button class="btn" onclick="showSubmissionDetails()">Submission Details</button>
     </div>
-    ` : ''}
+    `
+        : ""
+    }
 
     <script>
         const vscode = acquireVsCodeApi();
@@ -1074,6 +1271,23 @@ export class ExerciseDetailView {
             if (toggle) {
                 toggle.textContent = 'See test results';
             }
+        };
+
+        window.viewBuildLog = function(event, participationId, resultId) {
+            if (event) {
+                event.preventDefault();
+            }
+
+            if (!participationId) {
+                vscode.postMessage({ command: 'alert', text: 'Cannot view build log: missing participation ID.' });
+                return;
+            }
+
+            vscode.postMessage({
+                command: 'viewBuildLog',
+                participationId: participationId,
+                resultId: resultId
+            });
         };
 
         window.handleTestResultsBackdrop = function(event) {
@@ -1999,12 +2213,18 @@ export class ExerciseDetailView {
 
                 const statusBadge = generateStatusBadge(buildFailed, hasTestInfo, passedTests, totalTests, successful);
 
-                const testResultsToggle = hasTestInfo ?
+                // Get participation ID for build log link
+                const participationId = participation?.id;
+                const resultId = result?.id;
+
+                // Build the toggle container with both build log (if failed) and test results links
+                const toggleContainer = (buildFailed || hasTestInfo) ?
                     '<div class="test-results-toggle-container">' +
-                        '<a href="#" class="test-results-toggle" onclick="toggleTestResults(event)" id="testResultsToggle">' +
-                            'See test results' +
-                        '<' + '/a>' +
-                    '<' + '/div>' +
+                        (buildFailed ? '<a href="#" class="build-log-link" onclick="viewBuildLog(event, ' + participationId + ', ' + resultId + ')" id="buildLogLink">View build log<' + '/a>' : '') +
+                        (hasTestInfo ? '<a href="#" class="test-results-toggle" onclick="toggleTestResults(event)" id="testResultsToggle">See test results<' + '/a>' : '') +
+                    '<' + '/div>' : '';
+
+                const testResultsModal = hasTestInfo ?
                     '<div class="test-results-modal" id="testResultsModal" aria-hidden="true" onclick="handleTestResultsBackdrop(event)">' +
                         '<div class="test-results-modal-content">' +
                             '<div class="test-results-modal-header">' +
@@ -2027,7 +2247,8 @@ export class ExerciseDetailView {
                             'Score: <span class="score-points">' + scorePoints + '/' + maxPoints + ' (' + scorePercentage.toFixed(2) + '%)<' + '/span> ' + (maxPoints === 1 ? 'point' : 'points') +
                         '<' + '/div>' +
                     '<' + '/div>' +
-                    testResultsToggle;
+                    toggleContainer +
+                    testResultsModal;
 
                 buildStatusSection.innerHTML = resultHtml;
             }
@@ -2173,5 +2394,5 @@ export class ExerciseDetailView {
     </script>
 </body>
 </html>`;
-    }
+  }
 }

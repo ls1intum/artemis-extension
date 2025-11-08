@@ -193,3 +193,10 @@ export interface WebSocketMessageHandler {
     onNewSubmission?: (submission: ProgrammingSubmission) => void;
     onSubmissionProcessing?: (message: SubmissionProcessingMessage) => void;
 }
+
+// Build log types
+export interface BuildLogEntry {
+    id: number;
+    time: string;  // ISO timestamp
+    log: string;   // The log message (max 255 chars per entry)
+}

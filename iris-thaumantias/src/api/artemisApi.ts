@@ -119,6 +119,16 @@ export class ArtemisApiService {
         return response.json();
     }
 
+    // Get build logs for a participation (optionally for a specific result)
+    async getBuildLogs(participationId: number, resultId?: number): Promise<any[]> {
+        let endpoint = `/api/programming/participations/${participationId}/buildlogs`;
+        if (resultId !== undefined) {
+            endpoint += `?resultId=${resultId}`;
+        }
+        const response = await this.makeRequest(endpoint);
+        return response.json() as Promise<any[]>;
+    }
+
     // Check if user is authenticated
     async isAuthenticated(): Promise<boolean> {
         try {

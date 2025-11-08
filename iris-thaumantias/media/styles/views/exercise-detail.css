@@ -595,9 +595,13 @@
         /* Test results section */
         .test-results-toggle-container {
             margin-top: 12px;
+            display: flex;
+            gap: 16px;
+            flex-wrap: wrap;
         }
 
-        .test-results-toggle {
+        .test-results-toggle,
+        .build-log-link {
             cursor: pointer;
             font-size: 14px;
             color: var(--vscode-textLink-foreground);
@@ -605,7 +609,8 @@
             display: inline-block;
         }
 
-        .test-results-toggle:hover {
+        .test-results-toggle:hover,
+        .build-log-link:hover {
             color: var(--vscode-textLink-activeForeground);
             text-decoration: underline;
         }

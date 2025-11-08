@@ -15,6 +15,7 @@ export class UtilityCommandModule {
             showSubmissionDetails: this.handleShowSubmissionDetails,
             fetchTestResults: this.handleFetchTestResults,
             openExerciseInBrowser: this.handleOpenExerciseInBrowser,
+            viewBuildLog: this.handleViewBuildLog,
         };
     }
 
@@ -168,6 +169,55 @@ export class UtilityCommandModule {
         } catch (error) {
             console.error('Open exercise in browser error:', error);
             vscode.window.showErrorMessage(`Failed to open exercise in browser: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
+    };
+
+    private handleViewBuildLog = async (message: any): Promise<void> => {
+        const participationId: number = message.participationId;
+        const resultId: number | undefined = message.resultId;
+
+        try {
+            if (!participationId) {
+                vscode.window.showErrorMessage('Cannot fetch build log: missing participation ID.');
+                return;
+            }
+
+            vscode.window.showInformationMessage('Loading build log...');
+
+            const buildLogs = await this.context.artemisApi.getBuildLogs(participationId, resultId);
+
+            if (!buildLogs || buildLogs.length === 0) {
+                vscode.window.showInformationMessage('No build logs available for this submission.');
+                return;
+            }
+
+            // Format the build log for display
+            const logContent = buildLogs
+                .map((entry: any) => {
+                    const timestamp = new Date(entry.time).toISOString().replace('T', ' ').substring(0, 19);
+                    return `${timestamp}\n    ${entry.log}`;
+                })
+                .join('\n');
+
+            // Create header with metadata
+            const header = `${'='.repeat(80)}\nArtemis Build Log\n${'='.repeat(80)}\n\n`;
+            const fullContent = header + logContent;
+
+            // Open in a new editor tab
+            const document = await vscode.workspace.openTextDocument({
+                content: fullContent,
+                language: 'log'
+            });
+
+            await vscode.window.showTextDocument(document, {
+                preview: false,
+                viewColumn: vscode.ViewColumn.Active
+            });
+
+            vscode.window.showInformationMessage('Build log opened in editor');
+        } catch (error) {
+            console.error('View build log error:', error);
+            vscode.window.showErrorMessage(`Failed to fetch build log: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
     };
 }
