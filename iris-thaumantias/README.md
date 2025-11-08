@@ -56,6 +56,16 @@ Choose your preferred visual style:
 - **Modern Theme**: Clean, card-based design with contemporary aesthetics
 - **Synthwave Theme**: Retro-futuristic neon aesthetic
 
+#### Theme Tokens & UI Primitives
+
+The extension now shares a single theme system that lives in [`src/theme`](src/theme). Core design tokens such as the color palette, spacing scale, typography, shadows, and transitions are declared once and mapped to semantic values (e.g. `theme.colors.background.surface`, `theme.colors.text.muted`). Light, VS Code native, and synthwave variants are all derived from the same primitives so components consume semantic names instead of hard-coded hex values.
+
+- `ThemeManager` injects CSS variables like `--iris-color-background-surface` and `--iris-font-size-base` into the webviews, keeping styles in sync with the active theme.
+- `ThemeStore` exposes a minimal context for reading/updating the current theme and syncing with VS Code’s color theme.
+- Reusable primitives (buttons, text fields, search fields, icon buttons, cards) live in [`src/components`](src/components) and respect the theme tokens for colors, focus rings, and spacing.
+- Shared layout pieces (panels, toolbars, page headers) live in [`src/layouts`](src/layouts) and compose the primitives for consistent padding and surface styling.
+- CSS in [`media/styles/components/primitives.css`](media/styles/components/primitives.css) and the view-specific files consumes the injected variables so switching themes does not require rewriting component styles.
+
 ## Getting Started
 
 ### Requirements

@@ -12,6 +12,7 @@ import {
 import { ArtemisApiService } from '../../api';
 import { ArtemisWebsocketService } from '../../services';
 import { checkWorkspaceFiles } from '../../utils';
+import { ThemeStore } from '../../theme';
 
 type ChatContextReason =
     | 'user-selected'
@@ -40,9 +41,17 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
         private readonly _extensionContext: vscode.ExtensionContext,
         private readonly _artemisApiService?: ArtemisApiService,
         private readonly _websocketService?: ArtemisWebsocketService,
+        private readonly _themeStore: ThemeStore,
     ) {
         this._styleManager = new StyleManager(this._extensionUri);
         this._contextStore = new ContextStore(this._extensionContext);
+
+        const unsubscribe = this._themeStore.subscribe(() => {
+            if (this._view) {
+                this.refreshTheme();
+            }
+        });
+        this._disposables.push(new vscode.Disposable(unsubscribe));
     }
 
     public dispose(): void {
@@ -120,7 +129,7 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
 
     private _getOrCreateIrisChatView(): IrisChatView {
         if (!this._irisChatView) {
-            this._irisChatView = new IrisChatView(this._extensionContext, this._styleManager);
+            this._irisChatView = new IrisChatView(this._themeStore, this._extensionContext, this._styleManager);
         }
         return this._irisChatView;
     }
@@ -164,11 +173,11 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
         this._disposables.push(workspaceListener);
 
         const configListener = vscode.workspace.onDidChangeConfiguration(event => {
-            if (
-                event.affectsConfiguration('artemis.hideDeveloperTools') ||
-                event.affectsConfiguration('artemis.theme')
-            ) {
+            if (event.affectsConfiguration('artemis.hideDeveloperTools')) {
                 this.refreshTheme();
+            }
+            if (event.affectsConfiguration('artemis.theme')) {
+                this._themeStore.refreshFromConfiguration();
             }
             if (event.affectsConfiguration('artemis.iris.sendUncommittedChanges')) {
                 // Update file display when setting changes

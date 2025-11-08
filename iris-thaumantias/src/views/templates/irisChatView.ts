@@ -1,18 +1,21 @@
 import * as vscode from "vscode";
-import { ThemeManager } from "../../themes";
+import { ThemeStore } from "../../theme";
 import { IconDefinitions } from "../../utils/iconDefinitions";
 import { StyleManager } from "../styles";
+import { Button, IconButton, SearchField, Card } from "../../components";
+import { Panel, Toolbar } from "../../layouts";
 
 export class IrisChatView {
-  private _themeManager: ThemeManager;
+  private readonly _themeStore: ThemeStore;
   private _extensionContext: vscode.ExtensionContext;
   private _styleManager: StyleManager;
 
   constructor(
+    themeStore: ThemeStore,
     extensionContext: vscode.ExtensionContext,
     styleManager: StyleManager
   ) {
-    this._themeManager = new ThemeManager();
+    this._themeStore = themeStore;
     this._extensionContext = extensionContext;
     this._styleManager = styleManager;
   }
@@ -21,8 +24,8 @@ export class IrisChatView {
     webview?: vscode.Webview,
     showDiagnostics: boolean = false
   ): string {
-    const themeCSS = this._themeManager.getThemeCSS();
-    const currentTheme = this._themeManager.getCurrentTheme();
+    const themeCSS = this._themeStore.css;
+    const currentTheme = this._themeStore.themeType;
     const styles = this._styleManager.getStyles(currentTheme, [
       "views/iris-chat.css",
     ]);
@@ -43,6 +46,92 @@ export class IrisChatView {
     const closeIcon = `<svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 8.707l3.646 3.647.708-.707L8.707 8l3.647-3.646-.707-.708L8 7.293 4.354 3.646l-.707.708L7.293 8l-3.646 3.646.707.708L8 8.707z"/></svg>`;
     const chevronIcon = `<svg viewBox="0 0 16 16" fill="currentColor"><path d="M7.976 10.072l4.357-4.357.62.618L8.284 11h-.618L3 6.333l.619-.618 4.357 4.357z"/></svg>`;
 
+    const burgerIcon = `
+      <span class="iris-chat__burger-icon" aria-hidden="true">
+        <span></span>
+        <span></span>
+        <span></span>
+      </span>
+    `;
+
+    const burgerMenuButton = IconButton({
+      id: "burgerMenuButton",
+      icon: burgerIcon,
+      label: "Toggle menu",
+      title: "Menu",
+      className: "iris-chat__menu-button burger-menu",
+      attributes: { onclick: "toggleSideMenu()" },
+      size: "md",
+    });
+
+    const contextSearchField = SearchField({
+      id: "contextSearchInput",
+      placeholder: "Search exercises or courses...",
+      className: "iris-chat__context-search",
+      inputClassName: "context-search-input",
+      autoComplete: "off",
+    });
+
+    const newSessionButton = Button({
+      id: "newSessionBtn",
+      label: "New Conversation",
+      variant: "secondary",
+      leadingIcon: plusIcon,
+      disabled: true,
+      className: "dropdown-action-btn",
+      attributes: { onclick: "createNewSession()" },
+    });
+
+    const workspaceButton = Button({
+      id: "workspaceContextBtn",
+      label: "Switch to Workspace",
+      variant: "secondary",
+      leadingIcon: lockIcon,
+      disabled: true,
+      className: "dropdown-action-btn",
+      attributes: { onclick: "switchToWorkspaceContext()" },
+    });
+
+    const requestSwitchButton = Button({
+      label: "Switch to Different Context",
+      variant: "ghost",
+      leadingIcon: switchIcon,
+      className: "dropdown-action-btn",
+      attributes: { onclick: "requestContextSwitch()" },
+    });
+
+    const reconnectButton = Button({
+      id: "reconnectButton",
+      label: "Reconnect",
+      variant: "secondary",
+      className: "websocket-reconnect-btn",
+      attributes: { onclick: "reconnectWebSocket()" },
+    });
+
+    const sendButton = Button({
+      id: "sendButton",
+      label: "Send",
+      variant: "primary",
+      className: "send-button",
+      disabled: true,
+    });
+
+    const helpCloseButton = IconButton({
+      icon: closeIcon,
+      label: "Close help",
+      title: "Close Help",
+      className: "iris-chat__close-button close-help-btn",
+      attributes: { onclick: "closeHelpPopup()" },
+    });
+
+    const menuCloseButton = IconButton({
+      icon: closeIcon,
+      label: "Close menu",
+      title: "Close Menu",
+      className: "iris-chat__close-button close-menu-btn",
+      attributes: { onclick: "closeSideMenu()" },
+    });
+
     // Get the path to the iris logo image
     let irisLogoSrc = "";
     if (webview) {
@@ -51,6 +140,132 @@ export class IrisChatView {
       );
       irisLogoSrc = webview.asWebviewUri(irisLogoUri).toString();
     }
+
+    const header = Toolbar({
+      leading: irisLogoSrc
+        ? `<img src="${irisLogoSrc}" alt="Iris Logo" class="iris-chat__logo chat-header-logo" />`
+        : "",
+      title: "Chat with Iris",
+      className: "iris-chat__header chat-header",
+      titleClassName: "chat-title",
+      actions: burgerMenuButton,
+    });
+
+    const contextCardBody = `
+        <div class="iris-chat__context-trigger context-bean-header" onclick="toggleContextDropdown()">
+            <div class="iris-chat__context-info context-info">
+                <span class="context-lock-icon" id="contextLockIcon" style="display: none;">${lockIcon}</span>
+                <span class="context-icon" id="contextIcon">${courseIcon}</span>
+                <div class="context-text-container">
+                    <span class="context-text" id="contextText">No context selected</span>
+                    <span class="context-subtext" id="contextSubtext" style="display: none;"></span>
+                </div>
+            </div>
+            <span class="context-dropdown-arrow" id="contextDropdownArrow">▼</span>
+        </div>
+        <div class="iris-chat__context-dropdown context-dropdown-menu" id="contextDropdownMenu" style="display: none;">
+            <div class="context-search-container iris-chat__context-search-container">
+                ${contextSearchField}
+            </div>
+            <div class="search-results-section" id="searchResultsSection" style="display: none;">
+                <div class="search-results" id="searchResults"></div>
+            </div>
+            <div class="session-section" id="sessionSection" style="display: none;">
+                <div class="dropdown-section-header">Sessions</div>
+                <div class="session-list" id="sessionList"></div>
+                <div class="dropdown-divider"></div>
+                <div class="dropdown-section">
+                    ${newSessionButton}
+                    ${workspaceButton}
+                    ${requestSwitchButton}
+                </div>
+            </div>
+            <div class="context-picker-section" id="contextPickerSection" style="display: none;">
+                <div class="context-picker-group">
+                    <div class="dropdown-section-header">Recent Exercises</div>
+                    <div class="context-list" id="recentExercisesList"></div>
+                </div>
+                <div class="context-picker-group">
+                    <div class="dropdown-section-header">Recent Courses</div>
+                    <div class="context-list" id="recentCoursesList"></div>
+                </div>
+                <div class="dropdown-divider"></div>
+                <div class="context-empty-info">
+                    Start typing to search all available exercises and courses.
+                </div>
+            </div>
+        </div>
+    `;
+
+    const contextSection = `
+        <div class="iris-chat__context-container context-bean-container" id="contextBeanContainer">
+            ${Card({
+              id: "contextBean",
+              className: "iris-chat__context context-bean",
+              body: contextCardBody,
+            })}
+        </div>
+    `;
+
+    const messagesSection = `
+        <div class="iris-chat__messages chat-messages" id="chatMessages">
+            <div class="iris-chat__welcome welcome-message">
+                <p class="iris-chat__welcome-text welcome-text">
+                    Welcome to Iris Chat!<br>
+                    Select or search for a context to begin chatting with Iris.
+                </p>
+            </div>
+        </div>
+    `;
+
+    const inputSection = `
+        <div class="iris-chat__input chat-input-container">
+            <div class="websocket-status-banner" id="websocketStatusBanner" style="display: none;">
+                <div class="websocket-status-content">
+                    <span class="websocket-status-icon">⚠️</span>
+                    <span class="websocket-status-text">WebSocket disconnected</span>
+                </div>
+                ${reconnectButton}
+            </div>
+            <div class="referenced-files-banner" id="referencedFilesBanner" style="display: none;">
+                <div class="referenced-files-header" onclick="toggleReferencedFiles()">
+                    <span class="referenced-files-icon">${fileIcon}</span>
+                    <span class="referenced-files-text" id="referencedFilesText">0 files referenced</span>
+                    <span class="referenced-files-arrow" id="referencedFilesArrow">${chevronIcon}</span>
+                </div>
+                <div class="referenced-files-list" id="referencedFilesList" style="display: none;">
+                    <!-- File list will be populated dynamically -->
+                </div>
+            </div>
+            <div class="iris-chat__composer chat-input-wrapper">
+                <textarea
+                    class="iris-chat__textarea chat-input"
+                    id="chatInput"
+                    placeholder="Select a context to start chatting"
+                    rows="1"
+                    disabled
+                    readonly
+                ></textarea>
+                ${sendButton}
+            </div>
+            <div class="iris-chat__disclaimer iris-disclaimer-banner">
+                <span class="disclaimer-text">
+                    Iris has access to your uncommitted changes (<a href="#" onclick="openUncommittedChangesSettings(); return false;" class="settings-link">configurable</a>).
+                    Iris can make mistakes. Consider verifying important information.
+                </span>
+            </div>
+        </div>
+    `;
+
+    const chatSurface = Panel({
+      className: "iris-chat__surface chat-container",
+      children: `
+        ${header}
+        ${contextSection}
+        ${messagesSection}
+        ${inputSection}
+      `,
+    });
 
     return `<!DOCTYPE html>
 <html lang="en">
@@ -63,144 +278,16 @@ export class IrisChatView {
         ${themeCSS}
     </style>
 </head>
-<body class="theme-${currentTheme}">
-    <div class="chat-container">
-        <div class="chat-header">
-            ${
-              irisLogoSrc
-                ? `<img src="${irisLogoSrc}" alt="Iris Logo" class="chat-header-logo" />`
-                : ""
-            }
-            <h1 class="chat-title">Chat with Iris</h1>
-            <button class="burger-menu" onclick="toggleSideMenu()" title="Menu">
-                <div class="burger-icon">
-                    <div class="burger-line"></div>
-                    <div class="burger-line"></div>
-                    <div class="burger-line"></div>
-                </div>
-            </button>
-        </div>
-
-        <div class="context-bean-container" id="contextBeanContainer">
-            <div class="context-bean" id="contextBean">
-                <div class="context-bean-header" onclick="toggleContextDropdown()">
-                    <div class="context-info">
-                        <span class="context-lock-icon" id="contextLockIcon" style="display: none;">${lockIcon}</span>
-                        <span class="context-icon" id="contextIcon">${courseIcon}</span>
-                        <div class="context-text-container">
-                            <span class="context-text" id="contextText">No context selected</span>
-                            <span class="context-subtext" id="contextSubtext" style="display: none;"></span>
-                        </div>
-                    </div>
-                    <span class="context-dropdown-arrow" id="contextDropdownArrow">▼</span>
-                </div>
-
-                <div class="context-dropdown-menu" id="contextDropdownMenu" style="display: none;">
-                    <div class="context-search-container">
-                        <input
-                            type="text"
-                            class="context-search-input"
-                            id="contextSearchInput"
-                            placeholder="Search exercises or courses..."
-                            autocomplete="off"
-                        />
-                    </div>
-
-                    <div class="search-results-section" id="searchResultsSection" style="display: none;">
-                        <div class="search-results" id="searchResults"></div>
-                    </div>
-
-                    <div class="session-section" id="sessionSection" style="display: none;">
-                        <div class="dropdown-section-header">Sessions</div>
-                        <div class="session-list" id="sessionList"></div>
-                        <div class="dropdown-divider"></div>
-                        <div class="dropdown-section">
-                            <button class="dropdown-action-btn" id="newSessionBtn" onclick="createNewSession()" disabled>
-                                <span class="button-icon">${plusIcon}</span> New Conversation
-                            </button>
-                            <button class="dropdown-action-btn" id="workspaceContextBtn" onclick="switchToWorkspaceContext()" disabled>
-                                <span class="button-icon">${lockIcon}</span> Switch to Workspace
-                            </button>
-                            <button class="dropdown-action-btn" onclick="requestContextSwitch()">
-                                <span class="button-icon">${switchIcon}</span> Switch to Different Context
-                            </button>
-                        </div>
-                    </div>
-
-                    <div class="context-picker-section" id="contextPickerSection" style="display: none;">
-                        <div class="context-picker-group">
-                            <div class="dropdown-section-header">Recent Exercises</div>
-                            <div class="context-list" id="recentExercisesList"></div>
-                        </div>
-                        <div class="context-picker-group">
-                            <div class="dropdown-section-header">Recent Courses</div>
-                            <div class="context-list" id="recentCoursesList"></div>
-                        </div>
-                        <div class="dropdown-divider"></div>
-                        <div class="context-empty-info">
-                            Start typing to search all available exercises and courses.
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <div class="chat-messages" id="chatMessages">
-            <div class="welcome-message">
-                <p class="welcome-text">
-                    Welcome to Iris Chat!<br>
-                    Select or search for a context to begin chatting with Iris.
-                </p>
-            </div>
-        </div>
-
-        <div class="chat-input-container">
-            <div class="websocket-status-banner" id="websocketStatusBanner" style="display: none;">
-                <div class="websocket-status-content">
-                    <span class="websocket-status-icon">⚠️</span>
-                    <span class="websocket-status-text">WebSocket disconnected</span>
-                </div>
-                <button class="websocket-reconnect-btn" id="reconnectButton" onclick="reconnectWebSocket()">
-                    Reconnect
-                </button>
-            </div>
-            <div class="referenced-files-banner" id="referencedFilesBanner" style="display: none;">
-                <div class="referenced-files-header" onclick="toggleReferencedFiles()">
-                    <span class="referenced-files-icon">${fileIcon}</span>
-                    <span class="referenced-files-text" id="referencedFilesText">0 files referenced</span>
-                    <span class="referenced-files-arrow" id="referencedFilesArrow">${chevronIcon}</span>
-                </div>
-                <div class="referenced-files-list" id="referencedFilesList" style="display: none;">
-                    <!-- File list will be populated dynamically -->
-                </div>
-            </div>
-            <div class="chat-input-wrapper">
-                <textarea
-                    class="chat-input"
-                    id="chatInput"
-                    placeholder="Select a context to start chatting"
-                    rows="1"
-                    disabled
-                    readonly
-                ></textarea>
-                <button class="send-button" id="sendButton" disabled>
-                    Send
-                </button>
-            </div>
-            <div class="iris-disclaimer-banner">
-                <span class="disclaimer-text">
-                    Iris has access to your uncommitted changes (<a href="#" onclick="openUncommittedChangesSettings(); return false;" class="settings-link">configurable</a>).
-                    Iris can make mistakes. Consider verifying important information. 
-                </span>
-            </div>
-        </div>
+<body class="iris-theme theme-${currentTheme}">
+    <div class="iris-chat">
+        ${chatSurface}
     </div>
 
     <div class="help-overlay" id="helpOverlay" onclick="closeHelpPopup()"></div>
     <div class="help-popup" id="helpPopup">
         <div class="help-popup-header">
             <h2 class="help-popup-title">Chat Context Guide</h2>
-            <button class="close-help-btn" onclick="closeHelpPopup()" title="Close Help">×</button>
+            ${helpCloseButton}
         </div>
         <div class="help-popup-content">
             <p class="help-intro">
@@ -245,7 +332,7 @@ export class IrisChatView {
     <div class="side-menu" id="sideMenu">
         <div class="side-menu-header">
             <h3 class="side-menu-title">Menu</h3>
-            <button class="close-menu-btn" onclick="closeSideMenu()" title="Close Menu">×</button>
+            ${menuCloseButton}
         </div>
         <div class="side-menu-content">
             <div class="menu-section">
@@ -257,8 +344,14 @@ export class IrisChatView {
                         <div class="menu-item-description">Clear local data and reload from server</div>
                     </div>
                 </div>
+                <div class="menu-item destructive" onclick="clearHistory()">
+                    ${trashIcon}
+                    <div class="menu-item-content">
+                        <div class="menu-item-title">Clear Chat History</div>
+                        <div class="menu-item-description">Remove stored Iris conversations</div>
+                    </div>
+                </div>
             </div>
-
             <div class="menu-section">
                 <h4 class="menu-section-title">Help</h4>
                 <div class="menu-item" onclick="openHelpPopup()">
@@ -289,7 +382,6 @@ export class IrisChatView {
                     : ""
                 }
             </div>
-
             <div class="menu-section">
                 <h4 class="menu-section-title">About</h4>
                 <div class="menu-info">

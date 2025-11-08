@@ -1,79 +1,10 @@
 body.theme-modern {
-  --theme-background: var(--vscode-editor-background);
-  --theme-foreground: var(--vscode-foreground);
-  --theme-card-background: var(--vscode-sideBar-background);
-  --theme-border: var(--vscode-sideBar-border);
-  --theme-border-color: var(--vscode-sideBar-border);
-  --theme-background-secondary: rgba(255, 255, 255, 0.04);
-  --theme-secondary-background: rgba(255, 255, 255, 0.06);
-  --theme-tertiary-background: rgba(255, 255, 255, 0.08);
+  background-color: var(--iris-color-background-app);
+  background-image: radial-gradient(circle at top left, rgba(99, 102, 241, 0.15), transparent 45%),
+    radial-gradient(circle at bottom right, rgba(56, 189, 248, 0.12), transparent 40%);
+}
 
-  --theme-button-background: var(--vscode-button-background);
-  --theme-button-foreground: var(--vscode-button-foreground);
-  --theme-button-hover: var(--vscode-button-hoverBackground);
-  --theme-button-hover-background: var(--vscode-button-hoverBackground);
-  --theme-button-active: var(--vscode-button-hoverBackground);
-
-  --theme-input-background: var(--vscode-input-background);
-  --theme-input-foreground: var(--vscode-input-foreground);
-  --theme-input-border: var(--vscode-input-border);
-  --theme-input-focus: var(--vscode-focusBorder);
-
-  --theme-success: var(--vscode-terminal-ansiGreen);
-  --theme-success-rgb: 63, 185, 80;
-  --theme-error: var(--vscode-errorForeground);
-  --theme-info: var(--vscode-terminal-ansiBlue);
-  --theme-warning: var(--vscode-editorWarning-foreground);
-
-  /* Status backgrounds and borders */
-  --theme-success-background: rgba(38, 166, 91, 0.12);
-  --theme-success-border: rgba(38, 166, 91, 0.4);
-  --theme-success-foreground: var(--vscode-testing-iconPassed);
-  --theme-error-background: rgba(229, 83, 83, 0.12);
-  --theme-error-border: rgba(229, 83, 83, 0.4);
-  --theme-error-foreground: var(--vscode-problemsErrorIcon-foreground);
-  --theme-info-background: rgba(71, 155, 255, 0.12);
-  --theme-info-border: rgba(71, 155, 255, 0.4);
-  --theme-info-foreground: var(--vscode-problemsInfoIcon-foreground);
-  --theme-warning-background: rgba(255, 179, 71, 0.12);
-  --theme-warning-border: rgba(255, 179, 71, 0.4);
-  --theme-warning-foreground: var(--vscode-problemsWarningIcon-foreground);
-
-  /* Code elements */
-  --theme-code-background: var(--vscode-editor-inactiveSelectionBackground);
-  --theme-code-foreground: var(--vscode-editor-foreground);
-  --theme-font-family-mono: var(--vscode-editor-font-family);
-
-  /* Button shadows */
-  --theme-button-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-  --theme-button-shadow-hover: 0 4px 12px rgba(0, 0, 0, 0.15);
-
-  --theme-container-padding: 28px;
-  --theme-container-radius: 12px;
-  --theme-element-spacing: 24px;
-  --theme-form-spacing: 18px;
-
-  --theme-box-shadow: none;
-  --theme-backdrop: none;
-  --theme-transition: all 0.15s ease-in-out;
-
-  --theme-font-family: var(--vscode-font-family);
-  --theme-font-size: 14px;
-  --theme-font-weight: 500;
-  --theme-line-height: 1.5;
-  --theme-monospace-font: var(--vscode-terminal-fontFamily, 'Courier New', monospace);
-
-  --theme-link-color: var(--vscode-textLink-foreground);
-  --theme-link-hover: var(--vscode-textLink-activeForeground);
-  --theme-hover-background: rgba(255, 255, 255, 0.08);
-
-  --theme-muted: rgba(255, 255, 255, 0.65);
-  --theme-muted-color: rgba(255, 255, 255, 0.65);
-  --theme-muted-foreground: rgba(255, 255, 255, 0.7);
-
-  --theme-primary-color: var(--vscode-focusBorder);
-  --theme-primary-color-rgb: 0, 122, 255;
-  --theme-accent: var(--vscode-textLink-activeForeground);
-  --theme-accent-background: var(--theme-button-background);
-  --theme-accent-foreground: var(--theme-button-foreground);
+body.theme-modern .iris-card,
+body.theme-modern .iris-panel--elevated {
+  backdrop-filter: blur(6px);
 }

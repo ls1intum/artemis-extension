@@ -1,79 +1,10 @@
 body.theme-synthwave {
-  --theme-background: linear-gradient(135deg, #0f0c29 0%, #302b63 35%, #24243e 100%);
-  --theme-foreground: #ff006e;
-  --theme-card-background: rgba(15, 12, 41, 0.9);
-  --theme-border: #ff006e;
-  --theme-border-color: #ff006e;
-  --theme-background-secondary: rgba(15, 12, 41, 0.85);
-  --theme-secondary-background: rgba(15, 12, 41, 0.78);
-  --theme-tertiary-background: rgba(15, 12, 41, 0.65);
+  background: radial-gradient(circle at top right, rgba(255, 113, 240, 0.35), transparent 55%),
+    radial-gradient(circle at bottom left, rgba(102, 217, 255, 0.25), transparent 55%),
+    var(--iris-color-background-app);
+}
 
-  --theme-button-background: linear-gradient(135deg, #ff006e 0%, #8338ec 100%);
-  --theme-button-foreground: #ffffff;
-  --theme-button-hover: linear-gradient(135deg, #ff1f8f 0%, #9d4edd 100%);
-  --theme-button-hover-background: linear-gradient(135deg, #ff1f8f 0%, #9d4edd 100%);
-  --theme-button-active: linear-gradient(135deg, #d90459 0%, #7209b7 100%);
-
-  --theme-input-background: rgba(15, 12, 41, 0.8);
-  --theme-input-foreground: #00f5ff;
-  --theme-input-border: #00f5ff;
-  --theme-input-focus: #ff006e;
-
-  --theme-success: #39ff14;
-  --theme-success-rgb: 57, 255, 20;
-  --theme-error: #ff073a;
-  --theme-info: #00f5ff;
-  --theme-warning: #ffbd39;
-
-  /* Status backgrounds and borders */
-  --theme-success-background: rgba(57, 255, 20, 0.15);
-  --theme-success-border: rgba(57, 255, 20, 0.5);
-  --theme-success-foreground: #39ff14;
-  --theme-error-background: rgba(255, 7, 58, 0.15);
-  --theme-error-border: rgba(255, 7, 58, 0.5);
-  --theme-error-foreground: #ff073a;
-  --theme-info-background: rgba(0, 245, 255, 0.15);
-  --theme-info-border: rgba(0, 245, 255, 0.5);
-  --theme-info-foreground: #00f5ff;
-  --theme-warning-background: rgba(255, 189, 57, 0.15);
-  --theme-warning-border: rgba(255, 189, 57, 0.5);
-  --theme-warning-foreground: #ffbd39;
-
-  /* Code elements */
-  --theme-code-background: rgba(0, 245, 255, 0.1);
-  --theme-code-foreground: #00f5ff;
-  --theme-font-family-mono: "Courier New", Consolas, "SF Mono", Monaco, monospace;
-
-  /* Button shadows */
-  --theme-button-shadow: 0 0 20px rgba(255, 0, 110, 0.4);
-  --theme-button-shadow-hover: 0 0 30px rgba(255, 0, 110, 0.6);
-
-  --theme-container-padding: 24px;
-  --theme-container-radius: 8px;
-  --theme-element-spacing: 20px;
-  --theme-form-spacing: 16px;
-
-  --theme-box-shadow: 0 0 20px rgba(255, 0, 110, 0.4), inset 0 0 20px rgba(0, 245, 255, 0.1);
-  --theme-backdrop: blur(8px);
-  --theme-transition: all 0.3s ease-in-out;
-
-  --theme-font-family: "Courier New", Consolas, "SF Mono", Monaco, monospace;
-  --theme-font-size: 14px;
-  --theme-font-weight: 500;
-  --theme-line-height: 1.6;
-  --theme-monospace-font: "Courier New", Consolas, "SF Mono", Monaco, monospace;
-
-  --theme-link-color: #00f5ff;
-  --theme-link-hover: #ff006e;
-  --theme-hover-background: rgba(255, 0, 110, 0.16);
-
-  --theme-muted: rgba(255, 255, 255, 0.75);
-  --theme-muted-color: rgba(255, 255, 255, 0.7);
-  --theme-muted-foreground: rgba(255, 255, 255, 0.75);
-
-  --theme-primary-color: #ff006e;
-  --theme-primary-color-rgb: 255, 0, 110;
-  --theme-accent: #ff006e;
-  --theme-accent-background: linear-gradient(135deg, #ff006e 0%, #8338ec 100%);
-  --theme-accent-foreground: #ffffff;
+body.theme-synthwave .iris-panel,
+body.theme-synthwave .iris-card {
+  border-color: rgba(255, 113, 240, 0.32);
 }

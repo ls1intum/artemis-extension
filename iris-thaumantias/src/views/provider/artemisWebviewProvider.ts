@@ -15,6 +15,7 @@ import { CourseDetailView } from '../templates/courseDetailView';
 import { StyleManager } from '../styles';
 import { ExerciseRegistry } from './exerciseRegistry';
 import { WebSocketMessageHandler, ResultDTO, ProgrammingSubmission, SubmissionProcessingMessage } from '../../types';
+import { ThemeStore } from '../../theme';
 
 export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebViewActionHandler {
     public static readonly viewType = CONFIG.WEBVIEW.VIEW_TYPE;
@@ -34,7 +35,8 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
         private readonly _extensionContext: vscode.ExtensionContext,
         private readonly _authManager: AuthManager,
         private readonly _artemisApi: ArtemisApiService,
-    ) { 
+        private readonly _themeStore: ThemeStore,
+    ) {
         this._appStateManager = new AppStateManager(this._artemisApi);
         this._viewActionService = new ViewActionService(this._appStateManager);
         this._messageHandler = new WebViewMessageHandler(
@@ -44,6 +46,13 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
             this
         );
         this._styleManager = new StyleManager(this._extensionUri);
+
+        const unsubscribe = this._themeStore.subscribe(() => {
+            if (this._view) {
+                this.render();
+            }
+        });
+        this._extensionContext.subscriptions.push(new vscode.Disposable(unsubscribe));
     }
 
     /**
@@ -137,7 +146,7 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
         this._view = webviewView;
 
         // Initialize the ViewRouter now that we have the webview
-        this._viewRouter = new ViewRouter(this._appStateManager, this._extensionContext, webviewView.webview);
+        this._viewRouter = new ViewRouter(this._appStateManager, this._extensionContext, this._themeStore, webviewView.webview);
 
         webviewView.webview.options = {
             // Allow scripts in the webview
@@ -174,9 +183,12 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
 
         // Listen for configuration changes to re-render when settings change
         vscode.workspace.onDidChangeConfiguration(event => {
-            if (event.affectsConfiguration('artemis.hideDeveloperTools') || 
-                event.affectsConfiguration('artemis.theme')) {
+            if (event.affectsConfiguration('artemis.hideDeveloperTools')) {
                 this.render();
+            }
+
+            if (event.affectsConfiguration('artemis.theme')) {
+                this._themeStore.refreshFromConfiguration();
             }
         });
     }
@@ -410,7 +422,7 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
             viewId: 'exerciseFullscreen',
             title: `Exercise: ${exerciseData.exercise?.title || exerciseData.title || 'Untitled'}`,
             detailHtml: () => {
-                const detailView = new ExerciseDetailView(this._extensionContext, this._styleManager);
+                const detailView = new ExerciseDetailView(this._themeStore, this._extensionContext, this._styleManager);
                 return detailView.generateHtml(exerciseData, this.shouldHideDeveloperTools());
             },
             cssInjections: [
@@ -443,7 +455,7 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
             viewId: 'courseFullscreen',
             title: `Course: ${courseData.course?.title || courseData.title || 'Untitled'}`,
             detailHtml: () => {
-                const detailView = new CourseDetailView(this._extensionContext, this._styleManager);
+                const detailView = new CourseDetailView(this._themeStore, this._extensionContext, this._styleManager);
                 return detailView.generateHtml(courseData, this.shouldHideDeveloperTools());
             },
             cssInjections: [

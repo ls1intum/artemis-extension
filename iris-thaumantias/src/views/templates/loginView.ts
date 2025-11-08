@@ -1,4 +1,4 @@
-import { ThemeManager } from '../../themes';
+import { ThemeStore } from '../../theme';
 import { StyleManager } from '../styles';
 import { ServiceHealthComponent } from '../components/serviceHealthComponent';
 
@@ -6,17 +6,17 @@ import { ServiceHealthComponent } from '../components/serviceHealthComponent';
  * Renders the login view for the Artemis webview.
  */
 export class LoginView {
-    private readonly _themeManager: ThemeManager;
+    private readonly _themeStore: ThemeStore;
     private readonly _styleManager: StyleManager;
 
-    constructor(styleManager: StyleManager) {
-        this._themeManager = new ThemeManager();
+    constructor(themeStore: ThemeStore, styleManager: StyleManager) {
+        this._themeStore = themeStore;
         this._styleManager = styleManager;
     }
 
     public generateHtml(): string {
-        const themeCSS = this._themeManager.getThemeCSS();
-        const currentTheme = this._themeManager.getCurrentTheme();
+        const themeCSS = this._themeStore.css;
+        const currentTheme = this._themeStore.themeType;
         const styles = this._styleManager.getStyles(currentTheme, [
             'views/login.css',
             'components/service-health.css',
