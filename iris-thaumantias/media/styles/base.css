@@ -4,6 +4,47 @@
 
 body {
   margin: 0;
-  font-family: sans-serif;
+  font-family: var(--iris-font-family-body, 'Inter', 'Segoe UI', sans-serif);
+  font-size: var(--iris-font-size-base);
+  line-height: var(--iris-line-height-base);
+  background-color: var(--iris-color-background-app);
+  color: var(--iris-color-text-primary);
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
 }
 
+a {
+  color: var(--iris-color-text-link);
+  text-decoration: none;
+  transition: var(--iris-transition-interactive);
+}
+
+a:hover {
+  color: var(--iris-color-text-link-hover);
+  text-decoration: underline;
+}
+
+p {
+  margin: 0 0 var(--iris-space-md);
+}
+
+ul,
+ol {
+  margin: 0 0 var(--iris-space-md);
+  padding-left: calc(var(--iris-space-xl));
+}
+
+* {
+  box-sizing: border-box;
+}
+
+button,
+input,
+textarea {
+  font-family: inherit;
+}
+
+::selection {
+  background: var(--iris-color-text-accent);
+  color: var(--iris-color-text-inverse);
+}

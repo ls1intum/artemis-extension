@@ -2,6 +2,7 @@
 // Import the module and reference it with the alias vscode in your code below
 import * as vscode from 'vscode';
 import { ArtemisWebviewProvider, ChatWebviewProvider } from './views';
+import { ThemeStore } from './theme';
 import { AuthManager } from './auth';
 import { ArtemisApiService } from './api';
 import { ArtemisWebsocketService } from './services';
@@ -15,10 +16,11 @@ export async function activate(context: vscode.ExtensionContext) {
 	// This line of code will only be executed once when your extension is activated
 	console.log('Congratulations, your extension "iris-thaumantias" is now active!');
 
-	// Initialize the auth manager and API service
-	const authManager = new AuthManager(context);
-	const artemisApiService = new ArtemisApiService(authManager);
-	const artemisWebsocketService = new ArtemisWebsocketService(authManager);
+        // Initialize the auth manager and API service
+        const authManager = new AuthManager(context);
+        const artemisApiService = new ArtemisApiService(authManager);
+        const artemisWebsocketService = new ArtemisWebsocketService(authManager);
+        const themeStore = new ThemeStore();
 
 
 	// Helper function to update authentication context
@@ -76,7 +78,13 @@ export async function activate(context: vscode.ExtensionContext) {
 	await initializeAuthContext();
 
 	// Register the Artemis login view provider with dependencies
-	const artemisWebviewProvider = new ArtemisWebviewProvider(context.extensionUri, context, authManager, artemisApiService);
+        const artemisWebviewProvider = new ArtemisWebviewProvider(
+                context.extensionUri,
+                context,
+                authManager,
+                artemisApiService,
+                themeStore,
+        );
 
 	// Pass the auth context updater to the webview provider
 	artemisWebviewProvider.setAuthContextUpdater(updateAuthContext);
@@ -89,7 +97,13 @@ export async function activate(context: vscode.ExtensionContext) {
 	);
 
 	// Register the Chat view provider
-	const chatWebviewProvider = new ChatWebviewProvider(context.extensionUri, context, artemisApiService, artemisWebsocketService);
+        const chatWebviewProvider = new ChatWebviewProvider(
+                context.extensionUri,
+                context,
+                artemisApiService,
+                artemisWebsocketService,
+                themeStore,
+        );
 	context.subscriptions.push(
 		vscode.window.registerWebviewViewProvider(ChatWebviewProvider.viewType, chatWebviewProvider)
 	);

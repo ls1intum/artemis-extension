@@ -1,16 +1,16 @@
 import * as vscode from 'vscode';
-import { ThemeManager } from '../../themes';
+import { ThemeStore } from '../../theme';
 import { IconDefinitions } from '../../utils';
 import { StyleManager } from '../styles';
 import { BackLinkComponent } from '../components/backLinkComponent';
 
 export class ExerciseDetailView {
-    private _themeManager: ThemeManager;
+    private readonly _themeStore: ThemeStore;
     private _extensionContext: vscode.ExtensionContext;
     private _styleManager: StyleManager;
 
-    constructor(extensionContext: vscode.ExtensionContext, styleManager: StyleManager) {
-        this._themeManager = new ThemeManager();
+    constructor(themeStore: ThemeStore, extensionContext: vscode.ExtensionContext, styleManager: StyleManager) {
+        this._themeStore = themeStore;
         this._extensionContext = extensionContext;
         this._styleManager = styleManager;
     }
@@ -61,8 +61,8 @@ export class ExerciseDetailView {
     }
 
     public generateHtml(exerciseData: any, hideDeveloperTools: boolean = false): string {
-        const themeCSS = this._themeManager.getThemeCSS();
-        const currentTheme = this._themeManager.getCurrentTheme();
+        const themeCSS = this._themeStore.css;
+        const currentTheme = this._themeStore.themeType;
         const styles = this._styleManager.getStyles(currentTheme, [
             'views/exercise-detail.css'
         ]);

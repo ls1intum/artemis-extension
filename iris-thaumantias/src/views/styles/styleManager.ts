@@ -1,6 +1,6 @@
 import * as fs from 'fs';
 import * as vscode from 'vscode';
-import { ThemeType } from '../../themes';
+import { ThemeType } from '../../theme';
 
 export class StyleManager {
     constructor(private readonly _extensionUri: vscode.Uri) {}
@@ -8,6 +8,7 @@ export class StyleManager {
     public getStyles(theme: ThemeType, additionalPaths: string[] = []): string {
         const defaultPaths = [
             'base.css',
+            'components/primitives.css',
             `themes/theme-${theme}.css`,
         ];
 

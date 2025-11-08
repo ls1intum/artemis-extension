@@ -10,6 +10,7 @@ import { LoginView } from '../templates/loginView';
 import { ServiceStatusView } from '../templates/serviceStatusView';
 import { RecommendedExtensionsView } from '../templates/recommendedExtensionsView';
 import { GitCredentialsView } from '../templates/gitCredentialsView';
+import { ThemeStore } from '../../theme';
 
 /**
  * Maps application state to the appropriate webview HTML.
@@ -29,20 +30,21 @@ export class ViewRouter {
     constructor(
         private readonly _appStateManager: AppStateManager,
         private readonly _extensionContext: vscode.ExtensionContext,
-        private readonly _webview?: vscode.Webview
+        private readonly _themeStore: ThemeStore,
+        private readonly _webview?: vscode.Webview,
     ) {
         // Initialize view templates with extension context
         this._styleManager = new StyleManager(this._extensionContext.extensionUri);
 
-        this._loginView = new LoginView(this._styleManager);
-        this._dashboardView = new DashboardView(this._extensionContext, this._styleManager);
-        this._courseListView = new CourseListView(this._styleManager);
-        this._courseDetailView = new CourseDetailView(this._extensionContext, this._styleManager);
-        this._exerciseDetailView = new ExerciseDetailView(this._extensionContext, this._styleManager);
-        this._aiCheckerView = new AiCheckerView(this._extensionContext, this._styleManager);
-        this._serviceStatusView = new ServiceStatusView(this._extensionContext, this._styleManager);
-        this._recommendedExtensionsView = new RecommendedExtensionsView(this._styleManager);
-        this._gitCredentialsView = new GitCredentialsView(this._extensionContext, this._styleManager);
+        this._loginView = new LoginView(this._themeStore, this._styleManager);
+        this._dashboardView = new DashboardView(this._themeStore, this._extensionContext, this._styleManager);
+        this._courseListView = new CourseListView(this._themeStore, this._styleManager);
+        this._courseDetailView = new CourseDetailView(this._themeStore, this._extensionContext, this._styleManager);
+        this._exerciseDetailView = new ExerciseDetailView(this._themeStore, this._extensionContext, this._styleManager);
+        this._aiCheckerView = new AiCheckerView(this._themeStore, this._extensionContext, this._styleManager);
+        this._serviceStatusView = new ServiceStatusView(this._themeStore, this._extensionContext, this._styleManager);
+        this._recommendedExtensionsView = new RecommendedExtensionsView(this._themeStore, this._styleManager);
+        this._gitCredentialsView = new GitCredentialsView(this._themeStore, this._extensionContext, this._styleManager);
     }
 
     public getHtml(): string {
