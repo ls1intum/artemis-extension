@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import { ThemeManager } from '../../themes';
 import { IconDefinitions } from '../../utils';
 import { StyleManager } from '../styles';
+import { BackLinkComponent } from '../components/backLinkComponent';
 
 export class ExerciseDetailView {
     private _themeManager: ThemeManager;
@@ -87,9 +88,7 @@ export class ExerciseDetailView {
 
 </head>
 <body class="theme-${currentTheme}">
-    <div class="back-link-container">
-        <div class="back-link" onclick="backToCourseDetails()">← Back to Course</div>
-    </div>
+    ${BackLinkComponent.generateHtml({ command: 'backToCourseDetails', label: '← Back to Course' })}
     
     <div class="empty-state">
         <h2>Exercise Details</h2>
@@ -99,9 +98,7 @@ export class ExerciseDetailView {
     <script>
         const vscode = acquireVsCodeApi();
         
-        window.backToCourseDetails = function() {
-            vscode.postMessage({ command: 'backToCourseDetails' });
-        };
+        ${BackLinkComponent.generateScript()}
     </script>
 </body>
 </html>`;
@@ -222,9 +219,15 @@ export class ExerciseDetailView {
             const separators = separatorRow.trim().split('|').filter((cell: string) => cell.trim());
             const alignments = separators.map((sep: string) => {
                 const trimmed = sep.trim();
-                if (trimmed.startsWith(':') && trimmed.endsWith(':')) return 'center';
-                if (trimmed.endsWith(':')) return 'right';
-                if (trimmed.startsWith(':')) return 'left';
+                if (trimmed.startsWith(':') && trimmed.endsWith(':')) {
+                    return 'center';
+                }
+                if (trimmed.endsWith(':')) {
+                    return 'right';
+                }
+                if (trimmed.startsWith(':')) {
+                    return 'left';
+                }
                 return '';
             });
             
@@ -390,7 +393,7 @@ export class ExerciseDetailView {
 </head>
 <body class="theme-${currentTheme}">
     <div class="back-link-container">
-        <div class="back-link" onclick="backToCourseDetails()">← Back to Course</div>
+        ${BackLinkComponent.generateHtml({ command: 'backToCourseDetails', label: '← Back to Course', wrap: false })}
         <button class="fullscreen-btn" id="fullscreenBtn" onclick="toggleFullscreen()" title="Open exercise in new editor tab">
             ⛶
         </button>
@@ -940,9 +943,7 @@ export class ExerciseDetailView {
             });
         }
         
-        window.backToCourseDetails = function() {
-            vscode.postMessage({ command: 'backToCourseDetails' });
-        };
+        ${BackLinkComponent.generateScript()}
         
         // PlantUML render function
         window.renderPlantUmlDiagrams = function() {

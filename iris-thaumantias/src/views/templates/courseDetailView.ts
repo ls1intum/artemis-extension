@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import { ThemeManager } from '../../themes';
 import { IconDefinitions } from '../../utils';
 import { StyleManager } from '../styles';
+import { BackLinkComponent } from '../components/backLinkComponent';
 
 export class CourseDetailView {
     private _themeManager: ThemeManager;
@@ -49,15 +50,13 @@ export class CourseDetailView {
     <div class="empty-state">
         <h2>Course Details</h2>
         <p>Select a course to view its details</p>
-    <div class="back-link" onclick="backToDashboard()">← Back to Dashboard</div>
+    ${BackLinkComponent.generateHtml({ wrap: false })}
     </div>
     
     <script>
         const vscode = acquireVsCodeApi();
         
-        window.backToDashboard = function() {
-            vscode.postMessage({ command: 'backToDashboard' });
-        };
+        ${BackLinkComponent.generateScript()}
     </script>
 </body>
 </html>`;
@@ -130,7 +129,7 @@ export class CourseDetailView {
 </head>
 <body class="theme-${currentTheme}">
     <div class="back-link-container">
-        <div class="back-link" onclick="backToDashboard()">← Back to Dashboard</div>
+        ${BackLinkComponent.generateHtml({ wrap: false })}
         <button class="fullscreen-btn" id="fullscreenBtn" onclick="toggleFullscreen()" title="Open course in new editor tab">
             ⛶
         </button>
@@ -197,9 +196,7 @@ export class CourseDetailView {
         const courseData = ${JSON.stringify(courseData)};
         const askIrisButton = document.getElementById('askIrisAboutCourseBtn');
         
-        window.backToDashboard = function() {
-            vscode.postMessage({ command: 'backToDashboard' });
-        };
+        ${BackLinkComponent.generateScript()}
         
         if (askIrisButton) {
             askIrisButton.addEventListener('click', () => {

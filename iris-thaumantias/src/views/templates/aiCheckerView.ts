@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import { ThemeManager } from '../../themes';
 import { AiExtension } from '../app/appStateManager';
 import { StyleManager } from '../styles';
+import { BackLinkComponent } from '../components/backLinkComponent';
 
 interface ProviderGroup {
     provider: string;
@@ -103,9 +104,7 @@ export class AiCheckerView {
 </head>
 <body class="theme-${currentTheme}">
     <div class="ai-checker-container">
-        <div class="back-link-container">
-            <div class="back-link" onclick="backToDashboard()">← Back to Dashboard</div>
-        </div>
+        ${BackLinkComponent.generateHtml()}
         
         <div class="header">
             <div class="header-content">
@@ -159,9 +158,7 @@ export class AiCheckerView {
     <script>
         const vscode = acquireVsCodeApi();
 
-        function backToDashboard() {
-            vscode.postMessage({ command: 'backToDashboard' });
-        }
+        ${BackLinkComponent.generateScript()}
 
         function refreshExtensions() {
             vscode.postMessage({ command: 'showAiConfig' });

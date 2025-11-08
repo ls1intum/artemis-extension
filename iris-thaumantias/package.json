@@ -77,7 +77,8 @@
         {
           "type": "webview",
           "id": "artemis.loginView",
-          "name": "Artemis"
+          "name": "Artemis",
+          "icon": "media/artemis-logo.png"
         }
       ],
       "iris-chat": [
@@ -85,6 +86,7 @@
           "type": "webview",
           "id": "iris.chatView",
           "name": "Chat",
+          "icon": "media/iris-monochrome.png",
           "when": "iris:authenticated == true"
         }
       ]

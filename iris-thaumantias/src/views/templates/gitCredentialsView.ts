@@ -3,6 +3,7 @@ import { ThemeManager } from '../../themes';
 import { IconDefinitions } from '../../utils/iconDefinitions';
 import type { UserInfo } from '../app/appStateManager';
 import { StyleManager } from '../styles';
+import { BackLinkComponent } from '../components/backLinkComponent';
 
 export class GitCredentialsView {
     private readonly _themeManager: ThemeManager;
@@ -37,9 +38,7 @@ export class GitCredentialsView {
     </style>
 </head>
 <body class="theme-${currentTheme}">
-    <div class="back-link-container">
-        <div class="back-link" onclick="backToDashboard()">← Back to Dashboard</div>
-    </div>
+    ${BackLinkComponent.generateHtml()}
 
     <div class="git-credentials-container">
         <header class="view-header">
@@ -123,9 +122,7 @@ export class GitCredentialsView {
             statusMessage.classList.toggle('visible', Boolean(message));
         };
 
-        window.backToDashboard = function() {
-            vscode.postMessage({ command: 'backToDashboard' });
-        };
+        ${BackLinkComponent.generateScript()}
 
         window.copyCommand = function(command) {
             vscode.postMessage({ 

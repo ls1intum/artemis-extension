@@ -1,5 +1,6 @@
 import { ThemeManager } from '../../themes';
 import { StyleManager } from '../styles';
+import { BackLinkComponent } from '../components/backLinkComponent';
 
 export class CourseListView {
     private _themeManager: ThemeManager;
@@ -128,9 +129,7 @@ export class CourseListView {
     
 </head>
 <body class="theme-${currentTheme}">
-    <div class="back-link-container">
-        <div class="back-link" onclick="backToDashboard()">← Back to Dashboard</div>
-    </div>
+    ${BackLinkComponent.generateHtml()}
     
     <div class="header">
         <h1>All Courses</h1>
@@ -206,9 +205,7 @@ export class CourseListView {
     <script>
         const vscode = acquireVsCodeApi();
         
-        window.backToDashboard = function() {
-            vscode.postMessage({ command: 'backToDashboard' });
-        };
+        ${BackLinkComponent.generateScript()}
         
         window.reloadCourses = function() {
             vscode.postMessage({ command: 'reloadCourses' });

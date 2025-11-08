@@ -1,6 +1,7 @@
 import { ThemeManager } from '../../themes';
 import { StyleManager } from '../styles';
 import type { RecommendedExtensionCategory } from '../../utils/recommendedExtensions';
+import { BackLinkComponent } from '../components/backLinkComponent';
 
 export class RecommendedExtensionsView {
     private readonly _themeManager: ThemeManager;
@@ -39,9 +40,7 @@ export class RecommendedExtensionsView {
 </head>
 <body class="theme-${currentTheme}">
     <div class="recommended-container">
-        <div class="back-link-container">
-            <div class="back-link" id="backToDashboardLink">← Back to Dashboard</div>
-        </div>
+        ${BackLinkComponent.generateHtml()}
         <div class="view-header">
             <h1 class="view-title">Recommended Extensions</h1>
             <p class="view-subtitle">Improve your Artemis workflow with curated VS Code extensions.</p>
@@ -53,12 +52,7 @@ export class RecommendedExtensionsView {
     <script>
         const vscode = acquireVsCodeApi();
 
-        const backLink = document.getElementById('backToDashboardLink');
-        if (backLink) {
-            backLink.addEventListener('click', () => {
-                vscode.postMessage({ command: 'backToDashboard' });
-            });
-        }
+        ${BackLinkComponent.generateScript()}
 
         document.querySelectorAll('.marketplace-button').forEach(button => {
             button.addEventListener('click', event => {

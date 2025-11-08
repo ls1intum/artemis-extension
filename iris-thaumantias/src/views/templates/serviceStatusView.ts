@@ -3,6 +3,7 @@ import { ThemeManager } from '../../themes';
 import { IconDefinitions } from '../../utils/iconDefinitions';
 import { ServiceHealthComponent } from '../components/serviceHealthComponent';
 import { StyleManager } from '../styles';
+import { BackLinkComponent } from '../components/backLinkComponent';
 
 export class ServiceStatusView {
     private _themeManager: ThemeManager;
@@ -45,9 +46,7 @@ export class ServiceStatusView {
 </head>
 <body class="theme-${currentTheme}">
     <div class="service-status-container">
-        <div class="back-link-container">
-            <div class="back-link" onclick="backToDashboard()">← Back to Dashboard</div>
-        </div>
+        ${BackLinkComponent.generateHtml()}
         
         <div class="header">
             <h1 class="header-title">
@@ -71,10 +70,7 @@ export class ServiceStatusView {
         // Initialize Service Health Component
         ${ServiceHealthComponent.generateScript()}
         
-        // Back to dashboard handler
-        window.backToDashboard = function() {
-            vscode.postMessage({ command: 'backToDashboard' });
-        };
+        ${BackLinkComponent.generateScript()}
     </script>
 </body>
 </html>`;
