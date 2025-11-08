@@ -6,6 +6,9 @@ All notable changes to the Artemis VS Code extension will be documented in this 
 
 ### Added
 
+- **Build Error Navigation**: Automatic navigation to build errors when submissions fail
+  - "Go to source →" button appears when build fails, jumps directly to error location
+  - CodeLens displays error message above the problematic line in your code
 - **Default Clone Path Setting**: Configure a default folder for automatically cloning all exercise repositories without prompting each time
 - **Live Referenced Files Display**: Iris chat now shows real-time file status information
   - **Live updates**: File list updates automatically as you type, save, commit, or stage changes

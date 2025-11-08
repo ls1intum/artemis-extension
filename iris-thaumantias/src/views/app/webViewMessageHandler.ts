@@ -27,7 +27,8 @@ export class WebViewMessageHandler {
         private readonly authManager: AuthManager,
         private readonly artemisApi: ArtemisApiService,
         private readonly appStateManager: AppStateManager,
-        private readonly actionHandler: WebViewActionHandler
+        private readonly actionHandler: WebViewActionHandler,
+        private readonly buildCodeLens?: any
     ) {
         const context: CommandContext = {
             authManager: this.authManager,
@@ -35,7 +36,8 @@ export class WebViewMessageHandler {
             appStateManager: this.appStateManager,
             actionHandler: this.actionHandler,
             sendMessage: (message: any) => this._sendMessage(message),
-            updateAuthContext: (isAuthenticated: boolean) => this.updateAuthContext(isAuthenticated)
+            updateAuthContext: (isAuthenticated: boolean) => this.updateAuthContext(isAuthenticated),
+            buildCodeLens: this.buildCodeLens
         };
 
         const modules = [

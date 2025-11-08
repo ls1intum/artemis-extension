@@ -665,7 +665,7 @@ export class ExerciseDetailView {
                                 View build log
                             </a>
                             <a href="#" class="go-to-source-link" onclick="goToSourceError(event)" id="goToSourceLink" style="display: none;" data-participation-id="${participationId}" data-result-id="${latestResult?.id}">
-                                📍 Go to source
+                                Go to source →
                             </a>`
                                 : ""
                             }
@@ -2301,7 +2301,7 @@ export class ExerciseDetailView {
                 const toggleContainer = (buildFailed || hasTestInfo) ?
                     '<div class="test-results-toggle-container">' +
                         (buildFailed ? '<a href="#" class="build-log-link" onclick="viewBuildLog(event, ' + participationId + ', ' + resultId + ')" id="buildLogLink">View build log<' + '/a>' : '') +
-                        (buildFailed ? '<a href="#" class="go-to-source-link" onclick="goToSourceError(event)" id="goToSourceLink" style="display: none;" data-participation-id="' + participationId + '" data-result-id="' + resultId + '">📍 Go to source<' + '/a>' : '') +
+                        (buildFailed ? '<a href="#" class="go-to-source-link" onclick="goToSourceError(event)" id="goToSourceLink" style="display: none;" data-participation-id="' + participationId + '" data-result-id="' + resultId + '">Go to source →<' + '/a>' : '') +
                         (hasTestInfo ? '<a href="#" class="test-results-toggle" onclick="toggleTestResults(event)" id="testResultsToggle">See test results<' + '/a>' : '') +
                     '<' + '/div>' : '';
 

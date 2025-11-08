@@ -28,6 +28,7 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
     private _websocketService?: ArtemisWebsocketService;
     private _websocketHandler?: WebSocketMessageHandler;
     private readonly _styleManager: StyleManager;
+    private _buildCodeLens?: any; // BuildErrorCodeLensProvider
 
     constructor(
         private readonly _extensionUri: vscode.Uri,
@@ -41,9 +42,25 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
             this._authManager,
             this._artemisApi,
             this._appStateManager,
-            this
+            this,
+            undefined  // buildCodeLens will be set later
         );
         this._styleManager = new StyleManager(this._extensionUri);
+    }
+
+    /**
+     * Set the CodeLens provider
+     */
+    public setBuildDiagnostics(codeLensProvider: any): void {
+        this._buildCodeLens = codeLensProvider;
+        // Recreate message handler with CodeLens provider
+        this._messageHandler = new WebViewMessageHandler(
+            this._authManager,
+            this._artemisApi,
+            this._appStateManager,
+            this,
+            codeLensProvider
+        );
     }
 
     /**

@@ -13,4 +13,5 @@ export interface CommandContext {
     actionHandler: WebViewActionHandler;
     sendMessage(message: any): void;
     updateAuthContext(isAuthenticated: boolean): Promise<void>;
+    buildCodeLens?: any; // BuildErrorCodeLensProvider
 }

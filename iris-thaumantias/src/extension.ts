@@ -4,7 +4,7 @@ import * as vscode from 'vscode';
 import { ArtemisWebviewProvider, ChatWebviewProvider } from './views';
 import { AuthManager } from './auth';
 import { ArtemisApiService } from './api';
-import { ArtemisWebsocketService } from './services';
+import { ArtemisWebsocketService, BuildErrorCodeLensProvider } from './services';
 import { VSCODE_CONFIG, processPlantUml } from './utils';
 
 // This method is called when your extension is activated
@@ -19,6 +19,15 @@ export async function activate(context: vscode.ExtensionContext) {
 	const authManager = new AuthManager(context);
 	const artemisApiService = new ArtemisApiService(authManager);
 	const artemisWebsocketService = new ArtemisWebsocketService(authManager);
+	const buildErrorCodeLensProvider = new BuildErrorCodeLensProvider();
+
+	// Register CodeLens provider for all languages
+	context.subscriptions.push(
+		vscode.languages.registerCodeLensProvider(
+			{ scheme: 'file' }, // All file types
+			buildErrorCodeLensProvider
+		)
+	);
 
 
 	// Helper function to update authentication context
@@ -84,6 +93,9 @@ export async function activate(context: vscode.ExtensionContext) {
 	// Pass the WebSocket service to enable real-time updates
 	artemisWebviewProvider.setWebsocketService(artemisWebsocketService);
 
+	// Pass the CodeLens provider
+	artemisWebviewProvider.setBuildDiagnostics(buildErrorCodeLensProvider);
+
 	context.subscriptions.push(
 		vscode.window.registerWebviewViewProvider(ArtemisWebviewProvider.viewType, artemisWebviewProvider)
 	);
@@ -97,6 +109,40 @@ export async function activate(context: vscode.ExtensionContext) {
 	// Store providers in global state so they can be accessed by other parts of the extension
 	(global as any).artemisWebviewProvider = artemisWebviewProvider;
 	(global as any).chatWebviewProvider = chatWebviewProvider;
+
+	// Register command for CodeLens to navigate to error
+	const goToSourceErrorCommand = vscode.commands.registerCommand(
+		'artemis.goToSourceError',
+		async (filePath: string, line: number, column?: number, message?: string) => {
+			try {
+				const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+				if (!workspaceFolder) {
+					vscode.window.showErrorMessage('No workspace folder open.');
+					return;
+				}
+
+				const fileUri = vscode.Uri.joinPath(workspaceFolder.uri, filePath);
+				const document = await vscode.workspace.openTextDocument(fileUri);
+				const editor = await vscode.window.showTextDocument(document, {
+					preview: false,
+					viewColumn: vscode.ViewColumn.One
+				});
+
+				if (line > 0) {
+					const position = new vscode.Position(line - 1, column ? column - 1 : 0);
+					editor.selection = new vscode.Selection(position, position);
+					editor.revealRange(
+						new vscode.Range(position, position),
+						vscode.TextEditorRevealType.InCenter
+					);
+				}
+			} catch (error) {
+				vscode.window.showErrorMessage(`Failed to navigate to error: ${error instanceof Error ? error.message : 'Unknown error'}`);
+			}
+		}
+	);
+
+	context.subscriptions.push(goToSourceErrorCommand);
 
 	// Register the Artemis login command
 	const loginCommand = vscode.commands.registerCommand('artemis.login', () => {

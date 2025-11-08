@@ -322,6 +322,12 @@ export class UtilityCommandModule {
             // Send parsed error back to webview so it can show "Go to Source" button
             if (firstError) {
                 console.log('✅ Parsed error from build logs:', firstError);
+
+                // Show CodeLens above the error line
+                if (this.context.buildCodeLens) {
+                    this.context.buildCodeLens.setErrors(firstError.filePath, [firstError]);
+                }
+                
                 this.context.sendMessage({
                     command: 'buildLogParsed',
                     error: firstError,
