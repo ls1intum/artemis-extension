@@ -406,157 +406,75 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
     }
 
     public async openExerciseFullscreen(exerciseData: any): Promise<void> {
-        try {
-            // Read developer tools setting
-            const config = vscode.workspace.getConfiguration('artemis');
-            const hideDeveloperTools = config.get<boolean>('hideDeveloperTools', false);
-            
-            // Create a new webview panel for the exercise content
-            const panel = vscode.window.createWebviewPanel(
-                'exerciseFullscreen',
-                `Exercise: ${exerciseData.exercise?.title || exerciseData.title || 'Untitled'}`,
-                vscode.ViewColumn.One,
-                {
-                    enableScripts: true,
-                    retainContextWhenHidden: true,
-                    localResourceRoots: [this._extensionUri]
+        await this.openFullscreenPanel({
+            viewId: 'exerciseFullscreen',
+            title: `Exercise: ${exerciseData.exercise?.title || exerciseData.title || 'Untitled'}`,
+            detailHtml: () => {
+                const detailView = new ExerciseDetailView(this._extensionContext, this._styleManager);
+                return detailView.generateHtml(exerciseData, this.shouldHideDeveloperTools());
+            },
+            cssInjections: [
+                '.back-link, .fullscreen-btn { display: none !important; }'
+            ],
+            onDetect: () => {
+                const exerciseTitle = exerciseData.exercise?.title || exerciseData.title || 'Untitled';
+                const exerciseId = exerciseData.exercise?.id || exerciseData.id || 0;
+                const shortName = exerciseData.exercise?.shortName || exerciseData.shortName;
+                const chatProvider = (global as any).chatWebviewProvider;
+                if (chatProvider && typeof chatProvider.updateDetectedExercise === 'function') {
+                    chatProvider.updateDetectedExercise(exerciseTitle, exerciseId, undefined, undefined, shortName);
                 }
-            );
-
-            // Generate the same HTML content as the sidebar view but for the fullscreen panel
-            const exerciseDetailView = new ExerciseDetailView(this._extensionContext, this._styleManager);
-            let fullscreenHtml = exerciseDetailView.generateHtml(exerciseData, hideDeveloperTools);
-            
-            // Add CSS to hide navigation buttons in fullscreen view
-            const hideButtonsCSS = `
-                <style>
-                    .back-link,
-                    .fullscreen-btn {
-                        display: none !important;
-                    }
-                </style>
-            `;
-            
-            // Insert the CSS before the closing </head> tag
-            fullscreenHtml = fullscreenHtml.replace('</head>', hideButtonsCSS + '</head>');
-            
-            panel.webview.html = fullscreenHtml;
-
-            // Notify Iris chat about the detected exercise
-            const exerciseTitle = exerciseData.exercise?.title || exerciseData.title || 'Untitled';
-            const exerciseId = exerciseData.exercise?.id || exerciseData.id || 0;
-            const shortName = exerciseData.exercise?.shortName || exerciseData.shortName;
-            
-            const chatProvider = (global as any).chatWebviewProvider;
-            if (chatProvider && typeof chatProvider.updateDetectedExercise === 'function') {
-                chatProvider.updateDetectedExercise(exerciseTitle, exerciseId, undefined, undefined, shortName);
-            }
-
-            // Remove from Iris chat when the panel is closed
-            panel.onDidDispose(() => {
+                return { exerciseId };
+            },
+            onDispose: (metadata?: { exerciseId?: number }) => {
+                if (!metadata?.exerciseId) {
+                    return;
+                }
                 const chatProvider = (global as any).chatWebviewProvider;
                 if (chatProvider && typeof chatProvider.removeDetectedExercise === 'function') {
-                    chatProvider.removeDetectedExercise(exerciseId);
+                    chatProvider.removeDetectedExercise(metadata.exerciseId);
                 }
-            });
-
-            // Handle messages from the webview panel
-            panel.webview.onDidReceiveMessage(
-                message => {
-                    // Use the new method that allows specifying a custom response sender
-                    this._messageHandler.handleMessageWithSender(message, (responseMessage: any) => {
-                        panel.webview.postMessage(responseMessage);
-                    });
-                },
-                undefined,
-                []
-            );
-
-        } catch (error) {
-            console.error('Error opening exercise in fullscreen:', error);
-            vscode.window.showErrorMessage('Failed to open exercise in fullscreen mode');
-        }
+            }
+        });
     }
 
     public async openCourseFullscreen(courseData: any): Promise<void> {
-        try {
-            // Read developer tools setting
-            const config = vscode.workspace.getConfiguration('artemis');
-            const hideDeveloperTools = config.get<boolean>('hideDeveloperTools', false);
-            
-            // Create a new webview panel for the course content
-            const panel = vscode.window.createWebviewPanel(
-                'courseFullscreen',
-                `Course: ${courseData.course?.title || courseData.title || 'Untitled'}`,
-                vscode.ViewColumn.One,
-                {
-                    enableScripts: true,
-                    retainContextWhenHidden: true,
-                    localResourceRoots: [this._extensionUri]
+        await this.openFullscreenPanel({
+            viewId: 'courseFullscreen',
+            title: `Course: ${courseData.course?.title || courseData.title || 'Untitled'}`,
+            detailHtml: () => {
+                const detailView = new CourseDetailView(this._extensionContext, this._styleManager);
+                return detailView.generateHtml(courseData, this.shouldHideDeveloperTools());
+            },
+            cssInjections: [
+                '.back-link, .fullscreen-btn { display: none !important; }',
+                '.course-header { margin-top: 0 !important; }'
+            ],
+            onDetect: () => {
+                const course = courseData?.course || courseData;
+                if (!course) {
+                    return undefined;
                 }
-            );
-
-            // Generate the same HTML content as the sidebar view but for the fullscreen panel
-            const courseDetailView = new CourseDetailView(this._extensionContext, this._styleManager);
-            let fullscreenHtml = courseDetailView.generateHtml(courseData, hideDeveloperTools);
-            
-            // Add CSS to hide navigation buttons and reduce top spacing in fullscreen view
-            const hideButtonsCSS = `
-                <style>
-                    .back-link,
-                    .fullscreen-btn {
-                        display: none !important;
-                    }
-                    .course-header {
-                        margin-top: 0 !important;
-                    }
-                </style>
-            `;
-            
-            // Insert the CSS before the closing </head> tag
-            fullscreenHtml = fullscreenHtml.replace('</head>', hideButtonsCSS + '</head>');
-            
-            panel.webview.html = fullscreenHtml;
-
-            // Notify Iris chat about the detected course
-            const course = courseData?.course || courseData;
-            if (course) {
-                const courseTitle = course.title || 'Untitled Course';
-                const courseId = course.id || 0;
-                const shortName = course.shortName;
-                
                 const chatProvider = (global as any).chatWebviewProvider;
                 if (chatProvider && typeof chatProvider.updateDetectedCourse === 'function') {
-                    chatProvider.updateDetectedCourse(courseTitle, courseId, shortName);
+                    chatProvider.updateDetectedCourse(
+                        course.title || 'Untitled Course',
+                        course.id || 0,
+                        course.shortName
+                    );
+                }
+                return { courseId: course.id };
+            },
+            onDispose: metadata => {
+                if (!metadata?.courseId) {
+                    return;
+                }
+                const chatProvider = (global as any).chatWebviewProvider;
+                if (chatProvider && typeof chatProvider.removeDetectedCourse === 'function') {
+                    chatProvider.removeDetectedCourse(metadata.courseId);
                 }
             }
-
-            // Remove from Iris chat when the panel is closed
-            panel.onDidDispose(() => {
-                if (course) {
-                    const chatProvider = (global as any).chatWebviewProvider;
-                    if (chatProvider && typeof chatProvider.removeDetectedCourse === 'function') {
-                        chatProvider.removeDetectedCourse(course.id);
-                    }
-                }
-            });
-
-            // Handle messages from the webview panel
-            panel.webview.onDidReceiveMessage(
-                message => {
-                    // Use the new method that allows specifying a custom response sender
-                    this._messageHandler.handleMessageWithSender(message, (responseMessage: any) => {
-                        panel.webview.postMessage(responseMessage);
-                    });
-                },
-                undefined,
-                []
-            );
-
-        } catch (error) {
-            console.error('Error opening course in fullscreen:', error);
-            vscode.window.showErrorMessage('Failed to open course in fullscreen mode');
-        }
+        });
     }
 
     // WebSocket message handlers
@@ -630,6 +548,64 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
         }
         this._view.webview.postMessage({ command: 'hideLoading' });
         this.postServerUrl();
+    }
+
+    private shouldHideDeveloperTools(): boolean {
+        const config = vscode.workspace.getConfiguration('artemis');
+        return config.get<boolean>('hideDeveloperTools', false);
+    }
+
+    private async openFullscreenPanel(options: {
+        viewId: string;
+        title: string;
+        detailHtml: () => string;
+        cssInjections?: string[];
+        onDetect?: () => Record<string, unknown> | void;
+        onDispose?: (metadata?: Record<string, unknown>) => void;
+    }): Promise<void> {
+        try {
+            const panel = vscode.window.createWebviewPanel(
+                options.viewId,
+                options.title,
+                vscode.ViewColumn.One,
+                {
+                    enableScripts: true,
+                    retainContextWhenHidden: true,
+                    localResourceRoots: [this._extensionUri]
+                }
+            );
+
+            let fullscreenHtml = options.detailHtml();
+            if (options.cssInjections && options.cssInjections.length > 0) {
+                const cssBlock = `
+                    <style>
+                        ${options.cssInjections.join('\n')}
+                    </style>
+                `;
+                fullscreenHtml = fullscreenHtml.replace('</head>', cssBlock + '</head>');
+            }
+
+            panel.webview.html = fullscreenHtml;
+
+            const metadata = options.onDetect?.() || undefined;
+
+            panel.onDidDispose(() => {
+                options.onDispose?.(metadata);
+            });
+
+            panel.webview.onDidReceiveMessage(
+                message => {
+                    this._messageHandler.handleMessageWithSender(message, (responseMessage: any) => {
+                        panel.webview.postMessage(responseMessage);
+                    });
+                },
+                undefined,
+                []
+            );
+        } catch (error) {
+            console.error(`Error opening ${options.viewId}:`, error);
+            vscode.window.showErrorMessage(`Failed to open ${options.title} in fullscreen mode`);
+        }
     }
 
     private _getServerUrl(): string {
