@@ -601,7 +601,8 @@
         }
 
         .test-results-toggle,
-        .build-log-link {
+        .build-log-link,
+        .go-to-source-link {
             cursor: pointer;
             font-size: 14px;
             color: var(--vscode-textLink-foreground);
@@ -610,9 +611,14 @@
         }
 
         .test-results-toggle:hover,
-        .build-log-link:hover {
+        .build-log-link:hover,
+        .go-to-source-link:hover {
             color: var(--vscode-textLink-activeForeground);
             text-decoration: underline;
+        }
+
+        .go-to-source-link {
+            font-weight: 500;
         }
 
         /* Modal styles */

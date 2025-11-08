@@ -663,6 +663,9 @@ export class ExerciseDetailView {
                               buildFailed
                                 ? `<a href="#" class="build-log-link" onclick="viewBuildLog(event, ${participationId}, ${latestResult?.id})" id="buildLogLink">
                                 View build log
+                            </a>
+                            <a href="#" class="go-to-source-link" onclick="goToSourceError(event)" id="goToSourceLink" style="display: none;" data-participation-id="${participationId}" data-result-id="${latestResult?.id}">
+                                📍 Go to source
                             </a>`
                                 : ""
                             }
@@ -1290,6 +1293,42 @@ export class ExerciseDetailView {
             });
         };
 
+        window.goToSourceError = function(event) {
+            if (event) {
+                event.preventDefault();
+            }
+
+            const link = document.getElementById('goToSourceLink');
+            if (!link || !link.dataset.errorData) {
+                vscode.postMessage({ command: 'alert', text: 'No error information available.' });
+                return;
+            }
+
+            try {
+                const errorData = JSON.parse(link.dataset.errorData);
+                vscode.postMessage({
+                    command: 'goToSourceError',
+                    filePath: errorData.filePath,
+                    line: errorData.line,
+                    column: errorData.column,
+                    message: errorData.message
+                });
+            } catch (e) {
+                vscode.postMessage({ command: 'alert', text: 'Error parsing error information.' });
+            }
+        };
+
+        // Auto-fetch build logs to enable "Go to Source" button
+        window.fetchBuildLogsForError = function(participationId, resultId) {
+            console.log('🔍 Auto-fetching build logs to parse errors...');
+            
+            vscode.postMessage({
+                command: 'fetchBuildLogsForError',
+                participationId: participationId,
+                resultId: resultId
+            });
+        };
+
         window.handleTestResultsBackdrop = function(event) {
             if (event && event.target && event.target.id === 'testResultsModal') {
                 closeTestResultsModal();
@@ -1876,6 +1915,16 @@ export class ExerciseDetailView {
                         }
                     }
                     break;
+                case 'buildLogParsed':
+                    // Build log was parsed and error information is available
+                    console.log('Received buildLogParsed message:', message);
+                    const goToSourceLink = document.getElementById('goToSourceLink');
+                    if (goToSourceLink && message.error) {
+                        goToSourceLink.dataset.errorData = JSON.stringify(message.error);
+                        goToSourceLink.style.display = 'inline-block';
+                        console.log('✅ "Go to Source" button enabled');
+                    }
+                    break;
                 case 'showClonedRepoNotice':
                     // Show the recently cloned repository notice and store flag
                     const clonedNotice = document.getElementById('clonedRepoNotice');
@@ -1924,6 +1973,37 @@ export class ExerciseDetailView {
         window.repoStatusPollTimer = setInterval(() => {
             checkRepositoryStatus();
         }, 15000);
+
+        // Auto-fetch build logs if build failed to enable "Go to Source" button
+        (function() {
+            try {
+                const ex = exerciseData.exercise || exerciseData;
+                const participations = ex.studentParticipations || [];
+                if (participations.length > 0) {
+                    const participation = participations[0];
+                    const submissions = participation.submissions || [];
+                    if (submissions.length > 0) {
+                        // Get latest submission
+                        const latestSubmission = submissions.reduce((latest, current) => {
+                            const latestDate = latest.submissionDate ? new Date(latest.submissionDate).getTime() : 0;
+                            const currentDate = current.submissionDate ? new Date(current.submissionDate).getTime() : 0;
+                            return currentDate > latestDate ? current : latest;
+                        }, submissions[0]);
+
+                        if (latestSubmission.buildFailed) {
+                            // Get latest result
+                            const results = latestSubmission.results || [];
+                            const latestResult = results.length > 0 ? results[results.length - 1] : null;
+                            
+                            console.log('🔍 Build failed detected on page load, auto-fetching logs for error parsing...');
+                            fetchBuildLogsForError(participation.id, latestResult?.id);
+                        }
+                    }
+                }
+            } catch (e) {
+                console.error('Error auto-fetching build logs:', e);
+            }
+        })();
 
         // Check if this exercise was recently cloned and show notice
         try {
@@ -2221,6 +2301,7 @@ export class ExerciseDetailView {
                 const toggleContainer = (buildFailed || hasTestInfo) ?
                     '<div class="test-results-toggle-container">' +
                         (buildFailed ? '<a href="#" class="build-log-link" onclick="viewBuildLog(event, ' + participationId + ', ' + resultId + ')" id="buildLogLink">View build log<' + '/a>' : '') +
+                        (buildFailed ? '<a href="#" class="go-to-source-link" onclick="goToSourceError(event)" id="goToSourceLink" style="display: none;" data-participation-id="' + participationId + '" data-result-id="' + resultId + '">📍 Go to source<' + '/a>' : '') +
                         (hasTestInfo ? '<a href="#" class="test-results-toggle" onclick="toggleTestResults(event)" id="testResultsToggle">See test results<' + '/a>' : '') +
                     '<' + '/div>' : '';
 
@@ -2261,6 +2342,12 @@ export class ExerciseDetailView {
             }
 
             checkRepositoryStatus();
+
+            // Auto-fetch build logs if build failed to enable "Go to Source" button
+            if (buildFailed && participationId && resultId) {
+                console.log('🔍 Build failed detected via WebSocket, auto-fetching logs for error parsing...');
+                fetchBuildLogsForError(participationId, resultId);
+            }
         }
 
         function handleNewSubmission(submission) {
