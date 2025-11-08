@@ -1,4 +1,4 @@
-import { ThemeManager } from '../../themes';
+import { ThemeManager } from '../../theme';
 import { StyleManager } from '../styles';
 import type { RecommendedExtensionCategory } from '../../utils/recommendedExtensions';
 import { BackLinkComponent } from '../components/backLinkComponent';
@@ -18,6 +18,7 @@ export class RecommendedExtensionsView {
         const styles = this._styleManager.getStyles(currentTheme, [
             'views/recommended-extensions.css'
         ]);
+        const themeBootstrap = this._themeManager.getThemeBootstrapScript(currentTheme);
 
         const hasCategories = Array.isArray(categories) && categories.length > 0;
 
@@ -36,6 +37,10 @@ export class RecommendedExtensionsView {
         ${styles}
         ${themeCSS}
     </style>
+
+    <script>
+        ${themeBootstrap}
+    </script>
 
 </head>
 <body class="theme-${currentTheme}">

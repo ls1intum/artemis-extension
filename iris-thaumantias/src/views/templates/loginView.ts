@@ -1,4 +1,4 @@
-import { ThemeManager } from '../../themes';
+import { ThemeManager } from '../../theme';
 import { StyleManager } from '../styles';
 import { ServiceHealthComponent } from '../components/serviceHealthComponent';
 
@@ -21,6 +21,7 @@ export class LoginView {
             'views/login.css',
             'components/service-health.css',
         ]);
+        const themeBootstrap = this._themeManager.getThemeBootstrapScript(currentTheme);
 
         return `<!DOCTYPE html>
 <html lang="en">
@@ -32,6 +33,10 @@ export class LoginView {
         ${styles}
         ${themeCSS}
     </style>
+
+    <script>
+        ${themeBootstrap}
+    </script>
 
 </head>
 <body class="theme-${currentTheme}">

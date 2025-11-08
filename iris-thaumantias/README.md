@@ -146,6 +146,22 @@ This extension integrates **Iris**, an AI-powered virtual tutor from the EduTell
 - Check the [Artemis documentation](https://docs.artemis.cit.tum.de)
 - Contact your institution's Artemis support team
 
+## Development Notes
+
+### Theme system
+
+- All palette, typography, spacing, radius, and shadow primitives live in [`src/theme/index.ts`](src/theme/index.ts).
+- The module exposes a `ThemeManager`, CSS bootstrap script, and semantic tokens (e.g., `theme.background.surface`, `theme.text.muted`).
+- Themes derive from the same primitive tokens and emit CSS variables prefixed with `--iris-*` (e.g., `--iris-bg-surface`, `--iris-text-muted`).
+- Webviews should call `ThemeManager.getThemeBootstrapScript` and inject the returned script in the `<head>` so VS Code theme changes propagate via the shared store.
+
+### UI primitives
+
+- Shared UI helpers live in [`src/components`](src/components) (`Button`, `IconButton`, `TextField`, `SearchField`) and [`src/components/layout`](src/components/layout) (`Panel`, `Toolbar`, `Header`).
+- Components render semantic HTML, expose `variant`/`size` props, and rely on CSS variables instead of inline styles.
+- The corresponding styles are defined in [`media/styles/components/primitives.css`](media/styles/components/primitives.css) and consume the new `--iris-*` variables, ensuring consistent theming.
+- Feature views (e.g., chat, dashboard) should compose these primitives instead of hand-rolled markup for consistent spacing, borders, and focus rings.
+
 ## Contributing
 
 We welcome contributions! See the [GitHub repository](https://github.com/ls1intum/artemis-extension) for development setup and contribution guidelines.

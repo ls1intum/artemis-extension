@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { ThemeManager } from '../../themes';
+import { ThemeManager } from '../../theme';
 import { IconDefinitions } from '../../utils';
 import { StyleManager } from '../styles';
 import { BackLinkComponent } from '../components/backLinkComponent';
@@ -66,15 +66,16 @@ export class ExerciseDetailView {
         const styles = this._styleManager.getStyles(currentTheme, [
             'views/exercise-detail.css'
         ]);
+        const themeBootstrap = this._themeManager.getThemeBootstrapScript(currentTheme);
 
         if (!exerciseData) {
-            return this._getEmptyStateHtml(themeCSS, currentTheme, styles);
+            return this._getEmptyStateHtml(themeCSS, currentTheme, styles, themeBootstrap);
         }
 
-        return this._getExerciseDetailHtml(exerciseData, themeCSS, currentTheme, hideDeveloperTools, styles);
+        return this._getExerciseDetailHtml(exerciseData, themeCSS, currentTheme, hideDeveloperTools, styles, themeBootstrap);
     }
 
-    private _getEmptyStateHtml(themeCSS: string, currentTheme: string, styles: string): string {
+    private _getEmptyStateHtml(themeCSS: string, currentTheme: string, styles: string, themeBootstrap: string): string {
         return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -85,6 +86,10 @@ export class ExerciseDetailView {
         ${styles}
         ${themeCSS}
     </style>
+
+    <script>
+        ${themeBootstrap}
+    </script>
 
 </head>
 <body class="theme-${currentTheme}">
@@ -104,11 +109,11 @@ export class ExerciseDetailView {
 </html>`;
     }
 
-    private _getExerciseDetailHtml(exerciseData: any, themeCSS: string, currentTheme: string, hideDeveloperTools: boolean, styles: string): string {
+    private _getExerciseDetailHtml(exerciseData: any, themeCSS: string, currentTheme: string, hideDeveloperTools: boolean, styles: string, themeBootstrap: string): string {
         const exercise = exerciseData?.exercise;
 
         if (!exercise) {
-            return this._getEmptyStateHtml(themeCSS, currentTheme, styles);
+            return this._getEmptyStateHtml(themeCSS, currentTheme, styles, themeBootstrap);
         }
 
         const exerciseTitle = exercise.title || 'Unknown Exercise';
@@ -390,6 +395,10 @@ export class ExerciseDetailView {
         ${styles}
         ${themeCSS}
     </style>
+
+    <script>
+        ${themeBootstrap}
+    </script>
 </head>
 <body class="theme-${currentTheme}">
     <div class="back-link-container">

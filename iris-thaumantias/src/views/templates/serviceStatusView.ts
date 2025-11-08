@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { ThemeManager } from '../../themes';
+import { ThemeManager } from '../../theme';
 import { IconDefinitions } from '../../utils/iconDefinitions';
 import { ServiceHealthComponent } from '../components/serviceHealthComponent';
 import { StyleManager } from '../styles';
@@ -23,11 +23,12 @@ export class ServiceStatusView {
             'views/service-status.css',
             'components/service-health.css'
         ]);
-        
-        return this._getServiceStatusHtml(themeCSS, currentTheme, styles, serverUrl);
+        const themeBootstrap = this._themeManager.getThemeBootstrapScript(currentTheme);
+
+        return this._getServiceStatusHtml(themeCSS, currentTheme, styles, serverUrl, themeBootstrap);
     }
 
-    private _getServiceStatusHtml(themeCSS: string, currentTheme: string, styles: string, serverUrl?: string): string {
+    private _getServiceStatusHtml(themeCSS: string, currentTheme: string, styles: string, serverUrl: string | undefined, themeBootstrap: string): string {
         // Get icon SVGs
         const stethoscopeIcon = IconDefinitions.getIcon('stethoscope');
         const refreshIcon = IconDefinitions.getIcon('refresh');
@@ -42,6 +43,10 @@ export class ServiceStatusView {
         ${styles}
         ${themeCSS}
     </style>
+
+    <script>
+        ${themeBootstrap}
+    </script>
 
 </head>
 <body class="theme-${currentTheme}">

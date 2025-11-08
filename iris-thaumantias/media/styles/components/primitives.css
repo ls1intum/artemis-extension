@@ -1,0 +1,231 @@
+body {
+    font-family: var(--iris-font-family, var(--theme-font-family, sans-serif));
+    color: var(--iris-text-primary, var(--theme-foreground));
+    background: var(--iris-bg-canvas, var(--theme-background));
+}
+
+.iris-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--iris-space-sm, 8px);
+    border-radius: var(--iris-radius-md, 8px);
+    font-family: inherit;
+    font-weight: var(--iris-font-weight-medium, 500);
+    line-height: var(--iris-line-height-base, 1.5);
+    border: 1px solid transparent;
+    cursor: pointer;
+    transition: var(--iris-transition, 0.2s ease);
+    box-shadow: none;
+    background: transparent;
+    color: inherit;
+    padding: var(--iris-space-sm, 8px) var(--iris-space-md, 12px);
+}
+
+.iris-button--sm {
+    padding: var(--iris-space-xs, 4px) var(--iris-space-sm, 8px);
+    font-size: var(--iris-font-size-sm, 13px);
+    border-radius: var(--iris-radius-sm, 6px);
+}
+
+.iris-button--md {
+    font-size: var(--iris-font-size-md, 14px);
+}
+
+.iris-button--lg {
+    padding: var(--iris-space-sm, 8px) var(--iris-space-lg, 16px);
+    font-size: var(--iris-font-size-lg, 16px);
+    border-radius: var(--iris-radius-lg, 12px);
+}
+
+.iris-button--primary {
+    background: var(--iris-action-primary-bg, var(--theme-button-background));
+    color: var(--iris-action-primary-fg, var(--theme-button-foreground));
+    border-color: var(--iris-action-primary-bg, var(--theme-button-background));
+    box-shadow: var(--iris-shadow-xs, var(--theme-button-shadow));
+}
+
+.iris-button--primary:hover:not(:disabled) {
+    background: var(--iris-action-primary-hover, var(--theme-button-hover));
+    border-color: var(--iris-action-primary-hover, var(--theme-button-hover));
+    box-shadow: var(--iris-shadow-sm, var(--theme-button-shadow-hover));
+}
+
+.iris-button--secondary {
+    background: var(--iris-action-secondary-bg, var(--theme-input-background));
+    color: var(--iris-action-secondary-fg, var(--theme-foreground));
+    border-color: var(--iris-action-secondary-border, var(--theme-border));
+}
+
+.iris-button--secondary:hover:not(:disabled) {
+    background: var(--iris-action-secondary-hover, var(--theme-button-hover));
+    border-color: var(--iris-action-secondary-border, var(--theme-border));
+}
+
+.iris-button--ghost {
+    background: transparent;
+    color: var(--iris-action-ghost-fg, var(--theme-foreground));
+}
+
+.iris-button--ghost:hover:not(:disabled) {
+    background: var(--iris-action-ghost-hover, var(--theme-hover-background));
+    color: var(--iris-action-primary-fg, var(--theme-button-foreground));
+}
+
+.iris-button:focus-visible {
+    outline: none;
+    box-shadow: var(--iris-focus-ring, 0 0 0 1px var(--theme-input-focus));
+}
+
+.iris-button:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    box-shadow: none;
+}
+
+.iris-button__icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.1em;
+    height: 1.1em;
+}
+
+.iris-button__icon svg {
+    width: 100%;
+    height: 100%;
+}
+
+.iris-icon-button {
+    padding: var(--iris-space-xs, 4px);
+    border-radius: var(--iris-radius-sm, 6px);
+}
+
+.iris-text-field {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: var(--iris-space-sm, 8px);
+    border-radius: var(--iris-radius-md, 8px);
+    border: 1px solid var(--iris-input-border, var(--theme-input-border));
+    background: var(--iris-input-bg, var(--theme-input-background));
+    padding: 0 var(--iris-space-sm, 8px);
+    transition: var(--iris-transition, 0.2s ease);
+}
+
+.iris-text-field__input {
+    flex: 1;
+    border: none;
+    background: transparent;
+    color: var(--iris-input-fg, var(--theme-input-foreground));
+    font: inherit;
+    padding: var(--iris-space-sm, 8px) 0;
+}
+
+.iris-text-field__input:focus {
+    outline: none;
+}
+
+.iris-text-field__icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--iris-text-muted, var(--theme-muted));
+}
+
+.iris-text-field:focus-within {
+    border-color: var(--iris-input-focus, var(--theme-input-focus));
+    box-shadow: var(--iris-focus-ring, 0 0 0 1px var(--theme-input-focus));
+}
+
+.iris-search-field .iris-text-field__icon {
+    color: var(--iris-text-secondary, var(--theme-muted));
+}
+
+.iris-search-field__input::placeholder {
+    color: var(--iris-input-placeholder, var(--theme-muted));
+}
+
+.iris-panel {
+    background: var(--iris-bg-surface, var(--theme-card-background));
+    border: 1px solid var(--iris-border-subtle, var(--theme-border));
+    border-radius: var(--iris-radius-md, var(--theme-container-radius));
+    box-shadow: var(--iris-shadow-sm, var(--theme-box-shadow));
+    transition: var(--iris-transition, 0.2s ease);
+    color: var(--iris-text-primary, var(--theme-foreground));
+}
+
+.iris-panel--padding-none {
+    padding: 0;
+}
+
+.iris-panel--padding-sm {
+    padding: var(--iris-space-sm, 8px);
+}
+
+.iris-panel--padding-md {
+    padding: var(--iris-space-md, 12px);
+}
+
+.iris-panel--padding-lg {
+    padding: var(--iris-space-lg, 16px);
+}
+
+.iris-panel--interactive:hover {
+    box-shadow: var(--iris-shadow-md, var(--theme-box-shadow));
+}
+
+.iris-toolbar {
+    display: flex;
+    align-items: center;
+    gap: var(--iris-space-md, 12px);
+}
+
+.iris-toolbar--start {
+    justify-content: flex-start;
+}
+
+.iris-toolbar--center {
+    justify-content: center;
+}
+
+.iris-toolbar--end {
+    justify-content: flex-end;
+}
+
+.iris-toolbar--space-between {
+    justify-content: space-between;
+}
+
+.iris-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: var(--iris-space-lg, 16px);
+    padding: var(--iris-space-md, 12px) 0;
+}
+
+.iris-header__content {
+    display: flex;
+    align-items: center;
+    gap: var(--iris-space-md, 12px);
+}
+
+.iris-header__title {
+    margin: 0;
+    font-size: var(--iris-font-size-lg, 16px);
+    font-weight: var(--iris-font-weight-semibold, 600);
+    color: var(--iris-text-primary, var(--theme-foreground));
+}
+
+.iris-header__subtitle {
+    margin: 0;
+    font-size: var(--iris-font-size-sm, 13px);
+    color: var(--iris-text-muted, var(--theme-muted));
+}
+
+.iris-header__actions {
+    display: flex;
+    align-items: center;
+    gap: var(--iris-space-sm, 8px);
+}

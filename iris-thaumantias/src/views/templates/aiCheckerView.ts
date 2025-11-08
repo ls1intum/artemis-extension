@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { ThemeManager } from '../../themes';
+import { ThemeManager } from '../../theme';
 import { AiExtension } from '../app/appStateManager';
 import { StyleManager } from '../styles';
 import { BackLinkComponent } from '../components/backLinkComponent';
@@ -27,13 +27,14 @@ export class AiCheckerView {
         const styles = this._styleManager.getStyles(currentTheme, [
             'views/ai-checker.css'
         ]);
+        const themeBootstrap = this._themeManager.getThemeBootstrapScript(currentTheme);
 
         const groupedExtensions = this._groupExtensionsByProvider(aiExtensions);
 
-        return this._getAiCheckerHtml(groupedExtensions, themeCSS, currentTheme, styles);
+        return this._getAiCheckerHtml(groupedExtensions, themeCSS, currentTheme, styles, themeBootstrap);
     }
 
-    private _getAiCheckerHtml(groups: ProviderGroup[], themeCSS: string, currentTheme: string, styles: string): string {
+    private _getAiCheckerHtml(groups: ProviderGroup[], themeCSS: string, currentTheme: string, styles: string, themeBootstrap: string): string {
         const providerOptions = groups
             .map(group => `<option value="${group.provider.toLowerCase()}">${group.provider}</option>`)
             .join('');
@@ -100,6 +101,10 @@ export class AiCheckerView {
         ${styles}
         ${themeCSS}
     </style>
+
+    <script>
+        ${themeBootstrap}
+    </script>
 
 </head>
 <body class="theme-${currentTheme}">

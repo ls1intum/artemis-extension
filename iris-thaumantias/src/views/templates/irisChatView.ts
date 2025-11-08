@@ -1,5 +1,6 @@
 import * as vscode from "vscode";
-import { ThemeManager } from "../../themes";
+import { ThemeManager } from "../../theme";
+import { Button, IconButton, Panel, SearchField, Toolbar } from "../../components";
 import { IconDefinitions } from "../../utils/iconDefinitions";
 import { StyleManager } from "../styles";
 
@@ -43,6 +44,106 @@ export class IrisChatView {
     const closeIcon = `<svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 8.707l3.646 3.647.708-.707L8.707 8l3.647-3.646-.707-.708L8 7.293 4.354 3.646l-.707.708L7.293 8l-3.646 3.646.707.708L8 8.707z"/></svg>`;
     const chevronIcon = `<svg viewBox="0 0 16 16" fill="currentColor"><path d="M7.976 10.072l4.357-4.357.62.618L8.284 11h-.618L3 6.333l.619-.618 4.357 4.357z"/></svg>`;
 
+    const themeBootstrap = this._themeManager.getThemeBootstrapScript(currentTheme);
+
+    const burgerIconMarkup = `
+      <span class="iris-icon-bars">
+        <span class="iris-icon-bars__line"></span>
+        <span class="iris-icon-bars__line"></span>
+        <span class="iris-icon-bars__line"></span>
+      </span>
+    `;
+
+    const burgerMenuButton = IconButton({
+      icon: burgerIconMarkup,
+      ariaLabel: "Toggle menu",
+      title: "Menu",
+      className: "burger-menu",
+      variant: "ghost",
+      size: "md",
+      attributes: {
+        onclick: "toggleSideMenu()",
+      },
+    });
+
+    const contextHeaderButton = Button({
+      type: "button",
+      variant: "ghost",
+      size: "md",
+      className: "context-bean-header",
+      attributes: {
+        onclick: "toggleContextDropdown()",
+      },
+      children: `
+            <div class="context-info">
+                <span class="context-lock-icon" id="contextLockIcon" style="display: none;">${lockIcon}</span>
+                <span class="context-icon" id="contextIcon">${courseIcon}</span>
+                <div class="context-text-container">
+                    <span class="context-text" id="contextText">No context selected</span>
+                    <span class="context-subtext" id="contextSubtext" style="display: none;"></span>
+                </div>
+            </div>
+            <span class="context-dropdown-arrow" id="contextDropdownArrow">▼</span>
+        `,
+    });
+
+    const contextSearchField = SearchField({
+      id: "contextSearchInput",
+      placeholder: "Search exercises or courses...",
+      className: "context-search-container",
+      inputClassName: "context-search-input",
+      inputAttributes: { autocomplete: "off" },
+    });
+
+    const newSessionButton = Button({
+      id: "newSessionBtn",
+      variant: "secondary",
+      size: "md",
+      icon: plusIcon,
+      label: "New Conversation",
+      className: "dropdown-action-btn",
+      disabled: true,
+      attributes: { onclick: "createNewSession()" },
+    });
+
+    const workspaceContextButton = Button({
+      id: "workspaceContextBtn",
+      variant: "secondary",
+      size: "md",
+      icon: lockIcon,
+      label: "Switch to Workspace",
+      className: "dropdown-action-btn",
+      disabled: true,
+      attributes: { onclick: "switchToWorkspaceContext()" },
+    });
+
+    const contextSwitchButton = Button({
+      variant: "secondary",
+      size: "md",
+      icon: switchIcon,
+      label: "Switch to Different Context",
+      className: "dropdown-action-btn",
+      attributes: { onclick: "requestContextSwitch()" },
+    });
+
+    const reconnectButton = Button({
+      id: "reconnectButton",
+      label: "Reconnect",
+      className: "websocket-reconnect-btn",
+      variant: "secondary",
+      size: "sm",
+      attributes: { onclick: "reconnectWebSocket()" },
+    });
+
+    const sendButtonMarkup = Button({
+      id: "sendButton",
+      label: "Send",
+      className: "send-button",
+      variant: "primary",
+      size: "md",
+      disabled: true,
+    });
+
     // Get the path to the iris logo image
     let irisLogoSrc = "";
     if (webview) {
@@ -51,6 +152,66 @@ export class IrisChatView {
       );
       irisLogoSrc = webview.asWebviewUri(irisLogoUri).toString();
     }
+
+    const contextDropdownMarkup = `
+        <div class="context-dropdown-menu" id="contextDropdownMenu" style="display: none;">
+            ${contextSearchField}
+            <div class="search-results-section" id="searchResultsSection" style="display: none;">
+                <div class="search-results" id="searchResults"></div>
+            </div>
+            <div class="session-section" id="sessionSection" style="display: none;">
+                <div class="dropdown-section-header">Sessions</div>
+                <div class="session-list" id="sessionList"></div>
+                <div class="dropdown-divider"></div>
+                <div class="dropdown-section">
+                    ${newSessionButton}
+                    ${workspaceContextButton}
+                    ${contextSwitchButton}
+                </div>
+            </div>
+            <div class="context-picker-section" id="contextPickerSection" style="display: none;">
+                <div class="context-picker-group">
+                    <div class="dropdown-section-header">Recent Exercises</div>
+                    <div class="context-list" id="recentExercisesList"></div>
+                </div>
+                <div class="context-picker-group">
+                    <div class="dropdown-section-header">Recent Courses</div>
+                    <div class="context-list" id="recentCoursesList"></div>
+                </div>
+                <div class="dropdown-divider"></div>
+                <div class="context-empty-info">
+                    Start typing to search all available exercises and courses.
+                </div>
+            </div>
+        </div>
+    `;
+
+    const contextBeanPanel = Panel({
+      id: "contextBean",
+      className: "context-bean",
+      padding: "none",
+      interactive: true,
+      children: `
+            ${contextHeaderButton}
+            ${contextDropdownMarkup}
+        `,
+    });
+
+    const headerMarkup = Toolbar({
+      className: "chat-header iris-chat__header",
+      align: "space-between",
+      children: `
+        <div class="iris-chat__header-content">
+            ${
+              irisLogoSrc
+                ? `<img src="${irisLogoSrc}" alt="Iris Logo" class="chat-header-logo iris-chat__logo" />`
+                : ""
+            }
+            <h1 class="chat-title iris-chat__title">Chat with Iris</h1>
+        </div>
+        ${burgerMenuButton}
+      `,
+    });
 
     return `<!DOCTYPE html>
 <html lang="en">
@@ -62,87 +223,16 @@ export class IrisChatView {
         ${styles}
         ${themeCSS}
     </style>
+    <script>
+        ${themeBootstrap}
+    </script>
 </head>
 <body class="theme-${currentTheme}">
-    <div class="chat-container">
-        <div class="chat-header">
-            ${
-              irisLogoSrc
-                ? `<img src="${irisLogoSrc}" alt="Iris Logo" class="chat-header-logo" />`
-                : ""
-            }
-            <h1 class="chat-title">Chat with Iris</h1>
-            <button class="burger-menu" onclick="toggleSideMenu()" title="Menu">
-                <div class="burger-icon">
-                    <div class="burger-line"></div>
-                    <div class="burger-line"></div>
-                    <div class="burger-line"></div>
-                </div>
-            </button>
-        </div>
+    <div class="chat-container iris-chat">
+        ${headerMarkup}
 
-        <div class="context-bean-container" id="contextBeanContainer">
-            <div class="context-bean" id="contextBean">
-                <div class="context-bean-header" onclick="toggleContextDropdown()">
-                    <div class="context-info">
-                        <span class="context-lock-icon" id="contextLockIcon" style="display: none;">${lockIcon}</span>
-                        <span class="context-icon" id="contextIcon">${courseIcon}</span>
-                        <div class="context-text-container">
-                            <span class="context-text" id="contextText">No context selected</span>
-                            <span class="context-subtext" id="contextSubtext" style="display: none;"></span>
-                        </div>
-                    </div>
-                    <span class="context-dropdown-arrow" id="contextDropdownArrow">▼</span>
-                </div>
-
-                <div class="context-dropdown-menu" id="contextDropdownMenu" style="display: none;">
-                    <div class="context-search-container">
-                        <input
-                            type="text"
-                            class="context-search-input"
-                            id="contextSearchInput"
-                            placeholder="Search exercises or courses..."
-                            autocomplete="off"
-                        />
-                    </div>
-
-                    <div class="search-results-section" id="searchResultsSection" style="display: none;">
-                        <div class="search-results" id="searchResults"></div>
-                    </div>
-
-                    <div class="session-section" id="sessionSection" style="display: none;">
-                        <div class="dropdown-section-header">Sessions</div>
-                        <div class="session-list" id="sessionList"></div>
-                        <div class="dropdown-divider"></div>
-                        <div class="dropdown-section">
-                            <button class="dropdown-action-btn" id="newSessionBtn" onclick="createNewSession()" disabled>
-                                <span class="button-icon">${plusIcon}</span> New Conversation
-                            </button>
-                            <button class="dropdown-action-btn" id="workspaceContextBtn" onclick="switchToWorkspaceContext()" disabled>
-                                <span class="button-icon">${lockIcon}</span> Switch to Workspace
-                            </button>
-                            <button class="dropdown-action-btn" onclick="requestContextSwitch()">
-                                <span class="button-icon">${switchIcon}</span> Switch to Different Context
-                            </button>
-                        </div>
-                    </div>
-
-                    <div class="context-picker-section" id="contextPickerSection" style="display: none;">
-                        <div class="context-picker-group">
-                            <div class="dropdown-section-header">Recent Exercises</div>
-                            <div class="context-list" id="recentExercisesList"></div>
-                        </div>
-                        <div class="context-picker-group">
-                            <div class="dropdown-section-header">Recent Courses</div>
-                            <div class="context-list" id="recentCoursesList"></div>
-                        </div>
-                        <div class="dropdown-divider"></div>
-                        <div class="context-empty-info">
-                            Start typing to search all available exercises and courses.
-                        </div>
-                    </div>
-                </div>
-            </div>
+        <div class="context-bean-container iris-context__container" id="contextBeanContainer">
+            ${contextBeanPanel}
         </div>
 
         <div class="chat-messages" id="chatMessages">
@@ -154,15 +244,13 @@ export class IrisChatView {
             </div>
         </div>
 
-        <div class="chat-input-container">
+        <div class="chat-input-container iris-chat__input">
             <div class="websocket-status-banner" id="websocketStatusBanner" style="display: none;">
                 <div class="websocket-status-content">
                     <span class="websocket-status-icon">⚠️</span>
                     <span class="websocket-status-text">WebSocket disconnected</span>
                 </div>
-                <button class="websocket-reconnect-btn" id="reconnectButton" onclick="reconnectWebSocket()">
-                    Reconnect
-                </button>
+                ${reconnectButton}
             </div>
             <div class="referenced-files-banner" id="referencedFilesBanner" style="display: none;">
                 <div class="referenced-files-header" onclick="toggleReferencedFiles()">
@@ -183,9 +271,7 @@ export class IrisChatView {
                     disabled
                     readonly
                 ></textarea>
-                <button class="send-button" id="sendButton" disabled>
-                    Send
-                </button>
+                ${sendButtonMarkup}
             </div>
             <div class="iris-disclaimer-banner">
                 <span class="disclaimer-text">

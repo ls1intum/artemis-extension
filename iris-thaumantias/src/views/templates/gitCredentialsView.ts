@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { ThemeManager } from '../../themes';
+import { ThemeManager } from '../../theme';
 import { IconDefinitions } from '../../utils/iconDefinitions';
 import type { UserInfo } from '../app/appStateManager';
 import { StyleManager } from '../styles';

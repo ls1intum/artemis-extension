@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { ThemeManager } from '../../themes';
+import { ThemeManager } from '../../theme';
 import { VSCODE_CONFIG } from '../../utils';
 import { IconDefinitions } from '../../utils/iconDefinitions';
 import { StyleManager } from '../styles';
@@ -21,15 +21,16 @@ export class DashboardView {
         const styles = this._styleManager.getStyles(currentTheme, [
             'views/dashboard.css'
         ]);
+        const themeBootstrap = this._themeManager.getThemeBootstrapScript(currentTheme);
         
         // Check if Iris explanation should be shown
         const config = vscode.workspace.getConfiguration(VSCODE_CONFIG.ARTEMIS_SECTION);
         const showIrisExplanation = config.get<boolean>(VSCODE_CONFIG.SHOW_IRIS_EXPLANATION_KEY, true);
         
-        return this._getDashboardHtml(userInfo, coursesData, currentTheme, webview, showIrisExplanation, styles, themeCSS);
+        return this._getDashboardHtml(userInfo, coursesData, currentTheme, webview, showIrisExplanation, styles, themeCSS, themeBootstrap);
     }
 
-    private _getDashboardHtml(userInfo: { username: string; serverUrl: string; user?: any }, coursesData: any | undefined, currentTheme: string, webview: vscode.Webview | undefined, showIrisExplanation: boolean, styles: string, themeCSS: string): string {
+    private _getDashboardHtml(userInfo: { username: string; serverUrl: string; user?: any }, coursesData: any | undefined, currentTheme: string, webview: vscode.Webview | undefined, showIrisExplanation: boolean, styles: string, themeCSS: string, themeBootstrap: string): string {
         const username = userInfo?.username || 'Unknown';
         const serverUrl = userInfo?.serverUrl || 'Unknown';
         
@@ -116,7 +117,11 @@ export class DashboardView {
         ${themeCSS}
     </style>
 
-    
+    <script>
+        ${themeBootstrap}
+    </script>
+
+
 </head>
 <body class="theme-${currentTheme}">
     <div class="dashboard">
