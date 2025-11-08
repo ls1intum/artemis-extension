@@ -22,6 +22,7 @@ All notable changes to the Artemis VS Code extension will be documented in this 
   - Eliminates code duplication across extension
   - Maintains performance with optional content reading and filtering
 - **Code Cleanup**: Removed unused cache fields and implementations for better maintainability
+- **Authentication Flow Cleanup**: Centralized server URL helpers so login loading indicators and status messages reuse the same logic instead of copy-pasted blocks
 
 ## [0.2.4] - 2025-11-05
 
