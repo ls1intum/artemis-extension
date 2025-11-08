@@ -209,14 +209,7 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
             this.render();
             
             // Send the server URL to the login page for status checking
-            const config = vscode.workspace.getConfiguration(VSCODE_CONFIG.ARTEMIS_SECTION);
-            const serverUrl = config.get<string>(VSCODE_CONFIG.SERVER_URL_KEY, CONFIG.ARTEMIS_SERVER_URL_DEFAULT);
-            
-            // Send server URL to the webview
-            this._view.webview.postMessage({
-                command: 'setServerUrl',
-                serverUrl: serverUrl
-            });
+            this.postServerUrl();
         }
     }
 
@@ -373,14 +366,13 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
                 // Try to get user info directly - this validates authentication implicitly
                 try {
                     const user = await this._artemisApi.getCurrentUser();
-                    const config = vscode.workspace.getConfiguration(VSCODE_CONFIG.ARTEMIS_SECTION);
-                    const serverUrl = config.get<string>(VSCODE_CONFIG.SERVER_URL_KEY, CONFIG.ARTEMIS_SERVER_URL_DEFAULT);
-                    
-                    console.log(`Auto-authenticated user: ${user.login}`);
-                    await this.showDashboard({
-                        username: user.login || 'User',
-                        serverUrl: serverUrl,
-                        user: user
+                    await this.withServerUrl(async serverUrl => {
+                        console.log(`Auto-authenticated user: ${user.login}`);
+                        await this.showDashboard({
+                            username: user.login || 'User',
+                            serverUrl: serverUrl,
+                            user: user
+                        });
                     });
                 } catch (userError) {
                     // If getCurrentUser fails, stored credentials are invalid
@@ -393,31 +385,11 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
                     }
                     
                     // Hide loading and show login
-                    if (this._view) {
-                        this._view.webview.postMessage({ command: 'hideLoading' });
-                        
-                        // Send server URL for status checking
-                        const config = vscode.workspace.getConfiguration(VSCODE_CONFIG.ARTEMIS_SECTION);
-                        const serverUrl = config.get<string>(VSCODE_CONFIG.SERVER_URL_KEY, CONFIG.ARTEMIS_SERVER_URL_DEFAULT);
-                        this._view.webview.postMessage({
-                            command: 'setServerUrl',
-                            serverUrl: serverUrl
-                        });
-                    }
+                    this.hideLoadingAndSendServerUrl();
                 }
             } else {
                 // No stored authentication, hide loading
-                if (this._view) {
-                    this._view.webview.postMessage({ command: 'hideLoading' });
-                    
-                    // Send server URL for status checking
-                    const config = vscode.workspace.getConfiguration(VSCODE_CONFIG.ARTEMIS_SECTION);
-                    const serverUrl = config.get<string>(VSCODE_CONFIG.SERVER_URL_KEY, CONFIG.ARTEMIS_SERVER_URL_DEFAULT);
-                    this._view.webview.postMessage({
-                        command: 'setServerUrl',
-                        serverUrl: serverUrl
-                    });
-                }
+                this.hideLoadingAndSendServerUrl();
             }
         } catch (error) {
             console.error('Error checking existing authentication:', error);
@@ -429,17 +401,7 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
                 await this._authContextUpdater(false);
             }
             
-            if (this._view) {
-                this._view.webview.postMessage({ command: 'hideLoading' });
-                
-                // Send server URL for status checking even on error
-                const config = vscode.workspace.getConfiguration(VSCODE_CONFIG.ARTEMIS_SECTION);
-                const serverUrl = config.get<string>(VSCODE_CONFIG.SERVER_URL_KEY, CONFIG.ARTEMIS_SERVER_URL_DEFAULT);
-                this._view.webview.postMessage({
-                    command: 'setServerUrl',
-                    serverUrl: serverUrl
-                });
-            }
+            this.hideLoadingAndSendServerUrl();
         }
     }
 
@@ -643,5 +605,35 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
                 buildTimingInfo: buildTimingInfo
             });
         }
+    }
+
+    private async withServerUrl(
+        callback: (serverUrl: string) => Promise<void> | void
+    ): Promise<void> {
+        const serverUrl = this._getServerUrl();
+        await callback(serverUrl);
+    }
+
+    private postServerUrl(serverUrl?: string): void {
+        if (!this._view) {
+            return;
+        }
+        this._view.webview.postMessage({
+            command: 'setServerUrl',
+            serverUrl: serverUrl ?? this._getServerUrl()
+        });
+    }
+
+    private hideLoadingAndSendServerUrl(): void {
+        if (!this._view) {
+            return;
+        }
+        this._view.webview.postMessage({ command: 'hideLoading' });
+        this.postServerUrl();
+    }
+
+    private _getServerUrl(): string {
+        const config = vscode.workspace.getConfiguration(VSCODE_CONFIG.ARTEMIS_SECTION);
+        return config.get<string>(VSCODE_CONFIG.SERVER_URL_KEY, CONFIG.ARTEMIS_SERVER_URL_DEFAULT);
     }
 }
