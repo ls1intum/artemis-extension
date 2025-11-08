@@ -2,11 +2,25 @@
 
 All notable changes to the Artemis VS Code extension will be documented in this file.
 
-
 ## [0.2.5] - 2025-11-07
+
+### Added
+
+- **Live Referenced Files Display**: Iris chat now shows real-time file status information
+  - **Live updates**: File list updates automatically as you type, save, commit, or stage changes
+  - Shows "x/y files referenced" where x/y = changed files detected by Git
+  - Click to expand and see list of changed file paths with VS Code-style icons
+  - **On message send**: Full analysis runs showing included/excluded files with reasons
+  - Updates every 5 seconds, on save, on document change, and on Git state changes
+  - Provides full transparency about what context Iris has access to in real-time
 
 ### Changed
 
+- **Unified File Checking**: Consolidated all file checking logic into single `checkWorkspaceFiles()` method
+  - Single source of truth for git status, file filtering, and content reading
+  - Configurable options for different use cases (live monitoring vs. message sending)
+  - Eliminates code duplication across extension
+  - Maintains performance with optional content reading and filtering
 - **Code Cleanup**: Removed unused cache fields and implementations for better maintainability
 
 ## [0.2.4] - 2025-11-05
