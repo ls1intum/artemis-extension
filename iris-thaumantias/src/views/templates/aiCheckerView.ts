@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { ThemeManager } from '../../themes';
+import { ThemeManager } from '../../theme';
 import { AiExtension } from '../app/appStateManager';
 import { StyleManager } from '../styles';
 import { BackLinkComponent } from '../components/backLinkComponent';

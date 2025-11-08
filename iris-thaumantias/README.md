@@ -56,6 +56,8 @@ Choose your preferred visual style:
 - **Modern Theme**: Clean, card-based design with contemporary aesthetics
 - **Synthwave Theme**: Retro-futuristic neon aesthetic
 
+All themes share a centralized token system defined in `src/theme/index.ts`. Core primitives—palette, typography, spacing, shadows—feed semantic CSS variables (for example `--iris-color-background-surface` or `--iris-color-interactive-primary-background`). Component styles consume these variables so that new themes typically only require updating the registry entry in `src/theme/index.ts` and, if necessary, adjusting view styles to reference the semantic tokens rather than hard-coded values.
+
 ## Getting Started
 
 ### Requirements

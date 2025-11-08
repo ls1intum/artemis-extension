@@ -1,14 +1,14 @@
 import * as fs from 'fs';
 import * as vscode from 'vscode';
-import { ThemeType } from '../../themes';
+import { ThemeName } from '../../theme';
 
 export class StyleManager {
     constructor(private readonly _extensionUri: vscode.Uri) {}
 
-    public getStyles(theme: ThemeType, additionalPaths: string[] = []): string {
+    public getStyles(theme: ThemeName, additionalPaths: string[] = []): string {
         const defaultPaths = [
             'base.css',
-            `themes/theme-${theme}.css`,
+            'primitives.css',
         ];
 
         const uniquePaths = Array.from(new Set([...defaultPaths, ...additionalPaths]));

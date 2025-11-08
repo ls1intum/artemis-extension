@@ -1,0 +1,261 @@
+.iris-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--iris-space-xs);
+  border-radius: var(--iris-radius-md);
+  border: 1px solid transparent;
+  padding: 0 var(--iris-space-md);
+  min-height: 2.5rem;
+  font-weight: var(--iris-typography-weights-medium);
+  font-size: var(--iris-typography-sizes-md);
+  line-height: 1;
+  background: var(--iris-color-interactive-primary-background);
+  color: var(--iris-color-interactive-primary-foreground);
+  box-shadow: var(--iris-color-interactive-primary-shadow, var(--iris-shadow-button));
+  cursor: pointer;
+  transition: var(--iris-transition-base);
+}
+
+.iris-button--sm {
+  min-height: 2rem;
+  padding: 0 var(--iris-space-sm);
+  font-size: var(--iris-typography-sizes-sm);
+}
+
+.iris-button--lg {
+  min-height: 3rem;
+  padding: 0 var(--iris-space-lg);
+  font-size: var(--iris-typography-sizes-lg);
+}
+
+.iris-button--secondary {
+  background: var(--iris-color-interactive-secondary-background);
+  color: var(--iris-color-interactive-secondary-foreground);
+  border-color: var(--iris-color-interactive-secondary-border);
+  box-shadow: var(--iris-color-interactive-secondary-shadow, var(--iris-shadow-sm));
+}
+
+.iris-button--ghost {
+  background: var(--iris-color-interactive-ghost-background);
+  color: var(--iris-color-interactive-ghost-foreground);
+  border-color: var(--iris-color-interactive-ghost-border);
+  box-shadow: var(--iris-color-interactive-ghost-shadow, none);
+}
+
+.iris-button:focus-visible,
+.iris-icon-button:focus-visible {
+  outline: none;
+  box-shadow: var(--iris-shadow-focus);
+}
+
+.iris-button:not(:disabled):hover,
+.iris-button:not(:disabled):focus-visible {
+  background: var(--iris-color-interactive-primary-hover);
+  color: var(--iris-color-interactive-primary-foreground);
+}
+
+.iris-button:not(:disabled):active {
+  background: var(--iris-color-interactive-primary-active);
+}
+
+.iris-button--secondary:not(:disabled):hover,
+.iris-button--secondary:not(:disabled):focus-visible {
+  background: var(--iris-color-interactive-secondary-hover, var(--iris-color-interactive-secondary-background));
+  border-color: var(--iris-color-interactive-secondary-border);
+}
+
+.iris-button--secondary:not(:disabled):active {
+  background: var(--iris-color-interactive-secondary-active, var(--iris-color-interactive-secondary-background));
+}
+
+.iris-button--ghost:not(:disabled):hover,
+.iris-button--ghost:not(:disabled):focus-visible {
+  background: var(--iris-color-interactive-ghost-hover, var(--iris-color-interactive-ghost-background));
+}
+
+.iris-button--ghost:not(:disabled):active {
+  background: var(--iris-color-interactive-ghost-active, var(--iris-color-interactive-ghost-background));
+}
+
+.iris-button:disabled,
+.iris-icon-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+  box-shadow: none;
+}
+
+.iris-button__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.1em;
+}
+
+.iris-button__icon--trailing {
+  margin-inline-start: var(--iris-space-2xs);
+}
+
+.iris-button__label {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--iris-space-2xs);
+}
+
+.iris-icon-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: var(--iris-radius-md);
+  border: 1px solid transparent;
+  background: var(--iris-color-interactive-ghost-background, transparent);
+  color: var(--iris-color-interactive-ghost-foreground, currentColor);
+  transition: var(--iris-transition-fast);
+  cursor: pointer;
+}
+
+.iris-icon-button--sm {
+  width: 2rem;
+  height: 2rem;
+}
+
+.iris-icon-button--lg {
+  width: 3rem;
+  height: 3rem;
+}
+
+.iris-icon-button:not(:disabled):hover,
+.iris-icon-button:not(:disabled):focus-visible {
+  background: var(--iris-color-interactive-ghost-hover, rgba(148, 163, 184, 0.12));
+}
+
+.iris-icon-button:not(:disabled):active {
+  background: var(--iris-color-interactive-ghost-active, rgba(148, 163, 184, 0.2));
+}
+
+.iris-text-field {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--iris-space-xs);
+  background: var(--iris-color-input-background);
+  border: 1px solid var(--iris-color-input-border);
+  border-radius: var(--iris-radius-lg);
+  padding: 0 var(--iris-space-sm);
+  min-height: 2.5rem;
+  transition: var(--iris-transition-base);
+}
+
+.iris-text-field--sm {
+  min-height: 2.25rem;
+  font-size: var(--iris-typography-sizes-sm);
+}
+
+.iris-text-field--lg {
+  min-height: 3rem;
+  font-size: var(--iris-typography-sizes-lg);
+}
+
+.iris-text-field:focus-within {
+  border-color: var(--iris-color-input-focus);
+  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.25);
+}
+
+.iris-text-field__input {
+  flex: 1 1 auto;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--iris-color-input-foreground);
+  font: inherit;
+  min-width: 0;
+  padding: var(--iris-space-2xs) 0;
+}
+
+.iris-text-field__input::placeholder {
+  color: var(--iris-color-input-placeholder);
+}
+
+.iris-text-field__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--iris-color-text-muted);
+}
+
+.iris-text-field__icon-graphic {
+  font-size: 1.05rem;
+}
+
+.iris-card {
+  background: var(--iris-color-background-surface);
+  border: 1px solid var(--iris-color-border-subtle);
+  border-radius: var(--iris-layout-container-radius);
+  box-shadow: var(--iris-shadow-md);
+  color: inherit;
+}
+
+.iris-card--padded {
+  padding: var(--iris-layout-container-padding);
+}
+
+.iris-panel {
+  margin: 0;
+}
+
+.iris-toolbar {
+  display: flex;
+  align-items: center;
+  gap: var(--iris-space-sm);
+}
+
+.iris-header {
+  display: flex;
+  align-items: center;
+  gap: var(--iris-space-md);
+  padding: var(--iris-space-sm) var(--iris-space-lg);
+  background: var(--iris-color-background-surface);
+  border-bottom: 1px solid var(--iris-color-border-subtle);
+  box-shadow: var(--iris-shadow-sm);
+  min-height: 3.25rem;
+}
+
+.iris-header__start,
+.iris-header__end {
+  display: flex;
+  align-items: center;
+  gap: var(--iris-space-xs);
+}
+
+.iris-header__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--iris-space-3xs);
+  flex: 1 1 auto;
+}
+
+.iris-header__title {
+  margin: 0;
+  font-size: var(--iris-typography-sizes-lg);
+  font-weight: var(--iris-typography-weights-semibold);
+}
+
+.iris-header__subtitle {
+  margin: 0;
+  color: var(--iris-color-text-muted);
+  font-size: var(--iris-typography-sizes-sm);
+}
+
+.iris-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}

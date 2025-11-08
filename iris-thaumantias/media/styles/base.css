@@ -1,9 +1,38 @@
 :root {
-  color-scheme: light dark;
+  color-scheme: var(--iris-meta-color-scheme, light);
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
 }
 
 body {
   margin: 0;
-  font-family: sans-serif;
+  min-height: 100vh;
+  font-family: var(--iris-typography-font-family, 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif);
+  font-size: var(--iris-typography-sizes-md, 0.875rem);
+  line-height: var(--iris-typography-line-heights-normal, 1.5);
+  color: var(--iris-color-text-primary, #f8fafc);
+  background: var(--iris-color-background-canvas, #0f172a);
+  transition: var(--iris-transition-base, all 0.18s ease);
+}
+
+a {
+  color: var(--iris-color-accent-default, #6366f1);
+  text-decoration: none;
+}
+
+a:hover {
+  color: var(--iris-color-accent-emphasis, #4f46e5);
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+  color: inherit;
 }
 

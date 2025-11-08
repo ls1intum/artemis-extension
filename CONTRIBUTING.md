@@ -117,10 +117,9 @@ src/
 3. Use in your view or command handler
 
 ### Adding a Theme
-1. Create theme file in `src/themes/themes/yourTheme.ts`
-2. Register in `src/themes/index.ts`
-3. Add CSS in `media/styles/themes/theme-yourtheme.css`
-4. Update `package.json` configuration enum
+1. Extend the `themeRegistry` in `src/theme/index.ts` with your theme definition, reusing the shared tokens (`palette`, `space`, `fontSizes`, etc.).
+2. Verify view styles consume semantic variables (for example, `--iris-color-background-surface`) rather than hard-coded values—no theme-specific stylesheet is required.
+3. Update the `artemis.theme` configuration enum in `package.json` so the new theme appears in settings.
 
 ## Testing
 
