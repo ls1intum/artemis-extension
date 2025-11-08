@@ -228,20 +228,145 @@ export class RepositoryCommandModule {
                 return;
             }
 
-            const folderUri = await vscode.window.showOpenDialog({
-                canSelectFiles: false,
-                canSelectFolders: true,
-                canSelectMany: false,
-                openLabel: 'Select Clone Destination',
-                title: `Choose where to clone ${exerciseTitle}`
-            });
+            // Check if default clone path is configured
+            const config = vscode.workspace.getConfiguration(VSCODE_CONFIG.ARTEMIS_SECTION);
+            const defaultClonePath = config.get<string>(VSCODE_CONFIG.DEFAULT_CLONE_PATH_KEY, '').trim();
+            const showPrompt = config.get<boolean>(VSCODE_CONFIG.SHOW_SET_DEFAULT_CLONE_PATH_PROMPT_KEY, true);
+            
+            let selectedPath: string;
+            
+            if (defaultClonePath) {
+                // Verify the default path exists
+                try {
+                    const fs = await import('fs');
+                    const stats = await fs.promises.stat(defaultClonePath);
+                    if (stats.isDirectory()) {
+                        selectedPath = defaultClonePath;
+                    } else {
+                        vscode.window.showWarningMessage(`Default clone path "${defaultClonePath}" is not a directory. Please select a folder.`);
+                        const folderUri = await vscode.window.showOpenDialog({
+                            canSelectFiles: false,
+                            canSelectFolders: true,
+                            canSelectMany: false,
+                            openLabel: 'Select Clone Destination',
+                            title: `Choose where to clone ${exerciseTitle}`
+                        });
+                        
+                        if (!folderUri || !folderUri[0]) {
+                            vscode.window.showInformationMessage('Clone cancelled - no destination selected.');
+                            return;
+                        }
+                        selectedPath = folderUri[0].fsPath;
+                    }
+                } catch (error) {
+                    vscode.window.showWarningMessage(`Default clone path "${defaultClonePath}" does not exist. Please select a folder.`);
+                    const folderUri = await vscode.window.showOpenDialog({
+                        canSelectFiles: false,
+                        canSelectFolders: true,
+                        canSelectMany: false,
+                        openLabel: 'Select Clone Destination',
+                        title: `Choose where to clone ${exerciseTitle}`
+                    });
+                    
+                    if (!folderUri || !folderUri[0]) {
+                        vscode.window.showInformationMessage('Clone cancelled - no destination selected.');
+                        return;
+                    }
+                    selectedPath = folderUri[0].fsPath;
+                }
+            } else {
+                // No default path configured - show prompt if enabled
+                if (showPrompt) {
+                    const choice = await vscode.window.showInformationMessage(
+                        'Where should exercise repositories be cloned?\n\nYou can set a default folder now (e.g., ~/artemis-exercises) so all future exercises are automatically saved there, or choose a location each time.',
+                        { modal: true },
+                        'Set Default Folder',
+                        'Choose Each Time',
+                        "Don't Ask Again"
+                    );
 
-            if (!folderUri || !folderUri[0]) {
-                vscode.window.showInformationMessage('Clone cancelled - no destination selected.');
-                return;
+                    if (choice === 'Set Default Folder') {
+                        const folderUri = await vscode.window.showOpenDialog({
+                            canSelectFiles: false,
+                            canSelectFolders: true,
+                            canSelectMany: false,
+                            openLabel: 'Set as Default',
+                            title: 'Select default folder for all exercise repositories'
+                        });
+
+                        if (folderUri && folderUri[0]) {
+                            selectedPath = folderUri[0].fsPath;
+                            // Save as default
+                            await config.update(
+                                VSCODE_CONFIG.DEFAULT_CLONE_PATH_KEY,
+                                selectedPath,
+                                vscode.ConfigurationTarget.Global
+                            );
+                            vscode.window.showInformationMessage(`✓ All exercises will now be cloned to: ${selectedPath}`);
+                        } else {
+                            vscode.window.showInformationMessage('Clone cancelled - no folder selected.');
+                            return;
+                        }
+                    } else if (choice === "Don't Ask Again") {
+                        // Disable the prompt permanently
+                        await config.update(
+                            VSCODE_CONFIG.SHOW_SET_DEFAULT_CLONE_PATH_PROMPT_KEY,
+                            false,
+                            vscode.ConfigurationTarget.Global
+                        );
+                        
+                        // Still need to get a folder for this clone
+                        const folderUri = await vscode.window.showOpenDialog({
+                            canSelectFiles: false,
+                            canSelectFolders: true,
+                            canSelectMany: false,
+                            openLabel: 'Select Folder',
+                            title: `Where should "${exerciseTitle}" be cloned?`
+                        });
+
+                        if (!folderUri || !folderUri[0]) {
+                            vscode.window.showInformationMessage('Clone cancelled - no folder selected.');
+                            return;
+                        }
+                        selectedPath = folderUri[0].fsPath;
+                    } else if (choice === 'Choose Each Time') {
+                        // "Choose Each Time" - just show the folder picker for this clone
+                        const folderUri = await vscode.window.showOpenDialog({
+                            canSelectFiles: false,
+                            canSelectFolders: true,
+                            canSelectMany: false,
+                            openLabel: 'Select Folder',
+                            title: `Where should "${exerciseTitle}" be cloned?`
+                        });
+
+                        if (!folderUri || !folderUri[0]) {
+                            vscode.window.showInformationMessage('Clone cancelled - no folder selected.');
+                            return;
+                        }
+                        selectedPath = folderUri[0].fsPath;
+                    } else {
+                        // User cancelled the modal (pressed ESC) - abort clone
+                        vscode.window.showInformationMessage('Clone cancelled.');
+                        return;
+                    }
+                } else {
+                    // Prompt disabled, just show folder picker
+                    const folderUri = await vscode.window.showOpenDialog({
+                        canSelectFiles: false,
+                        canSelectFolders: true,
+                        canSelectMany: false,
+                        openLabel: 'Select Clone Destination',
+                        title: `Choose where to clone ${exerciseTitle}`
+                    });
+
+                    if (!folderUri || !folderUri[0]) {
+                        vscode.window.showInformationMessage('Clone cancelled - no destination selected.');
+                        return;
+                    }
+                    selectedPath = folderUri[0].fsPath;
+                }
+
             }
-
-            const selectedPath = folderUri[0].fsPath;
 
             let vcsToken: string;
             try {

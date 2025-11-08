@@ -141,6 +141,17 @@
           "type": "boolean",
           "default": true,
           "description": "Show a warning banner when there are unsaved changes in the workspace before submitting"
+        },
+        "artemis.defaultClonePath": {
+          "type": "string",
+          "default": "",
+          "description": "Default folder where all exercise repositories will be cloned automatically. Leave empty to choose a location each time.",
+          "markdownDescription": "**Default folder for exercise repositories**\n\nWhen set, all exercises will be automatically cloned to this folder without asking. Leave empty to choose manually each time.\n\nExample: `/Users/username/artemis-exercises` or `C:\\Users\\username\\artemis-exercises`"
+        },
+        "artemis.showSetDefaultClonePathPrompt": {
+          "type": "boolean",
+          "default": true,
+          "description": "Ask to set a default clone folder when cloning for the first time (if no default is configured)"
         }
       }
     }

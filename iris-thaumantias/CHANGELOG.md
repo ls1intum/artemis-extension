@@ -6,6 +6,7 @@ All notable changes to the Artemis VS Code extension will be documented in this 
 
 ### Added
 
+- **Default Clone Path Setting**: Configure a default folder for automatically cloning all exercise repositories without prompting each time
 - **Live Referenced Files Display**: Iris chat now shows real-time file status information
   - **Live updates**: File list updates automatically as you type, save, commit, or stage changes
   - Shows "x/y files referenced" where x/y = changed files detected by Git

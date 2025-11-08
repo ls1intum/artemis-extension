@@ -33,6 +33,8 @@ export const VSCODE_CONFIG = {
     THEME_KEY: 'theme',
     SHOW_IRIS_EXPLANATION_KEY: 'showIrisExplanation',
     DEFAULT_COMMIT_MESSAGE_KEY: 'defaultCommitMessage',
+    DEFAULT_CLONE_PATH_KEY: 'defaultClonePath',
+    SHOW_SET_DEFAULT_CLONE_PATH_PROMPT_KEY: 'showSetDefaultClonePathPrompt',
 } as const;
 
 // File processing constants
