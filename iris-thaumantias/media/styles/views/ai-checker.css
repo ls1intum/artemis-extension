@@ -1,11 +1,11 @@
         body {
-            font-family: var(--theme-font-family);
-            color: var(--theme-foreground);
-            background: var(--theme-background);
+            font-family: var(--iris-font-family-sans);
+            color: var(--iris-color-text-primary);
+            background: var(--iris-color-bg-app);
             margin: 0;
             padding: 0 16px 16px 16px;
             min-height: calc(100vh - 32px);
-            transition: var(--theme-transition);
+            transition: var(--iris-transition-base);
             display: flex;
             flex-direction: column;
         }
@@ -23,7 +23,7 @@
             position: sticky;
             top: 0;
             z-index: 100;
-            background: var(--theme-background);
+            background: var(--iris-color-bg-app);
             padding: 16px 0 8px 0;
             margin: 0 0 4px 0;
         }
@@ -48,7 +48,7 @@
 
         /* Synthwave theme keeps green */
         .theme-synthwave .back-link {
-            color: var(--theme-success);
+            color: var(--iris-status-success-text);
         }
 
         .theme-synthwave .back-link:hover {
@@ -56,13 +56,13 @@
         }
 
         .header {
-            background: var(--theme-card-background);
-            border: 1px solid var(--theme-border);
-            border-radius: var(--theme-container-radius);
-            padding: var(--theme-container-padding);
-            margin-bottom: var(--theme-element-spacing);
-            box-shadow: var(--theme-box-shadow);
-            backdrop-filter: var(--theme-backdrop);
+            background: var(--iris-card-bg);
+            border: 1px solid var(--iris-card-border);
+            border-radius: var(--iris-card-radius);
+            padding: var(--iris-surface-padding);
+            margin-bottom: var(--iris-space-md);
+            box-shadow: var(--iris-card-shadow);
+            backdrop-filter: var(--iris-overlay-filter);
         }
 
         .header-content {
@@ -70,26 +70,25 @@
         }
 
         .header h1 {
-            color: var(--theme-foreground);
+            color: var(--iris-color-text-primary);
             font-size: 28px;
             font-weight: 700;
             margin: 0 0 8px 0;
         }
 
         .header p {
-            color: var(--theme-foreground);
-            opacity: 0.7;
+            color: var(--iris-color-text-muted);
             font-size: 14px;
             margin: 0;
         }
 
         .content {
-            background: var(--theme-card-background);
-            border: 1px solid var(--theme-border);
-            border-radius: var(--theme-container-radius);
-            padding: var(--theme-container-padding);
-            box-shadow: var(--theme-box-shadow);
-            backdrop-filter: var(--theme-backdrop);
+            background: var(--iris-card-bg);
+            border: 1px solid var(--iris-card-border);
+            border-radius: var(--iris-card-radius);
+            padding: var(--iris-surface-padding);
+            box-shadow: var(--iris-card-shadow);
+            backdrop-filter: var(--iris-overlay-filter);
             flex: 1;
             display: flex;
             flex-direction: column;
@@ -104,15 +103,14 @@
         }
 
         .status-view h2 {
-            color: var(--theme-foreground);
+            color: var(--iris-color-text-primary);
             font-size: 32px;
             font-weight: 600;
             margin: 0 0 16px 0;
         }
 
         .status-view p {
-            color: var(--theme-foreground);
-            opacity: 0.7;
+            color: var(--iris-color-text-secondary);
             font-size: 16px;
             margin: 0 0 4px 0;
             max-width: 500px;
@@ -147,8 +145,7 @@
             letter-spacing: 0.04em;
             text-transform: uppercase;
             margin-bottom: 4px;
-            color: var(--theme-foreground);
-            opacity: 0.6;
+            color: var(--iris-color-text-secondary);
         }
 
         .filter-field input,
@@ -156,9 +153,9 @@
             width: 100%;
             padding: 8px 10px;
             border-radius: 6px;
-            border: 1px solid var(--theme-border);
-            background: var(--theme-card-background);
-            color: var(--theme-foreground);
+            border: 1px solid var(--iris-input-border);
+            background: var(--iris-input-bg);
+            color: var(--iris-input-fg);
             transition: border-color 0.2s ease;
         }
 
@@ -175,15 +172,15 @@
         }
 
         .refresh-btn {
-            background: var(--theme-button-background);
-            color: var(--theme-button-foreground);
-            border: 1px solid var(--theme-button-background);
+            background: var(--iris-button-primary-bg);
+            color: var(--iris-button-primary-fg);
+            border: 1px solid var(--iris-button-primary-border);
             padding: 8px 16px;
             cursor: pointer;
             font-size: 13px;
             border-radius: 6px;
             font-weight: 500;
-            transition: var(--theme-transition);
+            transition: var(--iris-transition-base);
             display: flex;
             align-items: center;
             gap: 6px;
@@ -191,12 +188,12 @@
         }
 
         .refresh-btn:hover {
-            background: var(--theme-button-hover);
-            border-color: var(--theme-button-hover);
+            background: var(--iris-button-primary-hover);
+            border-color: var(--iris-button-primary-hover);
         }
 
         .refresh-btn:active {
-            background: var(--theme-button-active);
+            background: var(--iris-button-primary-active);
         }
 
         .hidden {
@@ -229,14 +226,13 @@
 
         .provider-count {
             font-size: 12px;
-            color: var(--theme-foreground);
-            opacity: 0.6;
+            color: var(--iris-color-text-secondary);
         }
 
         .extension-item {
             position: relative;
-            background: var(--theme-card-background);
-            border: 1px solid var(--theme-border);
+            background: var(--iris-card-bg);
+            border: 1px solid var(--iris-card-border);
             border-radius: 8px;
             padding: 10px 12px;
             margin-bottom: 8px;
@@ -267,7 +263,7 @@
         }
 
         .extension-name {
-            color: var(--theme-foreground);
+            color: var(--iris-color-text-primary);
             font-size: 14px;
             font-weight: 600;
             margin: 0;
@@ -315,30 +311,28 @@
         }
 
         .extension-publisher {
-            color: var(--theme-foreground);
-            opacity: 0.72;
+            color: var(--iris-color-text-secondary);
             font-size: 13px;
             margin: 0 0 6px 0;
         }
 
         .extension-description {
-            color: var(--theme-foreground);
-            opacity: 0.65;
+            color: var(--iris-color-text-muted);
             font-size: 12px;
             line-height: 1.4;
             margin: 0;
         }
 
         .marketplace-btn {
-            background: var(--theme-button-background);
-            color: var(--theme-button-foreground);
-            border: 1px solid var(--theme-border);
+            background: var(--iris-button-secondary-bg);
+            color: var(--iris-button-secondary-fg);
+            border: 1px solid var(--iris-button-secondary-border);
             padding: 6px 12px;
             cursor: pointer;
             font-size: 12px;
             border-radius: 4px;
             font-weight: 500;
-            transition: var(--theme-transition);
+            transition: var(--iris-transition-base);
             display: inline-flex;
             align-items: center;
             gap: 4px;
@@ -346,18 +340,17 @@
         }
 
         .marketplace-btn:hover {
-            background: var(--theme-button-hover);
+            background: var(--iris-button-secondary-hover);
             border-color: var(--vscode-focusBorder);
         }
 
         .marketplace-btn:active {
-            background: var(--theme-button-active);
+            background: var(--iris-button-secondary-active);
         }
 
         .no-extensions {
             text-align: center;
-            color: var(--theme-foreground);
-            opacity: 0.6;
+            color: var(--iris-color-text-secondary);
             font-style: italic;
             padding: 32px 0;
         }

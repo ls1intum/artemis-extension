@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { ThemeManager } from '../../themes';
+import { ThemeManager } from '../../theme';
 import { IconDefinitions } from '../../utils/iconDefinitions';
 import type { UserInfo } from '../app/appStateManager';
 import { StyleManager } from '../styles';
@@ -136,8 +136,8 @@ export class GitCredentialsView {
                 if (cmd.textContent.trim() === command.replace(/\\"/g, '"')) {
                     const originalText = cmd.innerHTML;
                     cmd.innerHTML = '✓ Copied!';
-                    cmd.style.background = 'var(--theme-success-background)';
-                    cmd.style.color = 'var(--theme-success-foreground)';
+                    cmd.style.background = 'var(--iris-status-success-bg)';
+                    cmd.style.color = 'var(--iris-status-success-text)';
                     setTimeout(() => {
                         cmd.innerHTML = originalText;
                         cmd.style.background = '';

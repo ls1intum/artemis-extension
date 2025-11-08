@@ -1,10 +1,10 @@
         body {
-            font-family: var(--theme-font-family);
-            color: var(--theme-foreground);
-            background: var(--theme-background);
+            font-family: var(--iris-font-family-sans);
+            color: var(--iris-color-text-primary);
+            background: var(--iris-color-bg-app);
             margin: 0;
             padding: 0 16px 16px 16px;
-            transition: var(--theme-transition);
+            transition: var(--iris-transition-base);
         }
 
         .recommended-container {
@@ -12,14 +12,14 @@
             margin: 0 auto;
             display: flex;
             flex-direction: column;
-            gap: calc(var(--theme-element-spacing) * 1.5);
+            gap: calc(var(--iris-space-md) * 1.5);
         }
 
         .view-header {
             display: flex;
             flex-direction: column;
             gap: 6px;
-            margin-bottom: var(--theme-element-spacing);
+            margin-bottom: var(--iris-space-md);
         }
 
         .view-header > * {
@@ -43,7 +43,7 @@
         .category-section {
             display: flex;
             flex-direction: column;
-            gap: var(--theme-element-spacing);
+            gap: var(--iris-space-md);
         }
 
         .filter-bar {
@@ -52,7 +52,7 @@
             align-items: center;
             gap: 8px;
             margin-top: 4px;
-            margin-bottom: calc(var(--theme-element-spacing) * 0.75);
+            margin-bottom: calc(var(--iris-space-md) * 0.75);
         }
 
         .filter-label {
@@ -70,39 +70,39 @@
         }
 
         .filter-button {
-            border: 1px solid var(--theme-border);
+            border: 1px solid var(--iris-color-border-subtle);
             background: transparent;
             color: inherit;
             padding: 6px 14px;
-            border-radius: var(--theme-container-radius);
+            border-radius: var(--iris-card-radius);
             font-size: 13px;
             font-weight: 500;
             cursor: pointer;
-            transition: var(--theme-transition);
+            transition: var(--iris-transition-base);
         }
 
         .filter-button:hover {
-            border-color: var(--theme-button-background);
-            background: var(--theme-button-hover);
-            color: var(--theme-button-foreground);
+            border-color: var(--iris-button-primary-bg);
+            background: var(--iris-button-primary-hover);
+            color: var(--iris-button-primary-fg);
         }
 
         .filter-button.active {
-            background: var(--theme-button-background);
-            border-color: var(--theme-button-background);
-            color: var(--theme-button-foreground);
+            background: var(--iris-button-primary-bg);
+            border-color: var(--iris-button-primary-bg);
+            color: var(--iris-button-primary-fg);
             box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.04);
         }
 
         .filter-button:focus-visible {
-            outline: 2px solid var(--theme-info);
+            outline: 2px solid var(--iris-status-info-text);
             outline-offset: 2px;
         }
 
         .category-header {
-            border-bottom: 1px solid var(--theme-border);
+            border-bottom: 1px solid var(--iris-color-border-subtle);
             padding-bottom: 12px;
-            margin-bottom: calc(var(--theme-element-spacing) * 0.75);
+            margin-bottom: calc(var(--iris-space-md) * 0.75);
         }
 
         .category-name {
@@ -120,20 +120,20 @@
         .extensions-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
-            gap: var(--theme-element-spacing);
+            gap: var(--iris-space-md);
         }
 
         .extension-card {
-            background: var(--theme-card-background);
-            border: 1px solid var(--theme-border);
-            border-radius: var(--theme-container-radius);
-            padding: calc(var(--theme-container-padding) + 6px);
-            box-shadow: var(--theme-box-shadow);
-            backdrop-filter: var(--theme-backdrop);
+            background: var(--iris-card-bg);
+            border: 1px solid var(--iris-color-border-subtle);
+            border-radius: var(--iris-card-radius);
+            padding: calc(var(--iris-surface-padding) + 6px);
+            box-shadow: var(--iris-card-shadow);
+            backdrop-filter: var(--iris-overlay-filter);
             display: flex;
             flex-direction: column;
             gap: 18px;
-            transition: var(--theme-transition);
+            transition: var(--iris-transition-base);
         }
 
         .extension-card:hover {
@@ -245,21 +245,21 @@
             padding: 10px 18px;
             font-size: 13px;
             font-weight: 600;
-            border-radius: var(--theme-container-radius);
-            border: 1px solid var(--theme-button-background);
-            background: var(--theme-button-background);
-            color: var(--theme-button-foreground);
+            border-radius: var(--iris-card-radius);
+            border: 1px solid var(--iris-button-primary-bg);
+            background: var(--iris-button-primary-bg);
+            color: var(--iris-button-primary-fg);
             cursor: pointer;
-            transition: var(--theme-transition);
+            transition: var(--iris-transition-base);
         }
 
         .marketplace-button:hover {
-            background: var(--theme-button-hover);
-            border-color: var(--theme-button-hover);
+            background: var(--iris-button-primary-hover);
+            border-color: var(--iris-button-primary-hover);
         }
 
         .marketplace-button:focus-visible {
-            outline: 2px solid var(--theme-info);
+            outline: 2px solid var(--iris-status-info-text);
             outline-offset: 2px;
         }
 
@@ -267,7 +267,7 @@
             position: sticky;
             top: 0;
             z-index: 100;
-            background: var(--theme-background);
+            background: var(--iris-color-bg-app);
             padding: 16px 0 8px 0;
             margin: 0 0 4px 0;
         }
@@ -290,7 +290,7 @@
         }
 
         .theme-synthwave .back-link {
-            color: var(--theme-success);
+            color: var(--iris-status-success-text);
         }
 
         .theme-synthwave .back-link:hover {
@@ -298,12 +298,12 @@
         }
 
         .empty-state {
-            background: var(--theme-card-background);
-            border: 1px solid var(--theme-border);
-            border-radius: var(--theme-container-radius);
-            box-shadow: var(--theme-box-shadow);
-            backdrop-filter: var(--theme-backdrop);
-            padding: var(--theme-container-padding);
+            background: var(--iris-card-bg);
+            border: 1px solid var(--iris-color-border-subtle);
+            border-radius: var(--iris-card-radius);
+            box-shadow: var(--iris-card-shadow);
+            backdrop-filter: var(--iris-overlay-filter);
+            padding: var(--iris-surface-padding);
             text-align: center;
             font-size: 14px;
             opacity: 0.75;
@@ -316,8 +316,8 @@
 
         .theme-vscode .extension-card:hover {
             transform: none;
-            box-shadow: var(--theme-box-shadow);
-            border-color: var(--theme-border);
+            box-shadow: var(--iris-card-shadow);
+            border-color: var(--iris-color-border-subtle);
         }
 
         .theme-vscode .marketplace-button {
@@ -327,8 +327,8 @@
         }
 
         .theme-vscode .marketplace-button:hover {
-            background: var(--theme-button-hover);
-            border-color: var(--theme-button-hover);
+            background: var(--iris-button-primary-hover);
+            border-color: var(--iris-button-primary-hover);
         }
 
         .theme-vscode .filter-button {
@@ -338,9 +338,9 @@
 
         .theme-vscode .filter-button:hover,
         .theme-vscode .filter-button.active {
-            background: var(--theme-button-hover);
-            border-color: var(--theme-button-hover);
-            color: var(--theme-button-foreground);
+            background: var(--iris-button-primary-hover);
+            border-color: var(--iris-button-primary-hover);
+            color: var(--iris-button-primary-fg);
             box-shadow: none;
         }
 
@@ -352,7 +352,7 @@
 
         .theme-modern .extension-card:hover {
             transform: none;
-            border-color: var(--theme-button-background);
+            border-color: var(--iris-button-primary-bg);
             box-shadow: 0 0 0 2px var(--vscode-focusBorder), 0 4px 12px rgba(0, 0, 0, 0.1);
         }
 
@@ -363,8 +363,8 @@
         }
 
         .theme-modern .marketplace-button:hover {
-            background: var(--theme-button-hover);
-            border-color: var(--theme-button-hover);
+            background: var(--iris-button-primary-hover);
+            border-color: var(--iris-button-primary-hover);
             transform: scale(1.01);
             box-shadow: 0 0 0 2px var(--vscode-focusBorder), 0 4px 12px rgba(0, 0, 0, 0.1);
         }

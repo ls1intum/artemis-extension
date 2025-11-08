@@ -1,12 +1,12 @@
         body {
-            font-family: var(--theme-font-family);
-            color: var(--theme-foreground);
-            background: var(--theme-background);
+            font-family: var(--iris-font-family-sans);
+            color: var(--iris-color-text-primary);
+            background: var(--iris-color-bg-app);
             margin: 0;
             padding: 16px;
             position: relative;
             min-height: calc(100vh - 32px);
-            transition: var(--theme-transition);
+            transition: var(--iris-transition-base);
         }
         /* Dashboard view styling */
         .dashboard {
@@ -15,17 +15,17 @@
             margin: 0 auto;
         }
         .dashboard-header {
-            background: var(--theme-card-background);
-            border: 1px solid var(--theme-border);
-            border-radius: var(--theme-container-radius);
-            padding: var(--theme-container-padding);
-            margin-bottom: var(--theme-element-spacing);
-            box-shadow: var(--theme-box-shadow);
-            backdrop-filter: var(--theme-backdrop);
+            background: var(--iris-card-bg);
+            border: 1px solid var(--iris-color-border-subtle);
+            border-radius: var(--iris-card-radius);
+            padding: var(--iris-surface-padding);
+            margin-bottom: var(--iris-space-md);
+            box-shadow: var(--iris-card-shadow);
+            backdrop-filter: var(--iris-overlay-filter);
             overflow: hidden; /* clamp inner overflow for rounded corners */
         }
         .dashboard-title {
-            color: var(--theme-foreground);
+            color: var(--iris-color-text-primary);
             font-size: 24px;
             font-weight: 700;
             margin: 0 0 8px 0;
@@ -34,21 +34,21 @@
             gap: 12px;
         }
         .dashboard-subtitle {
-            color: var(--theme-foreground);
+            color: var(--iris-color-text-primary);
             opacity: 0.7;
             font-size: 14px;
             margin: 0;
         }
         .iris-info-cell {
-            background: var(--theme-card-background);
-            border: 1px solid var(--theme-border);
-            border-radius: var(--theme-container-radius);
-            padding: var(--theme-container-padding);
-            margin-bottom: var(--theme-element-spacing);
-            box-shadow: var(--theme-box-shadow);
-            backdrop-filter: var(--theme-backdrop);
+            background: var(--iris-card-bg);
+            border: 1px solid var(--iris-color-border-subtle);
+            border-radius: var(--iris-card-radius);
+            padding: var(--iris-surface-padding);
+            margin-bottom: var(--iris-space-md);
+            box-shadow: var(--iris-card-shadow);
+            backdrop-filter: var(--iris-overlay-filter);
             overflow: hidden;
-            transition: var(--theme-transition);
+            transition: var(--iris-transition-base);
         }
         .iris-header {
             display: flex;
@@ -79,13 +79,13 @@
             flex: 1;
         }
         .iris-title {
-            color: var(--theme-foreground);
+            color: var(--iris-color-text-primary);
             font-size: 18px;
             font-weight: 600;
             margin: 0 0 4px 0;
         }
         .iris-subtitle {
-            color: var(--theme-foreground);
+            color: var(--iris-color-text-primary);
             opacity: 0.7;
             font-size: 13px;
             margin: 0;
@@ -94,13 +94,13 @@
             margin-top: 16px;
         }
         .iris-usage-explanation h4 {
-            color: var(--theme-foreground);
+            color: var(--iris-color-text-primary);
             font-size: 16px;
             margin: 0 0 12px 0;
             font-weight: 600;
         }
         .iris-usage-explanation ol {
-            color: var(--theme-foreground);
+            color: var(--iris-color-text-primary);
             opacity: 0.9;
             font-size: 14px;
             margin: 0 0 16px 0;
@@ -111,7 +111,7 @@
             margin-bottom: 8px;
         }
         .iris-note {
-            color: var(--theme-foreground);
+            color: var(--iris-color-text-primary);
             font-size: 13px;
             margin: 12px 0 0 0;
             padding: 4px 0;
@@ -125,26 +125,26 @@
             font-size: 16px;
         }
         .quick-actions {
-            background: var(--theme-card-background);
-            border: 1px solid var(--theme-border);
-            border-radius: var(--theme-container-radius);
-            padding: var(--theme-container-padding);
-            margin-bottom: var(--theme-element-spacing);
-            box-shadow: var(--theme-box-shadow);
-            backdrop-filter: var(--theme-backdrop);
+            background: var(--iris-card-bg);
+            border: 1px solid var(--iris-color-border-subtle);
+            border-radius: var(--iris-card-radius);
+            padding: var(--iris-surface-padding);
+            margin-bottom: var(--iris-space-md);
+            box-shadow: var(--iris-card-shadow);
+            backdrop-filter: var(--iris-overlay-filter);
             overflow: hidden; /* clamp inner overflow for rounded corners */
         }
         .quick-actions h3 {
-            color: var(--theme-foreground);
+            color: var(--iris-color-text-primary);
             font-size: 18px;
             font-weight: 600;
             margin: 0 0 16px 0;
-            border-bottom: 1px solid var(--theme-border);
+            border-bottom: 1px solid var(--iris-color-border-subtle);
             padding-bottom: 8px;
         }
         /* Recent Courses Section */
         .recent-courses {
-            background: var(--theme-card-background);
+            background: var(--iris-card-bg);
         }
         .action-buttons {
             display: grid;
@@ -152,9 +152,9 @@
             gap: 12px;
         }
         .action-btn {
-            background: var(--theme-button-background);
-            color: var(--theme-button-foreground);
-            border: 1px solid var(--theme-button-background);
+            background: var(--iris-button-primary-bg);
+            color: var(--iris-button-primary-fg);
+            border: 1px solid var(--iris-button-primary-bg);
             padding: 12px 16px;
             cursor: pointer;
             font-size: 13px;
@@ -166,7 +166,7 @@
             gap: 8px;
             border-radius: 6px;
             font-weight: 500;
-            transition: var(--theme-transition);
+            transition: var(--iris-transition-base);
         }
         .action-btn-icon {
             width: 18px;
@@ -179,11 +179,11 @@
             display: block;
         }
         .action-btn:hover {
-            background: var(--theme-button-hover);
-            border-color: var(--theme-button-hover);
+            background: var(--iris-button-primary-hover);
+            border-color: var(--iris-button-primary-hover);
         }
         .action-btn:active {
-            background: var(--theme-button-active);
+            background: var(--iris-button-primary-active);
         }
         .action-btn.logout-btn {
             background: linear-gradient(135deg, #e53e3e 0%, #c53030 100%);
@@ -200,7 +200,7 @@
         .workspace-exercise-btn {
             width: 100%;
             background: transparent;
-            color: var(--theme-foreground);
+            color: var(--iris-color-text-primary);
             border: 1px solid transparent;
             padding: 12px;
             cursor: pointer;
@@ -261,41 +261,41 @@
             transition: all 0.15s ease-in-out;
         }
         .theme-modern .workspace-exercise-btn:hover {
-            background: var(--theme-button-background);
+            background: var(--iris-button-primary-bg);
             border-color: var(--vscode-focusBorder);
             transform: scale(1.01);
             box-shadow: 0 0 0 1px var(--vscode-focusBorder), 0 2px 8px rgba(0, 0, 0, 0.08);
         }
         .theme-modern .workspace-exercise-btn:hover .workspace-exercise-title,
         .theme-modern .workspace-exercise-btn:hover .workspace-exercise-name {
-            color: var(--theme-button-foreground);
+            color: var(--iris-button-primary-fg);
         }
         /* Synthwave theme */
         .theme-synthwave .workspace-exercise-btn {
-            border-radius: calc(var(--theme-container-radius) * 0.6);
-            transition: var(--theme-transition);
+            border-radius: calc(var(--iris-card-radius) * 0.6);
+            transition: var(--iris-transition-base);
         }
         .theme-synthwave .workspace-exercise-btn:hover {
-            background: var(--theme-button-background);
-            border-color: var(--theme-border);
+            background: var(--iris-button-primary-bg);
+            border-color: var(--iris-color-border-subtle);
         }
         /* Recent Courses Section */
         .recent-courses {
-            background: var(--theme-card-background);
-            border: 1px solid var(--theme-border);
-            border-radius: var(--theme-container-radius);
-            padding: var(--theme-container-padding);
-            margin-bottom: var(--theme-element-spacing);
-            box-shadow: var(--theme-box-shadow);
-            backdrop-filter: var(--theme-backdrop);
+            background: var(--iris-card-bg);
+            border: 1px solid var(--iris-color-border-subtle);
+            border-radius: var(--iris-card-radius);
+            padding: var(--iris-surface-padding);
+            margin-bottom: var(--iris-space-md);
+            box-shadow: var(--iris-card-shadow);
+            backdrop-filter: var(--iris-overlay-filter);
             overflow: hidden; /* clamp inner overflow for rounded corners */
         }
         .recent-courses h3 {
-            color: var(--theme-foreground);
+            color: var(--iris-color-text-primary);
             font-size: 18px;
             font-weight: 600;
             margin: 0 0 16px 0;
-            border-bottom: 1px solid var(--theme-border);
+            border-bottom: 1px solid var(--iris-color-border-subtle);
             padding-bottom: 8px;
             display: flex;
             justify-content: space-between;
@@ -307,23 +307,23 @@
             gap: 12px;
         }
         .sort-dropdown {
-            background: var(--theme-input-background);
-            color: var(--theme-input-foreground);
-            border: 1px solid var(--theme-input-border);
-            border-radius: calc(var(--theme-container-radius) * 0.6);
+            background: var(--iris-input-bg);
+            color: var(--iris-input-fg);
+            border: 1px solid var(--iris-input-border);
+            border-radius: calc(var(--iris-card-radius) * 0.6);
             padding: 4px 8px;
             font-size: 11px;
-            font-family: var(--theme-font-family);
+            font-family: var(--iris-font-family-sans);
             cursor: pointer;
-            transition: var(--theme-transition);
+            transition: var(--iris-transition-base);
         }
         .sort-dropdown:hover {
-            border-color: var(--theme-input-focus);
+            border-color: var(--iris-input-focus);
         }
         .sort-dropdown:focus {
             outline: none;
-            border-color: var(--theme-input-focus);
-            box-shadow: 0 0 0 2px var(--theme-input-focus);
+            border-color: var(--iris-input-focus);
+            box-shadow: 0 0 0 2px var(--iris-input-focus);
         }
         /* VSCode theme dropdown */
         .theme-vscode .sort-dropdown {
@@ -337,11 +337,11 @@
         .theme-synthwave .sort-dropdown {
             border-radius: 6px;
             background: rgba(15, 12, 41, 0.7);
-            border: 1px solid var(--theme-border);
+            border: 1px solid var(--iris-color-border-subtle);
         }
         .theme-synthwave .sort-dropdown:hover,
         .theme-synthwave .sort-dropdown:focus {
-            border-color: var(--theme-input-focus);
+            border-color: var(--iris-input-focus);
             box-shadow: 0 0 8px rgba(255, 0, 110, 0.3);
         }
         .show-all-link {
@@ -361,7 +361,7 @@
         }
         /* Synthwave theme keeps green */
         .theme-synthwave .show-all-link {
-            color: var(--theme-success);
+            color: var(--iris-status-success-text);
         }
         .theme-synthwave .show-all-link:hover {
             opacity: 0.8;
@@ -388,36 +388,36 @@
             transition: all 0.15s ease-in-out;
         }
         .theme-modern .recent-course-item:hover {
-            background: var(--theme-button-background);
+            background: var(--iris-button-primary-bg);
             border-color: var(--vscode-focusBorder);
             transform: scale(1.01);
             box-shadow: 0 0 0 1px var(--vscode-focusBorder), 0 2px 8px rgba(0, 0, 0, 0.08);
         }
         .theme-modern .recent-course-item:hover .course-title,
         .theme-modern .recent-course-item:hover .course-info {
-            color: var(--theme-button-foreground);
+            color: var(--iris-button-primary-fg);
         }
         /* Synthwave theme course items */
         .theme-synthwave .recent-course-item {
-            border-radius: calc(var(--theme-container-radius) * 0.6);
-            transition: var(--theme-transition);
+            border-radius: calc(var(--iris-card-radius) * 0.6);
+            transition: var(--iris-transition-base);
         }
         .theme-synthwave .recent-course-item:hover {
-            background: var(--theme-button-background);
-            border-color: var(--theme-border);
+            background: var(--iris-button-primary-bg);
+            border-color: var(--iris-color-border-subtle);
         }
         .recent-course-item:last-child {
             margin-bottom: 0;
         }
         .course-title {
             font-weight: 600;
-            color: var(--theme-foreground);
+            color: var(--iris-color-text-primary);
             font-size: 14px;
             margin-bottom: 4px;
         }
         .course-info {
             font-size: 12px;
-            color: var(--theme-foreground);
+            color: var(--iris-color-text-primary);
             opacity: 0.85;
         }
         /* Theme-specific course info text improvements */
@@ -433,7 +433,7 @@
         }
         .no-courses {
             text-align: center;
-            color: var(--theme-foreground);
+            color: var(--iris-color-text-primary);
             opacity: 0.6;
             font-style: italic;
             padding: 16px 0;
@@ -455,8 +455,8 @@
             transition: none;
         }
         .theme-vscode .action-btn:hover {
-            background: var(--theme-button-hover);
-            border-color: var(--theme-button-hover);
+            background: var(--iris-button-primary-hover);
+            border-color: var(--iris-button-primary-hover);
         }
         .theme-vscode .action-btn.logout-btn {
             background: #e53e3e;
@@ -485,8 +485,8 @@
             transition: all 0.15s ease-in-out;
         }
         .theme-modern .action-btn:hover {
-            background: var(--theme-button-hover);
-            border-color: var(--theme-button-hover);
+            background: var(--iris-button-primary-hover);
+            border-color: var(--iris-button-primary-hover);
             transform: scale(1.01);
             box-shadow: 0 0 0 2px var(--vscode-focusBorder), 0 4px 12px rgba(0, 0, 0, 0.1);
         }
@@ -518,20 +518,20 @@
         }
         /* Synthwave theme button styling */
         .theme-synthwave .action-btn {
-            border-radius: calc(var(--theme-container-radius) * 0.6);
+            border-radius: calc(var(--iris-card-radius) * 0.6);
             font-weight: 600;
-            transition: var(--theme-transition);
+            transition: var(--iris-transition-base);
             border: none;
             box-shadow: 0 0 15px rgba(255, 0, 110, 0.3);
             text-shadow: 0 0 5px currentColor;
         }
         .theme-synthwave .action-btn:hover {
-            background: var(--theme-button-hover);
+            background: var(--iris-button-primary-hover);
             transform: translateY(-1px);
             box-shadow: 0 0 25px rgba(255, 0, 110, 0.6);
         }
         .theme-synthwave .action-btn:active {
-            background: var(--theme-button-active);
+            background: var(--iris-button-primary-active);
             transform: translateY(0);
         }
         .theme-synthwave .action-btn.logout-btn:hover {

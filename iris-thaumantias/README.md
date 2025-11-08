@@ -146,6 +146,13 @@ This extension integrates **Iris**, an AI-powered virtual tutor from the EduTell
 - Check the [Artemis documentation](https://docs.artemis.cit.tum.de)
 - Contact your institution's Artemis support team
 
+## Design System & Theming
+
+- **Theme tokens** live under `src/theme/` and are composed of primitives (`tokens.ts`), semantic theme definitions (`themes.ts`), and the `ThemeManager` that exports CSS variables and runtime helpers (`index.ts`). Each theme resolves to `--iris-*` variables such as background, text, border, button, and input tokens plus overlay settings used across all webviews.【F:iris-thaumantias/src/theme/index.ts†L8-L132】【F:iris-thaumantias/src/theme/themes.ts†L1-L553】
+- **UI primitives & layouts** are located in `src/components/` with matching styles in `media/styles/components/primitives.css`. Use these components (e.g., `Button`, `IconButton`, `TextField`, `SearchField`, `Card`, `Toolbar`, `Panel`) instead of bespoke markup to guarantee spacing, focus rings, and shadows stay aligned with the theme tokens.【F:iris-thaumantias/src/components/Button.ts†L1-L93】【F:iris-thaumantias/media/styles/components/primitives.css†L1-L320】
+- **CSS variables**: reference semantic variables like `--iris-color-bg-surface`, `--iris-input-bg`, and `--iris-status-*` rather than hard-coded hex values. The theme manager injects these at runtime and also exposes `window.irisTheme` for dynamic switching inside webviews.【F:iris-thaumantias/src/theme/index.ts†L64-L131】
+- **Patterns**: when styling new views, wrap repeated pieces as primitives/layouts, favor Flexbox utilities already used in the chat view, and reuse helper utilities such as `var(--iris-overlay-filter)` for consistent overlays.【F:iris-thaumantias/media/styles/views/iris-chat.css†L1-L360】【F:iris-thaumantias/media/styles/components/service-health.css†L1-L204】
+
 ## Contributing
 
 We welcome contributions! See the [GitHub repository](https://github.com/ls1intum/artemis-extension) for development setup and contribution guidelines.

@@ -1,0 +1,286 @@
+:root {
+  --iris-control-height-sm: 28px;
+  --iris-control-height-md: 34px;
+  --iris-control-height-lg: 42px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+.iris-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--iris-space-2xs);
+  font-family: inherit;
+  font-size: var(--iris-font-size-sm);
+  font-weight: var(--iris-font-weight-medium);
+  line-height: 1;
+  border-radius: var(--iris-radius-sm);
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: var(--iris-transition-fast);
+  text-decoration: none;
+  padding: 0 var(--iris-space-md);
+  height: var(--iris-control-height-md);
+  background: var(--iris-button-secondary-bg);
+  color: var(--iris-button-secondary-fg);
+  box-shadow: var(--iris-button-secondary-shadow);
+}
+
+.iris-button--primary {
+  background: var(--iris-button-primary-bg);
+  color: var(--iris-button-primary-fg);
+  border-color: var(--iris-button-primary-border);
+  box-shadow: var(--iris-button-primary-shadow);
+}
+
+.iris-button--secondary {
+  background: var(--iris-button-secondary-bg);
+  color: var(--iris-button-secondary-fg);
+  border-color: var(--iris-button-secondary-border);
+  box-shadow: var(--iris-button-secondary-shadow);
+}
+
+.iris-button--ghost {
+  background: transparent;
+  color: var(--iris-button-ghost-fg);
+  border-color: transparent;
+}
+
+.iris-button--sm {
+  height: var(--iris-control-height-sm);
+  padding: 0 var(--iris-space-sm);
+  font-size: var(--iris-font-size-xs);
+}
+
+.iris-button--lg {
+  height: var(--iris-control-height-lg);
+  padding: 0 var(--iris-space-lg);
+  font-size: var(--iris-font-size-md);
+}
+
+.iris-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+  box-shadow: none;
+}
+
+.iris-button:not(:disabled):hover {
+  color: inherit;
+}
+
+.iris-button--primary:not(:disabled):hover {
+  background: var(--iris-button-primary-hover);
+}
+
+.iris-button--primary:not(:disabled):active {
+  background: var(--iris-button-primary-active);
+}
+
+.iris-button--secondary:not(:disabled):hover {
+  background: var(--iris-button-secondary-hover);
+}
+
+.iris-button--secondary:not(:disabled):active {
+  background: var(--iris-button-secondary-active);
+}
+
+.iris-button--ghost:not(:disabled):hover {
+  background: var(--iris-button-ghost-hover);
+}
+
+.iris-button--ghost:not(:disabled):active {
+  background: var(--iris-button-ghost-active);
+}
+
+.iris-button:focus-visible {
+  outline: none;
+  box-shadow: var(--iris-focus-ring-shadow);
+}
+
+.iris-button__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.iris-button__icon svg {
+  width: 1em;
+  height: 1em;
+}
+
+.iris-icon-button {
+  padding: 0;
+  width: var(--iris-control-height-md);
+  height: var(--iris-control-height-md);
+  border-radius: var(--iris-radius-md);
+  background: transparent;
+  color: var(--iris-color-text-primary);
+  border: 1px solid transparent;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: var(--iris-transition-fast);
+}
+
+.iris-icon-button:not(:disabled):hover {
+  background: var(--iris-button-ghost-hover);
+  color: var(--iris-button-ghost-fg);
+}
+
+.iris-icon-button:not(:disabled):active {
+  background: var(--iris-button-ghost-active);
+}
+
+.iris-icon-button:focus-visible {
+  outline: none;
+  box-shadow: var(--iris-focus-ring-shadow);
+}
+
+.iris-text-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--iris-space-2xs);
+}
+
+.iris-text-field__input {
+  width: 100%;
+  border-radius: var(--iris-radius-sm);
+  border: 1px solid var(--iris-input-border);
+  background: var(--iris-input-bg);
+  color: var(--iris-input-fg);
+  padding: var(--iris-space-2xs) var(--iris-space-sm);
+  font-size: var(--iris-font-size-sm);
+  line-height: var(--iris-line-height-base);
+  transition: var(--iris-transition-fast);
+  resize: vertical;
+}
+
+.iris-text-field__input::placeholder {
+  color: var(--iris-input-placeholder);
+}
+
+.iris-text-field__input:focus-visible {
+  outline: none;
+  border-color: var(--iris-input-focus);
+  box-shadow: var(--iris-focus-ring-shadow);
+}
+
+.iris-text-field__input:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.iris-search-field {
+  display: flex;
+  align-items: center;
+  gap: var(--iris-space-2xs);
+  border-radius: var(--iris-radius-sm);
+  border: 1px solid var(--iris-input-border);
+  background: var(--iris-input-bg);
+  padding: 0 var(--iris-space-sm);
+  height: var(--iris-control-height-md);
+  transition: var(--iris-transition-fast);
+}
+
+.iris-search-field:focus-within {
+  border-color: var(--iris-input-focus);
+  box-shadow: var(--iris-focus-ring-shadow);
+}
+
+.iris-search-field__icon {
+  display: inline-flex;
+  align-items: center;
+  color: var(--iris-color-text-muted);
+}
+
+.iris-search-field__input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--iris-input-fg);
+  font-size: var(--iris-font-size-sm);
+  line-height: var(--iris-line-height-base);
+}
+
+.iris-search-field__input::placeholder {
+  color: var(--iris-input-placeholder);
+}
+
+.iris-card {
+  background: var(--iris-card-bg);
+  border: 1px solid var(--iris-card-border);
+  border-radius: var(--iris-card-radius);
+  box-shadow: var(--iris-card-shadow);
+  padding: var(--iris-surface-padding);
+  transition: var(--iris-transition-base);
+}
+
+.iris-toolbar {
+  display: flex;
+  align-items: center;
+  gap: var(--iris-space-sm);
+  padding: var(--iris-surface-padding);
+  border-bottom: 1px solid var(--iris-color-border-subtle);
+  background: var(--iris-color-bg-surface);
+  color: var(--iris-color-text-primary);
+  box-shadow: var(--iris-shadow-sm);
+}
+
+.iris-toolbar__leading {
+  display: flex;
+  align-items: center;
+  gap: var(--iris-space-xs);
+}
+
+.iris-toolbar__title {
+  flex: 1;
+  font-size: var(--iris-font-size-lg);
+  font-weight: var(--iris-font-weight-semibold);
+  margin: 0;
+  color: inherit;
+}
+
+.iris-toolbar__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--iris-space-xs);
+}
+
+.iris-panel {
+  background: var(--iris-color-bg-surface);
+  border-radius: var(--iris-layout-radius);
+  border: 1px solid var(--iris-color-border-subtle);
+  padding: var(--iris-surface-padding);
+  box-shadow: var(--iris-shadow-sm);
+}
+
+.iris-panel__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--iris-space-sm);
+  margin-bottom: var(--iris-space-sm);
+}
+
+.iris-panel__title {
+  margin: 0;
+  font-size: var(--iris-font-size-md);
+  font-weight: var(--iris-font-weight-semibold);
+  color: var(--iris-color-text-primary);
+}
+
+.iris-panel__content {
+  display: flex;
+  flex-direction: column;
+  gap: var(--iris-space-sm);
+}
+
+.iris-panel__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--iris-space-xs);
+}

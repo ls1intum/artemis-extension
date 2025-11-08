@@ -1,15 +1,15 @@
 .service-health-component {
-    background: var(--theme-card-background);
-    border: 1px solid var(--theme-border);
-    border-radius: var(--theme-container-radius);
-    padding: var(--theme-container-padding);
-    margin-bottom: var(--theme-element-spacing);
-    box-shadow: var(--theme-box-shadow);
-    backdrop-filter: var(--theme-backdrop);
+    background: var(--iris-card-bg);
+    border: 1px solid var(--iris-card-border);
+    border-radius: var(--iris-card-radius);
+    padding: var(--iris-surface-padding);
+    margin-bottom: var(--iris-space-md);
+    box-shadow: var(--iris-card-shadow);
+    backdrop-filter: var(--iris-overlay-filter);
 }
 
 .health-checks-title {
-    color: var(--theme-foreground);
+    color: var(--iris-color-text-primary);
     font-size: 18px;
     font-weight: 600;
     margin: 0 0 16px 0;
@@ -23,14 +23,14 @@
     flex-direction: column;
     align-items: stretch;
     padding: 12px 0;
-    border-bottom: 1px solid var(--theme-border);
+    border-bottom: 1px solid var(--iris-color-border-subtle);
     position: relative;
     cursor: help;
     transition: background 0.2s ease, padding 0.2s ease;
 }
 
 .health-status-item:hover {
-    background: var(--theme-input-background);
+    background: var(--iris-input-bg);
     padding-left: 12px;
     padding-right: 12px;
     padding-top: 16px;
@@ -53,7 +53,7 @@
 
 .health-label {
     font-size: 14px;
-    color: var(--theme-foreground);
+    color: var(--iris-color-text-primary);
     font-weight: 500;
 }
 
@@ -78,11 +78,11 @@
 }
 
 .health-indicator.online {
-    background: var(--theme-success);
+    background: var(--iris-status-success-text);
 }
 
 .health-indicator.offline {
-    background: var(--theme-error);
+    background: var(--iris-status-danger-text);
 }
 
 .health-indicator.unknown {
@@ -96,7 +96,7 @@
 
 .health-last-check {
     text-align: center;
-    color: var(--theme-foreground);
+    color: var(--iris-color-text-primary);
     opacity: 0.6;
     font-size: 12px;
     margin-top: 12px;
@@ -104,9 +104,9 @@
 }
 
 .health-check-btn {
-    background: var(--theme-button-background);
-    color: var(--theme-button-foreground);
-    border: 1px solid var(--theme-button-background);
+    background: var(--iris-button-primary-bg);
+    color: var(--iris-button-primary-fg);
+    border: 1px solid var(--iris-button-primary-border);
     padding: 12px 24px;
     cursor: pointer;
     font-size: 14px;
@@ -126,8 +126,8 @@
 }
 
 .theme-vscode .health-check-btn:hover:not(:disabled) {
-    background: var(--theme-button-hover);
-    border-color: var(--theme-button-hover);
+    background: var(--iris-button-primary-hover);
+    border-color: var(--iris-button-primary-hover);
 }
 
 .theme-modern .health-check-btn {
@@ -136,21 +136,21 @@
 }
 
 .theme-modern .health-check-btn:hover:not(:disabled) {
-    background: var(--theme-button-hover);
-    border-color: var(--theme-button-hover);
+    background: var(--iris-button-primary-hover);
+    border-color: var(--iris-button-primary-hover);
     transform: scale(1.01);
     box-shadow: 0 0 0 2px var(--vscode-focusBorder), 0 4px 12px rgba(0, 0, 0, 0.1);
 }
 
 .theme-synthwave .health-check-btn {
-    border-radius: calc(var(--theme-container-radius) * 0.6);
-    transition: var(--theme-transition);
+    border-radius: calc(var(--iris-card-radius) * 0.6);
+    transition: var(--iris-transition-base);
     box-shadow: 0 0 15px rgba(255, 0, 110, 0.3);
     text-shadow: 0 0 5px currentColor;
 }
 
 .theme-synthwave .health-check-btn:hover:not(:disabled) {
-    background: var(--theme-button-hover);
+    background: var(--iris-button-primary-hover);
     transform: translateY(-1px);
     box-shadow: 0 0 25px rgba(255, 0, 110, 0.6);
 }
@@ -187,15 +187,15 @@
     max-height: 200px;
     margin-top: 12px;
     padding-top: 12px;
-    border-top: 1px solid var(--theme-border);
+    border-top: 1px solid var(--iris-color-border-subtle);
 }
 
 .tooltip-content {
-    background: var(--theme-input-background);
-    color: var(--theme-foreground);
+    background: var(--iris-input-bg);
+    color: var(--iris-color-text-primary);
     padding: 12px 16px;
     border-radius: 6px;
-    border: 1px solid var(--theme-border);
+    border: 1px solid var(--iris-color-border-subtle);
     font-size: 11px;
     line-height: 1.8;
     opacity: 0;
@@ -209,7 +209,7 @@
 }
 
 .tooltip-content strong {
-    color: var(--theme-foreground);
+    color: var(--iris-color-text-primary);
     opacity: 0.8;
     font-weight: 600;
     display: inline-block;
@@ -217,13 +217,13 @@
 }
 
 .tooltip-content code {
-    background: var(--theme-card-background);
+    background: var(--iris-card-bg);
     padding: 2px 6px;
     border-radius: 4px;
     font-family: 'Monaco', 'Courier New', monospace;
     font-size: 10px;
-    color: var(--theme-info);
-    border: 1px solid var(--theme-border);
+    color: var(--iris-status-info-text);
+    border: 1px solid var(--iris-color-border-subtle);
     word-break: break-all;
 }
 
@@ -282,11 +282,11 @@
 }
 
 .theme-modern .service-health-component {
-    background: linear-gradient(135deg, var(--theme-card-background) 0%, rgba(59, 130, 246, 0.03) 100%);
+    background: linear-gradient(135deg, var(--iris-card-bg) 0%, rgba(59, 130, 246, 0.03) 100%);
 }
 
 .theme-synthwave .service-health-component {
-    background: linear-gradient(135deg, var(--theme-card-background) 0%, rgba(255, 71, 250, 0.03) 100%);
+    background: linear-gradient(135deg, var(--iris-card-bg) 0%, rgba(255, 71, 250, 0.03) 100%);
 }
 
 .theme-synthwave .health-indicator.online {

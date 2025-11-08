@@ -194,11 +194,11 @@ export class ServiceHealthComponent {
                     if (httpStatus) {
                         const statusCode = parseInt(httpStatus);
                         if (statusCode >= 200 && statusCode < 300) {
-                            httpStatusEl.style.color = 'var(--theme-success)';
+                            httpStatusEl.style.color = 'var(--iris-status-success-text)';
                         } else if (statusCode >= 400 && statusCode < 500) {
-                            httpStatusEl.style.color = 'var(--theme-warning, #f59e0b)';
+                            httpStatusEl.style.color = 'var(--iris-status-warning-text, #f59e0b)';
                         } else if (statusCode >= 500) {
-                            httpStatusEl.style.color = 'var(--theme-error)';
+                            httpStatusEl.style.color = 'var(--iris-status-danger-text)';
                         }
                     }
                 }

@@ -1,22 +1,22 @@
         body {
-            font-family: var(--theme-font-family);
-            color: var(--theme-foreground);
-            background: var(--theme-background);
+            font-family: var(--iris-font-family-sans);
+            color: var(--iris-color-text-primary);
+            background: var(--iris-color-bg-app);
             margin: 0;
             padding: 16px;
             position: relative;
             min-height: calc(100vh - 32px);
-            transition: var(--theme-transition);
+            transition: var(--iris-transition-base);
         }
         
         .header {
-            margin-bottom: var(--theme-element-spacing);
+            margin-bottom: var(--iris-space-md);
             text-align: center;
-            padding: var(--theme-element-spacing) 0;
+            padding: var(--iris-space-md) 0;
         }
         
         .logo h1 {
-            color: var(--theme-foreground);
+            color: var(--iris-color-text-primary);
             margin: 8px 0;
             font-size: 28px;
             font-weight: 700;
@@ -31,27 +31,27 @@
         }
         
         .login-container {
-            background: var(--theme-card-background);
-            border: 1px solid var(--theme-border);
-            border-radius: var(--theme-container-radius);
-            padding: var(--theme-container-padding);
-            box-shadow: var(--theme-box-shadow);
-            backdrop-filter: var(--theme-backdrop);
-            margin: var(--theme-element-spacing) auto;
+            background: var(--iris-card-bg);
+            border: 1px solid var(--iris-color-border-subtle);
+            border-radius: var(--iris-card-radius);
+            padding: var(--iris-surface-padding);
+            box-shadow: var(--iris-card-shadow);
+            backdrop-filter: var(--iris-overlay-filter);
+            margin: var(--iris-space-md) auto;
             max-width: 400px;
-            transition: var(--theme-transition);
+            transition: var(--iris-transition-base);
             position: relative;
         }
         
         .form-group {
-            margin-bottom: var(--theme-form-spacing);
+            margin-bottom: var(--iris-space-sm);
         }
         
         label {
             display: block;
             margin-bottom: 6px;
             font-size: 13px;
-            color: var(--theme-foreground);
+            color: var(--iris-color-text-primary);
             font-weight: 600;
             letter-spacing: 0.2px;
         }
@@ -60,27 +60,27 @@
         input[type="password"] {
             width: 100%;
             padding: 14px 16px;
-            border: 2px solid var(--theme-input-border);
-            background: var(--theme-input-background);
-            color: var(--theme-input-foreground);
-            border-radius: calc(var(--theme-container-radius) * 0.6);
-            font-size: var(--theme-font-size);
+            border: 2px solid var(--iris-input-border);
+            background: var(--iris-input-bg);
+            color: var(--iris-input-fg);
+            border-radius: calc(var(--iris-card-radius) * 0.6);
+            font-size: var(--iris-font-size-base);
             box-sizing: border-box;
-            transition: var(--theme-transition);
-            backdrop-filter: var(--theme-backdrop);
+            transition: var(--iris-transition-base);
+            backdrop-filter: var(--iris-overlay-filter);
             font-weight: 500;
         }
         
         input:focus {
             outline: none;
-            border-color: var(--theme-input-focus);
-            box-shadow: 0 0 0 3px rgba(66, 153, 225, 0.1);
+            border-color: var(--iris-input-focus);
+            box-shadow: var(--iris-focus-ring-shadow);
             transform: translateY(-1px);
         }
-        
+
         input::placeholder {
-            color: var(--theme-foreground);
-            opacity: 0.5;
+            color: var(--iris-input-placeholder);
+            opacity: 1;
             font-weight: 400;
         }
         
@@ -88,7 +88,7 @@
             display: flex;
             align-items: center;
             cursor: pointer;
-            margin-bottom: var(--theme-form-spacing);
+            margin-bottom: var(--iris-space-sm);
             padding: 8px 0;
         }
         
@@ -96,7 +96,7 @@
             width: 18px;
             height: 18px;
             margin-right: 10px;
-            accent-color: var(--theme-button-background);
+            accent-color: var(--iris-button-primary-bg);
             border-radius: 4px;
         }
         
@@ -108,18 +108,18 @@
         }
         
         .btn {
-            background: var(--theme-button-background);
-            color: var(--theme-button-foreground);
+            background: var(--iris-button-primary-bg);
+            color: var(--iris-button-primary-fg);
             border: none;
             padding: 16px 24px;
-            border-radius: calc(var(--theme-container-radius) * 0.6);
+            border-radius: calc(var(--iris-card-radius) * 0.6);
             cursor: pointer;
             font-size: 14px;
             font-weight: 700;
             width: 100%;
             margin-top: 12px;
-            transition: var(--theme-transition);
-            backdrop-filter: var(--theme-backdrop);
+            transition: var(--iris-transition-base);
+            backdrop-filter: var(--iris-overlay-filter);
             text-transform: none;
             letter-spacing: 0.3px;
             position: relative;
@@ -127,13 +127,13 @@
         }
         
         .btn:hover {
-            background: var(--theme-button-hover);
+            background: var(--iris-button-primary-hover);
             transform: translateY(-2px);
             box-shadow: 0 8px 25px rgba(0,0,0,0.15);
         }
         
         .btn:active {
-            background: var(--theme-button-active);
+            background: var(--iris-button-primary-active);
             transform: translateY(0);
         }
         
@@ -144,12 +144,12 @@
         }
         
         .status {
-            margin-top: var(--theme-element-spacing);
+            margin-top: var(--iris-space-md);
             padding: 14px 16px;
-            border-radius: calc(var(--theme-container-radius) * 0.6);
+            border-radius: calc(var(--iris-card-radius) * 0.6);
             font-size: 13px;
             display: none;
-            backdrop-filter: var(--theme-backdrop);
+            backdrop-filter: var(--iris-overlay-filter);
             border: none;
             font-weight: 500;
             position: relative;
@@ -168,32 +168,32 @@
         }
         
         .status.success {
-            background: linear-gradient(135deg, var(--theme-success) 0%, #38a169 100%);
+            background: linear-gradient(135deg, var(--iris-status-success-text) 0%, #38a169 100%);
             color: white;
             box-shadow: 0 4px 12px rgba(56, 161, 105, 0.3);
         }
         
         .status.error {
-            background: linear-gradient(135deg, var(--theme-error) 0%, #e53e3e 100%);
+            background: linear-gradient(135deg, var(--iris-status-danger-text) 0%, #e53e3e 100%);
             color: white;
             box-shadow: 0 4px 12px rgba(229, 62, 62, 0.3);
         }
         
         .status.info {
-            background: linear-gradient(135deg, var(--theme-info) 0%, #3182ce 100%);
+            background: linear-gradient(135deg, var(--iris-status-info-text) 0%, #3182ce 100%);
             color: white;
             box-shadow: 0 4px 12px rgba(66, 153, 225, 0.3);
         }
         
         /* Server Status Checker Styles */
         .server-status {
-            margin-top: var(--theme-element-spacing);
+            margin-top: var(--iris-space-md);
             padding: 16px;
-            border-radius: calc(var(--theme-container-radius) * 0.6);
-            background: var(--theme-card-background);
-            border: 1px solid var(--theme-border);
+            border-radius: calc(var(--iris-card-radius) * 0.6);
+            background: var(--iris-card-bg);
+            border: 1px solid var(--iris-color-border-subtle);
             display: none;
-            transition: var(--theme-transition);
+            transition: var(--iris-transition-base);
         }
         
         .server-status.show {
@@ -204,7 +204,7 @@
         .server-status-title {
             font-size: 14px;
             font-weight: 600;
-            color: var(--theme-foreground);
+            color: var(--iris-color-text-primary);
             margin: 0 0 12px 0;
             display: flex;
             align-items: center;
@@ -216,7 +216,7 @@
             align-items: center;
             justify-content: space-between;
             padding: 8px 0;
-            border-bottom: 1px solid var(--theme-border);
+            border-bottom: 1px solid var(--iris-color-border-subtle);
         }
         
         .server-status-item:last-child {
@@ -225,7 +225,7 @@
         
         .server-status-label {
             font-size: 13px;
-            color: var(--theme-foreground);
+            color: var(--iris-color-text-primary);
             opacity: 0.8;
         }
         
@@ -250,11 +250,11 @@
         }
         
         .status-indicator.online {
-            background: var(--theme-success);
+            background: var(--iris-status-success-text);
         }
         
         .status-indicator.offline {
-            background: var(--theme-error);
+            background: var(--iris-status-danger-text);
         }
         
         .status-indicator.unknown {
@@ -262,21 +262,21 @@
         }
         
         .server-check-btn {
-            background: var(--theme-button-background);
-            color: var(--theme-button-foreground);
-            border: 1px solid var(--theme-border);
-            border-radius: calc(var(--theme-container-radius) * 0.4);
+            background: var(--iris-button-primary-bg);
+            color: var(--iris-button-primary-fg);
+            border: 1px solid var(--iris-color-border-subtle);
+            border-radius: calc(var(--iris-card-radius) * 0.4);
             padding: 8px 12px;
             cursor: pointer;
             font-size: 12px;
             font-weight: 500;
-            transition: var(--theme-transition);
+            transition: var(--iris-transition-base);
             margin-top: 12px;
             width: 100%;
         }
         
         .server-check-btn:hover:not(:disabled) {
-            background: var(--theme-button-hover);
+            background: var(--iris-button-primary-hover);
         }
         
         .server-check-btn:disabled {
@@ -293,13 +293,13 @@
         
         .logged-in {
             text-align: center;
-            padding: var(--theme-element-spacing);
+            padding: var(--iris-space-md);
             max-width: 400px;
             margin: 0 auto;
         }
         
         .logged-in h2 {
-            color: var(--theme-success);
+            color: var(--iris-status-success-text);
             margin-bottom: 20px;
             font-weight: 700;
             font-size: 24px;
@@ -310,18 +310,18 @@
         }
         
         .user-info {
-            background: var(--theme-card-background);
-            padding: var(--theme-element-spacing);
-            border-radius: var(--theme-container-radius);
-            margin: var(--theme-element-spacing) 0;
-            border: 1px solid var(--theme-border);
+            background: var(--iris-card-bg);
+            padding: var(--iris-space-md);
+            border-radius: var(--iris-card-radius);
+            margin: var(--iris-space-md) 0;
+            border: 1px solid var(--iris-color-border-subtle);
             display: grid;
             gap: 12px;
         }
         
         .user-info .label {
             font-weight: 600;
-            color: var(--theme-foreground);
+            color: var(--iris-color-text-primary);
             opacity: 0.8;
             text-transform: uppercase;
             font-size: 12px;
@@ -334,15 +334,15 @@
         }
         
         .logout-btn {
-            background: var(--theme-error);
+            background: var(--iris-status-danger-text);
             color: white;
             border: none;
             padding: 12px 20px;
-            border-radius: calc(var(--theme-container-radius) * 0.6);
+            border-radius: calc(var(--iris-card-radius) * 0.6);
             cursor: pointer;
             font-size: 14px;
             font-weight: 600;
-            margin-top: var(--theme-element-spacing);
+            margin-top: var(--iris-space-md);
             width: 100%;
         }
         
@@ -366,7 +366,7 @@
         }
         
         .quick-links {
-            margin-top: var(--theme-element-spacing);
+            margin-top: var(--iris-space-md);
             display: flex;
             flex-direction: column;
             gap: 8px;
@@ -389,21 +389,21 @@
         /* Loading indicator styles */
         .loading-indicator {
             display: none;
-            background: var(--theme-secondary-background);
-            border: 1px solid var(--theme-border-color);
-            border-radius: var(--theme-container-radius);
-            padding: var(--theme-container-padding);
-            margin: var(--theme-element-spacing) auto;
+            background: var(--iris-color-bg-muted);
+            border: 1px solid var(--iris-color-border-subtle);
+            border-radius: var(--iris-card-radius);
+            padding: var(--iris-surface-padding);
+            margin: var(--iris-space-md) auto;
             max-width: 400px;
             box-sizing: border-box;
             align-items: center;
             gap: 14px;
             font-size: 13px;
             font-weight: 500;
-            color: var(--theme-foreground);
+            color: var(--iris-color-text-primary);
             animation: slideDown 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94);
-            box-shadow: var(--theme-box-shadow);
-            backdrop-filter: var(--theme-backdrop);
+            box-shadow: var(--iris-card-shadow);
+            backdrop-filter: var(--iris-overlay-filter);
         }
         
         .loading-indicator.show {
@@ -417,8 +417,8 @@
         .loading-spinner {
             width: 18px;
             height: 18px;
-            border: 2.5px solid rgba(var(--theme-primary-color-rgb, 0, 122, 255), 0.2);
-            border-top: 2.5px solid var(--theme-primary-color);
+            border: 2.5px solid color-mix(in srgb, var(--iris-button-primary-bg) 20%, transparent);
+            border-top: 2.5px solid var(--iris-button-primary-bg);
             border-radius: 50%;
             animation: spin 1.2s cubic-bezier(0.68, -0.55, 0.265, 1.55) infinite;
             flex-shrink: 0;
@@ -435,12 +435,12 @@
             font-weight: 600;
             letter-spacing: 0.3px;
             line-height: 1.2;
-            color: var(--theme-foreground);
+            color: var(--iris-color-text-primary);
         }
         
         .loading-subtext {
             font-size: 11px;
-            color: var(--theme-muted-color);
+            color: var(--iris-color-text-muted);
             opacity: 0.8;
             font-weight: 400;
         }
@@ -520,14 +520,14 @@
         }
         
         .theme-vscode .loading-indicator {
-            background: var(--theme-card-background);
-            border: 1px solid var(--theme-border);
+            background: var(--iris-card-bg);
+            border: 1px solid var(--iris-color-border-subtle);
             border-radius: 3px;
         }
 
         .theme-modern .loading-indicator {
-            background: var(--theme-card-background);
-            border: 1px solid var(--theme-border);
+            background: var(--iris-card-bg);
+            border: 1px solid var(--iris-color-border-subtle);
             border-radius: 12px;
         }
         
@@ -561,8 +561,8 @@
         .theme-modern input[type="text"],
         .theme-modern input[type="password"] {
             padding: 14px 16px;
-            border: 2px solid var(--theme-input-border);
-            border-radius: calc(var(--theme-container-radius) * 0.6);
+            border: 2px solid var(--iris-input-border);
+            border-radius: calc(var(--iris-card-radius) * 0.6);
             font-weight: 500;
             box-shadow: none;
             backdrop-filter: none;
@@ -570,18 +570,18 @@
         
         .theme-modern input:focus {
             outline: none;
-            border-color: var(--theme-input-focus);
+            border-color: var(--iris-input-focus);
             box-shadow: 0 0 0 3px rgba(66, 153, 225, 0.1);
         }
 
         /* Synthwave theme button styling */
         .theme-synthwave .btn {
             padding: 14px 24px;
-            border-radius: calc(var(--theme-container-radius) * 0.75);
+            border-radius: calc(var(--iris-card-radius) * 0.75);
             font-weight: 600;
             border: none;
-            transition: var(--theme-transition);
-            backdrop-filter: var(--theme-backdrop);
+            transition: var(--iris-transition-base);
+            backdrop-filter: var(--iris-overlay-filter);
             text-transform: uppercase;
             letter-spacing: 0.5px;
             box-shadow: 0 0 15px rgba(255, 0, 110, 0.3);

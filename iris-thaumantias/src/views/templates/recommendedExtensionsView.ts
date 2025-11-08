@@ -1,4 +1,4 @@
-import { ThemeManager } from '../../themes';
+import { ThemeManager } from '../../theme';
 import { StyleManager } from '../styles';
 import type { RecommendedExtensionCategory } from '../../utils/recommendedExtensions';
 import { BackLinkComponent } from '../components/backLinkComponent';

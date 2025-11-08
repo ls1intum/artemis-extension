@@ -1,16 +1,16 @@
         body {
-            font-family: var(--theme-font-family);
-            color: var(--theme-foreground);
-            background: var(--theme-background);
+            font-family: var(--iris-font-family-sans);
+            color: var(--iris-color-text-primary);
+            background: var(--iris-color-bg-app);
             margin: 0;
             padding: 0 16px 16px 16px;
-            transition: var(--theme-transition);
+            transition: var(--iris-transition-base);
         }
 
         .empty-state {
             text-align: center;
             padding: 48px 16px;
-            color: var(--theme-foreground);
+            color: var(--iris-color-text-primary);
             opacity: 0.6;
         }
 
@@ -44,7 +44,7 @@
 
         /* Synthwave theme keeps green */
         .theme-synthwave .back-link {
-            color: var(--theme-success);
+            color: var(--iris-status-success-text);
         }
 
         .theme-synthwave .back-link:hover {
@@ -52,13 +52,13 @@
         }
 
         .course-header {
-            background: var(--theme-card-background);
-            border: 1px solid var(--theme-border);
-            border-radius: var(--theme-container-radius);
+            background: var(--iris-card-bg);
+            border: 1px solid var(--iris-card-border);
+            border-radius: var(--iris-card-radius);
             padding: 20px;
             margin-top: 16px;
             margin-bottom: 16px;
-            box-shadow: var(--theme-box-shadow);
+            box-shadow: var(--iris-card-shadow);
             overflow: hidden; /* clamp inner overflow */
             position: relative;
         }
@@ -69,7 +69,7 @@
             left: 0;
             width: 4px;
             height: 100%;
-            border-radius: var(--theme-container-radius) 0 0 var(--theme-container-radius);
+            border-radius: var(--iris-card-radius) 0 0 var(--iris-card-radius);
         }
 
         .course-header-content {
@@ -79,7 +79,7 @@
         .course-title {
             font-size: 20px;
             font-weight: 700;
-            color: var(--theme-foreground);
+            color: var(--iris-color-text-primary);
             margin: 0 0 8px 0;
             display: flex;
             align-items: center;
@@ -88,8 +88,8 @@
 
         .course-semester {
             display: inline-block;
-            background: var(--theme-button-background);
-            color: var(--theme-button-foreground);
+            background: var(--iris-button-primary-bg);
+            color: var(--iris-button-primary-fg);
             padding: 4px 8px;
             border-radius: 4px;
             font-size: 12px;
@@ -98,7 +98,7 @@
         }
 
         .course-description {
-            color: var(--theme-foreground);
+            color: var(--iris-color-text-primary);
             opacity: 0.9;
             font-size: 14px;
             line-height: 1.5;
@@ -116,7 +116,7 @@
             align-items: center;
             gap: 6px;
             font-size: 13px;
-            color: var(--theme-foreground);
+            color: var(--iris-color-text-primary);
             opacity: 0.85;
         }
 
@@ -135,12 +135,12 @@
         }
 
         .section {
-            background: var(--theme-card-background);
-            border: 1px solid var(--theme-border);
-            border-radius: var(--theme-container-radius);
+            background: var(--iris-card-bg);
+            border: 1px solid var(--iris-card-border);
+            border-radius: var(--iris-card-radius);
             padding: 16px;
             margin-bottom: 16px;
-            box-shadow: var(--theme-box-shadow);
+            box-shadow: var(--iris-card-shadow);
             overflow: hidden; /* clamp inner overflow */
         }
 
@@ -163,13 +163,13 @@
         .iris-assist-title {
             font-size: 16px;
             font-weight: 600;
-            color: var(--theme-foreground);
+            color: var(--iris-color-text-primary);
             margin: 0;
         }
 
         .iris-assist-description {
             font-size: 13px;
-            color: var(--theme-foreground);
+            color: var(--iris-color-text-primary);
             opacity: 0.75;
             margin: 0;
         }
@@ -178,24 +178,24 @@
             display: inline-flex;
             align-items: center;
             gap: 8px;
-            background: var(--theme-button-background);
-            color: var(--theme-button-foreground);
-            border: 1px solid var(--theme-button-background);
+            background: var(--iris-button-primary-bg);
+            color: var(--iris-button-primary-fg);
+            border: 1px solid var(--iris-button-primary-bg);
             padding: 10px 16px;
             border-radius: 6px;
             cursor: pointer;
             font-size: 13px;
             font-weight: 500;
-            transition: var(--theme-transition);
+            transition: var(--iris-transition-base);
         }
 
         .iris-assist-button:hover {
-            background: var(--theme-button-hover);
-            border-color: var(--theme-button-hover);
+            background: var(--iris-button-primary-hover);
+            border-color: var(--iris-button-primary-hover);
         }
 
         .iris-assist-button:active {
-            background: var(--theme-button-active);
+            background: var(--iris-button-primary-active);
         }
 
         .iris-assist-button-icon {
@@ -241,7 +241,7 @@
         .section-title {
             font-size: 16px;
             font-weight: 600;
-            color: var(--theme-foreground);
+            color: var(--iris-color-text-primary);
             margin: 0 0 12px 0;
             display: flex;
             justify-content: space-between;
@@ -250,7 +250,7 @@
 
         .exercise-item {
             padding: 12px;
-            border: 1px solid var(--theme-border);
+            border: 1px solid var(--iris-color-border-subtle);
             margin-bottom: 8px;
             cursor: pointer;
             overflow: hidden; /* prevent pill overflow */
@@ -272,12 +272,12 @@
         .theme-modern .exercise-item {
             border-radius: 8px;
             transition: all 0.15s ease-in-out;
-            background: var(--theme-card-background);
+            background: var(--iris-card-bg);
             border: none;
         }
 
         .theme-modern .exercise-item:hover {
-            background: var(--theme-button-background);
+            background: var(--iris-button-primary-bg);
             border-color: var(--vscode-focusBorder);
             box-shadow: 0 0 0 1px var(--vscode-focusBorder), 0 2px 8px rgba(0, 0, 0, 0.08);
             transform: translateY(-1px);
@@ -285,18 +285,18 @@
 
         .theme-modern .exercise-item:hover .exercise-title,
         .theme-modern .exercise-item:hover .exercise-info {
-            color: var(--theme-button-foreground);
+            color: var(--iris-button-primary-fg);
         }
 
         /* Synthwave theme exercise items */
         .theme-synthwave .exercise-item {
             border-radius: 8px;
-            transition: var(--theme-transition);
+            transition: var(--iris-transition-base);
         }
 
         .theme-synthwave .exercise-item:hover {
-            background: var(--theme-button-background);
-            border-color: var(--theme-input-focus);
+            background: var(--iris-button-primary-bg);
+            border-color: var(--iris-input-focus);
             box-shadow: 0 0 15px rgba(255, 0, 110, 0.3);
         }
 
@@ -320,7 +320,7 @@
 
         .exercise-title {
             font-weight: 600;
-            color: var(--theme-foreground);
+            color: var(--iris-color-text-primary);
             flex: 1;
             min-width: 0; /* Allow flex item to shrink below content size */
             white-space: nowrap;
@@ -330,8 +330,8 @@
         }
 
         .exercise-type-icon {
-            background: var(--theme-button-background);
-            color: var(--theme-button-foreground);
+            background: var(--iris-button-primary-bg);
+            color: var(--iris-button-primary-fg);
             flex-shrink: 0; /* Don't shrink the icon */
             display: flex;
             align-items: center;
@@ -350,7 +350,7 @@
             display: flex;
             gap: 16px;
             font-size: 12px;
-            color: var(--theme-foreground);
+            color: var(--iris-color-text-primary);
             opacity: 0.85;
             flex-wrap: wrap;
         }
@@ -380,9 +380,9 @@
         .search-input {
             flex: 1;
             padding: 8px 12px;
-            border: 1px solid var(--theme-border);
-            background: var(--theme-card-background);
-            color: var(--theme-foreground);
+            border: 1px solid var(--iris-color-border-subtle);
+            background: var(--iris-card-bg);
+            color: var(--iris-color-text-primary);
             font-size: 13px;
             border-radius: 4px;
             box-sizing: border-box;
@@ -390,9 +390,9 @@
 
         .sort-select {
             padding: 8px 12px;
-            border: 1px solid var(--theme-border);
-            background: var(--theme-card-background);
-            color: var(--theme-foreground);
+            border: 1px solid var(--iris-color-border-subtle);
+            background: var(--iris-card-bg);
+            color: var(--iris-color-text-primary);
             font-size: 13px;
             border-radius: 4px;
             cursor: pointer;
@@ -426,9 +426,9 @@
         .exercises-container {
             max-height: 400px;
             overflow-y: auto;
-            border: 1px solid var(--theme-border);
+            border: 1px solid var(--iris-color-border-subtle);
             border-radius: 4px;
-            background: var(--theme-card-background);
+            background: var(--iris-card-bg);
         }
 
         .theme-vscode .exercises-container {
@@ -455,7 +455,7 @@
 
         .no-exercises-found {
             text-align: center;
-            color: var(--theme-foreground);
+            color: var(--iris-color-text-primary);
             opacity: 0.6;
             font-style: italic;
             padding: 24px 16px;
@@ -464,7 +464,7 @@
 
         .no-exercises, .more-exercises {
             text-align: center;
-            color: var(--theme-foreground);
+            color: var(--iris-color-text-primary);
             opacity: 0.6;
             font-style: italic;
             padding: 16px 0;
@@ -483,9 +483,9 @@
         }
 
         .btn {
-            background: var(--theme-button-background);
-            color: var(--theme-button-foreground);
-            border: 1px solid var(--theme-button-background);
+            background: var(--iris-button-primary-bg);
+            color: var(--iris-button-primary-fg);
+            border: 1px solid var(--iris-button-primary-bg);
             padding: 12px 16px;
             font-size: 13px;
             font-weight: 500;
@@ -501,8 +501,8 @@
         }
 
         .theme-vscode .btn:hover {
-            background: var(--theme-button-hover);
-            border-color: var(--theme-button-hover);
+            background: var(--iris-button-primary-hover);
+            border-color: var(--iris-button-primary-hover);
         }
 
         /* Modern theme buttons */
@@ -512,40 +512,40 @@
         }
 
         .theme-modern .btn:hover {
-            background: var(--theme-button-hover);
-            border-color: var(--theme-button-hover);
+            background: var(--iris-button-primary-hover);
+            border-color: var(--iris-button-primary-hover);
             transform: scale(1.01);
             box-shadow: 0 0 0 2px var(--vscode-focusBorder), 0 4px 12px rgba(0, 0, 0, 0.1);
         }
 
         /* Synthwave theme buttons */
         .theme-synthwave .btn {
-            border-radius: calc(var(--theme-container-radius) * 0.6);
-            transition: var(--theme-transition);
+            border-radius: calc(var(--iris-card-radius) * 0.6);
+            transition: var(--iris-transition-base);
             box-shadow: 0 0 15px rgba(255, 0, 110, 0.3);
             text-shadow: 0 0 5px currentColor;
         }
 
         .theme-synthwave .btn:hover {
-            background: var(--theme-button-hover);
+            background: var(--iris-button-primary-hover);
             transform: translateY(-1px);
             box-shadow: 0 0 25px rgba(255, 0, 110, 0.6);
         }
 
         .btn-primary {
-            background: var(--theme-success);
+            background: var(--iris-status-success-text);
             color: white;
-            border-color: var(--theme-success);
+            border-color: var(--iris-status-success-text);
         }
 
         .theme-modern .btn-primary:hover,
         .theme-vscode .btn-primary:hover {
-            background: var(--theme-success);
+            background: var(--iris-status-success-text);
             opacity: 0.9;
         }
 
         .theme-synthwave .btn-primary:hover {
-            background: var(--theme-success);
+            background: var(--iris-status-success-text);
             opacity: 0.9;
         }
 
@@ -554,7 +554,7 @@
             position: sticky;
             top: 0;
             z-index: 100;
-            background: var(--theme-background);
+            background: var(--iris-color-bg-app);
             padding: 16px 0 8px 0;
             margin: 0;
             display: flex;
@@ -567,20 +567,20 @@
             width: 32px;
             height: 32px;
             border-radius: 6px;
-            border: 1px solid var(--theme-border);
-            background: var(--theme-card-background);
-            color: var(--theme-foreground);
+            border: 1px solid var(--iris-color-border-subtle);
+            background: var(--iris-card-bg);
+            color: var(--iris-color-text-primary);
             cursor: pointer;
             display: flex;
             align-items: center;
             justify-content: center;
             font-size: 14px;
-            transition: var(--theme-transition);
+            transition: var(--iris-transition-base);
             flex-shrink: 0;
         }
 
         .fullscreen-btn:hover {
-            background: var(--theme-button-background);
-            color: var(--theme-button-foreground);
+            background: var(--iris-button-primary-bg);
+            color: var(--iris-button-primary-fg);
             transform: scale(1.05);
         }

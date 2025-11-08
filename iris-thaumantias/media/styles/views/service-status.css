@@ -1,19 +1,19 @@
         body {
-            font-family: var(--theme-font-family);
-            color: var(--theme-foreground);
-            background: var(--theme-background);
+            font-family: var(--iris-font-family-sans);
+            color: var(--iris-color-text-primary);
+            background: var(--iris-color-bg-app);
             margin: 0;
             padding: 0 16px 16px 16px;
             position: relative;
             min-height: calc(100vh - 32px);
-            transition: var(--theme-transition);
+            transition: var(--iris-transition-base);
         }
 
         .back-link-container {
             position: sticky;
             top: 0;
             z-index: 100;
-            background: var(--theme-background);
+            background: var(--iris-color-bg-app);
             padding: 16px 0 8px 0;
             margin: 0 0 4px 0;
         }
@@ -38,7 +38,7 @@
 
         /* Synthwave theme keeps green */
         .theme-synthwave .back-link {
-            color: var(--theme-success);
+            color: var(--iris-status-success-text);
         }
 
         .theme-synthwave .back-link:hover {
@@ -52,17 +52,17 @@
         }
 
         .header {
-            background: var(--theme-card-background);
-            border: 1px solid var(--theme-border);
-            border-radius: var(--theme-container-radius);
-            padding: var(--theme-container-padding);
-            margin-bottom: var(--theme-element-spacing);
-            box-shadow: var(--theme-box-shadow);
-            backdrop-filter: var(--theme-backdrop);
+            background: var(--iris-card-bg);
+            border: 1px solid var(--iris-color-border-subtle);
+            border-radius: var(--iris-card-radius);
+            padding: var(--iris-surface-padding);
+            margin-bottom: var(--iris-space-md);
+            box-shadow: var(--iris-card-shadow);
+            backdrop-filter: var(--iris-overlay-filter);
         }
 
         .header-title {
-            color: var(--theme-foreground);
+            color: var(--iris-color-text-primary);
             font-size: 24px;
             font-weight: 700;
             margin: 0 0 8px 0;
@@ -85,47 +85,47 @@
         }
 
         .header-subtitle {
-            color: var(--theme-foreground);
+            color: var(--iris-color-text-primary);
             opacity: 0.7;
             font-size: 14px;
             margin: 0;
         }
 
         .server-info {
-            background: var(--theme-card-background);
-            border: 1px solid var(--theme-border);
-            border-radius: var(--theme-container-radius);
-            padding: var(--theme-container-padding);
-            margin-bottom: var(--theme-element-spacing);
-            box-shadow: var(--theme-box-shadow);
-            backdrop-filter: var(--theme-backdrop);
+            background: var(--iris-card-bg);
+            border: 1px solid var(--iris-color-border-subtle);
+            border-radius: var(--iris-card-radius);
+            padding: var(--iris-surface-padding);
+            margin-bottom: var(--iris-space-md);
+            box-shadow: var(--iris-card-shadow);
+            backdrop-filter: var(--iris-overlay-filter);
         }
 
         .server-info-title {
-            color: var(--theme-foreground);
+            color: var(--iris-color-text-primary);
             font-size: 16px;
             font-weight: 600;
             margin: 0 0 12px 0;
         }
 
         .server-url {
-            color: var(--theme-foreground);
+            color: var(--iris-color-text-primary);
             opacity: 0.8;
             font-size: 14px;
             font-family: monospace;
-            background: var(--theme-input-background);
+            background: var(--iris-input-bg);
             padding: 8px 12px;
             border-radius: 6px;
-            border: 1px solid var(--theme-border);
+            border: 1px solid var(--iris-color-border-subtle);
             word-break: break-all;
         }
 
         /* Service Health Component Styles */
 
         .btn {
-            background: var(--theme-button-background);
-            color: var(--theme-button-foreground);
-            border: 1px solid var(--theme-button-background);
+            background: var(--iris-button-primary-bg);
+            color: var(--iris-button-primary-fg);
+            border: 1px solid var(--iris-button-primary-bg);
             padding: 12px 16px;
             font-size: 13px;
             font-weight: 500;
@@ -141,8 +141,8 @@
         }
 
         .theme-vscode .btn:hover {
-            background: var(--theme-button-hover);
-            border-color: var(--theme-button-hover);
+            background: var(--iris-button-primary-hover);
+            border-color: var(--iris-button-primary-hover);
         }
 
         /* Modern theme buttons */
@@ -152,22 +152,22 @@
         }
 
         .theme-modern .btn:hover {
-            background: var(--theme-button-hover);
-            border-color: var(--theme-button-hover);
+            background: var(--iris-button-primary-hover);
+            border-color: var(--iris-button-primary-hover);
             transform: scale(1.01);
             box-shadow: 0 0 0 2px var(--vscode-focusBorder), 0 4px 12px rgba(0, 0, 0, 0.1);
         }
 
         /* Synthwave theme buttons */
         .theme-synthwave .btn {
-            border-radius: calc(var(--theme-container-radius) * 0.6);
-            transition: var(--theme-transition);
+            border-radius: calc(var(--iris-card-radius) * 0.6);
+            transition: var(--iris-transition-base);
             box-shadow: 0 0 15px rgba(255, 0, 110, 0.3);
             text-shadow: 0 0 5px currentColor;
         }
 
         .theme-synthwave .btn:hover {
-            background: var(--theme-button-hover);
+            background: var(--iris-button-primary-hover);
             transform: translateY(-1px);
             box-shadow: 0 0 25px rgba(255, 0, 110, 0.6);
         }

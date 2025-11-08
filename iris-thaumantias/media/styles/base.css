@@ -4,6 +4,30 @@
 
 body {
   margin: 0;
-  font-family: sans-serif;
+  font-family: var(--iris-font-family-sans);
+  font-size: var(--iris-font-size-base);
+  font-weight: var(--iris-font-weight-base);
+  line-height: var(--iris-line-height-base);
+  color: var(--iris-color-text-primary);
+  background: var(--iris-color-bg-app);
+  transition: var(--iris-transition-base);
+  min-height: 100vh;
 }
 
+a {
+  color: var(--iris-color-text-accent);
+  text-decoration: none;
+  transition: color var(--iris-transition-fast);
+}
+
+a:hover {
+  color: var(--iris-button-primary-hover);
+}
+
+p {
+  margin-top: 0;
+}
+
+.hidden {
+  display: none !important;
+}
