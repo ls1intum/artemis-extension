@@ -76,7 +76,8 @@ export class ExerciseDetailView {
 
   public generateHtml(
     exerciseData: any,
-    hideDeveloperTools: boolean = false
+    hideDeveloperTools: boolean = false,
+    webview?: vscode.Webview
   ): string {
     const styles = readCssFiles(
       "components/backLink/back-link.css",
@@ -86,18 +87,32 @@ export class ExerciseDetailView {
       "components/badge/badge.css"
     );
 
+    // Get webview URI for the bundled components script (only if webview is provided)
+    let webviewComponentsScriptTag = '';
+    if (webview) {
+      const webviewComponentsUri = webview.asWebviewUri(
+        vscode.Uri.joinPath(
+          this._extensionContext.extensionUri,
+          'dist',
+          'webview-components.js'
+        )
+      );
+      webviewComponentsScriptTag = `<script src="${webviewComponentsUri}"></script>`;
+    }
+
     if (!exerciseData) {
-      return this._getEmptyStateHtml(styles);
+      return this._getEmptyStateHtml(styles, webviewComponentsScriptTag);
     }
 
     return this._getExerciseDetailHtml(
       exerciseData,
       hideDeveloperTools,
-      styles
+      styles,
+      webviewComponentsScriptTag
     );
   }
 
-  private _getEmptyStateHtml(styles: string): string {
+  private _getEmptyStateHtml(styles: string, webviewComponentsScriptTag: string): string {
     return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -107,6 +122,7 @@ export class ExerciseDetailView {
     <style>
         ${styles}
     </style>
+    ${webviewComponentsScriptTag}
 </head>
 <body>
     ${BackLinkComponent.generateHtml({
@@ -131,12 +147,13 @@ export class ExerciseDetailView {
   private _getExerciseDetailHtml(
     exerciseData: any,
     hideDeveloperTools: boolean,
-    styles: string
+    styles: string,
+    webviewComponentsScriptTag: string
   ): string {
     const exercise = exerciseData?.exercise;
 
     if (!exercise) {
-      return this._getEmptyStateHtml(styles);
+      return this._getEmptyStateHtml(styles, webviewComponentsScriptTag);
     }
 
     const exerciseTitle = exercise.title || "Unknown Exercise";
@@ -498,6 +515,7 @@ export class ExerciseDetailView {
     <style>
         ${styles}
     </style>
+    ${webviewComponentsScriptTag}
 </head>
 <body>
     <div class="back-link-container">
@@ -1849,8 +1867,9 @@ export class ExerciseDetailView {
         }
 
         function generateStatusBadge(buildFailed, hasTestInfo, passedTests, totalTests, successful) {
+            // Use window.BadgeComponent (available from webview-components.js)
             if (buildFailed) {
-                return BadgeComponent.generate({
+                return window.BadgeComponent.generate({
                     label: 'Build Failed',
                     variant: 'error'
                 });
@@ -1866,18 +1885,18 @@ export class ExerciseDetailView {
                     badgeVariant = 'warning';
                 }
                 
-                return BadgeComponent.generate({
+                return window.BadgeComponent.generate({
                     label: passedTests + '/' + totalTests + ' tests passed',
                     variant: badgeVariant
                 });
             }
             
             return successful 
-                ? BadgeComponent.generate({
+                ? window.BadgeComponent.generate({
                     label: 'Build Success',
                     variant: 'success'
                 })
-                : BadgeComponent.generate({
+                : window.BadgeComponent.generate({
                     label: 'Tests Failed',
                     variant: 'error'
                 });
@@ -2286,8 +2305,6 @@ export class ExerciseDetailView {
 
         // WebSocket real-time update handlers
         function handleNewResult(result) {
-            console.log('📊 Received new result from WebSocket:', result);
-
             if (!result || !window.exerciseData) {
                 return;
             }
@@ -2295,7 +2312,6 @@ export class ExerciseDetailView {
             const participation = resolveParticipationForResult(result);
 
             if (!participation) {
-                console.log('ℹ️ Ignoring result that does not belong to the active exercise or participation.');
                 return;
             }
 

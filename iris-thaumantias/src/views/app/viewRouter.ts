@@ -69,7 +69,7 @@ export class ViewRouter {
             case 'course-detail':
                 return this._courseDetailView.generateHtml(this._appStateManager.currentCourseData, hideDeveloperTools, webview);
             case 'exercise-detail':
-                return this._exerciseDetailView.generateHtml(this._appStateManager.currentExerciseData, hideDeveloperTools);
+                return this._exerciseDetailView.generateHtml(this._appStateManager.currentExerciseData, hideDeveloperTools, webview);
             case 'ai-config':
                 return this._aiCheckerView.generateHtml(this._appStateManager.aiExtensions || []);
             case 'service-status': {
