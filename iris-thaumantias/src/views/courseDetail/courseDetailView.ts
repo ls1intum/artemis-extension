@@ -150,7 +150,6 @@ export class CourseDetailView {
         </div>
         ${ButtonComponent.generate({
             label: 'Ask Iris',
-            icon: starAssistIcon,
             variant: 'primary',
             id: 'askIrisAboutCourseBtn',
             command: 'document.getElementById("askIrisAboutCourseBtn").click()',

@@ -186,8 +186,9 @@
     line-height: 20px;
 }
 
-/* Button with only icon (no label) - adjusted spacing */
-.btn:not(:has(.btn-label)) {
+/* Button with only icon (no label, no text content) - adjusted spacing */
+.btn:empty,
+.btn:has(svg):not(:has(.btn-label)):not(:has(text)) {
     padding: 6px;
 }
 

@@ -843,7 +843,6 @@ export class ExerciseDetailView {
         </div>
         ${ButtonComponent.generate({
             label: 'Ask Iris',
-            icon: starAssistIcon,
             variant: 'primary',
             id: 'askIrisAboutExerciseBtn',
             command: 'document.getElementById("askIrisAboutExerciseBtn").click()',
