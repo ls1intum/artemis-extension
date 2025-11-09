@@ -156,7 +156,13 @@ export class DashboardView {
                         <option value="title-asc">Title (A-Z)</option>
                         <option value="title-desc">Title (Z-A)</option>
                     </select>
-                    <span class="show-all-link" onclick="showAllCourses()">Show All</span>
+                    ${ButtonComponent.generate({
+                        label: 'Show All',
+                        variant: 'link',
+                        command: 'showAllCourses()',
+                        className: 'show-all-link',
+                        height: '1rem'
+                    })}
                 </div>
             </h3>
             <div class="recent-courses-list" id="recentCoursesList">

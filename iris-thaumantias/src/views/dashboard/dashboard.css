@@ -257,16 +257,6 @@
             border-color: var(--theme-input-focus);
             box-shadow: 0 0 0 2px var(--theme-input-focus);
         }
-        .show-all-link {
-            font-size: 13px;
-            cursor: pointer;
-            text-decoration: underline;
-            font-weight: normal;
-            color: var(--theme-link-color);
-        }
-        .show-all-link:hover {
-            color: var(--theme-link-hover);
-        }
         .recent-course-item {
             padding: 8px 12px;
             margin-bottom: 8px;
