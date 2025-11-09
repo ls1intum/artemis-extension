@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import type { CommandContext, CommandMap } from './types';
-import { BuildLogParser } from '../../../utils';
+import { BuildLogParser, normalizeRelativePath } from '../../../utils';
 
 export class UtilityCommandModule {
     constructor(private readonly context: CommandContext) {}
@@ -245,7 +245,7 @@ export class UtilityCommandModule {
     };
 
     private handleGoToSourceError = async (message: any): Promise<void> => {
-        const filePath: string = message.filePath;
+        const filePath: string = normalizeRelativePath(message.filePath);
         const line: number = message.line;
         const column: number | undefined = message.column;
 

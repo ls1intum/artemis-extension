@@ -5,7 +5,7 @@ import { ArtemisWebviewProvider, ChatWebviewProvider } from './provider';
 import { AuthManager } from './auth';
 import { ArtemisApiService } from './api';
 import { ArtemisWebsocketService, BuildErrorCodeLensProvider } from './services';
-import { VSCODE_CONFIG, processPlantUml } from './utils';
+import { VSCODE_CONFIG, processPlantUml, normalizeRelativePath } from './utils';
 
 // This method is called when your extension is activated
 // Your extension is activated the very first time the command is executed
@@ -115,13 +115,19 @@ export async function activate(context: vscode.ExtensionContext) {
 		'artemis.goToSourceError',
 		async (filePath: string, line: number, column?: number, message?: string) => {
 			try {
+				const normalizedPath = normalizeRelativePath(filePath);
 				const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
 				if (!workspaceFolder) {
 					vscode.window.showErrorMessage('No workspace folder open.');
 					return;
 				}
 
-				const fileUri = vscode.Uri.joinPath(workspaceFolder.uri, filePath);
+				if (!normalizedPath) {
+					vscode.window.showErrorMessage('Cannot navigate to error: missing file path.');
+					return;
+				}
+
+				const fileUri = vscode.Uri.joinPath(workspaceFolder.uri, normalizedPath);
 				const document = await vscode.workspace.openTextDocument(fileUri);
 				const editor = await vscode.window.showTextDocument(document, {
 					preview: false,

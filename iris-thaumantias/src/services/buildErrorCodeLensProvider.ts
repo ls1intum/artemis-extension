@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import type { ParsedBuildError } from '../types';
+import { normalizeRelativePath } from '../utils';
 
 /**
  * CodeLens provider for displaying build errors above the affected line
@@ -17,7 +18,11 @@ export class BuildErrorCodeLensProvider implements vscode.CodeLensProvider {
      * @param errors Array of build errors for this file
      */
     public setErrors(filePath: string, errors: ParsedBuildError[]): void {
-        this.buildErrors.set(filePath, errors);
+        const normalizedPath = normalizeRelativePath(filePath);
+        if (!normalizedPath) {
+            return;
+        }
+        this.buildErrors.set(normalizedPath, errors);
         this._onDidChangeCodeLenses.fire();
     }
 
@@ -34,7 +39,11 @@ export class BuildErrorCodeLensProvider implements vscode.CodeLensProvider {
      * @param filePath Relative file path
      */
     public clearFileErrors(filePath: string): void {
-        this.buildErrors.delete(filePath);
+        const normalizedPath = normalizeRelativePath(filePath);
+        if (!normalizedPath) {
+            return;
+        }
+        this.buildErrors.delete(normalizedPath);
         this._onDidChangeCodeLenses.fire();
     }
 
@@ -48,7 +57,7 @@ export class BuildErrorCodeLensProvider implements vscode.CodeLensProvider {
         }
 
         const relativePath = vscode.workspace.asRelativePath(document.uri, false);
-        return relativePath;
+        return normalizeRelativePath(relativePath);
     }
 
     /**

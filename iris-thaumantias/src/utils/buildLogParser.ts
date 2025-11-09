@@ -1,4 +1,5 @@
 import type { BuildLogEntry, ParsedBuildError } from '../types';
+import { normalizeRelativePath } from './pathUtils';
 
 /**
  * Parse build logs to extract error information (file path, line number, message)
@@ -39,7 +40,7 @@ export class BuildLogParser {
         let match = logText.match(this.GRADLE_ERROR_REGEX);
         if (match) {
             return {
-                filePath: match[1],
+                filePath: normalizeRelativePath(match[1]),
                 line: parseInt(match[2], 10),
                 message: match[3].trim()
             };
@@ -49,7 +50,7 @@ export class BuildLogParser {
         match = logText.match(this.MAVEN_ERROR_REGEX);
         if (match) {
             return {
-                filePath: match[1].replace(/^\//, ''), // Remove leading slash
+                filePath: normalizeRelativePath(match[1]),
                 line: parseInt(match[2], 10),
                 column: parseInt(match[3], 10),
                 message: match[4].trim()
@@ -60,7 +61,7 @@ export class BuildLogParser {
         match = logText.match(this.SWIFT_ERROR_REGEX);
         if (match) {
             return {
-                filePath: match[1],
+                filePath: normalizeRelativePath(match[1]),
                 line: parseInt(match[2], 10),
                 column: parseInt(match[3], 10),
                 message: match[4].trim()
