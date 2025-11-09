@@ -1,1 +1,1 @@
-export { readCss, readCssFiles } from './cssLoader';
+export { readCssFiles } from './cssLoader';

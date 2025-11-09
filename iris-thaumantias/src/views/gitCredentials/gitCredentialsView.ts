@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import { IconDefinitions } from '../../utils/iconDefinitions';
 import type { UserInfo } from '../app/appStateManager';
-import { readCss } from '../utils';
+import { readCssFiles } from '../utils';
 import { BackLinkComponent } from '../components/backLink/backLinkComponent';
 
 export class GitCredentialsView {
@@ -12,8 +12,10 @@ export class GitCredentialsView {
     }
 
     public generateHtml(userInfo?: UserInfo): string {
-        const styles = readCss('gitCredentials/git-credentials.css');
-        const backLinkStyles = readCss('components/backLink/back-link.css');
+        const styles = readCssFiles(
+            'components/backLink/back-link.css',
+            'gitCredentials/git-credentials.css'
+        );
 
         const gitIcon = IconDefinitions.getIcon('git');
         const shieldIcon = IconDefinitions.getIcon('shield');
@@ -25,7 +27,6 @@ export class GitCredentialsView {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Git Credentials Helper</title>
     <style>
-        ${backLinkStyles}
         ${styles}
     </style>
 </head>

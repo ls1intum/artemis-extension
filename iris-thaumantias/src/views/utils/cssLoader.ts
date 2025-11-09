@@ -73,42 +73,23 @@ function loadBaseCss(): string {
     return '';
 }
 
-/**
- * Reads CSS content from a file and returns it as a string.
- * Automatically resolves the correct path in both development and production.
- * 
- * @param relativePath - Path relative to src/views (e.g., 'login/login.css')
- * @param includeBase - Whether to include base.css (default: true)
- * @returns CSS content as string, or empty string if file cannot be read
- */
-export function readCss(relativePath: string, includeBase: boolean = true): string {
+function readCssContent(relativePath: string): string {
     const viewsDir = getViewsBaseDir();
     const cssPath = path.join(viewsDir, relativePath);
     
-    let css = '';
-    
-    // Add base CSS first if requested
-    if (includeBase) {
-        css = loadBaseCss();
-        if (css) {
-            css += '\n\n';
-        }
-    }
-    
     try {
-        css += fs.readFileSync(cssPath, 'utf-8');
-        return css;
+        return fs.readFileSync(cssPath, 'utf-8');
     } catch (error) {
         console.error(`[cssLoader] Failed to load CSS file: ${cssPath}`, error);
         console.error(`[cssLoader] __dirname: ${__dirname}`);
         console.error(`[cssLoader] Views base dir: ${viewsDir}`);
         console.error(`[cssLoader] Relative path: ${relativePath}`);
-        return css; // Return base CSS even if view CSS fails
+        return '';
     }
 }
 
 /**
- * Reads multiple CSS files and combines them into a single string.
+ * Reads one or more CSS files and combines them into a single string.
  * Automatically includes base.css at the beginning.
  * 
  * @param relativePaths - Array of paths relative to src/views
@@ -124,7 +105,7 @@ export function readCssFiles(...relativePaths: string[]): string {
     
     // Load all other CSS files
     const viewCss = relativePaths
-        .map(relativePath => readCss(relativePath, false)) // Don't include base for each file
+        .map(relativePath => readCssContent(relativePath))
         .filter(Boolean)
         .join('\n');
     

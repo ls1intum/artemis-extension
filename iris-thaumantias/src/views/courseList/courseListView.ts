@@ -1,18 +1,20 @@
-import { readCss } from '../utils';
+import { readCssFiles } from '../utils';
 import { BackLinkComponent } from '../components/backLink/backLinkComponent';
 import { ButtonComponent } from '../components/button/buttonComponent';
 import { IconDefinitions } from '../../utils/iconDefinitions';
 
 export class CourseListView {
     public generateHtml(coursesData: any | undefined, archivedCoursesData: any[] | undefined): string {
-        const styles = readCss('courseList/course-list.css');
-        const buttonStyles = readCss('components/button/button.css');
-        const backLinkStyles = readCss('components/backLink/back-link.css');
+        const styles = readCssFiles(
+            'components/backLink/back-link.css',
+            'components/button/button.css',
+            'courseList/course-list.css'
+        );
         
-        return this._getCourseListHtml(coursesData, archivedCoursesData, styles, buttonStyles, backLinkStyles);
+        return this._getCourseListHtml(coursesData, archivedCoursesData, styles);
     }
 
-    private _getCourseListHtml(coursesData: any | undefined, archivedCoursesData: any[] | undefined, styles: string, buttonStyles: string, backLinkStyles: string): string {
+    private _getCourseListHtml(coursesData: any | undefined, archivedCoursesData: any[] | undefined, styles: string): string {
         let coursesHtml = '';
         
         // Generate current courses
@@ -113,8 +115,6 @@ export class CourseListView {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>All Courses</title>
     <style>
-        ${backLinkStyles}
-        ${buttonStyles}
         ${styles}
     </style>
 </head>

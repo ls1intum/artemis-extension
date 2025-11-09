@@ -1,13 +1,15 @@
-import { readCss } from '../utils';
+import { readCssFiles } from '../utils';
 import type { RecommendedExtensionCategory } from '../../utils/recommendedExtensions';
 import { BackLinkComponent } from '../components/backLink/backLinkComponent';
 import { ButtonComponent } from '../components/button/buttonComponent';
 
 export class RecommendedExtensionsView {
     public generateHtml(categories: RecommendedExtensionCategory[] = []): string {
-        const styles = readCss('recommendedExtensions/recommended-extensions.css');
-        const buttonStyles = readCss('components/button/button.css');
-        const backLinkStyles = readCss('components/backLink/back-link.css');
+        const styles = readCssFiles(
+            'components/backLink/back-link.css',
+            'components/button/button.css',
+            'recommendedExtensions/recommended-extensions.css'
+        );
 
         const hasCategories = Array.isArray(categories) && categories.length > 0;
 
@@ -23,8 +25,6 @@ export class RecommendedExtensionsView {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Recommended Extensions</title>
     <style>
-        ${backLinkStyles}
-        ${buttonStyles}
         ${styles}
     </style>
 

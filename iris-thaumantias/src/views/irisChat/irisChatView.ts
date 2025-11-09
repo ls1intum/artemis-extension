@@ -1,6 +1,6 @@
 import * as vscode from "vscode";
 import { IconDefinitions } from "../../utils/iconDefinitions";
-import { readCss } from "../utils";
+import { readCssFiles } from "../utils";
 
 export class IrisChatView {
   private _extensionContext: vscode.ExtensionContext;
@@ -15,7 +15,7 @@ export class IrisChatView {
     webview?: vscode.Webview,
     showDiagnostics: boolean = false
   ): string {
-    const styles = readCss("irisChat/iris-chat.css");
+    const styles = readCssFiles("irisChat/iris-chat.css");
 
     const trashIcon = IconDefinitions.getIcon("trash");
     const stethoscopeIcon = IconDefinitions.getIcon("stethoscope");
