@@ -622,22 +622,33 @@ export class ExerciseDetailView {
           // Generate status badge (logic shared with websocket handler)
           let statusBadge = "";
           if (buildFailed) {
-            statusBadge =
-              '<span class="status-badge failed">Build Failed</span>';
+            statusBadge = BadgeComponent.generate({
+              label: 'Build Failed',
+              variant: 'error'
+            });
           } else if (hasTestInfo) {
             const passPercentage =
               totalTests > 0 ? (passedTests / totalTests) * 100 : 0;
-            const badgeClass =
+            const badgeVariant =
               passPercentage >= 80
                 ? "success"
                 : passPercentage >= 40
-                ? "partial"
-                : "failed";
-            statusBadge = `<span class="status-badge ${badgeClass}">${passedTests}/${totalTests} tests passed</span>`;
+                ? "warning"
+                : "error";
+            statusBadge = BadgeComponent.generate({
+              label: `${passedTests}/${totalTests} tests passed`,
+              variant: badgeVariant
+            });
           } else {
             statusBadge = successful
-              ? '<span class="status-badge success">Build Success</span>'
-              : '<span class="status-badge failed">Tests Failed</span>';
+              ? BadgeComponent.generate({
+                  label: 'Build Success',
+                  variant: 'success'
+                })
+              : BadgeComponent.generate({
+                  label: 'Tests Failed',
+                  variant: 'error'
+                });
           }
 
           buildStatusHtml = `
@@ -1839,25 +1850,37 @@ export class ExerciseDetailView {
 
         function generateStatusBadge(buildFailed, hasTestInfo, passedTests, totalTests, successful) {
             if (buildFailed) {
-                return '<span class="status-badge failed">Build Failed<' + '/span>';
+                return BadgeComponent.generate({
+                    label: 'Build Failed',
+                    variant: 'error'
+                });
             }
             
             if (hasTestInfo) {
                 const passPercentage = (passedTests / totalTests) * 100;
-                let badgeClass = 'failed';
+                let badgeVariant = 'error';
                 
                 if (passPercentage >= 80) {
-                    badgeClass = 'success';
+                    badgeVariant = 'success';
                 } else if (passPercentage >= 40) {
-                    badgeClass = 'partial';
+                    badgeVariant = 'warning';
                 }
                 
-                return '<span class="status-badge ' + badgeClass + '">' + passedTests + '/' + totalTests + ' tests passed<' + '/span>';
+                return BadgeComponent.generate({
+                    label: passedTests + '/' + totalTests + ' tests passed',
+                    variant: badgeVariant
+                });
             }
             
             return successful 
-                ? '<span class="status-badge success">Build Success<' + '/span>'
-                : '<span class="status-badge failed">Tests Failed<' + '/span>';
+                ? BadgeComponent.generate({
+                    label: 'Build Success',
+                    variant: 'success'
+                })
+                : BadgeComponent.generate({
+                    label: 'Tests Failed',
+                    variant: 'error'
+                });
         }
 
         function renderBuildProgress(section, messageText, progressPercent, isIndeterminate = false) {

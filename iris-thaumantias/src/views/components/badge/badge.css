@@ -46,25 +46,25 @@
     border-color: var(--vscode-textLink-foreground, #007acc);
 }
 
-/* Success badge - Green */
+/* Success badge - Darker green with solid background for better readability */
 .badge-success {
-    background-color: rgba(22, 163, 74, 0.15);
-    color: var(--vscode-testing-iconPassed, #73c991);
-    border-color: var(--vscode-testing-iconPassed, #73c991);
+    background-color: #15803d;
+    color: #ffffff;
+    border-color: #15803d;
 }
 
-/* Warning badge - Yellow/Orange */
+/* Warning badge - Orange with solid background for better readability */
 .badge-warning {
-    background-color: rgba(234, 179, 8, 0.15);
-    color: var(--vscode-editorWarning-foreground, #eab308);
-    border-color: var(--vscode-editorWarning-foreground, #eab308);
+    background-color: #d97706;
+    color: #ffffff;
+    border-color: #d97706;
 }
 
-/* Error badge - Red */
+/* Error badge - Red with solid background for better readability */
 .badge-error {
-    background-color: rgba(239, 68, 68, 0.15);
-    color: var(--vscode-errorForeground, #f48771);
-    border-color: var(--vscode-errorForeground, #f48771);
+    background-color: #dc2626;
+    color: #ffffff;
+    border-color: #dc2626;
 }
 
 /* Compact size modifier */
