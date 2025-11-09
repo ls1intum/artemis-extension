@@ -39,6 +39,30 @@
     transform: none !important;
 }
 
+/* Icon color inheritance - stroke for outlined icons, fill for solid icons */
+.btn svg {
+    stroke: currentColor;
+    fill: none;
+}
+
+.btn svg path,
+.btn svg circle,
+.btn svg rect,
+.btn svg polygon {
+    stroke: currentColor;
+    fill: none;
+}
+
+/* For icons that need fill (like solid icons), override with fill attribute */
+.btn svg[fill]:not([fill="none"]),
+.btn svg path[fill]:not([fill="none"]),
+.btn svg circle[fill]:not([fill="none"]),
+.btn svg rect[fill]:not([fill="none"]),
+.btn svg polygon[fill]:not([fill="none"]) {
+    fill: currentColor;
+    stroke: none;
+}
+
 /* Primary Button - Blue solid background like "Commit" */
 .btn-primary {
     background-color: var(--vscode-button-background, #007acc);
@@ -57,11 +81,11 @@
     box-shadow: none;
 }
 
-/* Primary button icons should be white */
+/* Primary button icons should match text color (white) */
 .btn-primary .btn-icon,
 .btn-primary .btn-icon svg,
 .btn-primary svg {
-    fill: var(--vscode-button-foreground, #ffffff);
+    color: inherit;
 }
 
 /* Secondary Button - White background with blue border like "Feedback" */
@@ -82,11 +106,11 @@
     box-shadow: none;
 }
 
-/* Secondary button icons use the blue text color */
+/* Secondary button icons should match text color (blue) */
 .btn-secondary .btn-icon,
 .btn-secondary .btn-icon svg,
 .btn-secondary svg {
-    fill: var(--vscode-textLink-foreground, #007acc);
+    color: inherit;
 }
 
 /* Icon Button (minimal style for toolbar-like buttons) */
@@ -196,11 +220,11 @@
     box-shadow: none;
 }
 
-/* Danger button icons should be white */
+/* Danger button icons should match text color (white) */
 .btn-danger .btn-icon,
 .btn-danger .btn-icon svg,
 .btn-danger svg {
-    fill: #ffffff;
+    color: inherit;
 }
 
 /* Success button variant - Green solid background */
@@ -220,9 +244,9 @@
     box-shadow: none;
 }
 
-/* Success button icons should be white */
+/* Success button icons should match text color (white) */
 .btn-success .btn-icon,
 .btn-success .btn-icon svg,
 .btn-success svg {
-    fill: #ffffff;
+    color: inherit;
 }
