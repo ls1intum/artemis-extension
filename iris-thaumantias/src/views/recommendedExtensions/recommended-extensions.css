@@ -239,30 +239,6 @@
             gap: 6px;
         }
 
-        .marketplace-button {
-            align-self: flex-start;
-            margin-top: auto;
-            padding: 10px 18px;
-            font-size: 13px;
-            font-weight: 600;
-            border-radius: var(--theme-container-radius);
-            border: 1px solid var(--theme-button-background);
-            background: var(--theme-button-background);
-            color: var(--theme-button-foreground);
-            cursor: pointer;
-            transition: var(--theme-transition);
-        }
-
-        .marketplace-button:hover {
-            background: var(--theme-button-hover);
-            border-color: var(--theme-button-hover);
-        }
-
-        .marketplace-button:focus-visible {
-            outline: 2px solid var(--theme-info);
-            outline-offset: 2px;
-        }
-
         .back-link-container {
             position: sticky;
             top: 0;

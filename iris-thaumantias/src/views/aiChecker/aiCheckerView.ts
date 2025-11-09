@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import { AiExtension } from '../app/appStateManager';
 import { readCss } from '../utils';
 import { BackLinkComponent } from '../components/backLink/backLinkComponent';
+import { ButtonComponent } from '../components/button/buttonComponent';
 
 interface ProviderGroup {
     provider: string;
@@ -18,13 +19,14 @@ export class AiCheckerView {
 
     public generateHtml(aiExtensions: AiExtension[]): string {
         const styles = readCss('aiChecker/ai-checker.css');
+        const buttonStyles = readCss('components/button/button.css');
 
         const groupedExtensions = this._groupExtensionsByProvider(aiExtensions);
 
-        return this._getAiCheckerHtml(groupedExtensions, styles);
+        return this._getAiCheckerHtml(groupedExtensions, styles, buttonStyles);
     }
 
-    private _getAiCheckerHtml(groups: ProviderGroup[], styles: string): string {
+    private _getAiCheckerHtml(groups: ProviderGroup[], styles: string, buttonStyles: string): string {
         const providerOptions = groups
             .map(group => `<option value="${group.provider.toLowerCase()}">${group.provider}</option>`)
             .join('');
@@ -53,16 +55,22 @@ export class AiCheckerView {
                                 <div class="extension-details">
                                     <p class="extension-publisher">${ext.publisher}${ext.version !== '—' ? ` • v${ext.version}` : ''}</p>
                                     <p class="extension-description">${ext.description}</p>
-                                    <button class="marketplace-btn" onclick="searchMarketplace('${ext.id}')">
-                                        View in Marketplace
-                                    </button>
+                                    ${ButtonComponent.generate({
+                                        label: 'View in Marketplace',
+                                        variant: 'secondary',
+                                        className: 'marketplace-btn',
+                                        command: `searchMarketplace('${ext.id}')`
+                                    })}
                                 </div>
                                 ` : `
                                 <div class="extension-details">
                                     <p class="extension-description">${ext.description}</p>
-                                    <button class="marketplace-btn" onclick="searchMarketplace('${ext.id}')">
-                                        View in Marketplace
-                                    </button>
+                                    ${ButtonComponent.generate({
+                                        label: 'View in Marketplace',
+                                        variant: 'secondary',
+                                        className: 'marketplace-btn',
+                                        command: `searchMarketplace('${ext.id}')`
+                                    })}
                                 </div>
                                 `}
                             </div>
@@ -88,6 +96,7 @@ export class AiCheckerView {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AI Checker</title>
     <style>
+        ${buttonStyles}
         ${styles}
     </style>
 

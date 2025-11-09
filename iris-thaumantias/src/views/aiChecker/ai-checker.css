@@ -315,28 +315,7 @@
         }
 
         .marketplace-btn {
-            background: var(--theme-button-background);
-            color: var(--theme-button-foreground);
-            border: 1px solid var(--theme-border);
-            padding: 6px 12px;
-            cursor: pointer;
-            font-size: 12px;
-            border-radius: 4px;
-            font-weight: 500;
-            transition: var(--theme-transition);
-            display: inline-flex;
-            align-items: center;
-            gap: 4px;
             margin-top: 4px;
-        }
-
-        .marketplace-btn:hover {
-            background: var(--theme-button-hover);
-            border-color: var(--vscode-focusBorder);
-        }
-
-        .marketplace-btn:active {
-            background: var(--theme-button-active);
         }
 
         .no-extensions {

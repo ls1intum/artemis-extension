@@ -1,10 +1,12 @@
 import { readCss } from '../utils';
 import type { RecommendedExtensionCategory } from '../../utils/recommendedExtensions';
 import { BackLinkComponent } from '../components/backLink/backLinkComponent';
+import { ButtonComponent } from '../components/button/buttonComponent';
 
 export class RecommendedExtensionsView {
     public generateHtml(categories: RecommendedExtensionCategory[] = []): string {
         const styles = readCss('recommendedExtensions/recommended-extensions.css');
+        const buttonStyles = readCss('components/button/button.css');
 
         const hasCategories = Array.isArray(categories) && categories.length > 0;
 
@@ -20,6 +22,7 @@ export class RecommendedExtensionsView {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Recommended Extensions</title>
     <style>
+        ${buttonStyles}
         ${styles}
     </style>
 
@@ -112,7 +115,12 @@ export class RecommendedExtensionsView {
                         <div class="extension-reason-label">Why we recommend it</div>
                         <p class="extension-reason">${extension.reason}</p>
                     </div>
-                    <button class="marketplace-button" data-extension-id="${extension.id}">View in Marketplace</button>
+                    ${ButtonComponent.generate({
+                        label: 'View in Marketplace',
+                        variant: 'secondary',
+                        className: 'marketplace-button',
+                        command: `openExtensionMarketplace('${extension.id}')`
+                    })}
                 </article>`;
     }
 
