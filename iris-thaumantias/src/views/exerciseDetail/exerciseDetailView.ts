@@ -3,6 +3,7 @@ import { IconDefinitions } from "../../utils";
 import { readCssFiles } from "../utils";
 import { BackLinkComponent } from "../components/backLink/backLinkComponent";
 import { ButtonComponent } from "../components/button/buttonComponent";
+import { FullscreenButton } from "../components/button/iconButtons";
 
 export class ExerciseDetailView {
   private _extensionContext: vscode.ExtensionContext;
@@ -76,7 +77,12 @@ export class ExerciseDetailView {
     exerciseData: any,
     hideDeveloperTools: boolean = false
   ): string {
-    const styles = readCssFiles("components/backLink/back-link.css", "exerciseDetail/exercise-detail.css", "components/button/button.css");
+    const styles = readCssFiles(
+      "components/backLink/back-link.css",
+      "exerciseDetail/exercise-detail.css",
+      "components/button/button.css",
+      "components/button/iconButtons/iconButtons.css"
+    );
 
     if (!exerciseData) {
       return this._getEmptyStateHtml(styles);
@@ -498,9 +504,11 @@ export class ExerciseDetailView {
           label: "← Back to Course",
           wrap: false,
         })}
-        <button class="fullscreen-btn" id="fullscreenBtn" onclick="toggleFullscreen()" title="Open exercise in new editor tab">
-            ⛶
-        </button>
+        ${FullscreenButton.generate({
+            id: 'fullscreenBtn',
+            command: 'toggleFullscreen()',
+            title: 'Open exercise in new editor tab'
+        })}
     </div>
     
     <details class="exercise-card">

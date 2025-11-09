@@ -734,28 +734,6 @@
             flex-shrink: 0;
         }
 
-        .fullscreen-btn {
-            width: 32px;
-            height: 32px;
-            border-radius: var(--theme-container-radius);
-            border: 1px solid var(--theme-border);
-            background: var(--theme-card-background);
-            color: var(--theme-foreground);
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 14px;
-            transition: none;
-            flex-shrink: 0;
-        }
-
-        .fullscreen-btn:hover {
-            background: var(--theme-button-background);
-            color: var(--theme-button-foreground);
-            transform: none;
-        }
-
         .repo-status-icon.connected {
             background: var(--theme-success);
             color: white;
