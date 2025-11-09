@@ -980,9 +980,12 @@
         .iris-assist-section {
             display: flex;
             align-items: center;
-            justify-content: space-between;
             gap: 16px;
             flex-wrap: wrap;
+        }
+
+        .iris-assist-section .btn {
+            flex: 0 0 auto;
         }
 
         .iris-assist-content {
@@ -1634,6 +1637,14 @@
             text-decoration: none;
             transition: none;
             border-radius: 2px;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            width: auto;
+        }
+
+        .btn-full-width {
+            width: 100%;
         }
 
         .btn-primary {

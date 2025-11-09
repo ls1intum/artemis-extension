@@ -1,7 +1,8 @@
 import * as vscode from 'vscode';
 import { IconDefinitions } from '../../utils';
-import { readCss } from '../utils';
+import { readCssFiles } from '../utils';
 import { BackLinkComponent } from '../components/backLink/backLinkComponent';
+import { ButtonComponent } from '../components/button/buttonComponent';
 
 export class CourseDetailView {
     private _extensionContext: vscode.ExtensionContext;
@@ -15,7 +16,7 @@ export class CourseDetailView {
     }
 
     public generateHtml(courseData: any, hideDeveloperTools: boolean = false, webview?: vscode.Webview): string {
-        const styles = readCss('courseDetail/course-detail.css');
+        const styles = readCssFiles('courseDetail/course-detail.css', 'components/button/button.css');
         
         if (!courseData) {
             return this._getEmptyStateHtml(styles);
@@ -147,10 +148,14 @@ export class CourseDetailView {
             <div class="iris-assist-title">Ask Iris about this course</div>
             <p class="iris-assist-description">Open the Iris chat to discuss this course or its exercises.</p>
         </div>
-        <button class="iris-assist-button" id="askIrisAboutCourseBtn">
-            <span class="iris-assist-button-icon">${starAssistIcon}</span>
-            Ask Iris
-        </button>
+        ${ButtonComponent.generate({
+            label: 'Ask Iris',
+            icon: starAssistIcon,
+            variant: 'primary',
+            id: 'askIrisAboutCourseBtn',
+            command: 'document.getElementById("askIrisAboutCourseBtn").click()',
+            fullWidth: false
+        })}
     </div>
     
     <div class="section">

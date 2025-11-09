@@ -59,7 +59,8 @@ export class LoginView {
                     label: 'Login to Artemis',
                     variant: 'primary',
                     id: 'loginButton',
-                    command: 'document.getElementById("loginForm").requestSubmit()'
+                    command: 'document.getElementById("loginForm").requestSubmit()',
+                    fullWidth: true
                 })}
             </div>
             <div id="statusMessage" class="status"></div>

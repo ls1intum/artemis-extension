@@ -184,49 +184,56 @@ export class DashboardView {
                     icon: courseIcon,
                     variant: 'primary',
                     id: 'browseCoursesBtn',
-                    command: 'document.getElementById("browseCoursesBtn").click()'
+                    command: 'document.getElementById("browseCoursesBtn").click()',
+                    fullWidth: true
                 })}
                 ${ButtonComponent.generate({
                     label: 'AI Checker',
                     icon: star4Icon,
                     variant: 'primary',
                     id: 'checkAiConfigBtn',
-                    command: 'document.getElementById("checkAiConfigBtn").click()'
+                    command: 'document.getElementById("checkAiConfigBtn").click()',
+                    fullWidth: true
                 })}
                 ${ButtonComponent.generate({
                     label: 'Service Status',
                     icon: stethoscopeIcon,
                     variant: 'primary',
                     id: 'checkServiceStatusBtn',
-                    command: 'document.getElementById("checkServiceStatusBtn").click()'
+                    command: 'document.getElementById("checkServiceStatusBtn").click()',
+                    fullWidth: true
                 })}
                 ${ButtonComponent.generate({
                     label: 'Recommended Extensions',
                     icon: puzzleIcon,
                     variant: 'primary',
                     id: 'recommendedExtensionsBtn',
-                    command: 'document.getElementById("recommendedExtensionsBtn").click()'
+                    command: 'document.getElementById("recommendedExtensionsBtn").click()',
+                    fullWidth: true
                 })}
                 ${ButtonComponent.generate({
                     label: 'Open Artemis in browser',
                     icon: webIcon,
                     variant: 'primary',
                     id: 'openWebsiteBtn',
-                    command: 'document.getElementById("openWebsiteBtn").click()'
+                    command: 'document.getElementById("openWebsiteBtn").click()',
+                    fullWidth: true
                 })}
                 ${ButtonComponent.generate({
                     label: 'Git Credentials',
                     icon: gitIcon,
                     variant: 'secondary',
                     id: 'gitCredentialsBtn',
-                    command: 'document.getElementById("gitCredentialsBtn").click()'
+                    command: 'document.getElementById("gitCredentialsBtn").click()',
+                    fullWidth: true
                 })}
                 ${ButtonComponent.generate({
                     label: 'Open Settings',
                     icon: gearIcon,
                     variant: 'secondary',
                     id: 'openSettingsBtn',
-                    command: 'document.getElementById("openSettingsBtn").click()'
+                    command: 'document.getElementById("openSettingsBtn").click()',
+                    fullWidth: true
                 })}
                 ${ButtonComponent.generate({
                     label: 'Logout from Artemis',
@@ -234,7 +241,8 @@ export class DashboardView {
                     variant: 'secondary',
                     className: 'btn-danger',
                     id: 'logoutBtn',
-                    command: 'document.getElementById("logoutBtn").click()'
+                    command: 'document.getElementById("logoutBtn").click()',
+                    fullWidth: true
                 })}
             </div>
         </div>

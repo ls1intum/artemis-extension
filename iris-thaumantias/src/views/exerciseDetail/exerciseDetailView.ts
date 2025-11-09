@@ -1,7 +1,8 @@
 import * as vscode from "vscode";
 import { IconDefinitions } from "../../utils";
-import { readCss } from "../utils";
+import { readCssFiles } from "../utils";
 import { BackLinkComponent } from "../components/backLink/backLinkComponent";
+import { ButtonComponent } from "../components/button/buttonComponent";
 
 export class ExerciseDetailView {
   private _extensionContext: vscode.ExtensionContext;
@@ -75,7 +76,7 @@ export class ExerciseDetailView {
     exerciseData: any,
     hideDeveloperTools: boolean = false
   ): string {
-    const styles = readCss("exerciseDetail/exercise-detail.css");
+    const styles = readCssFiles("exerciseDetail/exercise-detail.css", "components/button/button.css");
 
     if (!exerciseData) {
       return this._getEmptyStateHtml(styles);
@@ -840,10 +841,14 @@ export class ExerciseDetailView {
             <div class="iris-assist-title">Ask Iris about this exercise</div>
             <p class="iris-assist-description">Open the Iris chat to discuss this exercise or get guidance.</p>
         </div>
-        <button class="iris-assist-button" id="askIrisAboutExerciseBtn">
-            <span class="iris-assist-button-icon">${starAssistIcon}</span>
-            Ask Iris
-        </button>
+        ${ButtonComponent.generate({
+            label: 'Ask Iris',
+            icon: starAssistIcon,
+            variant: 'primary',
+            id: 'askIrisAboutExerciseBtn',
+            command: 'document.getElementById("askIrisAboutExerciseBtn").click()',
+            fullWidth: false
+        })}
     </div>
 
     <div class="content-section">
