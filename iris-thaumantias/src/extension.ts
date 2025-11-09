@@ -504,14 +504,6 @@ export async function activate(context: vscode.ExtensionContext) {
 			}
 		}
 
-		if (event.affectsConfiguration(`${VSCODE_CONFIG.ARTEMIS_SECTION}.${VSCODE_CONFIG.THEME_KEY}`)) {
-			console.log('Artemis theme configuration changed');
-
-			// Refresh both webviews to apply the new theme
-			artemisWebviewProvider.refreshTheme();
-			chatWebviewProvider.refreshTheme();
-		}
-
 		if (event.affectsConfiguration(`${VSCODE_CONFIG.ARTEMIS_SECTION}.${VSCODE_CONFIG.SHOW_IRIS_EXPLANATION_KEY}`)) {
 			console.log('Artemis showIrisExplanation configuration changed');
 

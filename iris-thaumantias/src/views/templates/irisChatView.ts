@@ -1,10 +1,8 @@
 import * as vscode from "vscode";
-import { ThemeManager } from "../../themes";
 import { IconDefinitions } from "../../utils/iconDefinitions";
 import { StyleManager } from "../styles";
 
 export class IrisChatView {
-  private _themeManager: ThemeManager;
   private _extensionContext: vscode.ExtensionContext;
   private _styleManager: StyleManager;
 
@@ -12,7 +10,6 @@ export class IrisChatView {
     extensionContext: vscode.ExtensionContext,
     styleManager: StyleManager
   ) {
-    this._themeManager = new ThemeManager();
     this._extensionContext = extensionContext;
     this._styleManager = styleManager;
   }
@@ -21,9 +18,7 @@ export class IrisChatView {
     webview?: vscode.Webview,
     showDiagnostics: boolean = false
   ): string {
-    const themeCSS = this._themeManager.getThemeCSS();
-    const currentTheme = this._themeManager.getCurrentTheme();
-    const styles = this._styleManager.getStyles(currentTheme, [
+    const styles = this._styleManager.getStyles([
       "views/iris-chat.css",
     ]);
 
@@ -60,10 +55,9 @@ export class IrisChatView {
     <title>Chat with Iris</title>
     <style>
         ${styles}
-        ${themeCSS}
     </style>
 </head>
-<body class="theme-${currentTheme}">
+<body>
     <div class="chat-container">
         <div class="chat-header">
             ${

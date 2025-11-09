@@ -277,24 +277,11 @@
             font-size: 14px;
             display: inline-block;
             text-decoration: none;
+            color: var(--theme-link-color);
         }
 
-        .theme-vscode .back-link,
-        .theme-modern .back-link {
-            color: var(--vscode-textLink-foreground);
-        }
-
-        .theme-vscode .back-link:hover,
-        .theme-modern .back-link:hover {
-            color: var(--vscode-textLink-activeForeground);
-        }
-
-        .theme-synthwave .back-link {
-            color: var(--theme-success);
-        }
-
-        .theme-synthwave .back-link:hover {
-            opacity: 0.8;
+        .back-link:hover {
+            color: var(--theme-link-hover);
         }
 
         .empty-state {
@@ -309,107 +296,6 @@
             opacity: 0.75;
         }
 
-        /* Theme-specific refinements */
-        .theme-vscode .extension-card {
-            transition: none;
-        }
-
-        .theme-vscode .extension-card:hover {
-            transform: none;
-            box-shadow: var(--theme-box-shadow);
-            border-color: var(--theme-border);
-        }
-
-        .theme-vscode .marketplace-button {
-            border-radius: 3px;
-            font-weight: 500;
-            transition: none;
-        }
-
-        .theme-vscode .marketplace-button:hover {
-            background: var(--theme-button-hover);
-            border-color: var(--theme-button-hover);
-        }
-
-        .theme-vscode .filter-button {
-            border-radius: 3px;
-            transition: none;
-        }
-
-        .theme-vscode .filter-button:hover,
-        .theme-vscode .filter-button.active {
-            background: var(--theme-button-hover);
-            border-color: var(--theme-button-hover);
-            color: var(--theme-button-foreground);
-            box-shadow: none;
-        }
-
-        .theme-modern .extension-card {
-            transition: all 0.15s ease-in-out;
-            border-radius: 12px;
-            padding: 24px;
-        }
-
-        .theme-modern .extension-card:hover {
-            transform: none;
-            border-color: var(--theme-button-background);
-            box-shadow: 0 0 0 2px var(--vscode-focusBorder), 0 4px 12px rgba(0, 0, 0, 0.1);
-        }
-
-        .theme-modern .marketplace-button {
-            border-radius: 8px;
-            font-weight: 500;
-            transition: all 0.15s ease-in-out;
-        }
-
-        .theme-modern .marketplace-button:hover {
-            background: var(--theme-button-hover);
-            border-color: var(--theme-button-hover);
-            transform: scale(1.01);
-            box-shadow: 0 0 0 2px var(--vscode-focusBorder), 0 4px 12px rgba(0, 0, 0, 0.1);
-        }
-
-        .theme-modern .filter-button {
-            border-radius: 999px;
-            transition: all 0.15s ease-in-out;
-        }
-
-        .theme-modern .filter-button:hover {
-            transform: translateY(-1px);
-            box-shadow: 0 0 0 2px var(--vscode-focusBorder), 0 4px 12px rgba(0, 0, 0, 0.1);
-        }
-
-        .theme-modern .filter-button.active {
-            box-shadow: 0 0 0 2px var(--vscode-focusBorder), 0 4px 12px rgba(0, 0, 0, 0.08);
-        }
-
-        .theme-synthwave .extension-card:hover {
-            transform: translateY(-2px);
-            border-color: #ff006e;
-            box-shadow: 0 10px 24px rgba(255, 0, 110, 0.35);
-        }
-
-        .theme-synthwave .marketplace-button {
-            border-radius: 8px;
-        }
-
-        .theme-synthwave .marketplace-button:hover {
-            box-shadow: 0 0 10px rgba(0, 245, 255, 0.45);
-        }
-
-        .theme-synthwave .filter-button {
-            border-radius: 12px;
-            border-color: #ff006e88;
-            color: #e0f7ff;
-        }
-
-        .theme-synthwave .filter-button:hover,
-        .theme-synthwave .filter-button.active {
-            background: rgba(255, 0, 110, 0.25);
-            border-color: #ff006e;
-            color: #fff;
-            box-shadow: 0 0 12px rgba(255, 0, 110, 0.35);
-        }
 
         @media (max-width: 768px) {
             body {

@@ -191,8 +191,7 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
 
         // Listen for configuration changes to re-render when settings change
         vscode.workspace.onDidChangeConfiguration(event => {
-            if (event.affectsConfiguration('artemis.hideDeveloperTools') || 
-                event.affectsConfiguration('artemis.theme')) {
+            if (event.affectsConfiguration('artemis.hideDeveloperTools')) {
                 this.render();
             }
         });

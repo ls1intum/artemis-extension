@@ -108,23 +108,10 @@
         }
 
         /* VS Code theme: subtle outline on hover */
-        .theme-vscode .controls-header:hover {
-            background: var(--theme-input-background); /* Keep same background */
-            outline: 1px solid var(--vscode-focusBorder);
-            outline-offset: -1px;
-        }
 
         /* Modern theme: background and text color change */
-        .theme-modern .controls-header:hover {
-            background: var(--theme-button-background);
-            color: var(--theme-button-foreground);
-        }
 
         /* Synthwave theme: keep existing hover effect */
-        .theme-synthwave .controls-header:hover {
-            background: var(--theme-button-background);
-            color: var(--theme-button-foreground);
-        }
 
         .controls-header-title {
             color: var(--theme-foreground);
@@ -143,10 +130,6 @@
         }
 
         /* Make sure title and toggle pick up modern hover text color */
-        .theme-modern .controls-header:hover .controls-header-title,
-        .theme-modern .controls-header:hover .controls-toggle {
-            color: var(--theme-button-foreground) !important;
-        }
 
         .controls-container.expanded .controls-toggle {
             transform: rotate(180deg);
@@ -284,13 +267,7 @@
         }
 
         /* Modern theme specific styling */
-        .theme-modern .controls-container {
-            background: var(--theme-background);
-        }
 
-        .theme-modern .controls-header {
-            background: var(--theme-card-background);
-        }
         
         .back-link-container {
             position: sticky;
@@ -309,24 +286,10 @@
         }
         
         /* VSCode and Modern themes use link color */
-        .theme-vscode .back-link,
-        .theme-modern .back-link {
-            color: var(--vscode-textLink-foreground);
-        }
         
-        .theme-vscode .back-link:hover,
-        .theme-modern .back-link:hover {
-            color: var(--vscode-textLink-activeForeground);
-        }
         
         /* Synthwave theme keeps green */
-        .theme-synthwave .back-link {
-            color: var(--theme-success);
-        }
         
-        .theme-synthwave .back-link:hover {
-            opacity: 0.8;
-        }
         
         .courses-container {
             display: flex;
@@ -356,80 +319,23 @@
         }
         
         /* VSCode theme course items */
-        .theme-vscode .course-item {
-            border-radius: 3px;
-            transition: none;
-        }
         
-        .theme-vscode .course-color-indicator {
-            border-radius: 3px 0 0 3px;
-        }
         
-        .theme-vscode .course-item:hover {
-            border-color: var(--vscode-focusBorder);
-        }
         
         /* Modern theme course items */
-        .theme-modern .course-item {
-            border-radius: 8px;
-            transition: all 0.15s ease-in-out;
-        }
         
-        .theme-modern .course-color-indicator {
-            border-radius: 8px 0 0 8px;
-        }
         
-        .theme-modern .course-item:hover {
-            background: var(--theme-button-background);
-            border-color: var(--vscode-focusBorder);
-            box-shadow: 0 0 0 1px var(--vscode-focusBorder), 0 4px 12px rgba(0, 0, 0, 0.1);
-        }
         
-        .theme-modern .course-item:hover .course-title,
-        .theme-modern .course-item:hover .course-description,
-        .theme-modern .course-item:hover .course-stats {
-            color: var(--theme-button-foreground);
-        }
         
         /* Theme-specific text contrast improvements */
-        .theme-vscode .course-description {
-            opacity: 0.95;
-        }
         
-        .theme-vscode .course-stats {
-            opacity: 0.9;
-        }
         
-        .theme-modern .course-description {
-            opacity: 0.95;
-        }
         
-        .theme-modern .course-stats {
-            opacity: 0.9;
-        }
         
-        .theme-synthwave .course-description,
-        .theme-synthwave .course-stats {
-            opacity: 1;
-            color: #ffffff;
-        }
         
         /* Synthwave theme course items */
-        .theme-synthwave .course-item {
-            border-radius: 8px;
-            transition: var(--theme-transition);
-            box-shadow: var(--theme-box-shadow);
-        }
         
-        .theme-synthwave .course-color-indicator {
-            border-radius: 8px 0 0 8px;
-        }
         
-        .theme-synthwave .course-item:hover {
-            border-color: var(--theme-input-focus);
-            transform: translateY(-1px);
-            box-shadow: 0 0 15px rgba(255, 0, 110, 0.3);
-        }
         
         .course-header {
             display: flex;

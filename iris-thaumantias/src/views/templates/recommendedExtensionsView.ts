@@ -1,21 +1,16 @@
-import { ThemeManager } from '../../themes';
 import { StyleManager } from '../styles';
 import type { RecommendedExtensionCategory } from '../../utils/recommendedExtensions';
 import { BackLinkComponent } from '../components/backLinkComponent';
 
 export class RecommendedExtensionsView {
-    private readonly _themeManager: ThemeManager;
     private readonly _styleManager: StyleManager;
 
     constructor(styleManager: StyleManager) {
-        this._themeManager = new ThemeManager();
         this._styleManager = styleManager;
     }
 
     public generateHtml(categories: RecommendedExtensionCategory[] = []): string {
-        const themeCSS = this._themeManager.getThemeCSS();
-        const currentTheme = this._themeManager.getCurrentTheme();
-        const styles = this._styleManager.getStyles(currentTheme, [
+        const styles = this._styleManager.getStyles([
             'views/recommended-extensions.css'
         ]);
 
@@ -34,11 +29,10 @@ export class RecommendedExtensionsView {
     <title>Recommended Extensions</title>
     <style>
         ${styles}
-        ${themeCSS}
     </style>
 
 </head>
-<body class="theme-${currentTheme}">
+<body>
     <div class="recommended-container">
         ${BackLinkComponent.generateHtml()}
         <div class="view-header">

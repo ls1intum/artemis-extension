@@ -30,7 +30,6 @@ export const CONFIG = {
 export const VSCODE_CONFIG = {
     ARTEMIS_SECTION: 'artemis',
     SERVER_URL_KEY: 'serverUrl',
-    THEME_KEY: 'theme',
     SHOW_IRIS_EXPLANATION_KEY: 'showIrisExplanation',
     DEFAULT_COMMIT_MESSAGE_KEY: 'defaultCommitMessage',
     DEFAULT_CLONE_PATH_KEY: 'defaultClonePath',

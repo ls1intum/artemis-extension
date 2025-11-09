@@ -1,33 +1,28 @@
 import * as vscode from 'vscode';
-import { ThemeManager } from '../../themes';
 import { IconDefinitions } from '../../utils/iconDefinitions';
 import { ServiceHealthComponent } from '../components/serviceHealthComponent';
 import { StyleManager } from '../styles';
 import { BackLinkComponent } from '../components/backLinkComponent';
 
 export class ServiceStatusView {
-    private _themeManager: ThemeManager;
     private _extensionContext: vscode.ExtensionContext;
     private _styleManager: StyleManager;
 
     constructor(extensionContext: vscode.ExtensionContext, styleManager: StyleManager) {
-        this._themeManager = new ThemeManager();
         this._extensionContext = extensionContext;
         this._styleManager = styleManager;
     }
 
     public generateHtml(serverUrl?: string, webview?: vscode.Webview): string {
-        const themeCSS = this._themeManager.getThemeCSS();
-        const currentTheme = this._themeManager.getCurrentTheme();
-        const styles = this._styleManager.getStyles(currentTheme, [
+        const styles = this._styleManager.getStyles([
             'views/service-status.css',
             'components/service-health.css'
         ]);
         
-        return this._getServiceStatusHtml(themeCSS, currentTheme, styles, serverUrl);
+        return this._getServiceStatusHtml(styles, serverUrl);
     }
 
-    private _getServiceStatusHtml(themeCSS: string, currentTheme: string, styles: string, serverUrl?: string): string {
+    private _getServiceStatusHtml(styles: string, serverUrl?: string): string {
         // Get icon SVGs
         const stethoscopeIcon = IconDefinitions.getIcon('stethoscope');
         const refreshIcon = IconDefinitions.getIcon('refresh');
@@ -40,11 +35,10 @@ export class ServiceStatusView {
     <title>Service Status</title>
     <style>
         ${styles}
-        ${themeCSS}
     </style>
 
 </head>
-<body class="theme-${currentTheme}">
+<body>
     <div class="service-status-container">
         ${BackLinkComponent.generateHtml()}
         

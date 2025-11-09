@@ -361,8 +361,12 @@
             margin-top: 16px;
         }
         
+        .settings-link {
+            color: var(--theme-link-color);
+        }
+        
         .settings-link:hover {
-            color: var(--vscode-textLink-activeForeground);
+            color: var(--theme-link-hover);
         }
         
         .quick-links {
@@ -373,7 +377,7 @@
         }
         
         .quick-link {
-            color: var(--vscode-textLink-foreground);
+            color: var(--theme-link-color);
             text-decoration: none;
             font-size: 13px;
             display: inline-flex;
@@ -383,7 +387,7 @@
         }
         
         .quick-link:hover {
-            color: var(--vscode-textLink-activeForeground);
+            color: var(--theme-link-hover);
         }
 
         /* Loading indicator styles */
@@ -505,99 +509,3 @@
             }
         }
         
-
-
-        /* Theme-specific loading indicator styles */
-        .theme-synthwave .loading-indicator {
-            background: rgba(36, 0, 36, 0.9);
-            border: 1px solid rgba(255, 0, 110, 0.4);
-            box-shadow: 0 2px 8px rgba(255, 0, 110, 0.1);
-        }
-        
-        .theme-synthwave .loading-spinner {
-            border: 2.5px solid rgba(255, 0, 110, 0.3);
-            border-top: 2.5px solid #ff006e;
-        }
-        
-        .theme-vscode .loading-indicator {
-            background: var(--theme-card-background);
-            border: 1px solid var(--theme-border);
-            border-radius: 3px;
-        }
-
-        .theme-modern .loading-indicator {
-            background: var(--theme-card-background);
-            border: 1px solid var(--theme-border);
-            border-radius: 12px;
-        }
-        
-        .theme-vscode .loading-spinner,.theme-modern .loading-spinner {
-            border: 2.5px solid rgba(0, 122, 255, 0.2);
-            border-top: 2.5px solid #007acc;
-        }
-
-        /* VSCode theme styling tweaks */
-        .theme-vscode input[type="text"],
-        .theme-vscode input[type="password"] {
-            border-radius: 3px;
-            padding: 12px 14px;
-            border-width: 1px;
-            transition: none;
-        }
-        
-        .theme-vscode .btn {
-            border-radius: 3px;
-            font-weight: 600;
-            transition: none;
-            box-shadow: none;
-        }
-        
-        .theme-vscode .btn:hover {
-            transform: none;
-            box-shadow: none;
-        }
-
-        /* Modern theme styling tweaks */
-        .theme-modern input[type="text"],
-        .theme-modern input[type="password"] {
-            padding: 14px 16px;
-            border: 2px solid var(--theme-input-border);
-            border-radius: calc(var(--theme-container-radius) * 0.6);
-            font-weight: 500;
-            box-shadow: none;
-            backdrop-filter: none;
-        }
-        
-        .theme-modern input:focus {
-            outline: none;
-            border-color: var(--theme-input-focus);
-            box-shadow: 0 0 0 3px rgba(66, 153, 225, 0.1);
-        }
-
-        /* Synthwave theme button styling */
-        .theme-synthwave .btn {
-            padding: 14px 24px;
-            border-radius: calc(var(--theme-container-radius) * 0.75);
-            font-weight: 600;
-            border: none;
-            transition: var(--theme-transition);
-            backdrop-filter: var(--theme-backdrop);
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            box-shadow: 0 0 15px rgba(255, 0, 110, 0.3);
-            text-shadow: 0 0 5px currentColor;
-        }
-        
-        .theme-synthwave .btn:hover {
-            transform: translateY(-1px);
-            box-shadow: 0 0 25px rgba(255, 0, 110, 0.6);
-        }
-        
-        .theme-synthwave .btn:active {
-            transform: translateY(0);
-        }
-        
-        .theme-synthwave .btn:disabled {
-            transform: none;
-            box-shadow: none;
-        }

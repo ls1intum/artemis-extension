@@ -102,21 +102,6 @@
           "pattern": "^https?://.*",
           "patternErrorMessage": "Server URL must be a valid HTTP or HTTPS URL"
         },
-        "artemis.theme": {
-          "type": "string",
-          "enum": [
-            "vscode",
-            "modern",
-            "synthwave"
-          ],
-          "enumDescriptions": [
-            "VS Code native styling that matches the editor's appearance",
-            "Clean, card-based design inspired by modern web applications",
-            "Retro-futuristic neon aesthetic with synthwave styling"
-          ],
-          "default": "vscode",
-          "description": "Choose the visual theme for Artemis views"
-        },
         "artemis.showIrisExplanation": {
           "type": "boolean",
           "default": true,

@@ -111,48 +111,19 @@
     cursor: pointer;
     font-size: 14px;
     text-align: center;
-    font-weight: 500;
+    font-weight: 400;
     width: 100%;
     display: flex;
     align-items: center;
     justify-content: center;
     gap: 8px;
-}
-
-.theme-vscode .health-check-btn {
     border-radius: 2px;
-    font-weight: 400;
     transition: none;
 }
 
-.theme-vscode .health-check-btn:hover:not(:disabled) {
+.health-check-btn:hover:not(:disabled) {
     background: var(--theme-button-hover);
     border-color: var(--theme-button-hover);
-}
-
-.theme-modern .health-check-btn {
-    border-radius: 8px;
-    transition: all 0.15s ease-in-out;
-}
-
-.theme-modern .health-check-btn:hover:not(:disabled) {
-    background: var(--theme-button-hover);
-    border-color: var(--theme-button-hover);
-    transform: scale(1.01);
-    box-shadow: 0 0 0 2px var(--vscode-focusBorder), 0 4px 12px rgba(0, 0, 0, 0.1);
-}
-
-.theme-synthwave .health-check-btn {
-    border-radius: calc(var(--theme-container-radius) * 0.6);
-    transition: var(--theme-transition);
-    box-shadow: 0 0 15px rgba(255, 0, 110, 0.3);
-    text-shadow: 0 0 5px currentColor;
-}
-
-.theme-synthwave .health-check-btn:hover:not(:disabled) {
-    background: var(--theme-button-hover);
-    transform: translateY(-1px);
-    box-shadow: 0 0 25px rgba(255, 0, 110, 0.6);
 }
 
 .health-check-btn:active:not(:disabled) {
@@ -280,20 +251,3 @@
     width: 14px;
     height: 14px;
 }
-
-.theme-modern .service-health-component {
-    background: linear-gradient(135deg, var(--theme-card-background) 0%, rgba(59, 130, 246, 0.03) 100%);
-}
-
-.theme-synthwave .service-health-component {
-    background: linear-gradient(135deg, var(--theme-card-background) 0%, rgba(255, 71, 250, 0.03) 100%);
-}
-
-.theme-synthwave .health-indicator.online {
-    box-shadow: 0 0 12px rgba(255, 71, 250, 0.6);
-}
-
-.theme-modern .health-indicator.online {
-    box-shadow: 0 0 12px rgba(59, 130, 246, 0.6);
-}
-

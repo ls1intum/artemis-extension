@@ -1,16 +1,13 @@
 import * as vscode from 'vscode';
-import { ThemeManager } from '../../themes';
 import { IconDefinitions } from '../../utils';
 import { StyleManager } from '../styles';
 import { BackLinkComponent } from '../components/backLinkComponent';
 
 export class CourseDetailView {
-    private _themeManager: ThemeManager;
     private _extensionContext: vscode.ExtensionContext;
     private _styleManager: StyleManager;
 
     constructor(extensionContext: vscode.ExtensionContext, styleManager: StyleManager) {
-        this._themeManager = new ThemeManager();
         this._extensionContext = extensionContext;
         this._styleManager = styleManager;
     }
@@ -20,20 +17,18 @@ export class CourseDetailView {
     }
 
     public generateHtml(courseData: any, hideDeveloperTools: boolean = false, webview?: vscode.Webview): string {
-        const themeCSS = this._themeManager.getThemeCSS();
-        const currentTheme = this._themeManager.getCurrentTheme();
-        const styles = this._styleManager.getStyles(currentTheme, [
+        const styles = this._styleManager.getStyles([
             'views/course-detail.css'
         ]);
         
         if (!courseData) {
-            return this._getEmptyStateHtml(themeCSS, currentTheme, styles);
+            return this._getEmptyStateHtml(styles);
         }
         
-        return this._getCourseDetailHtml(courseData, themeCSS, currentTheme, hideDeveloperTools, styles, webview);
+        return this._getCourseDetailHtml(courseData, hideDeveloperTools, styles, webview);
     }
 
-    private _getEmptyStateHtml(themeCSS: string, currentTheme: string, styles: string): string {
+    private _getEmptyStateHtml(styles: string): string {
         return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -42,11 +37,9 @@ export class CourseDetailView {
     <title>Course Details</title>
     <style>
         ${styles}
-        ${themeCSS}
     </style>
-
 </head>
-<body class="theme-${currentTheme}">
+<body>
     <div class="empty-state">
         <h2>Course Details</h2>
         <p>Select a course to view its details</p>
@@ -62,8 +55,12 @@ export class CourseDetailView {
 </html>`;
     }
 
-    private _getCourseDetailHtml(courseData: any, themeCSS: string, currentTheme: string, hideDeveloperTools: boolean, styles: string, webview?: vscode.Webview): string {
+    private _getCourseDetailHtml(courseData: any, hideDeveloperTools: boolean, styles: string, webview?: vscode.Webview): string {
         const course = courseData?.course;
+        if (!course) {
+            return this._getEmptyStateHtml(styles);
+        }
+
         const courseTitle = course?.title || 'Unknown Course';
         const courseDescription = course?.description || 'No description available';
         const semester = course?.semester || 'No semester';
@@ -122,12 +119,11 @@ export class CourseDetailView {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Course Details</title>
-    <style>
+        <style>
         ${styles}
-        ${themeCSS}
-    </style>
+        </style>
 </head>
-<body class="theme-${currentTheme}">
+<body>
     <div class="back-link-container">
         ${BackLinkComponent.generateHtml({ wrap: false })}
         <button class="fullscreen-btn" id="fullscreenBtn" onclick="toggleFullscreen()" title="Open course in new editor tab">

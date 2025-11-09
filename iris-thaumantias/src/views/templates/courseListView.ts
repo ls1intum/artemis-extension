@@ -1,27 +1,22 @@
-import { ThemeManager } from '../../themes';
 import { StyleManager } from '../styles';
 import { BackLinkComponent } from '../components/backLinkComponent';
 
 export class CourseListView {
-    private _themeManager: ThemeManager;
     private _styleManager: StyleManager;
 
     constructor(styleManager: StyleManager) {
-        this._themeManager = new ThemeManager();
         this._styleManager = styleManager;
     }
 
     public generateHtml(coursesData: any | undefined, archivedCoursesData: any[] | undefined): string {
-        const themeCSS = this._themeManager.getThemeCSS();
-        const currentTheme = this._themeManager.getCurrentTheme();
-        const styles = this._styleManager.getStyles(currentTheme, [
+        const styles = this._styleManager.getStyles([
             'views/course-list.css'
         ]);
         
-        return this._getCourseListHtml(coursesData, archivedCoursesData, currentTheme, styles, themeCSS);
+        return this._getCourseListHtml(coursesData, archivedCoursesData, styles);
     }
 
-    private _getCourseListHtml(coursesData: any | undefined, archivedCoursesData: any[] | undefined, currentTheme: string, styles: string, themeCSS: string): string {
+    private _getCourseListHtml(coursesData: any | undefined, archivedCoursesData: any[] | undefined, styles: string): string {
         let coursesHtml = '';
         
         // Generate current courses
@@ -123,12 +118,9 @@ export class CourseListView {
     <title>All Courses</title>
     <style>
         ${styles}
-        ${themeCSS}
     </style>
-
-    
 </head>
-<body class="theme-${currentTheme}">
+<body>
     ${BackLinkComponent.generateHtml()}
     
     <div class="header">

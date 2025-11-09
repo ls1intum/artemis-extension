@@ -1,11 +1,9 @@
 import * as vscode from "vscode";
-import { ThemeManager } from "../../themes";
 import { IconDefinitions } from "../../utils";
 import { StyleManager } from "../styles";
 import { BackLinkComponent } from "../components/backLinkComponent";
 
 export class ExerciseDetailView {
-  private _themeManager: ThemeManager;
   private _extensionContext: vscode.ExtensionContext;
   private _styleManager: StyleManager;
 
@@ -13,7 +11,6 @@ export class ExerciseDetailView {
     extensionContext: vscode.ExtensionContext,
     styleManager: StyleManager
   ) {
-    this._themeManager = new ThemeManager();
     this._extensionContext = extensionContext;
     this._styleManager = styleManager;
   }
@@ -81,30 +78,22 @@ export class ExerciseDetailView {
     exerciseData: any,
     hideDeveloperTools: boolean = false
   ): string {
-    const themeCSS = this._themeManager.getThemeCSS();
-    const currentTheme = this._themeManager.getCurrentTheme();
-    const styles = this._styleManager.getStyles(currentTheme, [
+    const styles = this._styleManager.getStyles([
       "views/exercise-detail.css",
     ]);
 
     if (!exerciseData) {
-      return this._getEmptyStateHtml(themeCSS, currentTheme, styles);
+      return this._getEmptyStateHtml(styles);
     }
 
     return this._getExerciseDetailHtml(
       exerciseData,
-      themeCSS,
-      currentTheme,
       hideDeveloperTools,
       styles
     );
   }
 
-  private _getEmptyStateHtml(
-    themeCSS: string,
-    currentTheme: string,
-    styles: string
-  ): string {
+  private _getEmptyStateHtml(styles: string): string {
     return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -113,11 +102,9 @@ export class ExerciseDetailView {
     <title>Exercise Details</title>
     <style>
         ${styles}
-        ${themeCSS}
     </style>
-
 </head>
-<body class="theme-${currentTheme}">
+<body>
     ${BackLinkComponent.generateHtml({
       command: "backToCourseDetails",
       label: "← Back to Course",
@@ -139,15 +126,13 @@ export class ExerciseDetailView {
 
   private _getExerciseDetailHtml(
     exerciseData: any,
-    themeCSS: string,
-    currentTheme: string,
     hideDeveloperTools: boolean,
     styles: string
   ): string {
     const exercise = exerciseData?.exercise;
 
     if (!exercise) {
-      return this._getEmptyStateHtml(themeCSS, currentTheme, styles);
+      return this._getEmptyStateHtml(styles);
     }
 
     const exerciseTitle = exercise.title || "Unknown Exercise";
@@ -508,10 +493,9 @@ export class ExerciseDetailView {
     <title>Exercise Details</title>
     <style>
         ${styles}
-        ${themeCSS}
     </style>
 </head>
-<body class="theme-${currentTheme}">
+<body>
     <div class="back-link-container">
         ${BackLinkComponent.generateHtml({
           command: "backToCourseDetails",

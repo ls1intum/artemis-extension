@@ -29,26 +29,11 @@
             font-size: 14px;
             display: inline-block;
             text-decoration: none;
+            color: var(--theme-link-color);
         }
 
-        /* VSCode and Modern themes use link color */
-        .theme-vscode .back-link,
-        .theme-modern .back-link {
-            color: var(--vscode-textLink-foreground);
-        }
-
-        .theme-vscode .back-link:hover,
-        .theme-modern .back-link:hover {
-            color: var(--vscode-textLink-activeForeground);
-        }
-
-        /* Synthwave theme keeps green */
-        .theme-synthwave .back-link {
-            color: var(--theme-success);
-        }
-
-        .theme-synthwave .back-link:hover {
-            opacity: 0.8;
+        .back-link:hover {
+            color: var(--theme-link-hover);
         }
 
         .course-header {
@@ -117,21 +102,7 @@
             gap: 6px;
             font-size: 13px;
             color: var(--theme-foreground);
-            opacity: 0.85;
-        }
-
-        /* Theme-specific stat improvements */
-        .theme-vscode .stat-item {
             opacity: 0.9;
-        }
-
-        .theme-modern .stat-item {
-            opacity: 0.9;
-        }
-
-        .theme-synthwave .stat-item {
-            opacity: 1;
-            color: #ffffff;
         }
 
         .section {
@@ -212,32 +183,6 @@
             display: block;
         }
 
-        /* Theme-specific container styling */
-        .theme-vscode .course-header,
-        .theme-vscode .section {
-            border-radius: 3px;
-        }
-
-        .theme-modern .course-header,
-        .theme-modern .section {
-            border-radius: 12px;
-            transition: all 0.15s ease-in-out;
-        }
-
-        .theme-modern .course-header:hover,
-        .theme-modern .section:hover {
-            box-shadow: 0 0 0 1px var(--vscode-focusBorder), 0 4px 16px rgba(0, 0, 0, 0.08);
-            transform: translateY(-1px);
-        }
-
-        .theme-synthwave .course-header,
-        .theme-synthwave .section {
-            background: rgba(15, 12, 41, 0.9);
-            border: 1px solid #ff006e;
-            box-shadow: 0 0 20px rgba(255, 0, 110, 0.2), inset 0 0 20px rgba(0, 245, 255, 0.05);
-            border-radius: 8px;
-        }
-
         .section-title {
             font-size: 16px;
             font-weight: 600;
@@ -254,55 +199,14 @@
             margin-bottom: 8px;
             cursor: pointer;
             overflow: hidden; /* prevent pill overflow */
-        }
-
-        /* VSCode theme exercise items */
-        .theme-vscode .exercise-item {
-            border-radius: 3px;
+            border-radius: var(--theme-container-radius);
             transition: none;
             border-color: transparent;
         }
 
-        .theme-vscode .exercise-item:hover {
-            background: var(--vscode-list-hoverBackground);
+        .exercise-item:hover {
+            background: var(--theme-hover-background);
             border-color: var(--vscode-focusBorder) !important;
-        }
-
-        /* Modern theme exercise items */
-        .theme-modern .exercise-item {
-            border-radius: 8px;
-            transition: all 0.15s ease-in-out;
-            background: var(--theme-card-background);
-            border: none;
-        }
-
-        .theme-modern .exercise-item:hover {
-            background: var(--theme-button-background);
-            border-color: var(--vscode-focusBorder);
-            box-shadow: 0 0 0 1px var(--vscode-focusBorder), 0 2px 8px rgba(0, 0, 0, 0.08);
-            transform: translateY(-1px);
-        }
-
-        .theme-modern .exercise-item:hover .exercise-title,
-        .theme-modern .exercise-item:hover .exercise-info {
-            color: var(--theme-button-foreground);
-        }
-
-        /* Synthwave theme exercise items */
-        .theme-synthwave .exercise-item {
-            border-radius: 8px;
-            transition: var(--theme-transition);
-        }
-
-        .theme-synthwave .exercise-item:hover {
-            background: var(--theme-button-background);
-            border-color: var(--theme-input-focus);
-            box-shadow: 0 0 15px rgba(255, 0, 110, 0.3);
-        }
-
-        .theme-synthwave .exercise-item:hover .exercise-title,
-        .theme-synthwave .exercise-item:hover .exercise-info {
-            color: #ffffff !important;
         }
 
         .exercise-item:last-child {
@@ -351,22 +255,8 @@
             gap: 16px;
             font-size: 12px;
             color: var(--theme-foreground);
-            opacity: 0.85;
+            opacity: 0.9;
             flex-wrap: wrap;
-        }
-
-        /* Theme-specific exercise info improvements */
-        .theme-vscode .exercise-info {
-            opacity: 0.9;
-        }
-
-        .theme-modern .exercise-info {
-            opacity: 0.9;
-        }
-
-        .theme-synthwave .exercise-info {
-            opacity: 1;
-            color: #ffffff;
         }
 
         /* Exercise search and container */
@@ -384,7 +274,7 @@
             background: var(--theme-card-background);
             color: var(--theme-foreground);
             font-size: 13px;
-            border-radius: 4px;
+            border-radius: var(--theme-container-radius);
             box-sizing: border-box;
         }
 
@@ -394,26 +284,9 @@
             background: var(--theme-card-background);
             color: var(--theme-foreground);
             font-size: 13px;
-            border-radius: 4px;
+            border-radius: var(--theme-container-radius);
             cursor: pointer;
             min-width: 150px;
-        }
-
-        .theme-vscode .search-input,
-        .theme-vscode .sort-select {
-            border-radius: 2px;
-        }
-
-        .theme-modern .search-input,
-        .theme-modern .sort-select {
-            border-radius: 6px;
-        }
-
-        .theme-synthwave .search-input,
-        .theme-synthwave .sort-select {
-            border-radius: 6px;
-            border-color: #ff006e;
-            box-shadow: 0 0 10px rgba(255, 0, 110, 0.2);
         }
 
         .search-input:focus,
@@ -427,29 +300,15 @@
             max-height: 400px;
             overflow-y: auto;
             border: 1px solid var(--theme-border);
-            border-radius: 4px;
+            border-radius: var(--theme-container-radius);
             background: var(--theme-card-background);
-        }
-
-        .theme-vscode .exercises-container {
-            border-radius: 2px;
-        }
-
-        .theme-modern .exercises-container {
-            border-radius: 6px;
-        }
-
-        .theme-synthwave .exercises-container {
-            border-radius: 6px;
-            border-color: #ff006e;
         }
 
         .exercises-list {
             padding: 8px;
         }
 
-        /* VSCode theme: Show exercise borders only for hovered item */
-        .theme-vscode .exercises-container:hover .exercise-item:hover {
+        .exercises-container:hover .exercise-item:hover {
             border-color: var(--vscode-focusBorder);
         }
 
@@ -488,48 +347,11 @@
             border: 1px solid var(--theme-button-background);
             padding: 12px 16px;
             font-size: 13px;
-            font-weight: 500;
+            font-weight: 400;
             cursor: pointer;
             text-decoration: none;
-        }
-
-        /* VSCode theme buttons */
-        .theme-vscode .btn {
-            border-radius: 2px;
-            font-weight: 400;
+            border-radius: var(--theme-container-radius, 2px);
             transition: none;
-        }
-
-        .theme-vscode .btn:hover {
-            background: var(--theme-button-hover);
-            border-color: var(--theme-button-hover);
-        }
-
-        /* Modern theme buttons */
-        .theme-modern .btn {
-            border-radius: 8px;
-            transition: all 0.15s ease-in-out;
-        }
-
-        .theme-modern .btn:hover {
-            background: var(--theme-button-hover);
-            border-color: var(--theme-button-hover);
-            transform: scale(1.01);
-            box-shadow: 0 0 0 2px var(--vscode-focusBorder), 0 4px 12px rgba(0, 0, 0, 0.1);
-        }
-
-        /* Synthwave theme buttons */
-        .theme-synthwave .btn {
-            border-radius: calc(var(--theme-container-radius) * 0.6);
-            transition: var(--theme-transition);
-            box-shadow: 0 0 15px rgba(255, 0, 110, 0.3);
-            text-shadow: 0 0 5px currentColor;
-        }
-
-        .theme-synthwave .btn:hover {
-            background: var(--theme-button-hover);
-            transform: translateY(-1px);
-            box-shadow: 0 0 25px rgba(255, 0, 110, 0.6);
         }
 
         .btn-primary {
@@ -538,13 +360,12 @@
             border-color: var(--theme-success);
         }
 
-        .theme-modern .btn-primary:hover,
-        .theme-vscode .btn-primary:hover {
-            background: var(--theme-success);
-            opacity: 0.9;
+        .btn:hover {
+            background: var(--theme-button-hover);
+            border-color: var(--theme-button-hover);
         }
 
-        .theme-synthwave .btn-primary:hover {
+        .btn-primary:hover {
             background: var(--theme-success);
             opacity: 0.9;
         }

@@ -1,5 +1,4 @@
 import * as vscode from 'vscode';
-import { ThemeManager } from '../../themes';
 import { AiExtension } from '../app/appStateManager';
 import { StyleManager } from '../styles';
 import { BackLinkComponent } from '../components/backLinkComponent';
@@ -11,29 +10,25 @@ interface ProviderGroup {
 }
 
 export class AiCheckerView {
-    private _themeManager: ThemeManager;
     private _extensionContext: vscode.ExtensionContext;
     private _styleManager: StyleManager;
 
     constructor(extensionContext: vscode.ExtensionContext, styleManager: StyleManager) {
-        this._themeManager = new ThemeManager();
         this._extensionContext = extensionContext;
         this._styleManager = styleManager;
     }
 
     public generateHtml(aiExtensions: AiExtension[]): string {
-        const themeCSS = this._themeManager.getThemeCSS();
-        const currentTheme = this._themeManager.getCurrentTheme();
-        const styles = this._styleManager.getStyles(currentTheme, [
+        const styles = this._styleManager.getStyles([
             'views/ai-checker.css'
         ]);
 
         const groupedExtensions = this._groupExtensionsByProvider(aiExtensions);
 
-        return this._getAiCheckerHtml(groupedExtensions, themeCSS, currentTheme, styles);
+        return this._getAiCheckerHtml(groupedExtensions, styles);
     }
 
-    private _getAiCheckerHtml(groups: ProviderGroup[], themeCSS: string, currentTheme: string, styles: string): string {
+    private _getAiCheckerHtml(groups: ProviderGroup[], styles: string): string {
         const providerOptions = groups
             .map(group => `<option value="${group.provider.toLowerCase()}">${group.provider}</option>`)
             .join('');
@@ -98,11 +93,10 @@ export class AiCheckerView {
     <title>AI Checker</title>
     <style>
         ${styles}
-        ${themeCSS}
     </style>
 
 </head>
-<body class="theme-${currentTheme}">
+<body>
     <div class="ai-checker-container">
         ${BackLinkComponent.generateHtml()}
         

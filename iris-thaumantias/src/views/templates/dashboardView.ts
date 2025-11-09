@@ -1,24 +1,19 @@
 import * as vscode from 'vscode';
-import { ThemeManager } from '../../themes';
 import { VSCODE_CONFIG } from '../../utils';
 import { IconDefinitions } from '../../utils/iconDefinitions';
 import { StyleManager } from '../styles';
 
 export class DashboardView {
-    private _themeManager: ThemeManager;
     private _extensionContext: vscode.ExtensionContext;
     private _styleManager: StyleManager;
 
     constructor(extensionContext: vscode.ExtensionContext, styleManager: StyleManager) {
-        this._themeManager = new ThemeManager();
         this._extensionContext = extensionContext;
         this._styleManager = styleManager;
     }
 
     public generateHtml(userInfo: { username: string; serverUrl: string; user?: any }, coursesData: any | undefined, webview?: vscode.Webview): string {
-        const themeCSS = this._themeManager.getThemeCSS();
-        const currentTheme = this._themeManager.getCurrentTheme();
-        const styles = this._styleManager.getStyles(currentTheme, [
+        const styles = this._styleManager.getStyles([
             'views/dashboard.css'
         ]);
         
@@ -26,10 +21,10 @@ export class DashboardView {
         const config = vscode.workspace.getConfiguration(VSCODE_CONFIG.ARTEMIS_SECTION);
         const showIrisExplanation = config.get<boolean>(VSCODE_CONFIG.SHOW_IRIS_EXPLANATION_KEY, true);
         
-        return this._getDashboardHtml(userInfo, coursesData, currentTheme, webview, showIrisExplanation, styles, themeCSS);
+        return this._getDashboardHtml(userInfo, coursesData, webview, showIrisExplanation, styles);
     }
 
-    private _getDashboardHtml(userInfo: { username: string; serverUrl: string; user?: any }, coursesData: any | undefined, currentTheme: string, webview: vscode.Webview | undefined, showIrisExplanation: boolean, styles: string, themeCSS: string): string {
+    private _getDashboardHtml(userInfo: { username: string; serverUrl: string; user?: any }, coursesData: any | undefined, webview: vscode.Webview | undefined, showIrisExplanation: boolean, styles: string): string {
         const username = userInfo?.username || 'Unknown';
         const serverUrl = userInfo?.serverUrl || 'Unknown';
         
@@ -113,12 +108,9 @@ export class DashboardView {
     <title>Artemis Dashboard</title>
     <style>
         ${styles}
-        ${themeCSS}
     </style>
-
-    
 </head>
-<body class="theme-${currentTheme}">
+<body>
     <div class="dashboard">
         <div class="dashboard-header">
             <h1 class="dashboard-title">

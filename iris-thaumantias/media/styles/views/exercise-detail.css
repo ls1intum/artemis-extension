@@ -38,26 +38,11 @@
             font-size: 14px;
             display: inline-block;
             text-decoration: none;
+            color: var(--theme-link-color);
         }
 
-        /* VSCode and Modern themes use link color */
-        .theme-vscode .back-link,
-        .theme-modern .back-link {
-            color: var(--vscode-textLink-foreground);
-        }
-
-        .theme-vscode .back-link:hover,
-        .theme-modern .back-link:hover {
-            color: var(--vscode-textLink-activeForeground);
-        }
-
-        /* Synthwave theme keeps green */
-        .theme-synthwave .back-link {
-            color: var(--theme-success);
-        }
-
-        .theme-synthwave .back-link:hover {
-            opacity: 0.8;
+        .back-link:hover {
+            color: var(--theme-link-hover);
         }
 
         body {
@@ -87,53 +72,15 @@
             font-size: 14px;
             display: inline-block;
             text-decoration: none;
+            color: var(--theme-link-color);
         }
 
-        /* VSCode and Modern themes use link color */
-        .theme-vscode .back-link,
-        .theme-modern .back-link {
-            color: var(--vscode-textLink-foreground);
-        }
-
-        .theme-vscode .back-link:hover,
-        .theme-modern .back-link:hover {
-            color: var(--vscode-textLink-activeForeground);
-        }
-
-        /* Synthwave theme keeps green */
-        .theme-synthwave .back-link {
-            color: var(--theme-success);
-        }
-
-        .theme-synthwave .back-link:hover {
-            opacity: 0.8;
+        .back-link:hover {
+            color: var(--theme-link-hover);
         }
 
         /* Theme-specific fullscreen button styles */
-        .theme-vscode .fullscreen-btn {
-            border-radius: 2px;
-        }
-
-        .theme-modern .fullscreen-btn {
-            border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-        }
-
-        .theme-modern .fullscreen-btn:hover {
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
-        }
-
-        .theme-synthwave .fullscreen-btn {
-            border-radius: 6px;
-            border-color: #ff006e;
-            box-shadow: 0 0 10px rgba(255, 0, 110, 0.3);
-            text-shadow: 0 0 5px currentColor;
-        }
-
-        .theme-synthwave .fullscreen-btn:hover {
-            box-shadow: 0 0 15px rgba(255, 0, 110, 0.6);
-            transform: scale(1.1);
-        }
+        /* Fullscreen button */
 
         .exercise-card {
             background: var(--theme-card-background);
@@ -252,37 +199,21 @@
         }
 
         .due-date-badge {
-            background: var(--theme-info-background);
-            color: var(--theme-info-foreground);
-            border: 1px solid var(--theme-info-border);
-            padding: 4px 8px;
-            border-radius: 4px;
+            background: transparent;
+            color: var(--theme-foreground);
+            border: 1px solid var(--theme-border);
+            padding: 3px 7px;
+            border-radius: var(--theme-container-radius);
             font-size: 11px;
             font-weight: 600;
             text-transform: uppercase;
             flex-shrink: 0;
+            opacity: 0.8;
         }
 
         .due-date-badge.due-soon {
-            background: var(--theme-error-background);
-            color: var(--theme-error-foreground);
-            border: 1px solid var(--theme-error-border);
-        }
-
-        /* VS Code theme: More minimal, native look */
-        .theme-vscode .due-date-badge {
-            background: transparent;
-            color: var(--vscode-foreground);
-            border: 1px solid var(--vscode-widget-border);
-            opacity: 0.8;
-            font-size: 11px;
-            padding: 3px 7px;
-        }
-
-        .theme-vscode .due-date-badge.due-soon {
-            background: transparent;
-            color: var(--vscode-errorForeground);
-            border: 1px solid var(--vscode-errorForeground);
+            color: var(--theme-error);
+            border-color: var(--theme-error);
             opacity: 1;
         }
 
@@ -364,10 +295,10 @@
             border: 1px solid var(--theme-button-background);
             padding: 10px 20px;
             font-size: 13px;
-            font-weight: 600;
+            font-weight: 500;
             cursor: pointer;
-            border-radius: var(--theme-container-radius);
-            transition: var(--theme-transition);
+            border-radius: 2px;
+            transition: none;
         }
 
         .participate-btn:hover {
@@ -382,61 +313,6 @@
             opacity: 0.5;
             cursor: not-allowed;
             transform: none;
-        }
-
-        /* Theme-specific participation button styling */
-        .theme-vscode .participate-btn {
-            border-radius: 2px;
-            font-weight: 500;
-            background: var(--vscode-button-background);
-            color: var(--vscode-button-foreground);
-            border: 1px solid var(--vscode-button-background);
-        }
-
-        .theme-vscode .participate-btn:hover {
-            background: var(--vscode-button-hoverBackground);
-            color: var(--vscode-button-foreground);
-            border-color: var(--vscode-button-hoverBackground);
-            transform: none;
-            /* prevent layout shift in vscode theme */
-        }
-
-        .theme-modern .participate-btn {
-            background: var(--theme-button-background);
-            color: var(--theme-button-foreground);
-            border: 1px solid var(--theme-button-background);
-        }
-
-        .theme-modern .participate-btn:hover {
-            background: var(--theme-button-hover);
-            color: var(--theme-button-foreground);
-            border-color: var(--theme-button-hover);
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-        }
-
-        /* Modern theme: participation cell hover outline */
-        .theme-modern .participation-section {
-            transition: box-shadow 0.15s, border-color 0.15s;
-        }
-
-        .theme-modern .participation-section:hover {
-            border-color: var(--vscode-focusBorder);
-            box-shadow: 0 0 0 1.5px var(--vscode-focusBorder), 0 4px 12px rgba(0, 0, 0, 0.08);
-        }
-
-        .theme-synthwave .participate-btn {
-            background: #ff007a;
-            color: #fff;
-            border: 1.5px solid #ff007a;
-            box-shadow: 0 0 10px rgba(255, 0, 110, 0.3);
-            text-shadow: 0 0 5px currentColor;
-        }
-
-        .theme-synthwave .participate-btn:hover {
-            background: #ff33a6;
-            color: #fff;
-            border-color: #ff33a6;
-            box-shadow: 0 0 20px rgba(255, 0, 110, 0.6);
         }
 
         /* Responsive design for participation section */
@@ -896,11 +772,10 @@
             flex-shrink: 0;
         }
 
-        /* Fullscreen button */
         .fullscreen-btn {
             width: 32px;
             height: 32px;
-            border-radius: 6px;
+            border-radius: var(--theme-container-radius);
             border: 1px solid var(--theme-border);
             background: var(--theme-card-background);
             color: var(--theme-foreground);
@@ -909,14 +784,14 @@
             align-items: center;
             justify-content: center;
             font-size: 14px;
-            transition: var(--theme-transition);
+            transition: none;
             flex-shrink: 0;
         }
 
         .fullscreen-btn:hover {
             background: var(--theme-button-background);
             color: var(--theme-button-foreground);
-            transform: scale(1.05);
+            transform: none;
         }
 
         .repo-status-icon.connected {
@@ -1055,13 +930,6 @@
             text-decoration: underline;
         }
 
-        .theme-vscode .open-repo-link {
-            color: var(--vscode-textLink-foreground);
-        }
-
-        .theme-vscode .open-repo-link:hover {
-            color: var(--vscode-textLink-activeForeground);
-        }
 
         .unsaved-changes-banner {
             display: flex;
@@ -1101,13 +969,6 @@
             text-decoration: underline;
         }
 
-        .theme-vscode .unsaved-changes-link {
-            color: var(--vscode-textLink-foreground);
-        }
-
-        .theme-vscode .unsaved-changes-link:hover {
-            color: var(--vscode-textLink-activeForeground);
-        }
 
         .participation-actions .action-button-row {
             display: flex;
@@ -1283,14 +1144,14 @@
             border: 1px solid var(--theme-button-background);
             padding: 10px 12px;
             cursor: pointer;
-            transition: var(--theme-transition);
+            transition: none;
             display: flex;
             align-items: center;
             justify-content: center;
             border-top-left-radius: 0;
             border-bottom-left-radius: 0;
-            border-top-right-radius: var(--theme-container-radius);
-            border-bottom-right-radius: var(--theme-container-radius);
+            border-top-right-radius: 2px;
+            border-bottom-right-radius: 2px;
             min-width: 44px;
             font-size: 13px;
             font-weight: 600;
@@ -1306,41 +1167,6 @@
             border-color: var(--theme-button-hover);
         }
 
-        /* Theme-specific upload button styling */
-        .theme-vscode .submit-button-group .participate-btn {
-            border-radius: 0;
-            border-top-left-radius: 2px;
-            border-bottom-left-radius: 2px;
-        }
-
-        .theme-vscode .upload-message-btn {
-            border-radius: 0;
-            border-top-right-radius: 2px;
-            border-bottom-right-radius: 2px;
-            background: var(--vscode-button-background);
-            color: var(--vscode-button-foreground);
-            border-color: var(--vscode-button-background);
-        }
-
-        .theme-vscode .upload-message-btn:hover {
-            background: var(--vscode-button-hoverBackground);
-            border-color: var(--vscode-button-hoverBackground);
-        }
-
-        .theme-synthwave .upload-message-btn {
-            background: #ff007a;
-            color: #fff;
-            border: 1.5px solid #ff007a;
-            box-shadow: 0 0 10px rgba(255, 0, 110, 0.3);
-            text-shadow: 0 0 5px currentColor;
-        }
-
-        .theme-synthwave .upload-message-btn:hover {
-            background: #ff33a6;
-            border-color: #ff33a6;
-            box-shadow: 0 0 20px rgba(255, 0, 110, 0.6);
-        }
-
         /* Commit message input container */
         .commit-message-input-container {
             width: 100%;
@@ -1354,7 +1180,7 @@
             background: var(--theme-card-background);
             color: var(--theme-foreground);
             border: 1px solid var(--theme-border);
-            border-radius: var(--theme-container-radius);
+            border-radius: 2px;
             outline: none;
             transition: var(--theme-transition);
             box-sizing: border-box;
@@ -1368,11 +1194,6 @@
         .commit-message-input::placeholder {
             color: var(--theme-foreground);
             opacity: 0.5;
-        }
-
-        /* Theme-specific input styling */
-        .theme-vscode .commit-message-input {
-            border-radius: 2px;
         }
 
         /* More menu container */
@@ -1452,80 +1273,6 @@
             border-bottom: 1px solid var(--theme-border);
         }
 
-        /* VSCode theme: make both buttons identical primary style */
-        .theme-vscode .participation-actions .participate-btn {
-            background: var(--vscode-button-background);
-            color: var(--vscode-button-foreground);
-            border: 1px solid var(--vscode-button-background);
-        }
-
-        .theme-vscode .participation-actions .participate-btn:hover {
-            background: var(--vscode-button-hoverBackground);
-            border-color: var(--vscode-button-hoverBackground);
-        }
-
-        /* Modern theme: secondary button outlined/white */
-        .theme-modern .participation-actions .participate-btn.secondary {
-            background: #ffffff;
-            color: var(--theme-button-background);
-            border: 1px solid var(--theme-button-background);
-        }
-
-        .theme-modern .participation-actions .participate-btn.secondary:hover {
-            background: var(--theme-button-background);
-            color: var(--theme-button-foreground);
-            border-color: var(--theme-button-background);
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-        }
-
-        /* Synthwave theme: differentiate secondary subtly */
-        .theme-synthwave .participation-actions .participate-btn.secondary {
-            background: rgba(255, 255, 255, 0.08);
-            color: #fff;
-            border: 1px solid #ff006e;
-        }
-
-        .theme-synthwave .participation-actions .participate-btn.secondary:hover {
-            background: #ff006e;
-            color: #fff;
-            box-shadow: 0 0 18px rgba(255, 0, 110, 0.5);
-        }
-
-        /* Theme-specific more menu styling */
-        .theme-vscode .more-toggle {
-            color: var(--vscode-textLink-foreground);
-        }
-
-        .theme-vscode .more-toggle:hover {
-            color: var(--vscode-textLink-activeForeground);
-        }
-
-        .theme-modern .more-toggle {
-            color: #0066cc;
-        }
-
-        .theme-modern .more-toggle:hover {
-            color: #0052a3;
-        }
-
-        .theme-modern .more-dropdown {
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-        }
-
-        .theme-synthwave .more-toggle {
-            color: #00d9ff;
-        }
-
-        .theme-synthwave .more-toggle:hover {
-            color: #00b8e6;
-            text-shadow: 0 0 5px currentColor;
-        }
-
-        .theme-synthwave .more-dropdown {
-            border-color: #ff007a;
-            box-shadow: 0 0 20px rgba(255, 0, 110, 0.3);
-        }
-
         .section-title {
             font-size: 16px;
             font-weight: 700;
@@ -1554,7 +1301,7 @@
         }
 
         .problem-statement code {
-            color: var(--vscode-textLink-foreground);
+            color: var(--theme-link-color);
             background: transparent;
             padding: 0;
             border-radius: 0;
@@ -1564,15 +1311,16 @@
         }
 
         .problem-statement pre.code-block {
-            background: rgba(0, 0, 0, 0.04);
-            border: 1px solid rgba(0, 0, 0, 0.12);
-            border-radius: 6px;
+            background: var(--theme-code-background);
+            border: 1px solid var(--theme-border);
+            border-radius: var(--theme-container-radius);
             padding: 12px;
             font-family: var(--theme-monospace-font, monospace);
             font-size: 13px;
             line-height: 1.5;
             overflow-x: auto;
             margin: 14px 0;
+            color: var(--theme-code-foreground);
         }
 
         .problem-statement pre.code-block code {
@@ -1582,37 +1330,11 @@
             background: transparent;
         }
 
-        /* Theme-specific code styling using blue colors */
-        .theme-vscode .problem-statement code {
-            color: var(--vscode-textLink-foreground);
-        }
-
-        .theme-modern .problem-statement code {
-            color: var(--vscode-textLink-foreground);
-        }
-
-        .theme-synthwave .problem-statement code {
-            color: #00f5ff;
-        }
-
-        .theme-vscode .problem-statement pre.code-block,
-        .theme-modern .problem-statement pre.code-block {
-            background: rgba(0, 122, 204, 0.06);
-            border-color: rgba(0, 122, 204, 0.2);
-        }
-
-        .theme-synthwave .problem-statement pre.code-block {
-            background: rgba(0, 245, 255, 0.08);
-            border-color: rgba(0, 245, 255, 0.3);
-            color: #00f5ff;
-            text-shadow: 0 0 3px rgba(0, 245, 255, 0.3);
-        }
-
         /* Markdown tables */
         .problem-statement .table-wrapper {
             margin: 14px 0;
-            border-radius: 6px;
-            border: 1px solid rgba(0, 0, 0, 0.12);
+            border-radius: var(--theme-container-radius);
+            border: 1px solid var(--theme-border);
             overflow: hidden;
         }
 
@@ -1628,7 +1350,7 @@
         .problem-statement table.markdown-table th,
         .problem-statement table.markdown-table td {
             padding: 10px 12px;
-            border: 1px solid rgba(0, 0, 0, 0.12);
+            border: 1px solid var(--theme-border);
             word-wrap: break-word;
             overflow-wrap: break-word;
             vertical-align: top;
@@ -1672,7 +1394,7 @@
         }
 
         .problem-statement table.markdown-table thead {
-            background: rgba(0, 0, 0, 0.04);
+            background: var(--theme-background-secondary, rgba(0, 0, 0, 0.04));
         }
 
         .problem-statement table.markdown-table th {
@@ -1688,62 +1410,13 @@
             background: rgba(0, 0, 0, 0.04);
         }
 
-        /* Theme-specific table styling */
-        .theme-vscode .problem-statement .table-wrapper,
-        .theme-modern .problem-statement .table-wrapper {
-            border-color: rgba(0, 122, 204, 0.2);
-        }
-
-        .theme-vscode .problem-statement table.markdown-table th,
-        .theme-vscode .problem-statement table.markdown-table td,
-        .theme-modern .problem-statement table.markdown-table th,
-        .theme-modern .problem-statement table.markdown-table td {
-            border-color: rgba(0, 122, 204, 0.15);
-        }
-
-        .theme-vscode .problem-statement table.markdown-table thead,
-        .theme-modern .problem-statement table.markdown-table thead {
-            background: rgba(0, 122, 204, 0.06);
-        }
-
-        .theme-vscode .problem-statement table.markdown-table th,
-        .theme-modern .problem-statement table.markdown-table th {
-            color: var(--vscode-textLink-foreground);
-        }
-
-        .theme-synthwave .problem-statement .table-wrapper {
-            border-color: rgba(0, 245, 255, 0.3);
-        }
-
-        .theme-synthwave .problem-statement table.markdown-table th,
-        .theme-synthwave .problem-statement table.markdown-table td {
-            border-color: rgba(0, 245, 255, 0.2);
-        }
-
-        .theme-synthwave .problem-statement table.markdown-table thead {
-            background: rgba(0, 245, 255, 0.08);
-        }
-
-        .theme-synthwave .problem-statement table.markdown-table th {
-            color: #00f5ff;
-            text-shadow: 0 0 3px rgba(0, 245, 255, 0.3);
-        }
-
-        .theme-synthwave .problem-statement table.markdown-table tbody tr:nth-child(even) {
-            background: rgba(0, 245, 255, 0.03);
-        }
-
-        .theme-synthwave .problem-statement table.markdown-table tbody tr:hover {
-            background: rgba(0, 245, 255, 0.06);
-        }
-
         /* Task cards */
         .problem-statement .task-container {
-            border: 1px solid var(--vscode-textLink-foreground);
-            border-radius: 6px;
+            border: 1px solid var(--theme-link-color);
+            border-radius: var(--theme-container-radius);
             padding: 12px 16px;
             margin: 14px 0;
-            background: rgba(0, 0, 0, 0.02);
+            background: var(--theme-background-secondary, rgba(0, 0, 0, 0.02));
             display: block;
             transition: border-color 0.2s ease, box-shadow 0.2s ease;
             line-height: 1.5;
@@ -1751,7 +1424,7 @@
 
         .problem-statement .task-header {
             font-weight: 600;
-            color: var(--vscode-textLink-foreground);
+            color: var(--theme-link-color);
             margin: 0;
             text-transform: none;
             display: block;
@@ -1762,24 +1435,6 @@
             margin: 6px 0 0 0;
             color: inherit;
             line-height: 1.5;
-        }
-
-        /* Theme-specific task highlighting with outlines */
-        .theme-vscode .problem-statement .task-container,
-        .theme-modern .problem-statement .task-container {
-            border-color: var(--vscode-textLink-foreground);
-            background: rgba(0, 122, 204, 0.05);
-        }
-
-        .theme-synthwave .problem-statement .task-container {
-            border-color: #00f5ff;
-            background: rgba(0, 245, 255, 0.05);
-            box-shadow: 0 0 6px rgba(0, 245, 255, 0.25);
-        }
-
-        .theme-synthwave .problem-statement .task-header {
-            color: #00f5ff;
-            text-shadow: 0 0 3px rgba(0, 245, 255, 0.4);
         }
 
         /* Markdown headers in problem statement - proper hierarchy */
@@ -1852,22 +1507,6 @@
         .problem-statement ul li::marker {
             color: var(--theme-foreground);
             opacity: 0.7;
-        }
-
-        /* Theme-specific bullet styling */
-        .theme-vscode .problem-statement ul li::marker {
-            color: var(--theme-foreground);
-            opacity: 0.6;
-        }
-
-        .theme-modern .problem-statement ul li::marker {
-            color: var(--theme-foreground);
-            opacity: 0.7;
-        }
-
-        .theme-synthwave .problem-statement ul li::marker {
-            color: #ffffff;
-            opacity: 0.6;
         }
 
         /* PlantUML rendering styles */
@@ -1990,83 +1629,15 @@
             border: 1px solid var(--theme-button-background);
             padding: 12px 16px;
             font-size: 13px;
-            font-weight: 500;
+            font-weight: 400;
             cursor: pointer;
             text-decoration: none;
-            transition: all 0.15s ease-in-out;
+            transition: none;
+            border-radius: 2px;
         }
 
         .btn-primary {
             background: var(--theme-success);
             color: white;
             border-color: var(--theme-success);
-        }
-
-        /* VSCode theme buttons */
-        .theme-vscode .btn {
-            border-radius: 2px;
-            font-weight: 400;
-            transition: none;
-        }
-
-        .theme-vscode .btn:hover {
-            background: var(--theme-button-hover);
-            border-color: var(--theme-button-hover);
-        }
-
-        .theme-vscode .btn-primary:hover {
-            background: var(--theme-success);
-            opacity: 0.9;
-        }
-
-        /* Modern theme buttons */
-        .theme-modern .btn {
-            border-radius: 8px;
-            transition: all 0.15s ease-in-out;
-        }
-
-        .theme-modern .btn:hover {
-            background: var(--theme-button-hover);
-            border-color: var(--theme-button-hover);
-            transform: scale(1.01);
-            box-shadow: 0 0 0 2px var(--vscode-focusBorder), 0 4px 12px rgba(0, 0, 0, 0.1);
-        }
-
-        .theme-modern .btn-primary:hover {
-            background: var(--theme-success);
-            opacity: 0.9;
-        }
-
-        /* Synthwave theme buttons */
-        .theme-synthwave .btn {
-            border-radius: 8px;
-            transition: var(--theme-transition);
-            box-shadow: 0 0 15px rgba(255, 0, 110, 0.3);
-            text-shadow: 0 0 5px currentColor;
-        }
-
-        .theme-synthwave .btn:hover {
-            background: var(--theme-button-hover);
-            transform: translateY(-1px);
-            box-shadow: 0 0 25px rgba(255, 0, 110, 0.6);
-        }
-
-        .theme-synthwave .btn-primary:hover {
-            background: var(--theme-success);
-            opacity: 0.9;
-        }
-
-        /* Modern theme container hover effects */
-        .theme-modern .exercise-card:hover,
-        .theme-modern .content-section:hover {
-            border-color: var(--vscode-focusBorder);
-            box-shadow: 0 0 0 1px var(--vscode-focusBorder), 0 4px 12px rgba(0, 0, 0, 0.1);
-            transform: translateY(-1px);
-        }
-
-        /* Synthwave theme glow effects */
-        .theme-synthwave .exercise-card,
-        .theme-synthwave .content-section {
-            border-color: #ff006e;
-            box-shadow: 0 0 15px rgba(255, 0, 110, 0.3);
         }

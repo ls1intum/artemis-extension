@@ -1,25 +1,20 @@
 import * as vscode from 'vscode';
-import { ThemeManager } from '../../themes';
 import { IconDefinitions } from '../../utils/iconDefinitions';
 import type { UserInfo } from '../app/appStateManager';
 import { StyleManager } from '../styles';
 import { BackLinkComponent } from '../components/backLinkComponent';
 
 export class GitCredentialsView {
-    private readonly _themeManager: ThemeManager;
     private readonly _extensionContext: vscode.ExtensionContext;
     private readonly _styleManager: StyleManager;
 
     constructor(extensionContext: vscode.ExtensionContext, styleManager: StyleManager) {
-        this._themeManager = new ThemeManager();
         this._extensionContext = extensionContext;
         this._styleManager = styleManager;
     }
 
     public generateHtml(userInfo?: UserInfo): string {
-        const themeCSS = this._themeManager.getThemeCSS();
-        const currentTheme = this._themeManager.getCurrentTheme();
-        const styles = this._styleManager.getStyles(currentTheme, [
+        const styles = this._styleManager.getStyles([
             'views/git-credentials.css'
         ]);
 
@@ -34,10 +29,9 @@ export class GitCredentialsView {
     <title>Git Credentials Helper</title>
     <style>
         ${styles}
-        ${themeCSS}
     </style>
 </head>
-<body class="theme-${currentTheme}">
+<body>
     ${BackLinkComponent.generateHtml()}
 
     <div class="git-credentials-container">

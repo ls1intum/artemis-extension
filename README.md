@@ -92,7 +92,6 @@ To access commands, open the Command Palette (`Ctrl+Shift+P` or `Cmd+Shift+P`) a
 Configure the extension through VS Code settings:
 
 - `artemis.serverUrl`: The URL of the Artemis server to connect to (default: `https://artemis.tum.de`)
-- `artemis.theme`: Choose the visual theme for Artemis views (`vscode`, `modern`, or `synthwave`)
 
 ## EduTelligence Integration
 
@@ -264,8 +263,6 @@ artemis-extension/
     │   │       ├── viewRouter.ts          # View navigation
     │   │       ├── webViewMessageHandler.ts  # Message passing
     │   │       └── commands/              # Command handlers
-    │   ├── themes/            # UI theme definitions
-    │   │   └── themes/        # Theme configurations (vscode, modern, synthwave)
     │   ├── types/             # TypeScript type definitions
     │   │   ├── artemis.ts     # Artemis domain types
     │   │   └── stomp.d.ts     # WebSocket/STOMP types
@@ -277,7 +274,6 @@ artemis-extension/
     │   ├── artemis-logo.png   # Extension icons
     │   └── styles/            # CSS stylesheets
     │       ├── base.css
-    │       ├── themes/        # Theme-specific styles
     │       └── views/         # View-specific styles
     └── dist/                  # Compiled output (generated)
         └── extension.js       # Bundled extension
@@ -306,9 +302,9 @@ artemis-extension/
 - **App State**: Manages application state and view routing
 - **Commands**: Handle user actions from webviews
 
-#### Themes
-- Three built-in themes: VSCode (native), Modern (cards), Synthwave (neon)
-- Theme system allows for easy addition of new visual styles
+#### Styling
+- Webviews inherit the active VS Code theme through native color tokens
+- `media/styles/base.css` defines shared variables mapped to VS Code theme colors
 
 ### Available Scripts
 

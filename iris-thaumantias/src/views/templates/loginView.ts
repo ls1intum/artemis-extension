@@ -1,4 +1,3 @@
-import { ThemeManager } from '../../themes';
 import { StyleManager } from '../styles';
 import { ServiceHealthComponent } from '../components/serviceHealthComponent';
 
@@ -6,18 +5,14 @@ import { ServiceHealthComponent } from '../components/serviceHealthComponent';
  * Renders the login view for the Artemis webview.
  */
 export class LoginView {
-    private readonly _themeManager: ThemeManager;
     private readonly _styleManager: StyleManager;
 
     constructor(styleManager: StyleManager) {
-        this._themeManager = new ThemeManager();
         this._styleManager = styleManager;
     }
 
     public generateHtml(): string {
-        const themeCSS = this._themeManager.getThemeCSS();
-        const currentTheme = this._themeManager.getCurrentTheme();
-        const styles = this._styleManager.getStyles(currentTheme, [
+        const styles = this._styleManager.getStyles([
             'views/login.css',
             'components/service-health.css',
         ]);
@@ -30,11 +25,10 @@ export class LoginView {
     <title>Artemis Login</title>
     <style>
         ${styles}
-        ${themeCSS}
     </style>
 
 </head>
-<body class="theme-${currentTheme}">
+<body>
     <div class="header">
         <div class="logo">
             <h1>Artemis Login</h1>

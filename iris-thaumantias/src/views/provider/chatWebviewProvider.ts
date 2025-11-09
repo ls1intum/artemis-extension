@@ -164,10 +164,7 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
         this._disposables.push(workspaceListener);
 
         const configListener = vscode.workspace.onDidChangeConfiguration(event => {
-            if (
-                event.affectsConfiguration('artemis.hideDeveloperTools') ||
-                event.affectsConfiguration('artemis.theme')
-            ) {
+            if (event.affectsConfiguration('artemis.hideDeveloperTools')) {
                 this.refreshTheme();
             }
             if (event.affectsConfiguration('artemis.iris.sendUncommittedChanges')) {

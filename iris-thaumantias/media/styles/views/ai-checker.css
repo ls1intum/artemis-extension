@@ -33,26 +33,11 @@
             font-size: 14px;
             display: inline-block;
             text-decoration: none;
+            color: var(--theme-link-color);
         }
 
-        /* VSCode and Modern themes use link color */
-        .theme-vscode .back-link,
-        .theme-modern .back-link {
-            color: var(--vscode-textLink-foreground);
-        }
-
-        .theme-vscode .back-link:hover,
-        .theme-modern .back-link:hover {
-            color: var(--vscode-textLink-activeForeground);
-        }
-
-        /* Synthwave theme keeps green */
-        .theme-synthwave .back-link {
-            color: var(--theme-success);
-        }
-
-        .theme-synthwave .back-link:hover {
-            opacity: 0.8;
+        .back-link:hover {
+            color: var(--theme-link-hover);
         }
 
         .header {
@@ -360,30 +345,4 @@
             opacity: 0.6;
             font-style: italic;
             padding: 32px 0;
-        }
-
-        /* Theme-specific enhancements */
-        .theme-vscode .header,
-        .theme-vscode .content {
-            border-radius: 3px;
-        }
-
-        .theme-modern .header,
-        .theme-modern .content {
-            border-radius: 12px;
-            transition: all 0.15s ease-in-out;
-        }
-
-        .theme-synthwave .header,
-        .theme-synthwave .content {
-            background: rgba(15, 12, 41, 0.9);
-            border: 1px solid #ff006e;
-            box-shadow: 0 0 20px rgba(255, 0, 110, 0.2), inset 0 0 20px rgba(0, 245, 255, 0.05);
-            border-radius: 8px;
-        }
-
-        .theme-synthwave h1,
-        .theme-synthwave h2 {
-            text-shadow: 0 0 10px currentColor;
-            color: #ff006e;
         }
