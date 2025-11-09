@@ -1550,11 +1550,46 @@ export class ExerciseDetailView {
                 <div class="test-results-controls">
                     <input type="text" class="test-results-search" id="testSearch" placeholder="Search tests..." oninput="filterTests()">
                     <div class="test-results-filters">
-                        <button class="test-filter-btn active" data-filter="all" onclick="setTestFilter('all')">All (\${testCases.length})</button>
-                        <button class="test-filter-btn" data-filter="failed" onclick="setTestFilter('failed')">Failed (\${failedCount})</button>
-                        <button class="test-filter-btn" data-filter="passed" onclick="setTestFilter('passed')">Passed (\${passedCount})</button>
-                        <button class="test-filter-btn" data-filter="structural" onclick="setTestFilter('structural')">Structural</button>
-                        <button class="test-filter-btn" data-filter="behavioral" onclick="setTestFilter('behavioral')">Behavioral</button>
+                        \${window.ButtonComponent.generate({
+                            label: 'All (' + testCases.length + ')',
+                            variant: 'primary',
+                            command: "setTestFilter('all')",
+                            className: 'test-filter-btn',
+                            id: 'filter-all',
+                            dataAttributes: { filter: 'all' }
+                        })}
+                        \${window.ButtonComponent.generate({
+                            label: 'Failed (' + failedCount + ')',
+                            variant: 'secondary',
+                            command: "setTestFilter('failed')",
+                            className: 'test-filter-btn',
+                            id: 'filter-failed',
+                            dataAttributes: { filter: 'failed' }
+                        })}
+                        \${window.ButtonComponent.generate({
+                            label: 'Passed (' + passedCount + ')',
+                            variant: 'secondary',
+                            command: "setTestFilter('passed')",
+                            className: 'test-filter-btn',
+                            id: 'filter-passed',
+                            dataAttributes: { filter: 'passed' }
+                        })}
+                        \${window.ButtonComponent.generate({
+                            label: 'Structural',
+                            variant: 'secondary',
+                            command: "setTestFilter('structural')",
+                            className: 'test-filter-btn',
+                            id: 'filter-structural',
+                            dataAttributes: { filter: 'structural' }
+                        })}
+                        \${window.ButtonComponent.generate({
+                            label: 'Behavioral',
+                            variant: 'secondary',
+                            command: "setTestFilter('behavioral')",
+                            className: 'test-filter-btn',
+                            id: 'filter-behavioral',
+                            dataAttributes: { filter: 'behavioral' }
+                        })}
                     </div>
                 </div>
                 <div class="test-results-count" id="testResultsCount">Showing \${testCases.length} of \${testCases.length} tests</div>
@@ -1583,14 +1618,14 @@ export class ExerciseDetailView {
         window.setTestFilter = function(filter) {
             window.currentTestFilter = filter;
 
-            // Update button states
+            // Update button variants - active filter gets primary, others get secondary
             const buttons = document.querySelectorAll('.test-filter-btn');
             buttons.forEach(btn => {
-                if (btn.getAttribute('data-filter') === filter) {
-                    btn.classList.add('active');
-                } else {
-                    btn.classList.remove('active');
-                }
+                const isActive = btn.getAttribute('data-filter') === filter;
+                // Remove both variant classes
+                btn.classList.remove('btn-primary', 'btn-secondary');
+                // Add the appropriate variant class
+                btn.classList.add(isActive ? 'btn-primary' : 'btn-secondary');
             });
 
             filterTests();

@@ -506,29 +506,6 @@
             flex-wrap: wrap;
         }
 
-        .test-filter-btn {
-            padding: 6px 12px;
-            font-size: 12px;
-            font-weight: 500;
-            background: transparent;
-            color: var(--theme-foreground);
-            border: 1px solid var(--theme-border);
-            border-radius: 4px;
-            cursor: pointer;
-            transition: var(--theme-transition);
-        }
-
-        .test-filter-btn:hover {
-            background: var(--theme-button-background);
-            color: var(--theme-button-foreground);
-        }
-
-        .test-filter-btn.active {
-            background: var(--theme-button-background);
-            color: var(--theme-button-foreground);
-            border-color: var(--theme-button-background);
-        }
-
         .test-results-list {
             display: flex;
             flex-direction: column;

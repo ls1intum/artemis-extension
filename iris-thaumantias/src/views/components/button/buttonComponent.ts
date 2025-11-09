@@ -21,6 +21,8 @@ export interface ButtonOptions {
     height?: string;
     /** Text alignment - 'left', 'center', or 'right' */
     alignText?: 'left' | 'center' | 'right';
+    /** Custom data attributes (e.g., { filter: 'all' } becomes data-filter="all") */
+    dataAttributes?: Record<string, string>;
 }
 /**
  * Generates a VS Code-styled button component with optional icon support.
@@ -57,7 +59,8 @@ export class ButtonComponent {
             fullWidth = false,
             width,
             height,
-            alignText
+            alignText,
+            dataAttributes = {}
         } = options;
 
         const classes = [
@@ -75,6 +78,11 @@ export class ButtonComponent {
         const disabledAttr = disabled ? ' disabled' : '';
         const onclickAttr = command && !disabled ? ` onclick="${command}"` : '';
         
+        // Build data attributes
+        const dataAttrs = Object.entries(dataAttributes)
+            .map(([key, value]) => ` data-${key}="${value}"`)
+            .join('');
+        
         // Build inline styles for fixed dimensions
         const inlineStyles = [];
         if (width) {
@@ -89,7 +97,7 @@ export class ButtonComponent {
         if (icon && !label) {
             return `
                 <button 
-                    class="${classes}"${idAttr}${disabledAttr}${onclickAttr}${styleAttr}
+                    class="${classes}"${idAttr}${disabledAttr}${onclickAttr}${styleAttr}${dataAttrs}
                     aria-label="${command || 'button'}"
                 >
                     ${icon}
@@ -101,7 +109,7 @@ export class ButtonComponent {
         if (icon && label) {
             return `
                 <button 
-                    class="${classes}"${idAttr}${disabledAttr}${onclickAttr}${styleAttr}
+                    class="${classes}"${idAttr}${disabledAttr}${onclickAttr}${styleAttr}${dataAttrs}
                 >
                     <span class="btn-icon">${icon}</span>
                     <span class="btn-label">${label}</span>
@@ -112,7 +120,7 @@ export class ButtonComponent {
         // Button with label only
         return `
             <button 
-                class="${classes}"${idAttr}${disabledAttr}${onclickAttr}${styleAttr}
+                class="${classes}"${idAttr}${disabledAttr}${onclickAttr}${styleAttr}${dataAttrs}
             >
                 ${label}
             </button>
