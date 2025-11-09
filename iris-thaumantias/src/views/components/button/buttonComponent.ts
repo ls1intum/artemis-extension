@@ -15,6 +15,12 @@ export interface ButtonOptions {
     id?: string;
     /** Full width button */
     fullWidth?: boolean;
+    /** Fixed width in pixels (e.g., '120px' or '10rem') */
+    width?: string;
+    /** Fixed height in pixels (e.g., '40px' or '3rem') */
+    height?: string;
+    /** Center text alignment instead of left (default is left for wrapped text) */
+    centerText?: boolean;
 }
 
 /**
@@ -49,7 +55,10 @@ export class ButtonComponent {
             command = '',
             disabled = false,
             id = '',
-            fullWidth = false
+            fullWidth = false,
+            width,
+            height,
+            centerText = false
         } = options;
 
         const classes = [
@@ -57,18 +66,31 @@ export class ButtonComponent {
             `btn-${variant}`,
             fullWidth ? 'btn-full-width' : '',
             disabled ? 'btn-disabled' : '',
+            (width || height) ? 'btn-fixed-size' : '',
+            icon && label ? 'btn-with-icon' : '',
+            centerText ? 'btn-center-text' : '',
             className
         ].filter(Boolean).join(' ');
 
         const idAttr = id ? ` id="${id}"` : '';
         const disabledAttr = disabled ? ' disabled' : '';
         const onclickAttr = command && !disabled ? ` onclick="${command}"` : '';
+        
+        // Build inline styles for fixed dimensions
+        const inlineStyles = [];
+        if (width) {
+            inlineStyles.push(`width: ${width}`);
+        }
+        if (height) {
+            inlineStyles.push(`height: ${height}`);
+        }
+        const styleAttr = inlineStyles.length > 0 ? ` style="${inlineStyles.join('; ')}"` : '';
 
         // Icon-only button (no label)
         if (icon && !label) {
             return `
                 <button 
-                    class="${classes}"${idAttr}${disabledAttr}${onclickAttr}
+                    class="${classes}"${idAttr}${disabledAttr}${onclickAttr}${styleAttr}
                     aria-label="${command || 'button'}"
                 >
                     ${icon}
@@ -80,7 +102,7 @@ export class ButtonComponent {
         if (icon && label) {
             return `
                 <button 
-                    class="${classes}"${idAttr}${disabledAttr}${onclickAttr}
+                    class="${classes}"${idAttr}${disabledAttr}${onclickAttr}${styleAttr}
                 >
                     <span class="btn-icon">${icon}</span>
                     <span class="btn-label">${label}</span>
@@ -91,7 +113,7 @@ export class ButtonComponent {
         // Button with label only
         return `
             <button 
-                class="${classes}"${idAttr}${disabledAttr}${onclickAttr}
+                class="${classes}"${idAttr}${disabledAttr}${onclickAttr}${styleAttr}
             >
                 ${label}
             </button>

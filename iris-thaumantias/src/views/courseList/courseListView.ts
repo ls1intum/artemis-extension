@@ -1,14 +1,17 @@
 import { readCss } from '../utils';
 import { BackLinkComponent } from '../components/backLink/backLinkComponent';
+import { ButtonComponent } from '../components/button/buttonComponent';
+import { IconDefinitions } from '../../utils/iconDefinitions';
 
 export class CourseListView {
     public generateHtml(coursesData: any | undefined, archivedCoursesData: any[] | undefined): string {
         const styles = readCss('courseList/course-list.css');
+        const buttonStyles = readCss('components/button/button.css');
         
-        return this._getCourseListHtml(coursesData, archivedCoursesData, styles);
+        return this._getCourseListHtml(coursesData, archivedCoursesData, styles, buttonStyles);
     }
 
-    private _getCourseListHtml(coursesData: any | undefined, archivedCoursesData: any[] | undefined, styles: string): string {
+    private _getCourseListHtml(coursesData: any | undefined, archivedCoursesData: any[] | undefined, styles: string, buttonStyles: string): string {
         let coursesHtml = '';
         
         // Generate current courses
@@ -109,6 +112,7 @@ export class CourseListView {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>All Courses</title>
     <style>
+        ${buttonStyles}
         ${styles}
     </style>
 </head>
@@ -119,12 +123,14 @@ export class CourseListView {
         <h1>All Courses</h1>
         <div class="search-container">
             <input type="text" class="search-input" id="courseSearch" placeholder="Search courses by title, semester, or description..." oninput="handleSearch(this.value)">
-            <button class="reload-courses-btn" onclick="reloadCourses()" title="Reload courses">
-                <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-                    <path d="M13.65 2.35C12.2 0.9 10.21 0 8 0 3.58 0 0 3.58 0 8s3.58 8 8 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L9 7h7V0l-2.35 2.35z"/>
-                </svg>
-                Reload Courses
-            </button>
+            ${ButtonComponent.generate({
+                label: 'Reload Courses',
+                icon: IconDefinitions.getIcon('refresh'),
+                variant: 'primary',
+                command: 'reloadCourses()',
+                className: 'reload-courses-btn',
+                height: '2.5rem'
+            })}
         </div>
             <div class="controls-container" id="controlsContainer">
                 <div class="controls-header" onclick="toggleControls()">

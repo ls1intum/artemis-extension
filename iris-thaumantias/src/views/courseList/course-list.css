@@ -44,31 +44,6 @@
             transition: var(--theme-transition);
             box-sizing: border-box;
         }
-        
-        .reload-courses-btn {
-            background: var(--theme-button-background);
-            color: var(--theme-button-foreground);
-            border: 1px solid var(--theme-border);
-            border-radius: var(--theme-container-radius);
-            padding: 10px 16px;
-            font-size: 14px;
-            font-family: var(--theme-font-family);
-            cursor: pointer;
-            transition: var(--theme-transition);
-            white-space: nowrap;
-            display: flex;
-            align-items: center;
-            gap: 6px;
-        }
-        
-        .reload-courses-btn:hover {
-            background: var(--theme-button-hover);
-            transform: translateY(-1px);
-        }
-        
-        .reload-courses-btn:active {
-            transform: translateY(0);
-        }
 
         .search-input:focus {
             outline: none;
@@ -101,17 +76,6 @@
             cursor: pointer;
             transition: var(--theme-transition);
         }
-
-        /* Default hover - no background change */
-        .controls-header:hover {
-            /* Default: no hover effect, will be overridden by theme-specific styles */
-        }
-
-        /* VS Code theme: subtle outline on hover */
-
-        /* Modern theme: background and text color change */
-
-        /* Synthwave theme: keep existing hover effect */
 
         .controls-header-title {
             color: var(--theme-foreground);

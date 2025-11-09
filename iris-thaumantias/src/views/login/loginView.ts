@@ -54,15 +54,15 @@ export class LoginView {
                 <input type="checkbox" id="rememberMe" name="rememberMe" checked />
                 <label for="rememberMe">Remember me on this device</label>
             </div>
-            <div style="margin-top: 16px;">
-                ${ButtonComponent.generate({
-                    label: 'Login to Artemis',
-                    variant: 'primary',
-                    id: 'loginButton',
-                    command: 'document.getElementById("loginForm").requestSubmit()',
-                    fullWidth: true
-                })}
-            </div>
+            ${ButtonComponent.generate({
+                label: 'Login to Artemis',
+                variant: 'primary',
+                id: 'loginButton',
+                command: 'document.getElementById("loginForm").requestSubmit()',
+                fullWidth: true,
+                centerText: true,
+                height: '2.5rem'
+            })}
             <div id="statusMessage" class="status"></div>
         </form>
         

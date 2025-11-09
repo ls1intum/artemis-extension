@@ -23,6 +23,20 @@
     max-width: 100%;
 }
 
+/* Wrapped text buttons should be left-aligned */
+.btn[style*="width"],
+.btn-full-width,
+.btn-fixed-size {
+    text-align: left;
+    justify-content: flex-start;
+}
+
+/* Center text alignment override */
+.btn-center-text {
+    text-align: center;
+    justify-content: center;
+}
+
 .btn:focus-visible {
     outline: 2px solid var(--vscode-focusBorder);
     outline-offset: 2px;
@@ -160,6 +174,30 @@
     opacity: 0.4;
     cursor: not-allowed;
     pointer-events: none;
+}
+
+/* Button with icon and label - reduce left padding since icon provides visual offset */
+.btn-with-icon {
+    padding-left: 8px;
+}
+
+/* Fixed size button - reduces padding to fit content within fixed dimensions */
+.btn-fixed-size {
+    padding: 4px 12px;
+    box-sizing: border-box;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Fixed size button with icon - even less left padding */
+.btn-fixed-size.btn-with-icon {
+    padding-left: 4px;
+}
+
+/* Fixed size icon-only button - minimal padding */
+.btn-fixed-size:empty,
+.btn-fixed-size:has(svg):not(:has(.btn-label)):not(:has(text)) {
+    padding: 4px;
 }
 
 /* Button groups */
