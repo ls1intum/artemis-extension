@@ -4,6 +4,7 @@ import { readCssFiles } from "../utils";
 import { BackLinkComponent } from "../components/backLink/backLinkComponent";
 import { ButtonComponent } from "../components/button/buttonComponent";
 import { FullscreenButton, CloseButton } from "../components/button/iconButtons";
+import { BadgeComponent } from "../components/badge/badgeComponent";
 
 export class ExerciseDetailView {
   private _extensionContext: vscode.ExtensionContext;
@@ -81,7 +82,8 @@ export class ExerciseDetailView {
       "components/backLink/back-link.css",
       "exerciseDetail/exercise-detail.css",
       "components/button/button.css",
-      "components/button/iconButtons/iconButtons.css"
+      "components/button/iconButtons/iconButtons.css",
+      "components/badge/badge.css"
     );
 
     if (!exerciseData) {
@@ -517,15 +519,18 @@ export class ExerciseDetailView {
                 <div class="summary-text">
                     <div class="exercise-title">${exerciseTitle}</div>
                     <div class="exercise-meta">
-                        <div class="exercise-type-icon">${exerciseIcon}</div>
-                        <div class="points-badge">${maxPoints} ${
-      maxPoints === 1 ? "point" : "points"
-    }${bonusPoints > 0 ? ` + ${bonusPoints} bonus` : ""}</div>
+                        <div class="exercise-icon-badge">${exerciseIcon}</div>
+                        ${BadgeComponent.generate({
+                            label: `${maxPoints} ${maxPoints === 1 ? "point" : "points"}${bonusPoints > 0 ? ` + ${bonusPoints} bonus` : ""}`,
+                            variant: 'primary'
+                        })}
                         ${
                           timeRemainingDisplay
-                            ? `<div class="due-date-badge ${
-                                isDueSoon ? "due-soon" : ""
-                              }">${timeRemainingDisplay}</div>`
+                            ? BadgeComponent.generate({
+                                label: timeRemainingDisplay,
+                                variant: 'secondary',
+                                className: isDueSoon ? "due-soon" : ""
+                              })
                             : ""
                         }
                         <button class="repo-status-icon unknown" id="repoStatusIcon" onclick="checkRepositoryStatus(true)" title="Check repository status">

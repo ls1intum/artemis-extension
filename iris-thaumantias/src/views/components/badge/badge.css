@@ -1,0 +1,81 @@
+/* Badge Component - Pills/beans for status, points, categories */
+
+.badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 500;
+    line-height: 1.2;
+    white-space: nowrap;
+    border: 1px solid transparent;
+    height: 32px;
+    box-sizing: border-box;
+}
+.badge-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+}
+
+.badge-icon svg {
+    width: 14px;
+    height: 14px;
+    fill: currentColor;
+}
+
+.badge-label {
+    display: inline-flex;
+    align-items: center;
+}
+
+/* Primary badge - Blue (similar to primary button) */
+.badge-primary {
+    background-color: var(--vscode-button-background, #007acc);
+    color: var(--vscode-button-foreground, #ffffff);
+    border-color: var(--vscode-button-background, #007acc);
+}
+
+/* Secondary badge - White background with blue border (matches secondary button) */
+.badge-secondary {
+    background-color: var(--vscode-editor-background, #ffffff);
+    color: var(--vscode-textLink-foreground, #007acc);
+    border-color: var(--vscode-textLink-foreground, #007acc);
+}
+
+/* Success badge - Green */
+.badge-success {
+    background-color: rgba(22, 163, 74, 0.15);
+    color: var(--vscode-testing-iconPassed, #73c991);
+    border-color: var(--vscode-testing-iconPassed, #73c991);
+}
+
+/* Warning badge - Yellow/Orange */
+.badge-warning {
+    background-color: rgba(234, 179, 8, 0.15);
+    color: var(--vscode-editorWarning-foreground, #eab308);
+    border-color: var(--vscode-editorWarning-foreground, #eab308);
+}
+
+/* Error badge - Red */
+.badge-error {
+    background-color: rgba(239, 68, 68, 0.15);
+    color: var(--vscode-errorForeground, #f48771);
+    border-color: var(--vscode-errorForeground, #f48771);
+}
+
+/* Compact size modifier */
+.badge-compact {
+    padding: 2px 8px;
+    font-size: 12px;
+}
+
+/* Large size modifier */
+.badge-large {
+    padding: 6px 16px;
+    font-size: 14px;
+    font-weight: 600;
+}

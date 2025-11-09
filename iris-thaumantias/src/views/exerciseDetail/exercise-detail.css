@@ -104,6 +104,25 @@
             align-items: center;
         }
 
+        .exercise-icon-badge {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0;
+            border-radius: 6px;
+            background-color: var(--vscode-button-background, #007acc);
+            color: var(--vscode-button-foreground, #ffffff);
+            border: 1px solid var(--vscode-button-background, #007acc);
+            width: 32px;
+            height: 32px;
+            box-sizing: border-box;
+        }
+
+        .exercise-icon-badge svg {
+            width: 16px;
+            height: 16px;
+        }
+
         .toggle-icon {
             width: 14px;
             height: 14px;
@@ -131,52 +150,6 @@
             margin-top: 20px;
             padding-top: 20px;
             border-top: 1px solid var(--theme-border);
-        }
-
-        .exercise-type-icon {
-            background: var(--theme-button-background);
-            color: var(--theme-button-foreground);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            width: 24px;
-            height: 24px;
-            border-radius: 4px;
-            border: 1px solid var(--theme-border);
-            flex-shrink: 0;
-        }
-
-        .exercise-type-icon svg {
-            width: 14px;
-            height: 14px;
-        }
-
-        .points-badge {
-            background: var(--theme-accent);
-            color: var(--theme-button-foreground);
-            padding: 4px 8px;
-            border-radius: 4px;
-            font-size: 11px;
-            font-weight: 600;
-        }
-
-        .due-date-badge {
-            background: transparent;
-            color: var(--theme-foreground);
-            border: 1px solid var(--theme-border);
-            padding: 3px 7px;
-            border-radius: var(--theme-container-radius);
-            font-size: 11px;
-            font-weight: 600;
-            text-transform: uppercase;
-            flex-shrink: 0;
-            opacity: 0.8;
-        }
-
-        .due-date-badge.due-soon {
-            color: var(--theme-error);
-            border-color: var(--theme-error);
-            opacity: 1;
         }
 
         .exercise-info-grid {
