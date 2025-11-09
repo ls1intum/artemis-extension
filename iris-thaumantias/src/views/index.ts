@@ -6,6 +6,7 @@ export type { WebViewActionHandler } from './app/types';
 
 export { ServiceHealthComponent } from './components/serviceHealth/serviceHealthComponent';
 export { BackLinkComponent } from './components/backLink/backLinkComponent';
+export { ButtonComponent, type ButtonOptions } from './components/button/buttonComponent';
 
 export { AiCheckerView } from './aiChecker/aiCheckerView';
 export { CourseDetailView } from './courseDetail/courseDetailView';

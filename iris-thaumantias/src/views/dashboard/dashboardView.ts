@@ -1,7 +1,8 @@
 import * as vscode from 'vscode';
 import { VSCODE_CONFIG } from '../../utils';
 import { IconDefinitions } from '../../utils/iconDefinitions';
-import { readCss } from '../utils';
+import { readCssFiles } from '../utils';
+import { ButtonComponent } from '../components/button/buttonComponent';
 
 export class DashboardView {
     private _extensionContext: vscode.ExtensionContext;
@@ -11,7 +12,7 @@ export class DashboardView {
     }
 
     public generateHtml(userInfo: { username: string; serverUrl: string; user?: any }, coursesData: any | undefined, webview?: vscode.Webview): string {
-        const styles = readCss('dashboard/dashboard.css');
+        const styles = readCssFiles('dashboard/dashboard.css', 'components/button/button.css');
         
         // Check if Iris explanation should be shown
         const config = vscode.workspace.getConfiguration(VSCODE_CONFIG.ARTEMIS_SECTION);
@@ -178,38 +179,63 @@ export class DashboardView {
                 </button>
             </div>
             <div class="action-buttons">
-                <button class="action-btn" id="browseCoursesBtn">
-                    <span class="action-btn-icon">${courseIcon}</span>
-                    Browse Courses
-                </button>
-                <button class="action-btn" id="checkAiConfigBtn">
-                    <span class="action-btn-icon">${star4Icon}</span>
-                    AI Checker
-                </button>
-                <button class="action-btn" id="checkServiceStatusBtn">
-                    <span class="action-btn-icon">${stethoscopeIcon}</span>
-                    Service Status
-                </button>
-                <button class="action-btn" id="recommendedExtensionsBtn">
-                    <span class="action-btn-icon">${puzzleIcon}</span>
-                    Recommended Extensions
-                </button>
-                <button class="action-btn" id="openWebsiteBtn">
-                    <span class="action-btn-icon">${webIcon}</span>
-                    Open Artemis in browser
-                </button>
-                <button class="action-btn" id="gitCredentialsBtn">
-                    <span class="action-btn-icon">${gitIcon}</span>
-                    Git Credentials
-                </button>
-                <button class="action-btn" id="openSettingsBtn">
-                    <span class="action-btn-icon">${gearIcon}</span>
-                    Open Settings
-                </button>
-                <button class="action-btn logout-btn" id="logoutBtn">
-                    <span class="action-btn-icon">${logoutIcon}</span>
-                    Logout from Artemis
-                </button>
+                ${ButtonComponent.generate({
+                    label: 'Browse Courses',
+                    icon: courseIcon,
+                    variant: 'primary',
+                    id: 'browseCoursesBtn',
+                    command: 'document.getElementById("browseCoursesBtn").click()'
+                })}
+                ${ButtonComponent.generate({
+                    label: 'AI Checker',
+                    icon: star4Icon,
+                    variant: 'primary',
+                    id: 'checkAiConfigBtn',
+                    command: 'document.getElementById("checkAiConfigBtn").click()'
+                })}
+                ${ButtonComponent.generate({
+                    label: 'Service Status',
+                    icon: stethoscopeIcon,
+                    variant: 'primary',
+                    id: 'checkServiceStatusBtn',
+                    command: 'document.getElementById("checkServiceStatusBtn").click()'
+                })}
+                ${ButtonComponent.generate({
+                    label: 'Recommended Extensions',
+                    icon: puzzleIcon,
+                    variant: 'primary',
+                    id: 'recommendedExtensionsBtn',
+                    command: 'document.getElementById("recommendedExtensionsBtn").click()'
+                })}
+                ${ButtonComponent.generate({
+                    label: 'Open Artemis in browser',
+                    icon: webIcon,
+                    variant: 'primary',
+                    id: 'openWebsiteBtn',
+                    command: 'document.getElementById("openWebsiteBtn").click()'
+                })}
+                ${ButtonComponent.generate({
+                    label: 'Git Credentials',
+                    icon: gitIcon,
+                    variant: 'secondary',
+                    id: 'gitCredentialsBtn',
+                    command: 'document.getElementById("gitCredentialsBtn").click()'
+                })}
+                ${ButtonComponent.generate({
+                    label: 'Open Settings',
+                    icon: gearIcon,
+                    variant: 'secondary',
+                    id: 'openSettingsBtn',
+                    command: 'document.getElementById("openSettingsBtn").click()'
+                })}
+                ${ButtonComponent.generate({
+                    label: 'Logout from Artemis',
+                    icon: logoutIcon,
+                    variant: 'secondary',
+                    className: 'btn-danger',
+                    id: 'logoutBtn',
+                    command: 'document.getElementById("logoutBtn").click()'
+                })}
             </div>
         </div>
     </div>
