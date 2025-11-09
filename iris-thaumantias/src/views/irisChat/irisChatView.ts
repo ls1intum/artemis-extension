@@ -1,26 +1,21 @@
 import * as vscode from "vscode";
 import { IconDefinitions } from "../../utils/iconDefinitions";
-import { StyleManager } from "../styles";
+import { readCss } from "../utils";
 
 export class IrisChatView {
   private _extensionContext: vscode.ExtensionContext;
-  private _styleManager: StyleManager;
 
   constructor(
-    extensionContext: vscode.ExtensionContext,
-    styleManager: StyleManager
+    extensionContext: vscode.ExtensionContext
   ) {
     this._extensionContext = extensionContext;
-    this._styleManager = styleManager;
   }
 
   public generateHtml(
     webview?: vscode.Webview,
     showDiagnostics: boolean = false
   ): string {
-    const styles = this._styleManager.getStyles([
-      "views/iris-chat.css",
-    ]);
+    const styles = readCss("irisChat/iris-chat.css");
 
     const trashIcon = IconDefinitions.getIcon("trash");
     const stethoscopeIcon = IconDefinitions.getIcon("stethoscope");

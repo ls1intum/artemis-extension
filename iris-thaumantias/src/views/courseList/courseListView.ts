@@ -1,17 +1,9 @@
-import { StyleManager } from '../styles';
-import { BackLinkComponent } from '../components/backLinkComponent';
+import { readCss } from '../utils';
+import { BackLinkComponent } from '../components/backLink/backLinkComponent';
 
 export class CourseListView {
-    private _styleManager: StyleManager;
-
-    constructor(styleManager: StyleManager) {
-        this._styleManager = styleManager;
-    }
-
     public generateHtml(coursesData: any | undefined, archivedCoursesData: any[] | undefined): string {
-        const styles = this._styleManager.getStyles([
-            'views/course-list.css'
-        ]);
+        const styles = readCss('courseList/course-list.css');
         
         return this._getCourseListHtml(coursesData, archivedCoursesData, styles);
     }

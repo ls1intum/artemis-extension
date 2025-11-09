@@ -1,21 +1,15 @@
-import { StyleManager } from '../styles';
-import { ServiceHealthComponent } from '../components/serviceHealthComponent';
+import { readCssFiles } from '../utils';
+import { ServiceHealthComponent } from '../components/serviceHealth/serviceHealthComponent';
 
 /**
  * Renders the login view for the Artemis webview.
  */
 export class LoginView {
-    private readonly _styleManager: StyleManager;
-
-    constructor(styleManager: StyleManager) {
-        this._styleManager = styleManager;
-    }
-
     public generateHtml(): string {
-        const styles = this._styleManager.getStyles([
-            'views/login.css',
-            'components/service-health.css',
-        ]);
+        const styles = readCssFiles(
+            'login/login.css',
+            'components/serviceHealth/service-health.css'
+        );
 
         return `<!DOCTYPE html>
 <html lang="en">

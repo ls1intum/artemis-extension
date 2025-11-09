@@ -1,15 +1,13 @@
 import * as vscode from 'vscode';
 import { IconDefinitions } from '../../utils';
-import { StyleManager } from '../styles';
-import { BackLinkComponent } from '../components/backLinkComponent';
+import { readCss } from '../utils';
+import { BackLinkComponent } from '../components/backLink/backLinkComponent';
 
 export class CourseDetailView {
     private _extensionContext: vscode.ExtensionContext;
-    private _styleManager: StyleManager;
 
-    constructor(extensionContext: vscode.ExtensionContext, styleManager: StyleManager) {
+    constructor(extensionContext: vscode.ExtensionContext) {
         this._extensionContext = extensionContext;
-        this._styleManager = styleManager;
     }
 
     private _getExerciseIcon(type: string): string {
@@ -17,9 +15,7 @@ export class CourseDetailView {
     }
 
     public generateHtml(courseData: any, hideDeveloperTools: boolean = false, webview?: vscode.Webview): string {
-        const styles = this._styleManager.getStyles([
-            'views/course-detail.css'
-        ]);
+        const styles = readCss('courseDetail/course-detail.css');
         
         if (!courseData) {
             return this._getEmptyStateHtml(styles);

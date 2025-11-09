@@ -1,18 +1,15 @@
 import * as vscode from "vscode";
 import { IconDefinitions } from "../../utils";
-import { StyleManager } from "../styles";
-import { BackLinkComponent } from "../components/backLinkComponent";
+import { readCss } from "../utils";
+import { BackLinkComponent } from "../components/backLink/backLinkComponent";
 
 export class ExerciseDetailView {
   private _extensionContext: vscode.ExtensionContext;
-  private _styleManager: StyleManager;
 
   constructor(
-    extensionContext: vscode.ExtensionContext,
-    styleManager: StyleManager
+    extensionContext: vscode.ExtensionContext
   ) {
     this._extensionContext = extensionContext;
-    this._styleManager = styleManager;
   }
 
   private _getExerciseIcon(type: string): string {
@@ -78,9 +75,7 @@ export class ExerciseDetailView {
     exerciseData: any,
     hideDeveloperTools: boolean = false
   ): string {
-    const styles = this._styleManager.getStyles([
-      "views/exercise-detail.css",
-    ]);
+    const styles = readCss("exerciseDetail/exercise-detail.css");
 
     if (!exerciseData) {
       return this._getEmptyStateHtml(styles);

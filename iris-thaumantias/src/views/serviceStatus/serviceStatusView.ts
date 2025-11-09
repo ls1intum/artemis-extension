@@ -1,23 +1,21 @@
 import * as vscode from 'vscode';
 import { IconDefinitions } from '../../utils/iconDefinitions';
-import { ServiceHealthComponent } from '../components/serviceHealthComponent';
-import { StyleManager } from '../styles';
-import { BackLinkComponent } from '../components/backLinkComponent';
+import { ServiceHealthComponent } from '../components/serviceHealth/serviceHealthComponent';
+import { readCssFiles } from '../utils';
+import { BackLinkComponent } from '../components/backLink/backLinkComponent';
 
 export class ServiceStatusView {
     private _extensionContext: vscode.ExtensionContext;
-    private _styleManager: StyleManager;
 
-    constructor(extensionContext: vscode.ExtensionContext, styleManager: StyleManager) {
+    constructor(extensionContext: vscode.ExtensionContext) {
         this._extensionContext = extensionContext;
-        this._styleManager = styleManager;
     }
 
     public generateHtml(serverUrl?: string, webview?: vscode.Webview): string {
-        const styles = this._styleManager.getStyles([
-            'views/service-status.css',
-            'components/service-health.css'
-        ]);
+        const styles = readCssFiles(
+            'serviceStatus/service-status.css',
+            'components/serviceHealth/service-health.css'
+        );
         
         return this._getServiceStatusHtml(styles, serverUrl);
     }

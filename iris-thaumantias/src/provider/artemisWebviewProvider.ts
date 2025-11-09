@@ -1,20 +1,19 @@
 import * as vscode from 'vscode';
-import { AuthManager } from '../../auth';
-import { ArtemisApiService } from '../../api';
-import { ArtemisWebsocketService } from '../../services';
-import { CONFIG, VSCODE_CONFIG } from '../../utils';
-import { AI_EXTENSIONS_BLOCKLIST } from '../../utils/aiExtensionsBlocklist';
-import { getRecommendedExtensionsByCategory } from '../../utils/recommendedExtensions';
-import { AppStateManager, type UserInfo } from '../app/appStateManager';
-import { WebViewMessageHandler } from '../app/webViewMessageHandler';
-import type { WebViewActionHandler } from '../app/types';
-import { ViewActionService } from '../app/viewActionService';
-import { ViewRouter } from '../app/viewRouter';
-import { ExerciseDetailView } from '../templates/exerciseDetailView';
-import { CourseDetailView } from '../templates/courseDetailView';
-import { StyleManager } from '../styles';
+import { AuthManager } from '../auth';
+import { ArtemisApiService } from '../api';
+import { ArtemisWebsocketService } from '../services';
+import { CONFIG, VSCODE_CONFIG } from '../utils';
+import { AI_EXTENSIONS_BLOCKLIST } from '../utils/aiExtensionsBlocklist';
+import { getRecommendedExtensionsByCategory } from '../utils/recommendedExtensions';
+import { AppStateManager, type UserInfo } from '../views/app/appStateManager';
+import { WebViewMessageHandler } from '../views/app/webViewMessageHandler';
+import type { WebViewActionHandler } from '../views/app/types';
+import { ViewActionService } from '../views/app/viewActionService';
+import { ViewRouter } from '../views/app/viewRouter';
+import { ExerciseDetailView } from '../views/exerciseDetail/exerciseDetailView';
+import { CourseDetailView } from '../views/courseDetail/courseDetailView';
 import { ExerciseRegistry } from './exerciseRegistry';
-import { WebSocketMessageHandler, ResultDTO, ProgrammingSubmission, SubmissionProcessingMessage } from '../../types';
+import { WebSocketMessageHandler, ResultDTO, ProgrammingSubmission, SubmissionProcessingMessage } from '../types';
 
 export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebViewActionHandler {
     public static readonly viewType = CONFIG.WEBVIEW.VIEW_TYPE;
@@ -27,7 +26,6 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
     private _authContextUpdater?: (isAuthenticated: boolean) => Promise<void>;
     private _websocketService?: ArtemisWebsocketService;
     private _websocketHandler?: WebSocketMessageHandler;
-    private readonly _styleManager: StyleManager;
     private _buildCodeLens?: any; // BuildErrorCodeLensProvider
 
     constructor(
@@ -45,7 +43,6 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
             this,
             undefined  // buildCodeLens will be set later
         );
-        this._styleManager = new StyleManager(this._extensionUri);
     }
 
     /**
@@ -426,7 +423,7 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
             viewId: 'exerciseFullscreen',
             title: `Exercise: ${exerciseData.exercise?.title || exerciseData.title || 'Untitled'}`,
             detailHtml: () => {
-                const detailView = new ExerciseDetailView(this._extensionContext, this._styleManager);
+                const detailView = new ExerciseDetailView(this._extensionContext);
                 return detailView.generateHtml(exerciseData, this.shouldHideDeveloperTools());
             },
             cssInjections: [
@@ -459,7 +456,7 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
             viewId: 'courseFullscreen',
             title: `Course: ${courseData.course?.title || courseData.title || 'Untitled'}`,
             detailHtml: () => {
-                const detailView = new CourseDetailView(this._extensionContext, this._styleManager);
+                const detailView = new CourseDetailView(this._extensionContext);
                 return detailView.generateHtml(courseData, this.shouldHideDeveloperTools());
             },
             cssInjections: [

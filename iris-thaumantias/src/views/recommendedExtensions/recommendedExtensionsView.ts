@@ -1,18 +1,10 @@
-import { StyleManager } from '../styles';
+import { readCss } from '../utils';
 import type { RecommendedExtensionCategory } from '../../utils/recommendedExtensions';
-import { BackLinkComponent } from '../components/backLinkComponent';
+import { BackLinkComponent } from '../components/backLink/backLinkComponent';
 
 export class RecommendedExtensionsView {
-    private readonly _styleManager: StyleManager;
-
-    constructor(styleManager: StyleManager) {
-        this._styleManager = styleManager;
-    }
-
     public generateHtml(categories: RecommendedExtensionCategory[] = []): string {
-        const styles = this._styleManager.getStyles([
-            'views/recommended-extensions.css'
-        ]);
+        const styles = readCss('recommendedExtensions/recommended-extensions.css');
 
         const hasCategories = Array.isArray(categories) && categories.length > 0;
 

@@ -1,22 +1,18 @@
 import * as vscode from 'vscode';
 import { IconDefinitions } from '../../utils/iconDefinitions';
 import type { UserInfo } from '../app/appStateManager';
-import { StyleManager } from '../styles';
-import { BackLinkComponent } from '../components/backLinkComponent';
+import { readCss } from '../utils';
+import { BackLinkComponent } from '../components/backLink/backLinkComponent';
 
 export class GitCredentialsView {
     private readonly _extensionContext: vscode.ExtensionContext;
-    private readonly _styleManager: StyleManager;
 
-    constructor(extensionContext: vscode.ExtensionContext, styleManager: StyleManager) {
+    constructor(extensionContext: vscode.ExtensionContext) {
         this._extensionContext = extensionContext;
-        this._styleManager = styleManager;
     }
 
     public generateHtml(userInfo?: UserInfo): string {
-        const styles = this._styleManager.getStyles([
-            'views/git-credentials.css'
-        ]);
+        const styles = readCss('gitCredentials/git-credentials.css');
 
         const gitIcon = IconDefinitions.getIcon('git');
         const shieldIcon = IconDefinitions.getIcon('shield');

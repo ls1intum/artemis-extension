@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import { AiExtension } from '../app/appStateManager';
-import { StyleManager } from '../styles';
-import { BackLinkComponent } from '../components/backLinkComponent';
+import { readCss } from '../utils';
+import { BackLinkComponent } from '../components/backLink/backLinkComponent';
 
 interface ProviderGroup {
     provider: string;
@@ -11,17 +11,13 @@ interface ProviderGroup {
 
 export class AiCheckerView {
     private _extensionContext: vscode.ExtensionContext;
-    private _styleManager: StyleManager;
 
-    constructor(extensionContext: vscode.ExtensionContext, styleManager: StyleManager) {
+    constructor(extensionContext: vscode.ExtensionContext) {
         this._extensionContext = extensionContext;
-        this._styleManager = styleManager;
     }
 
     public generateHtml(aiExtensions: AiExtension[]): string {
-        const styles = this._styleManager.getStyles([
-            'views/ai-checker.css'
-        ]);
+        const styles = readCss('aiChecker/ai-checker.css');
 
         const groupedExtensions = this._groupExtensionsByProvider(aiExtensions);
 

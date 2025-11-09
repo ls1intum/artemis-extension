@@ -1,21 +1,17 @@
 import * as vscode from 'vscode';
 import { VSCODE_CONFIG } from '../../utils';
 import { IconDefinitions } from '../../utils/iconDefinitions';
-import { StyleManager } from '../styles';
+import { readCss } from '../utils';
 
 export class DashboardView {
     private _extensionContext: vscode.ExtensionContext;
-    private _styleManager: StyleManager;
 
-    constructor(extensionContext: vscode.ExtensionContext, styleManager: StyleManager) {
+    constructor(extensionContext: vscode.ExtensionContext) {
         this._extensionContext = extensionContext;
-        this._styleManager = styleManager;
     }
 
     public generateHtml(userInfo: { username: string; serverUrl: string; user?: any }, coursesData: any | undefined, webview?: vscode.Webview): string {
-        const styles = this._styleManager.getStyles([
-            'views/dashboard.css'
-        ]);
+        const styles = readCss('dashboard/dashboard.css');
         
         // Check if Iris explanation should be shown
         const config = vscode.workspace.getConfiguration(VSCODE_CONFIG.ARTEMIS_SECTION);

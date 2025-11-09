@@ -1,7 +1,7 @@
 // The module 'vscode' contains the VS Code extensibility API
 // Import the module and reference it with the alias vscode in your code below
 import * as vscode from 'vscode';
-import { ArtemisWebviewProvider, ChatWebviewProvider } from './views';
+import { ArtemisWebviewProvider, ChatWebviewProvider } from './provider';
 import { AuthManager } from './auth';
 import { ArtemisApiService } from './api';
 import { ArtemisWebsocketService, BuildErrorCodeLensProvider } from './services';

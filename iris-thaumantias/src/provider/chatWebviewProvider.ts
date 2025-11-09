@@ -1,6 +1,5 @@
 import * as vscode from 'vscode';
-import { IrisChatView } from '../templates/irisChatView';
-import { StyleManager } from '../styles';
+import { IrisChatView } from '../views/irisChat/irisChatView';
 import { ExerciseRegistry } from './exerciseRegistry';
 import { ContextStore } from './contextStore';
 import {
@@ -9,9 +8,9 @@ import {
     ChatContextType,
     ContextSnapshot,
 } from './contextTypes';
-import { ArtemisApiService } from '../../api';
-import { ArtemisWebsocketService } from '../../services';
-import { checkWorkspaceFiles } from '../../utils';
+import { ArtemisApiService } from '../api';
+import { ArtemisWebsocketService } from '../services';
+import { checkWorkspaceFiles } from '../utils';
 
 type ChatContextReason =
     | 'user-selected'
@@ -26,7 +25,6 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
 
     private _view?: vscode.WebviewView;
     private _irisChatView?: IrisChatView;
-    private readonly _styleManager: StyleManager;
     private readonly _contextStore: ContextStore;
     private readonly _disposables: vscode.Disposable[] = [];
     private _currentArtemisSessionId?: number;
@@ -41,7 +39,6 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
         private readonly _artemisApiService?: ArtemisApiService,
         private readonly _websocketService?: ArtemisWebsocketService,
     ) {
-        this._styleManager = new StyleManager(this._extensionUri);
         this._contextStore = new ContextStore(this._extensionContext);
     }
 
@@ -120,7 +117,7 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
 
     private _getOrCreateIrisChatView(): IrisChatView {
         if (!this._irisChatView) {
-            this._irisChatView = new IrisChatView(this._extensionContext, this._styleManager);
+            this._irisChatView = new IrisChatView(this._extensionContext);
         }
         return this._irisChatView;
     }

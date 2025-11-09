@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { ExerciseRegistry } from '../../provider/exerciseRegistry';
+import { ExerciseRegistry } from '../../../provider/exerciseRegistry';
 import type { CommandContext, CommandMap } from './types';
 
 interface CourseQuickPickItem extends vscode.QuickPickItem {

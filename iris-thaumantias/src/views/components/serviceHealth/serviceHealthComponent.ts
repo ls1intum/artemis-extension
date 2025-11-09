@@ -1,4 +1,4 @@
-import { IconDefinitions } from '../../utils/iconDefinitions';
+import { IconDefinitions } from '../../../utils/iconDefinitions';
 
 /**
  * Reusable component for displaying service health status checks
