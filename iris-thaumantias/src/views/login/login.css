@@ -338,20 +338,6 @@
             flex-direction: column;
             gap: 8px;
         }
-        
-        .quick-link {
-            color: var(--theme-link-color);
-            text-decoration: none;
-            font-size: 13px;
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-            cursor: pointer;
-        }
-        
-        .quick-link:hover {
-            color: var(--theme-link-hover);
-        }
 
         /* Loading indicator styles */
         .loading-indicator {

@@ -4,7 +4,7 @@ export interface ButtonOptions {
     /** Icon SVG string (from IconDefinitions) */
     icon?: string;
     /** Button variant */
-    variant?: 'primary' | 'secondary' | 'icon';
+    variant?: 'primary' | 'secondary' | 'icon' | 'link';
     /** Additional CSS classes */
     className?: string;
     /** Button click command */
@@ -19,10 +19,9 @@ export interface ButtonOptions {
     width?: string;
     /** Fixed height in pixels (e.g., '40px' or '3rem') */
     height?: string;
-    /** Center text alignment instead of left (default is left for wrapped text) */
-    centerText?: boolean;
+    /** Text alignment - 'left', 'center', or 'right' */
+    alignText?: 'left' | 'center' | 'right';
 }
-
 /**
  * Generates a VS Code-styled button component with optional icon support.
  * 
@@ -58,7 +57,7 @@ export class ButtonComponent {
             fullWidth = false,
             width,
             height,
-            centerText = false
+            alignText
         } = options;
 
         const classes = [
@@ -68,7 +67,7 @@ export class ButtonComponent {
             disabled ? 'btn-disabled' : '',
             (width || height) ? 'btn-fixed-size' : '',
             icon && label ? 'btn-with-icon' : '',
-            centerText ? 'btn-center-text' : '',
+            alignText ? `btn-align-${alignText}` : '',
             className
         ].filter(Boolean).join(' ');
 

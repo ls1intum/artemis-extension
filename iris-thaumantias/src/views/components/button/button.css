@@ -31,10 +31,20 @@
     justify-content: flex-start;
 }
 
-/* Center text alignment override */
-.btn-center-text {
+/* Text alignment overrides */
+.btn-align-left {
+    text-align: left;
+    justify-content: flex-start;
+}
+
+.btn-align-center {
     text-align: center;
     justify-content: center;
+}
+
+.btn-align-right {
+    text-align: right;
+    justify-content: flex-end;
 }
 
 .btn:focus-visible {
@@ -166,6 +176,35 @@
 .btn-full-width {
     width: 100%;
     display: flex;
+}
+
+/* Link Button - styled like a text link */
+.btn-link {
+    background-color: transparent;
+    color: var(--vscode-textLink-foreground, #007acc);
+    border: none;
+    padding: 0;
+    text-decoration: none;
+    cursor: pointer;
+    font-weight: 400;
+    font-size: inherit;
+    font-family: inherit;
+    text-align: left;
+    justify-content: flex-start;
+}
+
+.btn-link:hover:not(.btn-disabled) {
+    text-decoration: underline;
+    background-color: transparent;
+}
+
+.btn-link:active:not(.btn-disabled) {
+    color: var(--vscode-textLink-activeForeground, #005a9e);
+}
+
+.btn-link .btn-icon,
+.btn-link .btn-icon svg {
+    color: inherit;
 }
 
 /* Disabled state */

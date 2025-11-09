@@ -60,7 +60,7 @@ export class LoginView {
                 id: 'loginButton',
                 command: 'document.getElementById("loginForm").requestSubmit()',
                 fullWidth: true,
-                centerText: true,
+                alignText: 'center',
                 height: '2.5rem'
             })}
             <div id="statusMessage" class="status"></div>
@@ -72,8 +72,20 @@ export class LoginView {
         </div>
         
         <div class="quick-links">
-            <a class="quick-link" id="openWebsiteLink">Open Artemis in Browser →</a>
-            <a class="quick-link" id="openSettingsLink">Open Artemis Settings →</a>
+            ${ButtonComponent.generate({
+                label: 'Open Artemis in Browser →',
+                variant: 'link',
+                command: 'openArtemisWebsite()',
+                id: 'openWebsiteLink',
+                alignText: 'left'
+            })}
+            ${ButtonComponent.generate({
+                label: 'Open Artemis Settings →',
+                variant: 'link',
+                command: 'openArtemisSettings()',
+                id: 'openSettingsLink',
+                alignText: 'left'
+            })}
         </div>
     </div>
 
