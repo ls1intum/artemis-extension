@@ -1,5 +1,6 @@
 import { readCssFiles } from '../utils';
 import { ServiceHealthComponent } from '../components/serviceHealth/serviceHealthComponent';
+import { ButtonComponent } from '../components/button/buttonComponent';
 
 /**
  * Renders the login view for the Artemis webview.
@@ -8,7 +9,8 @@ export class LoginView {
     public generateHtml(): string {
         const styles = readCssFiles(
             'login/login.css',
-            'components/serviceHealth/service-health.css'
+            'components/serviceHealth/service-health.css',
+            'components/button/button.css'
         );
 
         return `<!DOCTYPE html>
@@ -52,7 +54,14 @@ export class LoginView {
                 <input type="checkbox" id="rememberMe" name="rememberMe" checked />
                 <label for="rememberMe">Remember me on this device</label>
             </div>
-            <button type="submit" class="btn" id="loginButton">Login to Artemis</button>
+            <div style="margin-top: 16px;">
+                ${ButtonComponent.generate({
+                    label: 'Login to Artemis',
+                    variant: 'primary',
+                    id: 'loginButton',
+                    command: 'document.getElementById("loginForm").requestSubmit()'
+                })}
+            </div>
             <div id="statusMessage" class="status"></div>
         </form>
         

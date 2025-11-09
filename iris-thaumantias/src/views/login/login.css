@@ -107,42 +107,6 @@
             cursor: pointer;
         }
         
-        .btn {
-            background: var(--theme-button-background);
-            color: var(--theme-button-foreground);
-            border: none;
-            padding: 16px 24px;
-            border-radius: calc(var(--theme-container-radius) * 0.6);
-            cursor: pointer;
-            font-size: 14px;
-            font-weight: 700;
-            width: 100%;
-            margin-top: 12px;
-            transition: var(--theme-transition);
-            backdrop-filter: var(--theme-backdrop);
-            text-transform: none;
-            letter-spacing: 0.3px;
-            position: relative;
-            overflow: hidden;
-        }
-        
-        .btn:hover {
-            background: var(--theme-button-hover);
-            transform: translateY(-2px);
-            box-shadow: 0 8px 25px rgba(0,0,0,0.15);
-        }
-        
-        .btn:active {
-            background: var(--theme-button-active);
-            transform: translateY(0);
-        }
-        
-        .btn:disabled {
-            opacity: 0.6;
-            cursor: not-allowed;
-            transform: none;
-        }
-        
         .status {
             margin-top: var(--theme-element-spacing);
             padding: 14px 16px;
