@@ -269,14 +269,6 @@
             border-color: var(--theme-button-hover);
         }
 
-        .participate-btn:disabled {
-            background: var(--theme-border);
-            color: var(--theme-foreground);
-            opacity: 0.5;
-            cursor: not-allowed;
-            transform: none;
-        }
-
         /* Responsive design for participation section */
         @media (max-width: 500px) {
             .participation-actions {
@@ -438,27 +430,6 @@
             flex-wrap: wrap;
         }
 
-        .test-results-toggle,
-        .build-log-link,
-        .go-to-source-link {
-            cursor: pointer;
-            font-size: 14px;
-            color: var(--vscode-textLink-foreground);
-            text-decoration: none;
-            display: inline-block;
-        }
-
-        .test-results-toggle:hover,
-        .build-log-link:hover,
-        .go-to-source-link:hover {
-            color: var(--vscode-textLink-activeForeground);
-            text-decoration: underline;
-        }
-
-        .go-to-source-link {
-            font-weight: 500;
-        }
-
         /* Modal styles */
         .test-results-modal {
             position: fixed;
@@ -507,27 +478,6 @@
             font-size: 16px;
             font-weight: 600;
             color: var(--theme-foreground);
-        }
-
-        .test-results-modal-close {
-            background: transparent;
-            border: none;
-            color: var(--theme-foreground);
-            font-size: 24px;
-            cursor: pointer;
-            padding: 0;
-            width: 32px;
-            height: 32px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            border-radius: 4px;
-            transition: var(--theme-transition);
-        }
-
-        .test-results-modal-close:hover {
-            background: var(--theme-button-background);
-            color: var(--theme-button-foreground);
         }
 
         .test-results-modal-body {
@@ -859,17 +809,6 @@
             text-align: center;
         }
 
-        .open-repo-link {
-            color: var(--theme-link-color, #0066cc);
-            text-decoration: none;
-            font-weight: 500;
-        }
-
-        .open-repo-link:hover {
-            color: var(--theme-link-hover, #0052a3);
-            text-decoration: underline;
-        }
-
 
         .unsaved-changes-banner {
             display: flex;
@@ -896,17 +835,6 @@
 
         .unsaved-changes-text strong {
             font-weight: 600;
-        }
-
-        .unsaved-changes-link {
-            color: var(--theme-link-color, #0066cc);
-            text-decoration: none;
-            font-weight: 500;
-        }
-
-        .unsaved-changes-link:hover {
-            color: var(--theme-link-hover, #0052a3);
-            text-decoration: underline;
         }
 
 
@@ -1068,11 +996,6 @@
         .submit-button-group.loading .upload-message-btn {
             opacity: 0.6;
             cursor: wait;
-        }
-
-        .submit-button-group .upload-message-btn:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
         }
 
         /* Remove animations for buttons in the group */

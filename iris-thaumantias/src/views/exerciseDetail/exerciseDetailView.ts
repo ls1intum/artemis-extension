@@ -793,10 +793,20 @@ export class ExerciseDetailView {
                         </span>
                     </div>
                     <div class=\"submit-button-group\" id=\"submitBtnGroup\" style=\"display: none;\">
-                        <button class=\"participate-btn\" id=\"submitBtn\" onclick=\"submitExercise()\" title=\"Submit solution with automatic commit message\">Submit</button>
-                        <button class=\"upload-message-btn\" id=\"uploadMessageBtn\" onclick=\"toggleCommitMessageInput()\" title=\"Submit solution with custom commit message\">
-                            ${uploadMessageIcon}
-                        </button>
+                        ${ButtonComponent.generate({
+                            label: 'Submit',
+                            variant: 'primary',
+                            id: 'submitBtn',
+                            command: 'submitExercise()',
+                            className: 'participate-btn'
+                        })}
+                        ${ButtonComponent.generate({
+                            icon: uploadMessageIcon,
+                            variant: 'primary',
+                            id: 'uploadMessageBtn',
+                            command: 'toggleCommitMessageInput()',
+                            className: 'upload-message-btn'
+                        })}
                     </div>
                     <div class=\"commit-message-input-container\" id=\"commitMessageContainer\" style=\"display: none;\">
                         <input type=\"text\" id=\"commitMessageInput\" class=\"commit-message-input\" placeholder=\"Enter commit message...\" />
