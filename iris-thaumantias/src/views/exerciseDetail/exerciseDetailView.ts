@@ -649,19 +649,31 @@ export class ExerciseDetailView {
                         <div class="test-results-toggle-container">
                             ${
                               buildFailed
-                                ? `<a href="#" class="build-log-link" onclick="viewBuildLog(event, ${participationId}, ${latestResult?.id})" id="buildLogLink">
-                                View build log
-                            </a>
-                            <a href="#" class="go-to-source-link" onclick="goToSourceError(event)" id="goToSourceLink" style="display: none;" data-participation-id="${participationId}" data-result-id="${latestResult?.id}">
-                                Go to source →
-                            </a>`
+                                ? `${ButtonComponent.generate({
+                                    label: 'View build log',
+                                    variant: 'link',
+                                    command: 'viewBuildLog(event, ' + participationId + ', ' + (latestResult?.id || 'null') + ')',
+                                    id: 'buildLogLink',
+                                    className: 'build-log-link'
+                                })}
+                            ${ButtonComponent.generate({
+                                label: 'Go to source →',
+                                variant: 'link',
+                                command: 'goToSourceError(event)',
+                                id: 'goToSourceLink',
+                                className: 'go-to-source-link'
+                            })}`
                                 : ""
                             }
                             ${
                               hasTestInfo
-                                ? `<a href="#" class="test-results-toggle" onclick="toggleTestResults(event)" id="testResultsToggle">
-                                See test results
-                            </a>`
+                                ? `${ButtonComponent.generate({
+                                    label: 'See test results',
+                                    variant: 'link',
+                                    command: 'toggleTestResults(event)',
+                                    id: 'testResultsToggle',
+                                    className: 'test-results-toggle'
+                                })}`
                                 : ""
                             }
                         </div>
@@ -757,13 +769,23 @@ export class ExerciseDetailView {
           ? `<div class=\"participation-actions\">
                     ${changeStatusHtml}
                     <div class=\"cloned-repo-notice\" id=\"clonedRepoNotice\" style=\"display: none;\">
-                        <span id=\"clonedRepoMessage\">Repository recently cloned.</span> <a href=\"#\" class=\"open-repo-link\" onclick=\"openClonedRepository(); return false;\">Open now</a>
+                        <span id=\"clonedRepoMessage\">Repository recently cloned.</span> ${ButtonComponent.generate({
+                            label: 'Open now',
+                            variant: 'link',
+                            command: 'openClonedRepository(); return false;',
+                            className: 'open-repo-link'
+                        })}
                     </div>
                     <div class=\"unsaved-changes-banner\" id=\"unsavedChangesBanner\" style=\"display: none;\">
                         <span class=\"unsaved-changes-icon\">⚠️</span>
                         <span class=\"unsaved-changes-text\">
                             <strong>Unsaved changes detected.</strong> Please save your files before submitting.
-                            <a href=\"#\" class=\"unsaved-changes-link\" onclick=\"openAutoSaveSettings(); return false;\">Configure auto-save</a>
+                            ${ButtonComponent.generate({
+                                label: 'Configure auto-save',
+                                variant: 'link',
+                                command: 'openAutoSaveSettings(); return false;',
+                                className: 'unsaved-changes-link'
+                            })}
                         </span>
                     </div>
                     <div class=\"submit-button-group\" id=\"submitBtnGroup\" style=\"display: none;\">
@@ -871,10 +893,12 @@ export class ExerciseDetailView {
                 ${downloadLinks
                   .map(
                     (link) => `
-                    <a href="#" class="download-link" onclick="downloadFile('${link.url}', '${link.text}')">
-                        <span class="download-icon">📄</span>
-                        ${link.text}
-                    </a>
+                    ${ButtonComponent.generate({
+                        label: `<span class="download-icon">📄</span>${link.text}`,
+                        variant: 'link',
+                        command: `downloadFile('${link.url}', '${link.text}')`,
+                        className: 'download-link'
+                    })}
                 `
                   )
                   .join("")}
@@ -2301,11 +2325,33 @@ export class ExerciseDetailView {
                 const resultId = result?.id;
 
                 // Build the toggle container with both build log (if failed) and test results links
+                const buildLogLink = buildFailed ? ButtonComponent.generate({
+                    label: 'View build log',
+                    variant: 'link',
+                    command: 'viewBuildLog(event, ' + participationId + ', ' + resultId + ')',
+                    id: 'buildLogLink',
+                    className: 'build-log-link'
+                }) : '';
+
+                const goToSourceLink = buildFailed ? ButtonComponent.generate({
+                    label: 'Go to source →',
+                    variant: 'link',
+                    command: 'goToSourceError(event)',
+                    id: 'goToSourceLink',
+                    className: 'go-to-source-link'
+                }) : '';
+
+                const testResultsToggle = hasTestInfo ? ButtonComponent.generate({
+                    label: 'See test results',
+                    variant: 'link',
+                    command: 'toggleTestResults(event)',
+                    id: 'testResultsToggle',
+                    className: 'test-results-toggle'
+                }) : '';
+
                 const toggleContainer = (buildFailed || hasTestInfo) ?
                     '<div class="test-results-toggle-container">' +
-                        (buildFailed ? '<a href="#" class="build-log-link" onclick="viewBuildLog(event, ' + participationId + ', ' + resultId + ')" id="buildLogLink">View build log<' + '/a>' : '') +
-                        (buildFailed ? '<a href="#" class="go-to-source-link" onclick="goToSourceError(event)" id="goToSourceLink" style="display: none;" data-participation-id="' + participationId + '" data-result-id="' + resultId + '">Go to source →<' + '/a>' : '') +
-                        (hasTestInfo ? '<a href="#" class="test-results-toggle" onclick="toggleTestResults(event)" id="testResultsToggle">See test results<' + '/a>' : '') +
+                        buildLogLink + goToSourceLink + testResultsToggle +
                     '<' + '/div>' : '';
 
                 const testResultsModal = hasTestInfo ?
