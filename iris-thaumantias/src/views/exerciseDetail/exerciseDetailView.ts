@@ -881,9 +881,21 @@ export class ExerciseDetailView {
       !hideDeveloperTools
         ? `
     <div class="action-buttons">
-        <button class="btn btn-primary" onclick="openInEditor()">Open Raw JSON</button>
-        <button class="btn" onclick="copyToClipboard()">Copy Exercise Data</button>
-        <button class="btn" onclick="showSubmissionDetails()">Submission Details</button>
+        ${ButtonComponent.generate({
+            label: 'Open Raw JSON',
+            variant: 'secondary',
+            command: 'openInEditor()'
+        })}
+        ${ButtonComponent.generate({
+            label: 'Copy Exercise Data',
+            variant: 'secondary',
+            command: 'copyToClipboard()'
+        })}
+        ${ButtonComponent.generate({
+            label: 'Submission Details',
+            variant: 'secondary',
+            command: 'showSubmissionDetails()'
+        })}
     </div>
     `
         : ""

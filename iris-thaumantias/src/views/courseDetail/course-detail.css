@@ -329,35 +329,6 @@
             flex-wrap: wrap;
         }
 
-        .btn {
-            background: var(--theme-button-background);
-            color: var(--theme-button-foreground);
-            border: 1px solid var(--theme-button-background);
-            padding: 12px 16px;
-            font-size: 13px;
-            font-weight: 400;
-            cursor: pointer;
-            text-decoration: none;
-            border-radius: var(--theme-container-radius, 2px);
-            transition: none;
-        }
-
-        .btn-primary {
-            background: var(--theme-success);
-            color: white;
-            border-color: var(--theme-success);
-        }
-
-        .btn:hover {
-            background: var(--theme-button-hover);
-            border-color: var(--theme-button-hover);
-        }
-
-        .btn-primary:hover {
-            background: var(--theme-success);
-            opacity: 0.9;
-        }
-
         /* Sticky header container */
         .back-link-container {
             margin: 0;

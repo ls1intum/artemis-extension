@@ -1588,23 +1588,6 @@
             flex-wrap: wrap;
         }
 
-        .btn {
-            background: var(--theme-button-background);
-            color: var(--theme-button-foreground);
-            border: 1px solid var(--theme-button-background);
-            padding: 12px 16px;
-            font-size: 13px;
-            font-weight: 400;
-            cursor: pointer;
-            text-decoration: none;
-            transition: none;
-            border-radius: 2px;
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            width: auto;
-        }
-
         .btn-full-width {
             width: 100%;
         }

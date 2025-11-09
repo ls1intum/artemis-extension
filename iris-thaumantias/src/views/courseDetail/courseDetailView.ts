@@ -182,8 +182,16 @@ export class CourseDetailView {
     
     ${!hideDeveloperTools ? `
     <div class="action-buttons">
-        <button class="btn btn-primary" onclick="openInEditor()">Open Raw JSON</button>
-        <button class="btn" onclick="copyToClipboard()">Copy Course Data</button>
+        ${ButtonComponent.generate({
+            label: 'Open Raw JSON',
+            variant: 'secondary',
+            command: 'openInEditor()'
+        })}
+        ${ButtonComponent.generate({
+            label: 'Copy Course Data',
+            variant: 'secondary',
+            command: 'copyToClipboard()'
+        })}
     </div>
     ` : ''}
 
