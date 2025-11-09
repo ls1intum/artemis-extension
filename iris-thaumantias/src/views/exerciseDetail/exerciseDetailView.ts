@@ -3,7 +3,7 @@ import { IconDefinitions } from "../../utils";
 import { readCssFiles } from "../utils";
 import { BackLinkComponent } from "../components/backLink/backLinkComponent";
 import { ButtonComponent } from "../components/button/buttonComponent";
-import { FullscreenButton } from "../components/button/iconButtons";
+import { FullscreenButton, CloseButton } from "../components/button/iconButtons";
 
 export class ExerciseDetailView {
   private _extensionContext: vscode.ExtensionContext;
@@ -683,7 +683,11 @@ export class ExerciseDetailView {
                             <div class="test-results-modal-content">
                                 <div class="test-results-modal-header">
                                     <div class="test-results-modal-title">Test Results</div>
-                                    <button class="test-results-modal-close" onclick="closeTestResultsModal()" aria-label="Close test results">&times;</button>
+                                    ${CloseButton.generate({
+                                        command: 'closeTestResultsModal()',
+                                        title: 'Close test results',
+                                        className: 'test-results-modal-close'
+                                    })}
                                 </div>
                                 <div class="test-results-modal-body">
                                     <div class="test-results-container" id="testResultsContainer">
@@ -2354,12 +2358,18 @@ export class ExerciseDetailView {
                         buildLogLink + goToSourceLink + testResultsToggle +
                     '<' + '/div>' : '';
 
+                const closeButtonHtml = CloseButton.generate({
+                    command: 'closeTestResultsModal()',
+                    title: 'Close test results',
+                    className: 'test-results-modal-close'
+                });
+
                 const testResultsModal = hasTestInfo ?
                     '<div class="test-results-modal" id="testResultsModal" aria-hidden="true" onclick="handleTestResultsBackdrop(event)">' +
                         '<div class="test-results-modal-content">' +
                             '<div class="test-results-modal-header">' +
                                 '<div class="test-results-modal-title">Test Results<' + '/div>' +
-                                '<button class="test-results-modal-close" onclick="closeTestResultsModal()" aria-label="Close test results">&times;<' + '/button>' +
+                                closeButtonHtml +
                             '<' + '/div>' +
                             '<div class="test-results-modal-body">' +
                                 '<div class="test-results-container" id="testResultsContainer">' +
