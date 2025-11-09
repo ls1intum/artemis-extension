@@ -76,7 +76,7 @@ export class ExerciseDetailView {
     exerciseData: any,
     hideDeveloperTools: boolean = false
   ): string {
-    const styles = readCssFiles("exerciseDetail/exercise-detail.css", "components/button/button.css");
+    const styles = readCssFiles("components/backLink/back-link.css", "exerciseDetail/exercise-detail.css", "components/button/button.css");
 
     if (!exerciseData) {
       return this._getEmptyStateHtml(styles);

@@ -13,6 +13,7 @@ export class ServiceStatusView {
 
     public generateHtml(serverUrl?: string, webview?: vscode.Webview): string {
         const styles = readCssFiles(
+            'components/backLink/back-link.css',
             'serviceStatus/service-status.css',
             'components/serviceHealth/service-health.css'
         );

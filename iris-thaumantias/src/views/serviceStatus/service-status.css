@@ -9,27 +9,6 @@
             transition: var(--theme-transition);
         }
 
-        .back-link-container {
-            position: sticky;
-            top: 0;
-            z-index: 100;
-            background: var(--theme-background);
-            padding: 16px 0 8px 0;
-            margin: 0 0 4px 0;
-        }
-
-        .back-link {
-            cursor: pointer;
-            font-size: 14px;
-            display: inline-block;
-            text-decoration: none;
-            color: var(--theme-link-color);
-        }
-
-        .back-link:hover {
-            color: var(--theme-link-hover);
-        }
-
         .service-status-container {
             max-width: 800px;
             margin: 0 auto;

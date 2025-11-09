@@ -7,6 +7,7 @@ export class RecommendedExtensionsView {
     public generateHtml(categories: RecommendedExtensionCategory[] = []): string {
         const styles = readCss('recommendedExtensions/recommended-extensions.css');
         const buttonStyles = readCss('components/button/button.css');
+        const backLinkStyles = readCss('components/backLink/back-link.css');
 
         const hasCategories = Array.isArray(categories) && categories.length > 0;
 
@@ -22,6 +23,7 @@ export class RecommendedExtensionsView {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Recommended Extensions</title>
     <style>
+        ${backLinkStyles}
         ${buttonStyles}
         ${styles}
     </style>

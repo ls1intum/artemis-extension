@@ -7,11 +7,12 @@ export class CourseListView {
     public generateHtml(coursesData: any | undefined, archivedCoursesData: any[] | undefined): string {
         const styles = readCss('courseList/course-list.css');
         const buttonStyles = readCss('components/button/button.css');
+        const backLinkStyles = readCss('components/backLink/back-link.css');
         
-        return this._getCourseListHtml(coursesData, archivedCoursesData, styles, buttonStyles);
+        return this._getCourseListHtml(coursesData, archivedCoursesData, styles, buttonStyles, backLinkStyles);
     }
 
-    private _getCourseListHtml(coursesData: any | undefined, archivedCoursesData: any[] | undefined, styles: string, buttonStyles: string): string {
+    private _getCourseListHtml(coursesData: any | undefined, archivedCoursesData: any[] | undefined, styles: string, buttonStyles: string, backLinkStyles: string): string {
         let coursesHtml = '';
         
         // Generate current courses
@@ -112,6 +113,7 @@ export class CourseListView {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>All Courses</title>
     <style>
+        ${backLinkStyles}
         ${buttonStyles}
         ${styles}
     </style>

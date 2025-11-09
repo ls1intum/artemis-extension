@@ -20,13 +20,14 @@ export class AiCheckerView {
     public generateHtml(aiExtensions: AiExtension[]): string {
         const styles = readCss('aiChecker/ai-checker.css');
         const buttonStyles = readCss('components/button/button.css');
+        const backLinkStyles = readCss('components/backLink/back-link.css');
 
         const groupedExtensions = this._groupExtensionsByProvider(aiExtensions);
 
-        return this._getAiCheckerHtml(groupedExtensions, styles, buttonStyles);
+        return this._getAiCheckerHtml(groupedExtensions, styles, buttonStyles, backLinkStyles);
     }
 
-    private _getAiCheckerHtml(groups: ProviderGroup[], styles: string, buttonStyles: string): string {
+    private _getAiCheckerHtml(groups: ProviderGroup[], styles: string, buttonStyles: string, backLinkStyles: string): string {
         const providerOptions = groups
             .map(group => `<option value="${group.provider.toLowerCase()}">${group.provider}</option>`)
             .join('');
@@ -96,6 +97,7 @@ export class AiCheckerView {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AI Checker</title>
     <style>
+        ${backLinkStyles}
         ${buttonStyles}
         ${styles}
     </style>

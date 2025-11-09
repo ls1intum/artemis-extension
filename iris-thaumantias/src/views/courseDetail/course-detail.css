@@ -24,18 +24,6 @@
             font-size: 14px;
         }
 
-        .back-link {
-            cursor: pointer;
-            font-size: 14px;
-            display: inline-block;
-            text-decoration: none;
-            color: var(--theme-link-color);
-        }
-
-        .back-link:hover {
-            color: var(--theme-link-hover);
-        }
-
         .course-header {
             background: var(--theme-card-background);
             border: 1px solid var(--theme-border);
@@ -372,11 +360,6 @@
 
         /* Sticky header container */
         .back-link-container {
-            position: sticky;
-            top: 0;
-            z-index: 100;
-            background: var(--theme-background);
-            padding: 16px 0 8px 0;
             margin: 0;
             display: flex;
             align-items: center;

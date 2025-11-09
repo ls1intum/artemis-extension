@@ -16,7 +16,7 @@ export class CourseDetailView {
     }
 
     public generateHtml(courseData: any, hideDeveloperTools: boolean = false, webview?: vscode.Webview): string {
-        const styles = readCssFiles('courseDetail/course-detail.css', 'components/button/button.css');
+        const styles = readCssFiles('components/backLink/back-link.css', 'courseDetail/course-detail.css', 'components/button/button.css');
         
         if (!courseData) {
             return this._getEmptyStateHtml(styles);
