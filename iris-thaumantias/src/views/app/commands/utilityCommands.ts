@@ -19,6 +19,7 @@ export class UtilityCommandModule {
             viewBuildLog: this.handleViewBuildLog,
             goToSourceError: this.handleGoToSourceError,
             fetchBuildLogsForError: this.handleFetchBuildLogsForError,
+            clearBuildErrors: this.handleClearBuildErrors,
         };
     }
 
@@ -339,6 +340,21 @@ export class UtilityCommandModule {
             }
         } catch (error) {
             console.error('Fetch build logs for error:', error);
+            // Silently fail - this is a background operation
+        }
+    };
+
+    private handleClearBuildErrors = async (): Promise<void> => {
+        try {
+            console.log('🧹 Clearing CodeLens build errors...');
+            
+            // Clear all build errors from CodeLens
+            if (this.context.buildCodeLens) {
+                this.context.buildCodeLens.clearErrors();
+                console.log('✅ CodeLens errors cleared');
+            }
+        } catch (error) {
+            console.error('Error clearing build errors:', error);
             // Silently fail - this is a background operation
         }
     };

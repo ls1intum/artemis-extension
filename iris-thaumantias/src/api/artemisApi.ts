@@ -79,7 +79,12 @@ export class ArtemisApiService {
     // - studentParticipations with ALL submissions and results
     // No query parameters or additional enrichment needed
     async getExerciseDetails(exerciseId: number): Promise<any> {
-        const response = await this.makeRequest(`/api/exercise/exercises/${exerciseId}/details`);
+        // Request exercise details with all submissions and their latest results
+        // withSubmissions=true ensures we get submission data
+        // withLatestResult=true ensures each submission includes its most recent result
+        const response = await this.makeRequest(
+            `/api/exercise/exercises/${exerciseId}/details?withSubmissions=true&withLatestResult=true`
+        );
         const exerciseData: any = await response.json();
 
         // Debug: Log what we actually received

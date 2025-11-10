@@ -1753,6 +1753,12 @@ export class ExerciseDetailView {
             if (buildFailed && participationId && resultId) {
                 console.log('🔍 Build failed detected via WebSocket, auto-fetching logs for error parsing...');
                 fetchBuildLogsForError(participationId, resultId);
+            } else if (!buildFailed) {
+                // Build succeeded - clear any existing CodeLens errors
+                console.log('✅ Build succeeded, requesting CodeLens error clear...');
+                vscode.postMessage({
+                    command: 'clearBuildErrors'
+                });
             }
         }
 
