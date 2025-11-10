@@ -1,10 +1,11 @@
 import * as vscode from "vscode";
 import { IconDefinitions } from "../../utils";
-import { readCssFiles, processMarkdown, transformExerciseData, getLatestResult } from "../utils";
+import { readCssFiles, processMarkdown, transformExerciseData } from "../utils";
 import { BackLinkComponent } from "../components/backLink/backLinkComponent";
 import { ButtonComponent } from "../components/button/buttonComponent";
 import { FullscreenButton, CloseButton } from "../components/button/iconButtons";
 import { BadgeComponent } from "../components/badge/badgeComponent";
+import { SubmissionStatusComponent } from "./components/submissionStatusComponent";
 
 export class ExerciseDetailView {
   private _extensionContext: vscode.ExtensionContext;
@@ -220,185 +221,16 @@ export class ExerciseDetailView {
     
 
     ${(() => {
-      // Use transformed data
-      const { 
-        hasParticipation, 
-        participationId, 
-        latestSubmission, 
-        latestResult,
-        isProgrammingExercise,
-        isQuizExercise,
-        scorePercentage = 0,
-        scorePoints = 0,
-        totalTests = 0,
-        passedTests = 0,
-        hasTestInfo = false
-      } = transformed;
+      // Generate submission status using component
+      // Generate submission status using component
+      const buildStatusHtml = SubmissionStatusComponent.generateHtml({
+        transformed,
+        exercise,
+        uploadMessageIcon
+      });
 
-      // Get latest submission and build status
-      let buildStatusHtml = "";
-      if (hasParticipation && latestSubmission) {
-        const result = latestResult ?? null;
-
-        // Only show build status for programming exercises
-        if (isProgrammingExercise) {
-          const buildFailed = latestSubmission.buildFailed;
-          const successful = result ? result.successful : false;
-
-          // Generate status badge (logic shared with websocket handler)
-          let statusBadge = "";
-          if (buildFailed) {
-            statusBadge = BadgeComponent.generate({
-              label: 'Build Failed',
-              variant: 'error'
-            });
-          } else if (hasTestInfo) {
-            const passPercentage =
-              totalTests > 0 ? (passedTests / totalTests) * 100 : 0;
-            const badgeVariant =
-              passPercentage >= 80
-                ? "success"
-                : passPercentage >= 40
-                ? "warning"
-                : "error";
-            statusBadge = BadgeComponent.generate({
-              label: `${passedTests}/${totalTests} tests passed`,
-              variant: badgeVariant
-            });
-          } else {
-            statusBadge = successful
-              ? BadgeComponent.generate({
-                  label: 'Build Success',
-                  variant: 'success'
-                })
-              : BadgeComponent.generate({
-                  label: 'Tests Failed',
-                  variant: 'error'
-                });
-          }
-
-          buildStatusHtml = `
-                    <div class="build-status">
-                        <div class="build-status-title">Latest Build Status</div>
-                        <div class="build-status-info">
-                            ${statusBadge}
-                            <div class="score-info">
-                                Score: <span class="score-points">${scorePoints}/${transformed.maxPoints} (${scorePercentage.toFixed(
-            2
-          )}%)</span> ${transformed.maxPoints === 1 ? "point" : "points"}
-                            </div>
-                        </div>
-                        <div class="test-results-toggle-container">
-                            ${
-                              buildFailed
-                                ? `${ButtonComponent.generate({
-                                    label: 'View build log',
-                                    variant: 'link',
-                                    command: 'viewBuildLog(event, ' + participationId + ', ' + (latestResult?.id || 'null') + ')',
-                                    id: 'buildLogLink',
-                                    className: 'build-log-link'
-                                })}
-                            ${ButtonComponent.generate({
-                                label: 'Go to source →',
-                                variant: 'link',
-                                command: 'goToSourceError(event)',
-                                id: 'goToSourceLink',
-                                className: 'go-to-source-link'
-                            })}`
-                                : ""
-                            }
-                            ${
-                              hasTestInfo
-                                ? `${ButtonComponent.generate({
-                                    label: 'See test results',
-                                    variant: 'link',
-                                    command: 'toggleTestResults(event)',
-                                    id: 'testResultsToggle',
-                                    className: 'test-results-toggle'
-                                })}`
-                                : ""
-                            }
-                        </div>
-                        ${
-                          hasTestInfo
-                            ? `<div class="test-results-modal" id="testResultsModal" aria-hidden="true" onclick="handleTestResultsBackdrop(event)">
-                            <div class="test-results-modal-content">
-                                <div class="test-results-modal-header">
-                                    <div class="test-results-modal-title">Test Results</div>
-                                    ${CloseButton.generate({
-                                        command: 'closeTestResultsModal()',
-                                        title: 'Close test results',
-                                        className: 'test-results-modal-close'
-                                    })}
-                                </div>
-                                <div class="test-results-modal-body">
-                                    <div class="test-results-container" id="testResultsContainer">
-                                        <div class="test-results-loading">Loading test results...</div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>`
-                            : ""
-                        }
-                    </div>
-                `;
-        } else if (!isQuizExercise) {
-          // For non-programming exercises, show submission status
-          const submitted = latestSubmission.submitted;
-          const empty = latestSubmission.empty;
-          const scorePercentage = latestResult ? latestResult.score : 0; // This is 0-100
-          const maxPoints = exercise.maxPoints || 0;
-          const scorePoints =
-            Math.round((scorePercentage / 100) * maxPoints * 100) / 100; // Convert to points
-
-          let statusBadge = "";
-          let statusText = "";
-          if (submitted && !empty) {
-            statusBadge = '<span class="status-badge success">Submitted</span>';
-            statusText = "Latest Submission Status";
-          } else if (!empty) {
-            statusBadge =
-              '<span class="status-badge building">Draft Saved</span>';
-            statusText = "Current Status";
-          } else {
-            statusBadge =
-              '<span class="status-badge failed">No Submission</span>';
-            statusText = "Submission Status";
-          }
-
-          let scoreDisplay = "";
-          if (latestResult) {
-            scoreDisplay = `
-                        <div class="score-info">
-                            Score: <span class="score-points">${scorePoints}/${maxPoints} (${scorePercentage.toFixed(
-              2
-            )}%)</span> ${maxPoints === 1 ? "point" : "points"}
-                        </div>
-                    `;
-          }
-
-          buildStatusHtml = `
-                    <div class="build-status">
-                        <div class="build-status-title">${statusText}</div>
-                        <div class="build-status-info">
-                            ${statusBadge}
-                            ${scoreDisplay}
-                        </div>
-                    </div>
-                `;
-        }
-      }
-
-      if (hasParticipation && isProgrammingExercise && !buildStatusHtml) {
-        buildStatusHtml = `
-                <div class="build-status build-status--empty">
-                    <div class="build-status-title">Latest Build Status</div>
-                    <div class="build-status-info">
-                        <div class="build-status-placeholder">No submissions yet. Submit to see build results.</div>
-                    </div>
-                </div>
-            `;
-      }
+      // Extract values still needed for other sections
+      const { hasParticipation, isProgrammingExercise, participationId } = transformed;
 
       const changeStatusHtml =
         hasParticipation && isProgrammingExercise
@@ -830,6 +662,8 @@ export class ExerciseDetailView {
         
         ${BackLinkComponent.generateScript()}
         
+        ${SubmissionStatusComponent.generateScript()}
+        
         // PlantUML render function
         window.renderPlantUmlDiagrams = function() {
             if (plantUmlDiagrams.length > 0) {
@@ -895,192 +729,6 @@ export class ExerciseDetailView {
             } catch (e) {
                 console.error('Error preparing submission details:', e);
                 vscode.postMessage({ command: 'alert', text: 'Error preparing submission details operation.' });
-            }
-        };
-
-        window.toggleTestResults = function(event) {
-            if (event) {
-                event.preventDefault();
-            }
-
-            const modal = document.getElementById('testResultsModal');
-
-            if (!modal) {
-                return;
-            }
-
-            if (modal.classList.contains('open')) {
-                closeTestResultsModal();
-            } else {
-                openTestResultsModal();
-            }
-        };
-
-        window.openTestResultsModal = function() {
-            const modal = document.getElementById('testResultsModal');
-            const container = document.getElementById('testResultsContainer');
-            const toggle = document.getElementById('testResultsToggle');
-
-            if (!modal || !container) {
-                return;
-            }
-
-            if (modal.parentElement && modal.parentElement !== document.body) {
-                document.body.appendChild(modal);
-            }
-
-            if (!modal.classList.contains('open')) {
-                modal.classList.add('open');
-                modal.setAttribute('aria-hidden', 'false');
-                document.body.classList.add('test-results-modal-open');
-
-                if (toggle) {
-                    toggle.textContent = 'Hide test results';
-                }
-
-                if (!container.dataset.loaded) {
-                    fetchTestResults();
-                }
-            }
-        };
-
-        window.closeTestResultsModal = function() {
-            const modal = document.getElementById('testResultsModal');
-            const toggle = document.getElementById('testResultsToggle');
-
-            if (!modal) {
-                return;
-            }
-
-            modal.classList.remove('open');
-            modal.setAttribute('aria-hidden', 'true');
-            document.body.classList.remove('test-results-modal-open');
-
-            if (toggle) {
-                toggle.textContent = 'See test results';
-            }
-        };
-
-        window.viewBuildLog = function(event, participationId, resultId) {
-            if (event) {
-                event.preventDefault();
-            }
-
-            if (!participationId) {
-                vscode.postMessage({ command: 'alert', text: 'Cannot view build log: missing participation ID.' });
-                return;
-            }
-
-            vscode.postMessage({
-                command: 'viewBuildLog',
-                participationId: participationId,
-                resultId: resultId
-            });
-        };
-
-        window.goToSourceError = function(event) {
-            if (event) {
-                event.preventDefault();
-            }
-
-            const link = document.getElementById('goToSourceLink');
-            if (!link || !link.dataset.errorData) {
-                vscode.postMessage({ command: 'alert', text: 'No error information available.' });
-                return;
-            }
-
-            try {
-                const errorData = JSON.parse(link.dataset.errorData);
-                vscode.postMessage({
-                    command: 'goToSourceError',
-                    filePath: errorData.filePath,
-                    line: errorData.line,
-                    column: errorData.column,
-                    message: errorData.message
-                });
-            } catch (e) {
-                vscode.postMessage({ command: 'alert', text: 'Error parsing error information.' });
-            }
-        };
-
-        // Auto-fetch build logs to enable "Go to Source" button
-        window.fetchBuildLogsForError = function(participationId, resultId) {
-            console.log('🔍 Auto-fetching build logs to parse errors...');
-            
-            vscode.postMessage({
-                command: 'fetchBuildLogsForError',
-                participationId: participationId,
-                resultId: resultId
-            });
-        };
-
-        window.handleTestResultsBackdrop = function(event) {
-            if (event && event.target && event.target.id === 'testResultsModal') {
-                closeTestResultsModal();
-            }
-        };
-
-        window.fetchTestResults = function() {
-            const container = document.getElementById('testResultsContainer');
-            if (!container) {
-                return;
-            }
-
-            // Clear any existing timeout
-            if (fetchTestResultsTimeout) {
-                clearTimeout(fetchTestResultsTimeout);
-            }
-
-            // Set a timeout to prevent infinite loading (15 seconds)
-            fetchTestResultsTimeout = setTimeout(() => {
-                if (container && !container.dataset.loaded) {
-                    container.innerHTML = 
-                        '<div class="test-results-loading">' +
-                        'Loading timed out. The request took too long.<br>' +
-                        '<button onclick="fetchTestResults()" style="margin-top: 12px; padding: 8px 16px; cursor: pointer;">Retry</button>' +
-                        '</div>';
-                    container.dataset.loaded = 'true';
-                    console.warn('Test results fetch timed out after 10 seconds');
-                }
-            }, 10000);
-
-            try {
-                const participations = getStudentParticipations();
-
-                if (!participations.length) {
-                    clearTimeout(fetchTestResultsTimeout);
-                    container.innerHTML = '<div class="test-results-loading">No participation found</div>';
-                    container.dataset.loaded = 'true';
-                    return;
-                }
-
-                const latestContext = findLatestSubmissionContext();
-
-                if (!latestContext) {
-                    clearTimeout(fetchTestResultsTimeout);
-                    container.innerHTML = '<div class="test-results-loading">No submissions found</div>';
-                    container.dataset.loaded = 'true';
-                    return;
-                }
-
-                const latestResult = getLatestResult(latestContext.submission);
-
-                if (!latestResult) {
-                    clearTimeout(fetchTestResultsTimeout);
-                    container.innerHTML = '<div class="test-results-loading">No results found</div>';
-                    container.dataset.loaded = 'true';
-                    return;
-                }
-
-                vscode.postMessage({
-                    command: 'fetchTestResults',
-                    participationId: latestContext.participation.id,
-                    resultId: latestResult.id
-                });
-            } catch (e) {
-                clearTimeout(fetchTestResultsTimeout);
-                console.error('Error fetching test results:', e);
-                container.innerHTML = '<div class="test-results-loading">Error loading test results</div>';
             }
         };
 
