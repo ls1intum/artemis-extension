@@ -3,6 +3,7 @@ import { IconDefinitions } from '../../utils/iconDefinitions';
 import type { UserInfo } from '../app/appStateManager';
 import { readCssFiles } from '../utils';
 import { BackLinkComponent } from '../components/backLink/backLinkComponent';
+import { ButtonComponent } from '../components/button/buttonComponent';
 
 export class GitCredentialsView {
     private readonly _extensionContext: vscode.ExtensionContext;
@@ -14,6 +15,7 @@ export class GitCredentialsView {
     public generateHtml(userInfo?: UserInfo): string {
         const styles = readCssFiles(
             'components/backLink/back-link.css',
+            'components/button/button.css',
             'gitCredentials/git-credentials.css'
         );
 
@@ -73,7 +75,12 @@ export class GitCredentialsView {
                     <span class="field-help-text">Tip: students usually use their TUM address.</span>
                 </div>
                 <div class="form-actions">
-                    <button class="primary-button" type="submit">Save identity (global)</button>
+                    ${ButtonComponent.generate({
+                        label: 'Save identity (global)',
+                        variant: 'primary',
+                        type: 'submit',
+                        id: 'submitButton'
+                    })}
                 </div>
             </form>
             <div id="statusMessage" class="status-message" role="status" aria-live="polite"></div>
@@ -85,8 +92,20 @@ export class GitCredentialsView {
                 <li>
                     View or change your Git identity manually:
                     <div class="command-group">
-                        <code class="copyable-command" onclick="copyCommand('git config user.name')" title="Click to copy">git config user.name</code>
-                        <code class="copyable-command" onclick="copyCommand('git config user.email')" title="Click to copy">git config user.email</code>
+                        ${ButtonComponent.generate({
+                            label: 'git config user.name',
+                            variant: 'secondary',
+                            command: "copyCommand('git config user.name')",
+                            className: 'copyable-command',
+                            alignText: 'left'
+                        })}
+                        ${ButtonComponent.generate({
+                            label: 'git config user.email',
+                            variant: 'secondary',
+                            command: "copyCommand('git config user.email')",
+                            className: 'copyable-command',
+                            alignText: 'left'
+                        })}
                     </div>
                 </li>
                 <li>The form above saves your identity globally for all repositories on this computer.</li>

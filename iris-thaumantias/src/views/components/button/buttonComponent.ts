@@ -23,6 +23,8 @@ export interface ButtonOptions {
     alignText?: 'left' | 'center' | 'right';
     /** Custom data attributes (e.g., { filter: 'all' } becomes data-filter="all") */
     dataAttributes?: Record<string, string>;
+    /** Button type attribute */
+    type?: 'button' | 'submit' | 'reset';
 }
 /**
  * Generates a VS Code-styled button component with optional icon support.
@@ -60,7 +62,8 @@ export class ButtonComponent {
             width,
             height,
             alignText,
-            dataAttributes = {}
+            dataAttributes = {},
+            type = 'button'
         } = options;
 
         const classes = [
@@ -77,6 +80,7 @@ export class ButtonComponent {
         const idAttr = id ? ` id="${id}"` : '';
         const disabledAttr = disabled ? ' disabled' : '';
         const onclickAttr = command && !disabled ? ` onclick="${command}"` : '';
+        const typeAttr = ` type="${type}"`;
         
         // Build data attributes
         const dataAttrs = Object.entries(dataAttributes)
@@ -97,7 +101,7 @@ export class ButtonComponent {
         if (icon && !label) {
             return `
                 <button 
-                    class="${classes}"${idAttr}${disabledAttr}${onclickAttr}${styleAttr}${dataAttrs}
+                    class="${classes}"${typeAttr}${idAttr}${disabledAttr}${onclickAttr}${styleAttr}${dataAttrs}
                     aria-label="${command || 'button'}"
                 >
                     ${icon}
@@ -109,7 +113,7 @@ export class ButtonComponent {
         if (icon && label) {
             return `
                 <button 
-                    class="${classes}"${idAttr}${disabledAttr}${onclickAttr}${styleAttr}${dataAttrs}
+                    class="${classes}"${typeAttr}${idAttr}${disabledAttr}${onclickAttr}${styleAttr}${dataAttrs}
                 >
                     <span class="btn-icon">${icon}</span>
                     <span class="btn-label">${label}</span>
@@ -120,7 +124,7 @@ export class ButtonComponent {
         // Button with label only
         return `
             <button 
-                class="${classes}"${idAttr}${disabledAttr}${onclickAttr}${styleAttr}${dataAttrs}
+                class="${classes}"${typeAttr}${idAttr}${disabledAttr}${onclickAttr}${styleAttr}${dataAttrs}
             >
                 ${label}
             </button>
