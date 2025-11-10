@@ -1664,16 +1664,15 @@ export class ExerciseDetailView {
             const hasTestInfo = totalTests > 0;
             const buildFailed = targetSubmission.buildFailed ?? result.submission?.buildFailed ?? false;
 
+            const participationId = typeof participation?.id === 'number' ? participation.id : null;
+            const resultId = typeof result?.id === 'number' ? result.id : null;
+
             const buildStatusSection = ensureBuildStatusSection();
             if (buildStatusSection) {
                 buildStatusSection.classList.remove('build-status--empty');
                 delete buildStatusSection.dataset.progressMode;
 
                 const statusBadge = generateStatusBadge(buildFailed, hasTestInfo, passedTests, totalTests, successful);
-
-                // Get participation ID for build log link
-                const participationId = participation?.id;
-                const resultId = result?.id;
 
                 // Build the toggle container with both build log (if failed) and test results links
                 const buildLogLink = buildFailed ? ButtonComponent.generate({
