@@ -1,6 +1,7 @@
 import { readCssFiles } from '../utils';
 import { ServiceHealthComponent } from '../components/serviceHealth/serviceHealthComponent';
 import { ButtonComponent } from '../components/button/buttonComponent';
+import { TextInputComponent } from '../components/input/textInputComponent';
 
 /**
  * Renders the login view for the Artemis webview.
@@ -10,7 +11,8 @@ export class LoginView {
         const styles = readCssFiles(
             'login/login.css',
             'components/serviceHealth/service-health.css',
-            'components/button/button.css'
+            'components/button/button.css',
+            'components/input/input.css'
         );
 
         return `<!DOCTYPE html>
@@ -42,14 +44,26 @@ export class LoginView {
 
     <div class="login-container" id="loginSection">
         <form id="loginForm">
-            <div class="form-group">
-                <label for="username">Username</label>
-                <input type="text" id="username" name="username" placeholder="Enter your TUM username" required />
-            </div>
-            <div class="form-group">
-                <label for="password">Password</label>
-                <input type="password" id="password" name="password" placeholder="Enter your password" required />
-            </div>
+            ${TextInputComponent.generate({
+                id: 'username',
+                name: 'username',
+                type: 'text',
+                placeholder: 'Enter your TUM username',
+                label: 'Username',
+                required: true,
+                autocomplete: 'username',
+                fullWidth: true
+            })}
+            ${TextInputComponent.generate({
+                id: 'password',
+                name: 'password',
+                type: 'password',
+                placeholder: 'Enter your password',
+                label: 'Password',
+                required: true,
+                autocomplete: 'current-password',
+                fullWidth: true
+            })}
             <div class="checkbox-group">
                 <input type="checkbox" id="rememberMe" name="rememberMe" checked />
                 <label for="rememberMe">Remember me on this device</label>

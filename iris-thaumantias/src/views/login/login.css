@@ -43,10 +43,6 @@
             position: relative;
         }
         
-        .form-group {
-            margin-bottom: var(--theme-form-spacing);
-        }
-        
         label {
             display: block;
             margin-bottom: 6px;
@@ -56,33 +52,7 @@
             letter-spacing: 0.2px;
         }
         
-        input[type="text"],
-        input[type="password"] {
-            width: 100%;
-            padding: 14px 16px;
-            border: 2px solid var(--theme-input-border);
-            background: var(--theme-input-background);
-            color: var(--theme-input-foreground);
-            border-radius: calc(var(--theme-container-radius) * 0.6);
-            font-size: var(--theme-font-size);
-            box-sizing: border-box;
-            transition: var(--theme-transition);
-            backdrop-filter: var(--theme-backdrop);
-            font-weight: 500;
-        }
         
-        input:focus {
-            outline: none;
-            border-color: var(--theme-input-focus);
-            box-shadow: 0 0 0 3px rgba(66, 153, 225, 0.1);
-            transform: translateY(-1px);
-        }
-        
-        input::placeholder {
-            color: var(--theme-foreground);
-            opacity: 0.5;
-            font-weight: 400;
-        }
         
         .checkbox-group {
             display: flex;
