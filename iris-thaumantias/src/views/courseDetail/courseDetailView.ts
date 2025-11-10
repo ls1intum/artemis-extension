@@ -166,7 +166,7 @@ export class CourseDetailView {
                     id: 'exerciseSearch',
                     type: 'search',
                     placeholder: 'Search exercises...',
-                    size: 'small',
+                    size: 'medium',
                     className: 'search-input',
                     height: '2rem'
                 })}
