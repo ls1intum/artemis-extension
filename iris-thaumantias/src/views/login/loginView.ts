@@ -58,7 +58,7 @@ export class LoginView {
                 label: 'Login to Artemis',
                 variant: 'primary',
                 id: 'loginButton',
-                command: 'document.getElementById("loginForm").requestSubmit()',
+                type: 'submit',
                 fullWidth: true,
                 alignText: 'center',
                 height: '2.5rem'
