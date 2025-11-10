@@ -2,13 +2,15 @@ import { readCssFiles } from '../utils';
 import { BackLinkComponent } from '../components/backLink/backLinkComponent';
 import { ButtonComponent } from '../components/button/buttonComponent';
 import { IconDefinitions } from '../../utils/iconDefinitions';
+import { TextInputComponent } from '../components/input/textInputComponent';
 
 export class CourseListView {
     public generateHtml(coursesData: any | undefined, archivedCoursesData: any[] | undefined): string {
         const styles = readCssFiles(
             'components/backLink/back-link.css',
             'components/button/button.css',
-            'courseList/course-list.css'
+            'courseList/course-list.css',
+            'components/input/input.css'
         );
         
         return this._getCourseListHtml(coursesData, archivedCoursesData, styles);
@@ -124,7 +126,13 @@ export class CourseListView {
     <div class="header">
         <h1>All Courses</h1>
         <div class="search-container">
-            <input type="text" class="search-input" id="courseSearch" placeholder="Search courses by title, semester, or description..." oninput="handleSearch(this.value)">
+            ${TextInputComponent.generate({
+                id: 'courseSearch',
+                type: 'search',
+                placeholder: 'Search courses by title, semester, or description...',
+                className: 'search-input',
+                height: '2.5rem'
+            })}
             ${ButtonComponent.generate({
                 label: 'Reload Courses',
                 icon: IconDefinitions.getIcon('refresh'),
@@ -515,6 +523,11 @@ export class CourseListView {
             if (searchInput) {
                 // Don't auto-focus as it might interfere with webview
                 // searchInput.focus();
+                
+                // Connect search input to handleSearch function
+                searchInput.addEventListener('input', function(e) {
+                    handleSearch(e.target.value);
+                });
             }
             
             // Populate semester filter options

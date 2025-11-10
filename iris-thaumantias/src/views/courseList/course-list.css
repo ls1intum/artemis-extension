@@ -34,26 +34,10 @@
 
         .search-input {
             flex: 1;
-            background: var(--theme-input-background);
-            color: var(--theme-input-foreground);
-            border: 1px solid var(--theme-input-border);
-            border-radius: var(--theme-container-radius);
-            padding: 10px 14px;
-            font-size: 14px;
-            font-family: var(--theme-font-family);
-            transition: var(--theme-transition);
-            box-sizing: border-box;
         }
-
-        .search-input:focus {
-            outline: none;
-            border-color: var(--theme-input-focus);
-            box-shadow: 0 0 0 2px var(--theme-input-focus);
-        }
-
-        .search-input::placeholder {
-            color: var(--theme-foreground);
-            opacity: 0.5;
+        
+        .search-container .input-group {
+            margin-bottom: 0;
         }
 
         /* Filter and Sort Controls */
