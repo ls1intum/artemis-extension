@@ -1,4 +1,5 @@
 import { IconDefinitions } from '../../../utils/iconDefinitions';
+import { ButtonComponent } from '../button/buttonComponent';
 
 /**
  * Reusable component for displaying service health status checks
@@ -121,10 +122,14 @@ export class ServiceHealthComponent {
             
             <div class="health-last-check" id="health-lastCheckTime">Last checked: Never</div>
             
-            <button class="health-check-btn" id="health-checkBtn">
-                <span class="health-btn-icon">${refreshIcon}</span>
-                Check Status
-            </button>
+            ${ButtonComponent.generate({
+                id: 'health-checkBtn',
+                label: 'Check Status',
+                icon: refreshIcon,
+                variant: 'primary',
+                fullWidth: true,
+                height: '2.5rem'
+            })}
         </div>`;
     }
 
@@ -226,9 +231,9 @@ export class ServiceHealthComponent {
                 // Disable button during check
                 if (checkBtn) {
                     checkBtn.disabled = true;
-                    const btnText = checkBtn.querySelector('.health-btn-icon')?.nextSibling;
-                    if (btnText) {
-                        btnText.textContent = ' Checking...';
+                    const btnLabel = checkBtn.querySelector('.btn-label');
+                    if (btnLabel) {
+                        btnLabel.textContent = 'Checking...';
                     }
                 }
                 
@@ -333,9 +338,9 @@ export class ServiceHealthComponent {
                     // Re-enable button
                     if (checkBtn) {
                         checkBtn.disabled = false;
-                        const btnText = checkBtn.querySelector('.health-btn-icon')?.nextSibling;
-                        if (btnText) {
-                            btnText.textContent = ' Check Status';
+                        const btnLabel = checkBtn.querySelector('.btn-label');
+                        if (btnLabel) {
+                            btnLabel.textContent = 'Check Status';
                         }
                     }
                 }

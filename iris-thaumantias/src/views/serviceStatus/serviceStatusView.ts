@@ -3,6 +3,8 @@ import { IconDefinitions } from '../../utils/iconDefinitions';
 import { ServiceHealthComponent } from '../components/serviceHealth/serviceHealthComponent';
 import { readCssFiles } from '../utils';
 import { BackLinkComponent } from '../components/backLink/backLinkComponent';
+import { TextInputComponent } from '../components/input/textInputComponent';
+import { ButtonComponent } from '../components/button/buttonComponent';
 
 export class ServiceStatusView {
     private _extensionContext: vscode.ExtensionContext;
@@ -15,7 +17,9 @@ export class ServiceStatusView {
         const styles = readCssFiles(
             'components/backLink/back-link.css',
             'serviceStatus/service-status.css',
-            'components/serviceHealth/service-health.css'
+            'components/serviceHealth/service-health.css',
+            'components/input/input.css',
+            'components/button/button.css'
         );
         
         return this._getServiceStatusHtml(styles, serverUrl);
@@ -51,7 +55,13 @@ export class ServiceStatusView {
         
         <div class="server-info">
             <h3 class="server-info-title">Connected Server</h3>
-            <div class="server-url" id="serverUrl">${serverUrl || 'https://artemis.tum.de'}</div>
+            ${TextInputComponent.generate({
+                id: 'serverUrl',
+                type: 'text',
+                value: serverUrl ,
+                disabled: true,
+                fullWidth: true,
+            })}
         </div>
         
         ${ServiceHealthComponent.generateHtml({ showTitle: true, compact: false, autoCheck: true })}

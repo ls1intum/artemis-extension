@@ -31,20 +31,23 @@
     justify-content: flex-start;
 }
 
-/* Text alignment overrides */
+/* Text alignment overrides - these should take precedence over full-width default */
+.btn.btn-align-left,
 .btn-align-left {
-    text-align: left;
-    justify-content: flex-start;
+    text-align: left !important;
+    justify-content: flex-start !important;
 }
 
+.btn.btn-align-center,
 .btn-align-center {
-    text-align: center;
-    justify-content: center;
+    text-align: center !important;
+    justify-content: center !important;
 }
 
+.btn.btn-align-right,
 .btn-align-right {
-    text-align: right;
-    justify-content: flex-end;
+    text-align: right !important;
+    justify-content: flex-end !important;
 }
 
 .btn:focus-visible {
@@ -166,8 +169,7 @@
 
 /* Label within button */
 .btn-label {
-    display: inline-flex;
-    align-items: center;
+    display: inline-block;
     flex: 1;
     min-width: 0;
 }
