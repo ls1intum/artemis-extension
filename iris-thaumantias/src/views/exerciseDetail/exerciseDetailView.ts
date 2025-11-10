@@ -1,6 +1,6 @@
 import * as vscode from "vscode";
 import { IconDefinitions } from "../../utils";
-import { readCssFiles, processMarkdown } from "../utils";
+import { readCssFiles, processMarkdown, transformExerciseData, getLatestResult } from "../utils";
 import { BackLinkComponent } from "../components/backLink/backLinkComponent";
 import { ButtonComponent } from "../components/button/buttonComponent";
 import { FullscreenButton, CloseButton } from "../components/button/iconButtons";
@@ -21,57 +21,6 @@ export class ExerciseDetailView {
 
   private _getUploadMessageIcon(): string {
     return IconDefinitions.getIcon("uploadMessage");
-  }
-
-  // Get latest submission by ID (matches Artemis frontend approach)
-  // IDs are database auto-increment, guaranteed to be sequential with submission time
-  private _getLatestSubmission(participation: any): any | undefined {
-    if (
-      !participation ||
-      !Array.isArray(participation.submissions) ||
-      participation.submissions.length === 0
-    ) {
-      return undefined;
-    }
-
-    return participation.submissions.reduce((latest: any, current: any) => {
-      const latestId = typeof latest?.id === "number" ? latest.id : -Infinity;
-      const currentId =
-        typeof current?.id === "number" ? current.id : -Infinity;
-      return currentId > latestId ? current : latest;
-    });
-  }
-
-  // Get latest result by completionDate (matches Artemis frontend approach)
-  // Results can complete out of order due to varying build times
-  // Uses completionDate to ensure the most recently completed result is returned
-  private _getLatestResult(submission: any): any | undefined {
-    if (
-      !submission ||
-      !Array.isArray(submission.results) ||
-      submission.results.length === 0
-    ) {
-      return undefined;
-    }
-
-    return submission.results.reduce((latest: any, current: any) => {
-      const latestDate = latest?.completionDate
-        ? new Date(latest.completionDate).getTime()
-        : -Infinity;
-      const currentDate = current?.completionDate
-        ? new Date(current.completionDate).getTime()
-        : -Infinity;
-
-      // Fallback to ID if completionDates are equal or missing (rare edge case)
-      if (latestDate === currentDate) {
-        const latestId = typeof latest?.id === "number" ? latest.id : -Infinity;
-        const currentId =
-          typeof current?.id === "number" ? current.id : -Infinity;
-        return currentId > latestId ? current : latest;
-      }
-
-      return currentDate > latestDate ? current : latest;
-    });
   }
 
   public generateHtml(
@@ -156,60 +105,13 @@ export class ExerciseDetailView {
       return this._getEmptyStateHtml(styles, webviewComponentsScriptTag);
     }
 
-    const exerciseTitle = exercise.title || "Unknown Exercise";
-    const exerciseType =
-      exercise.type
-        ?.replace(/_/g, " ")
-        .replace(/\b\w/g, (l: string) => l.toUpperCase()) || "Unknown";
+    // Transform exercise data using utility
+    const transformed = transformExerciseData(exercise);
+    
+    // Extract transformed data for use in template
     const exerciseIcon = this._getExerciseIcon(exercise.type);
     const uploadMessageIcon = this._getUploadMessageIcon();
     const starAssistIcon = IconDefinitions.getIcon("star_4_edges");
-    const maxPoints = exercise.maxPoints || 0;
-    const bonusPoints = exercise.bonusPoints || 0;
-    const releaseDate = exercise.releaseDate
-      ? new Date(exercise.releaseDate).toLocaleString()
-      : "No release date";
-
-    // Calculate due date and time remaining
-    let dueDateDisplay = "No due date";
-    let timeRemainingDisplay = "";
-    let isDueSoon = false;
-    if (exercise.dueDate) {
-      const dueDate = new Date(exercise.dueDate);
-      const now = new Date();
-      const timeRemaining = dueDate.getTime() - now.getTime();
-      const hoursRemaining = timeRemaining / (1000 * 60 * 60);
-      const daysRemaining = Math.floor(hoursRemaining / 24);
-      const remainingHours = Math.floor(hoursRemaining % 24);
-
-      dueDateDisplay = dueDate.toLocaleString();
-
-      if (timeRemaining < 0) {
-        timeRemainingDisplay = "Overdue";
-        isDueSoon = true;
-      } else if (hoursRemaining < 24) {
-        timeRemainingDisplay = `Due in ${Math.floor(hoursRemaining)}h`;
-        isDueSoon = true;
-      } else if (daysRemaining < 7) {
-        timeRemainingDisplay = `Due in ${daysRemaining}d ${remainingHours}h`;
-      } else {
-        timeRemainingDisplay = `Due in ${daysRemaining} days`;
-      }
-    }
-
-    const mode = exercise.mode?.toLowerCase().replace("_", " ") || "Unknown";
-    const includedInScore =
-      exercise.includedInOverallScore === "NOT_INCLUDED"
-        ? "Not included in overall score"
-        : exercise.includedInOverallScore === "INCLUDED_COMPLETELY"
-        ? "Included in overall score"
-        : "Partially included in score";
-    const filePattern = exercise.filePattern
-      ? exercise.filePattern
-          .split(",")
-          .map((ext: string) => ext.trim().toUpperCase())
-          .join(", ")
-      : "";
 
     // Process markdown problem statement
     const { html: problemStatement, downloadLinks, plantUmlDiagrams } = 
@@ -253,19 +155,19 @@ export class ExerciseDetailView {
         <summary>
             <div class="summary-content">
                 <div class="summary-text">
-                    <div class="exercise-title">${exerciseTitle}</div>
+                    <div class="exercise-title">${transformed.exerciseTitle}</div>
                     <div class="exercise-meta">
                         <div class="exercise-icon-badge">${exerciseIcon}</div>
                         ${BadgeComponent.generate({
-                            label: `${maxPoints} ${maxPoints === 1 ? "point" : "points"}${bonusPoints > 0 ? ` + ${bonusPoints} bonus` : ""}`,
+                            label: `${transformed.maxPoints} ${transformed.maxPoints === 1 ? "point" : "points"}${transformed.bonusPoints > 0 ? ` + ${transformed.bonusPoints} bonus` : ""}`,
                             variant: 'primary'
                         })}
                         ${
-                          timeRemainingDisplay
+                          transformed.timeRemainingDisplay
                             ? BadgeComponent.generate({
-                                label: timeRemainingDisplay,
+                                label: transformed.timeRemainingDisplay,
                                 variant: 'secondary',
-                                className: isDueSoon ? "due-soon" : ""
+                                className: transformed.isDueSoon ? "due-soon" : ""
                               })
                             : ""
                         }
@@ -285,15 +187,15 @@ export class ExerciseDetailView {
             <div class="exercise-info-grid">
                 <div class="info-item">
                     <div class="info-label">Release Date</div>
-                    <div class="info-value">${releaseDate}</div>
+                    <div class="info-value">${transformed.releaseDate}</div>
                 </div>
                 <div class="info-item">
                     <div class="info-label">Mode</div>
-                    <div class="info-value">${mode}</div>
+                    <div class="info-value">${transformed.mode}</div>
                 </div>
                 <div class="info-item">
                     <div class="info-label">Grading</div>
-                    <div class="info-value">${includedInScore}</div>
+                    <div class="info-value">${transformed.includedInScore}</div>
                 </div>
                 <div class="info-item">
                     <div class="info-label">Course</div>
@@ -303,11 +205,11 @@ export class ExerciseDetailView {
                     </div>
                 </div>
                 ${
-                  filePattern
+                  transformed.filePattern
                     ? `
                 <div class="info-item">
                     <div class="info-label">File Formats</div>
-                    <div class="info-value">${filePattern}</div>
+                    <div class="info-value">${transformed.filePattern}</div>
                 </div>
                 `
                     : ""
@@ -318,42 +220,30 @@ export class ExerciseDetailView {
     
 
     ${(() => {
-      const hasParticipation =
-        Array.isArray(exercise.studentParticipations) &&
-        exercise.studentParticipations.length > 0;
-      const firstParticipation = hasParticipation
-        ? exercise.studentParticipations[0]
-        : undefined;
-      const participationId = firstParticipation?.id;
-      const rawExerciseType = exercise.type || exercise.exerciseType || "";
-      const normalizedExerciseType =
-        typeof rawExerciseType === "string"
-          ? rawExerciseType.toLowerCase()
-          : "";
-      const isProgrammingExercise = normalizedExerciseType === "programming";
-      const isQuizExercise = normalizedExerciseType === "quiz";
+      // Use transformed data
+      const { 
+        hasParticipation, 
+        participationId, 
+        latestSubmission, 
+        latestResult,
+        isProgrammingExercise,
+        isQuizExercise,
+        scorePercentage = 0,
+        scorePoints = 0,
+        totalTests = 0,
+        passedTests = 0,
+        hasTestInfo = false
+      } = transformed;
 
       // Get latest submission and build status
       let buildStatusHtml = "";
-      const latestSubmission = hasParticipation
-        ? this._getLatestSubmission(firstParticipation)
-        : undefined;
       if (hasParticipation && latestSubmission) {
-        const latestResult = this._getLatestResult(latestSubmission) ?? null;
+        const result = latestResult ?? null;
 
         // Only show build status for programming exercises
         if (isProgrammingExercise) {
           const buildFailed = latestSubmission.buildFailed;
-          const scorePercentage = latestResult ? latestResult.score : 0; // This is 0-100
-          const maxPoints = exercise.maxPoints || 0;
-          const scorePoints =
-            Math.round((scorePercentage / 100) * maxPoints * 100) / 100; // Convert to points
-          const successful = latestResult ? latestResult.successful : false;
-
-          // Calculate test statistics
-          const totalTests = latestResult?.testCaseCount || 0;
-          const passedTests = latestResult?.passedTestCaseCount || 0;
-          const hasTestInfo = totalTests > 0;
+          const successful = result ? result.successful : false;
 
           // Generate status badge (logic shared with websocket handler)
           let statusBadge = "";
@@ -393,9 +283,9 @@ export class ExerciseDetailView {
                         <div class="build-status-info">
                             ${statusBadge}
                             <div class="score-info">
-                                Score: <span class="score-points">${scorePoints}/${maxPoints} (${scorePercentage.toFixed(
+                                Score: <span class="score-points">${scorePoints}/${transformed.maxPoints} (${scorePercentage.toFixed(
             2
-          )}%)</span> ${maxPoints === 1 ? "point" : "points"}
+          )}%)</span> ${transformed.maxPoints === 1 ? "point" : "points"}
                             </div>
                         </div>
                         <div class="test-results-toggle-container">
@@ -609,7 +499,9 @@ export class ExerciseDetailView {
           : "You have not started this exercise yet.";
       } else {
         // For non-programming exercises (quiz, modeling, text, file-upload)
-        const cleanedType = normalizedExerciseType
+        const rawType = exercise.type || exercise.exerciseType || "";
+        const normalizedType = typeof rawType === "string" ? rawType.toLowerCase() : "";
+        const cleanedType = normalizedType
           .replace(/_/g, " ")
           .replace(/-/g, " ");
         const exerciseTypeDisplay = cleanedType
@@ -928,7 +820,7 @@ export class ExerciseDetailView {
                 vscode.postMessage({
                     command: 'askIrisAboutExercise',
                     exerciseId: ${exerciseId},
-                    exerciseTitle: ${JSON.stringify(exerciseTitle)},
+                    exerciseTitle: ${JSON.stringify(transformed.exerciseTitle)},
                     exerciseShortName: ${JSON.stringify(exerciseShortName)},
                     releaseDate: ${JSON.stringify(releaseDateRaw)},
                     dueDate: ${JSON.stringify(dueDateRaw)}
@@ -945,7 +837,7 @@ export class ExerciseDetailView {
                 vscode.postMessage({
                     command: 'renderPlantUml',
                     plantUmlDiagrams: plantUmlDiagrams,
-                    exerciseTitle: ${JSON.stringify(exerciseTitle)}
+                    exerciseTitle: ${JSON.stringify(transformed.exerciseTitle)}
                 });
             }
         };
