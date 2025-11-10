@@ -3,6 +3,7 @@ import { IconDefinitions } from '../../utils';
 import { readCssFiles } from '../utils';
 import { BackLinkComponent } from '../components/backLink/backLinkComponent';
 import { ButtonComponent } from '../components/button/buttonComponent';
+import { TextInputComponent } from '../components/input/textInputComponent';
 
 export class CourseDetailView {
     private _extensionContext: vscode.ExtensionContext;
@@ -16,7 +17,7 @@ export class CourseDetailView {
     }
 
     public generateHtml(courseData: any, hideDeveloperTools: boolean = false, webview?: vscode.Webview): string {
-        const styles = readCssFiles('components/backLink/back-link.css', 'courseDetail/course-detail.css', 'components/button/button.css');
+        const styles = readCssFiles('components/backLink/back-link.css', 'courseDetail/course-detail.css', 'components/button/button.css', 'components/input/input.css');
         
         if (!courseData) {
             return this._getEmptyStateHtml(styles);
@@ -160,7 +161,16 @@ export class CourseDetailView {
     <div class="section">
         <div class="section-title">Exercises</div>
         <div class="exercise-search">
-            <input type="text" class="search-input" placeholder="Search exercises..." oninput="filterExercises(this.value)">
+            <div class="search-input-wrapper">
+                ${TextInputComponent.generate({
+                    id: 'exerciseSearch',
+                    type: 'search',
+                    placeholder: 'Search exercises...',
+                    size: 'small',
+                    className: 'search-input',
+                    height: '2rem'
+                })}
+            </div>
             <select class="sort-select" onchange="sortExercises(this.value)">
                 <option value="id-desc" selected>Latest Added</option>
                 <option value="id-asc">Oldest Added</option>
@@ -358,6 +368,14 @@ export class CourseDetailView {
                 command: 'toggleCourseFullscreen'
             });
         };
+        
+        // Connect search input to filter function
+        const searchInput = document.getElementById('exerciseSearch');
+        if (searchInput) {
+            searchInput.addEventListener('input', function(e) {
+                filterExercises(e.target.value);
+            });
+        }
     </script>
 </body>
 </html>`;

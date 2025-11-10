@@ -254,16 +254,17 @@
             gap: 8px;
             align-items: center;
         }
+        
+        .search-input-wrapper {
+            flex: 1;
+        }
+        
+        .search-input-wrapper .input-group {
+            margin-bottom: 0;
+        }
 
         .search-input {
             flex: 1;
-            padding: 8px 12px;
-            border: 1px solid var(--theme-border);
-            background: var(--theme-card-background);
-            color: var(--theme-foreground);
-            font-size: 13px;
-            border-radius: var(--theme-container-radius);
-            box-sizing: border-box;
         }
 
         .sort-select {
@@ -277,7 +278,6 @@
             min-width: 150px;
         }
 
-        .search-input:focus,
         .sort-select:focus {
             outline: none;
             border-color: var(--vscode-focusBorder);

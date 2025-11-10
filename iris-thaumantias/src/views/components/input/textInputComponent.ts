@@ -47,6 +47,10 @@ export interface TextInputOptions {
     ariaDescribedBy?: string;
     /** Show password reveal toggle for password inputs */
     showPasswordToggle?: boolean;
+    /** Custom width (e.g., '200px', '50%', '20rem') */
+    width?: string;
+    /** Custom height (e.g., '40px', '2.5rem') */
+    height?: string;
 }
 
 /**
@@ -107,7 +111,9 @@ export class TextInputComponent {
             inputMode,
             ariaLabel,
             ariaDescribedBy,
-            showPasswordToggle = true
+            showPasswordToggle = true,
+            width,
+            height
         } = options;
 
         const inputClasses = [
@@ -134,6 +140,16 @@ export class TextInputComponent {
         const ariaLabelAttr = ariaLabel ? ` aria-label="${ariaLabel}"` : '';
         const ariaDescribedByAttr = ariaDescribedBy ? ` aria-describedby="${ariaDescribedBy}"` : '';
 
+        // Build style attribute
+        const styles: string[] = [];
+        if (width) {
+            styles.push(`width: ${width}`);
+        }
+        if (height) {
+            styles.push(`height: ${height}`);
+        }
+        const styleAttr = styles.length > 0 ? ` style="${styles.join('; ')}"` : '';
+
         // For password inputs with toggle, wrap in a container
         const isPasswordWithToggle = type === 'password' && showPasswordToggle;
         const toggleId = isPasswordWithToggle ? `${id || 'password'}-toggle` : '';
@@ -141,7 +157,7 @@ export class TextInputComponent {
         const eyeClosedIcon = IconDefinitions.getIcon('eye-closed');
         
         const inputElement = isPasswordWithToggle ? `
-            <div class="input-password-wrapper">
+            <div class="input-password-wrapper"${styleAttr}>
                 <input
                     type="password"
                     class="${inputClasses}"${idAttr}${nameAttr}${placeholderAttr}${valueAttr}${requiredAttr}${disabledAttr}${readonlyAttr}${autocompleteAttr}${maxLengthAttr}${minLengthAttr}${patternAttr}${inputModeAttr}${ariaLabelAttr}${ariaDescribedByAttr}
@@ -154,7 +170,7 @@ export class TextInputComponent {
         ` : `
             <input
                 type="${type}"
-                class="${inputClasses}"${idAttr}${nameAttr}${placeholderAttr}${valueAttr}${requiredAttr}${disabledAttr}${readonlyAttr}${autocompleteAttr}${maxLengthAttr}${minLengthAttr}${patternAttr}${inputModeAttr}${ariaLabelAttr}${ariaDescribedByAttr}
+                class="${inputClasses}"${idAttr}${nameAttr}${placeholderAttr}${valueAttr}${requiredAttr}${disabledAttr}${readonlyAttr}${autocompleteAttr}${maxLengthAttr}${minLengthAttr}${patternAttr}${inputModeAttr}${ariaLabelAttr}${ariaDescribedByAttr}${styleAttr}
             />
         `;
 
