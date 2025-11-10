@@ -191,6 +191,7 @@
     font-family: inherit;
     text-align: left;
     justify-content: flex-start;
+    white-space: nowrap;
 }
 
 .btn-link:hover:not(.btn-disabled) {
