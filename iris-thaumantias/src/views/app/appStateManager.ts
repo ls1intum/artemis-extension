@@ -73,13 +73,10 @@ export class AppStateManager {
         this._userInfo = userInfo;
         this._currentState = 'dashboard';
         
-        // Fetch courses data for the dashboard if not already cached
+        // Always fetch fresh courses data for the dashboard
         try {
-            if (!this._coursesData) {
-                this._coursesData = await this._artemisApi.getCoursesForDashboard();
-            }
+            this._coursesData = await this._artemisApi.getCoursesForDashboard();
             
-            // Note: We don't pre-populate the ExerciseRegistry here anymore
             // The registry is populated lazily when needed (e.g., when viewing course details, for Iris chat)
             // For workspace detection, we search coursesData directly (see _handleDetectWorkspaceExercise)
         } catch (error) {
@@ -100,10 +97,8 @@ export class AppStateManager {
 
     public async showCourseList(): Promise<void> {
         try {
-            // Fetch courses data if not already cached
-            if (!this._coursesData) {
-                this._coursesData = await this._artemisApi.getCoursesForDashboard();
-            }
+            // Always fetch fresh courses data
+            this._coursesData = await this._artemisApi.getCoursesForDashboard();
             
             this._currentState = 'course-list';
         } catch (error) {
