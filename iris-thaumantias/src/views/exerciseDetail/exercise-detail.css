@@ -328,7 +328,7 @@
             top: 0;
             bottom: 0;
             width: 0%;
-            background-color: var(--theme-success);
+            background-color: var(--vscode-button-background, #007acc);
             transition: width 0.3s ease-out;
         }
 

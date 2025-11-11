@@ -6,6 +6,7 @@ import { ButtonComponent } from "../components/button/buttonComponent";
 import { FullscreenButton, CloseButton } from "../components/button/iconButtons";
 import { BadgeComponent } from "../components/badge/badgeComponent";
 import { SubmissionStatusComponent } from "./components/submissionStatusComponent";
+import { ParticipationActionsComponent } from "./components/participationActionsComponent";
 
 export class ExerciseDetailView {
   private _extensionContext: vscode.ExtensionContext;
@@ -221,139 +222,27 @@ export class ExerciseDetailView {
     
 
     ${(() => {
-      // Generate submission status using component
-      // Generate submission status using component
+      // Generate submission status and participation actions using components
       const buildStatusHtml = SubmissionStatusComponent.generateHtml({
         transformed,
         exercise,
         uploadMessageIcon
       });
 
-      // Extract values still needed for other sections
-      const { hasParticipation, isProgrammingExercise, participationId } = transformed;
+      const participationActionsHtml = ParticipationActionsComponent.generateHtml({
+        hasParticipation: transformed.hasParticipation,
+        isProgrammingExercise: transformed.isProgrammingExercise,
+        isQuizExercise: transformed.isQuizExercise,
+        exerciseType: exercise.type || exercise.exerciseType,
+        participationId: transformed.participationId,
+        uploadMessageIcon
+      });
 
-      const changeStatusHtml =
-        hasParticipation && isProgrammingExercise
-          ? `
-            <div class=\"changes-status\" id=\"changesStatus\" data-state=\"checking\">
-                <span class=\"changes-status-indicator\"></span>
-                <span id=\"changesStatusText\">Checking workspace status...</span>
-            </div>
-        `
-          : "";
-
-      const actionsHtml = hasParticipation
-        ? isProgrammingExercise
-          ? `<div class=\"participation-actions\">
-                    ${changeStatusHtml}
-                    <div class=\"cloned-repo-notice\" id=\"clonedRepoNotice\" style=\"display: none;\">
-                        <span id=\"clonedRepoMessage\">Repository recently cloned.</span> ${ButtonComponent.generate({
-                            label: 'Open now',
-                            variant: 'link',
-                            command: 'openClonedRepository(); return false;',
-                            className: 'open-repo-link'
-                        })}
-                    </div>
-                    <div class=\"unsaved-changes-banner\" id=\"unsavedChangesBanner\" style=\"display: none;\">
-                        <span class=\"unsaved-changes-icon\">⚠️</span>
-                        <span class=\"unsaved-changes-text\">
-                            <strong>Unsaved changes detected.</strong> Please save your files before submitting.
-                            ${ButtonComponent.generate({
-                                label: 'Configure auto-save',
-                                variant: 'link',
-                                command: 'openAutoSaveSettings(); return false;',
-                                className: 'unsaved-changes-link'
-                            })}
-                        </span>
-                    </div>
-                    <div class=\"submit-button-group\" id=\"submitBtnGroup\" style=\"display: none;\">
-                        ${ButtonComponent.generate({
-                            label: 'Submit',
-                            variant: 'primary',
-                            id: 'submitBtn',
-                            command: 'submitExercise()',
-                            className: 'participate-btn'
-                        })}
-                        ${ButtonComponent.generate({
-                            icon: uploadMessageIcon,
-                            variant: 'primary',
-                            id: 'uploadMessageBtn',
-                            command: 'toggleCommitMessageInput()',
-                            className: 'upload-message-btn'
-                        })}
-                    </div>
-                    <div class=\"commit-message-input-container\" id=\"commitMessageContainer\" style=\"display: none;\">
-                        <input type=\"text\" id=\"commitMessageInput\" class=\"commit-message-input\" placeholder=\"Enter commit message...\" />
-                    </div>
-                    <div class=\"action-button-row\">
-                        <button class=\"participate-btn\" id=\"cloneBtn\" onclick=\"cloneRepository()\">Clone Repository</button>
-                        <div class=\"more-menu\" id=\"moreMenu\">
-                            <button class=\"more-toggle\" onclick=\"toggleMoreMenu()\">
-                                More options
-                            </button>
-                            <div class=\"more-dropdown\">
-                                <button class=\"dropdown-item\" id=\"cloneDropdownItem\" onclick=\"cloneRepository()\" style=\"display: none;\">Clone Repository</button>
-                                <button class=\"dropdown-item\" id=\"pullChangesItem\" onclick=\"pullChanges()\" style=\"display: none;\">Pull Changes</button>
-                                <button class=\"dropdown-item\" onclick=\"copyCloneUrl()\">Copy Clone URL</button>
-                                <button class=\"dropdown-item\" onclick=\"openExerciseInBrowser()\">Open in browser</button>
-                            </div>
-                        </div>
-                    </div>
-                </div>`
-          : `<div class=\"participation-actions\">
-                    <div class=\"action-button-row\">
-                        <button class=\"participate-btn\" onclick=\"openExerciseInBrowser()\">Open in browser</button>
-                    </div>
-                </div>`
-        : isProgrammingExercise
-        ? `<div class=\"participation-actions not-participated\">
-                    <div class=\"action-button-row\">
-                        <button class=\"participate-btn\" onclick=\"participateInExercise()\">Start Exercise</button>
-                        <button class=\"participate-btn secondary\" onclick=\"openExerciseInBrowser()\">Open in browser</button>
-                    </div>
-                </div>`
-        : `<div class=\"participation-actions not-participated\">
-                    <div class=\"action-button-row\">
-                        <button class=\"participate-btn\" onclick=\"openExerciseInBrowser()\">Open in browser</button>
-                    </div>
-                </div>`;
-
-      // Determine participation info based on exercise type
-      let participationStatus = "";
-      let participationMessage = "";
-
-      if (isProgrammingExercise) {
-        participationStatus = hasParticipation
-          ? "Repository Ready"
-          : "Not Participating Yet";
-        participationMessage = hasParticipation
-          ? "You have already started this exercise."
-          : "You have not started this exercise yet.";
-      } else {
-        // For non-programming exercises (quiz, modeling, text, file-upload)
-        const rawType = exercise.type || exercise.exerciseType || "";
-        const normalizedType = typeof rawType === "string" ? rawType.toLowerCase() : "";
-        const cleanedType = normalizedType
-          .replace(/_/g, " ")
-          .replace(/-/g, " ");
-        const exerciseTypeDisplay = cleanedType
-          ? cleanedType.charAt(0).toUpperCase() + cleanedType.slice(1)
-          : "Course";
-        const exerciseTypePlain = cleanedType || "course";
-        participationStatus = `${exerciseTypeDisplay} Exercise`;
-        participationMessage = `This is a ${exerciseTypePlain} exercise. Complete it in the browser.`;
-      }
-
-      return `<div class=\"participation-section\" data-has-participation=\"${hasParticipation}\" data-participation-id=\"${
-        participationId || ""
-      }\">
-        <div class=\"participation-info\">
-            <div class=\"participation-status\">${participationStatus}</div>
-            <div class=\"participation-message\">${participationMessage}</div>
-        </div>
-        ${actionsHtml}
+      // Wrap everything in the participation-section container
+      return `<div class="participation-section" data-has-participation="${transformed.hasParticipation}" data-participation-id="${transformed.participationId || ""}">
+        ${participationActionsHtml}
         ${buildStatusHtml}
-    </div>`;
+      </div>`;
     })()}
 
     <div class="content-section iris-assist-section">
