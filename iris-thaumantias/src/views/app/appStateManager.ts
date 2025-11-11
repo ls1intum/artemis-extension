@@ -140,10 +140,23 @@ export class AppStateManager {
         }
     }
 
-    public async showExerciseDetail(exerciseId: number): Promise<void> {
+    public async showExerciseDetail(exerciseId: number, forceRefresh: boolean = true): Promise<void> {
         try {
-            const exerciseDetails = await this._artemisApi.getExerciseDetails(exerciseId);
-            this._currentExerciseData = exerciseDetails;
+            // ALWAYS fetch fresh data by default to ensure we have the latest results
+            // This prevents stale data when WebSocket fails or disconnects
+            // Only skip if explicitly requested AND same exercise
+            const shouldFetch = forceRefresh || 
+                               !this._currentExerciseData || 
+                               this._currentExerciseData?.exercise?.id !== exerciseId;
+            
+            if (shouldFetch) {
+                console.log(`🔄 Fetching fresh exercise data for exercise ${exerciseId}`);
+                const exerciseDetails = await this._artemisApi.getExerciseDetails(exerciseId);
+                this._currentExerciseData = exerciseDetails;
+            } else {
+                console.log(`📦 Using cached exercise data for exercise ${exerciseId}`);
+            }
+            
             this._currentState = 'exercise-detail';
         } catch (error) {
             console.error('Error loading exercise details:', error);
@@ -153,6 +166,19 @@ export class AppStateManager {
 
     public backToCourseDetails(): void {
         this._currentState = 'course-detail';
+    }
+
+    /**
+     * Refresh the current exercise detail view with fresh data
+     */
+    public async refreshCurrentExercise(): Promise<void> {
+        if (this._currentState === 'exercise-detail' && this._currentExerciseData) {
+            const exerciseId = this._currentExerciseData?.exercise?.id || this._currentExerciseData?.id;
+            if (exerciseId) {
+                console.log(`🔄 Refreshing exercise ${exerciseId}`);
+                await this.showExerciseDetail(exerciseId, true); // Force refresh
+            }
+        }
     }
 
     // Data management

@@ -47,6 +47,33 @@ export class ArtemisWebsocketService {
     }
 
     /**
+     * Check if the WebSocket is currently connected
+     * Also attempts to ensure connection is valid
+     */
+    public isConnected(): boolean {
+        return this._isConnected && this._client?.connected === true;
+    }
+
+    /**
+     * Attempt to ensure WebSocket connection
+     * Returns true if connected, false otherwise
+     */
+    public async ensureConnection(): Promise<boolean> {
+        if (this.isConnected()) {
+            return true;
+        }
+
+        this._log('⚠️ WebSocket not connected, attempting to reconnect...');
+        try {
+            await this.connect();
+            return this.isConnected();
+        } catch (error) {
+            this._log(`❌ Failed to reconnect WebSocket: ${error instanceof Error ? error.message : 'Unknown error'}`);
+            return false;
+        }
+    }
+
+    /**
      * Connect to the Artemis WebSocket server
      */
     public async connect(): Promise<void> {
@@ -317,13 +344,6 @@ export class ArtemisWebsocketService {
             this._subscriptions.delete(topic);
             this._log(`Unsubscribed from ${topic}`);
         }
-    }
-
-    /**
-     * Check if currently connected
-     */
-    public isConnected(): boolean {
-        return this._isConnected && this._client?.connected === true;
     }
 
     /**

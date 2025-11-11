@@ -32,6 +32,17 @@
     align-items: center;
 }
 
+.badge-fixed-size {
+    box-sizing: border-box;
+    overflow: hidden;
+}
+
+.badge-fixed-size .badge-label {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
 /* Primary badge - Blue (similar to primary button) */
 .badge-primary {
     background-color: var(--vscode-button-background, #007acc);

@@ -203,7 +203,16 @@ export class ExerciseDetailView {
                     <div class="info-label">Course</div>
                     <div class="info-value course-pill">
                         <span>${courseName}</span>
-                        <span class="course-semester">${semester}</span>
+                        ${
+                          semester
+                            ? BadgeComponent.generate({
+                                label: semester,
+                                variant: 'secondary',
+                                className: 'course-semester-badge badge-compact',
+                                height: '1.5rem'
+                              })
+                            : ''
+                        }
                     </div>
                 </div>
                 ${
