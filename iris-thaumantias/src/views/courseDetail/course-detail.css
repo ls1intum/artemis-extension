@@ -181,27 +181,8 @@
             align-items: center;
         }
 
-        .exercise-item {
-            padding: 12px;
-            border: 1px solid var(--theme-border);
-            margin-bottom: 8px;
-            cursor: pointer;
-            overflow: hidden; /* prevent pill overflow */
-            border-radius: var(--theme-container-radius);
-            transition: none;
-            border-color: transparent;
-        }
-
-        .exercise-item:hover {
-            background: var(--theme-hover-background);
-            border-color: var(--vscode-focusBorder) !important;
-        }
-
-        .exercise-item:last-child {
-            margin-bottom: 0;
-        }
-
-        .exercise-header {
+        /* Exercise item content styles (ListItemComponent handles the container) */
+        .exercise-item .exercise-header {
             display: flex;
             justify-content: space-between;
             align-items: center;
@@ -210,7 +191,7 @@
             flex-wrap: nowrap; /* Keep on same line, let title truncate first */
         }
 
-        .exercise-title {
+        .exercise-item .exercise-title {
             font-weight: 600;
             color: var(--theme-foreground);
             flex: 1;
@@ -233,12 +214,12 @@
             border-radius: 4px;
         }
 
-        .exercise-type-icon svg {
+        .exercise-item .exercise-type-icon svg {
             width: 12px;
             height: 12px;
         }
 
-        .exercise-info {
+        .exercise-item .exercise-info {
             display: flex;
             gap: 16px;
             font-size: 12px;

@@ -4,6 +4,7 @@ import { readCssFiles } from '../utils';
 import { BackLinkComponent } from '../components/backLink/backLinkComponent';
 import { ButtonComponent } from '../components/button/buttonComponent';
 import { TextInputComponent } from '../components/input/textInputComponent';
+import { ListItemComponent } from '../components/listItem/listItemComponent';
 
 export class CourseDetailView {
     private _extensionContext: vscode.ExtensionContext;
@@ -17,7 +18,13 @@ export class CourseDetailView {
     }
 
     public generateHtml(courseData: any, hideDeveloperTools: boolean = false, webview?: vscode.Webview): string {
-        const styles = readCssFiles('components/backLink/back-link.css', 'courseDetail/course-detail.css', 'components/button/button.css', 'components/input/input.css');
+        const styles = readCssFiles(
+            'components/backLink/back-link.css', 
+            'courseDetail/course-detail.css', 
+            'components/button/button.css', 
+            'components/input/input.css',
+            'components/listItem/list-item.css'
+        );
         
         if (!courseData) {
             return this._getEmptyStateHtml(styles);
@@ -80,15 +87,23 @@ export class CourseDetailView {
                 const exerciseIcon = this._getExerciseIcon(exercise.type);
                 const dueDateTimestamp = exercise.dueDate ? new Date(exercise.dueDate).getTime() : 0;
                 const points = exercise.maxPoints || 0;
-                return `
-                    <div class="exercise-item" 
-                         data-title="${exercise.title?.toLowerCase() || ''}" 
-                         data-type="${exercise.type?.toLowerCase() || ''}" 
-                         data-exercise-id="${exercise.id}"
-                         data-due-date="${dueDateTimestamp}"
-                         data-points="${points}"
-                         data-id="${exercise.id}"
-                         onclick="openExerciseDetails(${exercise.id})">
+                
+                // Use ListItemComponent for consistent styling
+                return ListItemComponent.generate(
+                    {
+                        className: 'exercise-item',
+                        clickable: true,
+                        command: `openExerciseDetails(${exercise.id})`,
+                        dataAttributes: {
+                            'title': (exercise.title?.toLowerCase() || ''),
+                            'type': (exercise.type?.toLowerCase() || ''),
+                            'exercise-id': exercise.id.toString(),
+                            'due-date': dueDateTimestamp.toString(),
+                            'points': points.toString(),
+                            'id': exercise.id.toString()
+                        }
+                    },
+                    `
                         <div class="exercise-header">
                             <span class="exercise-title">${exercise.title}</span>
                             <span class="exercise-type-icon">${exerciseIcon}</span>
@@ -98,8 +113,8 @@ export class CourseDetailView {
                             <span>Released: ${releaseDate}</span>
                             <span>${points} ${points === 1 ? 'point' : 'points'}</span>
                         </div>
-                    </div>
-                `;
+                    `
+                );
             }).join('');
             
             // Show all exercises; no footer needed
@@ -211,6 +226,9 @@ export class CourseDetailView {
         const askIrisButton = document.getElementById('askIrisAboutCourseBtn');
         
         ${BackLinkComponent.generateScript()}
+        
+        // Enable keyboard navigation for list items
+        ${ListItemComponent.generateScript()}
         
         if (askIrisButton) {
             askIrisButton.addEventListener('click', () => {
