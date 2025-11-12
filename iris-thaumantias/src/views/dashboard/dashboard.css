@@ -142,10 +142,6 @@
             border-bottom: 1px solid var(--theme-border);
             padding-bottom: 8px;
         }
-        /* Recent Courses Section */
-        .recent-courses {
-            background: var(--theme-card-background);
-        }
         .action-buttons {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
