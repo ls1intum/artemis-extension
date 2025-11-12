@@ -15,6 +15,16 @@
             gap: calc(var(--theme-element-spacing) * 1.5);
         }
 
+        .header-container {
+            background: var(--theme-card-background);
+            border: 1px solid var(--theme-border);
+            border-radius: var(--theme-container-radius);
+            padding: var(--theme-container-padding);
+            box-shadow: var(--theme-box-shadow);
+            backdrop-filter: var(--theme-backdrop);
+            overflow: hidden;
+        }
+
         .view-header {
             display: flex;
             flex-direction: column;

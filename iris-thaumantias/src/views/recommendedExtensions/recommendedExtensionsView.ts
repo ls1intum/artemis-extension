@@ -36,11 +36,13 @@ export class RecommendedExtensionsView {
 <body>
     <div class="recommended-container">
         ${BackLinkComponent.generateHtml()}
-        <div class="view-header">
-            <h1 class="view-title">Recommended Extensions</h1>
-            <p class="view-subtitle">Improve your Artemis workflow with curated VS Code extensions.</p>
+        <div class="header-container">
+            <div class="view-header">
+                <h1 class="view-title">Recommended Extensions</h1>
+                <p class="view-subtitle">Improve your Artemis workflow with curated VS Code extensions.</p>
+            </div>
+            ${filterControls}
         </div>
-        ${filterControls}
         ${categorySections}
     </div>
 
