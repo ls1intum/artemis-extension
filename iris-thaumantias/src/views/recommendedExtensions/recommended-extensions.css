@@ -69,36 +69,6 @@
             gap: 8px;
         }
 
-        .filter-button {
-            border: 1px solid var(--theme-border);
-            background: transparent;
-            color: inherit;
-            padding: 6px 14px;
-            border-radius: var(--theme-container-radius);
-            font-size: 13px;
-            font-weight: 500;
-            cursor: pointer;
-            transition: var(--theme-transition);
-        }
-
-        .filter-button:hover {
-            border-color: var(--theme-button-background);
-            background: var(--theme-button-hover);
-            color: var(--theme-button-foreground);
-        }
-
-        .filter-button.active {
-            background: var(--theme-button-background);
-            border-color: var(--theme-button-background);
-            color: var(--theme-button-foreground);
-            box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.04);
-        }
-
-        .filter-button:focus-visible {
-            outline: 2px solid var(--theme-info);
-            outline-offset: 2px;
-        }
-
         .category-header {
             border-bottom: 1px solid var(--theme-border);
             padding-bottom: 12px;
@@ -123,25 +93,14 @@
             gap: var(--theme-element-spacing);
         }
 
+        /* Extension card content styles (ListItemComponent handles the container) */
         .extension-card {
-            background: var(--theme-card-background);
-            border: 1px solid var(--theme-border);
-            border-radius: var(--theme-container-radius);
-            padding: calc(var(--theme-container-padding) + 6px);
-            box-shadow: var(--theme-box-shadow);
-            backdrop-filter: var(--theme-backdrop);
             display: flex;
             flex-direction: column;
             gap: 18px;
-            transition: var(--theme-transition);
         }
-
-        .extension-card:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 8px 24px rgba(0,0,0,0.08);
-        }
-
-        .extension-header {
+        
+        .extension-card .extension-header {
             display: flex;
             align-items: flex-start;
             justify-content: space-between;
@@ -149,14 +108,14 @@
             flex-wrap: wrap;
         }
 
-        .extension-header-details {
+        .extension-card .extension-header-details {
             display: flex;
             flex-direction: column;
             gap: 2px;
             flex: 1 1 220px;
         }
 
-        .extension-pill-group {
+        .extension-card .extension-pill-group {
             display: flex;
             align-items: center;
             gap: 8px;
@@ -164,62 +123,25 @@
             justify-content: flex-end;
         }
 
-        .extension-name {
+        .extension-card .extension-name {
             font-size: 18px;
             font-weight: 600;
             margin: 0 0 4px 0;
         }
 
-        .extension-publisher {
+        .extension-card .extension-publisher {
             font-size: 13px;
             opacity: 0.75;
             margin: 0;
         }
 
-        .status-pill {
-            display: inline-flex;
-            align-items: center;
-            gap: 4px;
-            padding: 2px 10px;
-            border-radius: 999px;
-            font-size: 12px;
-            font-weight: 600;
-            text-transform: uppercase;
-            letter-spacing: 0.03em;
-        }
-
-        .status-pill.installed {
-            background: rgba(76, 175, 80, 0.18);
-            color: #2E7D32;
-        }
-
-        .status-pill.missing {
-            background: rgba(158, 158, 158, 0.18);
-            color: #555555;
-        }
-
-        .optional-pill {
-            display: inline-flex;
-            align-items: center;
-            gap: 4px;
-            background: rgba(125, 125, 125, 0.15);
-            color: inherit;
-            border: 1px solid rgba(125, 125, 125, 0.4);
-            border-radius: 999px;
-            padding: 2px 10px;
-            font-size: 12px;
-            font-weight: 600;
-            text-transform: uppercase;
-            letter-spacing: 0.02em;
-        }
-
-        .extension-description {
+        .extension-card .extension-description {
             font-size: 14px;
             margin: 0;
             line-height: 1.55;
         }
 
-        .extension-reason-label {
+        .extension-card .extension-reason-label {
             font-size: 12px;
             font-weight: 600;
             text-transform: uppercase;
@@ -227,13 +149,13 @@
             opacity: 0.75;
         }
 
-        .extension-reason {
+        .extension-card .extension-reason {
             font-size: 14px;
             margin: 0;
             line-height: 1.5;
         }
 
-        .extension-reason-block {
+        .extension-card .extension-reason-block {
             display: flex;
             flex-direction: column;
             gap: 6px;

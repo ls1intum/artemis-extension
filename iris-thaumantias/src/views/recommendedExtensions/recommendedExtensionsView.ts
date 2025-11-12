@@ -2,12 +2,16 @@ import { readCssFiles } from '../utils';
 import type { RecommendedExtensionCategory } from '../../utils/recommendedExtensions';
 import { BackLinkComponent } from '../components/backLink/backLinkComponent';
 import { ButtonComponent } from '../components/button/buttonComponent';
+import { ListItemComponent } from '../components/listItem/listItemComponent';
+import { BadgeComponent } from '../components/badge/badgeComponent';
 
 export class RecommendedExtensionsView {
     public generateHtml(categories: RecommendedExtensionCategory[] = []): string {
         const styles = readCssFiles(
             'components/backLink/back-link.css',
             'components/button/button.css',
+            'components/listItem/list-item.css',
+            'components/badge/badge.css',
             'recommendedExtensions/recommended-extensions.css'
         );
 
@@ -54,26 +58,31 @@ export class RecommendedExtensionsView {
             });
         });
 
+        // Filter functionality
         const filterButtons = Array.from(document.querySelectorAll('.filter-button'));
-        if (filterButtons.length > 0) {
-            const categorySections = Array.from(document.querySelectorAll('.category-section'));
+        const categorySections = Array.from(document.querySelectorAll('.category-section'));
 
-            const applyFilter = (categoryId) => {
-                categorySections.forEach(section => {
-                    const sectionId = section.getAttribute('data-category-id');
-                    const shouldShow = categoryId === 'all' || categoryId === sectionId;
-                    section.style.display = shouldShow ? '' : 'none';
-                });
-            };
-
-            filterButtons.forEach(button => {
-                button.addEventListener('click', () => {
-                    const selectedCategory = button.getAttribute('data-category');
-                    filterButtons.forEach(btn => btn.classList.toggle('active', btn === button));
-                    applyFilter(selectedCategory || 'all');
-                });
+        window.filterCategory = function(categoryId) {
+            categorySections.forEach(section => {
+                const sectionId = section.getAttribute('data-category-id');
+                const shouldShow = categoryId === 'all' || categoryId === sectionId;
+                section.style.display = shouldShow ? '' : 'none';
             });
-        }
+
+            // Update button states
+            filterButtons.forEach(btn => {
+                const btnCategory = btn.getAttribute('data-category');
+                if (btnCategory === categoryId) {
+                    btn.classList.add('active');
+                    btn.classList.remove('btn-secondary');
+                    btn.classList.add('btn-primary');
+                } else {
+                    btn.classList.remove('active');
+                    btn.classList.remove('btn-primary');
+                    btn.classList.add('btn-secondary');
+                }
+            });
+        };
     </script>
 </body>
 </html>`;
@@ -96,48 +105,82 @@ export class RecommendedExtensionsView {
 
     private _renderExtensionCard(extension: RecommendedExtensionCategory['extensions'][number]): string {
         const isInstalled = extension.isInstalled === true;
-        const optionalPill = extension.optional ? `<span class="optional-pill">Optional</span>` : '';
-        const statusPill = `<span class="status-pill ${isInstalled ? 'installed' : 'missing'}">${isInstalled ? 'Installed' : 'Not installed'}</span>`;
+        
+        // Use BadgeComponent for status and optional pills
+        const statusBadge = BadgeComponent.generate({
+            label: isInstalled ? 'Installed' : 'Not installed',
+            variant: isInstalled ? 'success' : 'secondary',
+            className: 'status-badge'
+        });
+        
+        const optionalBadge = extension.optional 
+            ? BadgeComponent.generate({
+                label: 'Optional',
+                variant: 'secondary',
+                className: 'optional-badge'
+            })
+            : '';
+        
         const publisherLine = extension.version ? `${extension.publisher} • v${extension.version}` : extension.publisher;
 
-        return `
-                <article class="extension-card" data-extension-id="${extension.id}" data-installed="${isInstalled}">
-                    <div class="extension-header">
-                        <div class="extension-header-details">
-                            <h3 class="extension-name">${extension.name}</h3>
-                            <p class="extension-publisher">${publisherLine}</p>
-                        </div>
-                        <div class="extension-pill-group">
-                            ${statusPill}
-                            ${optionalPill}
-                        </div>
+        return ListItemComponent.generate(
+            {
+                className: 'extension-card',
+                clickable: false,
+                hover: false,
+                dataAttributes: {
+                    'extension-id': extension.id,
+                    'installed': isInstalled.toString()
+                }
+            },
+            `
+                <div class="extension-header">
+                    <div class="extension-header-details">
+                        <h3 class="extension-name">${extension.name}</h3>
+                        <p class="extension-publisher">${publisherLine}</p>
                     </div>
-                    <p class="extension-description">${extension.description}</p>
-                    <div class="extension-reason-block">
-                        <div class="extension-reason-label">Why we recommend it</div>
-                        <p class="extension-reason">${extension.reason}</p>
+                    <div class="extension-pill-group">
+                        ${statusBadge}
+                        ${optionalBadge}
                     </div>
-                    ${ButtonComponent.generate({
-                        label: 'View in Marketplace',
-                        variant: 'secondary',
-                        className: 'marketplace-button',
-                        command: `openExtensionMarketplace('${extension.id}')`
-                    })}
-                </article>`;
+                </div>
+                <p class="extension-description">${extension.description}</p>
+                <div class="extension-reason-block">
+                    <div class="extension-reason-label">Why we recommend it</div>
+                    <p class="extension-reason">${extension.reason}</p>
+                </div>
+                ${ButtonComponent.generate({
+                    label: 'View in Marketplace',
+                    variant: 'secondary',
+                    className: 'marketplace-button',
+                    command: `openExtensionMarketplace('${extension.id}')`
+                })}
+            `
+        );
     }
 
     private _renderFilterControls(categories: RecommendedExtensionCategory[]): string {
-        const categoryButtons = categories.map(category => `
-                <button class="filter-button" data-category="${category.id}">
-                    ${category.name}
-                </button>
-        `).join('');
+        const categoryButtons = categories.map(category => 
+            ButtonComponent.generate({
+                label: category.name,
+                variant: 'secondary',
+                className: 'filter-button',
+                command: `filterCategory('${category.id}')`,
+                dataAttributes: { 'category': category.id }
+            })
+        ).join('');
 
         return `
         <div class="filter-bar">
-            <div class="filter-label">Filter</div>
+            <div class="filter-label">FILTER</div>
             <div class="filter-controls">
-                <button class="filter-button active" data-category="all">All categories</button>
+                ${ButtonComponent.generate({
+                    label: 'All categories',
+                    variant: 'primary',
+                    className: 'filter-button active',
+                    command: `filterCategory('all')`,
+                    dataAttributes: { 'category': 'all' }
+                })}
                 ${categoryButtons}
             </div>
         </div>`;
