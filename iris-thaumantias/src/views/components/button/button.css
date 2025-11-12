@@ -1,0 +1,334 @@
+/* Button Component - VS Code Styled */
+
+.btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 8px 16px;
+    border: 1px solid transparent;
+    border-radius: 4px;
+    font-family: var(--vscode-font-family);
+    font-size: var(--vscode-font-size);
+    font-weight: 400;
+    line-height: 18px;
+    text-align: center;
+    cursor: pointer;
+    transition: background-color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+    white-space: normal;
+    word-wrap: break-word;
+    user-select: none;
+    outline: none;
+    width: auto;
+    max-width: 100%;
+}
+
+/* Wrapped text buttons should be left-aligned */
+.btn[style*="width"],
+.btn-full-width,
+.btn-fixed-size {
+    text-align: left;
+    justify-content: flex-start;
+}
+
+/* Text alignment overrides - these should take precedence over full-width default */
+.btn.btn-align-left,
+.btn-align-left {
+    text-align: left !important;
+    justify-content: flex-start !important;
+}
+
+.btn.btn-align-center,
+.btn-align-center {
+    text-align: center !important;
+    justify-content: center !important;
+}
+
+.btn.btn-align-right,
+.btn-align-right {
+    text-align: right !important;
+    justify-content: flex-end !important;
+}
+
+.btn:focus-visible {
+    outline: 2px solid var(--vscode-focusBorder);
+    outline-offset: 2px;
+}
+
+/* Ensure ALL icons inside buttons never animate */
+.btn * {
+    transition: none !important;
+}
+
+.btn svg,
+.btn .btn-icon,
+.btn .btn-icon svg {
+    transition: none !important;
+    transform: none !important;
+}
+
+/* Icon color inheritance - stroke for outlined icons, fill for solid icons */
+.btn svg {
+    stroke: currentColor;
+    fill: none;
+}
+
+.btn svg path,
+.btn svg circle,
+.btn svg rect,
+.btn svg polygon {
+    stroke: currentColor;
+    fill: none;
+}
+
+/* For icons that need fill (like solid icons), override with fill attribute */
+.btn svg[fill]:not([fill="none"]),
+.btn svg path[fill]:not([fill="none"]),
+.btn svg circle[fill]:not([fill="none"]),
+.btn svg rect[fill]:not([fill="none"]),
+.btn svg polygon[fill]:not([fill="none"]) {
+    fill: currentColor;
+    stroke: none;
+}
+
+/* Primary Button - Blue solid background like "Commit" */
+.btn-primary {
+    background-color: var(--vscode-button-background, #007acc);
+    color: var(--vscode-button-foreground, #ffffff);
+    border-color: var(--vscode-button-background, #007acc);
+}
+
+.btn-primary:hover:not(.btn-disabled) {
+    background-color: var(--vscode-button-hoverBackground, #005a9e);
+    border-color: var(--vscode-button-hoverBackground, #005a9e);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+}
+
+.btn-primary:active:not(.btn-disabled) {
+    background-color: var(--vscode-button-hoverBackground, #004578);
+    box-shadow: none;
+}
+
+/* Primary button icons should match text color (white) */
+.btn-primary .btn-icon,
+.btn-primary .btn-icon svg,
+.btn-primary svg {
+    color: inherit;
+}
+
+/* Secondary Button - White background with blue border like "Feedback" */
+.btn-secondary {
+    background-color: var(--vscode-editor-background, #ffffff);
+    color: var(--vscode-textLink-foreground, #007acc);
+    border: 1px solid var(--vscode-textLink-foreground, #007acc);
+}
+
+.btn-secondary:hover:not(.btn-disabled) {
+    background-color: rgba(0, 122, 204, 0.05);
+    border-color: var(--vscode-textLink-activeForeground, #005a9e);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+.btn-secondary:active:not(.btn-disabled) {
+    background-color: rgba(0, 122, 204, 0.1);
+    box-shadow: none;
+}
+
+/* Secondary button icons should match text color (blue) */
+.btn-secondary .btn-icon,
+.btn-secondary .btn-icon svg,
+.btn-secondary svg {
+    color: inherit;
+}
+
+/* Icon Button (minimal style for toolbar-like buttons) */
+.btn-icon {
+    padding: 4px;
+    background-color: transparent;
+    color: var(--vscode-icon-foreground);
+    border: none;
+    min-width: 28px;
+    min-height: 28px;
+}
+
+/* Icon within button - ensure proper sizing */
+.btn-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+    height: 16px;
+    flex-shrink: 0;
+}
+
+.btn-icon svg {
+    width: 16px;
+    height: 16px;
+    fill: currentColor;
+}
+
+/* Label within button */
+.btn-label {
+    display: inline-block;
+    flex: 1;
+    min-width: 0;
+}
+
+/* Full width button */
+.btn-full-width {
+    width: 100%;
+    display: flex;
+}
+
+/* Link Button - styled like a text link */
+.btn-link {
+    background-color: transparent;
+    color: var(--vscode-textLink-foreground, #007acc);
+    border: none;
+    padding: 0;
+    text-decoration: none;
+    cursor: pointer;
+    font-weight: 400;
+    font-size: var(--vscode-font-size, 13px);
+    font-family: inherit;
+    text-align: left;
+    justify-content: flex-start;
+    white-space: nowrap;
+}
+
+.btn-link:hover:not(.btn-disabled) {
+    text-decoration: underline;
+    background-color: transparent;
+}
+
+.btn-link:active:not(.btn-disabled) {
+    color: var(--vscode-textLink-activeForeground, #005a9e);
+}
+
+.btn-link .btn-icon,
+.btn-link .btn-icon svg {
+    color: inherit;
+}
+
+/* Disabled state */
+.btn-disabled,
+.btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+    pointer-events: none;
+}
+
+/* Button with icon and label - reduce left padding since icon provides visual offset */
+.btn-with-icon {
+    padding-left: 8px;
+}
+
+/* Fixed size button - reduces padding to fit content within fixed dimensions */
+.btn-fixed-size {
+    padding: 4px 12px;
+    box-sizing: border-box;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Fixed size button with icon - even less left padding */
+.btn-fixed-size.btn-with-icon {
+    padding-left: 4px;
+}
+
+/* Fixed size icon-only button - minimal padding */
+.btn-fixed-size:empty,
+.btn-fixed-size:has(svg):not(:has(.btn-label)):not(:has(text)) {
+    padding: 4px;
+}
+
+/* Button groups */
+.btn-group {
+    display: inline-flex;
+    gap: 8px;
+}
+
+.btn-group .btn {
+    flex: 1;
+}
+
+/* Compact button variant */
+.btn-compact {
+    padding: 2px 8px;
+    font-size: 12px;
+    line-height: 16px;
+}
+
+/* Large button variant */
+.btn-large {
+    padding: 10px 20px;
+    font-size: 14px;
+    line-height: 20px;
+}
+
+/* Button with only icon (no label, no text content) - adjusted spacing */
+.btn:empty,
+.btn:has(svg):not(:has(.btn-label)):not(:has(text)) {
+    padding: 6px;
+}
+
+/* Icon-only variants for different sizes */
+.btn-icon.btn-compact {
+    min-width: 22px;
+    min-height: 22px;
+    padding: 3px;
+}
+
+.btn-icon.btn-large {
+    min-width: 32px;
+    min-height: 32px;
+    padding: 8px;
+}
+
+/* Danger/destructive button variant - Red solid background */
+.btn-danger {
+    background-color: var(--vscode-errorForeground, #f14c4c);
+    color: #ffffff;
+    border-color: var(--vscode-errorForeground, #f14c4c);
+}
+
+.btn-danger:hover:not(.btn-disabled) {
+    background-color: var(--vscode-errorForeground, #e53e3e);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+}
+
+.btn-danger:active:not(.btn-disabled) {
+    background-color: var(--vscode-errorForeground, #c53030);
+    box-shadow: none;
+}
+
+/* Danger button icons should match text color (white) */
+.btn-danger .btn-icon,
+.btn-danger .btn-icon svg,
+.btn-danger svg {
+    color: inherit;
+}
+
+/* Success button variant - Green solid background */
+.btn-success {
+    background-color: var(--vscode-testing-iconPassed, #73c991);
+    color: #ffffff;
+    border-color: var(--vscode-testing-iconPassed, #73c991);
+}
+
+.btn-success:hover:not(.btn-disabled) {
+    background-color: var(--vscode-testing-iconPassed, #5fb879);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+}
+
+.btn-success:active:not(.btn-disabled) {
+    background-color: var(--vscode-testing-iconPassed, #4fa765);
+    box-shadow: none;
+}
+
+/* Success button icons should match text color (white) */
+.btn-success .btn-icon,
+.btn-success .btn-icon svg,
+.btn-success svg {
+    color: inherit;
+}

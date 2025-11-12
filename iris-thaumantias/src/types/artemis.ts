@@ -193,3 +193,17 @@ export interface WebSocketMessageHandler {
     onNewSubmission?: (submission: ProgrammingSubmission) => void;
     onSubmissionProcessing?: (message: SubmissionProcessingMessage) => void;
 }
+
+// Build log types
+export interface BuildLogEntry {
+    id: number;
+    time: string;  // ISO timestamp
+    log: string;   // The log message (max 255 chars per entry)
+}
+
+export interface ParsedBuildError {
+    filePath: string;  // Relative path like: src/de/tum/cit/aet/Main.java
+    line: number;      // Line number (1-based)
+    column?: number;   // Column number (1-based, optional)
+    message: string;   // Error message
+}

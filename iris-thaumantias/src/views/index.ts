@@ -4,17 +4,18 @@ export { ViewActionService } from './app/viewActionService';
 export { WebViewMessageHandler } from './app/webViewMessageHandler';
 export type { WebViewActionHandler } from './app/types';
 
-export { ArtemisWebviewProvider } from './provider/artemisWebviewProvider';
-export { ChatWebviewProvider } from './provider/chatWebviewProvider';
+export { ServiceHealthComponent } from './components/serviceHealth/serviceHealthComponent';
+export { BackLinkComponent } from './components/backLink/backLinkComponent';
+export { ButtonComponent, type ButtonOptions } from './components/button/buttonComponent';
 
-export { ServiceHealthComponent } from './components/serviceHealthComponent';
+export { AiCheckerView } from './aiChecker/aiCheckerView';
+export { CourseDetailView } from './courseDetail/courseDetailView';
+export { CourseListView } from './courseList/courseListView';
+export { DashboardView } from './dashboard/dashboardView';
+export { ExerciseDetailView } from './exerciseDetail/exerciseDetailView';
+export { RecommendedExtensionsView } from './recommendedExtensions/recommendedExtensionsView';
+export { IrisChatView } from './irisChat/irisChatView';
+export { LoginView } from './login/loginView';
+export { ServiceStatusView } from './serviceStatus/serviceStatusView';
+export { GitCredentialsView } from './gitCredentials/gitCredentialsView';
 
-export { AiCheckerView } from './templates/aiCheckerView';
-export { CourseDetailView } from './templates/courseDetailView';
-export { CourseListView } from './templates/courseListView';
-export { DashboardView } from './templates/dashboardView';
-export { ExerciseDetailView } from './templates/exerciseDetailView';
-export { RecommendedExtensionsView } from './templates/recommendedExtensionsView';
-export { IrisChatView } from './templates/irisChatView';
-export { LoginView } from './templates/loginView';
-export { ServiceStatusView } from './templates/serviceStatusView';

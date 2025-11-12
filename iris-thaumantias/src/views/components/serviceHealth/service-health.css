@@ -1,0 +1,200 @@
+.service-health-component {
+    background: var(--theme-card-background);
+    border: 1px solid var(--theme-border);
+    border-radius: var(--theme-container-radius);
+    padding: var(--theme-container-padding);
+    margin-bottom: var(--theme-element-spacing);
+    box-shadow: var(--theme-box-shadow);
+    backdrop-filter: var(--theme-backdrop);
+}
+
+.health-checks-title {
+    color: var(--theme-foreground);
+    font-size: 18px;
+    font-weight: 600;
+    margin: 0 0 16px 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.health-status-item {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--theme-border);
+    position: relative;
+    cursor: help;
+    transition: background 0.2s ease, padding 0.2s ease;
+}
+
+.health-status-item:hover {
+    background: var(--theme-input-background);
+    padding-left: 12px;
+    padding-right: 12px;
+    padding-top: 16px;
+    padding-bottom: 16px;
+    margin-left: -12px;
+    margin-right: -12px;
+    border-radius: 8px;
+}
+
+.health-status-item:last-of-type {
+    border-bottom: none;
+}
+
+.health-status-main {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+}
+
+.health-label {
+    font-size: 14px;
+    color: var(--theme-foreground);
+    font-weight: 500;
+}
+
+.health-value {
+    font-size: 13px;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.health-indicator {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    display: inline-block;
+}
+
+.health-indicator.checking {
+    background: #ffd700;
+    animation: pulse 1.5s infinite;
+}
+
+.health-indicator.online {
+    background: var(--theme-success);
+}
+
+.health-indicator.offline {
+    background: var(--theme-error);
+}
+
+.health-indicator.unknown {
+    background: #888;
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.6; transform: scale(0.95); }
+}
+
+.health-last-check {
+    text-align: center;
+    color: var(--theme-foreground);
+    opacity: 0.6;
+    font-size: 12px;
+    margin-top: 12px;
+    margin-bottom: 12px;
+}
+
+.health-tooltip {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.3s ease, padding 0.3s ease, margin 0.3s ease;
+    margin: 0;
+    padding: 0;
+}
+
+.health-status-item:hover .health-tooltip {
+    max-height: 200px;
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid var(--theme-border);
+}
+
+.tooltip-content {
+    background: var(--theme-input-background);
+    color: var(--theme-foreground);
+    padding: 12px 16px;
+    border-radius: 6px;
+    border: 1px solid var(--theme-border);
+    font-size: 11px;
+    line-height: 1.8;
+    opacity: 0;
+    transform: translateY(-10px);
+    transition: opacity 0.3s ease 0.1s, transform 0.3s ease 0.1s;
+}
+
+.health-status-item:hover .tooltip-content {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+.tooltip-content strong {
+    color: var(--theme-foreground);
+    opacity: 0.8;
+    font-weight: 600;
+    display: inline-block;
+    min-width: 90px;
+}
+
+.tooltip-content code {
+    background: var(--theme-card-background);
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-family: 'Monaco', 'Courier New', monospace;
+    font-size: 10px;
+    color: var(--theme-info);
+    border: 1px solid var(--theme-border);
+    word-break: break-all;
+}
+
+.tooltip-content span {
+    font-family: 'Monaco', 'Courier New', monospace;
+    font-size: 10px;
+}
+
+.tooltip-content br {
+    line-height: 2;
+}
+
+.health-compact {
+    padding: 12px;
+}
+
+.health-compact .health-checks-title {
+    font-size: 14px;
+    margin-bottom: 12px;
+}
+
+.health-compact .health-status-item {
+    padding: 8px 0;
+}
+
+.health-compact .health-status-item:hover {
+    padding-top: 12px;
+    padding-bottom: 12px;
+}
+
+.health-compact .health-label {
+    font-size: 12px;
+}
+
+.health-compact .health-value {
+    font-size: 11px;
+}
+
+.health-compact .health-indicator {
+    width: 8px;
+    height: 8px;
+}
+
+.health-compact .health-last-check {
+    font-size: 10px;
+}

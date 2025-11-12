@@ -1,0 +1,267 @@
+        body {
+            font-family: var(--theme-font-family);
+            color: var(--theme-foreground);
+            background: var(--theme-background);
+            margin: 0;
+            padding: 16px;
+            position: relative;
+            min-height: calc(100vh - 32px);
+            transition: var(--theme-transition);
+        }
+        /* Dashboard view styling */
+        .dashboard {
+            padding: 0;
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        .dashboard-header {
+            background: var(--theme-card-background);
+            border: 1px solid var(--theme-border);
+            border-radius: var(--theme-container-radius);
+            padding: var(--theme-container-padding);
+            margin-bottom: var(--theme-element-spacing);
+            box-shadow: var(--theme-box-shadow);
+            backdrop-filter: var(--theme-backdrop);
+            overflow: hidden; /* clamp inner overflow for rounded corners */
+        }
+        .dashboard-title {
+            color: var(--theme-foreground);
+            font-size: 24px;
+            font-weight: 700;
+            margin: 0 0 8px 0;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .dashboard-subtitle {
+            color: var(--theme-foreground);
+            opacity: 0.7;
+            font-size: 14px;
+            margin: 0;
+        }
+        .iris-info-cell {
+            background: var(--theme-card-background);
+            border: 1px solid var(--theme-border);
+            border-radius: var(--theme-container-radius);
+            padding: var(--theme-container-padding);
+            margin-bottom: var(--theme-element-spacing);
+            box-shadow: var(--theme-box-shadow);
+            backdrop-filter: var(--theme-backdrop);
+            overflow: hidden;
+            transition: var(--theme-transition);
+        }
+        .iris-header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 12px;
+        }
+        .iris-icon {
+            width: 40px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 18px;
+            flex-shrink: 0;
+            position: relative;
+        }
+        .iris-icon img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.4));
+            position: relative;
+            z-index: 1;
+        }
+        .iris-info {
+            flex: 1;
+        }
+        .iris-title {
+            color: var(--theme-foreground);
+            font-size: 18px;
+            font-weight: 600;
+            margin: 0 0 4px 0;
+        }
+        .iris-subtitle {
+            color: var(--theme-foreground);
+            opacity: 0.7;
+            font-size: 13px;
+            margin: 0;
+        }
+        .iris-usage-explanation {
+            margin-top: 16px;
+        }
+        .iris-usage-explanation h4 {
+            color: var(--theme-foreground);
+            font-size: 16px;
+            margin: 0 0 12px 0;
+            font-weight: 600;
+        }
+        .iris-usage-explanation ol {
+            color: var(--theme-foreground);
+            opacity: 0.9;
+            font-size: 14px;
+            margin: 0 0 16px 0;
+            padding-left: 20px;
+            line-height: 1.6;
+        }
+        .iris-usage-explanation li {
+            margin-bottom: 8px;
+        }
+        .iris-note {
+            color: var(--theme-foreground);
+            font-size: 13px;
+            margin: 12px 0 0 0;
+            padding: 4px 0;
+            opacity: 0.8;
+            line-height: 1.5;
+        }
+        .iris-note:first-of-type {
+            margin-top: 20px;
+        }
+        .btn-icon {
+            font-size: 16px;
+        }
+        .quick-actions {
+            background: var(--theme-card-background);
+            border: 1px solid var(--theme-border);
+            border-radius: var(--theme-container-radius);
+            padding: var(--theme-container-padding);
+            margin-bottom: var(--theme-element-spacing);
+            box-shadow: var(--theme-box-shadow);
+            backdrop-filter: var(--theme-backdrop);
+            overflow: hidden; /* clamp inner overflow for rounded corners */
+        }
+        .quick-actions h3 {
+            color: var(--theme-foreground);
+            font-size: 18px;
+            font-weight: 600;
+            margin: 0 0 16px 0;
+            border-bottom: 1px solid var(--theme-border);
+            padding-bottom: 8px;
+        }
+        .action-buttons {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 12px;
+        }
+        
+        /* Workspace Exercise Item - using ListItemComponent */
+        .workspace-exercise-container {
+            margin-bottom: 16px;
+        }
+        .workspace-exercise-item .workspace-exercise-content {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .workspace-exercise-item .workspace-exercise-icon {
+            width: 20px;
+            height: 20px;
+            flex-shrink: 0;
+            opacity: 0.8;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .workspace-exercise-item .workspace-exercise-icon svg {
+            width: 100%;
+            height: 100%;
+            fill: currentColor;
+        }
+        .workspace-exercise-item .workspace-exercise-text {
+            flex: 1;
+            text-align: left;
+            min-width: 0; /* Allow text truncation */
+        }
+        .workspace-exercise-item .workspace-exercise-title {
+            font-size: 11px;
+            opacity: 0.6;
+            font-weight: 500;
+            margin-bottom: 2px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .workspace-exercise-item .workspace-exercise-name {
+            font-size: 14px;
+            font-weight: 600;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .workspace-exercise-item .workspace-exercise-arrow {
+            font-size: 18px;
+            opacity: 0.5;
+            flex-shrink: 0;
+        }
+        /* Recent Courses Section */
+        .recent-courses {
+            background: var(--theme-card-background);
+            border: 1px solid var(--theme-border);
+            border-radius: var(--theme-container-radius);
+            padding: var(--theme-container-padding);
+            margin-bottom: var(--theme-element-spacing);
+            box-shadow: var(--theme-box-shadow);
+            backdrop-filter: var(--theme-backdrop);
+            overflow: hidden; /* clamp inner overflow for rounded corners */
+        }
+        .recent-courses h3 {
+            color: var(--theme-foreground);
+            font-size: 18px;
+            font-weight: 600;
+            margin: 0 0 16px 0;
+            border-bottom: 1px solid var(--theme-border);
+            padding-bottom: 8px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .recent-courses-controls {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .sort-dropdown {
+            background: var(--theme-input-background);
+            color: var(--theme-input-foreground);
+            border: 1px solid var(--theme-input-border);
+            border-radius: calc(var(--theme-container-radius) * 0.6);
+            padding: 4px 8px;
+            font-size: 11px;
+            font-family: var(--theme-font-family);
+            cursor: pointer;
+            transition: var(--theme-transition);
+        }
+        .sort-dropdown:hover {
+            border-color: var(--theme-input-focus);
+        }
+        .sort-dropdown:focus {
+            outline: none;
+            border-color: var(--theme-input-focus);
+            box-shadow: 0 0 0 2px var(--theme-input-focus);
+        }
+        
+        /* Recent course item content styles (ListItemComponent handles the container) */
+        .recent-course-item .course-title {
+            font-weight: 600;
+            color: var(--theme-foreground);
+            font-size: 14px;
+            margin-bottom: 4px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .recent-course-item .course-info {
+            font-size: 12px;
+            color: var(--theme-foreground);
+            opacity: 0.9;
+        }
+        .no-courses {
+            text-align: center;
+            color: var(--theme-foreground);
+            opacity: 0.6;
+            font-style: italic;
+            padding: 16px 0;
+        }

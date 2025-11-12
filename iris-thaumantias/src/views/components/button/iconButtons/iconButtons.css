@@ -1,0 +1,85 @@
+/* Icon Button Components - Compact action buttons with icons */
+
+.icon-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    background-color: transparent;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background-color 0.15s ease, color 0.15s ease;
+    outline: none;
+    flex-shrink: 0;
+}
+
+.icon-btn svg {
+    width: 16px;
+    height: 16px;
+    pointer-events: none;
+}
+
+.icon-btn:focus-visible {
+    outline: 2px solid var(--vscode-focusBorder);
+    outline-offset: 2px;
+}
+
+/* Checkmark button (confirm/accept) - Green accent */
+.icon-btn-checkmark {
+    color: var(--vscode-icon-foreground, #c5c5c5);
+}
+
+.icon-btn-checkmark:hover:not(.icon-btn-disabled) {
+    background-color: var(--vscode-button-background, #007acc);
+    color: var(--vscode-button-foreground, #ffffff);
+}
+
+.icon-btn-checkmark:active:not(.icon-btn-disabled) {
+    background-color: var(--vscode-button-hoverBackground, #005a9e);
+}
+
+/* Close button (cancel/close) - Red accent on hover */
+.icon-btn-close {
+    color: var(--vscode-icon-foreground, #c5c5c5);
+}
+
+.icon-btn-close:hover:not(.icon-btn-disabled) {
+    background-color: var(--vscode-inputValidation-errorBackground, rgba(244, 71, 71, 0.2));
+    color: var(--vscode-errorForeground, #f48771);
+}
+
+.icon-btn-close:active:not(.icon-btn-disabled) {
+    background-color: var(--vscode-inputValidation-errorBackground, rgba(244, 71, 71, 0.3));
+}
+
+/* Fullscreen button */
+.icon-btn-fullscreen {
+    color: var(--vscode-icon-foreground, #c5c5c5);
+}
+
+.icon-btn-fullscreen:hover:not(.icon-btn-disabled) {
+    background-color: var(--vscode-toolbar-hoverBackground, rgba(90, 93, 94, 0.31));
+    color: var(--vscode-foreground, #cccccc);
+}
+
+.icon-btn-fullscreen:active:not(.icon-btn-disabled) {
+    background-color: var(--vscode-toolbar-activeBackground, rgba(99, 102, 103, 0.4));
+}
+
+/* Disabled state */
+.icon-btn-disabled,
+.icon-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+    pointer-events: none;
+}
+
+/* Icon button group - for placing multiple icon buttons together */
+.icon-btn-group {
+    display: inline-flex;
+    gap: 4px;
+    align-items: center;
+}

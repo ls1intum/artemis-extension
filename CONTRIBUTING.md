@@ -68,9 +68,9 @@ Then create a Pull Request on GitHub.
 
 ### Styling
 - Follow existing CSS structure
-- Use CSS variables for theme support
+- Use VS Code theme tokens exposed via CSS variables
 - Keep styles scoped to components
-- Test in all three themes (vscode, modern, synthwave)
+- Test in both light and dark VS Code themes
 
 ### Commits
 - Use conventional commit format
@@ -93,7 +93,6 @@ src/
 │   ├── templates/        # HTML generators
 │   ├── app/              # State management & routing
 │   └── commands/         # Command handlers
-├── themes/               # Add new themes here
 ├── types/                # TypeScript definitions
 └── utils/                # Helper functions
 ```
@@ -115,12 +114,6 @@ src/
 1. Add method to `src/api/artemisApi.ts`
 2. Define types in `src/types/artemis.ts`
 3. Use in your view or command handler
-
-### Adding a Theme
-1. Create theme file in `src/themes/themes/yourTheme.ts`
-2. Register in `src/themes/index.ts`
-3. Add CSS in `media/styles/themes/theme-yourtheme.css`
-4. Update `package.json` configuration enum
 
 ## Testing
 

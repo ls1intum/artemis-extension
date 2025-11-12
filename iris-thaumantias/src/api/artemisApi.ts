@@ -79,7 +79,12 @@ export class ArtemisApiService {
     // - studentParticipations with ALL submissions and results
     // No query parameters or additional enrichment needed
     async getExerciseDetails(exerciseId: number): Promise<any> {
-        const response = await this.makeRequest(`/api/exercise/exercises/${exerciseId}/details`);
+        // Request exercise details with all submissions and their latest results
+        // withSubmissions=true ensures we get submission data
+        // withLatestResult=true ensures each submission includes its most recent result
+        const response = await this.makeRequest(
+            `/api/exercise/exercises/${exerciseId}/details?withSubmissions=true&withLatestResult=true`
+        );
         const exerciseData: any = await response.json();
 
         // Debug: Log what we actually received
@@ -101,6 +106,32 @@ export class ArtemisApiService {
         return exerciseData;
     }
 
+    // Get latest pending submission for a participation
+    // A pending submission is one that has NO result yet (build in progress)
+    // Returns null if no pending submission exists
+    async getLatestPendingSubmission(participationId: number): Promise<any> {
+        try {
+            const response = await this.makeRequest(
+                `/api/programming/programming-exercise-participations/${participationId}/latest-pending-submission`
+            );
+            
+            // Check if response has content
+            const text = await response.text();
+            if (!text || text.trim() === '') {
+                console.log(`No pending submission for participation ${participationId}`);
+                return null;
+            }
+            
+            // Parse JSON
+            const data = JSON.parse(text);
+            return data;
+        } catch (error) {
+            // If no pending submission exists, API may return 404 or empty response
+            console.log(`No pending submission for participation ${participationId}:`, error);
+            return null;
+        }
+    }
+
     // Get participations for the current user
     async getParticipations(): Promise<any[]> {
         const response = await this.makeRequest('/api/core/participations');
@@ -117,6 +148,16 @@ export class ArtemisApiService {
     async getResultDetails(participationId: number, resultId: number): Promise<any> {
         const response = await this.makeRequest(`/api/assessment/participations/${participationId}/results/${resultId}/details`);
         return response.json();
+    }
+
+    // Get build logs for a participation (optionally for a specific result)
+    async getBuildLogs(participationId: number, resultId?: number): Promise<any[]> {
+        let endpoint = `/api/programming/participations/${participationId}/buildlogs`;
+        if (resultId !== undefined) {
+            endpoint += `?resultId=${resultId}`;
+        }
+        const response = await this.makeRequest(endpoint);
+        return response.json() as Promise<any[]>;
     }
 
     // Check if user is authenticated

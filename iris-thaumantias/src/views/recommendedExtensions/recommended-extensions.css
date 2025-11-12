@@ -1,0 +1,195 @@
+        body {
+            font-family: var(--theme-font-family);
+            color: var(--theme-foreground);
+            background: var(--theme-background);
+            margin: 0;
+            padding: 0 16px 16px 16px;
+            transition: var(--theme-transition);
+        }
+
+        .recommended-container {
+            max-width: 960px;
+            margin: 0 auto;
+            display: flex;
+            flex-direction: column;
+            gap: calc(var(--theme-element-spacing) * 1.5);
+        }
+
+        .header-container {
+            background: var(--theme-card-background);
+            border: 1px solid var(--theme-border);
+            border-radius: var(--theme-container-radius);
+            padding: var(--theme-container-padding);
+            box-shadow: var(--theme-box-shadow);
+            backdrop-filter: var(--theme-backdrop);
+            overflow: hidden;
+        }
+
+        .view-header {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            margin-bottom: var(--theme-element-spacing);
+        }
+
+        .view-header > * {
+            line-height: 1.35;
+        }
+
+        .view-title {
+            font-size: 26px;
+            font-weight: 700;
+            margin: 0;
+            letter-spacing: -0.01em;
+        }
+
+        .view-subtitle {
+            font-size: 14px;
+            opacity: 0.7;
+            margin: 0;
+            max-width: 640px;
+        }
+
+        .category-section {
+            display: flex;
+            flex-direction: column;
+            gap: var(--theme-element-spacing);
+        }
+
+        .filter-bar {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 8px;
+            margin-top: 4px;
+            margin-bottom: calc(var(--theme-element-spacing) * 0.75);
+        }
+
+        .filter-label {
+            font-size: 13px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            opacity: 0.65;
+        }
+
+        .filter-controls {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .category-header {
+            border-bottom: 1px solid var(--theme-border);
+            padding-bottom: 12px;
+            margin-bottom: calc(var(--theme-element-spacing) * 0.75);
+        }
+
+        .category-name {
+            font-size: 20px;
+            margin: 0;
+            line-height: 1.4;
+        }
+
+        .category-description {
+            font-size: 14px;
+            margin: 4px 0 0 0;
+            opacity: 0.75;
+        }
+
+        .extensions-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: var(--theme-element-spacing);
+        }
+
+        /* Extension card content styles (ListItemComponent handles the container) */
+        .extension-card {
+            display: flex;
+            flex-direction: column;
+            gap: 18px;
+        }
+        
+        .extension-card .extension-header {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 16px;
+            flex-wrap: wrap;
+        }
+
+        .extension-card .extension-header-details {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+            flex: 1 1 220px;
+        }
+
+        .extension-card .extension-pill-group {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: wrap;
+            justify-content: flex-end;
+        }
+
+        .extension-card .extension-name {
+            font-size: 18px;
+            font-weight: 600;
+            margin: 0 0 4px 0;
+        }
+
+        .extension-card .extension-publisher {
+            font-size: 13px;
+            opacity: 0.75;
+            margin: 0;
+        }
+
+        .extension-card .extension-description {
+            font-size: 14px;
+            margin: 0;
+            line-height: 1.55;
+        }
+
+        .extension-card .extension-reason-label {
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            opacity: 0.75;
+        }
+
+        .extension-card .extension-reason {
+            font-size: 14px;
+            margin: 0;
+            line-height: 1.5;
+        }
+
+        .extension-card .extension-reason-block {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .empty-state {
+            background: var(--theme-card-background);
+            border: 1px solid var(--theme-border);
+            border-radius: var(--theme-container-radius);
+            box-shadow: var(--theme-box-shadow);
+            backdrop-filter: var(--theme-backdrop);
+            padding: var(--theme-container-padding);
+            text-align: center;
+            font-size: 14px;
+            opacity: 0.75;
+        }
+
+
+        @media (max-width: 768px) {
+            body {
+                padding: 0 12px 12px 12px;
+            }
+
+            .extensions-grid {
+                grid-template-columns: 1fr;
+            }
+        }

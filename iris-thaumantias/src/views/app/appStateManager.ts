@@ -73,13 +73,10 @@ export class AppStateManager {
         this._userInfo = userInfo;
         this._currentState = 'dashboard';
         
-        // Fetch courses data for the dashboard if not already cached
+        // Always fetch fresh courses data for the dashboard
         try {
-            if (!this._coursesData) {
-                this._coursesData = await this._artemisApi.getCoursesForDashboard();
-            }
+            this._coursesData = await this._artemisApi.getCoursesForDashboard();
             
-            // Note: We don't pre-populate the ExerciseRegistry here anymore
             // The registry is populated lazily when needed (e.g., when viewing course details, for Iris chat)
             // For workspace detection, we search coursesData directly (see _handleDetectWorkspaceExercise)
         } catch (error) {
@@ -100,10 +97,8 @@ export class AppStateManager {
 
     public async showCourseList(): Promise<void> {
         try {
-            // Fetch courses data if not already cached
-            if (!this._coursesData) {
-                this._coursesData = await this._artemisApi.getCoursesForDashboard();
-            }
+            // Always fetch fresh courses data
+            this._coursesData = await this._artemisApi.getCoursesForDashboard();
             
             this._currentState = 'course-list';
         } catch (error) {
@@ -140,10 +135,38 @@ export class AppStateManager {
         }
     }
 
-    public async showExerciseDetail(exerciseId: number): Promise<void> {
+    public async showExerciseDetail(exerciseId: number, forceRefresh: boolean = true): Promise<void> {
         try {
-            const exerciseDetails = await this._artemisApi.getExerciseDetails(exerciseId);
-            this._currentExerciseData = exerciseDetails;
+            // ALWAYS fetch fresh data by default to ensure we have the latest results
+            // This prevents stale data when WebSocket fails or disconnects
+            // Only skip if explicitly requested AND same exercise
+            const shouldFetch = forceRefresh || 
+                               !this._currentExerciseData || 
+                               this._currentExerciseData?.exercise?.id !== exerciseId;
+            
+            if (shouldFetch) {
+                console.log(`🔄 Fetching fresh exercise data for exercise ${exerciseId}`);
+                const exerciseDetails = await this._artemisApi.getExerciseDetails(exerciseId);
+                this._currentExerciseData = exerciseDetails;
+                
+                // Check for pending submissions (builds in progress)
+                const participation = exerciseDetails.exercise?.studentParticipations?.[0];
+                if (participation?.id) {
+                    console.log(`🔍 Checking for pending submission for participation ${participation.id}`);
+                    const pendingSubmission = await this._artemisApi.getLatestPendingSubmission(participation.id);
+                    
+                    if (pendingSubmission) {
+                        console.log(`⏳ Found pending submission - build in progress!`);
+                        // Store pending submission info for the view to use
+                        this._currentExerciseData.pendingSubmission = pendingSubmission;
+                    } else {
+                        console.log(`✅ No pending submission - latest result is final`);
+                    }
+                }
+            } else {
+                console.log(`📦 Using cached exercise data for exercise ${exerciseId}`);
+            }
+            
             this._currentState = 'exercise-detail';
         } catch (error) {
             console.error('Error loading exercise details:', error);
@@ -153,6 +176,19 @@ export class AppStateManager {
 
     public backToCourseDetails(): void {
         this._currentState = 'course-detail';
+    }
+
+    /**
+     * Refresh the current exercise detail view with fresh data
+     */
+    public async refreshCurrentExercise(): Promise<void> {
+        if (this._currentState === 'exercise-detail' && this._currentExerciseData) {
+            const exerciseId = this._currentExerciseData?.exercise?.id || this._currentExerciseData?.id;
+            if (exerciseId) {
+                console.log(`🔄 Refreshing exercise ${exerciseId}`);
+                await this.showExerciseDetail(exerciseId, true); // Force refresh
+            }
+        }
     }
 
     // Data management

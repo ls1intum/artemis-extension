@@ -3,8 +3,14 @@ name: Sync CHANGELOG
 on:
     push:
         branches:
-            - dev
             - main
+        paths:
+            - "iris-thaumantias/CHANGELOG.md"
+    pull_request:
+        branches:
+            - main
+        types:
+            - closed
         paths:
             - "iris-thaumantias/CHANGELOG.md"
     workflow_dispatch: # Allows manual trigger from GitHub Actions tab

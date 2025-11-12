@@ -1,22 +1,20 @@
 import * as vscode from 'vscode';
 import { AppStateManager } from './appStateManager';
-import { AiCheckerView } from '../templates/aiCheckerView';
-import { CourseDetailView } from '../templates/courseDetailView';
-import { CourseListView } from '../templates/courseListView';
-import { StyleManager } from '../styles';
-import { DashboardView } from '../templates/dashboardView';
-import { ExerciseDetailView } from '../templates/exerciseDetailView';
-import { LoginView } from '../templates/loginView';
-import { ServiceStatusView } from '../templates/serviceStatusView';
-import { RecommendedExtensionsView } from '../templates/recommendedExtensionsView';
-import { GitCredentialsView } from '../templates/gitCredentialsView';
+import { AiCheckerView } from '../aiChecker/aiCheckerView';
+import { CourseDetailView } from '../courseDetail/courseDetailView';
+import { CourseListView } from '../courseList/courseListView';
+import { DashboardView } from '../dashboard/dashboardView';
+import { ExerciseDetailView } from '../exerciseDetail/exerciseDetailView';
+import { LoginView } from '../login/loginView';
+import { ServiceStatusView } from '../serviceStatus/serviceStatusView';
+import { RecommendedExtensionsView } from '../recommendedExtensions/recommendedExtensionsView';
+import { GitCredentialsView } from '../gitCredentials/gitCredentialsView';
 
 /**
  * Maps application state to the appropriate webview HTML.
  */
 export class ViewRouter {
     private readonly _loginView: LoginView;
-    private readonly _styleManager: StyleManager;
     private readonly _dashboardView: DashboardView;
     private readonly _courseListView: CourseListView;
     private readonly _courseDetailView: CourseDetailView;
@@ -32,17 +30,15 @@ export class ViewRouter {
         private readonly _webview?: vscode.Webview
     ) {
         // Initialize view templates with extension context
-        this._styleManager = new StyleManager(this._extensionContext.extensionUri);
-
-        this._loginView = new LoginView(this._styleManager);
-        this._dashboardView = new DashboardView(this._extensionContext, this._styleManager);
-        this._courseListView = new CourseListView(this._styleManager);
-        this._courseDetailView = new CourseDetailView(this._extensionContext, this._styleManager);
-        this._exerciseDetailView = new ExerciseDetailView(this._extensionContext, this._styleManager);
-        this._aiCheckerView = new AiCheckerView(this._extensionContext, this._styleManager);
-        this._serviceStatusView = new ServiceStatusView(this._extensionContext, this._styleManager);
-        this._recommendedExtensionsView = new RecommendedExtensionsView(this._styleManager);
-        this._gitCredentialsView = new GitCredentialsView(this._extensionContext, this._styleManager);
+        this._loginView = new LoginView();
+        this._dashboardView = new DashboardView(this._extensionContext);
+        this._courseListView = new CourseListView();
+        this._courseDetailView = new CourseDetailView(this._extensionContext);
+        this._exerciseDetailView = new ExerciseDetailView(this._extensionContext);
+        this._aiCheckerView = new AiCheckerView(this._extensionContext);
+        this._serviceStatusView = new ServiceStatusView(this._extensionContext);
+        this._recommendedExtensionsView = new RecommendedExtensionsView();
+        this._gitCredentialsView = new GitCredentialsView(this._extensionContext);
     }
 
     public getHtml(): string {
@@ -73,7 +69,7 @@ export class ViewRouter {
             case 'course-detail':
                 return this._courseDetailView.generateHtml(this._appStateManager.currentCourseData, hideDeveloperTools, webview);
             case 'exercise-detail':
-                return this._exerciseDetailView.generateHtml(this._appStateManager.currentExerciseData, hideDeveloperTools);
+                return this._exerciseDetailView.generateHtml(this._appStateManager.currentExerciseData, hideDeveloperTools, webview);
             case 'ai-config':
                 return this._aiCheckerView.generateHtml(this._appStateManager.aiExtensions || []);
             case 'service-status': {

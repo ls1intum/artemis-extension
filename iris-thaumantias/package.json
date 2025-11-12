@@ -2,7 +2,7 @@
   "name": "iris-thaumantias",
   "displayName": "Artemis - TUM",
   "description": "Artemis brings interactive learning to life with instant, individual feedback on programming exercises, quizzes, modeling tasks, and more. This VS Code extension integrates Iris, an LLM-based virtual assistant that supports students with instant answers about exercises, lectures, and learning performance. Iris provides context-aware, personalized assistance for programming exercises, encouraging independent problem-solving through subtle hints and guiding questions instead of giving full solutions.",
-  "version": "0.2.4",
+  "version": "0.2.5",
   "publisher": "aet-tum",
   "license": "MIT",
   "icon": "media/artemis-blue.png",
@@ -77,7 +77,8 @@
         {
           "type": "webview",
           "id": "artemis.loginView",
-          "name": "Artemis"
+          "name": "Artemis",
+          "icon": "media/artemis-logo.png"
         }
       ],
       "iris-chat": [
@@ -85,6 +86,7 @@
           "type": "webview",
           "id": "iris.chatView",
           "name": "Chat",
+          "icon": "media/iris-monochrome.png",
           "when": "iris:authenticated == true"
         }
       ]
@@ -99,21 +101,6 @@
           "format": "uri",
           "pattern": "^https?://.*",
           "patternErrorMessage": "Server URL must be a valid HTTP or HTTPS URL"
-        },
-        "artemis.theme": {
-          "type": "string",
-          "enum": [
-            "vscode",
-            "modern",
-            "synthwave"
-          ],
-          "enumDescriptions": [
-            "VS Code native styling that matches the editor's appearance",
-            "Clean, card-based design inspired by modern web applications",
-            "Retro-futuristic neon aesthetic with synthwave styling"
-          ],
-          "default": "vscode",
-          "description": "Choose the visual theme for Artemis views"
         },
         "artemis.showIrisExplanation": {
           "type": "boolean",
@@ -139,6 +126,17 @@
           "type": "boolean",
           "default": true,
           "description": "Show a warning banner when there are unsaved changes in the workspace before submitting"
+        },
+        "artemis.defaultClonePath": {
+          "type": "string",
+          "default": "",
+          "description": "Default folder where all exercise repositories will be cloned automatically. Leave empty to choose a location each time.",
+          "markdownDescription": "**Default folder for exercise repositories**\n\nWhen set, all exercises will be automatically cloned to this folder without asking. Leave empty to choose manually each time.\n\nExample: `/Users/username/artemis-exercises` or `C:\\Users\\username\\artemis-exercises`"
+        },
+        "artemis.showSetDefaultClonePathPrompt": {
+          "type": "boolean",
+          "default": true,
+          "description": "Ask to set a default clone folder when cloning for the first time (if no default is configured)"
         }
       }
     }
@@ -157,7 +155,8 @@
     "check-types": "tsc --noEmit",
     "lint": "eslint src",
     "test": "vscode-test",
-    "clean": "rm -rf dist out *.vsix"
+    "clean": "rm -rf dist out *.vsix",
+    "compile:clean": "npm run clean && npm run compile"
   },
   "devDependencies": {
     "@types/mocha": "10.0.10",
