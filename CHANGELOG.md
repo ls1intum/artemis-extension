@@ -6,6 +6,10 @@ All notable changes to the Artemis VS Code extension will be documented in this 
 
 ### Added
 
+- **Build Error Navigation**: Automatic navigation to build errors when submissions fail
+  - "Go to source →" button appears when build fails, jumps directly to error location
+  - CodeLens displays error message above the problematic line in your code
+- **Default Clone Path Setting**: Configure a default folder for automatically cloning all exercise repositories without prompting each time
 - **Live Referenced Files Display**: Iris chat now shows real-time file status information
   - **Live updates**: File list updates automatically as you type, save, commit, or stage changes
   - Shows "x/y files referenced" where x/y = changed files detected by Git
@@ -16,6 +20,7 @@ All notable changes to the Artemis VS Code extension will be documented in this 
 
 ### Changed
 
+- **Component Refactoring**: Unified UI components (ListItemComponent, BadgeComponent, ButtonComponent, TextInputComponent) across all views for consistent styling, keyboard navigation, and accessibility, removing ~200+ lines of duplicate CSS
 - **Unified File Checking**: Consolidated all file checking logic into single `checkWorkspaceFiles()` method
   - Single source of truth for git status, file filtering, and content reading
   - Configurable options for different use cases (live monitoring vs. message sending)
