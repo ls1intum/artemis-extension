@@ -1,0 +1,50 @@
+.list-item {
+  background: var(--theme-card-background);
+  border: 1px solid var(--theme-border);
+  border-radius: var(--theme-container-radius);
+  padding: var(--theme-container-padding);
+  margin-bottom: var(--theme-element-spacing);
+  transition: none;
+  position: relative;
+  border-color: transparent;
+  overflow: hidden;
+}
+
+.list-item--hover:hover {
+  background: var(--theme-hover-background);
+  border-color: var(--vscode-focusBorder) !important;
+}
+
+.list-item--clickable {
+  cursor: pointer;
+}
+
+.list-item--clickable:active {
+  transform: translateY(1px);
+}
+
+.list-item--selected {
+  border-color: var(--theme-primary-color);
+  background: var(--theme-primary-background);
+}
+
+.list-item--disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+/* Keyboard focus */
+.list-item--clickable:focus {
+  outline: 2px solid var(--theme-primary-color);
+  outline-offset: 2px;
+}
+
+.list-item--clickable:focus:not(:focus-visible) {
+  outline: none;
+}
+
+/* Remove bottom margin from last item */
+.list-item:last-child {
+  margin-bottom: 0;
+}

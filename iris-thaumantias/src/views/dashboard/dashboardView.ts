@@ -3,6 +3,7 @@ import { VSCODE_CONFIG } from '../../utils';
 import { IconDefinitions } from '../../utils/iconDefinitions';
 import { readCssFiles } from '../utils';
 import { ButtonComponent } from '../components/button/buttonComponent';
+import { ListItemComponent } from '../components/listItem/listItemComponent';
 
 export class DashboardView {
     private _extensionContext: vscode.ExtensionContext;
@@ -12,7 +13,11 @@ export class DashboardView {
     }
 
     public generateHtml(userInfo: { username: string; serverUrl: string; user?: any }, coursesData: any | undefined, webview?: vscode.Webview): string {
-        const styles = readCssFiles('dashboard/dashboard.css', 'components/button/button.css');
+        const styles = readCssFiles(
+            'dashboard/dashboard.css', 
+            'components/button/button.css',
+            'components/listItem/list-item.css'
+        );
         
         // Check if Iris explanation should be shown
         const config = vscode.workspace.getConfiguration(VSCODE_CONFIG.ARTEMIS_SECTION);
@@ -86,12 +91,23 @@ export class DashboardView {
             recentCoursesHtml = recentCourses.map((courseData: any, index: number) => {
                 const course = courseData.course;
                 const exerciseCount = course.exercises ? course.exercises.length : 0;
-                return `
-                    <div class="recent-course-item" onclick="viewRecentCourseDetails(${index})">
+                
+                // Use ListItemComponent for consistent styling
+                return ListItemComponent.generate(
+                    {
+                        className: 'recent-course-item',
+                        clickable: true,
+                        command: `viewRecentCourseDetails(${index})`,
+                        dataAttributes: {
+                            'course-index': index.toString(),
+                            'course-id': course.id?.toString() || ''
+                        }
+                    },
+                    `
                         <div class="course-title">${course.title}</div>
                         <div class="course-info">${exerciseCount} exercises</div>
-                    </div>
-                `;
+                    `
+                );
             }).join('');
         } else {
             recentCoursesHtml = '<div class="no-courses">Loading courses...</div>';
@@ -173,16 +189,24 @@ export class DashboardView {
         <div class="quick-actions">
             <h3>Quick Actions</h3>
             <div id="workspaceExerciseBtn" class="workspace-exercise-container" style="display: none;">
-                <button class="workspace-exercise-btn" onclick="goToWorkspaceExercise()">
-                    <div class="workspace-exercise-content">
-                        <div class="workspace-exercise-icon">${exerciseIcon}</div>
-                        <div class="workspace-exercise-text">
-                            <div class="workspace-exercise-title">Current Workspace Exercise</div>
-                            <div class="workspace-exercise-name" id="workspaceExerciseName">Loading...</div>
+                ${ListItemComponent.generate(
+                    {
+                        className: 'workspace-exercise-item',
+                        clickable: true,
+                        command: 'goToWorkspaceExercise()',
+                        id: 'workspaceExerciseItemBtn'
+                    },
+                    `
+                        <div class="workspace-exercise-content">
+                            <div class="workspace-exercise-icon">${exerciseIcon}</div>
+                            <div class="workspace-exercise-text">
+                                <div class="workspace-exercise-title">Current Workspace Exercise</div>
+                                <div class="workspace-exercise-name" id="workspaceExerciseName">Loading...</div>
+                            </div>
+                            <div class="workspace-exercise-arrow">→</div>
                         </div>
-                        <div class="workspace-exercise-arrow">→</div>
-                    </div>
-                </button>
+                    `
+                )}
             </div>
             <div class="action-buttons">
                 ${ButtonComponent.generate({
@@ -358,6 +382,9 @@ export class DashboardView {
             }
         };
 
+        // Enable keyboard navigation for list items
+        ${ListItemComponent.generateScript()}
+
         // Sort recent courses functionality
         window.handleRecentCoursesSort = function(sortOption) {
             const coursesData = ${coursesDataJson};
@@ -429,12 +456,22 @@ export class DashboardView {
                 listContainer.innerHTML = recentCourses.map((courseData, index) => {
                     const course = courseData.course;
                     const exerciseCount = course.exercises ? course.exercises.length : 0;
-                    return \`
-                        <div class="recent-course-item" onclick="viewCourseDetails(\${coursesData.indexOf(courseData)})">
+                    const originalIndex = coursesData.indexOf(courseData);
+                    
+                    // Create a temporary container to generate the list item
+                    const tempDiv = document.createElement('div');
+                    tempDiv.innerHTML = \`
+                        <div class="list-item list-item--clickable list-item--hover recent-course-item" 
+                             onclick="viewCourseDetails(\${originalIndex})"
+                             role="button"
+                             tabindex="0"
+                             data-course-index="\${originalIndex}"
+                             data-course-id="\${course.id || ''}">
                             <div class="course-title">\${course.title}</div>
                             <div class="course-info">\${exerciseCount} exercises</div>
                         </div>
                     \`;
+                    return tempDiv.innerHTML.trim();
                 }).join('');
             }
         };

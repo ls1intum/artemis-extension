@@ -152,31 +152,16 @@
             gap: 12px;
         }
         
-        /* Workspace Exercise Button - styled like recent course items */
+        /* Workspace Exercise Item - using ListItemComponent */
         .workspace-exercise-container {
             margin-bottom: 16px;
         }
-        .workspace-exercise-btn {
-            width: 100%;
-            background: transparent;
-            color: var(--theme-foreground);
-            border: 1px solid transparent;
-            padding: 12px;
-            cursor: pointer;
-            overflow: hidden;
-            border-radius: var(--theme-container-radius);
-            transition: none;
-        }
-        .workspace-exercise-btn:hover {
-            background: var(--theme-hover-background);
-            border-color: var(--vscode-focusBorder);
-        }
-        .workspace-exercise-content {
+        .workspace-exercise-item .workspace-exercise-content {
             display: flex;
             align-items: center;
             gap: 12px;
         }
-        .workspace-exercise-icon {
+        .workspace-exercise-item .workspace-exercise-icon {
             width: 20px;
             height: 20px;
             flex-shrink: 0;
@@ -185,16 +170,17 @@
             align-items: center;
             justify-content: center;
         }
-        .workspace-exercise-icon svg {
+        .workspace-exercise-item .workspace-exercise-icon svg {
             width: 100%;
             height: 100%;
             fill: currentColor;
         }
-        .workspace-exercise-text {
+        .workspace-exercise-item .workspace-exercise-text {
             flex: 1;
             text-align: left;
+            min-width: 0; /* Allow text truncation */
         }
-        .workspace-exercise-title {
+        .workspace-exercise-item .workspace-exercise-title {
             font-size: 11px;
             opacity: 0.6;
             font-weight: 500;
@@ -202,11 +188,14 @@
             text-transform: uppercase;
             letter-spacing: 0.5px;
         }
-        .workspace-exercise-name {
+        .workspace-exercise-item .workspace-exercise-name {
             font-size: 14px;
             font-weight: 600;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
         }
-        .workspace-exercise-arrow {
+        .workspace-exercise-item .workspace-exercise-arrow {
             font-size: 18px;
             opacity: 0.5;
             flex-shrink: 0;
@@ -257,29 +246,18 @@
             border-color: var(--theme-input-focus);
             box-shadow: 0 0 0 2px var(--theme-input-focus);
         }
-        .recent-course-item {
-            padding: 8px 12px;
-            margin-bottom: 8px;
-            cursor: pointer;
-            border: 1px solid transparent;
-               overflow: hidden; /* prevent pills/glows from spilling */
-            border-radius: var(--theme-container-radius);
-            transition: none;
-        }
-        .recent-course-item:hover {
-            background: var(--theme-hover-background);
-            border-color: var(--vscode-focusBorder);
-        }
-        .recent-course-item:last-child {
-            margin-bottom: 0;
-        }
-        .course-title {
+        
+        /* Recent course item content styles (ListItemComponent handles the container) */
+        .recent-course-item .course-title {
             font-weight: 600;
             color: var(--theme-foreground);
             font-size: 14px;
             margin-bottom: 4px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
         }
-        .course-info {
+        .recent-course-item .course-info {
             font-size: 12px;
             color: var(--theme-foreground);
             opacity: 0.9;
