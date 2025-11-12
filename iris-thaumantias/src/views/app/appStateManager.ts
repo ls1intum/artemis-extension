@@ -148,6 +148,21 @@ export class AppStateManager {
                 console.log(`🔄 Fetching fresh exercise data for exercise ${exerciseId}`);
                 const exerciseDetails = await this._artemisApi.getExerciseDetails(exerciseId);
                 this._currentExerciseData = exerciseDetails;
+                
+                // Check for pending submissions (builds in progress)
+                const participation = exerciseDetails.exercise?.studentParticipations?.[0];
+                if (participation?.id) {
+                    console.log(`🔍 Checking for pending submission for participation ${participation.id}`);
+                    const pendingSubmission = await this._artemisApi.getLatestPendingSubmission(participation.id);
+                    
+                    if (pendingSubmission) {
+                        console.log(`⏳ Found pending submission - build in progress!`);
+                        // Store pending submission info for the view to use
+                        this._currentExerciseData.pendingSubmission = pendingSubmission;
+                    } else {
+                        console.log(`✅ No pending submission - latest result is final`);
+                    }
+                }
             } else {
                 console.log(`📦 Using cached exercise data for exercise ${exerciseId}`);
             }

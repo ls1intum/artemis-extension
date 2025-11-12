@@ -106,6 +106,32 @@ export class ArtemisApiService {
         return exerciseData;
     }
 
+    // Get latest pending submission for a participation
+    // A pending submission is one that has NO result yet (build in progress)
+    // Returns null if no pending submission exists
+    async getLatestPendingSubmission(participationId: number): Promise<any> {
+        try {
+            const response = await this.makeRequest(
+                `/api/programming/programming-exercise-participations/${participationId}/latest-pending-submission`
+            );
+            
+            // Check if response has content
+            const text = await response.text();
+            if (!text || text.trim() === '') {
+                console.log(`No pending submission for participation ${participationId}`);
+                return null;
+            }
+            
+            // Parse JSON
+            const data = JSON.parse(text);
+            return data;
+        } catch (error) {
+            // If no pending submission exists, API may return 404 or empty response
+            console.log(`No pending submission for participation ${participationId}:`, error);
+            return null;
+        }
+    }
+
     // Get participations for the current user
     async getParticipations(): Promise<any[]> {
         const response = await this.makeRequest('/api/core/participations');

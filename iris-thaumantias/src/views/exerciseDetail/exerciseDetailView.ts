@@ -236,7 +236,8 @@ export class ExerciseDetailView {
       const buildStatusHtml = SubmissionStatusComponent.generateHtml({
         transformed,
         exercise,
-        uploadMessageIcon
+        uploadMessageIcon,
+        pendingSubmission: exerciseData.pendingSubmission // Pass pending submission if exists
       });
 
       const participationActionsHtml = ParticipationActionsComponent.generateHtml({

@@ -7,6 +7,7 @@ export interface SubmissionStatusData {
   transformed: TransformedExerciseData;
   exercise: any;
   uploadMessageIcon: string;
+  pendingSubmission?: any; // Optional: pending submission info (build in progress)
 }
 
 /**
@@ -18,7 +19,7 @@ export class SubmissionStatusComponent {
    * Generate the HTML for the submission status section
    */
   static generateHtml(data: SubmissionStatusData): string {
-    const { transformed, exercise } = data;
+    const { transformed, exercise, pendingSubmission } = data;
     const {
       hasParticipation,
       participationId,
@@ -32,6 +33,13 @@ export class SubmissionStatusComponent {
       passedTests = 0,
       hasTestInfo = false,
     } = transformed;
+
+    // Check if there's a pending submission (build in progress)
+    // This takes priority over showing old results
+    if (pendingSubmission && isProgrammingExercise) {
+      console.log('🔨 Showing building state for pending submission');
+      return this._generateBuildingStatus(pendingSubmission, participationId);
+    }
 
     // No submission status to show
     if (!hasParticipation || !latestSubmission) {
@@ -77,6 +85,69 @@ export class SubmissionStatusComponent {
     }
 
     return "";
+  }
+
+  /**
+   * Generate building/pending status for a submission that's currently building
+   */
+  private static _generateBuildingStatus(
+    pendingSubmission: any,
+    participationId: number | undefined
+  ): string {
+    const isProcessing = pendingSubmission.isProcessing || false;
+    const buildStartDate = pendingSubmission.buildStartDate;
+    const estimatedCompletionDate = pendingSubmission.estimatedCompletionDate;
+
+    // Building badge
+    const statusBadge = BadgeComponent.generate({
+      label: isProcessing ? "Building..." : "Queued...",
+      variant: "warning",
+    });
+
+    // ETA info if available
+    let etaInfo = "";
+    if (isProcessing && estimatedCompletionDate) {
+      const eta = new Date(estimatedCompletionDate);
+      const now = new Date();
+      const secondsRemaining = Math.max(0, Math.floor((eta.getTime() - now.getTime()) / 1000));
+      const minutesRemaining = Math.floor(secondsRemaining / 60);
+      const seconds = secondsRemaining % 60;
+      
+      if (minutesRemaining > 0 || seconds > 0) {
+        etaInfo = `
+          <div class="build-eta">
+            <span class="build-eta-label">Estimated completion:</span>
+            <span class="build-eta-time">${minutesRemaining}m ${seconds}s</span>
+          </div>
+        `;
+      }
+    }
+
+    return `
+      <div class="build-status build-status--building" data-progress-mode="indeterminate">
+        <div class="build-status-header">
+          <div class="build-status-title">
+            <span class="build-icon">🔨</span>
+            Latest Build Status
+          </div>
+          ${statusBadge}
+        </div>
+        
+        <div class="build-status-info">
+          <div class="build-progress-container">
+            <div class="build-progress-track">
+              <div class="build-progress-bar indeterminate"></div>
+            </div>
+          </div>
+          <div class="build-message">
+            ${isProcessing 
+              ? "Building and testing your code..." 
+              : "Your submission is queued and will be processed soon..."}
+          </div>
+          ${etaInfo}
+        </div>
+      </div>
+    `;
   }
 
   /**
