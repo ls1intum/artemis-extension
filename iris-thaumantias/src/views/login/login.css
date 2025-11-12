@@ -312,8 +312,8 @@
         /* Loading indicator styles */
         .loading-indicator {
             display: none;
-            background: var(--theme-secondary-background);
-            border: 1px solid var(--theme-border-color);
+            background: var(--theme-card-background);
+            border: 1px solid var(--theme-border);
             border-radius: var(--theme-container-radius);
             padding: var(--theme-container-padding);
             margin: var(--theme-element-spacing) auto;
