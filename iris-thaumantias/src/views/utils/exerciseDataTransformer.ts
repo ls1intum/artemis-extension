@@ -111,6 +111,7 @@ export function calculateDueDate(dueDate: string | null | undefined): {
   const now = new Date();
   const timeRemaining = dueDateObj.getTime() - now.getTime();
   const hoursRemaining = timeRemaining / (1000 * 60 * 60);
+  const minutesRemaining = timeRemaining / (1000 * 60);
   const daysRemaining = Math.floor(hoursRemaining / 24);
   const remainingHours = Math.floor(hoursRemaining % 24);
 
@@ -121,6 +122,10 @@ export function calculateDueDate(dueDate: string | null | undefined): {
 
   if (timeRemaining < 0) {
     timeRemainingDisplay = "Overdue";
+    isDueSoon = true;
+  } else if (hoursRemaining < 1) {
+    // Show minutes when under 1 hour
+    timeRemainingDisplay = `Due in ${Math.floor(minutesRemaining)}m`;
     isDueSoon = true;
   } else if (hoursRemaining < 24) {
     timeRemainingDisplay = `Due in ${Math.floor(hoursRemaining)}h`;
