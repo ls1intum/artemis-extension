@@ -139,6 +139,57 @@ export class BuildProgressComponent {
       };
 
       /**
+       * Start the progress update interval for a build in progress
+       * This is the shared logic for both page load and WebSocket updates
+       */
+      window.startBuildProgressInterval = function(buildStatusSection, buildTimingInfo) {
+        if (!buildStatusSection || !buildTimingInfo?.estimatedCompletionDate || !buildTimingInfo?.buildStartDate) {
+          return;
+        }
+
+        // Clear any existing interval
+        if (window.buildProgressInterval) {
+          clearInterval(window.buildProgressInterval);
+        }
+
+        window.buildProgressInterval = setInterval(() => {
+          const eta = new Date(buildTimingInfo.estimatedCompletionDate);
+          const startDate = new Date(buildTimingInfo.buildStartDate);
+          const now = new Date();
+          const totalTime = eta - startDate;
+          const elapsed = now - startDate;
+          const percent = Math.min(100, Math.max(5, (elapsed / totalTime) * 100));
+
+          const progressBar = buildStatusSection.querySelector('.build-progress-bar');
+          const messageEl = buildStatusSection.querySelector('.build-status-message');
+
+          if (progressBar) {
+            // If past ETA, switch to indeterminate progress bar
+            if (now >= eta) {
+              progressBar.style.width = '100%';
+              progressBar.classList.add('indeterminate');
+              buildStatusSection.dataset.progressMode = 'indeterminate';
+            } else {
+              progressBar.style.width = percent + '%';
+              progressBar.classList.remove('indeterminate');
+              buildStatusSection.dataset.progressMode = 'determinate';
+            }
+          }
+
+          // Update ETA message
+          const seconds = Math.max(0, Math.floor((eta - now) / 1000));
+          if (messageEl) {
+            if (seconds > 0) {
+              messageEl.textContent = 'Building your submission... (ETA: ' + seconds + 's)';
+            } else {
+              // After ETA expires, show indefinite loading message
+              messageEl.textContent = 'Building your submission...';
+            }
+          }
+        }, 500); // Update every 500ms
+      };
+
+      /**
        * Update build status with progress and ETA
        */
       window.updateBuildStatusWithProgress = function(message, progressPercent, buildTimingInfo, isIndeterminate = false) {
@@ -147,46 +198,8 @@ export class BuildProgressComponent {
         
         renderBuildProgress(buildStatusSection, message, progressPercent, isIndeterminate);
         
-        // Update progress bar periodically if we have timing info
-        if (buildTimingInfo?.estimatedCompletionDate && buildTimingInfo?.buildStartDate) {
-          if (window.buildProgressInterval) {
-            clearInterval(window.buildProgressInterval);
-          }
-          
-          window.buildProgressInterval = setInterval(() => {
-            const eta = new Date(buildTimingInfo.estimatedCompletionDate);
-            const startDate = new Date(buildTimingInfo.buildStartDate);
-            const now = new Date();
-            const totalTime = eta - startDate;
-            const elapsed = now - startDate;
-            const percent = Math.min(100, Math.max(5, (elapsed / totalTime) * 100));
-            
-            const progressBar = buildStatusSection.querySelector('.build-progress-bar');
-            const messageEl = buildStatusSection.querySelector('.build-status-message');
-            
-            if (progressBar) {
-              // If past ETA, switch to indeterminate progress bar
-              if (now >= eta) {
-                progressBar.style.width = '100%';
-                progressBar.classList.add('indeterminate');
-              } else {
-                progressBar.style.width = percent + '%';
-                progressBar.classList.remove('indeterminate');
-              }
-            }
-            
-            // Update ETA message
-            const seconds = Math.max(0, Math.floor((eta - now) / 1000));
-            if (messageEl) {
-              if (seconds > 0) {
-                messageEl.textContent = 'Building your submission... (ETA: ' + seconds + 's)';
-              } else {
-                // After ETA expires, show indefinite loading message
-                messageEl.textContent = 'Building your submission...';
-              }
-            }
-          }, 500); // Update every 500ms
-        }
+        // Start the progress update interval if we have timing info
+        startBuildProgressInterval(buildStatusSection, buildTimingInfo);
       };
 
       /**
@@ -250,46 +263,8 @@ export class BuildProgressComponent {
             buildStartDate: startAttr
           };
 
-          // Start the progress update interval immediately
-          if (window.buildProgressInterval) {
-            clearInterval(window.buildProgressInterval);
-          }
-
-          window.buildProgressInterval = setInterval(() => {
-            const eta = new Date(buildTimingInfo.estimatedCompletionDate);
-            const startDate = new Date(buildTimingInfo.buildStartDate);
-            const now = new Date();
-            const totalTime = eta - startDate;
-            const elapsed = now - startDate;
-            const percent = Math.min(100, Math.max(5, (elapsed / totalTime) * 100));
-
-            const progressBar = buildStatusSection.querySelector('.build-progress-bar');
-            const messageEl = buildStatusSection.querySelector('.build-status-message');
-
-            if (progressBar) {
-              // If past ETA, switch to indeterminate progress bar
-              if (now >= eta) {
-                progressBar.style.width = '100%';
-                progressBar.classList.add('indeterminate');
-                buildStatusSection.dataset.progressMode = 'indeterminate';
-              } else {
-                progressBar.style.width = percent + '%';
-                progressBar.classList.remove('indeterminate');
-                buildStatusSection.dataset.progressMode = 'determinate';
-              }
-            }
-
-            // Update ETA message
-            const seconds = Math.max(0, Math.floor((eta - now) / 1000));
-            if (messageEl) {
-              if (seconds > 0) {
-                messageEl.textContent = 'Building your submission... (ETA: ' + seconds + 's)';
-              } else {
-                // After ETA expires, show indefinite loading message
-                messageEl.textContent = 'Building your submission...';
-              }
-            }
-          }, 500); // Update every 500ms
+          // Use the shared function to start progress updates
+          startBuildProgressInterval(buildStatusSection, buildTimingInfo);
         }
       })();
     `;
