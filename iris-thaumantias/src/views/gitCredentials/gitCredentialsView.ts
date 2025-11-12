@@ -4,6 +4,7 @@ import type { UserInfo } from '../app/appStateManager';
 import { readCssFiles } from '../utils';
 import { BackLinkComponent } from '../components/backLink/backLinkComponent';
 import { ButtonComponent } from '../components/button/buttonComponent';
+import { TextInputComponent } from '../components/input/textInputComponent';
 
 export class GitCredentialsView {
     private readonly _extensionContext: vscode.ExtensionContext;
@@ -16,6 +17,7 @@ export class GitCredentialsView {
         const styles = readCssFiles(
             'components/backLink/back-link.css',
             'components/button/button.css',
+            'components/input/input.css',
             'gitCredentials/git-credentials.css'
         );
 
@@ -65,15 +67,21 @@ export class GitCredentialsView {
                 future Artemis submissions work without additional prompts.
             </p>
             <form id="identityForm" class="credentials-form">
-                <div class="field-row">
-                    <label class="field-label" for="nameInput">Git User Name</label>
-                    <input id="nameInput" class="field-input" type="text" autocomplete="off" placeholder="e.g. Alex Example" required />
-                </div>
-                <div class="field-row">
-                    <label class="field-label" for="emailInput">Git Email Address</label>
-                    <input id="emailInput" class="field-input" type="email" autocomplete="off" placeholder="tum-login@tum.de" required />
-                    <span class="field-help-text">Tip: students usually use their TUM address.</span>
-                </div>
+                ${TextInputComponent.generate({
+                    id: 'nameInput',
+                    label: 'Git User Name',
+                    placeholder: 'e.g. Alex Example',
+                    type: 'text',
+                    required: true
+                })}
+                ${TextInputComponent.generate({
+                    id: 'emailInput',
+                    label: 'Git Email Address',
+                    placeholder: 'tum-login@tum.de',
+                    type: 'email',
+                    required: true,
+                    helperText: 'Tip: students usually use their TUM address.'
+                })}
                 <div class="form-actions">
                     ${ButtonComponent.generate({
                         label: 'Save identity (global)',
