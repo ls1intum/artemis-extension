@@ -20,6 +20,7 @@ All notable changes to the Artemis VS Code extension will be documented in this 
 
 ### Changed
 
+- **Component Refactoring**: Unified UI components (ListItemComponent, BadgeComponent, ButtonComponent, TextInputComponent) across all views for consistent styling, keyboard navigation, and accessibility, removing ~200+ lines of duplicate CSS
 - **Unified File Checking**: Consolidated all file checking logic into single `checkWorkspaceFiles()` method
   - Single source of truth for git status, file filtering, and content reading
   - Configurable options for different use cases (live monitoring vs. message sending)
