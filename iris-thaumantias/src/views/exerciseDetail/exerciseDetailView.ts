@@ -8,6 +8,7 @@ import { BadgeComponent } from "../components/badge/badgeComponent";
 import { SubmissionStatusComponent } from "./components/submissionStatusComponent";
 import { ParticipationActionsComponent } from "./components/participationActionsComponent";
 import { RepositoryStatusScripts } from "./components/repositoryStatusScripts";
+import { BuildProgressComponent } from "./components/buildProgressComponent";
 
 export class ExerciseDetailView {
   private _extensionContext: vscode.ExtensionContext;
@@ -870,6 +871,9 @@ export class ExerciseDetailView {
         // Repository status management (from RepositoryStatusScripts component)
         ${RepositoryStatusScripts.generateScripts()}
 
+        // Build progress management (from BuildProgressComponent)
+        ${BuildProgressComponent.generateScript()}
+
         function generateStatusBadge(buildFailed, hasTestInfo, passedTests, totalTests, successful) {
             // Use window.BadgeComponent (available from webview-components.js)
             if (buildFailed) {
@@ -904,47 +908,6 @@ export class ExerciseDetailView {
                     label: 'Tests Failed',
                     variant: 'error'
                 });
-        }
-
-        function renderBuildProgress(section, messageText, progressPercent, isIndeterminate = false) {
-            if (!section) {
-                return;
-            }
-
-            section.classList.remove('build-status--empty');
-            section.innerHTML = '';
-
-            const title = document.createElement('div');
-            title.className = 'build-status-title';
-            title.textContent = 'Build in Progress';
-
-            const info = document.createElement('div');
-            info.className = 'build-status-info';
-
-            const messageEl = document.createElement('div');
-            messageEl.className = 'build-status-message';
-            messageEl.textContent = messageText;
-
-            const track = document.createElement('div');
-            track.className = 'build-progress-track';
-
-            const bar = document.createElement('div');
-            bar.className = 'build-progress-bar';
-            if (isIndeterminate) {
-                bar.classList.add('indeterminate');
-            } else {
-                const width = Math.max(5, Math.min(100, progressPercent || 0));
-                bar.style.width = width + '%';
-            }
-
-            track.appendChild(bar);
-            info.appendChild(messageEl);
-            info.appendChild(track);
-
-            section.appendChild(title);
-            section.appendChild(info);
-
-            section.dataset.progressMode = isIndeterminate ? 'indeterminate' : 'determinate';
         }
 
         // Listen for messages from the extension
@@ -1511,94 +1474,6 @@ export class ExerciseDetailView {
             
             const buildStatusSection = ensureBuildStatusSection();
             renderBuildProgress(buildStatusSection, '🔄 Submission received, queuing build...', 5, true);
-        }
-
-        function handleSubmissionProcessing(state, buildTimingInfo) {
-            console.log('⚙️ Received submission processing update:', state, buildTimingInfo);
-            
-            let message = '';
-            let progressPercent = 0;
-            let isIndeterminate = false;
-            let isBuilding = false;
-            
-            switch (state) {
-                case 'BUILDING':
-                    message = 'Building your submission...';
-                    isBuilding = true;
-                    if (buildTimingInfo?.estimatedCompletionDate && buildTimingInfo?.buildStartDate) {
-                        const eta = new Date(buildTimingInfo.estimatedCompletionDate);
-                        const startDate = new Date(buildTimingInfo.buildStartDate);
-                        const now = new Date();
-                        const totalTime = eta - startDate;
-                        const elapsed = now - startDate;
-                        progressPercent = Math.min(100, Math.max(0, (elapsed / totalTime) * 100));
-                        
-                        const seconds = Math.max(0, Math.floor((eta - now) / 1000));
-                        if (seconds > 0) {
-                            message = 'Building your submission... (ETA: ' + seconds + 's)';
-                        }
-                    }
-                    isIndeterminate = !buildTimingInfo || !buildTimingInfo.estimatedCompletionDate || !buildTimingInfo.buildStartDate;
-                    break;
-                case 'QUEUED':
-                    message = '⏳ Build queued, waiting for resources...';
-                    isBuilding = true;
-                    progressPercent = 5;
-                    isIndeterminate = true;
-                    break;
-            }
-            
-            if (isBuilding) {
-                updateBuildStatusWithProgress(message, progressPercent, buildTimingInfo, isIndeterminate);
-                setSubmitLoading(true);
-            }
-        }
-        
-        function updateBuildStatusWithProgress(message, progressPercent, buildTimingInfo, isIndeterminate = false) {
-            const buildStatusSection = ensureBuildStatusSection();
-            if (!buildStatusSection) return;
-            renderBuildProgress(buildStatusSection, message, progressPercent, isIndeterminate);
-            
-            // Update progress bar periodically
-            if (buildTimingInfo?.estimatedCompletionDate && buildTimingInfo?.buildStartDate) {
-                if (window.buildProgressInterval) {
-                    clearInterval(window.buildProgressInterval);
-                }
-                
-                window.buildProgressInterval = setInterval(() => {
-                    const eta = new Date(buildTimingInfo.estimatedCompletionDate);
-                    const startDate = new Date(buildTimingInfo.buildStartDate);
-                    const now = new Date();
-                    const totalTime = eta - startDate;
-                    const elapsed = now - startDate;
-                    const percent = Math.min(100, Math.max(5, (elapsed / totalTime) * 100));
-                    
-                    const progressBar = document.querySelector('.build-progress-bar');
-                    const messageEl = buildStatusSection.querySelector('.build-status-message');
-                    
-                    if (progressBar) {
-                        // If past ETA, switch to indeterminate progress bar
-                        if (now >= eta) {
-                            progressBar.style.width = '100%';
-                            progressBar.classList.add('indeterminate');
-                        } else {
-                            progressBar.style.width = percent + '%';
-                            progressBar.classList.remove('indeterminate');
-                        }
-                    }
-                    
-                    // Update ETA message
-                    const seconds = Math.max(0, Math.floor((eta - now) / 1000));
-                    if (messageEl) {
-                        if (seconds > 0) {
-                            messageEl.textContent = 'Building your submission... (ETA: ' + seconds + 's)';
-                        } else {
-                            // After ETA expires, show indefinite loading message
-                            messageEl.textContent = 'Building your submission...';
-                        }
-                    }
-                }, 500); // Update every 500ms
-            }
         }
     </script>
 </body>

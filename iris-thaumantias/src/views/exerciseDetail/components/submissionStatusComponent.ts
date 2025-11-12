@@ -2,6 +2,7 @@ import { BadgeComponent } from "../../components/badge/badgeComponent";
 import { ButtonComponent } from "../../components/button/buttonComponent";
 import { CloseButton } from "../../components/button/iconButtons";
 import { TransformedExerciseData } from "../../utils";
+import { BuildProgressComponent } from "./buildProgressComponent";
 
 export interface SubmissionStatusData {
   transformed: TransformedExerciseData;
@@ -98,56 +99,14 @@ export class SubmissionStatusComponent {
     const buildStartDate = pendingSubmission.buildStartDate;
     const estimatedCompletionDate = pendingSubmission.estimatedCompletionDate;
 
-    // Building badge
-    const statusBadge = BadgeComponent.generate({
-      label: isProcessing ? "Building..." : "Queued...",
-      variant: "warning",
-    });
-
-    // ETA info if available
-    let etaInfo = "";
-    if (isProcessing && estimatedCompletionDate) {
-      const eta = new Date(estimatedCompletionDate);
-      const now = new Date();
-      const secondsRemaining = Math.max(0, Math.floor((eta.getTime() - now.getTime()) / 1000));
-      const minutesRemaining = Math.floor(secondsRemaining / 60);
-      const seconds = secondsRemaining % 60;
-      
-      if (minutesRemaining > 0 || seconds > 0) {
-        etaInfo = `
-          <div class="build-eta">
-            <span class="build-eta-label">Estimated completion:</span>
-            <span class="build-eta-time">${minutesRemaining}m ${seconds}s</span>
-          </div>
-        `;
+    // Use BuildProgressComponent for consistent rendering
+    return BuildProgressComponent.generateHtml({
+      state: isProcessing ? 'BUILDING' : 'QUEUED',
+      buildTimingInfo: {
+        buildStartDate,
+        estimatedCompletionDate
       }
-    }
-
-    return `
-      <div class="build-status build-status--building" data-progress-mode="indeterminate">
-        <div class="build-status-header">
-          <div class="build-status-title">
-            <span class="build-icon">🔨</span>
-            Latest Build Status
-          </div>
-          ${statusBadge}
-        </div>
-        
-        <div class="build-status-info">
-          <div class="build-progress-container">
-            <div class="build-progress-track">
-              <div class="build-progress-bar indeterminate"></div>
-            </div>
-          </div>
-          <div class="build-message">
-            ${isProcessing 
-              ? "Building and testing your code..." 
-              : "Your submission is queued and will be processed soon..."}
-          </div>
-          ${etaInfo}
-        </div>
-      </div>
-    `;
+    });
   }
 
   /**
