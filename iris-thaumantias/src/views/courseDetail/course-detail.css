@@ -277,10 +277,6 @@
             padding: 8px;
         }
 
-        .exercises-container:hover .exercise-item:hover {
-            border-color: var(--vscode-focusBorder);
-        }
-
         .no-exercises-found {
             text-align: center;
             color: var(--theme-foreground);
