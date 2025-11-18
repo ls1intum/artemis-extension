@@ -290,7 +290,9 @@ export class IrisChatView {
     </div>
 
     <script>
+        console.log('[WebsocketLog] 🚀 Iris Chat webview script initializing...');
         const vscode = acquireVsCodeApi();
+        console.log('[WebsocketLog] ✅ VS Code API acquired');
 
         window.toggleSideMenu = function() {
             const sideMenu = document.getElementById('sideMenu');
@@ -1009,13 +1011,20 @@ export class IrisChatView {
         }
 
         // Setup chat input handlers
+        console.log('[WebsocketLog] 🔧 Setting up chat input handlers...');
         const chatInput = document.getElementById('chatInput');
         const sendButton = document.getElementById('sendButton');
+        console.log('[WebsocketLog] 📋 Elements found:', { 
+            chatInput: !!chatInput, 
+            sendButton: !!sendButton 
+        });
 
         if (chatInput) {
+            console.log('[WebsocketLog] ⌨️ Setting up chat input event listeners');
             chatInput.addEventListener('keydown', (e) => {
                 if (e.key === 'Enter' && !e.shiftKey) {
                     e.preventDefault();
+                    console.log('[WebsocketLog] ⏎ Enter key pressed, sending message');
                     sendMessage();
                 }
             });
@@ -1027,7 +1036,17 @@ export class IrisChatView {
         }
 
         if (sendButton) {
-            sendButton.addEventListener('click', sendMessage);
+            console.log('[WebsocketLog] 🎯 Setting up send button click handler');
+            sendButton.addEventListener('click', (event) => {
+                console.log('[WebsocketLog] 🖱️ Send button clicked!', { 
+                    disabled: sendButton.disabled, 
+                    hasText: !!document.getElementById('chatInput')?.value,
+                    hasContext: !!irisState.context 
+                });
+                sendMessage();
+            });
+        } else {
+            console.warn('[WebsocketLog] ⚠️ Send button not found in DOM!');
         }
 
         window.reconnectWebSocket = function() {
