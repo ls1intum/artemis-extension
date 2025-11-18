@@ -874,42 +874,6 @@ export class ExerciseDetailView {
         // Build progress management (from BuildProgressComponent)
         ${BuildProgressComponent.generateScript()}
 
-        function generateStatusBadge(buildFailed, hasTestInfo, passedTests, totalTests, successful) {
-            // Use window.BadgeComponent (available from webview-components.js)
-            if (buildFailed) {
-                return window.BadgeComponent.generate({
-                    label: 'Build Failed',
-                    variant: 'error'
-                });
-            }
-            
-            if (hasTestInfo) {
-                const passPercentage = (passedTests / totalTests) * 100;
-                let badgeVariant = 'error';
-                
-                if (passPercentage >= 80) {
-                    badgeVariant = 'success';
-                } else if (passPercentage >= 40) {
-                    badgeVariant = 'warning';
-                }
-                
-                return window.BadgeComponent.generate({
-                    label: passedTests + '/' + totalTests + ' tests passed',
-                    variant: badgeVariant
-                });
-            }
-            
-            return successful 
-                ? window.BadgeComponent.generate({
-                    label: 'Build Success',
-                    variant: 'success'
-                })
-                : window.BadgeComponent.generate({
-                    label: 'Tests Failed',
-                    variant: 'error'
-                });
-        }
-
         // Listen for messages from the extension
         window.addEventListener('message', function(event) {
             const message = event.data;
@@ -1363,79 +1327,21 @@ export class ExerciseDetailView {
                 buildStatusSection.classList.remove('build-status--empty');
                 delete buildStatusSection.dataset.progressMode;
 
-                const statusBadge = generateStatusBadge(buildFailed, hasTestInfo, passedTests, totalTests, successful);
-
-                // Determine score color class using same logic as badge
-                let scoreColorClass = 'error';
-                if (scorePercentage >= 80) {
-                    scoreColorClass = 'success';
-                } else if (scorePercentage >= 40) {
-                    scoreColorClass = 'warning';
-                }
-
-                // Build the toggle container with both build log (if failed) and test results links
-                const buildLogLink = buildFailed ? ButtonComponent.generate({
-                    label: 'View build log',
-                    variant: 'link',
-                    command: 'viewBuildLog(event, ' + participationId + ', ' + resultId + ')',
-                    id: 'buildLogLink',
-                    className: 'build-log-link'
-                }) : '';
-
-                const goToSourceLink = buildFailed ? ButtonComponent.generate({
-                    label: 'Go to source →',
-                    variant: 'link',
-                    command: 'goToSourceError(event)',
-                    id: 'goToSourceLink',
-                    className: 'go-to-source-link'
-                }) : '';
-
-                const testResultsToggle = hasTestInfo ? ButtonComponent.generate({
-                    label: 'See test results',
-                    variant: 'link',
-                    command: 'toggleTestResults(event)',
-                    id: 'testResultsToggle',
-                    className: 'test-results-toggle'
-                }) : '';
-
-                const toggleContainer = (buildFailed || hasTestInfo) ?
-                    '<div class="test-results-toggle-container">' +
-                        buildLogLink + goToSourceLink + testResultsToggle +
-                    '<' + '/div>' : '';
-
-                const closeButtonHtml = CloseButton.generate({
-                    command: 'closeTestResultsModal()',
-                    title: 'Close test results',
-                    className: 'test-results-modal-close'
+                // Use SubmissionStatusComponent to generate the HTML (avoiding duplication)
+                const statusHtml = window.SubmissionStatusComponent.generateProgrammingStatus({
+                    buildFailed: buildFailed,
+                    hasTestInfo: hasTestInfo,
+                    passedTests: passedTests,
+                    totalTests: totalTests,
+                    successful: successful,
+                    scorePercentage: scorePercentage,
+                    scorePoints: scorePoints,
+                    maxPoints: maxPoints,
+                    participationId: participationId,
+                    resultId: resultId
                 });
 
-                const testResultsModal = hasTestInfo ?
-                    '<div class="test-results-modal" id="testResultsModal" aria-hidden="true" onclick="handleTestResultsBackdrop(event)">' +
-                        '<div class="test-results-modal-content">' +
-                            '<div class="test-results-modal-header">' +
-                                '<div class="test-results-modal-title">Test Results<' + '/div>' +
-                                closeButtonHtml +
-                            '<' + '/div>' +
-                            '<div class="test-results-modal-body">' +
-                                '<div class="test-results-container" id="testResultsContainer">' +
-                                    '<div class="test-results-loading">Loading test results...<' + '/div>' +
-                                '<' + '/div>' +
-                            '<' + '/div>' +
-                        '<' + '/div>' +
-                    '<' + '/div>' : '';
-
-                const resultHtml =
-                    '<div class="build-status-title">Latest Build Status<' + '/div>' +
-                    '<div class="build-status-info">' +
-                        statusBadge +
-                        '<div class="score-info">' +
-                            'Score: <span class="score-points ' + scoreColorClass + '">' + scorePoints + '/' + maxPoints + ' (' + scorePercentage.toFixed(2) + '%)<' + '/span> ' + (maxPoints === 1 ? 'point' : 'points') +
-                        '<' + '/div>' +
-                    '<' + '/div>' +
-                    toggleContainer +
-                    testResultsModal;
-
-                buildStatusSection.innerHTML = resultHtml;
+                buildStatusSection.innerHTML = statusHtml;
             }
 
             setSubmitLoading(false);
