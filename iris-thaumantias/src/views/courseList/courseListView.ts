@@ -159,7 +159,7 @@ export class CourseListView {
                                         id: 'typeFilter',
                                         label: 'Type',
                                         size: 'medium',
-                                        onChange: 'handleFiltersChange()',
+                                        onChange: 'window.handleFiltersChange()',
                                         options: [
                                             { value: 'all', label: 'All Courses', selected: true },
                                             { value: 'active', label: 'Active Only' },
@@ -172,7 +172,7 @@ export class CourseListView {
                                         id: 'semesterFilter',
                                         label: 'Semester',
                                         size: 'medium',
-                                        onChange: 'handleFiltersChange()',
+                                        onChange: 'window.handleFiltersChange()',
                                         options: [
                                             { value: 'all', label: 'All Semesters', selected: true }
                                             // Options will be populated dynamically
@@ -188,7 +188,7 @@ export class CourseListView {
                                     id: 'sortBy',
                                     label: 'Order by',
                                     size: 'medium',
-                                    onChange: 'handleFiltersChange()',
+                                    onChange: 'window.handleFiltersChange()',
                                     options: [
                                         { value: 'title-asc', label: 'Title (A-Z)', selected: true },
                                         { value: 'title-desc', label: 'Title (Z-A)' },
@@ -205,7 +205,7 @@ export class CourseListView {
                                 id: 'clearFiltersBtn',
                                 label: 'Clear Filters',
                                 variant: 'secondary',
-                                command: 'clearAllFilters()',
+                                command: 'window.clearAllFilters()',
                                 disabled: true
                             })}
                         </div>
@@ -270,8 +270,22 @@ export class CourseListView {
             
             // Check if any filters are active
             const hasActiveFilters = searchTerm !== '' || typeFilter !== 'all' || semesterFilter !== 'all' || sortBy !== 'title-asc';
+            
             if (clearFiltersBtn) {
                 clearFiltersBtn.disabled = !hasActiveFilters;
+                
+                // Also toggle the btn-disabled class for proper styling
+                if (hasActiveFilters) {
+                    clearFiltersBtn.classList.remove('btn-disabled');
+                    // Add onclick handler when enabling the button
+                    if (!clearFiltersBtn.hasAttribute('onclick')) {
+                        clearFiltersBtn.setAttribute('onclick', 'window.clearAllFilters()');
+                    }
+                } else {
+                    clearFiltersBtn.classList.add('btn-disabled');
+                    // Remove onclick handler when disabling the button
+                    clearFiltersBtn.removeAttribute('onclick');
+                }
             }
 
             let visibleCourses = 0;
@@ -453,11 +467,17 @@ export class CourseListView {
 
         // Clear all filters function
         window.clearAllFilters = function() {
-            document.getElementById('courseSearch').value = '';
-            document.getElementById('typeFilter').value = 'all';
-            document.getElementById('semesterFilter').value = 'all';
-            document.getElementById('sortBy').value = 'title-asc';
-            handleFiltersChange();
+            const searchInput = document.getElementById('courseSearch');
+            const typeFilter = document.getElementById('typeFilter');
+            const semesterFilter = document.getElementById('semesterFilter');
+            const sortBy = document.getElementById('sortBy');
+            
+            if (searchInput) searchInput.value = '';
+            if (typeFilter) typeFilter.value = 'all';
+            if (semesterFilter) semesterFilter.value = 'all';
+            if (sortBy) sortBy.value = 'title-asc';
+            
+            window.handleFiltersChange();
         };
 
         // Toggle controls visibility
