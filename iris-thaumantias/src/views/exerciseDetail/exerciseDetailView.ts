@@ -1365,6 +1365,14 @@ export class ExerciseDetailView {
 
                 const statusBadge = generateStatusBadge(buildFailed, hasTestInfo, passedTests, totalTests, successful);
 
+                // Determine score color class using same logic as badge
+                let scoreColorClass = 'error';
+                if (scorePercentage >= 80) {
+                    scoreColorClass = 'success';
+                } else if (scorePercentage >= 40) {
+                    scoreColorClass = 'warning';
+                }
+
                 // Build the toggle container with both build log (if failed) and test results links
                 const buildLogLink = buildFailed ? ButtonComponent.generate({
                     label: 'View build log',
@@ -1421,7 +1429,7 @@ export class ExerciseDetailView {
                     '<div class="build-status-info">' +
                         statusBadge +
                         '<div class="score-info">' +
-                            'Score: <span class="score-points">' + scorePoints + '/' + maxPoints + ' (' + scorePercentage.toFixed(2) + '%)<' + '/span> ' + (maxPoints === 1 ? 'point' : 'points') +
+                            'Score: <span class="score-points ' + scoreColorClass + '">' + scorePoints + '/' + maxPoints + ' (' + scorePercentage.toFixed(2) + '%)<' + '/span> ' + (maxPoints === 1 ? 'point' : 'points') +
                         '<' + '/div>' +
                     '<' + '/div>' +
                     toggleContainer +
