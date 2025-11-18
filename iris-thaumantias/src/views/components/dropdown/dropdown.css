@@ -18,7 +18,8 @@
 }
 
 .dropdown:hover:not(:disabled):not(:focus) {
-    border-color: var(--vscode-input-border, #3c3c3c);
+    outline: 1px solid var(--vscode-focusBorder, #007acc);
+    outline-offset: -1px;
 }
 
 .dropdown:focus {
