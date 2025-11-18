@@ -4,6 +4,7 @@ import { IconDefinitions } from '../../utils/iconDefinitions';
 import { readCssFiles } from '../utils';
 import { ButtonComponent } from '../components/button/buttonComponent';
 import { ListItemComponent } from '../components/listItem/listItemComponent';
+import { DropdownComponent } from '../components/dropdown/dropdownComponent';
 
 export class DashboardView {
     private _extensionContext: vscode.ExtensionContext;
@@ -16,7 +17,8 @@ export class DashboardView {
         const styles = readCssFiles(
             'dashboard/dashboard.css', 
             'components/button/button.css',
-            'components/listItem/list-item.css'
+            'components/listItem/list-item.css',
+            'components/dropdown/dropdown.css'
         );
         
         // Check if Iris explanation should be shown
@@ -165,13 +167,18 @@ export class DashboardView {
             <h3>
                 Recent Courses
                 <div class="recent-courses-controls">
-                    <select class="sort-dropdown" id="recentCoursesSort" onchange="handleRecentCoursesSort(this.value)">
-                        <option value="latest-exercise">Latest Exercise</option>
-                        <option value="newest-course">Newest Course</option>
-                        <option value="most-exercises">Most Exercises</option>
-                        <option value="title-asc">Title (A-Z)</option>
-                        <option value="title-desc">Title (Z-A)</option>
-                    </select>
+                    ${DropdownComponent.generate({
+                        id: 'recentCoursesSort',
+                        size: 'small',
+                        onChange: 'handleRecentCoursesSort(this.value)',
+                        options: [
+                            { value: 'latest-exercise', label: 'Latest Exercise', selected: true },
+                            { value: 'newest-course', label: 'Newest Course' },
+                            { value: 'most-exercises', label: 'Most Exercises' },
+                            { value: 'title-asc', label: 'Title (A-Z)' },
+                            { value: 'title-desc', label: 'Title (Z-A)' }
+                        ]
+                    })}
                     ${ButtonComponent.generate({
                         label: 'Show All',
                         variant: 'link',

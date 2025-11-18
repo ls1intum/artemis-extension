@@ -223,25 +223,6 @@
             align-items: center;
             gap: 12px;
         }
-        .sort-dropdown {
-            background: var(--theme-input-background);
-            color: var(--theme-input-foreground);
-            border: 1px solid var(--theme-input-border);
-            border-radius: calc(var(--theme-container-radius) * 0.6);
-            padding: 4px 8px;
-            font-size: 11px;
-            font-family: var(--theme-font-family);
-            cursor: pointer;
-            transition: var(--theme-transition);
-        }
-        .sort-dropdown:hover {
-            border-color: var(--theme-input-focus);
-        }
-        .sort-dropdown:focus {
-            outline: none;
-            border-color: var(--theme-input-focus);
-            box-shadow: 0 0 0 2px var(--theme-input-focus);
-        }
         
         /* Recent course item content styles (ListItemComponent handles the container) */
         .recent-course-item .course-title {
