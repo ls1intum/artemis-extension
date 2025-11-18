@@ -743,12 +743,13 @@ export class IrisChatView {
         }
 
         function addMessageToChat(message) {
-            console.log('Adding message to chat:', message);
+            console.log('[WebsocketLog] 📩 addMessageToChat called:', { role: message.role, contentLength: message.content?.length, timestamp: message.timestamp });
             const chatMessages = document.getElementById('chatMessages');
 
             // Remove welcome message if present
             const welcomeMsg = chatMessages.querySelector('.welcome-message');
             if (welcomeMsg) {
+                console.log('[WebsocketLog] 🗑️ Removing welcome message');
                 welcomeMsg.remove();
             }
 
@@ -818,8 +819,10 @@ export class IrisChatView {
 
             // Show thinking indicator after user message, hide after assistant message
             if (message.role === 'user') {
+                console.log('[WebsocketLog] 👤 User message - showing thinking indicator');
                 showThinkingIndicator();
             } else {
+                console.log('[WebsocketLog] 🤖 Assistant message - hiding thinking indicator');
                 hideThinkingIndicator();
             }
 
@@ -884,11 +887,13 @@ export class IrisChatView {
         }
 
         function showThinkingIndicator() {
+            console.log('[WebsocketLog] 🔄 showThinkingIndicator called');
             const chatMessages = document.getElementById('chatMessages');
 
             // Remove any existing thinking indicator
             const existing = chatMessages.querySelector('.thinking-indicator');
             if (existing) {
+                console.log('[WebsocketLog] 🗑️ Removing existing thinking indicator');
                 existing.remove();
             }
 
@@ -905,29 +910,38 @@ export class IrisChatView {
 
             chatMessages.appendChild(thinkingDiv);
             chatMessages.scrollTop = chatMessages.scrollHeight;
+            console.log('[WebsocketLog] ✅ Thinking indicator added to chat');
         }
 
         function hideThinkingIndicator() {
+            console.log('[WebsocketLog] 🚫 hideThinkingIndicator called');
             const chatMessages = document.getElementById('chatMessages');
             const existing = chatMessages.querySelector('.thinking-indicator');
             if (existing) {
+                console.log('[WebsocketLog] 🗑️ Removing thinking indicator');
                 existing.remove();
+            } else {
+                console.log('[WebsocketLog] ℹ️ No thinking indicator to remove');
             }
         }
 
         function sendMessage() {
+            console.log('[WebsocketLog] 📤 sendMessage called');
             const input = document.getElementById('chatInput');
             const text = input.value.trim();
 
             if (!text || !irisState.context) {
+                console.log('[WebsocketLog] ⚠️ Cannot send: no text or no context', { hasText: !!text, hasContext: !!irisState.context });
                 return;
             }
 
+            console.log('[WebsocketLog] 🚀 Posting sendMessage command to extension', { textLength: text.length });
             // Send to extension
             vscode.postMessage({
                 command: 'sendMessage',
                 text: text
             });
+            console.log('[WebsocketLog] ✅ Message posted to extension');
 
             // Clear input
             input.value = '';
@@ -1101,10 +1115,11 @@ export class IrisChatView {
 
         window.addEventListener('message', event => {
             const message = event.data;
-            console.log('Received message from extension:', message);
+            console.log('[WebsocketLog] 📬 Received message from extension:', message.command, message);
 
             switch (message.command) {
                 case 'updateIrisState':
+                    console.log('[WebsocketLog] 🔄 Updating Iris state');
                     if (message.state) {
                         irisState = message.state;
                         updateContextBean();
@@ -1114,6 +1129,7 @@ export class IrisChatView {
                     }
                     break;
                 case 'showContextPicker':
+                    console.log('[WebsocketLog] 🔍 Showing context picker');
                     if (message.state) {
                         irisState = message.state;
                         forceContextPicker = true;
@@ -1134,6 +1150,7 @@ export class IrisChatView {
                     }
                     break;
                 case 'clearChatMessages':
+                    console.log('[WebsocketLog] 🗑️ Clearing chat messages');
                     const chatMessages = document.getElementById('chatMessages');
                     chatMessages.innerHTML = \`
                         <div class="welcome-message">
@@ -1143,6 +1160,7 @@ export class IrisChatView {
                     updateNewSessionButtonState();
                     break;
                 case 'updateReferencedFiles':
+                    console.log('[WebsocketLog] 📁 Updating referenced files');
                     if (message.includedFiles !== undefined) {
                         updateReferencedFiles({
                             includedFiles: message.includedFiles,
@@ -1152,6 +1170,7 @@ export class IrisChatView {
                     }
                     break;
                 case 'addMessage':
+                    console.log('[WebsocketLog] ➕ Adding message to chat');
                     if (message.message) {
                         addMessageToChat(message.message);
                     }
