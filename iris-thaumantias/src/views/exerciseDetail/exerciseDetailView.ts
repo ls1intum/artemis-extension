@@ -929,8 +929,11 @@ export class ExerciseDetailView {
                     }
                     break;
                 case 'submissionResult':
+                    console.log('[WebsocketLog] 📨 Received submissionResult', { success: message.success, error: message.error });
+                    console.log('[WebsocketLog] 🔄 Setting submit loading to FALSE');
                     setSubmitLoading(false);
                     if (message.success) {
+                        console.log('[WebsocketLog] ✅ Submission successful');
                         const input = document.getElementById('commitMessageInput');
                         const container = document.getElementById('commitMessageContainer');
                         if (input) {
@@ -1192,12 +1195,16 @@ export class ExerciseDetailView {
         };
 
         function dispatchSubmission(commitMessage) {
+            console.log('[WebsocketLog] 📤 dispatchSubmission called', { hasCommitMessage: !!commitMessage });
             const submitBtn = document.getElementById('submitBtn');
             const uploadBtn = document.getElementById('uploadMessageBtn');
 
             const isSubmitDisabled = submitBtn ? submitBtn.disabled : false;
             const isUploadDisabled = uploadBtn ? uploadBtn.disabled : false;
+            console.log('[WebsocketLog] 🔍 Button states:', { isSubmitDisabled, isUploadDisabled });
+            
             if (isSubmitDisabled || isUploadDisabled) {
+                console.log('[WebsocketLog] ⚠️ Buttons disabled, cannot submit');
                 vscode.postMessage({ command: 'alert', text: 'No local changes detected to submit.' });
                 return;
             }
@@ -1211,7 +1218,14 @@ export class ExerciseDetailView {
                 }
                 const participation = participations[0];
 
+                console.log('[WebsocketLog] 🔄 Setting submit loading to TRUE');
                 setSubmitLoading(true);
+                console.log('[WebsocketLog] 🚀 Posting submitExercise command to extension', {
+                    participationId: participation.id,
+                    exerciseId: ex.id,
+                    exerciseTitle: ex.title,
+                    hasCommitMessage: !!commitMessage
+                });
                 vscode.postMessage({
                     command: 'submitExercise',
                     participationId: participation.id,
@@ -1219,6 +1233,7 @@ export class ExerciseDetailView {
                     exerciseTitle: ex.title,
                     commitMessage: commitMessage
                 });
+                console.log('[WebsocketLog] ✅ submitExercise command posted');
             } catch (e) {
                 setSubmitLoading(false);
                 vscode.postMessage({ command: 'alert', text: 'Error preparing submit operation.' });
@@ -1226,11 +1241,13 @@ export class ExerciseDetailView {
         }
 
         window.submitExercise = function() {
+            console.log('[WebsocketLog] 🖱️ window.submitExercise called (submit button clicked)');
             const commitInput = document.getElementById('commitMessageInput');
             const commitContainer = document.getElementById('commitMessageContainer');
             const commitMessage = commitContainer && commitContainer.style.display !== 'none'
                 ? (commitInput?.value.trim() || undefined)
                 : undefined;
+            console.log('[WebsocketLog] 📝 Commit message:', commitMessage || '(default)');
             dispatchSubmission(commitMessage);
         };
 
