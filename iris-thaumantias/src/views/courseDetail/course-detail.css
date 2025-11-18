@@ -248,23 +248,6 @@
             flex: 1;
         }
 
-        .sort-select {
-            padding: 8px 12px;
-            border: 1px solid var(--theme-border);
-            background: var(--theme-card-background);
-            color: var(--theme-foreground);
-            font-size: 13px;
-            border-radius: var(--theme-container-radius);
-            cursor: pointer;
-            min-width: 150px;
-        }
-
-        .sort-select:focus {
-            outline: none;
-            border-color: var(--vscode-focusBorder);
-            box-shadow: 0 0 0 1px var(--vscode-focusBorder);
-        }
-
         .exercises-container {
             max-height: 400px;
             overflow-y: auto;

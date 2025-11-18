@@ -18,6 +18,8 @@ export interface DropdownOptions {
     className?: string;
     /** Size variant */
     size?: 'small' | 'medium' | 'large';
+    /** Fixed height (e.g., '32px' or '2rem') */
+    height?: string;
     /** Label for the dropdown */
     label?: string;
     /** Helper text below the dropdown */
@@ -39,6 +41,7 @@ export class DropdownComponent {
             onChange,
             className = '',
             size = 'medium',
+            height,
             label,
             helperText
         } = options;
@@ -50,6 +53,7 @@ export class DropdownComponent {
         ].filter(Boolean).join(' ');
 
         const onChangeAttr = onChange ? ` onchange="${onChange}"` : '';
+        const styleAttr = height ? ` style="height: ${height}"` : '';
         
         const optionsHtml = dropdownOptions.map(option => {
             const selectedAttr = option.selected ? ' selected' : '';
@@ -63,7 +67,7 @@ export class DropdownComponent {
             return `
                 <div class="dropdown-group">
                     ${labelHtml}
-                    <select id="${id}" class="${classes}"${onChangeAttr}>
+                    <select id="${id}" class="${classes}"${onChangeAttr}${styleAttr}>
                         ${optionsHtml}
                     </select>
                     ${helperTextHtml}
@@ -71,6 +75,6 @@ export class DropdownComponent {
             `;
         }
 
-        return `<select id="${id}" class="${classes}"${onChangeAttr}>${optionsHtml}</select>`;
+        return `<select id="${id}" class="${classes}"${onChangeAttr}${styleAttr}>${optionsHtml}</select>`;
     }
 }

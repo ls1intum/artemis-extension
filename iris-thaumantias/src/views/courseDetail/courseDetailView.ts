@@ -5,6 +5,7 @@ import { BackLinkComponent } from '../components/backLink/backLinkComponent';
 import { ButtonComponent } from '../components/button/buttonComponent';
 import { TextInputComponent } from '../components/input/textInputComponent';
 import { ListItemComponent } from '../components/listItem/listItemComponent';
+import { DropdownComponent } from '../components/dropdown/dropdownComponent';
 
 export class CourseDetailView {
     private _extensionContext: vscode.ExtensionContext;
@@ -23,7 +24,8 @@ export class CourseDetailView {
             'courseDetail/course-detail.css', 
             'components/button/button.css', 
             'components/input/input.css',
-            'components/listItem/list-item.css'
+            'components/listItem/list-item.css',
+            'components/dropdown/dropdown.css'
         );
         
         if (!courseData) {
@@ -186,16 +188,22 @@ export class CourseDetailView {
                     height: '2rem'
                 })}
             </div>
-            <select class="sort-select" onchange="sortExercises(this.value)">
-                <option value="id-desc" selected>Latest Added</option>
-                <option value="id-asc">Oldest Added</option>
-                <option value="title-asc">Title (A-Z)</option>
-                <option value="title-desc">Title (Z-A)</option>
-                <option value="due-asc">Due Date (Earliest)</option>
-                <option value="due-desc">Due Date (Latest)</option>
-                <option value="points-asc">Points (Low-High)</option>
-                <option value="points-desc">Points (High-Low)</option>
-            </select>
+            ${DropdownComponent.generate({
+                id: 'exerciseSort',
+                size: 'medium',
+                onChange: 'sortExercises(this.value)',
+                height: '2rem',
+                options: [
+                    { value: 'id-desc', label: 'Latest Added', selected: true },
+                    { value: 'id-asc', label: 'Oldest Added' },
+                    { value: 'title-asc', label: 'Title (A-Z)' },
+                    { value: 'title-desc', label: 'Title (Z-A)' },
+                    { value: 'due-asc', label: 'Due Date (Earliest)' },
+                    { value: 'due-desc', label: 'Due Date (Latest)' },
+                    { value: 'points-asc', label: 'Points (Low-High)' },
+                    { value: 'points-desc', label: 'Points (High-Low)' }
+                ]
+            })}
         </div>
         <div class="exercises-container">
             <div class="exercises-list">

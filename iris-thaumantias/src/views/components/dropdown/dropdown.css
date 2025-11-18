@@ -1,8 +1,8 @@
 /* Dropdown base styles */
 .dropdown {
-    background: var(--theme-card-background);
-    color: var(--theme-foreground);
-    border: 1px solid var(--theme-border);
+    background: var(--vscode-input-background, #3c3c3c);
+    color: var(--vscode-input-foreground, #cccccc);
+    border: 1px solid var(--vscode-input-border, #3c3c3c);
     border-radius: calc(var(--theme-container-radius) * 0.6);
     font-family: var(--theme-font-family);
     cursor: pointer;
@@ -17,14 +17,14 @@
     min-width: 120px;
 }
 
-.dropdown:hover {
-    border-color: var(--theme-border);
-    opacity: 0.9;
+.dropdown:hover:not(:disabled):not(:focus) {
+    border-color: var(--vscode-input-border, #3c3c3c);
 }
 
 .dropdown:focus {
-    outline: none;
-    border-color: var(--theme-border);
+    outline: 1px solid var(--vscode-focusBorder, #007acc);
+    outline-offset: -1px;
+    border-color: var(--vscode-input-border, #3c3c3c);
 }
 
 .dropdown:disabled {
