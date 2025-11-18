@@ -601,6 +601,16 @@ export class RepositoryCommandModule {
 
             vscode.window.showInformationMessage(`Successfully submitted "${exerciseTitle}".`);
             this.context.sendMessage({ command: 'submissionResult', success: true });
+            
+            // Ensure WebSocket is connected to receive real-time result updates
+            if (this.context.websocketService && !this.context.websocketService.isConnected()) {
+                console.log('[WebsocketLog] 🔌 Submission successful - ensuring WebSocket connection for result updates...');
+                try {
+                    await this.context.websocketService.connect();
+                } catch (wsError) {
+                    console.warn('[WebsocketLog] Failed to connect WebSocket after submission:', wsError);
+                }
+            }
         } catch (error: any) {
             console.error('Submit exercise error:', error);
             const errorMessage = error instanceof Error ? error.message : 'Failed to submit exercise.';

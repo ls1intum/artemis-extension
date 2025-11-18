@@ -41,7 +41,8 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
             this._artemisApi,
             this._appStateManager,
             this,
-            undefined  // buildCodeLens will be set later
+            undefined,  // buildCodeLens will be set later
+            undefined   // websocketService will be set later
         );
     }
 
@@ -56,7 +57,8 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
             this._artemisApi,
             this._appStateManager,
             this,
-            codeLensProvider
+            codeLensProvider,
+            this._websocketService
         );
     }
 
@@ -66,7 +68,7 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
     public setAuthContextUpdater(updater: (isAuthenticated: boolean) => Promise<void>): void {
         this._authContextUpdater = updater;
         // Also pass it to the message handler
-        (this._messageHandler as any).setAuthContextUpdater(updater);
+        this._messageHandler.setAuthContextUpdater(updater);
     }
 
     /**
@@ -74,6 +76,9 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
      */
     public setWebsocketService(websocketService: ArtemisWebsocketService): void {
         this._websocketService = websocketService;
+        
+        // Pass WebSocket service to message handler so commands can access it
+        this._messageHandler.setWebsocketService(websocketService);
         
         // Create message handler for WebSocket events
         this._websocketHandler = {
@@ -111,6 +116,16 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
         
         if (didUpdate) {
             this.render();
+            
+            // Ensure WebSocket is connected for real-time updates
+            if (this._websocketService && !this._websocketService.isConnected()) {
+                console.log('[WebsocketLog] 🔌 Exercise opened - ensuring WebSocket connection for real-time updates...');
+                try {
+                    await this._websocketService.connect();
+                } catch (error) {
+                    console.warn('[WebsocketLog] Failed to connect WebSocket:', error);
+                }
+            }
             
             // Notify Iris chat about the detected exercise
             const exerciseData = this._appStateManager.currentExerciseData;

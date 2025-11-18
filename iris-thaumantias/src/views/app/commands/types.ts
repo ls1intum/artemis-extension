@@ -2,6 +2,7 @@ import type { AuthManager } from '../../../auth';
 import type { ArtemisApiService } from '../../../api';
 import type { AppStateManager } from '../appStateManager';
 import type { WebViewActionHandler } from '../types';
+import type { ArtemisWebsocketService } from '../../../services';
 
 export type CommandHandler = (message: any) => Promise<void>;
 export type CommandMap = Record<string, CommandHandler>;
@@ -14,4 +15,5 @@ export interface CommandContext {
     sendMessage(message: any): void;
     updateAuthContext(isAuthenticated: boolean): Promise<void>;
     buildCodeLens?: any; // BuildErrorCodeLensProvider
+    websocketService?: ArtemisWebsocketService;
 }
