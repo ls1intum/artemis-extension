@@ -89,6 +89,35 @@ export class SubmissionStatusComponent {
   }
 
   /**
+   * Generate programming exercise status HTML for WebSocket updates
+   * This is a public wrapper for _generateProgrammingExerciseStatus
+   */
+  static generateProgrammingStatus(data: {
+    buildFailed: boolean;
+    hasTestInfo: boolean;
+    passedTests: number;
+    totalTests: number;
+    successful: boolean;
+    scorePercentage: number;
+    scorePoints: number;
+    maxPoints: number;
+    participationId: number | undefined;
+    resultId: number | undefined;
+  }): string {
+    return this._generateProgrammingExerciseStatus({
+      latestSubmission: { buildFailed: data.buildFailed },
+      result: { successful: data.successful, id: data.resultId },
+      participationId: data.participationId,
+      scorePercentage: data.scorePercentage,
+      scorePoints: data.scorePoints,
+      maxPoints: data.maxPoints,
+      totalTests: data.totalTests,
+      passedTests: data.passedTests,
+      hasTestInfo: data.hasTestInfo,
+    });
+  }
+
+  /**
    * Generate building/pending status for a submission that's currently building
    */
   private static _generateBuildingStatus(
@@ -218,13 +247,21 @@ export class SubmissionStatusComponent {
         </div>`
       : "";
 
+    // Determine score color class using same logic as badge
+    let scoreColorClass = 'error';
+    if (scorePercentage >= 80) {
+      scoreColorClass = 'success';
+    } else if (scorePercentage >= 40) {
+      scoreColorClass = 'warning';
+    }
+
     return `
       <div class="build-status">
         <div class="build-status-title">Latest Build Status</div>
         <div class="build-status-info">
           ${statusBadge}
           <div class="score-info">
-            Score: <span class="score-points">${scorePoints}/${maxPoints} (${scorePercentage.toFixed(
+            Score: <span class="score-points ${scoreColorClass}">${scorePoints}/${maxPoints} (${scorePercentage.toFixed(
       2
     )}%)</span> ${maxPoints === 1 ? "point" : "points"}
           </div>
@@ -269,9 +306,17 @@ export class SubmissionStatusComponent {
 
     let scoreDisplay = "";
     if (result) {
+      // Determine score color class using same logic as badge
+      let scoreColorClass = 'error';
+      if (scorePercentage >= 80) {
+        scoreColorClass = 'success';
+      } else if (scorePercentage >= 40) {
+        scoreColorClass = 'warning';
+      }
+
       scoreDisplay = `
         <div class="score-info">
-          Score: <span class="score-points">${scorePoints}/${maxPoints} (${scorePercentage.toFixed(
+          Score: <span class="score-points ${scoreColorClass}">${scorePoints}/${maxPoints} (${scorePercentage.toFixed(
         2
       )}%)</span> ${maxPoints === 1 ? "point" : "points"}
         </div>

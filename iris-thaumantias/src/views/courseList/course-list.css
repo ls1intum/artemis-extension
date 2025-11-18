@@ -129,68 +129,12 @@
             flex: 1;
         }
 
-        .control-label {
-            color: var(--theme-foreground);
-            font-size: 11px;
-            font-weight: 600;
-            opacity: 0.7;
-            margin: 0;
-        }
-
-        .control-select {
-            background: var(--theme-input-background);
-            color: var(--theme-input-foreground);
-            border: 1px solid var(--theme-input-border);
-            border-radius: calc(var(--theme-container-radius) * 0.6);
-            padding: 8px 12px;
-            font-size: 13px;
-            font-family: var(--theme-font-family);
-            transition: var(--theme-transition);
-            cursor: pointer;
-            width: 100%;
-        }
-
-        .control-select:focus {
-            outline: none;
-            border-color: var(--theme-input-focus);
-            box-shadow: 0 0 0 2px var(--theme-input-focus);
-        }
-
-        .control-select:hover {
-            border-color: var(--theme-input-focus);
-        }
-
         /* Clear filters button section */
         .clear-section {
             display: flex;
             flex-direction: column;
             justify-content: end;
             align-items: center;
-        }
-
-        .clear-filters-btn {
-            background: transparent;
-            color: var(--theme-foreground);
-            border: 1px solid var(--theme-border);
-            border-radius: calc(var(--theme-container-radius) * 0.6);
-            padding: 8px 16px;
-            font-size: 12px;
-            font-family: var(--theme-font-family);
-            cursor: pointer;
-            transition: var(--theme-transition);
-            opacity: 0.7;
-            white-space: nowrap;
-        }
-
-        .clear-filters-btn:hover:not(:disabled) {
-            opacity: 1;
-            background: var(--theme-input-background);
-            border-color: var(--theme-input-focus);
-        }
-
-        .clear-filters-btn:disabled {
-            opacity: 0.3;
-            cursor: not-allowed;
         }
 
         /* Responsive design */

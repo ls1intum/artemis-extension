@@ -392,7 +392,18 @@
 
         .score-points {
             font-weight: 600;
+        }
+
+        .score-points.success {
             color: var(--theme-success);
+        }
+
+        .score-points.warning {
+            color: var(--theme-warning);
+        }
+
+        .score-points.error {
+            color: var(--theme-error);
         }
 
         /* Test results section */

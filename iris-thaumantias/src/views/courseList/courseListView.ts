@@ -3,6 +3,7 @@ import { BackLinkComponent } from '../components/backLink/backLinkComponent';
 import { ButtonComponent } from '../components/button/buttonComponent';
 import { IconDefinitions } from '../../utils/iconDefinitions';
 import { TextInputComponent } from '../components/input/textInputComponent';
+import { DropdownComponent } from '../components/dropdown/dropdownComponent';
 
 export class CourseListView {
     public generateHtml(coursesData: any | undefined, archivedCoursesData: any[] | undefined): string {
@@ -10,7 +11,8 @@ export class CourseListView {
             'components/backLink/back-link.css',
             'components/button/button.css',
             'courseList/course-list.css',
-            'components/input/input.css'
+            'components/input/input.css',
+            'components/dropdown/dropdown.css'
         );
         
         return this._getCourseListHtml(coursesData, archivedCoursesData, styles);
@@ -153,40 +155,59 @@ export class CourseListView {
                             <h3 class="control-section-title">Filter</h3>
                             <div class="control-row">
                                 <div class="control-group">
-                                    <label class="control-label" for="typeFilter">Type</label>
-                                    <select class="control-select" id="typeFilter" onchange="handleFiltersChange()">
-                                        <option value="all">All Courses</option>
-                                        <option value="active">Active Only</option>
-                                        <option value="archived">Archived Only</option>
-                                    </select>
+                                    ${DropdownComponent.generate({
+                                        id: 'typeFilter',
+                                        label: 'Type',
+                                        size: 'medium',
+                                        onChange: 'window.handleFiltersChange()',
+                                        options: [
+                                            { value: 'all', label: 'All Courses', selected: true },
+                                            { value: 'active', label: 'Active Only' },
+                                            { value: 'archived', label: 'Archived Only' }
+                                        ]
+                                    })}
                                 </div>
                                 <div class="control-group">
-                                    <label class="control-label" for="semesterFilter">Semester</label>
-                                    <select class="control-select" id="semesterFilter" onchange="handleFiltersChange()">
-                                        <option value="all">All Semesters</option>
-                                        <!-- Options will be populated dynamically -->
-                                    </select>
+                                    ${DropdownComponent.generate({
+                                        id: 'semesterFilter',
+                                        label: 'Semester',
+                                        size: 'medium',
+                                        onChange: 'window.handleFiltersChange()',
+                                        options: [
+                                            { value: 'all', label: 'All Semesters', selected: true }
+                                            // Options will be populated dynamically
+                                        ]
+                                    })}
                                 </div>
                             </div>
                         </div>
                         <div class="control-section sort-section">
                             <h3 class="control-section-title">Sort</h3>
                             <div class="control-group">
-                                <label class="control-label" for="sortBy">Order by</label>
-                                <select class="control-select" id="sortBy" onchange="handleFiltersChange()">
-                                    <option value="title-asc">Title (A-Z)</option>
-                                    <option value="title-desc">Title (Z-A)</option>
-                                    <option value="semester-desc">Newest First</option>
-                                    <option value="semester-asc">Oldest First</option>
-                                    <option value="exercises-desc">Most Exercises</option>
-                                    <option value="exercises-asc">Least Exercises</option>
-                                </select>
+                                ${DropdownComponent.generate({
+                                    id: 'sortBy',
+                                    label: 'Order by',
+                                    size: 'medium',
+                                    onChange: 'window.handleFiltersChange()',
+                                    options: [
+                                        { value: 'title-asc', label: 'Title (A-Z)' },
+                                        { value: 'title-desc', label: 'Title (Z-A)' },
+                                        { value: 'semester-desc', label: 'Newest First', selected: true },
+                                        { value: 'semester-asc', label: 'Oldest First' },
+                                        { value: 'exercises-desc', label: 'Most Exercises' },
+                                        { value: 'exercises-asc', label: 'Least Exercises' }
+                                    ]
+                                })}
                             </div>
                         </div>
                         <div class="clear-section">
-                            <button class="clear-filters-btn" id="clearFiltersBtn" onclick="clearAllFilters()" disabled>
-                                Clear Filters
-                            </button>
+                            ${ButtonComponent.generate({
+                                id: 'clearFiltersBtn',
+                                label: 'Clear Filters',
+                                variant: 'secondary',
+                                command: 'window.clearAllFilters()',
+                                disabled: true
+                            })}
                         </div>
                     </div>
                 </div>
@@ -248,9 +269,23 @@ export class CourseListView {
             const clearFiltersBtn = document.getElementById('clearFiltersBtn');
             
             // Check if any filters are active
-            const hasActiveFilters = searchTerm !== '' || typeFilter !== 'all' || semesterFilter !== 'all' || sortBy !== 'title-asc';
+            const hasActiveFilters = searchTerm !== '' || typeFilter !== 'all' || semesterFilter !== 'all' || sortBy !== 'semester-desc';
+            
             if (clearFiltersBtn) {
                 clearFiltersBtn.disabled = !hasActiveFilters;
+                
+                // Also toggle the btn-disabled class for proper styling
+                if (hasActiveFilters) {
+                    clearFiltersBtn.classList.remove('btn-disabled');
+                    // Add onclick handler when enabling the button
+                    if (!clearFiltersBtn.hasAttribute('onclick')) {
+                        clearFiltersBtn.setAttribute('onclick', 'window.clearAllFilters()');
+                    }
+                } else {
+                    clearFiltersBtn.classList.add('btn-disabled');
+                    // Remove onclick handler when disabling the button
+                    clearFiltersBtn.removeAttribute('onclick');
+                }
             }
 
             let visibleCourses = 0;
@@ -432,11 +467,17 @@ export class CourseListView {
 
         // Clear all filters function
         window.clearAllFilters = function() {
-            document.getElementById('courseSearch').value = '';
-            document.getElementById('typeFilter').value = 'all';
-            document.getElementById('semesterFilter').value = 'all';
-            document.getElementById('sortBy').value = 'title-asc';
-            handleFiltersChange();
+            const searchInput = document.getElementById('courseSearch');
+            const typeFilter = document.getElementById('typeFilter');
+            const semesterFilter = document.getElementById('semesterFilter');
+            const sortBy = document.getElementById('sortBy');
+            
+            if (searchInput) searchInput.value = '';
+            if (typeFilter) typeFilter.value = 'all';
+            if (semesterFilter) semesterFilter.value = 'all';
+            if (sortBy) sortBy.value = 'semester-desc';
+            
+            window.handleFiltersChange();
         };
 
         // Toggle controls visibility
@@ -526,7 +567,7 @@ export class CourseListView {
                 
                 // Connect search input to handleSearch function
                 searchInput.addEventListener('input', function(e) {
-                    handleSearch(e.target.value);
+                    window.handleSearch(e.target.value);
                 });
             }
             
@@ -534,7 +575,7 @@ export class CourseListView {
             populateSemesterFilter();
             
             // Initialize filters
-            handleFiltersChange();
+            window.handleFiltersChange();
         });
     </script>
 </body>

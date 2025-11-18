@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { AuthManager } from '../../auth';
 import { ArtemisApiService } from '../../api';
+import { ArtemisWebsocketService } from '../../services';
 import { AppStateManager } from './appStateManager';
 import type { WebViewActionHandler } from './types';
 import type { CommandContext, CommandHandler } from './commands/types';
@@ -22,14 +23,17 @@ export class WebViewMessageHandler {
     };
     private readonly commandHandlers: Map<string, CommandHandler> = new Map();
     private readonly repositoryModule: RepositoryCommandModule;
+    private _websocketService?: ArtemisWebsocketService;
 
     constructor(
         private readonly authManager: AuthManager,
         private readonly artemisApi: ArtemisApiService,
         private readonly appStateManager: AppStateManager,
         private readonly actionHandler: WebViewActionHandler,
-        private readonly buildCodeLens?: any
+        private readonly buildCodeLens?: any,
+        websocketService?: ArtemisWebsocketService
     ) {
+        this._websocketService = websocketService;
         const context: CommandContext = {
             authManager: this.authManager,
             artemisApi: this.artemisApi,
@@ -37,7 +41,8 @@ export class WebViewMessageHandler {
             actionHandler: this.actionHandler,
             sendMessage: (message: any) => this._sendMessage(message),
             updateAuthContext: (isAuthenticated: boolean) => this.updateAuthContext(isAuthenticated),
-            buildCodeLens: this.buildCodeLens
+            buildCodeLens: this.buildCodeLens,
+            websocketService: this._websocketService
         };
 
         const modules = [
@@ -98,6 +103,13 @@ export class WebViewMessageHandler {
      */
     public setAuthContextUpdater(updater: (isAuthenticated: boolean) => Promise<void>): void {
         this._authContextUpdater = updater;
+    }
+
+    /**
+     * Set the WebSocket service for real-time updates.
+     */
+    public setWebsocketService(websocketService: ArtemisWebsocketService): void {
+        this._websocketService = websocketService;
     }
 
     /**

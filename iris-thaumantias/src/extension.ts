@@ -21,6 +21,9 @@ export async function activate(context: vscode.ExtensionContext) {
 	const artemisWebsocketService = new ArtemisWebsocketService(authManager);
 	const buildErrorCodeLensProvider = new BuildErrorCodeLensProvider();
 
+	// Make WebSocket service available globally for commands
+	(global as any).artemisWebsocketService = artemisWebsocketService;
+
 	// Register CodeLens provider for all languages
 	context.subscriptions.push(
 		vscode.languages.registerCodeLensProvider(

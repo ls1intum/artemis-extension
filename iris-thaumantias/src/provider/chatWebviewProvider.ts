@@ -62,16 +62,16 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
     }
 
     private _handleIrisWebSocketMessage(data: any): void {
-        console.log('🔔 Received Iris WebSocket message:', JSON.stringify(data, null, 2));
+        console.log('[WebsocketLog] 🔔 Received Iris WebSocket message:', JSON.stringify(data, null, 2));
 
         if (!this._view) {
-            console.log('⚠️ No view available to display message');
+            console.log('[WebsocketLog] ⚠️ No view available to display message');
             return;
         }
 
         // Handle different message types
         if (data.type === 'MESSAGE' && data.message) {
-            console.log('Processing MESSAGE type');
+            console.log('[WebsocketLog] 📦 Processing MESSAGE type');
             // Extract content from the message
             let content = '';
             const msg = data.message;
@@ -87,12 +87,12 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
                 content = msg.content;
             }
 
-            console.log('Extracted content:', content);
-            console.log('Message sender:', msg.sender);
+            console.log('[WebsocketLog] 📝 Extracted content length:', content.length, 'chars');
+            console.log('[WebsocketLog] 👤 Message sender:', msg.sender);
 
             // Only show assistant messages (user messages were already shown)
             if (msg.sender !== 'USER' && content) {
-                console.log('Sending assistant message to webview');
+                console.log('[WebsocketLog] 🤖 Sending assistant message to webview (this should hide thinking indicator)');
                 this._view.webview.postMessage({
                     command: 'addMessage',
                     message: {
@@ -103,15 +103,16 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
                         helpful: msg.helpful // true, false, or null
                     }
                 });
+                console.log('[WebsocketLog] ✅ Assistant message sent to webview');
             } else {
-                console.log('Skipping message (either USER message or no content)');
+                console.log('[WebsocketLog] ⏭️ Skipping message (either USER message or no content)');
             }
         } else if (data.type === 'STATUS') {
             // Handle status updates (e.g., "Iris is thinking...")
-            console.log('📊 Iris status update:', data);
+            console.log('[WebsocketLog] 📊 Iris status update:', data);
             // TODO: Show status indicator in UI
         } else {
-            console.log('⚠️ Unknown message type or format:', data);
+            console.log('[WebsocketLog] ⚠️ Unknown message type or format:', data);
         }
     }
 
@@ -127,6 +128,7 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
         _context: vscode.WebviewViewResolveContext,
         _token: vscode.CancellationToken,
     ) {
+        console.log('[WebsocketLog] 🌐 Iris Chat webview being resolved/loaded');
         this._view = webviewView;
 
         webviewView.webview.options = {
@@ -145,12 +147,15 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
 
         const visibilityListener = webviewView.onDidChangeVisibility(() => {
             if (webviewView.visible) {
+                console.log('[WebsocketLog] 👁️ Iris Chat view became visible, loading data...');
                 this._postSnapshot();
                 void this._detectWorkspaceExercise();
                 // Load Iris messages if context is already selected
                 void this._loadIrisMessagesIfNeeded();
                 // Update referenced files display
                 void this._updateReferencedFilesDisplay();
+            } else {
+                console.log('[WebsocketLog] 👁️‍🗨️ Iris Chat view became hidden');
             }
         });
         this._disposables.push(visibilityListener);
@@ -588,20 +593,27 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
     }
 
     private async _loadIrisMessagesIfNeeded(): Promise<void> {
+        console.log('[WebsocketLog] 📨 _loadIrisMessagesIfNeeded called');
         const activeContext = this._contextStore.getActiveContext();
 
         if (!activeContext) {
+            console.log('[WebsocketLog] ⚠️ No active context, skipping message load');
             return;
         }
 
         // If we have an active session ID, just reload the messages for that session
         // (this handles the case when the sidebar is reopened and the webview is recreated)
         if (this._currentArtemisSessionId) {
-            console.log('Active session found on view reopen, reloading messages...');
+            console.log('[WebsocketLog] 🔄 Active session found on view reopen, reloading messages...', {
+                sessionId: this._currentArtemisSessionId
+            });
             await this._loadIrisMessages();
         } else {
             // No session initialized yet, load all sessions for the context
-            console.log('Active context found on startup, loading Iris messages...');
+            console.log('[WebsocketLog] 📋 Active context found on startup, loading Iris messages...', {
+                contextType: activeContext.type,
+                contextId: activeContext.id
+            });
             await this._loadAllSessionsForContext();
         }
     }
@@ -1174,15 +1186,20 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
     }
 
     private async _handleChatMessage(message: any): Promise<void> {
+        console.log('[WebsocketLog] 📤 _handleChatMessage called with:', { text: message?.text?.substring(0, 50) });
+        
         if (!message?.text) {
+            console.log('[WebsocketLog] ⚠️ No text in message, returning');
             return;
         }
 
         const activeContext = this._contextStore.getActiveContext();
         if (!activeContext) {
+            console.log('[WebsocketLog] ⚠️ No active context');
             vscode.window.showErrorMessage('Please select a course or exercise context first');
             return;
         }
+        console.log('[WebsocketLog] ✅ Active context:', { type: activeContext.type, id: activeContext.id, title: activeContext.title });
 
         if (!this._artemisApiService) {
             vscode.window.showErrorMessage('Artemis API service not available');
@@ -1197,17 +1214,24 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
 
         try {
             // Check WebSocket connection before sending
+            console.log('[WebsocketLog] 🔍 Checking WebSocket connection before sending message...');
             if (this._websocketService && !this._websocketService.isConnected()) {
-                console.log('WebSocket not connected, attempting to connect...');
+                console.log('[WebsocketLog] ⚠️ WebSocket not connected, attempting to connect...');
                 try {
                     await this._websocketService.connect();
+                    console.log('[WebsocketLog] ✅ WebSocket connected successfully');
                 } catch (error) {
-                    console.error('Failed to connect WebSocket:', error);
+                    console.error('[WebsocketLog] ❌ Failed to connect WebSocket:', error);
                     vscode.window.showWarningMessage('WebSocket connection failed. You may not receive responses in real-time.');
                 }
+            } else if (this._websocketService) {
+                console.log('[WebsocketLog] ✅ WebSocket already connected');
+            } else {
+                console.warn('[WebsocketLog] ⚠️ No WebSocket service available');
             }
 
             // Show user message immediately
+            console.log('[WebsocketLog] 💬 Sending user message to webview');
             if (this._view) {
                 this._view.webview.postMessage({
                     command: 'addMessage',
@@ -1217,11 +1241,21 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
                         timestamp: Date.now()
                     }
                 });
+                console.log('[WebsocketLog] ✅ User message sent to webview (this should trigger thinking indicator)');
+            } else {
+                console.log('[WebsocketLog] ⚠️ No view available to send message');
             }
 
             // Get or create Iris session
+            console.log('[WebsocketLog] 🔑 Checking for existing Iris session...', { 
+                hasSessionId: !!this._currentArtemisSessionId,
+                sessionId: this._currentArtemisSessionId 
+            });
             if (!this._currentArtemisSessionId) {
+                console.log('[WebsocketLog] 🆕 No active session found, initializing new Iris session...');
                 await this._initializeIrisSession(activeContext);
+            } else {
+                console.log('[WebsocketLog] ✅ Using existing Iris session:', this._currentArtemisSessionId);
             }
 
             if (!this._currentArtemisSessionId) {
@@ -1305,13 +1339,18 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
 
             // Send message to Iris
             // The response will come through WebSocket, so we don't need to wait for it here
+            console.log('[WebsocketLog] 🚀 Sending message to Artemis API...', {
+                sessionId: this._currentArtemisSessionId,
+                messageLength: message.text.length,
+                hasUncommittedFiles: uncommittedFiles ? uncommittedFiles.size : 0
+            });
             await this._artemisApiService.sendChatMessage(
                 this._currentArtemisSessionId,
                 message.text,
                 uncommittedFiles
             );
 
-            console.log('Message sent to Iris, waiting for WebSocket response...');
+            console.log('[WebsocketLog] ✅ Message sent to Iris, waiting for WebSocket response...');
 
             // Note: The assistant's response will arrive via WebSocket
             // and will be handled by _handleIrisWebSocketMessage()
@@ -1367,7 +1406,14 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
     }
 
     private async _initializeIrisSession(context: ActiveContext): Promise<void> {
+        console.log('[WebsocketLog] 🎬 _initializeIrisSession called', { 
+            contextType: context.type, 
+            contextId: context.id, 
+            contextTitle: context.title 
+        });
+        
         if (!this._artemisApiService) {
+            console.error('[WebsocketLog] ❌ No Artemis API service available');
             return;
         }
 
@@ -1406,12 +1452,12 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
                 this._storeArtemisSessionId(session.id);
             }
 
-            console.log(`Iris session initialized with ID: ${session.id}`);
+            console.log('[WebsocketLog] 🎯 Iris session initialized with ID:', session.id);
             this._currentArtemisSessionId = session.id;
 
             // Unsubscribe from previous session if any
             if (this._irisUnsubscribe) {
-                console.log('Unsubscribing from previous Iris session');
+                console.log('[WebsocketLog] 🔌 Unsubscribing from previous Iris session');
                 this._irisUnsubscribe();
                 this._irisUnsubscribe = undefined;
             }
@@ -1419,37 +1465,37 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
             // Subscribe to WebSocket messages for this session
             if (this._websocketService) {
                 const isConnected = this._websocketService.isConnected();
-                console.log('WebSocket service status:', { isConnected });
+                console.log('[WebsocketLog] 🔌 WebSocket service status:', { isConnected });
 
                 if (isConnected) {
-                    console.log('Subscribing to Iris WebSocket for session:', session.id);
+                    console.log('[WebsocketLog] 📡 Subscribing to Iris WebSocket for session:', session.id);
                     try {
                         this._irisUnsubscribe = this._websocketService.subscribeToIrisSession(
                             session.id,
                             (data: any) => this._handleIrisWebSocketMessage(data)
                         );
-                        console.log('Successfully subscribed to Iris WebSocket');
+                        console.log('[WebsocketLog] ✅ Successfully subscribed to Iris WebSocket');
                     } catch (error) {
-                        console.error('Failed to subscribe to Iris WebSocket:', error);
+                        console.error('[WebsocketLog] ❌ Failed to subscribe to Iris WebSocket:', error);
                         vscode.window.showErrorMessage('Failed to connect to Iris WebSocket. Messages may not appear in real-time.');
                     }
                 } else {
-                    console.log('WebSocket not connected, attempting to connect...');
+                    console.log('[WebsocketLog] ⚠️ WebSocket not connected, attempting to connect...');
                     // Try to connect the WebSocket
                     try {
                         await this._websocketService.connect();
-                        console.log('WebSocket connected, now subscribing to Iris session:', session.id);
+                        console.log('[WebsocketLog] ✅ WebSocket connected, now subscribing to Iris session:', session.id);
                         this._irisUnsubscribe = this._websocketService.subscribeToIrisSession(
                             session.id,
                             (data: any) => this._handleIrisWebSocketMessage(data)
                         );
                     } catch (error) {
-                        console.error('Failed to connect WebSocket:', error);
+                        console.error('[WebsocketLog] ❌ Failed to connect WebSocket:', error);
                         vscode.window.showWarningMessage('WebSocket not connected. You may need to connect manually via "Artemis: Connect to WebSocket"');
                     }
                 }
             } else {
-                console.error('WebSocket service not provided to ChatWebviewProvider');
+                console.error('[WebsocketLog] ❌ WebSocket service not provided to ChatWebviewProvider');
                 vscode.window.showWarningMessage('WebSocket service not available. Real-time messages will not work.');
             }
 

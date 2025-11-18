@@ -313,11 +313,15 @@ export class ArtemisWebsocketService {
 
         const subscription = this._client.subscribe(topic, (message: IMessage) => {
             try {
+                this._log(`📨 Received WebSocket message for Iris session ${sessionId}`);
                 const data = JSON.parse(message.body);
-                this._log(`Received Iris message for session ${sessionId}: ${JSON.stringify(data).substring(0, 100)}`);
+                this._log(`📦 Message data preview: ${JSON.stringify(data).substring(0, 200)}...`);
+                this._log(`🔔 Invoking onMessage callback for session ${sessionId}`);
                 onMessage(data);
+                this._log(`✅ onMessage callback completed for session ${sessionId}`);
             } catch (error) {
-                this._log(`Error processing Iris message: ${error}`);
+                this._log(`❌ Error processing Iris message: ${error}`);
+                console.error('[WebsocketLog] Full error:', error);
             }
         });
 
@@ -460,7 +464,7 @@ export class ArtemisWebsocketService {
 
     private _onError(message: string): void {
         this._log(`❌ ${message}`);
-        console.error(`[Artemis WebSocket] ${message}`);
+        console.error(`[WebsocketLog] ERROR: ${message}`);
     }
 
     private _getServerUrl(): string {
@@ -489,6 +493,6 @@ export class ArtemisWebsocketService {
     }
 
     private _log(message: string): void {
-        console.log(`[Artemis WebSocket] ${message}`);
+        console.log(`[WebsocketLog] ${message}`);
     }
 }
