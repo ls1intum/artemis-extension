@@ -190,9 +190,9 @@ export class CourseListView {
                                     size: 'medium',
                                     onChange: 'window.handleFiltersChange()',
                                     options: [
-                                        { value: 'title-asc', label: 'Title (A-Z)', selected: true },
+                                        { value: 'title-asc', label: 'Title (A-Z)' },
                                         { value: 'title-desc', label: 'Title (Z-A)' },
-                                        { value: 'semester-desc', label: 'Newest First' },
+                                        { value: 'semester-desc', label: 'Newest First', selected: true },
                                         { value: 'semester-asc', label: 'Oldest First' },
                                         { value: 'exercises-desc', label: 'Most Exercises' },
                                         { value: 'exercises-asc', label: 'Least Exercises' }
@@ -269,7 +269,7 @@ export class CourseListView {
             const clearFiltersBtn = document.getElementById('clearFiltersBtn');
             
             // Check if any filters are active
-            const hasActiveFilters = searchTerm !== '' || typeFilter !== 'all' || semesterFilter !== 'all' || sortBy !== 'title-asc';
+            const hasActiveFilters = searchTerm !== '' || typeFilter !== 'all' || semesterFilter !== 'all' || sortBy !== 'semester-desc';
             
             if (clearFiltersBtn) {
                 clearFiltersBtn.disabled = !hasActiveFilters;
@@ -475,7 +475,7 @@ export class CourseListView {
             if (searchInput) searchInput.value = '';
             if (typeFilter) typeFilter.value = 'all';
             if (semesterFilter) semesterFilter.value = 'all';
-            if (sortBy) sortBy.value = 'title-asc';
+            if (sortBy) sortBy.value = 'semester-desc';
             
             window.handleFiltersChange();
         };
@@ -567,7 +567,7 @@ export class CourseListView {
                 
                 // Connect search input to handleSearch function
                 searchInput.addEventListener('input', function(e) {
-                    handleSearch(e.target.value);
+                    window.handleSearch(e.target.value);
                 });
             }
             
@@ -575,7 +575,7 @@ export class CourseListView {
             populateSemesterFilter();
             
             // Initialize filters
-            handleFiltersChange();
+            window.handleFiltersChange();
         });
     </script>
 </body>
