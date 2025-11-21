@@ -891,6 +891,18 @@ export class ExerciseDetailView {
             switch (message.command) {
                 case 'updateRepoStatus':
                     if (message.isConnected) {
+                        // Hide recently cloned notice if connected
+                        const clonedNotice = document.getElementById('clonedRepoNotice');
+                        if (clonedNotice) {
+                            clonedNotice.style.display = 'none';
+                            // Also clear from storage so it doesn't pop up again on reload
+                            try {
+                                const ex = exerciseData.exercise || exerciseData;
+                                const storageKey = 'recentlyCloned_' + ex.id;
+                                localStorage.removeItem(storageKey);
+                            } catch (e) {}
+                        }
+
                         const hasChanges = !!message.hasChanges;
                         const iconChar = '✓';
                         const tooltip = hasChanges

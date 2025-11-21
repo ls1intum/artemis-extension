@@ -8,6 +8,10 @@ All notable changes to the Artemis VS Code extension will be documented in this 
 
 - **Practice Mode**: Added support for starting practice runs on programming exercises after the due date, including automatic repository detection and safety warnings.
 
+### Fixed
+
+- **Recently Cloned Notice**: Fixed an issue where the "Recently cloned" notice would persist even after the repository was successfully opened.
+
 ## [0.2.5] - 2025-11-07
 
 ### Added
