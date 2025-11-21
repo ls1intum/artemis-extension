@@ -30,6 +30,10 @@ export interface TransformedExerciseData {
   isProgrammingExercise: boolean;
   isQuizExercise: boolean;
   
+  // Practice mode
+  isPracticeAvailable: boolean;
+  practiceParticipation?: any;
+  
   // Score calculations
   scorePercentage?: number;
   scorePoints?: number;
@@ -238,9 +242,29 @@ export function transformExerciseData(exercise: any): TransformedExerciseData {
   const isProgrammingExercise = normalizedExerciseType === "programming";
   const isQuizExercise = normalizedExerciseType === "quiz";
 
-  // Get latest submission and result
-  const latestSubmission = hasParticipation
-    ? getLatestSubmission(firstParticipation)
+  // Practice mode calculation
+  const isTeamMode = !!exercise.teamMode;
+  const dueDatePassed = exercise.dueDate ? new Date(exercise.dueDate).getTime() < new Date().getTime() : false;
+  
+  let practiceParticipation: any | undefined;
+  if (hasParticipation) {
+      // In Artemis, practice participations usually have testRun set to true
+      practiceParticipation = exercise.studentParticipations.find((p: any) => p.testRun);
+  }
+  
+  // Logic: Programming exercise + Due date passed + Not team mode + No active practice participation
+  const isPracticeAvailable = isProgrammingExercise && 
+                              dueDatePassed && 
+                              !isTeamMode && 
+                              !practiceParticipation;
+
+  // Determine which participation to use for display (practice takes precedence if active)
+  const displayParticipation = practiceParticipation || firstParticipation;
+  const displayParticipationId = displayParticipation?.id;
+
+  // Get latest submission and result from the display participation
+  const latestSubmission = displayParticipation
+    ? getLatestSubmission(displayParticipation)
     : undefined;
   const latestResult = latestSubmission
     ? getLatestResult(latestSubmission)
@@ -277,11 +301,13 @@ export function transformExerciseData(exercise: any): TransformedExerciseData {
     filePattern,
     hasParticipation,
     firstParticipation,
-    participationId,
+    participationId: displayParticipationId, // Use the ID of the participation we are displaying
     latestSubmission,
     latestResult,
     isProgrammingExercise,
     isQuizExercise,
+    isPracticeAvailable,
+    practiceParticipation,
     scorePercentage,
     scorePoints,
     totalTests,

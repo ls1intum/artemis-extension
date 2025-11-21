@@ -17,7 +17,17 @@ export class RepositoryStatusScripts {
     return `
       // Repository status checking
       window.checkRepositoryStatus = function(showChecking = false) {
-          const participation = exerciseData.exercise?.studentParticipations?.[0] || exerciseData.studentParticipations?.[0];
+          const ex = exerciseData.exercise || exerciseData;
+          const participations = ex.studentParticipations || [];
+          
+          // Check for practice participation first
+          let participation = participations.find(p => p.testRun);
+          
+          // If no practice participation, use the first one (graded)
+          if (!participation && participations.length > 0) {
+              participation = participations[0];
+          }
+          
           const repoUrl = participation?.repositoryUri;
           
           if (!repoUrl) {

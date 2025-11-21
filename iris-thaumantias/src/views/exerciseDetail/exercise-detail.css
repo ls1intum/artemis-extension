@@ -685,6 +685,7 @@
             border-radius: 50%;
             background: var(--theme-border);
             transition: background 0.15s ease-in-out, transform 0.15s ease-in-out;
+            flex-shrink: 0;
         }
 
         .changes-status[data-state='dirty'] {
@@ -1459,3 +1460,36 @@
             color: white;
             border-color: var(--theme-success);
         }
+
+/* Practice Mode Styles */
+.practice-mode-indicator {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    background-color: var(--vscode-editorInfo-background, rgba(117, 190, 255, 0.1));
+    color: var(--vscode-editorInfo-foreground, #75beff);
+    border-radius: 4px;
+    margin-bottom: 12px;
+    font-weight: 600;
+    font-size: 13px;
+}
+
+.practice-mode-indicator .codicon {
+    font-size: 16px;
+}
+
+/* Wrong Repo Warning */
+.changes-status[data-state="wrong-repo"] {
+    color: var(--vscode-editorWarning-foreground, #cca700);
+    font-weight: 600;
+}
+
+.changes-status[data-state="wrong-repo"] .changes-status-indicator {
+    background-color: var(--vscode-editorWarning-foreground, #cca700);
+}
+
+.repo-status-icon.warning {
+    color: var(--vscode-editorWarning-foreground, #cca700);
+    border-color: var(--vscode-editorWarning-foreground, #cca700);
+}

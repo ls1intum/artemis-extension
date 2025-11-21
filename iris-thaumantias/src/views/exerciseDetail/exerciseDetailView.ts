@@ -247,7 +247,9 @@ export class ExerciseDetailView {
         isQuizExercise: transformed.isQuizExercise,
         exerciseType: exercise.type || exercise.exerciseType,
         participationId: transformed.participationId,
-        uploadMessageIcon
+        uploadMessageIcon,
+        isPracticeAvailable: transformed.isPracticeAvailable,
+        practiceParticipation: transformed.practiceParticipation
       });
 
       // Wrap everything in the participation-section container
@@ -837,6 +839,15 @@ export class ExerciseDetailView {
             });
         };
 
+        window.startPractice = function() {
+            vscode.postMessage({
+                command: 'startPractice',
+                exerciseId: exerciseData.exercise?.id || exerciseData.id,
+                exerciseTitle: exerciseData.exercise?.title || exerciseData.title,
+                courseId: exerciseData.exercise?.course?.id || exerciseData.course?.id
+            });
+        };
+
         window.openExerciseInBrowser = function() {
             vscode.postMessage({ 
                 command: 'openExerciseInBrowser',
@@ -880,6 +891,18 @@ export class ExerciseDetailView {
             switch (message.command) {
                 case 'updateRepoStatus':
                     if (message.isConnected) {
+                        // Hide recently cloned notice if connected
+                        const clonedNotice = document.getElementById('clonedRepoNotice');
+                        if (clonedNotice) {
+                            clonedNotice.style.display = 'none';
+                            // Also clear from storage so it doesn't pop up again on reload
+                            try {
+                                const ex = exerciseData.exercise || exerciseData;
+                                const storageKey = 'recentlyCloned_' + ex.id;
+                                localStorage.removeItem(storageKey);
+                            } catch (e) {}
+                        }
+
                         const hasChanges = !!message.hasChanges;
                         const iconChar = '✓';
                         const tooltip = hasChanges
@@ -888,8 +911,13 @@ export class ExerciseDetailView {
                         updateRepoStatusIcon('connected', iconChar, tooltip, hasChanges);
                         updateButtonsForWorkspace(true, hasChanges);
                     } else {
-                        updateRepoStatusIcon('disconnected', '!', 'Open the exercise repository to enable submissions. Click to rerun check.', false);
-                        updateButtonsForWorkspace(false);
+                        if (message.isGradedRepo) {
+                            updateRepoStatusIcon('warning', '⚠️', 'You are in the graded repository. Switch to practice repository.', false);
+                            updateChangeStatus('wrong-repo', 'You are in the graded repository. Please open the practice repository.');
+                        } else {
+                            updateRepoStatusIcon('disconnected', '!', 'Open the exercise repository to enable submissions. Click to rerun check.', false);
+                            updateButtonsForWorkspace(false);
+                        }
                     }
                     break;
                 case 'submissionResult':
@@ -1076,11 +1104,20 @@ export class ExerciseDetailView {
             try {
                 const ex = exerciseData.exercise || exerciseData;
                 const participations = ex.studentParticipations || [];
-                if (!participations.length) {
+                
+                // Check for practice participation first
+                let participation = participations.find(p => p.testRun);
+                
+                // If no practice participation, use the first one (graded)
+                if (!participation && participations.length > 0) {
+                    participation = participations[0];
+                }
+
+                if (!participation) {
                     vscode.postMessage({ command: 'alert', text: 'No participation found. Start the exercise first.' });
                     return;
                 }
-                const participation = participations[0];
+                
                 vscode.postMessage({
                     command: 'cloneRepository',
                     participationId: participation.id,
@@ -1121,11 +1158,20 @@ export class ExerciseDetailView {
             try {
                 const ex = exerciseData.exercise || exerciseData;
                 const participations = ex.studentParticipations || [];
-                if (!participations.length) {
+                
+                // Check for practice participation first
+                let participation = participations.find(p => p.testRun);
+                
+                // If no practice participation, use the first one (graded)
+                if (!participation && participations.length > 0) {
+                    participation = participations[0];
+                }
+
+                if (!participation) {
                     vscode.postMessage({ command: 'alert', text: 'No participation found. Start the exercise first.' });
                     return;
                 }
-                const participation = participations[0];
+                
                 vscode.postMessage({
                     command: 'copyCloneUrl',
                     participationId: participation.id,
@@ -1176,11 +1222,19 @@ export class ExerciseDetailView {
             try {
                 const ex = exerciseData.exercise || exerciseData;
                 const participations = ex.studentParticipations || [];
-                if (!participations.length) {
+                
+                // Check for practice participation first
+                let participation = participations.find(p => p.testRun);
+                
+                // If no practice participation, use the first one (graded)
+                if (!participation && participations.length > 0) {
+                    participation = participations[0];
+                }
+
+                if (!participation) {
                     vscode.postMessage({ command: 'alert', text: 'No participation found. Start the exercise first.' });
                     return;
                 }
-                const participation = participations[0];
 
                 console.log('[WebsocketLog] 🔄 Setting submit loading to TRUE');
                 setSubmitLoading(true);
