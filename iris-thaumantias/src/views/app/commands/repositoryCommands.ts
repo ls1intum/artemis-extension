@@ -109,6 +109,43 @@ export class RepositoryCommandModule {
                             break;
                         }
                     }
+
+                    // Fallback: If no exact match found, check if it's a practice repo that matches a graded repo
+                    if (!matchedExercise && normalizedRepoUrl.includes('-practice-')) {
+                        // Try to construct the graded repo URL by removing '-practice'
+                        // Example: .../slug-practice-user -> .../slug-user
+                        const potentialGradedUrl = normalizedRepoUrl.replace('-practice-', '-');
+                        
+                        for (const courseData of coursesData.courses) {
+                            const exercises = courseData?.course?.exercises || courseData?.exercises || [];
+    
+                            for (const exercise of exercises) {
+                                const participations = exercise.studentParticipations || [];
+    
+                                for (const participation of participations) {
+                                    if (participation.repositoryUri) {
+                                        const exerciseRepoUrl = normalizeUrl(participation.repositoryUri);
+    
+                                        if (exerciseRepoUrl === potentialGradedUrl) {
+                                            matchedExercise = {
+                                                id: exercise.id,
+                                                title: exercise.title
+                                            };
+                                            break;
+                                        }
+                                    }
+                                }
+                                
+                                if (matchedExercise) {
+                                    break;
+                                }
+                            }
+    
+                            if (matchedExercise) {
+                                break;
+                            }
+                        }
+                    }
                 }
 
                 this.context.sendMessage({
