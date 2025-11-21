@@ -20,25 +20,15 @@ export class RepositoryStatusScripts {
           const ex = exerciseData.exercise || exerciseData;
           const participations = ex.studentParticipations || [];
           
-          console.log('[RepoStatus] Checking participations:', participations.map(p => ({ id: p.id, testRun: p.testRun, uri: p.repositoryUri })));
-
           // Check for practice participation first
           let participation = participations.find(p => p.testRun);
-          
-          if (participation) {
-              console.log('[RepoStatus] Found practice participation:', participation.id);
-          } else {
-              console.log('[RepoStatus] No practice participation found.');
-          }
           
           // If no practice participation, use the first one (graded)
           if (!participation && participations.length > 0) {
               participation = participations[0];
-              console.log('[RepoStatus] Using graded participation:', participation.id);
           }
           
           const repoUrl = participation?.repositoryUri;
-          console.log('[RepoStatus] Expected Repo URL:', repoUrl);
           
           if (!repoUrl) {
               updateRepoStatusIcon('unknown', '!', 'Open the exercise repository.', false);
