@@ -9,7 +9,7 @@ import {
     ContextSnapshot,
 } from './contextTypes';
 import { ArtemisApiService } from '../api';
-import { ArtemisWebsocketService, FileMonitorService } from '../services';
+import { ArtemisWebsocketService, FileMonitorService, IrisSessionManager } from '../services';
 import { checkWorkspaceFiles } from '../utils';
 
 type ChatContextReason =
@@ -27,10 +27,9 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
     private _irisChatView?: IrisChatView;
     private readonly _contextStore: ContextStore;
     private readonly _disposables: vscode.Disposable[] = [];
-    private _currentArtemisSessionId?: number;
-    private _irisUnsubscribe?: () => void;
     private _contextLoadToken = 0;
     private _fileMonitorService: FileMonitorService;
+    private _irisSessionManager?: IrisSessionManager;
 
     constructor(
         private readonly _extensionUri: vscode.Uri,
@@ -42,6 +41,14 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
         this._fileMonitorService = new FileMonitorService();
         this._disposables.push(this._fileMonitorService);
         
+        if (this._artemisApiService && this._websocketService) {
+            this._irisSessionManager = new IrisSessionManager(this._artemisApiService, this._websocketService);
+            this._disposables.push(this._irisSessionManager);
+
+            this._irisSessionManager.onDidReceiveMessage(data => this._handleIrisWebSocketMessage(data));
+            this._irisSessionManager.onDidConnectionStateChange(isConnected => this._updateWebSocketStatus(isConnected));
+        }
+
         this._fileMonitorService.onDidUpdateFiles(update => {
             if (this._view) {
                 this._view.webview.postMessage({
@@ -53,12 +60,6 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
     }
 
     public dispose(): void {
-        // Unsubscribe from Iris WebSocket
-        if (this._irisUnsubscribe) {
-            this._irisUnsubscribe();
-            this._irisUnsubscribe = undefined;
-        }
-
         while (this._disposables.length > 0) {
             const disposable = this._disposables.pop();
             disposable?.dispose();
@@ -186,44 +187,13 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
         void this._loadIrisMessagesIfNeeded();
 
         // Start monitoring WebSocket status
-        this._startWebSocketMonitoring();
+        // this._startWebSocketMonitoring(); // Handled by IrisSessionManager
 
         // Trigger initial file update
         void this._fileMonitorService.triggerUpdate();
     }
 
-    private _startWebSocketMonitoring(): void {
-        if (!this._websocketService) {
-            return;
-        }
-
-        // Register for connection state changes
-        this._websocketService.onConnectionStateChange((isConnected: boolean) => {
-            console.log('WebSocket connection state changed:', isConnected);
-            this._updateWebSocketStatus(isConnected);
-
-            // If reconnected and we have an active session, resubscribe
-            if (isConnected && this._currentArtemisSessionId) {
-                console.log('WebSocket reconnected, resubscribing to session:', this._currentArtemisSessionId);
-
-                // Unsubscribe from old subscription if any
-                if (this._irisUnsubscribe) {
-                    this._irisUnsubscribe();
-                }
-
-                // Subscribe to the current session
-                try {
-                    this._irisUnsubscribe = this._websocketService!.subscribeToIrisSession(
-                        this._currentArtemisSessionId,
-                        (data: any) => this._handleIrisWebSocketMessage(data)
-                    );
-                    console.log('Successfully resubscribed to Iris session');
-                } catch (error) {
-                    console.error('Failed to resubscribe to Iris session:', error);
-                }
-            }
-        });
-    }
+    // private _startWebSocketMonitoring(): void { ... } // Removed
 
     private _mapReasonToSource(reason: ChatContextReason): 'workspace-detected' | 'user-selected' | 'system-default' {
         switch (reason) {
@@ -288,13 +258,11 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
     }
 
     private _resetSessionStateForContextChange(): void {
-        this._currentArtemisSessionId = undefined;
+        // this._currentArtemisSessionId = undefined; // Handled by IrisSessionManager
 
-        if (this._irisUnsubscribe) {
-            this._irisUnsubscribe();
-            this._irisUnsubscribe = undefined;
+        if (this._irisSessionManager) {
+            this._irisSessionManager.unsubscribe();
         }
-
     }
 
     private async _detectWorkspaceExercise(): Promise<void> {
@@ -432,7 +400,9 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
         });
 
         // Reset Iris session when context changes
-        this._currentArtemisSessionId = undefined;
+        if (this._irisSessionManager) {
+            this._irisSessionManager.unsubscribe();
+        }
 
         // Clear chat messages
         if (this._view) {
@@ -476,9 +446,9 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
 
         // If we have an active session ID, just reload the messages for that session
         // (this handles the case when the sidebar is reopened and the webview is recreated)
-        if (this._currentArtemisSessionId) {
+        if (this._irisSessionManager?.currentSessionId) {
             console.log('[WebsocketLog] 🔄 Active session found on view reopen, reloading messages...', {
-                sessionId: this._currentArtemisSessionId
+                sessionId: this._irisSessionManager.currentSessionId
             });
             await this._loadIrisMessages();
         } else {
@@ -717,7 +687,7 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
                     return;
                 }
                 this._contextStore.createSession();
-                await this._createNewIrisSession();
+                this.createNewSession();
             }
 
             // Post updated snapshot to show sessions in UI
@@ -739,7 +709,7 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
 
             // Fall back to creating a new session
             this._contextStore.createSession();
-            await this._createNewIrisSession();
+            this.createNewSession();
             this._postSnapshot();
         }
     }
@@ -789,7 +759,9 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
         });
 
         // Reset Iris session when context changes
-        this._currentArtemisSessionId = undefined;
+        if (this._irisSessionManager) {
+            this._irisSessionManager.unsubscribe();
+        }
 
         // Clear chat messages
         if (this._view) {
@@ -823,7 +795,9 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
         });
 
         // Reset Iris session when context changes
-        this._currentArtemisSessionId = undefined;
+        if (this._irisSessionManager) {
+            this._irisSessionManager.unsubscribe();
+        }
 
         // Clear chat messages
         if (this._view) {
@@ -1121,17 +1095,18 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
 
             // Get or create Iris session
             console.log('[WebsocketLog] 🔑 Checking for existing Iris session...', { 
-                hasSessionId: !!this._currentArtemisSessionId,
-                sessionId: this._currentArtemisSessionId 
+                hasSessionId: !!this._irisSessionManager?.currentSessionId,
+                sessionId: this._irisSessionManager?.currentSessionId 
             });
-            if (!this._currentArtemisSessionId) {
+            
+            if (!this._irisSessionManager?.currentSessionId) {
                 console.log('[WebsocketLog] 🆕 No active session found, initializing new Iris session...');
                 await this._initializeIrisSession(activeContext);
             } else {
-                console.log('[WebsocketLog] ✅ Using existing Iris session:', this._currentArtemisSessionId);
+                console.log('[WebsocketLog] ✅ Using existing Iris session:', this._irisSessionManager.currentSessionId);
             }
 
-            if (!this._currentArtemisSessionId) {
+            if (!this._irisSessionManager?.currentSessionId) {
                 throw new Error('Failed to initialize Iris session');
             }
 
@@ -1213,12 +1188,12 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
             // Send message to Iris
             // The response will come through WebSocket, so we don't need to wait for it here
             console.log('[WebsocketLog] 🚀 Sending message to Artemis API...', {
-                sessionId: this._currentArtemisSessionId,
+                sessionId: this._irisSessionManager.currentSessionId,
                 messageLength: message.text.length,
                 hasUncommittedFiles: uncommittedFiles ? uncommittedFiles.size : 0
             });
             await this._artemisApiService.sendChatMessage(
-                this._currentArtemisSessionId,
+                this._irisSessionManager.currentSessionId,
                 message.text,
                 uncommittedFiles
             );
@@ -1285,8 +1260,8 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
             contextTitle: context.title 
         });
         
-        if (!this._artemisApiService) {
-            console.error('[WebsocketLog] ❌ No Artemis API service available');
+        if (!this._artemisApiService || !this._irisSessionManager) {
+            console.error('[WebsocketLog] ❌ No Artemis API service or Session Manager available');
             return;
         }
 
@@ -1304,145 +1279,83 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
                 createdAt: activeLocalSession?.createdAt ? new Date(activeLocalSession.createdAt).toISOString() : 'unknown'
             });
 
-            let session;
-            if (activeLocalSession?.artemisSessionId) {
-                // We have a stored Artemis session ID, use it directly
-                console.log('Using stored Artemis session ID:', activeLocalSession.artemisSessionId);
-                session = { id: activeLocalSession.artemisSessionId };
-            } else {
-                // No stored session, get or create the current one
-                console.log('No stored session, fetching current session from Artemis');
-                if (context.type === 'course') {
-                    session = await this._artemisApiService.getCurrentCourseChat(context.id);
-                } else if (context.type === 'exercise') {
-                    session = await this._artemisApiService.getCurrentExerciseChat(context.id);
-                } else {
-                    throw new Error(`Unsupported context type: ${context.type}`);
-                }
-
-                // Store the Artemis session ID for future use (only for new mappings)
-                console.log('Storing NEW Artemis session ID mapping:', session.id);
-                this._storeArtemisSessionId(session.id);
+            const sessionId = await this._irisSessionManager.initializeSession(context, activeLocalSession?.artemisSessionId);
+            
+            // If we didn't have a stored session ID, store it now
+            if (!activeLocalSession?.artemisSessionId) {
+                console.log('Storing NEW Artemis session ID mapping:', sessionId);
+                this._storeArtemisSessionId(sessionId);
             }
 
-            console.log('[WebsocketLog] 🎯 Iris session initialized with ID:', session.id);
-            this._currentArtemisSessionId = session.id;
-
-            // Unsubscribe from previous session if any
-            if (this._irisUnsubscribe) {
-                console.log('[WebsocketLog] 🔌 Unsubscribing from previous Iris session');
-                this._irisUnsubscribe();
-                this._irisUnsubscribe = undefined;
-            }
-
-            // Subscribe to WebSocket messages for this session
-            if (this._websocketService) {
-                const isConnected = this._websocketService.isConnected();
-                console.log('[WebsocketLog] 🔌 WebSocket service status:', { isConnected });
-
-                if (isConnected) {
-                    console.log('[WebsocketLog] 📡 Subscribing to Iris WebSocket for session:', session.id);
-                    try {
-                        this._irisUnsubscribe = this._websocketService.subscribeToIrisSession(
-                            session.id,
-                            (data: any) => this._handleIrisWebSocketMessage(data)
-                        );
-                        console.log('[WebsocketLog] ✅ Successfully subscribed to Iris WebSocket');
-                    } catch (error) {
-                        console.error('[WebsocketLog] ❌ Failed to subscribe to Iris WebSocket:', error);
-                        vscode.window.showErrorMessage('Failed to connect to Iris WebSocket. Messages may not appear in real-time.');
-                    }
-                } else {
-                    console.log('[WebsocketLog] ⚠️ WebSocket not connected, attempting to connect...');
-                    // Try to connect the WebSocket
-                    try {
-                        await this._websocketService.connect();
-                        console.log('[WebsocketLog] ✅ WebSocket connected, now subscribing to Iris session:', session.id);
-                        this._irisUnsubscribe = this._websocketService.subscribeToIrisSession(
-                            session.id,
-                            (data: any) => this._handleIrisWebSocketMessage(data)
-                        );
-                    } catch (error) {
-                        console.error('[WebsocketLog] ❌ Failed to connect WebSocket:', error);
-                        vscode.window.showWarningMessage('WebSocket not connected. You may need to connect manually via "Artemis: Connect to WebSocket"');
-                    }
-                }
-            } else {
-                console.error('[WebsocketLog] ❌ WebSocket service not provided to ChatWebviewProvider');
-                vscode.window.showWarningMessage('WebSocket service not available. Real-time messages will not work.');
-            }
+            console.log('[WebsocketLog] 🎯 Iris session initialized with ID:', sessionId);
 
             // Load existing messages if any
-            if (session.id) {
-                console.log('Fetching messages for session:', session.id);
-                const messages = await this._artemisApiService.getChatMessages(session.id);
-                console.log(`Received ${messages?.length || 0} messages from Iris`);
+            console.log('Fetching messages for session:', sessionId);
+            const messages = await this._artemisApiService.getChatMessages(sessionId);
+            console.log(`Received ${messages?.length || 0} messages from Iris`);
 
-                // If we expected messages but got none, the stored session might be stale
-                if (activeLocalSession?.messageCount && activeLocalSession.messageCount > 0 &&
-                    (!messages || messages.length === 0)) {
-                    console.log('Warning: Expected', activeLocalSession.messageCount, 'messages but got none. Stored session might be stale.');
-                    console.log('Clearing stale Artemis session ID mapping...');
+            // If we expected messages but got none, the stored session might be stale
+            if (activeLocalSession?.messageCount && activeLocalSession.messageCount > 0 &&
+                (!messages || messages.length === 0)) {
+                console.log('Warning: Expected', activeLocalSession.messageCount, 'messages but got none. Stored session might be stale.');
+                console.log('Clearing stale Artemis session ID mapping...');
 
-                    // Clear the stale mapping
-                    this._storeArtemisSessionId(undefined as any);
+                // Clear the stale mapping
+                this._storeArtemisSessionId(undefined as any);
 
-                    vscode.window.showWarningMessage(
-                        'This conversation\'s messages could not be found on the server. They may have been deleted. The session mapping has been reset.',
-                        'Create New Conversation'
-                    ).then(selection => {
-                        if (selection === 'Create New Conversation') {
-                            this.createNewSession();
-                        }
-                    });
-                }
+                vscode.window.showWarningMessage(
+                    'This conversation\'s messages could not be found on the server. They may have been deleted. The session mapping has been reset.',
+                    'Create New Conversation'
+                ).then(selection => {
+                    if (selection === 'Create New Conversation') {
+                        this.createNewSession();
+                    }
+                });
+            }
 
-                if (this._view && messages && messages.length > 0) {
-                    console.log('Sending messages to webview:', messages);
+            if (this._view && messages && messages.length > 0) {
+                console.log('Sending messages to webview:', messages);
 
-                    const formattedMessages = messages.map((msg: any) => {
-                        console.log('Message:', msg);
+                const formattedMessages = messages.map((msg: any) => {
+                    // Extract content from the message structure
+                    let content = '';
+                    if (msg.content && Array.isArray(msg.content) && msg.content.length > 0) {
+                        // Content is an array of content items
+                        content = msg.content.map((item: any) => {
+                            if (item.textContent) {
+                                return item.textContent;
+                            }
+                            return item.toString();
+                        }).join('\n');
+                    } else if (typeof msg.content === 'string') {
+                        content = msg.content;
+                    } else if (msg.message) {
+                        content = msg.message;
+                    } else {
+                        content = JSON.stringify(msg.content);
+                    }
 
-                        // Extract content from the message structure
-                        let content = '';
-                        if (msg.content && Array.isArray(msg.content) && msg.content.length > 0) {
-                            // Content is an array of content items
-                            content = msg.content.map((item: any) => {
-                                if (item.textContent) {
-                                    return item.textContent;
-                                }
-                                return item.toString();
-                            }).join('\n');
-                        } else if (typeof msg.content === 'string') {
-                            content = msg.content;
-                        } else if (msg.message) {
-                            content = msg.message;
-                        } else {
-                            content = JSON.stringify(msg.content);
-                        }
+                    return {
+                        id: msg.id,
+                        role: msg.sender === 'USER' ? 'user' : 'assistant',
+                        content: content,
+                        timestamp: msg.sentAt ? new Date(msg.sentAt).getTime() : Date.now(),
+                        helpful: msg.helpful // true, false, or null
+                    };
+                });
 
-                        return {
-                            id: msg.id,
-                            role: msg.sender === 'USER' ? 'user' : 'assistant',
-                            content: content,
-                            timestamp: msg.sentAt ? new Date(msg.sentAt).getTime() : Date.now(),
-                            helpful: msg.helpful // true, false, or null
-                        };
-                    });
-
-                    // Small delay to ensure webview is ready
-                    setTimeout(() => {
-                        if (this._view) {
-                            this._view.webview.postMessage({
-                                command: 'loadMessages',
-                                messages: formattedMessages
-                            });
-                            console.log('Messages sent to webview');
-                        }
-                    }, 100);
-                } else {
-                    console.log('No messages to load or view not ready');
-                }
+                // Small delay to ensure webview is ready
+                setTimeout(() => {
+                    if (this._view) {
+                        this._view.webview.postMessage({
+                            command: 'loadMessages',
+                            messages: formattedMessages
+                        });
+                        console.log('Messages sent to webview');
+                    }
+                }, 100);
+            } else {
+                console.log('No messages to load or view not ready');
             }
 
             vscode.window.showInformationMessage(`Connected to Iris for ${context.title}`);
@@ -1455,14 +1368,9 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
     public clearAllSessions(): void {
         console.log('Clearing all local Iris sessions...');
 
-        // Unsubscribe from current WebSocket
-        if (this._irisUnsubscribe) {
-            this._irisUnsubscribe();
-            this._irisUnsubscribe = undefined;
+        if (this._irisSessionManager) {
+            this._irisSessionManager.unsubscribe();
         }
-
-        // Clear current session ID
-        this._currentArtemisSessionId = undefined;
 
         // Clear all sessions in the context store
         this._contextStore.clearAllSessions();
@@ -1496,19 +1404,9 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
             await this._websocketService.connect();
 
             // If we have an active Iris session, resubscribe to it
-            if (this._currentArtemisSessionId && this._websocketService.isConnected()) {
-                console.log('Resubscribing to Iris session after reconnect:', this._currentArtemisSessionId);
-
-                // Unsubscribe from old subscription if any
-                if (this._irisUnsubscribe) {
-                    this._irisUnsubscribe();
-                }
-
-                // Subscribe to the current session
-                this._irisUnsubscribe = this._websocketService.subscribeToIrisSession(
-                    this._currentArtemisSessionId,
-                    (data: any) => this._handleIrisWebSocketMessage(data)
-                );
+            if (this._irisSessionManager?.currentSessionId && this._websocketService.isConnected()) {
+                console.log('Resubscribing to Iris session after reconnect:', this._irisSessionManager.currentSessionId);
+                this._irisSessionManager.subscribeToSession(this._irisSessionManager.currentSessionId);
             }
 
             this._updateWebSocketStatus(true);
@@ -1651,14 +1549,8 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
                             }
 
                             // Store the Artemis session ID and subscribe to WebSocket
-                            this._currentArtemisSessionId = firstSession.id;
-
-                            if (this._websocketService && this._websocketService.isConnected()) {
-                                console.log('Subscribing to WebSocket for session:', firstSession.id);
-                                this._irisUnsubscribe = this._websocketService.subscribeToIrisSession(
-                                    firstSession.id,
-                                    (data: any) => this._handleIrisWebSocketMessage(data)
-                                );
+                            if (this._irisSessionManager) {
+                                this._irisSessionManager.subscribeToSession(firstSession.id);
                             }
                         }
 
@@ -1729,15 +1621,11 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
     public createNewSession(): void {
         console.log('Creating new session');
 
-        // Unsubscribe from old WebSocket session
-        if (this._irisUnsubscribe) {
-            console.log('Unsubscribing from previous Iris session');
-            this._irisUnsubscribe();
-            this._irisUnsubscribe = undefined;
+        if (this._irisSessionManager) {
+            this._irisSessionManager.unsubscribe();
         }
 
         this._contextStore.createSession();
-        this._currentArtemisSessionId = undefined;
         this._postSnapshot();
 
         if (this._view) {
@@ -1745,53 +1633,21 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
         }
 
         // Create a brand new Iris session on the backend
-        this._createNewIrisSession().catch(err => {
-            console.error('Error creating new Iris session:', err);
-        });
-    }
-
-    private async _createNewIrisSession(): Promise<void> {
         const activeContext = this._contextStore.getActiveContext();
-        if (!activeContext || !this._artemisApiService || !this._view) {
-            console.log('Cannot create new session: missing context, API service, or view');
-            return;
-        }
-
-        try {
-            console.log('Creating NEW Iris session for', activeContext.type, activeContext.id);
-
-            // Create a brand new session instead of getting the current one
-            let newSession;
-            if (activeContext.type === 'course') {
-                newSession = await this._artemisApiService.createCourseChatSession(activeContext.id);
-            } else if (activeContext.type === 'exercise') {
-                newSession = await this._artemisApiService.createExerciseChatSession(activeContext.id);
-            } else {
-                throw new Error(`Unsupported context type: ${activeContext.type}`);
-            }
-
-            console.log('New Iris session created with ID:', newSession.id);
-            this._currentArtemisSessionId = newSession.id;
-
-            // Store the Artemis session ID in the local session
-            this._storeArtemisSessionId(newSession.id);
-
-            // Subscribe to WebSocket for the new session
-            if (this._websocketService && this._websocketService.isConnected()) {
-                console.log('Subscribing to new Iris WebSocket session:', newSession.id);
-                this._irisUnsubscribe = this._websocketService.subscribeToIrisSession(
-                    newSession.id,
-                    (data: any) => this._handleIrisWebSocketMessage(data)
-                );
-                console.log('Successfully subscribed to new Iris WebSocket session');
-            }
-
-            vscode.window.showInformationMessage('New conversation started!');
-        } catch (error: any) {
-            console.error('Failed to create new Iris session:', error);
-            vscode.window.showErrorMessage(`Failed to create new conversation: ${error.message}`);
+        if (activeContext && this._irisSessionManager) {
+            this._irisSessionManager.createNewSession(activeContext)
+                .then(sessionId => {
+                    this._storeArtemisSessionId(sessionId);
+                    vscode.window.showInformationMessage('New conversation started!');
+                })
+                .catch(err => {
+                    console.error('Error creating new Iris session:', err);
+                    vscode.window.showErrorMessage(`Failed to create new conversation: ${err.message}`);
+                });
         }
     }
+
+    // private async _createNewIrisSession(): Promise<void> { ... } // Removed
 
     private _storeArtemisSessionId(artemisSessionId: number): void {
         // Store the Artemis session ID in the active local session
@@ -1802,15 +1658,11 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
     public switchToSession(sessionId: string): void {
         console.log('Switching to session:', sessionId);
 
-        // Unsubscribe from old WebSocket session
-        if (this._irisUnsubscribe) {
-            console.log('Unsubscribing from previous Iris session');
-            this._irisUnsubscribe();
-            this._irisUnsubscribe = undefined;
+        if (this._irisSessionManager) {
+            this._irisSessionManager.unsubscribe();
         }
 
         this._contextStore.switchSession(sessionId);
-        this._currentArtemisSessionId = undefined;
         this._postSnapshot();
 
         if (this._view) {
