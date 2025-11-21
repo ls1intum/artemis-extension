@@ -1459,3 +1459,21 @@
             color: white;
             border-color: var(--theme-success);
         }
+
+/* Practice Mode Styles */
+.practice-mode-indicator {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    background-color: var(--vscode-editorInfo-background, rgba(117, 190, 255, 0.1));
+    color: var(--vscode-editorInfo-foreground, #75beff);
+    border-radius: 4px;
+    margin-bottom: 12px;
+    font-weight: 600;
+    font-size: 13px;
+}
+
+.practice-mode-indicator .codicon {
+    font-size: 16px;
+}

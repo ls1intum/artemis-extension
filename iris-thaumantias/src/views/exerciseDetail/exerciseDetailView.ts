@@ -247,7 +247,9 @@ export class ExerciseDetailView {
         isQuizExercise: transformed.isQuizExercise,
         exerciseType: exercise.type || exercise.exerciseType,
         participationId: transformed.participationId,
-        uploadMessageIcon
+        uploadMessageIcon,
+        isPracticeAvailable: transformed.isPracticeAvailable,
+        practiceParticipation: transformed.practiceParticipation
       });
 
       // Wrap everything in the participation-section container
@@ -831,6 +833,15 @@ export class ExerciseDetailView {
         window.participateInExercise = function() {
             vscode.postMessage({
                 command: 'participateInExercise',
+                exerciseId: exerciseData.exercise?.id || exerciseData.id,
+                exerciseTitle: exerciseData.exercise?.title || exerciseData.title,
+                courseId: exerciseData.exercise?.course?.id || exerciseData.course?.id
+            });
+        };
+
+        window.startPractice = function() {
+            vscode.postMessage({
+                command: 'startPractice',
                 exerciseId: exerciseData.exercise?.id || exerciseData.id,
                 exerciseTitle: exerciseData.exercise?.title || exerciseData.title,
                 courseId: exerciseData.exercise?.course?.id || exerciseData.course?.id

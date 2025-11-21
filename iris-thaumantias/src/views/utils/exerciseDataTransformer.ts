@@ -30,6 +30,10 @@ export interface TransformedExerciseData {
   isProgrammingExercise: boolean;
   isQuizExercise: boolean;
   
+  // Practice mode
+  isPracticeAvailable: boolean;
+  practiceParticipation?: any;
+  
   // Score calculations
   scorePercentage?: number;
   scorePoints?: number;
@@ -263,6 +267,22 @@ export function transformExerciseData(exercise: any): TransformedExerciseData {
     hasTestInfo = tests > 0;
   }
 
+  // Practice mode calculation
+  const isTeamMode = !!exercise.teamMode;
+  const dueDatePassed = exercise.dueDate ? new Date(exercise.dueDate).getTime() < new Date().getTime() : false;
+  
+  let practiceParticipation: any | undefined;
+  if (hasParticipation) {
+      // In Artemis, practice participations usually have testRun set to true
+      practiceParticipation = exercise.studentParticipations.find((p: any) => p.testRun);
+  }
+  
+  // Logic: Programming exercise + Due date passed + Not team mode + No active practice participation
+  const isPracticeAvailable = isProgrammingExercise && 
+                              dueDatePassed && 
+                              !isTeamMode && 
+                              !practiceParticipation;
+
   return {
     exerciseTitle,
     exerciseType,
@@ -282,6 +302,8 @@ export function transformExerciseData(exercise: any): TransformedExerciseData {
     latestResult,
     isProgrammingExercise,
     isQuizExercise,
+    isPracticeAvailable,
+    practiceParticipation,
     scorePercentage,
     scorePoints,
     totalTests,

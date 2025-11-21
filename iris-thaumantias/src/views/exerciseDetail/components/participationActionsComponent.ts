@@ -8,6 +8,8 @@ export interface ParticipationActionsData {
   exerciseTitle?: string;
   participationId?: number;
   uploadMessageIcon: string;
+  isPracticeAvailable?: boolean;
+  practiceParticipation?: any;
 }
 
 /**
@@ -26,10 +28,12 @@ export class ParticipationActionsComponent {
       exerciseType,
       uploadMessageIcon,
       participationId,
+      isPracticeAvailable,
+      practiceParticipation,
     } = data;
 
     const changeStatusHtml =
-      hasParticipation && isProgrammingExercise
+      (hasParticipation || practiceParticipation) && isProgrammingExercise
         ? `
       <div class="changes-status" id="changesStatus" data-state="checking">
         <span class="changes-status-indicator"></span>
@@ -42,7 +46,9 @@ export class ParticipationActionsComponent {
       hasParticipation,
       isProgrammingExercise,
       changeStatusHtml,
-      uploadMessageIcon
+      uploadMessageIcon,
+      isPracticeAvailable,
+      practiceParticipation
     );
 
     // Determine participation info based on exercise type
@@ -72,8 +78,22 @@ export class ParticipationActionsComponent {
     hasParticipation: boolean,
     isProgrammingExercise: boolean,
     changeStatusHtml: string,
-    uploadMessageIcon: string
+    uploadMessageIcon: string,
+    isPracticeAvailable?: boolean,
+    practiceParticipation?: any
   ): string {
+    if (isPracticeAvailable) {
+      return this._generatePracticeAvailableActions();
+    }
+
+    if (practiceParticipation) {
+      return this._generateProgrammingExerciseActions(
+        changeStatusHtml,
+        uploadMessageIcon,
+        true
+      );
+    }
+
     if (hasParticipation) {
       if (isProgrammingExercise) {
         return this._generateProgrammingExerciseActions(
@@ -93,14 +113,36 @@ export class ParticipationActionsComponent {
   }
 
   /**
+   * Generate actions for practice available state
+   */
+  private static _generatePracticeAvailableActions(): string {
+    return `
+      <div class="participation-actions not-participated">
+        <div class="action-button-row">
+          <button class="participate-btn" onclick="startPractice()">Practice</button>
+          <button class="participate-btn secondary" onclick="openExerciseInBrowser()">Open in browser</button>
+        </div>
+      </div>
+    `;
+  }
+
+  /**
    * Generate actions for participated programming exercises
    */
   private static _generateProgrammingExerciseActions(
     changeStatusHtml: string,
-    uploadMessageIcon: string
+    uploadMessageIcon: string,
+    isPractice: boolean = false
   ): string {
+    const practiceLabel = isPractice 
+      ? `<div class="practice-mode-indicator">
+           <span class="codicon codicon-beaker"></span> Practice Mode
+         </div>` 
+      : '';
+
     return `
       <div class="participation-actions">
+        ${practiceLabel}
         ${changeStatusHtml}
         <div class="cloned-repo-notice" id="clonedRepoNotice" style="display: none;">
           <span id="clonedRepoMessage">Repository recently cloned.</span> 
