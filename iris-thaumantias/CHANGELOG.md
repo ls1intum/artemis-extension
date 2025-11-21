@@ -2,6 +2,12 @@
 
 All notable changes to the Artemis VS Code extension will be documented in this file.
 
+## [0.2.6] - 2025-11-21
+
+### Added
+
+- **Practice Mode**: Added support for starting practice runs on programming exercises after the due date, including automatic repository detection and safety warnings.
+
 ## [0.2.5] - 2025-11-07
 
 ### Added
