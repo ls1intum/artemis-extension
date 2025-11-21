@@ -207,6 +207,15 @@ export class ArtemisApiService {
         return response.json();
     }
 
+    // Start practice participation in an exercise
+    async startPracticeParticipation(exerciseId: number): Promise<any> {
+        const response = await this.makeRequest(
+            `/api/exercise/exercises/${exerciseId}/participations/practice`,
+            { method: 'POST' }
+        );
+        return response.json();
+    }
+
     // Authenticate user with username and password
     async authenticate(username: string, password: string, rememberMe: boolean = false): Promise<any> {
         const url = `${this.getServerUrl()}${CONFIG.API.ENDPOINTS.AUTHENTICATE}`;

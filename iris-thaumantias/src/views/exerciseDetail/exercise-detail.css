@@ -685,6 +685,7 @@
             border-radius: 50%;
             background: var(--theme-border);
             transition: background 0.15s ease-in-out, transform 0.15s ease-in-out;
+            flex-shrink: 0;
         }
 
         .changes-status[data-state='dirty'] {
@@ -1476,4 +1477,19 @@
 
 .practice-mode-indicator .codicon {
     font-size: 16px;
+}
+
+/* Wrong Repo Warning */
+.changes-status[data-state="wrong-repo"] {
+    color: var(--vscode-editorWarning-foreground, #cca700);
+    font-weight: 600;
+}
+
+.changes-status[data-state="wrong-repo"] .changes-status-indicator {
+    background-color: var(--vscode-editorWarning-foreground, #cca700);
+}
+
+.repo-status-icon.warning {
+    color: var(--vscode-editorWarning-foreground, #cca700);
+    border-color: var(--vscode-editorWarning-foreground, #cca700);
 }

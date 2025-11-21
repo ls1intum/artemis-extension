@@ -38,6 +38,7 @@ export class RepositoryCommandModule {
             saveGitCredentials: this.handleSaveGitCredentials,
             saveGitIdentity: this.handleSaveGitIdentity,
             requestGitIdentity: this.handleRequestGitIdentity,
+            startPractice: this.handleStartPractice,
         };
     }
 
@@ -84,16 +85,23 @@ export class RepositoryCommandModule {
                         for (const exercise of exercises) {
                             const participations = exercise.studentParticipations || [];
 
-                            if (participations.length > 0 && participations[0].repositoryUri) {
-                                const exerciseRepoUrl = normalizeUrl(participations[0].repositoryUri);
+                            // Check all participations (including practice ones)
+                            for (const participation of participations) {
+                                if (participation.repositoryUri) {
+                                    const exerciseRepoUrl = normalizeUrl(participation.repositoryUri);
 
-                                if (exerciseRepoUrl === normalizedRepoUrl) {
-                                    matchedExercise = {
-                                        id: exercise.id,
-                                        title: exercise.title
-                                    };
-                                    break;
+                                    if (exerciseRepoUrl === normalizedRepoUrl) {
+                                        matchedExercise = {
+                                            id: exercise.id,
+                                            title: exercise.title
+                                        };
+                                        break;
+                                    }
                                 }
+                            }
+                            
+                            if (matchedExercise) {
+                                break;
                             }
                         }
 
@@ -156,6 +164,7 @@ export class RepositoryCommandModule {
             const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
             let isConnected = false;
             let hasChanges = false;
+            let isGradedRepo = false;
 
             this.currentRepoContext = { expectedRepoUrl, exerciseId };
             this.currentWorkspacePath = workspaceFolder?.uri.fsPath;
@@ -194,6 +203,29 @@ export class RepositoryCommandModule {
                             console.warn('Failed to determine repository changes:', statusError);
                             hasChanges = false;
                         }
+                    } else {
+                        // Check if we are in the graded repository
+                        const coursesData = this.context.appStateManager.coursesData;
+                        if (coursesData?.courses) {
+                            for (const courseData of coursesData.courses) {
+                                const exercises = courseData?.course?.exercises || courseData?.exercises || [];
+                                const exercise = exercises.find((e: any) => e.id === exerciseId);
+                                
+                                if (exercise) {
+                                    const participations = exercise.studentParticipations || [];
+                                    // Find graded participation (not testRun)
+                                    const gradedParticipation = participations.find((p: any) => !p.testRun);
+                                    
+                                    if (gradedParticipation?.repositoryUri) {
+                                        const normalizedGraded = normalizeUrl(gradedParticipation.repositoryUri);
+                                        if (normalizedCurrent === normalizedGraded) {
+                                            isGradedRepo = true;
+                                        }
+                                    }
+                                    break;
+                                }
+                            }
+                        }
                     }
                 } catch (gitError: any) {
                     isConnected = false;
@@ -204,7 +236,8 @@ export class RepositoryCommandModule {
             this.context.sendMessage({
                 command: 'updateRepoStatus',
                 isConnected: isConnected,
-                hasChanges: hasChanges
+                hasChanges: hasChanges,
+                isGradedRepo: isGradedRepo
             });
         } catch (error: any) {
             console.error('Check repository status error:', error);
@@ -947,4 +980,27 @@ export class RepositoryCommandModule {
             autoSaveEnabled: autoSave !== 'off'
         });
     }
+
+    private handleStartPractice = async (message: any): Promise<void> => {
+        const exerciseId: number = message.exerciseId;
+        const exerciseTitle: string = message.exerciseTitle;
+
+        try {
+            vscode.window.showInformationMessage('Starting practice mode...');
+            const participation = await this.context.artemisApi.startPracticeParticipation(exerciseId);
+
+            if (participation) {
+                vscode.window.showInformationMessage(
+                    `Successfully started practice mode for "${exerciseTitle}". You can now clone the practice repository.`
+                );
+
+                await this.context.actionHandler.openExerciseDetails(exerciseId);
+            }
+        } catch (error) {
+            console.error('Failed to start practice participation:', error);
+            vscode.window.showErrorMessage(
+                `Failed to start practice mode for "${exerciseTitle}": ${error instanceof Error ? error.message : 'Unknown error'}`
+            );
+        }
+    };
 }
