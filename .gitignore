@@ -46,3 +46,5 @@ npm-shrinkwrap.json
 yarn.lock
 pnpm-lock.yaml
 pnpm-lock.yml
+
+proposal/
