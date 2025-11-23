@@ -354,7 +354,7 @@ suite('Artemis API Service Test Suite', () => {
     test('should authenticate user', async () => {
         const mockToken = 'jwt-token';
         const mockCookie = 'jwt=jwt-token; Path=/; Secure; HttpOnly';
-        
+
         global.fetch = async (url: any, options: any) => {
             // The actual implementation uses CONFIG.API.ENDPOINTS.AUTHENTICATE which might be different
             // Let's check if it contains 'authenticate' at least
@@ -363,7 +363,7 @@ suite('Artemis API Service Test Suite', () => {
             const body = JSON.parse(options.body);
             assert.strictEqual(body.username, 'user');
             assert.strictEqual(body.password, 'pass');
-            
+
             return {
                 ok: true,
                 status: 200,
@@ -479,7 +479,7 @@ suite('Artemis API Service Test Suite', () => {
         const content = 'Check these files';
         const uncommittedFiles = new Map<string, string>();
         uncommittedFiles.set('file1.java', 'content1');
-        
+
         global.fetch = async (url: any, options: any) => {
             assert.ok(url.includes(`/api/iris/sessions/${sessionId}/messages`));
             assert.strictEqual(options.method, 'POST');
@@ -500,7 +500,7 @@ suite('Artemis API Service Test Suite', () => {
         const content = 'Check these files';
         const uncommittedFiles = new Map<string, string>();
         uncommittedFiles.set('file1.java', 'content1');
-        
+
         let attempt = 0;
         global.fetch = async (url: any, options: any) => {
             attempt++;
@@ -686,7 +686,7 @@ suite('Artemis API Service Test Suite', () => {
     test('should detect server URL change', async () => {
         // Mock AuthManager to return a different URL
         authManager.getArtemisServerUrl = async () => 'https://old-artemis.example.com';
-        
+
         const isChanged = await apiService.isServerUrlChanged();
         assert.strictEqual(isChanged, true);
     });
