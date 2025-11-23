@@ -25,6 +25,23 @@ suite('PlantUML Processor Test Suite', () => {
         const expected = 'green';
         assert.strictEqual(processPlantUml(input), expected);
     });
+    
+    test('should handle deeply nested parentheses', () => {
+        const input = 'note testsColor(test(a(b(c))))';
+        const expected = 'note green';
+        assert.strictEqual(processPlantUml(input), expected);
+    });
+
+    test('should replace multiple nested occurrences', () => {
+        const input = 'testsColor(first(nested)) and testsColor(second(one(more)))';
+        const expected = 'green and green';
+        assert.strictEqual(processPlantUml(input), expected);
+    });
+
+    test('should leave unmatched patterns untouched', () => {
+        const input = 'testsColor(test(unclosed)';
+        assert.strictEqual(processPlantUml(input), input);
+    });
 
     test('should leave other text unchanged', () => {
         const input = 'class Student { String name }';
