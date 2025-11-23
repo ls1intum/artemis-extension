@@ -690,4 +690,131 @@ suite('Artemis API Service Test Suite', () => {
         const isChanged = await apiService.isServerUrlChanged();
         assert.strictEqual(isChanged, true);
     });
+
+    test('should fallback to creating VCS token when none exists', async () => {
+        const participationId = 9;
+        let attempt = 0;
+        const createdToken = 'created-token';
+
+        global.fetch = async (url: any) => {
+            attempt++;
+            if (attempt === 1) {
+                return {
+                    ok: false,
+                    status: 404,
+                    statusText: 'Not Found'
+                } as any;
+            }
+            assert.ok(url.includes(`/participation-vcs-access-token?participationId=${participationId}`));
+            return {
+                ok: true,
+                status: 200,
+                text: async () => createdToken
+            } as any;
+        };
+
+        const token = await apiService.getOrCreateVcsAccessToken(participationId);
+        assert.strictEqual(attempt, 2);
+        assert.strictEqual(token, createdToken);
+    });
+
+    test('should get current exercise chat session', async () => {
+        const exerciseId = 77;
+        global.fetch = async (url: any, options: any) => {
+            assert.ok(url.includes(`/api/iris/programming-exercise-chat/${exerciseId}/sessions/current`));
+            assert.strictEqual(options.method, 'POST');
+            return {
+                ok: true,
+                status: 200,
+                json: async () => ({ id: 555 })
+            } as any;
+        };
+
+        const session = await apiService.getCurrentExerciseChat(exerciseId);
+        assert.strictEqual(session.id, 555);
+    });
+
+    test('should fetch exercise chat sessions with messages', async () => {
+        const exerciseId = 77;
+        const sessions = [{ id: 1 }, { id: 2 }];
+        const messages: Record<number, any[]> = {
+            1: [{ id: 'm1' }],
+            2: [{ id: 'm2' }]
+        };
+
+        global.fetch = async (url: any) => {
+            if (url.includes(`/api/iris/programming-exercise-chat/${exerciseId}/sessions`)) {
+                return {
+                    ok: true,
+                    status: 200,
+                    json: async () => sessions
+                } as any;
+            }
+            if (url.includes('/api/iris/sessions/1/messages')) {
+                return {
+                    ok: true,
+                    status: 200,
+                    json: async () => messages[1]
+                } as any;
+            }
+            if (url.includes('/api/iris/sessions/2/messages')) {
+                return {
+                    ok: true,
+                    status: 200,
+                    json: async () => messages[2]
+                } as any;
+            }
+            return { ok: true, status: 200, json: async () => [] } as any;
+        };
+
+        const result = await apiService.getExerciseChatSessionsWithMessages(exerciseId);
+        assert.deepStrictEqual(result[0].messages, messages[result[0].id]);
+        assert.deepStrictEqual(result[1].messages, messages[result[1].id]);
+    });
+
+    test('should include auth headers and payload when sending chat message', async () => {
+        const sessionId = 99;
+        const content = 'ping';
+
+        global.fetch = async (url: any, options: any) => {
+            assert.ok(url.includes(`/api/iris/sessions/${sessionId}/messages`));
+            assert.strictEqual(options.method, 'POST');
+            assert.strictEqual(options.headers['Authorization'], 'Bearer test-token');
+            assert.strictEqual(options.headers['Content-Type'], 'application/json');
+
+            const body = JSON.parse(options.body);
+            assert.ok(body.sentAt);
+            assert.deepStrictEqual(body.content, [{ textContent: content, type: 'text' }]);
+
+            return {
+                ok: true,
+                status: 200,
+                json: async () => ({ id: 1 })
+            } as any;
+        };
+
+        await apiService.sendChatMessage(sessionId, content);
+    });
+
+    test('should throw when authentication succeeds without cookie', async () => {
+        let storeCalled = false;
+        (authManager as any).storeArtemisCredentials = async () => {
+            storeCalled = true;
+        };
+
+        global.fetch = async () => ({
+            ok: true,
+            status: 200,
+            headers: { get: () => null },
+            json: async () => ({ access_token: 'token' })
+        } as any);
+
+        try {
+            await apiService.authenticate('user', 'pass');
+            assert.fail('Expected authenticate to throw when cookie missing');
+        } catch (error: any) {
+            assert.ok(error.message.includes('no JWT token received'));
+            assert.strictEqual(storeCalled, false, 'credentials should not be stored');
+        }
+    });
 });

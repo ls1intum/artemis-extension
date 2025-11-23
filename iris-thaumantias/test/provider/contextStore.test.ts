@@ -334,6 +334,28 @@ suite('ContextStore Test Suite', () => {
         assert.strictEqual(snapshot.activeSession, null);
     });
 
+    test('should clear sessions for course context key', () => {
+        contextStore.registerCourse({ id: 42, title: 'Course' });
+        contextStore.setActiveContext({
+            type: 'course',
+            id: 42,
+            title: 'Course',
+            source: 'user-selected',
+            selectedAt: Date.now(),
+            locked: false
+        });
+
+        contextStore.createSession('Course Session');
+        const snapshotBefore = contextStore.snapshot();
+        assert.ok(snapshotBefore.activeSession);
+        assert.strictEqual(snapshotBefore.sessions[0].contextKey, 'course:42');
+
+        contextStore.clearSessionsForContext('course:42');
+        const snapshotAfter = contextStore.snapshot();
+        assert.strictEqual(snapshotAfter.sessions.length, 0);
+        assert.strictEqual(snapshotAfter.activeSession, null);
+    });
+
     test('should switch to first session', () => {
         contextStore.registerExercise({ id: 1, title: 'Ex 1' });
         contextStore.createSession('Session 1');
@@ -596,6 +618,19 @@ suite('ContextStore Test Suite', () => {
         snapshot = contextStore.snapshot();
         assert.strictEqual(snapshot.activeContext?.type, 'course');
         assert.strictEqual(snapshot.activeContext?.id, 101);
+    });
+
+    test('should persist state changes to global storage', () => {
+        let persisted: any;
+        mockContext.globalState.update = async (key: string, value: any) => {
+            persisted = { key, value };
+        };
+
+        const store = new ContextStore(mockContext);
+        store.registerExercise({ id: 500, title: 'Persisted Exercise' });
+
+        assert.strictEqual(persisted.key, 'iris.contextStore');
+        assert.ok(persisted.value.allExercises.some((ex: any) => ex.id === 500));
     });
 
     test('should handle session operations with no active context', () => {

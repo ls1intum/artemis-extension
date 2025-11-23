@@ -84,9 +84,43 @@ suite('ArtemisWebviewProvider Test Suite', () => {
         provider.setWebsocketService(mockWebsocket);
     });
 
+    test('should register websocket handler and connect when opening exercise', async () => {
+        const mockWebsocket = new MockArtemisWebsocketService(mockAuthManager);
+        let handlerRegistered = false;
+        let connectCalls = 0;
+        mockWebsocket.registerMessageHandler = (handler: any) => {
+            handlerRegistered = !!handler;
+        };
+        mockWebsocket.isConnected = () => false;
+        mockWebsocket.connect = async () => {
+            connectCalls++;
+        };
+
+        provider.setWebsocketService(mockWebsocket);
+
+        const mockView = new MockWebviewView();
+        provider.resolveWebviewView(mockView, {} as any, {} as any);
+        await provider.openExerciseDetails(1);
+
+        assert.ok(handlerRegistered, 'websocket handler should be registered');
+        assert.strictEqual(connectCalls, 1, 'connect should be called when not connected');
+    });
+
     test('should set auth context updater', () => {
         const updater = async (auth: boolean) => { };
+        const originalHandler: any = (provider as any)._messageHandler;
+        let forwarded: any;
+        (provider as any)._messageHandler = {
+            setAuthContextUpdater: (cb: any) => {
+                forwarded = cb;
+            },
+            setWebsocketService: () => { }
+        };
+
         provider.setAuthContextUpdater(updater);
+        assert.strictEqual(forwarded, updater, 'auth updater should be passed to message handler');
+
+        (provider as any)._messageHandler = originalHandler;
     });
 
     test('should set build diagnostics', () => {
