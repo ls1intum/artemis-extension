@@ -10,7 +10,7 @@ export class ArtemisApiService {
         this.authManager = authManager;
     }
 
-    private getServerUrl(): string {
+    protected getServerUrl(): string {
         const config = vscode.workspace.getConfiguration(VSCODE_CONFIG.ARTEMIS_SECTION);
         return config.get<string>(VSCODE_CONFIG.SERVER_URL_KEY) || CONFIG.ARTEMIS_SERVER_URL_DEFAULT;
     }

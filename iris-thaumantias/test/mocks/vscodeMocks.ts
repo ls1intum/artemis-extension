@@ -19,10 +19,33 @@ export class MockSecretStorage implements vscode.SecretStorage {
     }
 }
 
+export class MockMemento implements vscode.Memento {
+    private storage: Map<string, any> = new Map();
+
+    get<T>(key: string): T | undefined;
+    get<T>(key: string, defaultValue: T): T;
+    get(key: string, defaultValue?: any): any {
+        return this.storage.get(key) ?? defaultValue;
+    }
+
+    update(key: string, value: any): Thenable<void> {
+        if (value === undefined) {
+            this.storage.delete(key);
+        } else {
+            this.storage.set(key, value);
+        }
+        return Promise.resolve();
+    }
+
+    keys(): readonly string[] {
+        return Array.from(this.storage.keys());
+    }
+}
+
 export class MockExtensionContext implements vscode.ExtensionContext {
     subscriptions: { dispose(): any }[] = [];
-    workspaceState: vscode.Memento = {} as any;
-    globalState: vscode.Memento & { setKeysForSync(keys: string[]): void } = {} as any;
+    workspaceState: vscode.Memento = new MockMemento();
+    globalState: vscode.Memento & { setKeysForSync(keys: string[]): void } = new MockMemento() as any;
     secrets: vscode.SecretStorage = new MockSecretStorage();
     extensionUri: vscode.Uri = vscode.Uri.file('/');
     extensionPath: string = '/';
