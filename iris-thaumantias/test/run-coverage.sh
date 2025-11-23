@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Ensure we are in the project root directory
+cd "$(dirname "$0")/.."
+
 # Run the full pipeline and produce coverage.
 npm run coverage:all
 
