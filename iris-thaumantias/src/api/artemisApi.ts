@@ -10,7 +10,7 @@ export class ArtemisApiService {
         this.authManager = authManager;
     }
 
-    private getServerUrl(): string {
+    protected getServerUrl(): string {
         const config = vscode.workspace.getConfiguration(VSCODE_CONFIG.ARTEMIS_SECTION);
         return config.get<string>(VSCODE_CONFIG.SERVER_URL_KEY) || CONFIG.ARTEMIS_SERVER_URL_DEFAULT;
     }
@@ -30,9 +30,13 @@ export class ArtemisApiService {
 
         if (!response.ok) {
             if (response.status === 401) {
-                throw new Error('Authentication failed. Please log in again.');
+                const error = new Error('Authentication failed. Please log in again.');
+                (error as any).status = 401;
+                throw error;
             }
-            throw new Error(`API request failed: ${response.status} ${response.statusText}`);
+            const error = new Error(`API request failed: ${response.status} ${response.statusText}`);
+            (error as any).status = response.status;
+            throw error;
         }
 
         return response;
@@ -114,14 +118,14 @@ export class ArtemisApiService {
             const response = await this.makeRequest(
                 `/api/programming/programming-exercise-participations/${participationId}/latest-pending-submission`
             );
-            
+
             // Check if response has content
             const text = await response.text();
             if (!text || text.trim() === '') {
                 console.log(`No pending submission for participation ${participationId}`);
                 return null;
             }
-            
+
             // Parse JSON
             const data = JSON.parse(text);
             return data;
@@ -406,8 +410,8 @@ export class ArtemisApiService {
 
     // Send a message to Iris
     async sendChatMessage(
-        sessionId: number, 
-        content: string, 
+        sessionId: number,
+        content: string,
         uncommittedFiles?: Map<string, string>
     ): Promise<any> {
         const messagePayload: any = {

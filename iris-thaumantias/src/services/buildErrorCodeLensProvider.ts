@@ -50,7 +50,7 @@ export class BuildErrorCodeLensProvider implements vscode.CodeLensProvider {
     /**
      * Get relative path for a document
      */
-    private getRelativePath(document: vscode.TextDocument): string | null {
+    protected getRelativePath(document: vscode.TextDocument): string | null {
         const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
         if (!workspaceFolder) {
             return null;

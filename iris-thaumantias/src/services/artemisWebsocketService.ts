@@ -146,7 +146,7 @@ export class ArtemisWebsocketService {
                 }
             };
 
-            this._client = new Client(stompConfig);
+            this._client = this._createClient(stompConfig);
             this._client.activate();
 
         } catch (error) {
@@ -154,6 +154,14 @@ export class ArtemisWebsocketService {
             this._onError(`Failed to connect to WebSocket: ${errorMessage}`);
             throw error;
         }
+    }
+
+    /**
+     * Create a new STOMP client
+     * Protected to allow mocking in tests
+     */
+    protected _createClient(config: StompConfig): Client {
+        return new Client(config);
     }
 
     /**
