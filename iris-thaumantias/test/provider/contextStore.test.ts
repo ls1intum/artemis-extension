@@ -164,7 +164,7 @@ suite('ContextStore Test Suite', () => {
         // Note: registerExercise updates lastViewed implicitly via upsertExercise -> updateRecent
         // But we can't easily control time without mocking Date.now() or sleeping.
         // However, we can register them in order.
-        
+
         contextStore.registerExercise({ id: 1, title: 'Ex 1' });
         contextStore.registerExercise({ id: 2, title: 'Ex 2' });
         contextStore.registerExercise({ id: 3, title: 'Ex 3' });

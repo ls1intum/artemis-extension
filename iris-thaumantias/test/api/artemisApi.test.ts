@@ -21,7 +21,7 @@ suite('Artemis API Service Test Suite', () => {
     setup(() => {
         context = new MockExtensionContext();
         authManager = new AuthManager(context);
-        
+
         // Mock AuthManager.getAuthHeaders
         authManager.getAuthHeaders = async () => ({ 'Authorization': 'Bearer test-token' });
 

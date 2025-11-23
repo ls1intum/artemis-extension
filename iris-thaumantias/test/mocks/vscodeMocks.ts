@@ -53,7 +53,7 @@ export class MockExtensionContext implements vscode.ExtensionContext {
     storageUri: vscode.Uri | undefined;
     globalStorageUri: vscode.Uri = vscode.Uri.file('/global');
     logUri: vscode.Uri = vscode.Uri.file('/log');
-    
+
     // Deprecated properties
     storagePath: string | undefined;
     globalStoragePath: string = '/global';

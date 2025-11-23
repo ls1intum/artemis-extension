@@ -114,14 +114,14 @@ export class ArtemisApiService {
             const response = await this.makeRequest(
                 `/api/programming/programming-exercise-participations/${participationId}/latest-pending-submission`
             );
-            
+
             // Check if response has content
             const text = await response.text();
             if (!text || text.trim() === '') {
                 console.log(`No pending submission for participation ${participationId}`);
                 return null;
             }
-            
+
             // Parse JSON
             const data = JSON.parse(text);
             return data;
@@ -406,8 +406,8 @@ export class ArtemisApiService {
 
     // Send a message to Iris
     async sendChatMessage(
-        sessionId: number, 
-        content: string, 
+        sessionId: number,
+        content: string,
         uncommittedFiles?: Map<string, string>
     ): Promise<any> {
         const messagePayload: any = {
