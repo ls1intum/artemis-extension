@@ -30,9 +30,13 @@ export class ArtemisApiService {
 
         if (!response.ok) {
             if (response.status === 401) {
-                throw new Error('Authentication failed. Please log in again.');
+                const error = new Error('Authentication failed. Please log in again.');
+                (error as any).status = 401;
+                throw error;
             }
-            throw new Error(`API request failed: ${response.status} ${response.statusText}`);
+            const error = new Error(`API request failed: ${response.status} ${response.statusText}`);
+            (error as any).status = response.status;
+            throw error;
         }
 
         return response;

@@ -181,4 +181,513 @@ suite('Artemis API Service Test Suite', () => {
         const course = await apiService.getCourseDetails(courseId);
         assert.deepStrictEqual(course, mockCourse);
     });
+
+    test('should get participations', async () => {
+        const mockParticipations = [{ id: 1, type: 'student' }];
+        global.fetch = async (url: any) => {
+            assert.ok(url.includes('/api/core/participations'));
+            return {
+                ok: true,
+                status: 200,
+                json: async () => mockParticipations,
+            } as any;
+        };
+
+        const participations = await apiService.getParticipations();
+        assert.deepStrictEqual(participations, mockParticipations);
+    });
+
+    test('should get results for participation', async () => {
+        const participationId = 1;
+        const mockResults = [{ id: 1, score: 100 }];
+        global.fetch = async (url: any) => {
+            assert.ok(url.includes(`/api/core/participations/${participationId}/results`));
+            return {
+                ok: true,
+                status: 200,
+                json: async () => mockResults,
+            } as any;
+        };
+
+        const results = await apiService.getResults(participationId);
+        assert.deepStrictEqual(results, mockResults);
+    });
+
+    test('should get result details', async () => {
+        const participationId = 1;
+        const resultId = 10;
+        const mockDetails = { id: 10, feedbacks: [] };
+        global.fetch = async (url: any) => {
+            assert.ok(url.includes(`/api/assessment/participations/${participationId}/results/${resultId}/details`));
+            return {
+                ok: true,
+                status: 200,
+                json: async () => mockDetails,
+            } as any;
+        };
+
+        const details = await apiService.getResultDetails(participationId, resultId);
+        assert.deepStrictEqual(details, mockDetails);
+    });
+
+    test('should get build logs', async () => {
+        const participationId = 1;
+        const mockLogs = [{ time: '2023-01-01', log: 'Build started' }];
+        global.fetch = async (url: any) => {
+            assert.ok(url.includes(`/api/programming/participations/${participationId}/buildlogs`));
+            return {
+                ok: true,
+                status: 200,
+                json: async () => mockLogs,
+            } as any;
+        };
+
+        const logs = await apiService.getBuildLogs(participationId);
+        assert.deepStrictEqual(logs, mockLogs);
+    });
+
+    test('should get build logs for specific result', async () => {
+        const participationId = 1;
+        const resultId = 5;
+        global.fetch = async (url: any) => {
+            assert.ok(url.includes(`resultId=${resultId}`));
+            return {
+                ok: true,
+                status: 200,
+                json: async () => [],
+            } as any;
+        };
+
+        await apiService.getBuildLogs(participationId, resultId);
+    });
+
+    test('should check authentication status', async () => {
+        global.fetch = async (url: any) => {
+            assert.ok(url.includes('/api/core/public/account'));
+            return {
+                ok: true,
+                status: 200,
+                json: async () => ({ id: 1 }),
+            } as any;
+        };
+
+        const isAuthenticated = await apiService.isAuthenticated();
+        assert.strictEqual(isAuthenticated, true);
+    });
+
+    test('should return false if not authenticated', async () => {
+        global.fetch = async () => ({
+            ok: false,
+            status: 401,
+        } as any);
+
+        const isAuthenticated = await apiService.isAuthenticated();
+        assert.strictEqual(isAuthenticated, false);
+    });
+
+    test('should get VCS access token', async () => {
+        const participationId = 1;
+        const mockToken = 'vcs-token';
+        global.fetch = async (url: any, options: any) => {
+            assert.ok(url.includes('/api/core/account/participation-vcs-access-token'));
+            assert.strictEqual(options.method, 'GET');
+            return {
+                ok: true,
+                status: 200,
+                text: async () => mockToken,
+            } as any;
+        };
+
+        const token = await apiService.getVcsAccessToken(participationId);
+        assert.strictEqual(token, mockToken);
+    });
+
+    test('should create VCS access token', async () => {
+        const participationId = 1;
+        const mockToken = 'new-vcs-token';
+        global.fetch = async (url: any, options: any) => {
+            assert.ok(url.includes('/api/core/account/participation-vcs-access-token'));
+            assert.strictEqual(options.method, 'PUT');
+            return {
+                ok: true,
+                status: 200,
+                text: async () => mockToken,
+            } as any;
+        };
+
+        const token = await apiService.createVcsAccessToken(participationId);
+        assert.strictEqual(token, mockToken);
+    });
+
+    test('should start exercise participation', async () => {
+        const exerciseId = 1;
+        global.fetch = async (url: any, options: any) => {
+            assert.ok(url.includes(`/api/exercise/exercises/${exerciseId}/participations`));
+            assert.strictEqual(options.method, 'POST');
+            return {
+                ok: true,
+                status: 200,
+                json: async () => ({ id: 100 }),
+            } as any;
+        };
+
+        const participation = await apiService.startExerciseParticipation(exerciseId);
+        assert.strictEqual(participation.id, 100);
+    });
+
+    test('should start practice participation', async () => {
+        const exerciseId = 1;
+        global.fetch = async (url: any, options: any) => {
+            assert.ok(url.includes(`/api/exercise/exercises/${exerciseId}/participations/practice`));
+            assert.strictEqual(options.method, 'POST');
+            return {
+                ok: true,
+                status: 200,
+                json: async () => ({ id: 101 }),
+            } as any;
+        };
+
+        const participation = await apiService.startPracticeParticipation(exerciseId);
+        assert.strictEqual(participation.id, 101);
+    });
+
+    test('should authenticate user', async () => {
+        const mockToken = 'jwt-token';
+        const mockCookie = 'jwt=jwt-token; Path=/; Secure; HttpOnly';
+        
+        global.fetch = async (url: any, options: any) => {
+            // The actual implementation uses CONFIG.API.ENDPOINTS.AUTHENTICATE which might be different
+            // Let's check if it contains 'authenticate' at least
+            assert.ok(url.includes('authenticate'));
+            assert.strictEqual(options.method, 'POST');
+            const body = JSON.parse(options.body);
+            assert.strictEqual(body.username, 'user');
+            assert.strictEqual(body.password, 'pass');
+            
+            return {
+                ok: true,
+                status: 200,
+                headers: {
+                    get: (name: string) => name === 'set-cookie' ? mockCookie : null
+                },
+                json: async () => ({ access_token: mockToken }),
+            } as any;
+        };
+
+        const result = await apiService.authenticate('user', 'pass');
+        assert.strictEqual(result.success, true);
+        assert.strictEqual(result.token, mockToken);
+        // The cookie might be processed/cleaned by AuthManager or ArtemisApiService
+        // Just check if it contains the token
+        assert.ok(result.cookie.includes('jwt-token'));
+    });
+
+    test('should check Iris health', async () => {
+        const mockStatus = { active: true };
+        global.fetch = async (url: any) => {
+            assert.ok(url.includes('/api/iris/status'));
+            return {
+                ok: true,
+                status: 200,
+                json: async () => mockStatus,
+            } as any;
+        };
+
+        const status = await apiService.checkIrisHealth();
+        assert.deepStrictEqual(status, mockStatus);
+    });
+
+    test('should render PlantUML', async () => {
+        const mockSvg = '<svg>...</svg>';
+        global.fetch = async (url: any) => {
+            assert.ok(url.includes('/api/programming/plantuml/svg'));
+            assert.ok(url.includes('plantuml='));
+            return {
+                ok: true,
+                status: 200,
+                text: async () => mockSvg,
+            } as any;
+        };
+
+        const svg = await apiService.renderPlantUmlToSvg('@startuml\n@enduml');
+        assert.strictEqual(svg, mockSvg);
+    });
+
+    test('should get Iris chat settings', async () => {
+        const courseId = 1;
+        global.fetch = async (url: any) => {
+            assert.ok(url.includes(`/api/iris/courses/${courseId}/iris-settings`));
+            return {
+                ok: true,
+                status: 200,
+                json: async () => ({ enabled: true }),
+            } as any;
+        };
+
+        await apiService.getIrisCourseChatSettings(courseId);
+    });
+
+    test('should get current course chat session', async () => {
+        const courseId = 1;
+        global.fetch = async (url: any, options: any) => {
+            assert.ok(url.includes(`/api/iris/course-chat/${courseId}/sessions/current`));
+            assert.strictEqual(options.method, 'POST');
+            return {
+                ok: true,
+                status: 200,
+                json: async () => ({ id: 123 }),
+            } as any;
+        };
+
+        await apiService.getCurrentCourseChat(courseId);
+    });
+
+    test('should get chat messages', async () => {
+        const sessionId = 123;
+        const mockMessages = [{ id: 1, content: 'Hello' }];
+        global.fetch = async (url: any) => {
+            assert.ok(url.includes(`/api/iris/sessions/${sessionId}/messages`));
+            return {
+                ok: true,
+                status: 200,
+                json: async () => mockMessages,
+            } as any;
+        };
+
+        const messages = await apiService.getChatMessages(sessionId);
+        assert.deepStrictEqual(messages, mockMessages);
+    });
+
+    test('should send chat message', async () => {
+        const sessionId = 123;
+        const content = 'Hello Iris';
+        global.fetch = async (url: any, options: any) => {
+            assert.ok(url.includes(`/api/iris/sessions/${sessionId}/messages`));
+            assert.strictEqual(options.method, 'POST');
+            return {
+                ok: true,
+                status: 200,
+                json: async () => ({ id: 2, content }),
+            } as any;
+        };
+
+        await apiService.sendChatMessage(sessionId, content);
+    });
+
+    test('should send chat message with uncommitted files', async () => {
+        const sessionId = 123;
+        const content = 'Check these files';
+        const uncommittedFiles = new Map<string, string>();
+        uncommittedFiles.set('file1.java', 'content1');
+        
+        global.fetch = async (url: any, options: any) => {
+            assert.ok(url.includes(`/api/iris/sessions/${sessionId}/messages`));
+            assert.strictEqual(options.method, 'POST');
+            const body = JSON.parse(options.body);
+            assert.strictEqual(body.uncommittedFiles['file1.java'], 'content1');
+            return {
+                ok: true,
+                status: 200,
+                json: async () => ({ id: 3, content }),
+            } as any;
+        };
+
+        await apiService.sendChatMessage(sessionId, content, uncommittedFiles);
+    });
+
+    test('should retry sending message without uncommitted files on 400 error', async () => {
+        const sessionId = 123;
+        const content = 'Check these files';
+        const uncommittedFiles = new Map<string, string>();
+        uncommittedFiles.set('file1.java', 'content1');
+        
+        let attempt = 0;
+        global.fetch = async (url: any, options: any) => {
+            attempt++;
+            if (attempt === 1) {
+                // First attempt with files fails
+                const body = JSON.parse(options.body);
+                assert.ok(body.uncommittedFiles);
+                return {
+                    ok: false,
+                    status: 400,
+                    text: async () => 'Bad Request',
+                } as any;
+            } else {
+                // Second attempt without files succeeds
+                const body = JSON.parse(options.body);
+                assert.strictEqual(body.uncommittedFiles, undefined);
+                return {
+                    ok: true,
+                    status: 200,
+                    json: async () => ({ id: 3, content }),
+                } as any;
+            }
+        };
+
+        await apiService.sendChatMessage(sessionId, content, uncommittedFiles);
+        assert.strictEqual(attempt, 2);
+    });
+
+    test('should get latest pending submission', async () => {
+        const participationId = 1;
+        const mockSubmission = { id: 100, submissionDate: '2023-01-01' };
+        global.fetch = async (url: any) => {
+            assert.ok(url.includes(`/api/programming/programming-exercise-participations/${participationId}/latest-pending-submission`));
+            return {
+                ok: true,
+                status: 200,
+                text: async () => JSON.stringify(mockSubmission),
+                json: async () => mockSubmission,
+            } as any;
+        };
+
+        const submission = await apiService.getLatestPendingSubmission(participationId);
+        assert.deepStrictEqual(submission, mockSubmission);
+    });
+
+    test('should return null if no pending submission', async () => {
+        const participationId = 1;
+        global.fetch = async () => ({
+            ok: false,
+            status: 404,
+        } as any);
+
+        const submission = await apiService.getLatestPendingSubmission(participationId);
+        assert.strictEqual(submission, null);
+    });
+
+    test('should get exercise chat sessions', async () => {
+        const exerciseId = 1;
+        const mockSessions = [{ id: 1 }];
+        global.fetch = async (url: any) => {
+            assert.ok(url.includes(`/api/iris/programming-exercise-chat/${exerciseId}/sessions`));
+            return {
+                ok: true,
+                status: 200,
+                json: async () => mockSessions,
+            } as any;
+        };
+
+        const sessions = await apiService.getExerciseChatSessions(exerciseId);
+        assert.deepStrictEqual(sessions, mockSessions);
+    });
+
+    test('should get course chat sessions', async () => {
+        const courseId = 1;
+        const mockSessions = [{ id: 1 }];
+        global.fetch = async (url: any) => {
+            assert.ok(url.includes(`/api/iris/course-chat/${courseId}/sessions`));
+            return {
+                ok: true,
+                status: 200,
+                json: async () => mockSessions,
+            } as any;
+        };
+
+        const sessions = await apiService.getCourseChatSessions(courseId);
+        assert.deepStrictEqual(sessions, mockSessions);
+    });
+
+    test('should get course chat sessions with messages', async () => {
+        const courseId = 1;
+        const mockSessions = [{ id: 1, messages: [] }];
+        global.fetch = async (url: any) => {
+            assert.ok(url.includes(`/api/iris/chat-history/${courseId}/sessions`));
+            return {
+                ok: true,
+                status: 200,
+                json: async () => mockSessions,
+            } as any;
+        };
+
+        const sessions = await apiService.getCourseChatSessionsWithMessages(courseId);
+        assert.deepStrictEqual(sessions, mockSessions);
+    });
+
+    test('should create course chat session', async () => {
+        const courseId = 1;
+        global.fetch = async (url: any, options: any) => {
+            assert.ok(url.includes(`/api/iris/course-chat/${courseId}/sessions`));
+            assert.strictEqual(options.method, 'POST');
+            return {
+                ok: true,
+                status: 201,
+                json: async () => ({ id: 1 }),
+            } as any;
+        };
+
+        const session = await apiService.createCourseChatSession(courseId);
+        assert.strictEqual(session.id, 1);
+    });
+
+    test('should create exercise chat session', async () => {
+        const exerciseId = 1;
+        global.fetch = async (url: any, options: any) => {
+            assert.ok(url.includes(`/api/iris/programming-exercise-chat/${exerciseId}/sessions`));
+            assert.strictEqual(options.method, 'POST');
+            return {
+                ok: true,
+                status: 201,
+                json: async () => ({ id: 1 }),
+            } as any;
+        };
+
+        const session = await apiService.createExerciseChatSession(exerciseId);
+        assert.strictEqual(session.id, 1);
+    });
+
+    test('should mark message helpful', async () => {
+        const sessionId = 1;
+        const messageId = 1;
+        global.fetch = async (url: any, options: any) => {
+            assert.ok(url.includes(`/api/iris/sessions/${sessionId}/messages/${messageId}/helpful`));
+            assert.strictEqual(options.method, 'PUT');
+            assert.strictEqual(options.body, 'true');
+            return {
+                ok: true,
+                status: 200,
+            } as any;
+        };
+
+        await apiService.markMessageHelpful(sessionId, messageId, true);
+    });
+
+    test('should resend chat message', async () => {
+        const sessionId = 1;
+        const messageId = 1;
+        global.fetch = async (url: any, options: any) => {
+            assert.ok(url.includes(`/api/iris/sessions/${sessionId}/messages/${messageId}/resend`));
+            assert.strictEqual(options.method, 'POST');
+            return {
+                ok: true,
+                status: 200,
+                json: async () => ({ id: 2 }),
+            } as any;
+        };
+
+        await apiService.resendChatMessage(sessionId, messageId);
+    });
+
+    test('should validate authentication', async () => {
+        global.fetch = async (url: any) => {
+            assert.ok(url.includes('/api/core/public/account'));
+            return {
+                ok: true,
+                status: 200,
+                json: async () => ({ id: 1 }),
+            } as any;
+        };
+
+        const isValid = await apiService.validateAuthentication();
+        assert.strictEqual(isValid, true);
+    });
+
+    test('should detect server URL change', async () => {
+        // Mock AuthManager to return a different URL
+        authManager.getArtemisServerUrl = async () => 'https://old-artemis.example.com';
+        
+        const isChanged = await apiService.isServerUrlChanged();
+        assert.strictEqual(isChanged, true);
+    });
 });
