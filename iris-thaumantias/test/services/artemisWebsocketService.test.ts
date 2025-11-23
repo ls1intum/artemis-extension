@@ -67,8 +67,8 @@ class MockStompClient {
                 body: JSON.stringify(body),
                 headers: {},
                 command: 'MESSAGE',
-                ack: () => {},
-                nack: () => {}
+                ack: () => { },
+                nack: () => { }
             });
         }
     }
@@ -114,7 +114,7 @@ suite('Artemis WebSocket Service Test Suite', () => {
         wsService = new TestableArtemisWebsocketService(authManager);
 
         const handler = {
-            onNewResult: (result: ResultDTO) => {}
+            onNewResult: (result: ResultDTO) => { }
         };
 
         wsService.registerMessageHandler(handler);
@@ -124,7 +124,7 @@ suite('Artemis WebSocket Service Test Suite', () => {
 
     test('should connect and handle state changes', async () => {
         wsService = new TestableArtemisWebsocketService(authManager);
-        
+
         // Mock auth
         await authManager.storeArtemisCredentials('jwt=token', 'https://artemis.example.com', true);
 
@@ -139,7 +139,7 @@ suite('Artemis WebSocket Service Test Suite', () => {
 
         // Connect
         await wsService.connect();
-        
+
         assert.ok(wsService.mockClient, 'Client should be created');
         assert.strictEqual(wsService.mockClient.active, true, 'Client should be active');
 
@@ -238,10 +238,10 @@ suite('Artemis WebSocket Service Test Suite', () => {
 
         // Ensure connection
         const result = await wsService.ensureConnection();
-        
+
         // Should have tried to connect
         assert.ok(wsService.mockClient);
-        
+
         assert.strictEqual(wsService.mockClient!.active, true);
     });
 
@@ -288,7 +288,7 @@ suite('Artemis WebSocket Service Test Suite', () => {
         const topic = `/user/topic/iris/${sessionId}`;
 
         // Subscribe
-        wsService.subscribeToIrisSession(sessionId, () => {});
+        wsService.subscribeToIrisSession(sessionId, () => { });
         assert.ok(wsService.mockClient!.subscriptions.has(topic));
 
         // Unsubscribe via method
@@ -298,9 +298,9 @@ suite('Artemis WebSocket Service Test Suite', () => {
 
     test('should throw when subscribing to Iris session if not connected', () => {
         wsService = new TestableArtemisWebsocketService(authManager);
-        
+
         try {
-            wsService.subscribeToIrisSession(123, () => {});
+            wsService.subscribeToIrisSession(123, () => { });
             assert.fail('Should have thrown');
         } catch (error) {
             assert.ok(error instanceof Error);
