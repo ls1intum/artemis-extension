@@ -2,12 +2,23 @@ import * as assert from 'assert';
 import * as vscode from 'vscode';
 import { BuildErrorCodeLensProvider } from '../../src/services/buildErrorCodeLensProvider';
 import { ParsedBuildError } from '../../src/types/artemis';
+import { MockTextDocument } from '../mocks/vscodeMocks';
+
+class TestableBuildErrorCodeLensProvider extends BuildErrorCodeLensProvider {
+    // Override to avoid dependency on vscode.workspace
+    // We assume the document fileName is the relative path for testing
+    protected getRelativePath(document: vscode.TextDocument): string | null {
+        return document.fileName;
+    }
+    
+    // Expose for testing if needed, but we override the caller
+}
 
 suite('BuildErrorCodeLensProvider Test Suite', () => {
-    let provider: BuildErrorCodeLensProvider;
+    let provider: TestableBuildErrorCodeLensProvider;
 
     setup(() => {
-        provider = new BuildErrorCodeLensProvider();
+        provider = new TestableBuildErrorCodeLensProvider();
     });
 
     test('should set and retrieve errors for file', () => {
@@ -17,9 +28,12 @@ suite('BuildErrorCodeLensProvider Test Suite', () => {
 
         provider.setErrors('src/Main.java', errors);
 
-        // The provider should have stored the errors
-        // We can't directly access private buildErrors, but we can verify behavior
-        // through provideCodeLenses (would require mock document)
+        const mockDoc = new MockTextDocument(vscode.Uri.file('/workspace/src/Main.java'), 'src/Main.java');
+        const lenses = provider.provideCodeLenses(mockDoc, {} as vscode.CancellationToken) as vscode.CodeLens[];
+        
+        assert.strictEqual(lenses.length, 1);
+        assert.strictEqual(lenses[0].command?.title, '❌ Artemis Build Error: Syntax error');
+        assert.strictEqual(lenses[0].range.start.line, 9); // 0-indexed
     });
 
     test('should clear all errors', () => {
@@ -30,7 +44,10 @@ suite('BuildErrorCodeLensProvider Test Suite', () => {
         provider.setErrors('src/Main.java', errors);
         provider.clearErrors();
 
-        // After clearing, buildErrors should be empty
+        const mockDoc = new MockTextDocument(vscode.Uri.file('/workspace/src/Main.java'), 'src/Main.java');
+        const lenses = provider.provideCodeLenses(mockDoc, {} as vscode.CancellationToken) as vscode.CodeLens[];
+        
+        assert.strictEqual(lenses.length, 0);
     });
 
     test('should clear errors for specific file', () => {
@@ -39,7 +56,13 @@ suite('BuildErrorCodeLensProvider Test Suite', () => {
 
         provider.clearFileErrors('src/Main.java');
 
-        // Only Main.java errors should be cleared
+        const mockDocMain = new MockTextDocument(vscode.Uri.file('/workspace/src/Main.java'), 'src/Main.java');
+        const lensesMain = provider.provideCodeLenses(mockDocMain, {} as vscode.CancellationToken) as vscode.CodeLens[];
+        assert.strictEqual(lensesMain.length, 0);
+
+        const mockDocTest = new MockTextDocument(vscode.Uri.file('/workspace/src/Test.java'), 'src/Test.java');
+        const lensesTest = provider.provideCodeLenses(mockDocTest, {} as vscode.CancellationToken) as vscode.CodeLens[];
+        assert.strictEqual(lensesTest.length, 1);
     });
 
     test('should normalize file paths', () => {
@@ -49,7 +72,12 @@ suite('BuildErrorCodeLensProvider Test Suite', () => {
 
         // Should normalize backslashes
         provider.setErrors('src\\Main.java', errors);
-        // Internally should be stored as src/Main.java
+        
+        // Check with forward slash path
+        const mockDoc = new MockTextDocument(vscode.Uri.file('/workspace/src/Main.java'), 'src/Main.java');
+        const lenses = provider.provideCodeLenses(mockDoc, {} as vscode.CancellationToken) as vscode.CodeLens[];
+        
+        assert.strictEqual(lenses.length, 1);
     });
 
     test('should handle empty file path gracefully', () => {

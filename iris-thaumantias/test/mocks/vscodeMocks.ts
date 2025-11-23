@@ -67,3 +67,39 @@ export class MockExtensionContext implements vscode.ExtensionContext {
         return relativePath;
     }
 }
+
+export class MockTextDocument implements vscode.TextDocument {
+    uri: vscode.Uri;
+    fileName: string;
+    isUntitled: boolean = false;
+    languageId: string = 'java';
+    version: number = 1;
+    isDirty: boolean = false;
+    isClosed: boolean = false;
+    eol: vscode.EndOfLine = vscode.EndOfLine.LF;
+    lineCount: number = 100;
+
+    constructor(uri: vscode.Uri, fileName: string) {
+        this.uri = uri;
+        this.fileName = fileName;
+    }
+
+    save(): Thenable<boolean> { return Promise.resolve(true); }
+    lineAt(lineOrPos: number | vscode.Position): vscode.TextLine {
+        const line = typeof lineOrPos === 'number' ? lineOrPos : lineOrPos.line;
+        return {
+            lineNumber: line,
+            text: '',
+            range: new vscode.Range(new vscode.Position(line, 0), new vscode.Position(line, 0)),
+            rangeIncludingLineBreak: new vscode.Range(new vscode.Position(line, 0), new vscode.Position(line, 0)),
+            firstNonWhitespaceCharacterIndex: 0,
+            isEmptyOrWhitespace: true
+        };
+    }
+    offsetAt(position: vscode.Position): number { return 0; }
+    positionAt(offset: number): vscode.Position { return new vscode.Position(0, 0); }
+    getText(range?: vscode.Range): string { return ''; }
+    getWordRangeAtPosition(position: vscode.Position, regex?: RegExp): vscode.Range | undefined { return undefined; }
+    validateRange(range: vscode.Range): vscode.Range { return range; }
+    validatePosition(position: vscode.Position): vscode.Position { return position; }
+}
