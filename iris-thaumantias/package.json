@@ -156,6 +156,8 @@
     "lint": "eslint src test",
     "test": "vscode-test",
     "test:coverage": "vscode-test --coverage",
+    "test:all": "npm run compile-tests && npm run compile && npm run lint && vscode-test",
+    "coverage:all": "npm run compile-tests && npm run compile && npm run lint && vscode-test --coverage",
     "clean": "rm -rf dist out *.vsix",
     "compile:clean": "npm run clean && npm run compile"
   },
