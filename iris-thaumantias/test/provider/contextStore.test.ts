@@ -501,20 +501,20 @@ suite('ContextStore Test Suite', () => {
         assert.ok(snapshot.recentCourses.some(c => c.id === 5));
     });
 
-    test('should trim all exercises history', function() {
+    test('should trim all exercises history', function () {
         this.timeout(5000); // Increase timeout for this test
         // Limit is 1000
         const limit = 1000;
         for (let i = 1; i <= limit + 5; i++) {
             contextStore.registerExercise({ id: i, title: `Ex ${i}` });
         }
-        
+
         const snapshot = contextStore.snapshot();
         assert.strictEqual(snapshot.allExercises.length, limit);
         // Should keep the most recent ones (higher IDs)
         assert.ok(snapshot.allExercises.some(e => e.id === limit + 5));
         assert.ok(!snapshot.allExercises.some(e => e.id === 1));
-    });    test('should trim all courses history', () => {
+    }); test('should trim all courses history', () => {
         // Limit is 400
         const limit = 400;
         for (let i = 1; i <= limit + 5; i++) {
@@ -600,14 +600,14 @@ suite('ContextStore Test Suite', () => {
 
     test('should handle session operations with no active context', () => {
         contextStore.clearActiveContext();
-        
+
         // Should not throw and return snapshot
         contextStore.switchSession('any');
         contextStore.switchToFirstSession();
         contextStore.incrementActiveSessionMessageCount();
         contextStore.cleanupEmptySessions();
         contextStore.setArtemisSessionId(123);
-        
+
         const snapshot = contextStore.snapshot();
         assert.strictEqual(snapshot.activeContext, null);
     });
@@ -616,13 +616,13 @@ suite('ContextStore Test Suite', () => {
         contextStore.registerExercise({ id: 1, title: 'Ex 1' });
         // registerExercise creates a session, let's clear it
         contextStore.clearAllSessions();
-        
+
         // Now we have active context but no sessions
         contextStore.incrementActiveSessionMessageCount();
         contextStore.cleanupEmptySessions();
         contextStore.setArtemisSessionId(123);
         contextStore.switchToFirstSession();
-        
+
         const snapshot = contextStore.snapshot();
         assert.strictEqual(snapshot.sessions.length, 0);
     });
@@ -630,9 +630,9 @@ suite('ContextStore Test Suite', () => {
     test('should handle switchSession with non-existent session', () => {
         contextStore.registerExercise({ id: 1, title: 'Ex 1' });
         const initialSessionId = contextStore.snapshot().activeSession?.id;
-        
+
         contextStore.switchSession('non-existent-id');
-        
+
         const snapshot = contextStore.snapshot();
         // Should remain on initial session
         assert.strictEqual(snapshot.activeSession?.id, initialSessionId);
@@ -643,14 +643,14 @@ suite('ContextStore Test Suite', () => {
         const originalNow = Date.now;
         let currentTime = 1000000000000; // Fixed start time
         Date.now = () => currentTime;
-        
+
         try {
             // 1. Workspace exercise (+1000) + Recent View (+50) = 1050
             contextStore.registerExercise({ id: 1, title: 'Workspace', isWorkspace: true });
             let snapshot = contextStore.snapshot();
             const ex1 = snapshot.allExercises.find(e => e.id === 1);
             assert.strictEqual(ex1?.priority, 1050);
-            
+
             // 2. Release date within 7 days (+100) + Recent View (+50) + Release Date Bonus (timestamp/...)
             // Release date bonus is Math.floor(releaseTime / msPerDay / 1000) which is small but non-zero.
             // Let's calculate expected bonus.
@@ -658,48 +658,48 @@ suite('ContextStore Test Suite', () => {
             const releaseDate = new Date(currentTime - msPerDay).toISOString(); // 1 day ago
             const releaseTime = new Date(releaseDate).getTime();
             const releaseBonus = Math.floor(releaseTime / msPerDay / 1000);
-            
+
             contextStore.registerExercise({ id: 2, title: 'Released', releaseDate });
             snapshot = contextStore.snapshot();
             const ex2 = snapshot.allExercises.find(e => e.id === 2);
             // 100 (recent release) + 50 (recent view) + releaseBonus
             assert.strictEqual(ex2?.priority, 150 + releaseBonus);
-            
+
             // 3. Due date within 7 days
             // Formula: Math.max(200 - Math.floor(daysUntilDue * 30 / 7), 170)
             // Let's say due in 1 day.
             const dueDate = new Date(currentTime + msPerDay).toISOString();
             const daysUntilDue = 1;
             const dueBonus = Math.max(200 - Math.floor(daysUntilDue * 30 / 7), 170); // 200 - 4 = 196
-            
+
             contextStore.registerExercise({ id: 3, title: 'Due', dueDate });
             snapshot = contextStore.snapshot();
             const ex3 = snapshot.allExercises.find(e => e.id === 3);
             // dueBonus + 50 (recent view)
             assert.strictEqual(ex3?.priority, dueBonus + 50);
-            
+
             // 4. Completed exercise (score 100) -> -100 penalty
             contextStore.registerExercise({ id: 4, title: 'Done', score: 100 });
             snapshot = contextStore.snapshot();
             const ex4 = snapshot.allExercises.find(e => e.id === 4);
             // 50 (recent view) - 100 = -50
             assert.strictEqual(ex4?.priority, -50);
-            
+
             // 5. Old view (> 24 hours)
             // Advance time by 25 hours
             currentTime += 25 * 60 * 60 * 1000;
-            
+
             // Trigger recalculation by registering a new exercise
             contextStore.registerExercise({ id: 5, title: 'New' });
-            
+
             snapshot = contextStore.snapshot();
             // Ex 1 (Workspace) should lose recent view bonus: 1000
             // Note: recalculateExercisePriorities only updates recentExercises
             assert.strictEqual(snapshot.recentExercises.find(e => e.id === 1)?.priority, 1000);
-            
+
             // Ex 4 (Done) should lose recent view bonus: -100
             assert.strictEqual(snapshot.recentExercises.find(e => e.id === 4)?.priority, -100);
-            
+
         } finally {
             Date.now = originalNow;
         }

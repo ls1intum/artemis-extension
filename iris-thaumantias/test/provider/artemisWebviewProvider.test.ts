@@ -26,7 +26,7 @@ class MockArtemisWebsocketService extends ArtemisWebsocketService {
     constructor(authManager: AuthManager) {
         super(authManager);
     }
-    registerMessageHandler(handler: any) {}
+    registerMessageHandler(handler: any) { }
     isConnected() { return true; }
     connect() { return Promise.resolve(); }
 }
@@ -50,7 +50,7 @@ class MockWebviewView implements vscode.WebviewView {
     title?: string;
     description?: string;
     badge?: vscode.ViewBadge;
-    show(preserveFocus?: boolean): void {}
+    show(preserveFocus?: boolean): void { }
     onDidChangeVisibility: vscode.Event<void> = new vscode.EventEmitter<void>().event;
     onDidDispose: vscode.Event<void> = new vscode.EventEmitter<void>().event;
     visible: boolean = true;
@@ -66,7 +66,7 @@ suite('ArtemisWebviewProvider Test Suite', () => {
         mockContext = new MockExtensionContext();
         mockAuthManager = new MockAuthManager(mockContext);
         mockApiService = new MockArtemisApiService(mockAuthManager);
-        
+
         provider = new ArtemisWebviewProvider(
             vscode.Uri.file('/'),
             mockContext,
@@ -85,7 +85,7 @@ suite('ArtemisWebviewProvider Test Suite', () => {
     });
 
     test('should set auth context updater', () => {
-        const updater = async (auth: boolean) => {};
+        const updater = async (auth: boolean) => { };
         provider.setAuthContextUpdater(updater);
     });
 
@@ -98,9 +98,9 @@ suite('ArtemisWebviewProvider Test Suite', () => {
         const mockView = new MockWebviewView();
         const mockResolveContext = {} as vscode.WebviewViewResolveContext;
         const mockToken = {} as vscode.CancellationToken;
-        
+
         provider.resolveWebviewView(mockView, mockResolveContext, mockToken);
-        
+
         assert.ok(mockView.webview.html);
         assert.ok(mockView.webview.options.enableScripts);
     });
@@ -109,11 +109,11 @@ suite('ArtemisWebviewProvider Test Suite', () => {
         const mockView = new MockWebviewView();
         const mockResolveContext = {} as vscode.WebviewViewResolveContext;
         const mockToken = {} as vscode.CancellationToken;
-        
+
         provider.resolveWebviewView(mockView, mockResolveContext, mockToken);
-        
+
         await provider.openExerciseDetails(1);
-        
+
         assert.ok(mockView.webview.html);
     });
 
