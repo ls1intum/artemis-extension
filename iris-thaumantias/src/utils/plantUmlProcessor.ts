@@ -10,7 +10,7 @@
  */
 
 // Regex to match testsColor(...) with any content inside, including nested parentheses
-const testsColorRegex = /testsColor\([^)]*(?:\([^)]*\)[^)]*)*\)/g;
+const testsColorRegex = /testsColor\((?:[^()]*|\([^()]*\))*\)/g;
 
 /**
  * Process PlantUML text and replace all testsColor patterns with "green"

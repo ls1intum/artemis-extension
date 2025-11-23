@@ -55,4 +55,54 @@ suite('AuthManager Test Suite', () => {
         const cookieHeader = await authManager.getCookieHeader();
         assert.strictEqual(cookieHeader, jwt); // Should be in memory
     });
+
+    test('should fallback to legacy cookie storage', async () => {
+        const legacyCookie = 'legacy=cookie';
+        // Manually set the legacy secret
+        await context.secrets.store('artemis-auth-cookie', legacyCookie);
+        
+        const cookieHeader = await authManager.getCookieHeader();
+        assert.strictEqual(cookieHeader, legacyCookie);
+    });
+
+    test('should extract cookie from fetch response (Headers object)', async () => {
+        const cookieValue = 'jwt=abcde';
+        const response = {
+            headers: {
+                get: (key: string) => key === 'set-cookie' ? `${cookieValue}; Path=/` : null
+            }
+        };
+
+        await authManager.setFromResponse(response, true);
+        const stored = await authManager.getCookieHeader();
+        assert.strictEqual(stored, cookieValue);
+    });
+
+    test('should extract cookie from fetch response (getSetCookie array)', async () => {
+        const cookieValue = 'jwt=xyz';
+        const response = {
+            headers: {
+                getSetCookie: () => [`${cookieValue}; Path=/`, 'other=value']
+            }
+        };
+
+        await authManager.setFromResponse(response, true);
+        const stored = await authManager.getCookieHeader();
+        // The implementation joins multiple cookies with '; '
+        assert.ok(stored?.includes(cookieValue));
+    });
+
+    test('should return correct auth headers', async () => {
+        const jwt = 'jwt=token';
+        await authManager.storeArtemisCredentials(jwt, 'url', false);
+        
+        const headers = await authManager.getAuthHeaders();
+        assert.deepStrictEqual(headers, { 'Cookie': jwt });
+    });
+
+    test('should return empty auth headers if no cookie', async () => {
+        await authManager.clear();
+        const headers = await authManager.getAuthHeaders();
+        assert.deepStrictEqual(headers, {});
+    });
 });
