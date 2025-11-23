@@ -10,7 +10,7 @@ class TestableBuildErrorCodeLensProvider extends BuildErrorCodeLensProvider {
     protected getRelativePath(document: vscode.TextDocument): string | null {
         return document.fileName;
     }
-    
+
     // Expose for testing if needed, but we override the caller
 }
 
@@ -30,7 +30,7 @@ suite('BuildErrorCodeLensProvider Test Suite', () => {
 
         const mockDoc = new MockTextDocument(vscode.Uri.file('/workspace/src/Main.java'), 'src/Main.java');
         const lenses = provider.provideCodeLenses(mockDoc, {} as vscode.CancellationToken) as vscode.CodeLens[];
-        
+
         assert.strictEqual(lenses.length, 1);
         assert.strictEqual(lenses[0].command?.title, '❌ Artemis Build Error: Syntax error');
         assert.strictEqual(lenses[0].range.start.line, 9); // 0-indexed
@@ -46,7 +46,7 @@ suite('BuildErrorCodeLensProvider Test Suite', () => {
 
         const mockDoc = new MockTextDocument(vscode.Uri.file('/workspace/src/Main.java'), 'src/Main.java');
         const lenses = provider.provideCodeLenses(mockDoc, {} as vscode.CancellationToken) as vscode.CodeLens[];
-        
+
         assert.strictEqual(lenses.length, 0);
     });
 
@@ -72,11 +72,11 @@ suite('BuildErrorCodeLensProvider Test Suite', () => {
 
         // Should normalize backslashes
         provider.setErrors('src\\Main.java', errors);
-        
+
         // Check with forward slash path
         const mockDoc = new MockTextDocument(vscode.Uri.file('/workspace/src/Main.java'), 'src/Main.java');
         const lenses = provider.provideCodeLenses(mockDoc, {} as vscode.CancellationToken) as vscode.CodeLens[];
-        
+
         assert.strictEqual(lenses.length, 1);
     });
 
