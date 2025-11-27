@@ -360,14 +360,43 @@ body {
         .collapsible-header {
             cursor: pointer;
             user-select: none;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .exam-count-badge {
+            display: none;
+            background: var(--theme-button-background);
+            color: var(--theme-button-foreground);
+            font-size: 11px;
+            font-weight: 600;
+            padding: 2px 6px;
+            border-radius: 10px;
+            line-height: 1;
+        }
+
+        .collapsible-section.collapsed .exam-count-badge {
+            display: inline-block;
         }
 
         .collapse-icon {
-            transition: transform 0.3s ease;
-            font-size: 12px;
-            opacity: 0.7;
+            width: 16px;
+            height: 16px;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23999999' d='M6 9L1 4h10z'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: center;
+            transition: transform 0.2s ease;
+            opacity: 0.8;
         }
 
+        /* When collapsed, rotate to point right (since default is down) */
         .collapsible-section.collapsed .collapse-icon {
             transform: rotate(-90deg);
         }
@@ -375,12 +404,16 @@ body {
         .collapsible-content {
             max-height: 500px;
             overflow: hidden;
-            transition: max-height 0.3s ease, opacity 0.3s ease, margin 0.3s ease;
+            transition: max-height 0.3s ease, opacity 0.3s ease;
             opacity: 1;
         }
 
         .collapsible-section.collapsed .collapsible-content {
             max-height: 0;
             opacity: 0;
-            margin-top: 0;
+        }
+        
+        /* Remove bottom margin from header when collapsed to reduce whitespace */
+        .collapsible-section.collapsed .section-title {
+            margin-bottom: 0;
         }

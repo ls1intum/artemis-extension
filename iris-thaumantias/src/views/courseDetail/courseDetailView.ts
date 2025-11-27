@@ -177,8 +177,11 @@ export class CourseDetailView {
 
     <div class="section collapsible-section" id="exams-section">
         <div class="section-title collapsible-header" onclick="toggleSection('exams-section')">
-            <span>Exams</span>
-            <span class="collapse-icon">▼</span>
+            <div class="header-left">
+                <span>Exams</span>
+                <span class="exam-count-badge">2</span>
+            </div>
+            <span class="collapse-icon"></span>
         </div>
         <div class="collapsible-content">
             <div class="exam-list">
