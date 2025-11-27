@@ -174,6 +174,52 @@ export class CourseDetailView {
             fullWidth: false
         })}
     </div>
+
+    <div class="section">
+        <div class="section-title">Exams</div>
+        <div class="exam-list">
+            ${ListItemComponent.generate(
+                {
+                    className: 'exam-item',
+                    clickable: true,
+                    command: "console.log('Open Exam 1')",
+                    dataAttributes: {
+                        'title': 'Midterm Exam',
+                        'id': '1'
+                    }
+                },
+                `
+                    <div class="exam-header">
+                        <span class="exam-title">Midterm Exam</span>
+                    </div>
+                    <div class="exam-info">
+                        <span>Date: 12/12/2025</span>
+                        <span>Duration: 90 min</span>
+                    </div>
+                `
+            )}
+            ${ListItemComponent.generate(
+                {
+                    className: 'exam-item',
+                    clickable: true,
+                    command: "console.log('Open Exam 2')",
+                    dataAttributes: {
+                        'title': 'Final Exam',
+                        'id': '2'
+                    }
+                },
+                `
+                    <div class="exam-header">
+                        <span class="exam-title">Final Exam</span>
+                    </div>
+                    <div class="exam-info">
+                        <span>Date: 01/02/2026</span>
+                        <span>Duration: 120 min</span>
+                    </div>
+                `
+            )}
+        </div>
+    </div>
     
     <div class="section">
         <div class="section-title">Exercises</div>

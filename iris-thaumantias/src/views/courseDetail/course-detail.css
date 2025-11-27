@@ -1,4 +1,4 @@
-        body {
+body {
             font-family: var(--theme-font-family);
             color: var(--theme-foreground);
             background: var(--theme-background);
@@ -318,4 +318,40 @@
             background: var(--theme-button-background);
             color: var(--theme-button-foreground);
             transform: scale(1.05);
+        }
+
+        /* Exam item styles */
+        .exam-list {
+            padding: 8px;
+            border: 1px solid var(--theme-border);
+            border-radius: var(--theme-container-radius);
+            background: var(--theme-card-background);
+        }
+
+        .exam-item .exam-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 6px;
+            gap: 8px;
+            flex-wrap: nowrap;
+        }
+
+        .exam-item .exam-title {
+            font-weight: 600;
+            color: var(--theme-foreground);
+            flex: 1;
+            min-width: 0;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .exam-item .exam-info {
+            display: flex;
+            gap: 16px;
+            font-size: 12px;
+            color: var(--theme-foreground);
+            opacity: 0.9;
+            flex-wrap: wrap;
         }
