@@ -355,3 +355,32 @@ body {
             opacity: 0.9;
             flex-wrap: wrap;
         }
+
+        /* Collapsible section styles */
+        .collapsible-header {
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .collapse-icon {
+            transition: transform 0.3s ease;
+            font-size: 12px;
+            opacity: 0.7;
+        }
+
+        .collapsible-section.collapsed .collapse-icon {
+            transform: rotate(-90deg);
+        }
+
+        .collapsible-content {
+            max-height: 500px;
+            overflow: hidden;
+            transition: max-height 0.3s ease, opacity 0.3s ease, margin 0.3s ease;
+            opacity: 1;
+        }
+
+        .collapsible-section.collapsed .collapsible-content {
+            max-height: 0;
+            opacity: 0;
+            margin-top: 0;
+        }

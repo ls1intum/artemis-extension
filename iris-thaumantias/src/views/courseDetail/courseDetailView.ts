@@ -175,49 +175,54 @@ export class CourseDetailView {
         })}
     </div>
 
-    <div class="section">
-        <div class="section-title">Exams</div>
-        <div class="exam-list">
-            ${ListItemComponent.generate(
-                {
-                    className: 'exam-item',
-                    clickable: true,
-                    command: "console.log('Open Exam 1')",
-                    dataAttributes: {
-                        'title': 'Midterm Exam',
-                        'id': '1'
-                    }
-                },
-                `
-                    <div class="exam-header">
-                        <span class="exam-title">Midterm Exam</span>
-                    </div>
-                    <div class="exam-info">
-                        <span>Date: 12/12/2025</span>
-                        <span>Duration: 90 min</span>
-                    </div>
-                `
-            )}
-            ${ListItemComponent.generate(
-                {
-                    className: 'exam-item',
-                    clickable: true,
-                    command: "console.log('Open Exam 2')",
-                    dataAttributes: {
-                        'title': 'Final Exam',
-                        'id': '2'
-                    }
-                },
-                `
-                    <div class="exam-header">
-                        <span class="exam-title">Final Exam</span>
-                    </div>
-                    <div class="exam-info">
-                        <span>Date: 01/02/2026</span>
-                        <span>Duration: 120 min</span>
-                    </div>
-                `
-            )}
+    <div class="section collapsible-section" id="exams-section">
+        <div class="section-title collapsible-header" onclick="toggleSection('exams-section')">
+            <span>Exams</span>
+            <span class="collapse-icon">▼</span>
+        </div>
+        <div class="collapsible-content">
+            <div class="exam-list">
+                ${ListItemComponent.generate(
+                    {
+                        className: 'exam-item',
+                        clickable: true,
+                        command: "console.log('Open Exam 1')",
+                        dataAttributes: {
+                            'title': 'Midterm Exam',
+                            'id': '1'
+                        }
+                    },
+                    `
+                        <div class="exam-header">
+                            <span class="exam-title">Midterm Exam</span>
+                        </div>
+                        <div class="exam-info">
+                            <span>Date: 12/12/2025</span>
+                            <span>Duration: 90 min</span>
+                        </div>
+                    `
+                )}
+                ${ListItemComponent.generate(
+                    {
+                        className: 'exam-item',
+                        clickable: true,
+                        command: "console.log('Open Exam 2')",
+                        dataAttributes: {
+                            'title': 'Final Exam',
+                            'id': '2'
+                        }
+                    },
+                    `
+                        <div class="exam-header">
+                            <span class="exam-title">Final Exam</span>
+                        </div>
+                        <div class="exam-info">
+                            <span>Date: 01/02/2026</span>
+                            <span>Duration: 120 min</span>
+                        </div>
+                    `
+                )}
+            </div>
         </div>
     </div>
     
@@ -284,6 +289,13 @@ export class CourseDetailView {
         // Enable keyboard navigation for list items
         ${ListItemComponent.generateScript()}
         
+        window.toggleSection = function(sectionId) {
+            const section = document.getElementById(sectionId);
+            if (section) {
+                section.classList.toggle('collapsed');
+            }
+        }
+
         if (askIrisButton) {
             askIrisButton.addEventListener('click', () => {
                 const course = (courseData && (courseData.course || courseData)) || {};
