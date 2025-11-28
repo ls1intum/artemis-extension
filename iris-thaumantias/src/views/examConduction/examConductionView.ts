@@ -65,11 +65,13 @@ export class ExamConductionView {
 
         const headerContainer = ContainerComponent.generate({
             id: 'exam-header',
-            header: {
-                title: title,
-                actionsHtml: `<div class="timer-container" id="examTimer">Loading timer...</div>`
-            },
-            bodyHtml: `<div class="progress-bar-container"><div class="progress-bar" id="examProgressBar" style="width: 0%"></div></div>`,
+            bodyHtml: `
+                <div class="exam-header-content">
+                    <h1 class="exam-title">${title}</h1>
+                    <div class="timer-container" id="examTimer">Loading timer...</div>
+                </div>
+                <div class="progress-bar-container"><div class="progress-bar" id="examProgressBar" style="width: 0%"></div></div>
+            `,
             className: 'exam-header-card'
         });
 
@@ -133,18 +135,24 @@ export class ExamConductionView {
         
         // Timer Logic
         function initTimer() {
-            // Prefer individualEndDate if available, otherwise calculate
-            // This is a simplified version. Real Artemis uses server time offset etc.
+            // Calculate individual end date like Artemis does:
+            // For regular exams: exam.startDate + studentExam.workingTime
+            // For test exams: studentExam.startedDate + studentExam.workingTime
             let endTime;
-            if (studentExam.individualEndDate) {
-                endTime = new Date(studentExam.individualEndDate).getTime();
-            } else if (studentExam.exam.endDate) {
-                endTime = new Date(studentExam.exam.endDate).getTime();
+            let startTime;
+            
+            if (studentExam.exam.testExam && studentExam.startedDate) {
+                // Test exam: use startedDate
+                startTime = new Date(studentExam.startedDate).getTime();
+                endTime = startTime + (studentExam.workingTime * 1000);
+            } else if (studentExam.exam.startDate && studentExam.workingTime) {
+                // Regular exam: use exam startDate + individual workingTime
+                startTime = new Date(studentExam.exam.startDate).getTime();
+                endTime = startTime + (studentExam.workingTime * 1000);
             } else {
-                // Fallback: workingTime is in seconds
-                // This is inaccurate if we don't know exactly when it started relative to now
-                // But usually individualEndDate is set for started exams
-                endTime = new Date().getTime() + (studentExam.workingTime * 1000); 
+                // Fallback (should not happen in practice)
+                startTime = new Date().getTime();
+                endTime = startTime + (studentExam.workingTime * 1000);
             }
 
             const timerElement = document.getElementById('examTimer');
@@ -159,39 +167,44 @@ export class ExamConductionView {
                 const timeLeft = endTime - now;
 
                 if (timeLeft <= 0) {
-                    timerElement.textContent = '00:00:00';
+                    timerElement.textContent = '0min 0s';
                     timerElement.classList.add('timer-expired');
                     progressBar.style.width = '100%';
                     return;
                 }
 
-                // Format time
-                const hours = Math.floor(timeLeft / (1000 * 60 * 60));
-                const minutes = Math.floor((timeLeft % (1000 * 60 * 60)) / (1000 * 60));
-                const seconds = Math.floor((timeLeft % (1000 * 60)) / 1000);
+                // Format time like Artemis
+                const totalSeconds = Math.floor(timeLeft / 1000);
+                const hours = Math.floor(totalSeconds / 3600);
+                const minutes = Math.floor((totalSeconds % 3600) / 60);
+                const seconds = totalSeconds % 60;
 
-                timerElement.textContent = 
-                    (hours < 10 ? '0' + hours : hours) + ':' +
-                    (minutes < 10 ? '0' + minutes : minutes) + ':' +
-                    (seconds < 10 ? '0' + seconds : seconds);
-                
-                // Update progress bar
-                // We need start time to calculate progress correctly
-                // If we don't have it, we can't show accurate progress bar growing
-                // But we can show shrinking time?
-                // Let's try to find start time
-                let startTime;
-                if (studentExam.exam.startDate) {
-                    startTime = new Date(studentExam.exam.startDate).getTime();
-                } else {
-                    startTime = endTime - totalDuration;
+                // Artemis format:
+                // >= 1 hour: show hours and minutes (e.g., "1h 7min")
+                // >= 10 minutes: show only minutes (e.g., "15min")
+                // 1-10 minutes: show minutes and seconds (e.g., "8min 0s")
+                // < 1 minute: show only seconds (e.g., "45s")
+                let displayText;
+                if (hours > 0) { // >= 1 hour
+                    displayText = hours + 'h ' + minutes + 'min';
+                } else if (totalSeconds >= 600) { // >= 10 minutes
+                    displayText = minutes + 'min';
+                } else if (totalSeconds >= 60) { // 1-10 minutes
+                    displayText = minutes + 'min ' + seconds + 's';
+                } else { // < 1 minute
+                    displayText = seconds + 's';
                 }
+
+                timerElement.textContent = displayText;
                 
+                // Update progress bar based on working time
+                const totalDuration = studentExam.workingTime * 1000;
                 const elapsed = now - startTime;
                 const percentage = Math.min(100, Math.max(0, (elapsed / totalDuration) * 100));
                 progressBar.style.width = percentage + '%';
                 
-                if (timeLeft < 5 * 60 * 1000) { // Less than 5 mins
+                // Add warning class if less than 5 minutes
+                if (timeLeft < 5 * 60 * 1000) {
                     timerElement.classList.add('timer-warning');
                 }
             }
