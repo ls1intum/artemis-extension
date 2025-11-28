@@ -11,15 +11,15 @@ body {
     gap: 24px;
 }
 
-.exam-header {
+.exam-header-card {
     background: var(--theme-card-background);
     border: 1px solid var(--theme-border);
     border-radius: var(--theme-container-radius);
-    padding: 20px;
+    padding: 24px;
     position: sticky;
     top: 0;
     z-index: 100;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    box-shadow: var(--theme-box-shadow);
 }
 
 .header-top {
@@ -29,7 +29,7 @@ body {
     margin-bottom: 16px;
 }
 
-.exam-header h1 {
+.exam-header-card h1 {
     margin: 0;
     font-size: 24px;
     color: var(--theme-foreground);
@@ -75,10 +75,21 @@ body {
     transition: width 1s linear;
 }
 
-.exercises-list h2 {
+.exercises-section h2 {
     margin-top: 0;
     margin-bottom: 16px;
     font-size: 20px;
+    color: var(--theme-foreground);
+}
+
+.exercises-list {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.exercises-list .list-item {
+    margin-bottom: 0;
 }
 
 .exercise-header {
@@ -113,7 +124,7 @@ body {
     padding-left: 92px; /* Align with title */
 }
 
-.exam-footer {
+.exam-footer-card {
     margin-top: 24px;
     display: flex;
     flex-direction: column;
@@ -123,6 +134,7 @@ body {
     background: var(--theme-card-background);
     border: 1px solid var(--theme-border);
     border-radius: var(--theme-container-radius);
+    box-shadow: var(--theme-box-shadow);
 }
 
 .warning-text {

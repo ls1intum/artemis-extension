@@ -78,7 +78,7 @@ export class ExamConductionView {
             command: 'backToCourseDetails',
             wrap: true
         })}
-        <div class="exam-header">
+        <div class="exam-header-card">
             <div class="header-top">
                 <h1>${title}</h1>
                 <div class="timer-container" id="examTimer">
@@ -90,12 +90,14 @@ export class ExamConductionView {
             </div>
         </div>
 
-        <div class="exercises-list">
+        <div class="exercises-section">
             <h2>Exercises</h2>
-            ${exercisesHtml}
+            <div class="exercises-list">
+                ${exercisesHtml}
+            </div>
         </div>
 
-        <div class="exam-footer">
+        <div class="exam-footer-card">
             <div class="warning-text">
                 To submit your exam, please visit the Artemis website.
             </div>
