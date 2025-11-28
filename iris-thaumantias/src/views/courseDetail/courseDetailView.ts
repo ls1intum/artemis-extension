@@ -89,7 +89,40 @@ export class CourseDetailView {
         const examCount = exams.length;
 
         if (exams.length > 0) {
-            examsHtml = exams.map((exam: any) => {
+            // Sort exams: Active first, then Upcoming, then Finished
+            const sortedExams = [...exams].sort((a: any, b: any) => {
+                const now = new Date().getTime();
+
+                // Calculate status for exam a
+                const aStart = a.startDate ? new Date(a.startDate).getTime() : 0;
+                const aEnd = a.endDate ? new Date(a.endDate).getTime() : 0;
+                const aIsActive = now >= aStart && now <= aEnd;
+                const aIsUpcoming = now < aStart;
+
+                // Calculate status for exam b
+                const bStart = b.startDate ? new Date(b.startDate).getTime() : 0;
+                const bEnd = b.endDate ? new Date(b.endDate).getTime() : 0;
+                const bIsActive = now >= bStart && now <= bEnd;
+                const bIsUpcoming = now < bStart;
+
+                // Priority: Active > Upcoming > Finished
+                if (aIsActive && !bIsActive) {
+                    return -1;
+                }
+                if (!aIsActive && bIsActive) {
+                    return 1;
+                }
+                if (aIsUpcoming && !bIsUpcoming && !bIsActive) {
+                    return -1;
+                }
+                if (!aIsUpcoming && bIsUpcoming && !aIsActive) {
+                    return 1;
+                }
+
+                return 0;
+            });
+
+            examsHtml = sortedExams.map((exam: any) => {
                 const startDate = exam.startDate ? new Date(exam.startDate).toLocaleString() : 'No start date';
                 const endDate = exam.endDate ? new Date(exam.endDate).toLocaleString() : 'No end date';
 
