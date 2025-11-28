@@ -98,13 +98,25 @@ export class NavigationCommandModule {
 
     private async processCourseDetails(courseData: any): Promise<void> {
         try {
+            const course = courseData?.course || courseData;
+            
+            // Fetch exams for the course
+            if (course && course.id) {
+                try {
+                    const exams = await this.context.artemisApi.getExamsForCourse(course.id);
+                    course.exams = exams;
+                } catch (error) {
+                    console.error('Error fetching exams:', error);
+                    // Continue without exams if fetch fails
+                }
+            }
+
             this.context.appStateManager.showCourseDetail(courseData);
 
             const registry = ExerciseRegistry.getInstance();
             registry.registerFromCourseData(courseData);
 
             const chatProvider = (global as any).chatWebviewProvider;
-            const course = courseData?.course || courseData;
             if (course) {
                 const courseTitle = course.title || 'Untitled Course';
                 const courseId = course.id || 0;

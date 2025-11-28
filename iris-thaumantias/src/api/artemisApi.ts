@@ -505,4 +505,10 @@ export class ArtemisApiService {
         );
         return response.json();
     }
+
+    // Get exams for a specific course
+    async getExamsForCourse(courseId: number): Promise<any[]> {
+        const response = await this.makeRequest(`/api/exam/courses/${courseId}/exams`);
+        return response.json() as Promise<any[]>;
+    }
 }
