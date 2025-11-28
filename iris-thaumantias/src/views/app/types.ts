@@ -12,6 +12,7 @@ export interface WebViewActionHandler {
     showGitCredentials(): void;
     openJsonInEditor(data: any): Promise<void>;
     openExerciseDetails(exerciseId: number): Promise<void>;
+    openExamExerciseDetails(exercise: any, exerciseIndex: number, courseId: number, examId: number): Promise<void>;
     openExerciseFullscreen(exerciseData: any): Promise<void>;
     openCourseFullscreen(courseData: any): Promise<void>;
     render(): void;

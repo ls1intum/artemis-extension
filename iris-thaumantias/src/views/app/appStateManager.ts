@@ -1,7 +1,7 @@
 import { ArtemisApiService } from '../../api';
 import { getRecommendedExtensionsByCategory, type RecommendedExtensionCategory } from '../../utils/recommendedExtensions';
 
-export type AppState = 'login' | 'dashboard' | 'course-list' | 'course-detail' | 'exercise-detail' | 'ai-config' | 'service-status' | 'recommended-extensions' | 'git-credentials' | 'exam-start' | 'exam-conduction';
+export type AppState = 'login' | 'dashboard' | 'course-list' | 'course-detail' | 'exercise-detail' | 'exam-exercise-detail' | 'ai-config' | 'service-status' | 'recommended-extensions' | 'git-credentials' | 'exam-start' | 'exam-conduction';
 
 export interface UserInfo {
     username: string;
@@ -246,6 +246,28 @@ export class AppStateManager {
 
     public showExamConduction(examData: any): void {
         this._currentExamData = examData;
+        this._currentState = 'exam-conduction';
+    }
+
+    public showExamExerciseDetail(
+        exercise: any,
+        exerciseIndex: number,
+        courseId: number,
+        examId: number
+    ): void {
+        // Store the exam exercise with additional context
+        this._currentExerciseData = {
+            exercise,
+            exerciseIndex,
+            courseId,
+            examId,
+            isExamExercise: true,
+            studentExam: this._currentExamData?.studentExam
+        };
+        this._currentState = 'exam-exercise-detail';
+    }
+
+    public backToExam(): void {
         this._currentState = 'exam-conduction';
     }
 

@@ -18,7 +18,9 @@ export class NavigationCommandModule {
             viewCourseDetails: this.handleViewCourseDetails,
             backToDashboard: this.handleBackToDashboard,
             openExerciseDetails: this.handleOpenExerciseDetails,
+            openExamExerciseDetails: this.handleOpenExamExerciseDetails,
             backToCourseDetails: this.handleBackToCourseDetails,
+            backToExam: this.handleBackToExam,
             showAiConfig: this.handleShowAiConfig,
             showServiceStatus: this.handleShowServiceStatus,
             showRecommendedExtensions: this.handleShowRecommendedExtensions,
@@ -238,8 +240,18 @@ export class NavigationCommandModule {
         await this.context.actionHandler.openExerciseDetails(message.exerciseId);
     };
 
+    private handleOpenExamExerciseDetails = async (message: any): Promise<void> => {
+        const { exercise, exerciseIndex, courseId, examId } = message;
+        await this.context.actionHandler.openExamExerciseDetails(exercise, exerciseIndex, courseId, examId);
+    };
+
     private handleBackToCourseDetails = async (): Promise<void> => {
         this.context.appStateManager.backToCourseDetails();
+        this.context.actionHandler.render();
+    };
+
+    private handleBackToExam = async (): Promise<void> => {
+        this.context.appStateManager.backToExam();
         this.context.actionHandler.render();
     };
 

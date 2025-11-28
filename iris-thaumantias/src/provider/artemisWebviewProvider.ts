@@ -158,6 +158,24 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
         }
     }
 
+    public async openExamExerciseDetails(
+        exercise: any,
+        exerciseIndex: number,
+        courseId: number,
+        examId: number
+    ): Promise<void> {
+        const didUpdate = await this._viewActionService.openExamExerciseDetails(
+            exercise,
+            exerciseIndex,
+            courseId,
+            examId
+        );
+
+        if (didUpdate) {
+            this.render();
+        }
+    }
+
     public resolveWebviewView(
         webviewView: vscode.WebviewView,
         context: vscode.WebviewViewResolveContext,

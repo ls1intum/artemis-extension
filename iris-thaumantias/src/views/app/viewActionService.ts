@@ -38,4 +38,24 @@ export class ViewActionService {
             return false;
         }
     }
+
+    /**
+     * Opens an exam exercise details view using data from the studentExam.
+     * This avoids API calls that are forbidden during exams.
+     */
+    public async openExamExerciseDetails(
+        exercise: any,
+        exerciseIndex: number,
+        courseId: number,
+        examId: number
+    ): Promise<boolean> {
+        try {
+            this._appStateManager.showExamExerciseDetail(exercise, exerciseIndex, courseId, examId);
+            return true;
+        } catch (error) {
+            console.error('Error showing exam exercise details:', error);
+            vscode.window.showErrorMessage('Failed to show exam exercise details');
+            return false;
+        }
+    }
 }

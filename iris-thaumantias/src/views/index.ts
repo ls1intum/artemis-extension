@@ -12,7 +12,7 @@ export { AiCheckerView } from './aiChecker/aiCheckerView';
 export { CourseDetailView } from './courseDetail/courseDetailView';
 export { CourseListView } from './courseList/courseListView';
 export { DashboardView } from './dashboard/dashboardView';
-export { ExerciseDetailView } from './exerciseDetail/exerciseDetailView';
+export { ExerciseDetailView, type ExamContext } from './exerciseDetail/exerciseDetailView';
 export { RecommendedExtensionsView } from './recommendedExtensions/recommendedExtensionsView';
 export { IrisChatView } from './irisChat/irisChatView';
 export { LoginView } from './login/loginView';

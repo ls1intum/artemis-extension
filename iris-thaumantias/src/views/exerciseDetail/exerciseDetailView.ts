@@ -11,6 +11,13 @@ import { ParticipationActionsComponent } from "./components/participationActions
 import { RepositoryStatusScripts } from "./components/repositoryStatusScripts";
 import { BuildProgressComponent } from "./components/buildProgressComponent";
 
+export interface ExamContext {
+    isExamExercise: boolean;
+    courseId: number;
+    examId: number;
+    studentExam?: any;
+}
+
 export class ExerciseDetailView {
     private _extensionContext: vscode.ExtensionContext;
 
@@ -31,7 +38,8 @@ export class ExerciseDetailView {
     public generateHtml(
         exerciseData: any,
         hideDeveloperTools: boolean = false,
-        webview?: vscode.Webview
+        webview?: vscode.Webview,
+        examContext?: ExamContext
     ): string {
         const styles = readCssFiles(
             "components/backLink/back-link.css",
@@ -56,18 +64,23 @@ export class ExerciseDetailView {
         }
 
         if (!exerciseData) {
-            return this._getEmptyStateHtml(styles, webviewComponentsScriptTag);
+            return this._getEmptyStateHtml(styles, webviewComponentsScriptTag, examContext);
         }
 
         return this._getExerciseDetailHtml(
             exerciseData,
             hideDeveloperTools,
             styles,
-            webviewComponentsScriptTag
+            webviewComponentsScriptTag,
+            examContext
         );
     }
 
-    private _getEmptyStateHtml(styles: string, webviewComponentsScriptTag: string): string {
+    private _getEmptyStateHtml(styles: string, webviewComponentsScriptTag: string, examContext?: ExamContext): string {
+        const isExam = examContext?.isExamExercise ?? false;
+        const backCommand = isExam ? "backToExam" : "backToCourseDetails";
+        const backLabel = isExam ? "← Back to Exam" : "← Back to Course";
+        
         return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -81,8 +94,8 @@ export class ExerciseDetailView {
 </head>
 <body>
     ${BackLinkComponent.generateHtml({
-            command: "backToCourseDetails",
-            label: "← Back to Course",
+            command: backCommand,
+            label: backLabel,
         })}
     
     <div class="empty-state">
@@ -103,12 +116,16 @@ export class ExerciseDetailView {
         exerciseData: any,
         hideDeveloperTools: boolean,
         styles: string,
-        webviewComponentsScriptTag: string
+        webviewComponentsScriptTag: string,
+        examContext?: ExamContext
     ): string {
-        const exercise = exerciseData?.exercise;
+        const isExam = examContext?.isExamExercise ?? false;
+        
+        // For exam exercises, the exercise is passed directly; for regular exercises, it's wrapped
+        const exercise = isExam ? exerciseData : exerciseData?.exercise;
 
         if (!exercise) {
-            return this._getEmptyStateHtml(styles, webviewComponentsScriptTag);
+            return this._getEmptyStateHtml(styles, webviewComponentsScriptTag, examContext);
         }
 
         // Transform exercise data using utility
@@ -132,6 +149,10 @@ export class ExerciseDetailView {
         const releaseDateRaw = exercise.releaseDate || exercise.startDate || "";
         const dueDateRaw = exercise.dueDate || "";
 
+        // Exam-specific settings
+        const backCommand = isExam ? "backToExam" : "backToCourseDetails";
+        const backLabel = isExam ? "← Back to Exam" : "← Back to Course";
+
         return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -146,15 +167,15 @@ export class ExerciseDetailView {
 <body>
     <div class="back-link-container">
         ${BackLinkComponent.generateHtml({
-            command: "backToCourseDetails",
-            label: "← Back to Course",
+            command: backCommand,
+            label: backLabel,
             wrap: false,
         })}
-        ${FullscreenButton.generate({
+        ${!isExam ? FullscreenButton.generate({
             id: 'fullscreenBtn',
             command: 'toggleFullscreen()',
             title: 'Open exercise in new editor tab'
-        })}
+        }) : ''}
     </div>
     
     <details class="exercise-card">
@@ -176,9 +197,9 @@ export class ExerciseDetailView {
                 })
                 : ""
             }
-                        <button class="repo-status-icon unknown" id="repoStatusIcon" onclick="checkRepositoryStatus(true)" title="Check repository status">
+                        ${!isExam ? `<button class="repo-status-icon unknown" id="repoStatusIcon" onclick="checkRepositoryStatus(true)" title="Check repository status">
                             ?
-                        </button>
+                        </button>` : ''}
                     </div>
                 </div>
                 <span class="toggle-icon" aria-hidden="true">

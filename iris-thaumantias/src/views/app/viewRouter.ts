@@ -76,6 +76,21 @@ export class ViewRouter {
                 return this._courseDetailView.generateHtml(this._appStateManager.currentCourseData, hideDeveloperTools, webview);
             case 'exercise-detail':
                 return this._exerciseDetailView.generateHtml(this._appStateManager.currentExerciseData, hideDeveloperTools, webview);
+            case 'exam-exercise-detail': {
+                // Reuse the exercise detail view with exam context
+                const exerciseData = this._appStateManager.currentExerciseData;
+                return this._exerciseDetailView.generateHtml(
+                    exerciseData.exercise,
+                    hideDeveloperTools,
+                    webview,
+                    {
+                        isExamExercise: true,
+                        courseId: exerciseData.courseId,
+                        examId: exerciseData.examId,
+                        studentExam: exerciseData.studentExam
+                    }
+                );
+            }
             case 'ai-config':
                 return this._aiCheckerView.generateHtml(this._appStateManager.aiExtensions || []);
             case 'service-status': {

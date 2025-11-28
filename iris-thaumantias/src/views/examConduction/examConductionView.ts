@@ -43,7 +43,7 @@ export class ExamConductionView {
                 {
                     className: 'exercise-item',
                     clickable: true,
-                    command: `openExercise(${exercise.id})`,
+                    command: `openExamExercise(${index})`,
                     dataAttributes: {
                         'id': exercise.id.toString(),
                         'title': exercise.title
@@ -216,10 +216,14 @@ export class ExamConductionView {
 
         initTimer();
 
-        window.openExercise = function(exerciseId) {
+        window.openExamExercise = function(exerciseIndex) {
+            const exercise = studentExam.exercises[exerciseIndex];
             vscode.postMessage({
-                command: 'openExerciseDetails',
-                exerciseId: exerciseId
+                command: 'openExamExerciseDetails',
+                exercise: exercise,
+                exerciseIndex: exerciseIndex,
+                courseId: ${courseId},
+                examId: ${examId}
             });
         };
 
