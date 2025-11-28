@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { readCssFiles } from '../utils';
 import { ButtonComponent } from '../components/button/buttonComponent';
+import { BackLinkComponent } from '../components/backLink/backLinkComponent';
 
 export class ExamStartView {
     private _extensionContext: vscode.ExtensionContext;
@@ -12,6 +13,7 @@ export class ExamStartView {
     public generateHtml(studentExam: any, courseId: number, examId: number): string {
         const styles = readCssFiles(
             'components/button/button.css',
+            'components/backLink/back-link.css',
             'examStart/exam-start.css'
         );
 
@@ -33,7 +35,13 @@ export class ExamStartView {
 </head>
 <body>
     <div class="exam-start-container">
-        <div class="exam-header">
+        ${BackLinkComponent.generateHtml({
+            label: '← Back to Course',
+            command: 'backToCourseDetails',
+            wrap: true
+        })}
+        
+        <div class="exam-header-card">
             <h1>${title}</h1>
             <div class="exam-dates">
                 <span>Start: ${startDate}</span>
@@ -41,14 +49,14 @@ export class ExamStartView {
             </div>
         </div>
 
-        <div class="exam-rules">
+        <div class="exam-rules-card">
             <h2>Exam Rules</h2>
             <div class="rules-content">
                 ${this._renderMarkdown(startText)}
             </div>
         </div>
 
-        <div class="confirmation-section">
+        <div class="exam-confirmation-card">
             <div class="checkbox-container">
                 <input type="checkbox" id="confirmRules" onchange="toggleStartButton()">
                 <label for="confirmRules">I confirm that I have read and understood the exam rules.</label>
@@ -56,18 +64,22 @@ export class ExamStartView {
 
             <div class="actions">
                 ${ButtonComponent.generate({
-            label: 'Start Exam',
-            variant: 'primary',
-            id: 'startExamBtn',
-            command: `startExam(${courseId}, ${examId}, ${studentExam.id})`,
-            disabled: true
-        })}
+                    label: 'Start Exam',
+                    variant: 'primary',
+                    id: 'startExamBtn',
+                    disabled: true,
+                    dataAttributes: {
+                        'command': `startExam(${courseId}, ${examId}, ${studentExam.id})`
+                    }
+                })}
             </div>
         </div>
     </div>
 
     <script>
         const vscode = acquireVsCodeApi();
+        
+        ${BackLinkComponent.generateScript()}
 
         function toggleStartButton() {
             const checkbox = document.getElementById('confirmRules');
@@ -75,10 +87,15 @@ export class ExamStartView {
             if (checkbox && startBtn) {
                 if (checkbox.checked) {
                     startBtn.removeAttribute('disabled');
-                    startBtn.classList.remove('button-disabled');
+                    startBtn.classList.remove('btn-disabled');
+                    const command = startBtn.dataset.command;
+                    if (command) {
+                        startBtn.setAttribute('onclick', command);
+                    }
                 } else {
                     startBtn.setAttribute('disabled', 'true');
-                    startBtn.classList.add('button-disabled');
+                    startBtn.classList.add('btn-disabled');
+                    startBtn.removeAttribute('onclick');
                 }
             }
         }
