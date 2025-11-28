@@ -92,7 +92,7 @@ export class ViewRouter {
             }
             case 'exam-start': {
                 const examData = this._appStateManager.currentExamData;
-                return this._examStartView.generateHtml(examData.studentExam, examData.courseId, examData.examId);
+                return this._examStartView.generateHtml(examData.studentExam, examData.courseId, examData.examId, hideDeveloperTools);
             }
             case 'exam-conduction': {
                 const examData = this._appStateManager.currentExamData;

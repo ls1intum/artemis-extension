@@ -10,7 +10,7 @@ export class ExamStartView {
         this._extensionContext = extensionContext;
     }
 
-    public generateHtml(studentExam: any, courseId: number, examId: number): string {
+    public generateHtml(studentExam: any, courseId: number, examId: number, hideDeveloperTools: boolean = false): string {
         const styles = readCssFiles(
             'components/button/button.css',
             'components/backLink/back-link.css',
@@ -18,10 +18,40 @@ export class ExamStartView {
         );
 
         const exam = studentExam.exam;
-        const startText = exam.startText || 'No rules defined for this exam.';
+        let startText = exam.startText || 'No rules defined for this exam.';
+        
+        if (startText) {
+            // Remove HTML comments
+            startText = startText.replace(/<!--[\s\S]*?-->/g, '');
+            
+            // Normalize newlines
+            startText = startText.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+            
+            // Remove newlines around block elements to prevent double spacing with white-space: pre-line
+            // We want to rely on CSS margins for block elements, but keep newlines for plain text
+            const blockTags = 'div|p|ul|ol|li|h[1-6]|blockquote';
+            startText = startText.replace(new RegExp(`\\n+\\s*<(${blockTags})`, 'gi'), '<$1');
+            startText = startText.replace(new RegExp(`</(${blockTags})>\\s*\\n+`, 'gi'), '</$1>');
+            
+            // Collapse multiple newlines to max 2 (one empty line) for plain text sections
+            startText = startText.replace(/\n{3,}/g, '\n\n');
+            
+            // Trim <br> tags and whitespace at start and end
+            startText = startText.replace(/^(\s*<br\s*\/?>\s*)+/i, '').replace(/(\s*<br\s*\/?>\s*)+$/i, '');
+            startText = startText.trim();
+        }
+
         const title = exam.title || 'Exam';
         const startDate = exam.startDate ? new Date(exam.startDate).toLocaleString() : 'Unknown';
         const endDate = exam.endDate ? new Date(exam.endDate).toLocaleString() : 'Unknown';
+
+        const debugButton = !hideDeveloperTools ? ButtonComponent.generate({
+            label: 'Debug: Open Rules',
+            variant: 'secondary',
+            className: 'debug-btn',
+            command: 'openRulesInEditor()',
+            height: '2rem'
+        }) : '';
 
         return `<!DOCTYPE html>
 <html lang="en">
@@ -31,6 +61,9 @@ export class ExamStartView {
     <title>${title}</title>
     <style>
         ${styles}
+        .debug-btn {
+            margin-top: 10px;
+        }
     </style>
 </head>
 <body>
@@ -51,9 +84,7 @@ export class ExamStartView {
 
         <div class="exam-rules-card">
             <h2>Exam Rules</h2>
-            <div class="rules-content">
-                ${this._renderMarkdown(startText)}
-            </div>
+            <div class="rules-content">${startText}</div>
         </div>
 
         <div class="exam-confirmation-card">
@@ -62,22 +93,31 @@ export class ExamStartView {
                 <label for="confirmRules">I confirm that I have read and understood the exam rules.</label>
             </div>
 
-            <div class="actions">
+            <div class="actions" style="display: flex; flex-direction: row; justify-content: center; gap: 16px; flex-wrap: wrap;">
                 ${ButtonComponent.generate({
-            label: 'Start Exam',
-            variant: 'primary',
-            id: 'startExamBtn',
-            disabled: true,
-            dataAttributes: {
-                'command': `startExam(${courseId}, ${examId}, ${studentExam.id})`
-            }
-        })}
+                    label: 'Start Exam',
+                    variant: 'primary',
+                    id: 'startExamBtn',
+                    height: '2rem',
+                    disabled: true,
+                    dataAttributes: {
+                        'command': `startExam(${courseId}, ${examId}, ${studentExam.id})`
+                    }
+                })}
+                ${ButtonComponent.generate({
+                    label: 'Open in Browser',
+                    variant: 'secondary',
+                    command: `openInBrowser(${courseId}, ${examId})`,
+                    height: '2rem'
+                })}
+                ${debugButton}
             </div>
         </div>
     </div>
 
     <script>
         const vscode = acquireVsCodeApi();
+        const startText = ${JSON.stringify(startText)};
         
         ${BackLinkComponent.generateScript()}
 
@@ -100,28 +140,22 @@ export class ExamStartView {
             }
         }
 
-        function startExam(courseId, examId, studentExamId) {
+        function openRulesInEditor() {
             vscode.postMessage({
-                command: 'startExam',
+                command: 'openRulesInEditor',
+                text: startText
+            });
+        }
+
+        function openInBrowser(courseId, examId) {
+            vscode.postMessage({
+                command: 'openExamInBrowser',
                 courseId: courseId,
-                examId: examId,
-                studentExamId: studentExamId
+                examId: examId
             });
         }
     </script>
 </body>
 </html>`;
-    }
-
-    private _renderMarkdown(text: string): string {
-        // Simple markdown rendering for now. 
-        // In a real implementation, use a library like marked or markdown-it.
-        // This handles basic bold, italic, and lists.
-        let html = text
-            .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-            .replace(/\*(.*?)\*/g, '<em>$1</em>')
-            .replace(/\n/g, '<br>');
-
-        return html;
     }
 }

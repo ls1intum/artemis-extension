@@ -32,8 +32,23 @@ export class NavigationCommandModule {
             openExam: this.handleOpenExam,
             startExam: this.handleStartExam,
             openExamInBrowser: this.handleOpenExamInBrowser,
+            openRulesInEditor: this.handleOpenRulesInEditor,
         };
     }
+
+    private handleOpenRulesInEditor = async (message: any): Promise<void> => {
+        try {
+            const text = message.text;
+            const document = await vscode.workspace.openTextDocument({
+                content: text,
+                language: 'markdown'
+            });
+            await vscode.window.showTextDocument(document);
+        } catch (error) {
+            console.error('Error opening rules in editor:', error);
+            vscode.window.showErrorMessage('Failed to open rules in editor.');
+        }
+    };
 
     private handleOpenExamInBrowser = async (message: any): Promise<void> => {
         try {

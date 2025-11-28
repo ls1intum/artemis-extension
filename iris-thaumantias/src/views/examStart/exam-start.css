@@ -47,13 +47,25 @@ body {
 }
 
 .rules-content {
-    background: var(--theme-background);
-    border: 1px solid var(--theme-border);
+    background: #ffffff;
+    color: #000000;
     border-radius: var(--theme-container-radius);
     padding: 16px;
-    max-height: 400px;
-    overflow-y: auto;
     font-size: 14px;
+    white-space: pre-line;
+}
+
+.rules-content ul, .rules-content ol {
+    white-space: normal;
+}
+
+.rules-content div.fw-bold {
+    margin-top: 24px;
+    margin-bottom: 8px;
+}
+
+.rules-content p {
+    margin-bottom: 16px;
 }
 
 .exam-confirmation-card {
@@ -93,4 +105,13 @@ body {
     opacity: 0.5;
     cursor: not-allowed;
     pointer-events: none;
+}
+
+/* Bootstrap-like utility classes used in exam start text */
+.fw-bold {
+    font-weight: 700;
+}
+
+.text-primary {
+    color: var(--theme-primary-color);
 }
