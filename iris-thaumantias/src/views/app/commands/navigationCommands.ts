@@ -29,8 +29,69 @@ export class NavigationCommandModule {
             openExercise: this.handleOpenExercise,
             toggleFullscreen: this.handleToggleFullscreen,
             toggleCourseFullscreen: this.handleToggleCourseFullscreen,
+            openExam: this.handleOpenExam,
+            startExam: this.handleStartExam,
+            openExamInBrowser: this.handleOpenExamInBrowser,
         };
     }
+
+    private handleOpenExamInBrowser = async (message: any): Promise<void> => {
+        try {
+            const { courseId, examId } = message;
+            const serverUrl = this.context.appStateManager.userInfo?.serverUrl;
+            if (serverUrl) {
+                const url = `${serverUrl}/courses/${courseId}/exams/${examId}`;
+                await vscode.env.openExternal(vscode.Uri.parse(url));
+            } else {
+                vscode.window.showErrorMessage('Could not determine Artemis server URL.');
+            }
+        } catch (error) {
+            console.error('[EXAMMODE] Error opening exam in browser:', error);
+            vscode.window.showErrorMessage('Failed to open exam in browser.');
+        }
+    };
+
+    private handleOpenExam = async (message: any): Promise<void> => {
+        try {
+            const { courseId, examId } = message;
+            console.log(`[EXAMMODE] Handling openExam for course ${courseId}, exam ${examId}`);
+            const studentExam = await this.context.artemisApi.getOwnStudentExam(courseId, examId);
+            console.log(`[EXAMMODE] Fetched student exam:`, studentExam);
+            
+            if (studentExam.started) {
+                console.log(`[EXAMMODE] Exam already started, proceeding to conduction`);
+                // If already started, go directly to conduction (to be implemented)
+                // For now, we can reuse the start exam logic which will fetch conduction details
+                await this.handleStartExam({ courseId, examId, studentExamId: studentExam.id });
+            } else {
+                console.log(`[EXAMMODE] Exam not started, showing start view`);
+                // Show start exam view
+                this.context.appStateManager.showExamStart({ studentExam, courseId, examId });
+                this.context.actionHandler.render();
+            }
+        } catch (error) {
+            console.error('[EXAMMODE] Error opening exam:', error);
+            vscode.window.showErrorMessage('Failed to open exam. Please try again.');
+        }
+    };
+
+    private handleStartExam = async (message: any): Promise<void> => {
+        try {
+            const { courseId, examId, studentExamId } = message;
+            console.log(`[EXAMMODE] Starting exam ${examId} for student exam ${studentExamId}`);
+            const conductionDetails = await this.context.artemisApi.startStudentExam(courseId, examId, studentExamId);
+            
+            console.log('[EXAMMODE] Exam started, conduction details:', conductionDetails);
+            
+            // Show conduction view
+            this.context.appStateManager.showExamConduction({ studentExam: conductionDetails, courseId, examId });
+            this.context.actionHandler.render();
+            
+        } catch (error) {
+            console.error('[EXAMMODE] Error starting exam:', error);
+            vscode.window.showErrorMessage('Failed to start exam.');
+        }
+    };
 
     private handleBrowseCourses = async (): Promise<void> => {
         try {

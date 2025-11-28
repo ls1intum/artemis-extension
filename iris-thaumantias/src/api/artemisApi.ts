@@ -511,4 +511,28 @@ export class ArtemisApiService {
         const response = await this.makeRequest(`/api/exam/courses/${courseId}/exams`);
         return response.json() as Promise<any[]>;
     }
+
+    // Get the student's own exam for a specific exam (to check status)
+    async getOwnStudentExam(courseId: number, examId: number): Promise<any> {
+        const response = await this.makeRequest(`/api/exam/courses/${courseId}/exams/${examId}/own-student-exam`);
+        return response.json();
+    }
+
+    // Start the exam and get conduction details
+    async startStudentExam(courseId: number, examId: number, studentExamId: number): Promise<any> {
+        const response = await this.makeRequest(`/api/exam/courses/${courseId}/exams/${examId}/student-exams/${studentExamId}/conduction`);
+        return response.json();
+    }
+
+    // Submit the exam
+    async submitStudentExam(courseId: number, examId: number, studentExam: any): Promise<any> {
+        const response = await this.makeRequest(
+            `/api/exam/courses/${courseId}/exams/${examId}/student-exams/submit`,
+            {
+                method: 'POST',
+                body: JSON.stringify(studentExam)
+            }
+        );
+        return response.json();
+    }
 }

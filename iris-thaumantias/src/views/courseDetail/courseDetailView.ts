@@ -120,7 +120,8 @@ export class CourseDetailView {
                 return ListItemComponent.generate(
                     {
                         className: 'exam-item',
-                        clickable: false,
+                        clickable: true,
+                        command: `openExam(${exam.id})`,
                         outline: activeOutline,
                         dataAttributes: {
                             'title': (exam.title?.toLowerCase() || ''),
@@ -455,6 +456,16 @@ export class CourseDetailView {
             vscode.postMessage({ 
                 command: 'openExerciseDetails',
                 exerciseId: exerciseId
+            });
+        };
+
+        window.openExam = function(examId) {
+            const course = (courseData && (courseData.course || courseData)) || {};
+            console.log('[EXAMMODE] Requesting to open exam:', examId, 'for course:', course.id);
+            vscode.postMessage({ 
+                command: 'openExam',
+                examId: examId,
+                courseId: course.id
             });
         };
         

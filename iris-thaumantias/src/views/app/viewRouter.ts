@@ -9,6 +9,8 @@ import { LoginView } from '../login/loginView';
 import { ServiceStatusView } from '../serviceStatus/serviceStatusView';
 import { RecommendedExtensionsView } from '../recommendedExtensions/recommendedExtensionsView';
 import { GitCredentialsView } from '../gitCredentials/gitCredentialsView';
+import { ExamStartView } from '../examStart/examStartView';
+import { ExamConductionView } from '../examConduction/examConductionView';
 
 /**
  * Maps application state to the appropriate webview HTML.
@@ -23,6 +25,8 @@ export class ViewRouter {
     private readonly _serviceStatusView: ServiceStatusView;
     private readonly _recommendedExtensionsView: RecommendedExtensionsView;
     private readonly _gitCredentialsView: GitCredentialsView;
+    private readonly _examStartView: ExamStartView;
+    private readonly _examConductionView: ExamConductionView;
 
     constructor(
         private readonly _appStateManager: AppStateManager,
@@ -39,6 +43,8 @@ export class ViewRouter {
         this._serviceStatusView = new ServiceStatusView(this._extensionContext);
         this._recommendedExtensionsView = new RecommendedExtensionsView();
         this._gitCredentialsView = new GitCredentialsView(this._extensionContext);
+        this._examStartView = new ExamStartView(this._extensionContext);
+        this._examConductionView = new ExamConductionView(this._extensionContext);
     }
 
     public getHtml(): string {
@@ -83,6 +89,14 @@ export class ViewRouter {
             case 'git-credentials': {
                 const userInfo = this._appStateManager.userInfo;
                 return this._gitCredentialsView.generateHtml(userInfo);
+            }
+            case 'exam-start': {
+                const examData = this._appStateManager.currentExamData;
+                return this._examStartView.generateHtml(examData.studentExam, examData.courseId, examData.examId);
+            }
+            case 'exam-conduction': {
+                const examData = this._appStateManager.currentExamData;
+                return this._examConductionView.generateHtml(examData.studentExam, examData.courseId, examData.examId);
             }
             case 'login':
             default:

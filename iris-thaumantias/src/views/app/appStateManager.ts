@@ -1,7 +1,7 @@
 import { ArtemisApiService } from '../../api';
 import { getRecommendedExtensionsByCategory, type RecommendedExtensionCategory } from '../../utils/recommendedExtensions';
 
-export type AppState = 'login' | 'dashboard' | 'course-list' | 'course-detail' | 'exercise-detail' | 'ai-config' | 'service-status' | 'recommended-extensions' | 'git-credentials';
+export type AppState = 'login' | 'dashboard' | 'course-list' | 'course-detail' | 'exercise-detail' | 'ai-config' | 'service-status' | 'recommended-extensions' | 'git-credentials' | 'exam-start' | 'exam-conduction';
 
 export interface UserInfo {
     username: string;
@@ -30,6 +30,7 @@ export class AppStateManager {
     private _archivedCoursesData?: any[];
     private _currentCourseData?: any;
     private _currentExerciseData?: any;
+    private _currentExamData?: any;
     private _aiExtensions?: AiExtension[];
     private _recommendedExtensions?: RecommendedExtensionCategory[];
 
@@ -58,6 +59,10 @@ export class AppStateManager {
 
     get currentExerciseData(): any {
         return this._currentExerciseData;
+    }
+
+    get currentExamData(): any {
+        return this._currentExamData;
     }
 
     get aiExtensions(): AiExtension[] | undefined {
@@ -232,6 +237,16 @@ export class AppStateManager {
 
     public showGitCredentials(): void {
         this._currentState = 'git-credentials';
+    }
+
+    public showExamStart(examData: any): void {
+        this._currentExamData = examData;
+        this._currentState = 'exam-start';
+    }
+
+    public showExamConduction(examData: any): void {
+        this._currentExamData = examData;
+        this._currentState = 'exam-conduction';
     }
 
     public isLoggedIn(): boolean {
