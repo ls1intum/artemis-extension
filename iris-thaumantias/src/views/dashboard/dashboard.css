@@ -198,32 +198,23 @@
         }
         /* Recent Courses Section */
         .recent-courses {
-            background: var(--theme-card-background);
-            border: 1px solid var(--theme-border);
-            border-radius: var(--theme-container-radius);
-            padding: var(--theme-container-padding);
             margin-bottom: var(--theme-element-spacing);
-            box-shadow: var(--theme-box-shadow);
-            backdrop-filter: var(--theme-backdrop);
-            overflow: hidden; /* clamp inner overflow for rounded corners */
         }
-        .recent-courses h3 {
-            color: var(--theme-foreground);
-            font-size: 18px;
-            font-weight: 600;
-            margin: 0 0 16px 0;
-            border-bottom: 1px solid var(--theme-border);
-            padding-bottom: 8px;
+        .recent-courses .ui-container__actions {
             display: flex;
-            justify-content: space-between;
             align-items: center;
+            gap: 12px;
         }
         .recent-courses-controls {
             display: flex;
             align-items: center;
             gap: 12px;
         }
-        
+        .recent-courses-list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
         /* Recent course item content styles (ListItemComponent handles the container) */
         .recent-course-item .course-title {
             font-weight: 600;

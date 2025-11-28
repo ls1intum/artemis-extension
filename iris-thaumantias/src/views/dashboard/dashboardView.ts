@@ -117,6 +117,43 @@ export class DashboardView {
             recentCoursesHtml = '<div class="no-courses">Loading courses...</div>';
         }
 
+        const recentCoursesContainer = ContainerComponent.generate({
+            className: 'recent-courses',
+            listMode: true,
+            header: {
+                title: 'Recent Courses',
+                actionsHtml: `
+                    <div class="recent-courses-controls">
+                        ${DropdownComponent.generate({
+                            id: 'recentCoursesSort',
+                            size: 'small',
+                            onChange: 'handleRecentCoursesSort(this.value)',
+                            options: [
+                                { value: 'latest-exercise', label: 'Latest Exercise', selected: true },
+                                { value: 'newest-course', label: 'Newest Course' },
+                                { value: 'most-exercises', label: 'Most Exercises' },
+                                { value: 'title-asc', label: 'Title (A-Z)' },
+                                { value: 'title-desc', label: 'Title (Z-A)' }
+                            ]
+                        })}
+                        ${ButtonComponent.generate({
+                            label: 'Show All',
+                            variant: 'link',
+                            command: 'showAllCourses()',
+                            className: 'show-all-link',
+                            height: '1rem'
+                        })}
+                    </div>
+                `,
+                divider: true
+            },
+            bodyHtml: `
+                <div class="recent-courses-list" id="recentCoursesList">
+                    ${recentCoursesHtml}
+                </div>
+            `
+        });
+
         const welcomeContainer = ContainerComponent.generate({
             className: 'dashboard-header',
             bodyHtml: `
@@ -269,35 +306,7 @@ export class DashboardView {
         
         ${showIrisExplanation ? irisContainer : ''}
         
-        <div class="recent-courses">
-            <h3>
-                Recent Courses
-                <div class="recent-courses-controls">
-                    ${DropdownComponent.generate({
-                        id: 'recentCoursesSort',
-                        size: 'small',
-                        onChange: 'handleRecentCoursesSort(this.value)',
-                        options: [
-                            { value: 'latest-exercise', label: 'Latest Exercise', selected: true },
-                            { value: 'newest-course', label: 'Newest Course' },
-                            { value: 'most-exercises', label: 'Most Exercises' },
-                            { value: 'title-asc', label: 'Title (A-Z)' },
-                            { value: 'title-desc', label: 'Title (Z-A)' }
-                        ]
-                    })}
-                    ${ButtonComponent.generate({
-                        label: 'Show All',
-                        variant: 'link',
-                        command: 'showAllCourses()',
-                        className: 'show-all-link',
-                        height: '1rem'
-                    })}
-                </div>
-            </h3>
-            <div class="recent-courses-list" id="recentCoursesList">
-                ${recentCoursesHtml}
-            </div>
-        </div>
+        ${recentCoursesContainer}
         
         ${quickActionsContainer}
     </div>
