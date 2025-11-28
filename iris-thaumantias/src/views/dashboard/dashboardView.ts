@@ -5,6 +5,7 @@ import { readCssFiles } from '../utils';
 import { ButtonComponent } from '../components/button/buttonComponent';
 import { ListItemComponent } from '../components/listItem/listItemComponent';
 import { DropdownComponent } from '../components/dropdown/dropdownComponent';
+import { ContainerComponent } from '../components/container/containerComponent';
 
 export class DashboardView {
     private _extensionContext: vscode.ExtensionContext;
@@ -18,7 +19,8 @@ export class DashboardView {
             'dashboard/dashboard.css', 
             'components/button/button.css',
             'components/listItem/list-item.css',
-            'components/dropdown/dropdown.css'
+            'components/dropdown/dropdown.css',
+            'components/container/container.css'
         );
         
         // Check if Iris explanation should be shown
@@ -114,87 +116,8 @@ export class DashboardView {
         } else {
             recentCoursesHtml = '<div class="no-courses">Loading courses...</div>';
         }
-        
-        return `<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Artemis Dashboard</title>
-    <style>
-        ${styles}
-    </style>
-</head>
-<body>
-    <div class="dashboard">
-        <div class="dashboard-header">
-            <h1 class="dashboard-title">
-                Welcome to Artemis
-            </h1>
-            <p class="dashboard-subtitle">Your programming learning companion</p>
-        </div>
-        
-        ${showIrisExplanation ? `
-        <div class="iris-info-cell">
-            <div class="iris-header">
-                <div class="iris-icon">
-                    ${irisLogoSrc ? `<img src="${irisLogoSrc}" alt="Iris Logo" />` : 'I'}
-                </div>
-                <div class="iris-info">
-                    <h3 class="iris-title">Chat with Iris</h3>
-                    <p class="iris-subtitle">Your AI programming assistant is ready!</p>
-                </div>
-            </div>
-            <div class="iris-usage-explanation">
-                <h4>Using Iris in VS Code:</h4>
-                <ol>
-                    <li><strong>Open Iris Chat:</strong> Click the Iris icon in the Activity Bar (left sidebar) or use the chat buttons in exercise and course views</li>
-                    <li><strong>Select your context:</strong> Choose an exercise or course to get context-aware assistance tailored to your current work</li>
-                    <li><strong>Start chatting:</strong> Ask questions about your code, exercises, or course material - Iris will help guide you with hints and explanations</li>
-                    <li><strong>Multiple conversations:</strong> Create separate chat sessions for different topics and switch between them anytime</li>
-                </ol>
-                <p class="iris-note">
-                    <strong>Note:</strong> Iris can make mistakes. Always verify important information. Iris only has access to your submitted code.
-                </p>
-                <p class="iris-note">
-                    <strong>Tip:</strong> You can hide this explanation by disabling "Show Iris Explanation" in the Artemis extension settings.
-                </p>
-            </div>
-        </div>
-        ` : ''}
-        
-        <div class="recent-courses">
-            <h3>
-                Recent Courses
-                <div class="recent-courses-controls">
-                    ${DropdownComponent.generate({
-                        id: 'recentCoursesSort',
-                        size: 'small',
-                        onChange: 'handleRecentCoursesSort(this.value)',
-                        options: [
-                            { value: 'latest-exercise', label: 'Latest Exercise', selected: true },
-                            { value: 'newest-course', label: 'Newest Course' },
-                            { value: 'most-exercises', label: 'Most Exercises' },
-                            { value: 'title-asc', label: 'Title (A-Z)' },
-                            { value: 'title-desc', label: 'Title (Z-A)' }
-                        ]
-                    })}
-                    ${ButtonComponent.generate({
-                        label: 'Show All',
-                        variant: 'link',
-                        command: 'showAllCourses()',
-                        className: 'show-all-link',
-                        height: '1rem'
-                    })}
-                </div>
-            </h3>
-            <div class="recent-courses-list" id="recentCoursesList">
-                ${recentCoursesHtml}
-            </div>
-        </div>
-        
-        <div class="quick-actions">
-            <h3>Quick Actions</h3>
+
+        const quickActionsBody = `
             <div id="workspaceExerciseBtn" class="workspace-exercise-container" style="display: none;">
                 ${ListItemComponent.generate(
                     {
@@ -282,7 +205,96 @@ export class DashboardView {
                     fullWidth: true
                 })}
             </div>
+        `;
+
+        const quickActionsContainer = ContainerComponent.generate({
+            className: 'quick-actions',
+            header: {
+                title: 'Quick Actions',
+                divider: true
+            },
+            bodyHtml: quickActionsBody
+        });
+        
+        return `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Artemis Dashboard</title>
+    <style>
+        ${styles}
+    </style>
+</head>
+<body>
+    <div class="dashboard">
+        <div class="dashboard-header">
+            <h1 class="dashboard-title">
+                Welcome to Artemis
+            </h1>
+            <p class="dashboard-subtitle">Your programming learning companion</p>
         </div>
+        
+        ${showIrisExplanation ? `
+        <div class="iris-info-cell">
+            <div class="iris-header">
+                <div class="iris-icon">
+                    ${irisLogoSrc ? `<img src="${irisLogoSrc}" alt="Iris Logo" />` : 'I'}
+                </div>
+                <div class="iris-info">
+                    <h3 class="iris-title">Chat with Iris</h3>
+                    <p class="iris-subtitle">Your AI programming assistant is ready!</p>
+                </div>
+            </div>
+            <div class="iris-usage-explanation">
+                <h4>Using Iris in VS Code:</h4>
+                <ol>
+                    <li><strong>Open Iris Chat:</strong> Click the Iris icon in the Activity Bar (left sidebar) or use the chat buttons in exercise and course views</li>
+                    <li><strong>Select your context:</strong> Choose an exercise or course to get context-aware assistance tailored to your current work</li>
+                    <li><strong>Start chatting:</strong> Ask questions about your code, exercises, or course material - Iris will help guide you with hints and explanations</li>
+                    <li><strong>Multiple conversations:</strong> Create separate chat sessions for different topics and switch between them anytime</li>
+                </ol>
+                <p class="iris-note">
+                    <strong>Note:</strong> Iris can make mistakes. Always verify important information. Iris only has access to your submitted code.
+                </p>
+                <p class="iris-note">
+                    <strong>Tip:</strong> You can hide this explanation by disabling "Show Iris Explanation" in the Artemis extension settings.
+                </p>
+            </div>
+        </div>
+        ` : ''}
+        
+        <div class="recent-courses">
+            <h3>
+                Recent Courses
+                <div class="recent-courses-controls">
+                    ${DropdownComponent.generate({
+                        id: 'recentCoursesSort',
+                        size: 'small',
+                        onChange: 'handleRecentCoursesSort(this.value)',
+                        options: [
+                            { value: 'latest-exercise', label: 'Latest Exercise', selected: true },
+                            { value: 'newest-course', label: 'Newest Course' },
+                            { value: 'most-exercises', label: 'Most Exercises' },
+                            { value: 'title-asc', label: 'Title (A-Z)' },
+                            { value: 'title-desc', label: 'Title (Z-A)' }
+                        ]
+                    })}
+                    ${ButtonComponent.generate({
+                        label: 'Show All',
+                        variant: 'link',
+                        command: 'showAllCourses()',
+                        className: 'show-all-link',
+                        height: '1rem'
+                    })}
+                </div>
+            </h3>
+            <div class="recent-courses-list" id="recentCoursesList">
+                ${recentCoursesHtml}
+            </div>
+        </div>
+        
+        ${quickActionsContainer}
     </div>
 
     <script>
@@ -391,6 +403,7 @@ export class DashboardView {
 
         // Enable keyboard navigation for list items
         ${ListItemComponent.generateScript()}
+        ${ContainerComponent.generateScript()}
 
         // Sort recent courses functionality
         window.handleRecentCoursesSort = function(sortOption) {
