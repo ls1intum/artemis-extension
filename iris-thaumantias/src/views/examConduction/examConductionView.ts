@@ -97,7 +97,8 @@ export class ExamConductionView {
                         variant: 'primary',
                         className: 'submit-exam-btn',
                         command: `openInBrowser(${courseId}, ${examId})`,
-                        height: '2rem'
+                        height: '2rem',
+                        alignText: 'center'
                     })}
                 </div>
             `,
