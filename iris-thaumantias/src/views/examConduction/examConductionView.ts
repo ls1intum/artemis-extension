@@ -23,7 +23,7 @@ export class ExamConductionView {
         const exam = studentExam.exam;
         const title = exam.title || 'Exam';
         const exercises = studentExam.exercises || [];
-        
+
         // Calculate end time
         // workingTime is in seconds
         // We need to know when it started or if we have an individual end date
@@ -32,11 +32,11 @@ export class ExamConductionView {
         // But studentExam usually has 'individualEndDate' if it's a real exam.
         // If not, we might need to calculate it.
         // Let's assume we pass the full studentExam object to the frontend and let it handle the timer logic or just display static info for now.
-        
+
         const exercisesHtml = exercises.map((exercise: any, index: number) => {
             const exerciseIcon = IconDefinitions.getIcon(exercise.type);
             const points = exercise.maxPoints || 0;
-            
+
             return ListItemComponent.generate(
                 {
                     className: 'exercise-item',
@@ -100,12 +100,12 @@ export class ExamConductionView {
                 To submit your exam, please visit the Artemis website.
             </div>
             ${ButtonComponent.generate({
-                label: 'Open in Artemis',
-                variant: 'primary',
-                className: 'submit-exam-btn',
-                command: `openInBrowser()`,
-                id: 'openInBrowserBtn'
-            })}
+            label: 'Open in Artemis',
+            variant: 'primary',
+            className: 'submit-exam-btn',
+            command: `openInBrowser()`,
+            id: 'openInBrowserBtn'
+        })}
         </div>
     </div>
 

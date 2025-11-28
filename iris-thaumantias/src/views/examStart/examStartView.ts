@@ -56,12 +56,12 @@ export class ExamStartView {
 
             <div class="actions">
                 ${ButtonComponent.generate({
-                    label: 'Start Exam',
-                    variant: 'primary',
-                    id: 'startExamBtn',
-                    command: `startExam(${courseId}, ${examId}, ${studentExam.id})`,
-                    disabled: true
-                })}
+            label: 'Start Exam',
+            variant: 'primary',
+            id: 'startExamBtn',
+            command: `startExam(${courseId}, ${examId}, ${studentExam.id})`,
+            disabled: true
+        })}
             </div>
         </div>
     </div>
@@ -104,7 +104,7 @@ export class ExamStartView {
             .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
             .replace(/\*(.*?)\*/g, '<em>$1</em>')
             .replace(/\n/g, '<br>');
-        
+
         return html;
     }
 }

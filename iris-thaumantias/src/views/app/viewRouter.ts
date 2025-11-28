@@ -54,7 +54,7 @@ export class ViewRouter {
         }
 
         const state = this._appStateManager.currentState;
-        
+
         // Read developer tools setting
         const config = vscode.workspace.getConfiguration('artemis');
         const hideDeveloperTools = config.get<boolean>('hideDeveloperTools', false);
@@ -69,7 +69,7 @@ export class ViewRouter {
             }
             case 'course-list':
                 return this._courseListView.generateHtml(
-                    this._appStateManager.coursesData, 
+                    this._appStateManager.coursesData,
                     this._appStateManager.archivedCoursesData
                 );
             case 'course-detail':

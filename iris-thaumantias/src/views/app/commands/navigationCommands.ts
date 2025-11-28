@@ -7,7 +7,7 @@ interface CourseQuickPickItem extends vscode.QuickPickItem {
 }
 
 export class NavigationCommandModule {
-    constructor(private readonly context: CommandContext) {}
+    constructor(private readonly context: CommandContext) { }
 
     public getHandlers(): CommandMap {
         return {
@@ -57,7 +57,7 @@ export class NavigationCommandModule {
             console.log(`[EXAMMODE] Handling openExam for course ${courseId}, exam ${examId}`);
             const studentExam = await this.context.artemisApi.getOwnStudentExam(courseId, examId);
             console.log(`[EXAMMODE] Fetched student exam:`, studentExam);
-            
+
             if (studentExam.started) {
                 console.log(`[EXAMMODE] Exam already started, proceeding to conduction`);
                 // If already started, go directly to conduction (to be implemented)
@@ -80,13 +80,13 @@ export class NavigationCommandModule {
             const { courseId, examId, studentExamId } = message;
             console.log(`[EXAMMODE] Starting exam ${examId} for student exam ${studentExamId}`);
             const conductionDetails = await this.context.artemisApi.startStudentExam(courseId, examId, studentExamId);
-            
+
             console.log('[EXAMMODE] Exam started, conduction details:', conductionDetails);
-            
+
             // Show conduction view
             this.context.appStateManager.showExamConduction({ studentExam: conductionDetails, courseId, examId });
             this.context.actionHandler.render();
-            
+
         } catch (error) {
             console.error('[EXAMMODE] Error starting exam:', error);
             vscode.window.showErrorMessage('Failed to start exam.');
@@ -160,7 +160,7 @@ export class NavigationCommandModule {
     private async processCourseDetails(courseData: any): Promise<void> {
         try {
             const course = courseData?.course || courseData;
-            
+
             // Fetch exams for the course
             if (course && course.id) {
                 try {

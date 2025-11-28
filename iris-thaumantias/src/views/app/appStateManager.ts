@@ -34,7 +34,7 @@ export class AppStateManager {
     private _aiExtensions?: AiExtension[];
     private _recommendedExtensions?: RecommendedExtensionCategory[];
 
-    constructor(private readonly _artemisApi: ArtemisApiService) {}
+    constructor(private readonly _artemisApi: ArtemisApiService) { }
 
     // State getters
     get currentState(): AppState {
@@ -77,11 +77,11 @@ export class AppStateManager {
     public async showDashboard(userInfo: UserInfo): Promise<void> {
         this._userInfo = userInfo;
         this._currentState = 'dashboard';
-        
+
         // Always fetch fresh courses data for the dashboard
         try {
             this._coursesData = await this._artemisApi.getCoursesForDashboard();
-            
+
             // The registry is populated lazily when needed (e.g., when viewing course details, for Iris chat)
             // For workspace detection, we search coursesData directly (see _handleDetectWorkspaceExercise)
         } catch (error) {
@@ -104,7 +104,7 @@ export class AppStateManager {
         try {
             // Always fetch fresh courses data
             this._coursesData = await this._artemisApi.getCoursesForDashboard();
-            
+
             this._currentState = 'course-list';
         } catch (error) {
             console.error('Error loading courses:', error);
@@ -121,7 +121,7 @@ export class AppStateManager {
         try {
             // Fetch course details
             const courseDetails = await this._artemisApi.getCourseDetails(courseId);
-            
+
             // Create courseData structure for archived courses
             // We don't include exercises since archived courses typically don't have active exercises
             const archivedCourseData = {
@@ -131,7 +131,7 @@ export class AppStateManager {
                     isArchived: true // Mark this as archived for potential UI differences
                 }
             };
-            
+
             this._currentCourseData = archivedCourseData;
             this._currentState = 'course-detail';
         } catch (error) {
@@ -145,21 +145,21 @@ export class AppStateManager {
             // ALWAYS fetch fresh data by default to ensure we have the latest results
             // This prevents stale data when WebSocket fails or disconnects
             // Only skip if explicitly requested AND same exercise
-            const shouldFetch = forceRefresh || 
-                               !this._currentExerciseData || 
-                               this._currentExerciseData?.exercise?.id !== exerciseId;
-            
+            const shouldFetch = forceRefresh ||
+                !this._currentExerciseData ||
+                this._currentExerciseData?.exercise?.id !== exerciseId;
+
             if (shouldFetch) {
                 console.log(`🔄 Fetching fresh exercise data for exercise ${exerciseId}`);
                 const exerciseDetails = await this._artemisApi.getExerciseDetails(exerciseId);
                 this._currentExerciseData = exerciseDetails;
-                
+
                 // Check for pending submissions (builds in progress)
                 const participation = exerciseDetails.exercise?.studentParticipations?.[0];
                 if (participation?.id) {
                     console.log(`🔍 Checking for pending submission for participation ${participation.id}`);
                     const pendingSubmission = await this._artemisApi.getLatestPendingSubmission(participation.id);
-                    
+
                     if (pendingSubmission) {
                         console.log(`⏳ Found pending submission - build in progress!`);
                         // Store pending submission info for the view to use
@@ -171,7 +171,7 @@ export class AppStateManager {
             } else {
                 console.log(`📦 Using cached exercise data for exercise ${exerciseId}`);
             }
-            
+
             this._currentState = 'exercise-detail';
         } catch (error) {
             console.error('Error loading exercise details:', error);
