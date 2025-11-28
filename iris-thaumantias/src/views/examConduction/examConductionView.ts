@@ -93,13 +93,13 @@ export class ExamConductionView {
                 </div>
                 <div style="display: flex; justify-content: center;">
                     ${ButtonComponent.generate({
-                        label: 'Open in Artemis',
-                        variant: 'primary',
-                        className: 'submit-exam-btn',
-                        command: `openInBrowser(${courseId}, ${examId})`,
-                        height: '2rem',
-                        alignText: 'center'
-                    })}
+                label: 'Open in Artemis',
+                variant: 'primary',
+                className: 'submit-exam-btn',
+                command: `openInBrowser(${courseId}, ${examId})`,
+                height: '2rem',
+                alignText: 'center'
+            })}
                 </div>
             `,
             className: 'exam-footer-card'

@@ -1,0 +1,1 @@
+export { ExamExerciseDetailView } from './examExerciseDetailView';

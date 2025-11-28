@@ -368,9 +368,9 @@ export class NavigationCommandModule {
         try {
             const { courseId, examId, studentExamId } = message;
             console.log(`[EXAMMODE] Refreshing exam status for course ${courseId}, exam ${examId}`);
-            
+
             const studentExam = await this.context.artemisApi.getOwnStudentExam(courseId, examId);
-            
+
             if (studentExam.started) {
                 console.log(`[EXAMMODE] Exam started in browser, proceeding to conduction`);
                 // Proceed to conduction by fetching details
