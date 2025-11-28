@@ -8,6 +8,7 @@
   position: relative;
   overflow: hidden;
   transition: var(--theme-transition);
+  outline: 1px dashed salmon;
 }
 
 .ui-container--default {
