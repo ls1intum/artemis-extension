@@ -64,14 +64,14 @@ export class ExamStartView {
 
             <div class="actions">
                 ${ButtonComponent.generate({
-                    label: 'Start Exam',
-                    variant: 'primary',
-                    id: 'startExamBtn',
-                    disabled: true,
-                    dataAttributes: {
-                        'command': `startExam(${courseId}, ${examId}, ${studentExam.id})`
-                    }
-                })}
+            label: 'Start Exam',
+            variant: 'primary',
+            id: 'startExamBtn',
+            disabled: true,
+            dataAttributes: {
+                'command': `startExam(${courseId}, ${examId}, ${studentExam.id})`
+            }
+        })}
             </div>
         </div>
     </div>
