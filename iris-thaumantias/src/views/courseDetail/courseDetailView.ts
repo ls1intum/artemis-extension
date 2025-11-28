@@ -81,6 +81,58 @@ export class CourseDetailView {
         let exercisesHtml = '';
         let allExercisesJson = '[]';
         
+        // Format exams
+        const exams = course?.exams || [];
+        let examsHtml = '';
+        const examCount = exams.length;
+
+        if (exams.length > 0) {
+            examsHtml = exams.map((exam: any) => {
+                const startDate = exam.startDate ? new Date(exam.startDate).toLocaleString() : 'No start date';
+                const endDate = exam.endDate ? new Date(exam.endDate).toLocaleString() : 'No end date';
+                const examIcon = IconDefinitions.getIcon('edit');
+                
+                // Calculate status
+                const now = new Date().getTime();
+                const start = exam.startDate ? new Date(exam.startDate).getTime() : 0;
+                const end = exam.endDate ? new Date(exam.endDate).getTime() : 0;
+                
+                let status = 'Upcoming';
+                let statusClass = 'status-info';
+                
+                if (now > end) {
+                    status = 'Finished';
+                    statusClass = 'status-default';
+                } else if (now >= start && now <= end) {
+                    status = 'Active';
+                    statusClass = 'status-success';
+                }
+
+                return ListItemComponent.generate(
+                    {
+                        className: 'exam-item',
+                        clickable: false,
+                        dataAttributes: {
+                            'title': (exam.title?.toLowerCase() || ''),
+                            'id': exam.id.toString()
+                        }
+                    },
+                    `
+                        <div class="exam-header">
+                            <span class="exam-title">${exam.title}</span>
+                            <span class="exercise-type-icon">${examIcon}</span>
+                        </div>
+                        <div class="exam-info">
+                            <span>${startDate} - ${endDate}</span>
+                            <span class="badge ${statusClass}">${status}</span>
+                        </div>
+                    `
+                );
+            }).join('');
+        } else {
+            examsHtml = '<div class="no-exercises">No exams available</div>';
+        }
+        
         if (course?.exercises && course.exercises.length > 0) {
             allExercisesJson = JSON.stringify(course.exercises);
             exercisesHtml = course.exercises.map((exercise: any) => {
@@ -179,52 +231,13 @@ export class CourseDetailView {
         <div class="section-title collapsible-header" onclick="toggleSection('exams-section')">
             <div class="header-left">
                 <span>Exams</span>
-                <span class="exam-count-badge">2</span>
+                <span class="exam-count-badge">${examCount}</span>
             </div>
             <span class="collapse-icon"></span>
         </div>
         <div class="collapsible-content">
             <div class="exam-list">
-                ${ListItemComponent.generate(
-                    {
-                        className: 'exam-item',
-                        clickable: true,
-                        command: "console.log('Open Exam 1')",
-                        dataAttributes: {
-                            'title': 'Midterm Exam',
-                            'id': '1'
-                        }
-                    },
-                    `
-                        <div class="exam-header">
-                            <span class="exam-title">Midterm Exam</span>
-                        </div>
-                        <div class="exam-info">
-                            <span>Date: 12/12/2025</span>
-                            <span>Duration: 90 min</span>
-                        </div>
-                    `
-                )}
-                ${ListItemComponent.generate(
-                    {
-                        className: 'exam-item',
-                        clickable: true,
-                        command: "console.log('Open Exam 2')",
-                        dataAttributes: {
-                            'title': 'Final Exam',
-                            'id': '2'
-                        }
-                    },
-                    `
-                        <div class="exam-header">
-                            <span class="exam-title">Final Exam</span>
-                        </div>
-                        <div class="exam-info">
-                            <span>Date: 01/02/2026</span>
-                            <span>Duration: 120 min</span>
-                        </div>
-                    `
-                )}
+                ${examsHtml}
             </div>
         </div>
     </div>
