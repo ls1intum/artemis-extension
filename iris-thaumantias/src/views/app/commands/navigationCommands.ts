@@ -31,6 +31,7 @@ export class NavigationCommandModule {
             toggleCourseFullscreen: this.handleToggleCourseFullscreen,
             openExam: this.handleOpenExam,
             startExam: this.handleStartExam,
+            refreshExam: this.handleRefreshExam,
             openExamInBrowser: this.handleOpenExamInBrowser,
             openRulesInEditor: this.handleOpenRulesInEditor,
         };
@@ -360,6 +361,26 @@ export class NavigationCommandModule {
         } catch (error) {
             console.error('Error opening course in fullscreen:', error);
             vscode.window.showErrorMessage('Failed to open course in fullscreen mode');
+        }
+    };
+
+    private handleRefreshExam = async (message: any): Promise<void> => {
+        try {
+            const { courseId, examId, studentExamId } = message;
+            console.log(`[EXAMMODE] Refreshing exam status for course ${courseId}, exam ${examId}`);
+            
+            const studentExam = await this.context.artemisApi.getOwnStudentExam(courseId, examId);
+            
+            if (studentExam.started) {
+                console.log(`[EXAMMODE] Exam started in browser, proceeding to conduction`);
+                // Proceed to conduction by fetching details
+                await this.handleStartExam({ courseId, examId, studentExamId });
+            } else {
+                vscode.window.showInformationMessage('Exam has not been started yet. Please start it in the browser.');
+            }
+        } catch (error) {
+            console.error('[EXAMMODE] Error refreshing exam:', error);
+            vscode.window.showErrorMessage('Failed to refresh exam status.');
         }
     };
 }

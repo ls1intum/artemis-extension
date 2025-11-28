@@ -44,6 +44,14 @@ export class ExamStartView {
         const title = exam.title || 'Exam';
         const startDate = exam.startDate ? new Date(exam.startDate).toLocaleString() : 'Unknown';
         const endDate = exam.endDate ? new Date(exam.endDate).toLocaleString() : 'Unknown';
+        
+        // Check if exam can be started (within 5 minutes of start time)
+        const now = new Date();
+        const examStartDate = exam.startDate ? new Date(exam.startDate) : null;
+        const waitTimeMinutes = 5;
+        const canStart = examStartDate ? 
+            (now.getTime() + waitTimeMinutes * 60 * 1000) >= examStartDate.getTime() : 
+            false;
 
         const debugButton = !hideDeveloperTools ? ButtonComponent.generate({
             label: 'Debug: Open Rules',
@@ -87,63 +95,38 @@ export class ExamStartView {
             <div class="rules-content">${startText}</div>
         </div>
 
-        <div class="exam-confirmation-card">
-            <div class="checkbox-container">
-                <input type="checkbox" id="confirmRules" onchange="toggleStartButton()">
-                <label for="confirmRules">I confirm that I have read and understood the exam rules.</label>
+                <div class="exam-confirmation-card">
+            <div style="text-align: center; margin-bottom: 16px;">
+                <p>Please start the exam in the Artemis browser interface.</p>
+                <p>Once you have started the exam, click the button below to proceed.</p>
             </div>
 
             <div class="actions" style="display: flex; flex-direction: row; justify-content: center; gap: 16px; flex-wrap: wrap;">
                 ${ButtonComponent.generate({
-                    label: 'Start Exam',
+                    label: 'Open in Browser',
                     variant: 'primary',
-                    id: 'startExamBtn',
-                    height: '2rem',
-                    disabled: true,
-                    dataAttributes: {
-                        'command': `startExam(${courseId}, ${examId}, ${studentExam.id})`
-                    }
+                    command: `openInBrowser(${courseId}, ${examId})`
                 })}
                 ${ButtonComponent.generate({
-                    label: 'Open in Browser',
+                    label: 'Refresh / Enter Exam',
                     variant: 'secondary',
-                    command: `openInBrowser(${courseId}, ${examId})`,
-                    height: '2rem'
+                    command: `refreshExam(${courseId}, ${examId}, ${studentExam.id})`
                 })}
                 ${debugButton}
             </div>
         </div>
-    </div>
-
     <script>
         const vscode = acquireVsCodeApi();
         const startText = ${JSON.stringify(startText)};
         
         ${BackLinkComponent.generateScript()}
 
-        function toggleStartButton() {
-            const checkbox = document.getElementById('confirmRules');
-            const startBtn = document.getElementById('startExamBtn');
-            if (checkbox && startBtn) {
-                if (checkbox.checked) {
-                    startBtn.removeAttribute('disabled');
-                    startBtn.classList.remove('btn-disabled');
-                    const command = startBtn.dataset.command;
-                    if (command) {
-                        startBtn.setAttribute('onclick', command);
-                    }
-                } else {
-                    startBtn.setAttribute('disabled', 'true');
-                    startBtn.classList.add('btn-disabled');
-                    startBtn.removeAttribute('onclick');
-                }
-            }
-        }
-
-        function openRulesInEditor() {
+        function refreshExam(courseId, examId, studentExamId) {
             vscode.postMessage({
-                command: 'openRulesInEditor',
-                text: startText
+                command: 'refreshExam',
+                courseId: courseId,
+                examId: examId,
+                studentExamId: studentExamId
             });
         }
 
@@ -152,6 +135,13 @@ export class ExamStartView {
                 command: 'openExamInBrowser',
                 courseId: courseId,
                 examId: examId
+            });
+        }
+
+        function openRulesInEditor() {
+            vscode.postMessage({
+                command: 'openRulesInEditor',
+                text: startText
             });
         }
     </script>
