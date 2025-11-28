@@ -82,6 +82,20 @@
   min-width: 0;
 }
 
+.ui-container__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.ui-container__icon img {
+  width: 28px;
+  height: 28px;
+  object-fit: contain;
+  display: block;
+}
+
 .ui-container__title-wrap {
   display: flex;
   flex-direction: column;

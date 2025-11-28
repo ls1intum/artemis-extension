@@ -117,6 +117,43 @@ export class DashboardView {
             recentCoursesHtml = '<div class="no-courses">Loading courses...</div>';
         }
 
+        const welcomeContainer = ContainerComponent.generate({
+            className: 'dashboard-header',
+            bodyHtml: `
+                <h1 class="dashboard-title">
+                    Welcome to Artemis
+                </h1>
+                <p class="dashboard-subtitle">Your programming learning companion</p>
+            `
+        });
+
+        const irisContainer = ContainerComponent.generate({
+            className: 'iris-info-cell',
+            header: {
+                title: 'Chat with Iris',
+                subtitle: 'Your AI programming assistant is ready!',
+                icon: irisLogoSrc ? `<img src="${irisLogoSrc}" alt="Iris Logo" />` : 'I',
+                divider: true
+            },
+            bodyHtml: `
+                <div class="iris-usage-explanation">
+                    <h4>Using Iris in VS Code:</h4>
+                    <ol>
+                        <li><strong>Open Iris Chat:</strong> Click the Iris icon in the Activity Bar (left sidebar) or use the chat buttons in exercise and course views</li>
+                        <li><strong>Select your context:</strong> Choose an exercise or course to get context-aware assistance tailored to your current work</li>
+                        <li><strong>Start chatting:</strong> Ask questions about your code, exercises, or course material - Iris will help guide you with hints and explanations</li>
+                        <li><strong>Multiple conversations:</strong> Create separate chat sessions for different topics and switch between them anytime</li>
+                    </ol>
+                    <p class="iris-note">
+                        <strong>Note:</strong> Iris can make mistakes. Always verify important information. Iris only has access to your submitted code.
+                    </p>
+                    <p class="iris-note">
+                        <strong>Tip:</strong> You can hide this explanation by disabling "Show Iris Explanation" in the Artemis extension settings.
+                    </p>
+                </div>
+            `
+        });
+
         const quickActionsBody = `
             <div id="workspaceExerciseBtn" class="workspace-exercise-container" style="display: none;">
                 ${ListItemComponent.generate(
@@ -228,41 +265,9 @@ export class DashboardView {
 </head>
 <body>
     <div class="dashboard">
-        <div class="dashboard-header">
-            <h1 class="dashboard-title">
-                Welcome to Artemis
-            </h1>
-            <p class="dashboard-subtitle">Your programming learning companion</p>
-        </div>
+        ${welcomeContainer}
         
-        ${showIrisExplanation ? `
-        <div class="iris-info-cell">
-            <div class="iris-header">
-                <div class="iris-icon">
-                    ${irisLogoSrc ? `<img src="${irisLogoSrc}" alt="Iris Logo" />` : 'I'}
-                </div>
-                <div class="iris-info">
-                    <h3 class="iris-title">Chat with Iris</h3>
-                    <p class="iris-subtitle">Your AI programming assistant is ready!</p>
-                </div>
-            </div>
-            <div class="iris-usage-explanation">
-                <h4>Using Iris in VS Code:</h4>
-                <ol>
-                    <li><strong>Open Iris Chat:</strong> Click the Iris icon in the Activity Bar (left sidebar) or use the chat buttons in exercise and course views</li>
-                    <li><strong>Select your context:</strong> Choose an exercise or course to get context-aware assistance tailored to your current work</li>
-                    <li><strong>Start chatting:</strong> Ask questions about your code, exercises, or course material - Iris will help guide you with hints and explanations</li>
-                    <li><strong>Multiple conversations:</strong> Create separate chat sessions for different topics and switch between them anytime</li>
-                </ol>
-                <p class="iris-note">
-                    <strong>Note:</strong> Iris can make mistakes. Always verify important information. Iris only has access to your submitted code.
-                </p>
-                <p class="iris-note">
-                    <strong>Tip:</strong> You can hide this explanation by disabling "Show Iris Explanation" in the Artemis extension settings.
-                </p>
-            </div>
-        </div>
-        ` : ''}
+        ${showIrisExplanation ? irisContainer : ''}
         
         <div class="recent-courses">
             <h3>
