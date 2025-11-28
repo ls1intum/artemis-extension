@@ -266,7 +266,4 @@
   opacity: 0.8;
 }
 
-.ui-container:focus-within {
-  outline: 2px solid var(--theme-primary-color);
-  outline-offset: 2px;
-}
+

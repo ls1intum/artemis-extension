@@ -12,27 +12,9 @@ body {
 }
 
 .exam-header-card {
-    background: var(--theme-card-background);
-    border: 1px solid var(--theme-border);
-    border-radius: var(--theme-container-radius);
-    padding: 24px;
     position: sticky;
     top: 0;
     z-index: 100;
-    box-shadow: var(--theme-box-shadow);
-}
-
-.header-top {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 16px;
-}
-
-.exam-header-card h1 {
-    margin: 0;
-    font-size: 24px;
-    color: var(--theme-foreground);
 }
 
 .timer-container {
@@ -75,13 +57,6 @@ body {
     transition: width 1s linear;
 }
 
-.exercises-section h2 {
-    margin-top: 0;
-    margin-bottom: 16px;
-    font-size: 20px;
-    color: var(--theme-foreground);
-}
-
 .exercises-list {
     display: flex;
     flex-direction: column;
@@ -122,19 +97,6 @@ body {
     font-size: 12px;
     color: var(--theme-description-foreground);
     padding-left: 92px; /* Align with title */
-}
-
-.exam-footer-card {
-    margin-top: 24px;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 16px;
-    padding: 24px;
-    background: var(--theme-card-background);
-    border: 1px solid var(--theme-border);
-    border-radius: var(--theme-container-radius);
-    box-shadow: var(--theme-box-shadow);
 }
 
 .warning-text {

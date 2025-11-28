@@ -4,6 +4,7 @@ import { readCssFiles } from '../utils';
 import { ButtonComponent } from '../components/button/buttonComponent';
 import { ListItemComponent } from '../components/listItem/listItemComponent';
 import { BackLinkComponent } from '../components/backLink/backLinkComponent';
+import { ContainerComponent } from '../components/container/containerComponent';
 
 export class ExamConductionView {
     private _extensionContext: vscode.ExtensionContext;
@@ -17,6 +18,7 @@ export class ExamConductionView {
             'components/button/button.css',
             'components/listItem/list-item.css',
             'components/backLink/back-link.css',
+            'components/container/container.css',
             'examConduction/exam-conduction.css'
         );
 
@@ -61,6 +63,45 @@ export class ExamConductionView {
             );
         }).join('');
 
+        const headerContainer = ContainerComponent.generate({
+            id: 'exam-header',
+            header: {
+                title: title,
+                actionsHtml: `<div class="timer-container" id="examTimer">Loading timer...</div>`
+            },
+            bodyHtml: `<div class="progress-bar-container"><div class="progress-bar" id="examProgressBar" style="width: 0%"></div></div>`,
+            className: 'exam-header-card'
+        });
+
+        const exercisesContainer = ContainerComponent.generate({
+            id: 'exercises-section',
+            header: {
+                title: 'Exercises',
+                badge: exercises.length.toString()
+            },
+            bodyHtml: `<div class="exercises-list">${exercisesHtml}</div>`,
+            className: 'exercises-section'
+        });
+
+        const footerContainer = ContainerComponent.generate({
+            id: 'exam-footer',
+            bodyHtml: `
+                <div class="warning-text" style="margin-bottom: 16px; text-align: center;">
+                    To submit your exam, please visit the Artemis website.
+                </div>
+                <div style="display: flex; justify-content: center;">
+                    ${ButtonComponent.generate({
+                        label: 'Open in Artemis',
+                        variant: 'primary',
+                        className: 'submit-exam-btn',
+                        command: `openInBrowser(${courseId}, ${examId})`,
+                        height: '2rem'
+                    })}
+                </div>
+            `,
+            className: 'exam-footer-card'
+        });
+
         return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -78,40 +119,15 @@ export class ExamConductionView {
             command: 'backToCourseDetails',
             wrap: true
         })}
-        <div class="exam-header-card">
-            <div class="header-top">
-                <h1>${title}</h1>
-                <div class="timer-container" id="examTimer">
-                    Loading timer...
-                </div>
-            </div>
-            <div class="progress-bar-container">
-                <div class="progress-bar" id="examProgressBar" style="width: 0%"></div>
-            </div>
-        </div>
-
-        <div class="exercises-section">
-            <h2>Exercises</h2>
-            <div class="exercises-list">
-                ${exercisesHtml}
-            </div>
-        </div>
-
-        <div class="exam-footer-card">
-            <div class="warning-text">
-                To submit your exam, please visit the Artemis website.
-            </div>
-            ${ButtonComponent.generate({
-            label: 'Open in Artemis',
-            variant: 'primary',
-            className: 'submit-exam-btn',
-            command: `openInBrowser()`,
-            id: 'openInBrowserBtn'
-        })}
-        </div>
+        
+        ${headerContainer}
+        ${exercisesContainer}
+        ${footerContainer}
     </div>
 
     <script>
+
+
         const vscode = acquireVsCodeApi();
         const studentExam = ${JSON.stringify(studentExam)};
         
