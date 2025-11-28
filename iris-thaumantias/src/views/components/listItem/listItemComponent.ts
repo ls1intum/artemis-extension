@@ -15,6 +15,10 @@ export interface ListItemConfig {
   disabled?: boolean;
   /** Additional data attributes */
   dataAttributes?: Record<string, string>;
+  /** Custom background color */
+  background?: string;
+  /** Custom outline style */
+  outline?: string;
 }
 
 /**
@@ -40,7 +44,9 @@ export class ListItemComponent {
       hover = true,
       selected = false,
       disabled = false,
-      dataAttributes = {}
+      dataAttributes = {},
+      background,
+      outline
     } = config;
 
     // Build class names
@@ -68,6 +74,16 @@ export class ListItemComponent {
     const roleAttr = clickable ? 'role="button"' : '';
     const tabindexAttr = clickable && !disabled ? 'tabindex="0"' : '';
 
+    // Build inline styles
+    const styles: string[] = [];
+    if (background) {
+      styles.push(`background: ${this._escapeHtml(background)}`);
+    }
+    if (outline) {
+      styles.push(`outline: ${this._escapeHtml(outline)}`);
+    }
+    const styleAttr = styles.length > 0 ? `style="${styles.join('; ')}"` : '';
+
     return `
       <div 
         class="${classes}" 
@@ -76,6 +92,7 @@ export class ListItemComponent {
         ${roleAttr}
         ${tabindexAttr}
         ${dataAttrs}
+        ${styleAttr}
       >
         ${content}
       </div>
