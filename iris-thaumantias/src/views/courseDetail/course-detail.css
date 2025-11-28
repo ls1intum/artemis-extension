@@ -417,30 +417,3 @@ body {
         .collapsible-section.collapsed .section-title {
             margin-bottom: 0;
         }
-
-        /* Status badges */
-        .badge {
-            display: inline-block;
-            padding: 2px 6px;
-            border-radius: 4px;
-            font-size: 11px;
-            font-weight: 600;
-            line-height: 1;
-        }
-
-        .status-info {
-            background: var(--theme-button-background);
-            color: var(--theme-button-foreground);
-            opacity: 0.8;
-        }
-
-        .status-success {
-            background: var(--vscode-testing-iconPassed, #3fb950);
-            color: white;
-        }
-
-        .status-default {
-            background: var(--theme-border);
-            color: var(--theme-foreground);
-            opacity: 0.7;
-        }

@@ -6,6 +6,7 @@ import { ButtonComponent } from '../components/button/buttonComponent';
 import { TextInputComponent } from '../components/input/textInputComponent';
 import { ListItemComponent } from '../components/listItem/listItemComponent';
 import { DropdownComponent } from '../components/dropdown/dropdownComponent';
+import { BadgeComponent } from '../components/badge/badgeComponent';
 
 export class CourseDetailView {
     private _extensionContext: vscode.ExtensionContext;
@@ -25,7 +26,8 @@ export class CourseDetailView {
             'components/button/button.css', 
             'components/input/input.css',
             'components/listItem/list-item.css',
-            'components/dropdown/dropdown.css'
+            'components/dropdown/dropdown.css',
+            'components/badge/badge.css'
         );
         
         if (!courseData) {
@@ -90,7 +92,6 @@ export class CourseDetailView {
             examsHtml = exams.map((exam: any) => {
                 const startDate = exam.startDate ? new Date(exam.startDate).toLocaleString() : 'No start date';
                 const endDate = exam.endDate ? new Date(exam.endDate).toLocaleString() : 'No end date';
-                const examIcon = IconDefinitions.getIcon('edit');
                 
                 // Calculate status
                 const now = new Date().getTime();
@@ -98,20 +99,29 @@ export class CourseDetailView {
                 const end = exam.endDate ? new Date(exam.endDate).getTime() : 0;
                 
                 let status = 'Upcoming';
-                let statusClass = 'status-info';
+                let showBadge = false;
+                let activeOutline: string | undefined;
                 
                 if (now > end) {
                     status = 'Finished';
-                    statusClass = 'status-default';
                 } else if (now >= start && now <= end) {
                     status = 'Active';
-                    statusClass = 'status-success';
+                    showBadge = true;
+                    activeOutline = '2px solid var(--theme-button-background)';
                 }
+
+                const statusBadge = showBadge ? BadgeComponent.generate({
+                    label: status,
+                    variant: 'primary',
+                    height: '1rem',
+                    className: 'exam-status-badge'
+                }) : '';
 
                 return ListItemComponent.generate(
                     {
                         className: 'exam-item',
                         clickable: false,
+                        outline: activeOutline,
                         dataAttributes: {
                             'title': (exam.title?.toLowerCase() || ''),
                             'id': exam.id.toString()
@@ -120,11 +130,10 @@ export class CourseDetailView {
                     `
                         <div class="exam-header">
                             <span class="exam-title">${exam.title}</span>
-                            <span class="exercise-type-icon">${examIcon}</span>
                         </div>
                         <div class="exam-info">
                             <span>${startDate} - ${endDate}</span>
-                            <span class="badge ${statusClass}">${status}</span>
+                            ${statusBadge}
                         </div>
                     `
                 );
