@@ -21,19 +21,19 @@ export class CourseDetailView {
 
     public generateHtml(courseData: any, hideDeveloperTools: boolean = false, webview?: vscode.Webview): string {
         const styles = readCssFiles(
-            'components/backLink/back-link.css', 
-            'courseDetail/course-detail.css', 
-            'components/button/button.css', 
+            'components/backLink/back-link.css',
+            'courseDetail/course-detail.css',
+            'components/button/button.css',
             'components/input/input.css',
             'components/listItem/list-item.css',
             'components/dropdown/dropdown.css',
             'components/badge/badge.css'
         );
-        
+
         if (!courseData) {
             return this._getEmptyStateHtml(styles);
         }
-        
+
         return this._getCourseDetailHtml(courseData, hideDeveloperTools, styles, webview);
     }
 
@@ -78,11 +78,11 @@ export class CourseDetailView {
         const studentCount = course?.numberOfStudents || 0;
         const courseColor = course?.color || '#6c757d';  // Default to gray if no color
         const starAssistIcon = IconDefinitions.getIcon('star_4_edges');
-        
+
         // Format exercises
         let exercisesHtml = '';
         let allExercisesJson = '[]';
-        
+
         // Format exams
         const exams = course?.exams || [];
         let examsHtml = '';
@@ -92,16 +92,16 @@ export class CourseDetailView {
             examsHtml = exams.map((exam: any) => {
                 const startDate = exam.startDate ? new Date(exam.startDate).toLocaleString() : 'No start date';
                 const endDate = exam.endDate ? new Date(exam.endDate).toLocaleString() : 'No end date';
-                
+
                 // Calculate status
                 const now = new Date().getTime();
                 const start = exam.startDate ? new Date(exam.startDate).getTime() : 0;
                 const end = exam.endDate ? new Date(exam.endDate).getTime() : 0;
-                
+
                 let status = 'Upcoming';
                 let showBadge = false;
                 let activeOutline: string | undefined;
-                
+
                 if (now > end) {
                     status = 'Finished';
                 } else if (now >= start && now <= end) {
@@ -141,7 +141,7 @@ export class CourseDetailView {
         } else {
             examsHtml = '<div class="no-exercises">No exams available</div>';
         }
-        
+
         if (course?.exercises && course.exercises.length > 0) {
             allExercisesJson = JSON.stringify(course.exercises);
             exercisesHtml = course.exercises.map((exercise: any) => {
@@ -150,7 +150,7 @@ export class CourseDetailView {
                 const exerciseIcon = this._getExerciseIcon(exercise.type);
                 const dueDateTimestamp = exercise.dueDate ? new Date(exercise.dueDate).getTime() : 0;
                 const points = exercise.maxPoints || 0;
-                
+
                 // Use ListItemComponent for consistent styling
                 return ListItemComponent.generate(
                     {
@@ -179,12 +179,12 @@ export class CourseDetailView {
                     `
                 );
             }).join('');
-            
+
             // Show all exercises; no footer needed
         } else {
             const isArchived = course?.isArchived;
-            const noExercisesMessage = isArchived 
-                ? 'No exercises available for this archived course' 
+            const noExercisesMessage = isArchived
+                ? 'No exercises available for this archived course'
                 : 'No exercises available';
             exercisesHtml = `<div class="no-exercises">${noExercisesMessage}</div>`;
         }
@@ -256,30 +256,30 @@ export class CourseDetailView {
         <div class="exercise-search">
             <div class="search-input-wrapper">
                 ${TextInputComponent.generate({
-                    id: 'exerciseSearch',
-                    type: 'search',
-                    placeholder: 'Search exercises...',
-                    size: 'medium',
-                    className: 'search-input',
-                    height: '2rem'
-                })}
+            id: 'exerciseSearch',
+            type: 'search',
+            placeholder: 'Search exercises...',
+            size: 'medium',
+            className: 'search-input',
+            height: '2rem'
+        })}
             </div>
             ${DropdownComponent.generate({
-                id: 'exerciseSort',
-                size: 'medium',
-                onChange: 'sortExercises(this.value)',
-                height: '2rem',
-                options: [
-                    { value: 'id-desc', label: 'Latest Added', selected: true },
-                    { value: 'id-asc', label: 'Oldest Added' },
-                    { value: 'title-asc', label: 'Title (A-Z)' },
-                    { value: 'title-desc', label: 'Title (Z-A)' },
-                    { value: 'due-asc', label: 'Due Date (Earliest)' },
-                    { value: 'due-desc', label: 'Due Date (Latest)' },
-                    { value: 'points-asc', label: 'Points (Low-High)' },
-                    { value: 'points-desc', label: 'Points (High-Low)' }
-                ]
-            })}
+            id: 'exerciseSort',
+            size: 'medium',
+            onChange: 'sortExercises(this.value)',
+            height: '2rem',
+            options: [
+                { value: 'id-desc', label: 'Latest Added', selected: true },
+                { value: 'id-asc', label: 'Oldest Added' },
+                { value: 'title-asc', label: 'Title (A-Z)' },
+                { value: 'title-desc', label: 'Title (Z-A)' },
+                { value: 'due-asc', label: 'Due Date (Earliest)' },
+                { value: 'due-desc', label: 'Due Date (Latest)' },
+                { value: 'points-asc', label: 'Points (Low-High)' },
+                { value: 'points-desc', label: 'Points (High-Low)' }
+            ]
+        })}
         </div>
         <div class="exercises-container">
             <div class="exercises-list">
