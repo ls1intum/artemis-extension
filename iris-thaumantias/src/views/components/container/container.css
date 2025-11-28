@@ -6,7 +6,7 @@
   box-shadow: var(--theme-box-shadow);
   color: var(--theme-foreground);
   position: relative;
-  overflow: hidden;
+  overflow: visible;
   transition: var(--theme-transition);
   outline: 1px dashed salmon;
 }
@@ -20,11 +20,11 @@
 }
 
 .ui-container--cozy {
-  padding: 16px;
+  padding: 24px;
 }
 
 .ui-container--spacious {
-  padding: 24px;
+  padding: 32px;
 }
 
 .ui-container--no-padding {
@@ -208,15 +208,24 @@
 }
 
 .ui-container__content {
-  transition: max-height 0.2s ease, opacity 0.2s ease;
-  max-height: 1600px;
-  opacity: 1;
+  /* No constraints - content flows naturally */
 }
 
 .ui-container.is-collapsed .ui-container__content {
+  display: none;
+}
+
+/* Dedicated collapsible wrapper for animated collapse behavior */
+.ui-container__collapsible {
+  transition: max-height 0.2s ease, opacity 0.2s ease;
+  max-height: 5000px;
+  opacity: 1;
+  overflow: hidden;
+}
+
+.ui-container.is-collapsed .ui-container__collapsible {
   max-height: 0;
   opacity: 0;
-  overflow: hidden;
 }
 
 .ui-container__divider {
