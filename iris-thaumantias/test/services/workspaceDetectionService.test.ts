@@ -221,6 +221,68 @@ suite('WorkspaceDetectionService', () => {
             assert.ok(result);
             assert.strictEqual(result.repositoryUri, 'https://github.com/direct/repo.git');
         });
+
+        test('should match practice repo to graded repo via fallback', () => {
+            const exercises: ExerciseSource[] = [
+                createExercise(1, 'Exercise 1', 'https://artemis.example.com/git/course/exercise-student.git'),
+            ];
+
+            // Practice repo URL contains '-practice-'
+            const result = findExerciseByRepositoryUrl(
+                'https://artemis.example.com/git/course/exercise-practice-student.git',
+                exercises
+            );
+
+            assert.ok(result);
+            assert.strictEqual(result.id, 1);
+        });
+
+        test('should prefer exact match over practice fallback', () => {
+            const exercises: ExerciseSource[] = [
+                createExercise(1, 'Graded Exercise', 'https://artemis.example.com/git/course/exercise-student.git'),
+                createExercise(2, 'Practice Exercise', 'https://artemis.example.com/git/course/exercise-practice-student.git'),
+            ];
+
+            // Should match the practice exercise exactly, not fallback to graded
+            const result = findExerciseByRepositoryUrl(
+                'https://artemis.example.com/git/course/exercise-practice-student.git',
+                exercises
+            );
+
+            assert.ok(result);
+            assert.strictEqual(result.id, 2);
+            assert.strictEqual(result.title, 'Practice Exercise');
+        });
+
+        test('should match practice repo via participation fallback', () => {
+            const exercises: ExerciseSource[] = [
+                createExercise(1, 'Exercise 1', undefined, [
+                    { repositoryUri: 'https://artemis.example.com/git/course/exercise-student.git' }
+                ]),
+            ];
+
+            const result = findExerciseByRepositoryUrl(
+                'https://artemis.example.com/git/course/exercise-practice-student.git',
+                exercises
+            );
+
+            assert.ok(result);
+            assert.strictEqual(result.id, 1);
+        });
+
+        test('should not apply practice fallback for non-practice URLs', () => {
+            const exercises: ExerciseSource[] = [
+                createExercise(1, 'Exercise 1', 'https://artemis.example.com/git/course/exercise-student.git'),
+            ];
+
+            // URL without '-practice-' should not match
+            const result = findExerciseByRepositoryUrl(
+                'https://artemis.example.com/git/course/different-exercise-student.git',
+                exercises
+            );
+
+            assert.strictEqual(result, null);
+        });
     });
 
     suite('getWorkspaceRepositoryUrl', () => {

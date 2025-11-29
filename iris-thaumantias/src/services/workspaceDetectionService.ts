@@ -83,6 +83,7 @@ export function findExerciseByRepositoryUrl(
 ): DetectedExercise | null {
     const normalizedSearchUrl = normalizeRepositoryUrl(repositoryUrl);
 
+    // First pass: exact match
     for (const exercise of exercises) {
         // Check direct repositoryUri on exercise
         if (exercise.repositoryUri) {
@@ -107,6 +108,39 @@ export function findExerciseByRepositoryUrl(
                         shortName: exercise.shortName,
                         repositoryUri: participation.repositoryUri
                     };
+                }
+            }
+        }
+    }
+
+    // Second pass: practice repo fallback
+    // If the workspace is a practice repo (contains '-practice-'), try matching against graded repos
+    if (normalizedSearchUrl.includes('-practice-')) {
+        const potentialGradedUrl = normalizedSearchUrl.replace('-practice-', '-');
+        
+        for (const exercise of exercises) {
+            if (exercise.repositoryUri) {
+                if (normalizeRepositoryUrl(exercise.repositoryUri) === potentialGradedUrl) {
+                    return {
+                        id: exercise.id,
+                        title: exercise.title,
+                        shortName: exercise.shortName,
+                        repositoryUri: exercise.repositoryUri
+                    };
+                }
+            }
+
+            const participations = exercise.studentParticipations || [];
+            for (const participation of participations) {
+                if (participation.repositoryUri) {
+                    if (normalizeRepositoryUrl(participation.repositoryUri) === potentialGradedUrl) {
+                        return {
+                            id: exercise.id,
+                            title: exercise.title,
+                            shortName: exercise.shortName,
+                            repositoryUri: participation.repositoryUri
+                        };
+                    }
                 }
             }
         }
