@@ -117,7 +117,7 @@ export function findExerciseByRepositoryUrl(
     // If the workspace is a practice repo (contains '-practice-'), try matching against graded repos
     if (normalizedSearchUrl.includes('-practice-')) {
         const potentialGradedUrl = normalizedSearchUrl.replace('-practice-', '-');
-        
+
         for (const exercise of exercises) {
             if (exercise.repositoryUri) {
                 if (normalizeRepositoryUrl(exercise.repositoryUri) === potentialGradedUrl) {
