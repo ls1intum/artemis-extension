@@ -338,15 +338,34 @@
 
 .ui-container__header--center {
   justify-content: center;
+  flex-direction: column;
+  text-align: center;
 }
 
 .ui-container__header--center .ui-container__header-main {
   justify-content: center;
   flex: none;
+  width: 100%;
+}
+
+.ui-container__header--center .ui-container__title-wrap {
+  align-items: center;
+  text-align: center;
+}
+
+.ui-container__header--center .ui-container__title,
+.ui-container__header--center .ui-container__subtitle {
+  text-align: center;
+  white-space: normal;
 }
 
 .ui-container__header--right {
   justify-content: flex-end;
+}
+
+.ui-container__header--right .ui-container__title-wrap {
+  align-items: flex-end;
+  text-align: right;
 }
 
 .ui-container__header--right .ui-container__header-main {

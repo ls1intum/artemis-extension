@@ -4,99 +4,95 @@ body {
 }
 
 .exam-start-container {
-    max-width: 800px;
+    max-width: 900px;
     margin: 0 auto;
     display: flex;
     flex-direction: column;
-    gap: 24px;
+    gap: 16px;
 }
 
-.exam-header-card,
-.exam-rules-card,
-.exam-confirmation-card {
-    background: var(--theme-card-background);
-    border: 1px solid var(--theme-border);
-    border-radius: var(--theme-container-radius);
-    padding: 24px;
-    box-shadow: var(--theme-box-shadow);
-}
-
-.exam-header-card {
-    text-align: center;
-}
-
-.exam-header-card h1 {
-    margin: 0 0 16px 0;
-    font-size: 28px;
-    color: var(--theme-foreground);
-}
-
-.exam-dates {
+.exam-card .ui-container__body {
     display: flex;
-    justify-content: center;
-    gap: 24px;
-    color: var(--theme-foreground);
-    opacity: 0.8;
-    font-size: 14px;
+    flex-direction: column;
+    gap: 12px;
 }
 
-.exam-rules-card h2 {
-    font-size: 20px;
-    margin: 0 0 16px 0;
-    color: var(--theme-foreground);
+.exam-card__header .exam-dates {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 12px;
+}
+
+.exam-date {
+    background: var(--theme-background);
+    border: 1px dashed var(--theme-border);
+    border-radius: 8px;
+    padding: 12px;
+}
+
+.exam-date .label {
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    opacity: 0.75;
+}
+
+.exam-date .value {
+    font-weight: 600;
+    font-size: 14px;
+    margin-top: 6px;
 }
 
 .rules-content {
-    background: var(--theme-card-background);
     color: var(--theme-foreground);
-    padding: 16px;
     font-size: 14px;
-    white-space: pre-line;
+    white-space: normal;
+    line-height: 1.6;
 }
 
-.rules-content ul, .rules-content ol {
+.rules-content > * + * {
+    margin-top: 12px;
+}
+
+.rules-content ul,
+.rules-content ol {
     white-space: normal;
+    padding-left: 18px;
 }
 
 .rules-content div.fw-bold {
-    margin-top: 24px;
-    margin-bottom: 8px;
+    margin-top: 16px;
+    margin-bottom: 6px;
 }
 
 .rules-content p {
-    margin-bottom: 16px;
+    margin: 0 0 12px 0;
 }
 
-.exam-confirmation-card {
+.rules-content p:last-child {
+    margin-bottom: 0;
+}
+
+.exam-confirmation {
     display: flex;
     flex-direction: column;
+    gap: 16px;
     align-items: center;
-    gap: 24px;
+    text-align: center;
 }
 
-.checkbox-container {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    cursor: pointer;
-}
-
-.checkbox-container input[type="checkbox"] {
-    width: 18px;
-    height: 18px;
-    cursor: pointer;
-}
-
-.checkbox-container label {
-    cursor: pointer;
-    font-weight: 500;
-    user-select: none;
+.exam-confirmation__text {
+    margin: 0;
+    color: var(--theme-foreground);
+    opacity: 0.9;
 }
 
 .actions {
     width: 100%;
     display: flex;
     justify-content: center;
+    gap: 12px;
+    flex-wrap: wrap;
 }
 
 /* Button disabled state override if needed */
