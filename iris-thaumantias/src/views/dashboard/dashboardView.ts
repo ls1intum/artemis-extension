@@ -16,24 +16,24 @@ export class DashboardView {
 
     public generateHtml(userInfo: { username: string; serverUrl: string; user?: any }, coursesData: any | undefined, webview?: vscode.Webview): string {
         const styles = readCssFiles(
-            'dashboard/dashboard.css', 
+            'dashboard/dashboard.css',
             'components/button/button.css',
             'components/listItem/list-item.css',
             'components/dropdown/dropdown.css',
             'components/container/container.css'
         );
-        
+
         // Check if Iris explanation should be shown
         const config = vscode.workspace.getConfiguration(VSCODE_CONFIG.ARTEMIS_SECTION);
         const showIrisExplanation = config.get<boolean>(VSCODE_CONFIG.SHOW_IRIS_EXPLANATION_KEY, true);
-        
+
         return this._getDashboardHtml(userInfo, coursesData, webview, showIrisExplanation, styles);
     }
 
     private _getDashboardHtml(userInfo: { username: string; serverUrl: string; user?: any }, coursesData: any | undefined, webview: vscode.Webview | undefined, showIrisExplanation: boolean, styles: string): string {
         const username = userInfo?.username || 'Unknown';
         const serverUrl = userInfo?.serverUrl || 'Unknown';
-        
+
         // Get icon SVGs
         const courseIcon = IconDefinitions.getIcon('course');
         const webIcon = IconDefinitions.getIcon('artemis-logo');
@@ -44,7 +44,7 @@ export class DashboardView {
         const puzzleIcon = IconDefinitions.getIcon('puzzle');
         const exerciseIcon = IconDefinitions.getIcon('exercise');
         const gitIcon = IconDefinitions.getIcon('git');
-        
+
         // Get the path to the iris logo image
         let irisLogoSrc = '';
         if (webview) {
@@ -56,14 +56,14 @@ export class DashboardView {
             // Fallback to showing the "I" text if webview is not provided
             irisLogoSrc = '';
         }
-        
+
         // Generate recent courses HTML
         let recentCoursesHtml = '';
         let coursesDataJson = 'null';
         let sortedCoursesJson = 'null';
         if (coursesData?.courses) {
             coursesDataJson = JSON.stringify(coursesData.courses);
-            
+
             // Sort courses by latest released exercise
             const sortedCourses = [...coursesData.courses].sort((a: any, b: any) => {
                 const getLatestReleaseDate = (courseData: any): number => {
@@ -71,7 +71,7 @@ export class DashboardView {
                     if (!course.exercises || course.exercises.length === 0) {
                         return 0; // Courses without exercises go to the end
                     }
-                    
+
                     // Find the latest release date among all exercises
                     const latestDate = course.exercises.reduce((latest: number, exercise: any) => {
                         const releaseDate = exercise.releaseDate || exercise.startDate;
@@ -81,21 +81,21 @@ export class DashboardView {
                         }
                         return latest;
                     }, 0);
-                    
+
                     return latestDate;
                 };
-                
+
                 const aLatest = getLatestReleaseDate(a);
                 const bLatest = getLatestReleaseDate(b);
                 return bLatest - aLatest; // Descending order (most recent first)
             });
-            
+
             sortedCoursesJson = JSON.stringify(sortedCourses);
             const recentCourses = sortedCourses.slice(0, 3);
             recentCoursesHtml = recentCourses.map((courseData: any, index: number) => {
                 const course = courseData.course;
                 const exerciseCount = course.exercises ? course.exercises.length : 0;
-                
+
                 // Use ListItemComponent for consistent styling
                 return ListItemComponent.generate(
                     {
@@ -125,24 +125,24 @@ export class DashboardView {
                 actionsHtml: `
                     <div class="recent-courses-controls">
                         ${DropdownComponent.generate({
-                            id: 'recentCoursesSort',
-                            size: 'small',
-                            onChange: 'handleRecentCoursesSort(this.value)',
-                            options: [
-                                { value: 'latest-exercise', label: 'Latest Exercise', selected: true },
-                                { value: 'newest-course', label: 'Newest Course' },
-                                { value: 'most-exercises', label: 'Most Exercises' },
-                                { value: 'title-asc', label: 'Title (A-Z)' },
-                                { value: 'title-desc', label: 'Title (Z-A)' }
-                            ]
-                        })}
+                    id: 'recentCoursesSort',
+                    size: 'small',
+                    onChange: 'handleRecentCoursesSort(this.value)',
+                    options: [
+                        { value: 'latest-exercise', label: 'Latest Exercise', selected: true },
+                        { value: 'newest-course', label: 'Newest Course' },
+                        { value: 'most-exercises', label: 'Most Exercises' },
+                        { value: 'title-asc', label: 'Title (A-Z)' },
+                        { value: 'title-desc', label: 'Title (Z-A)' }
+                    ]
+                })}
                         ${ButtonComponent.generate({
-                            label: 'Show All',
-                            variant: 'link',
-                            command: 'showAllCourses()',
-                            className: 'show-all-link',
-                            height: '1rem'
-                        })}
+                    label: 'Show All',
+                    variant: 'link',
+                    command: 'showAllCourses()',
+                    className: 'show-all-link',
+                    height: '1rem'
+                })}
                     </div>
                 `,
                 divider: true
@@ -194,13 +194,13 @@ export class DashboardView {
         const quickActionsBody = `
             <div id="workspaceExerciseBtn" class="workspace-exercise-container" style="display: none;">
                 ${ListItemComponent.generate(
-                    {
-                        className: 'workspace-exercise-item',
-                        clickable: true,
-                        command: 'goToWorkspaceExercise()',
-                        id: 'workspaceExerciseItemBtn'
-                    },
-                    `
+            {
+                className: 'workspace-exercise-item',
+                clickable: true,
+                command: 'goToWorkspaceExercise()',
+                id: 'workspaceExerciseItemBtn'
+            },
+            `
                         <div class="workspace-exercise-content">
                             <div class="workspace-exercise-icon">${exerciseIcon}</div>
                             <div class="workspace-exercise-text">
@@ -210,74 +210,74 @@ export class DashboardView {
                             <div class="workspace-exercise-arrow">→</div>
                         </div>
                     `
-                )}
+        )}
             </div>
             <div class="action-buttons">
                 ${ButtonComponent.generate({
-                    label: 'Browse Courses',
-                    icon: courseIcon,
-                    variant: 'primary',
-                    id: 'browseCoursesBtn',
-                    command: 'document.getElementById("browseCoursesBtn").click()',
-                    fullWidth: true
-                })}
+            label: 'Browse Courses',
+            icon: courseIcon,
+            variant: 'primary',
+            id: 'browseCoursesBtn',
+            command: 'document.getElementById("browseCoursesBtn").click()',
+            fullWidth: true
+        })}
                 ${ButtonComponent.generate({
-                    label: 'AI Checker',
-                    icon: star4Icon,
-                    variant: 'primary',
-                    id: 'checkAiConfigBtn',
-                    command: 'document.getElementById("checkAiConfigBtn").click()',
-                    fullWidth: true
-                })}
+            label: 'AI Checker',
+            icon: star4Icon,
+            variant: 'primary',
+            id: 'checkAiConfigBtn',
+            command: 'document.getElementById("checkAiConfigBtn").click()',
+            fullWidth: true
+        })}
                 ${ButtonComponent.generate({
-                    label: 'Service Status',
-                    icon: stethoscopeIcon,
-                    variant: 'primary',
-                    id: 'checkServiceStatusBtn',
-                    command: 'document.getElementById("checkServiceStatusBtn").click()',
-                    fullWidth: true
-                })}
+            label: 'Service Status',
+            icon: stethoscopeIcon,
+            variant: 'primary',
+            id: 'checkServiceStatusBtn',
+            command: 'document.getElementById("checkServiceStatusBtn").click()',
+            fullWidth: true
+        })}
                 ${ButtonComponent.generate({
-                    label: 'Recommended Extensions',
-                    icon: puzzleIcon,
-                    variant: 'primary',
-                    id: 'recommendedExtensionsBtn',
-                    command: 'document.getElementById("recommendedExtensionsBtn").click()',
-                    fullWidth: true
-                })}
+            label: 'Recommended Extensions',
+            icon: puzzleIcon,
+            variant: 'primary',
+            id: 'recommendedExtensionsBtn',
+            command: 'document.getElementById("recommendedExtensionsBtn").click()',
+            fullWidth: true
+        })}
                 ${ButtonComponent.generate({
-                    label: 'Open Artemis in browser',
-                    icon: webIcon,
-                    variant: 'primary',
-                    id: 'openWebsiteBtn',
-                    command: 'document.getElementById("openWebsiteBtn").click()',
-                    fullWidth: true
-                })}
+            label: 'Open Artemis in browser',
+            icon: webIcon,
+            variant: 'primary',
+            id: 'openWebsiteBtn',
+            command: 'document.getElementById("openWebsiteBtn").click()',
+            fullWidth: true
+        })}
                 ${ButtonComponent.generate({
-                    label: 'Git Credentials',
-                    icon: gitIcon,
-                    variant: 'secondary',
-                    id: 'gitCredentialsBtn',
-                    command: 'document.getElementById("gitCredentialsBtn").click()',
-                    fullWidth: true
-                })}
+            label: 'Git Credentials',
+            icon: gitIcon,
+            variant: 'secondary',
+            id: 'gitCredentialsBtn',
+            command: 'document.getElementById("gitCredentialsBtn").click()',
+            fullWidth: true
+        })}
                 ${ButtonComponent.generate({
-                    label: 'Open Settings',
-                    icon: gearIcon,
-                    variant: 'secondary',
-                    id: 'openSettingsBtn',
-                    command: 'document.getElementById("openSettingsBtn").click()',
-                    fullWidth: true
-                })}
+            label: 'Open Settings',
+            icon: gearIcon,
+            variant: 'secondary',
+            id: 'openSettingsBtn',
+            command: 'document.getElementById("openSettingsBtn").click()',
+            fullWidth: true
+        })}
                 ${ButtonComponent.generate({
-                    label: 'Logout from Artemis',
-                    icon: logoutIcon,
-                    variant: 'secondary',
-                    className: 'btn-danger',
-                    id: 'logoutBtn',
-                    command: 'document.getElementById("logoutBtn").click()',
-                    fullWidth: true
-                })}
+            label: 'Logout from Artemis',
+            icon: logoutIcon,
+            variant: 'secondary',
+            className: 'btn-danger',
+            id: 'logoutBtn',
+            command: 'document.getElementById("logoutBtn").click()',
+            fullWidth: true
+        })}
             </div>
         `;
 
@@ -289,7 +289,7 @@ export class DashboardView {
             },
             bodyHtml: quickActionsBody
         });
-        
+
         return `<!DOCTYPE html>
 <html lang="en">
 <head>
