@@ -4,6 +4,7 @@ import { execFile, spawn } from 'child_process';
 import { promisify } from 'util';
 import type { CommandContext, CommandMap } from './types';
 import { VSCODE_CONFIG, checkWorkspaceFiles } from '../../../utils';
+import { detectWorkspaceExercise, type ExerciseSource } from '../../../services';
 
 const execFileAsync = promisify(execFile);
 
@@ -48,118 +49,14 @@ export class RepositoryCommandModule {
 
     private handleDetectWorkspaceExercise = async (): Promise<void> => {
         try {
-            const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
-            if (!workspaceFolder) {
-                this.context.sendMessage({
-                    command: 'workspaceExerciseDetected',
-                    exerciseId: null,
-                    exerciseTitle: null
-                });
-                return;
-            }
+            const exercises = this.flattenExercisesFromCourses();
+            const detected = await detectWorkspaceExercise(exercises);
 
-            try {
-                const { stdout } = await execFileAsync('git', ['remote', 'get-url', 'origin'], {
-                    cwd: workspaceFolder.uri.fsPath
-                });
-
-                const repoUrl = stdout.trim();
-                const coursesData = this.context.appStateManager.coursesData;
-                let matchedExercise: { id: number; title: string } | null = null;
-
-                if (coursesData?.courses) {
-                    const normalizeUrl = (url: string) => {
-                        return url
-                            .replace(/^git@([^:]+):/, 'https://$1/')
-                            .replace(/^https?:\/\/[^@]*@/, 'https://')
-                            .replace(/\.git$/, '')
-                            .replace(/\/$/, '')
-                            .toLowerCase();
-                    };
-
-                    const normalizedRepoUrl = normalizeUrl(repoUrl);
-
-                    for (const courseData of coursesData.courses) {
-                        const exercises = courseData?.course?.exercises || courseData?.exercises || [];
-
-                        for (const exercise of exercises) {
-                            const participations = exercise.studentParticipations || [];
-
-                            // Check all participations (including practice ones)
-                            for (const participation of participations) {
-                                if (participation.repositoryUri) {
-                                    const exerciseRepoUrl = normalizeUrl(participation.repositoryUri);
-
-                                    if (exerciseRepoUrl === normalizedRepoUrl) {
-                                        matchedExercise = {
-                                            id: exercise.id,
-                                            title: exercise.title
-                                        };
-                                        break;
-                                    }
-                                }
-                            }
-                            
-                            if (matchedExercise) {
-                                break;
-                            }
-                        }
-
-                        if (matchedExercise) {
-                            break;
-                        }
-                    }
-
-                    // Fallback: If no exact match found, check if it's a practice repo that matches a graded repo
-                    if (!matchedExercise && normalizedRepoUrl.includes('-practice-')) {
-                        // Try to construct the graded repo URL by removing '-practice'
-                        // Example: .../slug-practice-user -> .../slug-user
-                        const potentialGradedUrl = normalizedRepoUrl.replace('-practice-', '-');
-                        
-                        for (const courseData of coursesData.courses) {
-                            const exercises = courseData?.course?.exercises || courseData?.exercises || [];
-    
-                            for (const exercise of exercises) {
-                                const participations = exercise.studentParticipations || [];
-    
-                                for (const participation of participations) {
-                                    if (participation.repositoryUri) {
-                                        const exerciseRepoUrl = normalizeUrl(participation.repositoryUri);
-    
-                                        if (exerciseRepoUrl === potentialGradedUrl) {
-                                            matchedExercise = {
-                                                id: exercise.id,
-                                                title: exercise.title
-                                            };
-                                            break;
-                                        }
-                                    }
-                                }
-                                
-                                if (matchedExercise) {
-                                    break;
-                                }
-                            }
-    
-                            if (matchedExercise) {
-                                break;
-                            }
-                        }
-                    }
-                }
-
-                this.context.sendMessage({
-                    command: 'workspaceExerciseDetected',
-                    exerciseId: matchedExercise ? matchedExercise.id : null,
-                    exerciseTitle: matchedExercise ? matchedExercise.title : null
-                });
-            } catch (gitError) {
-                this.context.sendMessage({
-                    command: 'workspaceExerciseDetected',
-                    exerciseId: null,
-                    exerciseTitle: null
-                });
-            }
+            this.context.sendMessage({
+                command: 'workspaceExerciseDetected',
+                exerciseId: detected?.id ?? null,
+                exerciseTitle: detected?.title ?? null
+            });
         } catch (error) {
             console.error('Error detecting workspace exercise:', error);
             this.context.sendMessage({
@@ -169,6 +66,23 @@ export class RepositoryCommandModule {
             });
         }
     };
+
+    /**
+     * Flattens all exercises from coursesData into a single array.
+     */
+    private flattenExercisesFromCourses(): ExerciseSource[] {
+        const coursesData = this.context.appStateManager.coursesData;
+        if (!coursesData?.courses) {
+            return [];
+        }
+
+        const exercises: ExerciseSource[] = [];
+        for (const courseData of coursesData.courses) {
+            const courseExercises = courseData?.course?.exercises || courseData?.exercises || [];
+            exercises.push(...courseExercises);
+        }
+        return exercises;
+    }
 
     private handleParticipateInExercise = async (message: any): Promise<void> => {
         const exerciseId: number = message.exerciseId;
