@@ -245,11 +245,11 @@ export class ContainerComponent {
 
     const toggleHtml = collapsible
       ? CollapseButton.generate({
-          className: 'ui-container__toggle',
-          collapsed: isCollapsed,
-          targetId: collapseId,
-          title: ariaToggleLabel || 'Toggle section',
-          command: `(function(e) {
+        className: 'ui-container__toggle',
+        collapsed: isCollapsed,
+        targetId: collapseId,
+        title: ariaToggleLabel || 'Toggle section',
+        command: `(function(e) {
             e.stopPropagation();
             const btn = e.currentTarget;
             const container = document.getElementById('${this._escapeAttr(containerId)}');
@@ -261,7 +261,7 @@ export class ContainerComponent {
               if (content) content.setAttribute('aria-hidden', collapsed ? 'true' : 'false');
             }
           })(event)`
-        })
+      })
       : '';
 
     const actions = actionsHtml
