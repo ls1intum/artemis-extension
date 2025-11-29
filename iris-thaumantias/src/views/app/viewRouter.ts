@@ -50,7 +50,7 @@ export class ViewRouter {
         this._examConductionView = new ExamConductionView(this._extensionContext);
     }
 
-    public getHtml(): string {
+    public async getHtml(): Promise<string> {
         const webview = this._webview;
         if (!webview) {
             throw new Error('Webview is not initialized');
@@ -114,7 +114,7 @@ export class ViewRouter {
             }
             case 'exam-conduction': {
                 const examData = this._appStateManager.currentExamData;
-                return this._examConductionView.generateHtml(examData.studentExam, examData.courseId, examData.examId);
+                return await this._examConductionView.generateHtml(examData.studentExam, examData.courseId, examData.examId);
             }
             case 'login':
             default:

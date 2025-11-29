@@ -100,9 +100,9 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
     /**
      * Helper method to render the webview HTML
      */
-    public render(): void {
+    public async render(): Promise<void> {
         if (this._view) {
-            this._view.webview.html = this._viewRouter.getHtml();
+            this._view.webview.html = await this._viewRouter.getHtml();
         }
     }
 
@@ -176,7 +176,7 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
         }
     }
 
-    public resolveWebviewView(
+    public async resolveWebviewView(
         webviewView: vscode.WebviewView,
         context: vscode.WebviewViewResolveContext,
         _token: vscode.CancellationToken,
@@ -195,7 +195,7 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
             ]
         };
 
-        webviewView.webview.html = this._viewRouter.getHtml();
+        webviewView.webview.html = await this._viewRouter.getHtml();
 
         // Set up message sender for the message handler
         this._messageHandler.setMessageSender((message: any) => {

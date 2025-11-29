@@ -5,6 +5,7 @@ import { ButtonComponent } from '../components/button/buttonComponent';
 import { ListItemComponent } from '../components/listItem/listItemComponent';
 import { BackLinkComponent } from '../components/backLink/backLinkComponent';
 import { ContainerComponent } from '../components/container/containerComponent';
+import { detectWorkspaceExercise } from '../../services';
 
 export class ExamConductionView {
     private _extensionContext: vscode.ExtensionContext;
@@ -13,7 +14,7 @@ export class ExamConductionView {
         this._extensionContext = extensionContext;
     }
 
-    public generateHtml(studentExam: any, courseId: number, examId: number): string {
+    public async generateHtml(studentExam: any, courseId: number, examId: number): Promise<string> {
         const styles = readCssFiles(
             'components/button/button.css',
             'components/listItem/list-item.css',
@@ -25,6 +26,10 @@ export class ExamConductionView {
         const exam = studentExam.exam;
         const title = exam.title || 'Exam';
         const exercises = studentExam.exercises || [];
+
+        // Detect which exercise is currently open in workspace
+        const detectedExercise = await detectWorkspaceExercise(exercises);
+        const workspaceExerciseId = detectedExercise?.id ?? null;
 
         // Calculate end time
         // workingTime is in seconds
@@ -133,6 +138,18 @@ export class ExamConductionView {
 
         const vscode = acquireVsCodeApi();
         const studentExam = ${JSON.stringify(studentExam)};
+        const workspaceExerciseId = ${workspaceExerciseId};
+        
+        // Highlight the workspace exercise
+        if (workspaceExerciseId) {
+            const exerciseItems = document.querySelectorAll('.exercise-item');
+            exerciseItems.forEach(item => {
+                const exerciseId = parseInt(item.dataset.id);
+                if (exerciseId === workspaceExerciseId) {
+                    item.classList.add('workspace-active');
+                }
+            });
+        }
         
         // Timer Logic
         function initTimer() {

@@ -128,12 +128,12 @@ suite('ArtemisWebviewProvider Test Suite', () => {
         provider.setBuildDiagnostics(codeLens);
     });
 
-    test('should resolve webview view', () => {
+    test('should resolve webview view', async () => {
         const mockView = new MockWebviewView();
         const mockResolveContext = {} as vscode.WebviewViewResolveContext;
         const mockToken = {} as vscode.CancellationToken;
 
-        provider.resolveWebviewView(mockView, mockResolveContext, mockToken);
+        await provider.resolveWebviewView(mockView, mockResolveContext, mockToken);
 
         assert.ok(mockView.webview.html);
         assert.ok(mockView.webview.options.enableScripts);
@@ -144,7 +144,7 @@ suite('ArtemisWebviewProvider Test Suite', () => {
         const mockResolveContext = {} as vscode.WebviewViewResolveContext;
         const mockToken = {} as vscode.CancellationToken;
 
-        provider.resolveWebviewView(mockView, mockResolveContext, mockToken);
+        await provider.resolveWebviewView(mockView, mockResolveContext, mockToken);
 
         await provider.openExerciseDetails(1);
 
@@ -156,10 +156,10 @@ suite('ArtemisWebviewProvider Test Suite', () => {
         await provider.openJsonInEditor(data);
     });
 
-    test('should render', () => {
+    test('should render', async () => {
         const mockView = new MockWebviewView();
-        provider.resolveWebviewView(mockView, {} as any, {} as any);
-        provider.render();
+        await provider.resolveWebviewView(mockView, {} as any, {} as any);
+        await provider.render();
         assert.ok(mockView.webview.html);
     });
 });
