@@ -271,7 +271,8 @@ export class ExamExerciseDetailView {
                     participationId: transformed.participationId,
                     uploadMessageIcon,
                     isPracticeAvailable: transformed.isPracticeAvailable,
-                    practiceParticipation: transformed.practiceParticipation
+                    practiceParticipation: transformed.practiceParticipation,
+                    isExamExercise: true
                 });
 
                 // Wrap everything in the participation container using ContainerComponent

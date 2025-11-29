@@ -10,6 +10,7 @@ export interface ParticipationActionsData {
   uploadMessageIcon: string;
   isPracticeAvailable?: boolean;
   practiceParticipation?: any;
+  isExamExercise?: boolean;
 }
 
 /**
@@ -30,6 +31,7 @@ export class ParticipationActionsComponent {
       participationId,
       isPracticeAvailable,
       practiceParticipation,
+      isExamExercise = false,
     } = data;
 
     const changeStatusHtml =
@@ -48,7 +50,8 @@ export class ParticipationActionsComponent {
       changeStatusHtml,
       uploadMessageIcon,
       isPracticeAvailable,
-      practiceParticipation
+      practiceParticipation,
+      isExamExercise
     );
 
     // Determine participation info based on exercise type
@@ -80,17 +83,19 @@ export class ParticipationActionsComponent {
     changeStatusHtml: string,
     uploadMessageIcon: string,
     isPracticeAvailable?: boolean,
-    practiceParticipation?: any
+    practiceParticipation?: any,
+    isExamExercise?: boolean
   ): string {
     if (isPracticeAvailable) {
-      return this._generatePracticeAvailableActions();
+      return this._generatePracticeAvailableActions(isExamExercise);
     }
 
     if (practiceParticipation) {
       return this._generateProgrammingExerciseActions(
         changeStatusHtml,
         uploadMessageIcon,
-        true
+        true,
+        isExamExercise
       );
     }
 
@@ -98,16 +103,18 @@ export class ParticipationActionsComponent {
       if (isProgrammingExercise) {
         return this._generateProgrammingExerciseActions(
           changeStatusHtml,
-          uploadMessageIcon
+          uploadMessageIcon,
+          false,
+          isExamExercise
         );
       } else {
-        return this._generateNonProgrammingExerciseActions();
+        return this._generateNonProgrammingExerciseActions(isExamExercise);
       }
     } else {
       if (isProgrammingExercise) {
-        return this._generateNotParticipatedProgrammingActions();
+        return this._generateNotParticipatedProgrammingActions(isExamExercise);
       } else {
-        return this._generateNotParticipatedNonProgrammingActions();
+        return this._generateNotParticipatedNonProgrammingActions(isExamExercise);
       }
     }
   }
@@ -115,12 +122,12 @@ export class ParticipationActionsComponent {
   /**
    * Generate actions for practice available state
    */
-  private static _generatePracticeAvailableActions(): string {
+  private static _generatePracticeAvailableActions(isExamExercise?: boolean): string {
     return `
       <div class="participation-actions not-participated">
         <div class="action-button-row">
           <button class="participate-btn" onclick="startPractice()">Practice</button>
-          <button class="participate-btn secondary" onclick="openExerciseInBrowser()">Open in browser</button>
+          ${!isExamExercise ? `<button class="participate-btn secondary" onclick="openExerciseInBrowser()">Open in browser</button>` : ''}
         </div>
       </div>
     `;
@@ -132,12 +139,17 @@ export class ParticipationActionsComponent {
   private static _generateProgrammingExerciseActions(
     changeStatusHtml: string,
     uploadMessageIcon: string,
-    isPractice: boolean = false
+    isPractice: boolean = false,
+    isExamExercise?: boolean
   ): string {
     const practiceLabel = isPractice 
       ? `<div class="practice-mode-indicator">
            <span class="codicon codicon-beaker"></span> Practice Mode
          </div>` 
+      : '';
+
+    const openInBrowserItem = !isExamExercise 
+      ? `<button class="dropdown-item" onclick="openExerciseInBrowser()">Open in browser</button>`
       : '';
 
     return `
@@ -192,7 +204,7 @@ export class ParticipationActionsComponent {
               <button class="dropdown-item" id="cloneDropdownItem" onclick="cloneRepository()" style="display: none;">Clone Repository</button>
               <button class="dropdown-item" id="pullChangesItem" onclick="pullChanges()" style="display: none;">Pull Changes</button>
               <button class="dropdown-item" onclick="copyCloneUrl()">Copy Clone URL</button>
-              <button class="dropdown-item" onclick="openExerciseInBrowser()">Open in browser</button>
+              ${openInBrowserItem}
             </div>
           </div>
         </div>
@@ -203,7 +215,11 @@ export class ParticipationActionsComponent {
   /**
    * Generate actions for participated non-programming exercises
    */
-  private static _generateNonProgrammingExerciseActions(): string {
+  private static _generateNonProgrammingExerciseActions(isExamExercise?: boolean): string {
+    if (isExamExercise) {
+      // For exam exercises, non-programming types have no actions available
+      return `<div class="participation-actions"></div>`;
+    }
     return `
       <div class="participation-actions">
         <div class="action-button-row">
@@ -216,12 +232,12 @@ export class ParticipationActionsComponent {
   /**
    * Generate actions for not participated programming exercises
    */
-  private static _generateNotParticipatedProgrammingActions(): string {
+  private static _generateNotParticipatedProgrammingActions(isExamExercise?: boolean): string {
     return `
       <div class="participation-actions not-participated">
         <div class="action-button-row">
           <button class="participate-btn" onclick="participateInExercise()">Start Exercise</button>
-          <button class="participate-btn secondary" onclick="openExerciseInBrowser()">Open in browser</button>
+          ${!isExamExercise ? `<button class="participate-btn secondary" onclick="openExerciseInBrowser()">Open in browser</button>` : ''}
         </div>
       </div>
     `;
@@ -230,7 +246,11 @@ export class ParticipationActionsComponent {
   /**
    * Generate actions for not participated non-programming exercises
    */
-  private static _generateNotParticipatedNonProgrammingActions(): string {
+  private static _generateNotParticipatedNonProgrammingActions(isExamExercise?: boolean): string {
+    if (isExamExercise) {
+      // For exam exercises, non-programming types have no actions available
+      return `<div class="participation-actions not-participated"></div>`;
+    }
     return `
       <div class="participation-actions not-participated">
         <div class="action-button-row">
