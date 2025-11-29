@@ -80,7 +80,7 @@ export class ExerciseDetailView {
         const isExam = examContext?.isExamExercise ?? false;
         const backCommand = isExam ? "backToExam" : "backToCourseDetails";
         const backLabel = isExam ? "← Back to Exam" : "← Back to Course";
-        
+
         return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -120,7 +120,7 @@ export class ExerciseDetailView {
         examContext?: ExamContext
     ): string {
         const isExam = examContext?.isExamExercise ?? false;
-        
+
         // For exam exercises, the exercise is passed directly; for regular exercises, it's wrapped
         const exercise = isExam ? exerciseData : exerciseData?.exercise;
 

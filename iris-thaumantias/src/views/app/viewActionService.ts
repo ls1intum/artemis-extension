@@ -5,7 +5,7 @@ import { AppStateManager } from './appStateManager';
  * Hosts actions triggered from the webview that reach beyond simple rendering.
  */
 export class ViewActionService {
-    constructor(private readonly _appStateManager: AppStateManager) {}
+    constructor(private readonly _appStateManager: AppStateManager) { }
 
     public async openJsonInEditor(data: any): Promise<void> {
         try {

@@ -33,7 +33,7 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
         private readonly _extensionContext: vscode.ExtensionContext,
         private readonly _authManager: AuthManager,
         private readonly _artemisApi: ArtemisApiService,
-    ) { 
+    ) {
         this._appStateManager = new AppStateManager(this._artemisApi);
         this._viewActionService = new ViewActionService(this._appStateManager);
         this._messageHandler = new WebViewMessageHandler(
@@ -76,10 +76,10 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
      */
     public setWebsocketService(websocketService: ArtemisWebsocketService): void {
         this._websocketService = websocketService;
-        
+
         // Pass WebSocket service to message handler so commands can access it
         this._messageHandler.setWebsocketService(websocketService);
-        
+
         // Create message handler for WebSocket events
         this._websocketHandler = {
             onNewResult: (result: ResultDTO) => {
@@ -92,7 +92,7 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
                 this._handleSubmissionProcessing(message);
             }
         };
-        
+
         // Register the handler
         this._websocketService.registerMessageHandler(this._websocketHandler);
     }
@@ -113,10 +113,10 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
 
     public async openExerciseDetails(exerciseId: number): Promise<void> {
         const didUpdate = await this._viewActionService.openExerciseDetails(exerciseId);
-        
+
         if (didUpdate) {
             this.render();
-            
+
             // Ensure WebSocket is connected for real-time updates
             if (this._websocketService && !this._websocketService.isConnected()) {
                 console.log('[WebsocketLog] 🔌 Exercise opened - ensuring WebSocket connection for real-time updates...');
@@ -126,13 +126,13 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
                     console.warn('[WebsocketLog] Failed to connect WebSocket:', error);
                 }
             }
-            
+
             // Notify Iris chat about the detected exercise
             const exerciseData = this._appStateManager.currentExerciseData;
             if (exerciseData) {
                 const exerciseTitle = exerciseData.exercise?.title || exerciseData.title || 'Untitled';
                 const exerciseIdFromData = exerciseData.exercise?.id || exerciseData.id || exerciseId;
-                
+
                 // Register this exercise in the registry with its repository URL
                 const exercise = exerciseData.exercise || exerciseData;
                 const participations = exercise.studentParticipations || [];
@@ -145,7 +145,7 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
                     );
                     console.log('📚 [Exercise Registry] Registered individual exercise:', exerciseTitle);
                 }
-                
+
                 const chatProvider = (global as any).chatWebviewProvider;
                 if (chatProvider && typeof chatProvider.updateDetectedExercise === 'function') {
                     // Extract date fields from exercise
@@ -206,7 +206,7 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
 
         // Check if server URL has changed and clear credentials if needed
         this._checkServerUrlChange();
-        
+
         // Check for existing authentication and auto-login if valid
         this._checkExistingAuthentication();
 
@@ -229,7 +229,7 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
 
     public notifyLogout(): void {
         if (this._view) {
-            this._view.webview.postMessage({ 
+            this._view.webview.postMessage({
                 command: 'logoutSuccess'
             });
         }
@@ -243,7 +243,7 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
 
     public async showDashboard(userInfo: UserInfo): Promise<void> {
         await this._appStateManager.showDashboard(userInfo);
-        
+
         if (this._view) {
             this.render();
         }
@@ -253,7 +253,7 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
         this._appStateManager.showLogin();
         if (this._view) {
             this.render();
-            
+
             // Send the server URL to the login page for status checking
             this.postServerUrl();
         }
@@ -345,14 +345,14 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
 
     public showCourseDetail(courseData: any): void {
         this._appStateManager.showCourseDetail(courseData);
-        
+
         // Populate exercise registry with repository URLs for workspace matching
         const registry = ExerciseRegistry.getInstance();
         const courseName = courseData?.course?.title || 'Unknown Course';
         console.log(`📚 [Course Detail] Loading course: ${courseName}`);
-        
+
         registry.registerFromCourseData(courseData);
-        
+
         // Log what was registered
         const allExercises = registry.getAllExercises();
         console.log(`📚 [Course Detail] Registry now contains ${allExercises.length} exercises total`);
@@ -363,7 +363,7 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
                 console.log(`     Repository: ${ex.repositoryUri}`);
             });
         }
-        
+
         if (this._view) {
             this.render();
         }
@@ -377,7 +377,7 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
                 if (isServerUrlChanged) {
                     const config = vscode.workspace.getConfiguration(VSCODE_CONFIG.ARTEMIS_SECTION);
                     const currentServerUrl = config.get<string>(VSCODE_CONFIG.SERVER_URL_KEY, CONFIG.ARTEMIS_SERVER_URL_DEFAULT);
-                    
+
                     vscode.window.showWarningMessage(
                         `The Artemis server URL has changed to ${currentServerUrl}. Your stored credentials may no longer be valid.`,
                         'Clear Credentials',
@@ -403,12 +403,12 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
                 if (this._view) {
                     this._view.webview.postMessage({ command: 'showLoading', message: 'Checking stored credentials...' });
                 }
-                
+
                 // Update loading message
                 if (this._view) {
                     this._view.webview.postMessage({ command: 'updateLoading', message: 'Loading user information...' });
                 }
-                
+
                 // Try to get user info directly - this validates authentication implicitly
                 try {
                     const user = await this._artemisApi.getCurrentUser();
@@ -424,12 +424,12 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
                     // If getCurrentUser fails, stored credentials are invalid
                     console.log('Stored credentials are invalid, clearing...');
                     await this._authManager.clear();
-                    
+
                     // Update authentication context
                     if (this._authContextUpdater) {
                         await this._authContextUpdater(false);
                     }
-                    
+
                     // Hide loading and show login
                     this.hideLoadingAndSendServerUrl();
                 }
@@ -441,12 +441,12 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
             console.error('Error checking existing authentication:', error);
             // If there's an error, clear potentially corrupted credentials and hide loading
             await this._authManager.clear();
-            
+
             // Update authentication context
             if (this._authContextUpdater) {
                 await this._authContextUpdater(false);
             }
-            
+
             this.hideLoadingAndSendServerUrl();
         }
     }
@@ -552,14 +552,14 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
             // If we have build timing info, the build is likely in progress
             state = 'BUILDING' as any;
         }
-        
+
         // Create build timing info from the message
         const buildTimingInfo = message.buildTimingInfo || {
             buildStartDate: message.buildStartDate,
             estimatedCompletionDate: message.estimatedCompletionDate,
             submissionDate: message.submissionDate
         };
-        
+
         // Forward to webview if it exists
         if (this._view) {
             this._view.webview.postMessage({
