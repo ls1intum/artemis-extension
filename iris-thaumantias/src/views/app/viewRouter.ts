@@ -5,6 +5,7 @@ import { CourseDetailView } from '../courseDetail/courseDetailView';
 import { CourseListView } from '../courseList/courseListView';
 import { DashboardView } from '../dashboard/dashboardView';
 import { ExerciseDetailView } from '../exerciseDetail/exerciseDetailView';
+import { ExamExerciseDetailView } from '../examExerciseDetail/examExerciseDetailView';
 import { LoginView } from '../login/loginView';
 import { ServiceStatusView } from '../serviceStatus/serviceStatusView';
 import { RecommendedExtensionsView } from '../recommendedExtensions/recommendedExtensionsView';
@@ -21,6 +22,7 @@ export class ViewRouter {
     private readonly _courseListView: CourseListView;
     private readonly _courseDetailView: CourseDetailView;
     private readonly _exerciseDetailView: ExerciseDetailView;
+    private readonly _examExerciseDetailView: ExamExerciseDetailView;
     private readonly _aiCheckerView: AiCheckerView;
     private readonly _serviceStatusView: ServiceStatusView;
     private readonly _recommendedExtensionsView: RecommendedExtensionsView;
@@ -39,6 +41,7 @@ export class ViewRouter {
         this._courseListView = new CourseListView();
         this._courseDetailView = new CourseDetailView(this._extensionContext);
         this._exerciseDetailView = new ExerciseDetailView(this._extensionContext);
+        this._examExerciseDetailView = new ExamExerciseDetailView(this._extensionContext);
         this._aiCheckerView = new AiCheckerView(this._extensionContext);
         this._serviceStatusView = new ServiceStatusView(this._extensionContext);
         this._recommendedExtensionsView = new RecommendedExtensionsView();
@@ -77,9 +80,9 @@ export class ViewRouter {
             case 'exercise-detail':
                 return this._exerciseDetailView.generateHtml(this._appStateManager.currentExerciseData, hideDeveloperTools, webview);
             case 'exam-exercise-detail': {
-                // Reuse the exercise detail view with exam context
+                // Use the dedicated ExamExerciseDetailView
                 const exerciseData = this._appStateManager.currentExerciseData;
-                return this._exerciseDetailView.generateHtml(
+                return this._examExerciseDetailView.generateHtml(
                     exerciseData.exercise,
                     hideDeveloperTools,
                     webview,
