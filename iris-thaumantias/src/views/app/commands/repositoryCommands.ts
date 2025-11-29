@@ -161,12 +161,12 @@ export class RepositoryCommandModule {
                             for (const courseData of coursesData.courses) {
                                 const exercises = courseData?.course?.exercises || courseData?.exercises || [];
                                 const exercise = exercises.find((e: any) => e.id === exerciseId);
-                                
+
                                 if (exercise) {
                                     const participations = exercise.studentParticipations || [];
                                     // Find graded participation (not testRun)
                                     const gradedParticipation = participations.find((p: any) => !p.testRun);
-                                    
+
                                     if (gradedParticipation?.repositoryUri) {
                                         const normalizedGraded = normalizeUrl(gradedParticipation.repositoryUri);
                                         if (normalizedCurrent === normalizedGraded) {
@@ -216,9 +216,9 @@ export class RepositoryCommandModule {
             const config = vscode.workspace.getConfiguration(VSCODE_CONFIG.ARTEMIS_SECTION);
             const defaultClonePath = config.get<string>(VSCODE_CONFIG.DEFAULT_CLONE_PATH_KEY, '').trim();
             const showPrompt = config.get<boolean>(VSCODE_CONFIG.SHOW_SET_DEFAULT_CLONE_PATH_PROMPT_KEY, true);
-            
+
             let selectedPath: string;
-            
+
             if (defaultClonePath) {
                 // Verify the default path exists
                 try {
@@ -235,7 +235,7 @@ export class RepositoryCommandModule {
                             openLabel: 'Select Clone Destination',
                             title: `Choose where to clone ${exerciseTitle}`
                         });
-                        
+
                         if (!folderUri || !folderUri[0]) {
                             vscode.window.showInformationMessage('Clone cancelled - no destination selected.');
                             return;
@@ -251,7 +251,7 @@ export class RepositoryCommandModule {
                         openLabel: 'Select Clone Destination',
                         title: `Choose where to clone ${exerciseTitle}`
                     });
-                    
+
                     if (!folderUri || !folderUri[0]) {
                         vscode.window.showInformationMessage('Clone cancelled - no destination selected.');
                         return;
@@ -298,7 +298,7 @@ export class RepositoryCommandModule {
                             false,
                             vscode.ConfigurationTarget.Global
                         );
-                        
+
                         // Still need to get a folder for this clone
                         const folderUri = await vscode.window.showOpenDialog({
                             canSelectFiles: false,
@@ -543,13 +543,13 @@ export class RepositoryCommandModule {
                 cancellable: false
             }, async progress => {
                 progress.report({ message: 'Preparing repository...' });
-                
+
                 // Use unified workspace file checker (lightweight)
                 const result = await checkWorkspaceFiles(workspaceFolder, {
                     includeContent: false,
                     applyFilters: false
                 });
-                
+
                 if (!result.hasChanges) {
                     throw new Error('No local changes detected to submit.');
                 }
@@ -585,7 +585,7 @@ export class RepositoryCommandModule {
 
             vscode.window.showInformationMessage(`Successfully submitted "${exerciseTitle}".`);
             this.context.sendMessage({ command: 'submissionResult', success: true });
-            
+
             // Ensure WebSocket is connected to receive real-time result updates
             if (this.context.websocketService && !this.context.websocketService.isConnected()) {
                 console.log('[WebsocketLog] 🔌 Submission successful - ensuring WebSocket connection for result updates...');
