@@ -5,68 +5,70 @@ import { BackLinkComponent } from "../components/backLink/backLinkComponent";
 import { ButtonComponent } from "../components/button/buttonComponent";
 import { FullscreenButton, CloseButton } from "../components/button/iconButtons";
 import { BadgeComponent } from "../components/badge/badgeComponent";
+import { ContainerComponent } from "../components/container/containerComponent";
 import { SubmissionStatusComponent } from "./components/submissionStatusComponent";
 import { ParticipationActionsComponent } from "./components/participationActionsComponent";
 import { RepositoryStatusScripts } from "./components/repositoryStatusScripts";
 import { BuildProgressComponent } from "./components/buildProgressComponent";
 
 export class ExerciseDetailView {
-  private _extensionContext: vscode.ExtensionContext;
+    private _extensionContext: vscode.ExtensionContext;
 
-  constructor(
-    extensionContext: vscode.ExtensionContext
-  ) {
-    this._extensionContext = extensionContext;
-  }
-
-  private _getExerciseIcon(type: string): string {
-    return IconDefinitions.getIcon(type);
-  }
-
-  private _getUploadMessageIcon(): string {
-    return IconDefinitions.getIcon("uploadMessage");
-  }
-
-  public generateHtml(
-    exerciseData: any,
-    hideDeveloperTools: boolean = false,
-    webview?: vscode.Webview
-  ): string {
-    const styles = readCssFiles(
-      "components/backLink/back-link.css",
-      "exerciseDetail/exercise-detail.css",
-      "components/button/button.css",
-      "components/button/iconButtons/iconButtons.css",
-      "components/badge/badge.css"
-    );
-
-    // Get webview URI for the bundled components script (only if webview is provided)
-    let webviewComponentsScriptTag = '';
-    if (webview) {
-      const webviewComponentsUri = webview.asWebviewUri(
-        vscode.Uri.joinPath(
-          this._extensionContext.extensionUri,
-          'dist',
-          'webview-components.js'
-        )
-      );
-      webviewComponentsScriptTag = `<script src="${webviewComponentsUri}"></script>`;
+    constructor(
+        extensionContext: vscode.ExtensionContext
+    ) {
+        this._extensionContext = extensionContext;
     }
 
-    if (!exerciseData) {
-      return this._getEmptyStateHtml(styles, webviewComponentsScriptTag);
+    private _getExerciseIcon(type: string): string {
+        return IconDefinitions.getIcon(type);
     }
 
-    return this._getExerciseDetailHtml(
-      exerciseData,
-      hideDeveloperTools,
-      styles,
-      webviewComponentsScriptTag
-    );
-  }
+    private _getUploadMessageIcon(): string {
+        return IconDefinitions.getIcon("uploadMessage");
+    }
 
-  private _getEmptyStateHtml(styles: string, webviewComponentsScriptTag: string): string {
-    return `<!DOCTYPE html>
+    public generateHtml(
+        exerciseData: any,
+        hideDeveloperTools: boolean = false,
+        webview?: vscode.Webview
+    ): string {
+        const styles = readCssFiles(
+            "components/backLink/back-link.css",
+            "exerciseDetail/exercise-detail.css",
+            "components/button/button.css",
+            "components/button/iconButtons/iconButtons.css",
+            "components/badge/badge.css",
+            "components/container/container.css"
+        );
+
+        // Get webview URI for the bundled components script (only if webview is provided)
+        let webviewComponentsScriptTag = '';
+        if (webview) {
+            const webviewComponentsUri = webview.asWebviewUri(
+                vscode.Uri.joinPath(
+                    this._extensionContext.extensionUri,
+                    'dist',
+                    'webview-components.js'
+                )
+            );
+            webviewComponentsScriptTag = `<script src="${webviewComponentsUri}"></script>`;
+        }
+
+        if (!exerciseData) {
+            return this._getEmptyStateHtml(styles, webviewComponentsScriptTag);
+        }
+
+        return this._getExerciseDetailHtml(
+            exerciseData,
+            hideDeveloperTools,
+            styles,
+            webviewComponentsScriptTag
+        );
+    }
+
+    private _getEmptyStateHtml(styles: string, webviewComponentsScriptTag: string): string {
+        return `<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -79,9 +81,9 @@ export class ExerciseDetailView {
 </head>
 <body>
     ${BackLinkComponent.generateHtml({
-      command: "backToCourseDetails",
-      label: "← Back to Course",
-    })}
+            command: "backToCourseDetails",
+            label: "← Back to Course",
+        })}
     
     <div class="empty-state">
         <h2>Exercise Details</h2>
@@ -95,42 +97,42 @@ export class ExerciseDetailView {
     </script>
 </body>
 </html>`;
-  }
-
-  private _getExerciseDetailHtml(
-    exerciseData: any,
-    hideDeveloperTools: boolean,
-    styles: string,
-    webviewComponentsScriptTag: string
-  ): string {
-    const exercise = exerciseData?.exercise;
-
-    if (!exercise) {
-      return this._getEmptyStateHtml(styles, webviewComponentsScriptTag);
     }
 
-    // Transform exercise data using utility
-    const transformed = transformExerciseData(exercise);
-    
-    // Extract transformed data for use in template
-    const exerciseIcon = this._getExerciseIcon(exercise.type);
-    const uploadMessageIcon = this._getUploadMessageIcon();
-    const starAssistIcon = IconDefinitions.getIcon("star_4_edges");
+    private _getExerciseDetailHtml(
+        exerciseData: any,
+        hideDeveloperTools: boolean,
+        styles: string,
+        webviewComponentsScriptTag: string
+    ): string {
+        const exercise = exerciseData?.exercise;
 
-    // Process markdown problem statement
-    const { html: problemStatement, downloadLinks, plantUmlDiagrams } = 
-      processMarkdown(exercise.problemStatement || "No description available");
+        if (!exercise) {
+            return this._getEmptyStateHtml(styles, webviewComponentsScriptTag);
+        }
 
-    // Course information
-    const course = exercise.course;
-    const courseName = course?.title || "Unknown Course";
-    const semester = course?.semester || "No semester";
-    const exerciseId = exercise.id || 0;
-    const exerciseShortName = exercise.shortName || "";
-    const releaseDateRaw = exercise.releaseDate || exercise.startDate || "";
-    const dueDateRaw = exercise.dueDate || "";
+        // Transform exercise data using utility
+        const transformed = transformExerciseData(exercise);
 
-    return `<!DOCTYPE html>
+        // Extract transformed data for use in template
+        const exerciseIcon = this._getExerciseIcon(exercise.type);
+        const uploadMessageIcon = this._getUploadMessageIcon();
+        const starAssistIcon = IconDefinitions.getIcon("star_4_edges");
+
+        // Process markdown problem statement
+        const { html: problemStatement, downloadLinks, plantUmlDiagrams } =
+            processMarkdown(exercise.problemStatement || "No description available");
+
+        // Course information
+        const course = exercise.course;
+        const courseName = course?.title || "Unknown Course";
+        const semester = course?.semester || "No semester";
+        const exerciseId = exercise.id || 0;
+        const exerciseShortName = exercise.shortName || "";
+        const releaseDateRaw = exercise.releaseDate || exercise.startDate || "";
+        const dueDateRaw = exercise.dueDate || "";
+
+        return `<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -144,9 +146,9 @@ export class ExerciseDetailView {
 <body>
     <div class="back-link-container">
         ${BackLinkComponent.generateHtml({
-          command: "backToCourseDetails",
-          label: "← Back to Course",
-          wrap: false,
+            command: "backToCourseDetails",
+            label: "← Back to Course",
+            wrap: false,
         })}
         ${FullscreenButton.generate({
             id: 'fullscreenBtn',
@@ -163,18 +165,17 @@ export class ExerciseDetailView {
                     <div class="exercise-meta">
                         <div class="exercise-icon-badge">${exerciseIcon}</div>
                         ${BadgeComponent.generate({
-                            label: `${transformed.maxPoints} ${transformed.maxPoints === 1 ? "point" : "points"}${transformed.bonusPoints > 0 ? ` + ${transformed.bonusPoints} bonus` : ""}`,
-                            variant: 'primary'
-                        })}
-                        ${
-                          transformed.timeRemainingDisplay
-                            ? BadgeComponent.generate({
-                                label: transformed.timeRemainingDisplay,
-                                variant: 'secondary',
-                                className: transformed.isDueSoon ? "due-soon" : ""
-                              })
-                            : ""
-                        }
+            label: `${transformed.maxPoints} ${transformed.maxPoints === 1 ? "point" : "points"}${transformed.bonusPoints > 0 ? ` + ${transformed.bonusPoints} bonus` : ""}`,
+            variant: 'primary'
+        })}
+                        ${transformed.timeRemainingDisplay
+                ? BadgeComponent.generate({
+                    label: transformed.timeRemainingDisplay,
+                    variant: 'secondary',
+                    className: transformed.isDueSoon ? "due-soon" : ""
+                })
+                : ""
+            }
                         <button class="repo-status-icon unknown" id="repoStatusIcon" onclick="checkRepositoryStatus(true)" title="Check repository status">
                             ?
                         </button>
@@ -205,126 +206,131 @@ export class ExerciseDetailView {
                     <div class="info-label">Course</div>
                     <div class="info-value course-pill">
                         <span>${courseName}</span>
-                        ${
-                          semester
-                            ? BadgeComponent.generate({
-                                label: semester,
-                                variant: 'secondary',
-                                className: 'course-semester-badge badge-compact',
-                                height: '1.5rem'
-                              })
-                            : ''
-                        }
+                        ${semester
+                ? BadgeComponent.generate({
+                    label: semester,
+                    variant: 'secondary',
+                    className: 'course-semester-badge badge-compact',
+                    height: '1.5rem'
+                })
+                : ''
+            }
                     </div>
                 </div>
-                ${
-                  transformed.filePattern
-                    ? `
+                ${transformed.filePattern
+                ? `
                 <div class="info-item">
                     <div class="info-label">File Formats</div>
                     <div class="info-value">${transformed.filePattern}</div>
                 </div>
                 `
-                    : ""
-                }
+                : ""
+            }
             </div>
         </div>
     </details>
     
 
     ${(() => {
-      // Generate submission status and participation actions using components
-      const buildStatusHtml = SubmissionStatusComponent.generateHtml({
-        transformed,
-        exercise,
-        uploadMessageIcon,
-        pendingSubmission: exerciseData.pendingSubmission // Pass pending submission if exists
-      });
+                // Generate submission status and participation actions using components
+                const buildStatusHtml = SubmissionStatusComponent.generateHtml({
+                    transformed,
+                    exercise,
+                    uploadMessageIcon,
+                    pendingSubmission: exerciseData.pendingSubmission // Pass pending submission if exists
+                });
 
-      const participationActionsHtml = ParticipationActionsComponent.generateHtml({
-        hasParticipation: transformed.hasParticipation,
-        isProgrammingExercise: transformed.isProgrammingExercise,
-        isQuizExercise: transformed.isQuizExercise,
-        exerciseType: exercise.type || exercise.exerciseType,
-        participationId: transformed.participationId,
-        uploadMessageIcon,
-        isPracticeAvailable: transformed.isPracticeAvailable,
-        practiceParticipation: transformed.practiceParticipation
-      });
+                const participationActionsHtml = ParticipationActionsComponent.generateHtml({
+                    hasParticipation: transformed.hasParticipation,
+                    isProgrammingExercise: transformed.isProgrammingExercise,
+                    isQuizExercise: transformed.isQuizExercise,
+                    exerciseType: exercise.type || exercise.exerciseType,
+                    participationId: transformed.participationId,
+                    uploadMessageIcon,
+                    isPracticeAvailable: transformed.isPracticeAvailable,
+                    practiceParticipation: transformed.practiceParticipation
+                });
 
-      // Wrap everything in the participation-section container
-      return `<div class="participation-section" data-has-participation="${transformed.hasParticipation}" data-participation-id="${transformed.participationId || ""}">
-        ${participationActionsHtml}
-        ${buildStatusHtml}
-      </div>`;
-    })()}
+                // Wrap everything in the participation container using ContainerComponent
+                return ContainerComponent.generate({
+                    id: 'participation-section',
+                    bodyHtml: `${participationActionsHtml}${buildStatusHtml}`,
+                    dataAttributes: {
+                        'has-participation': String(transformed.hasParticipation),
+                        'participation-id': String(transformed.participationId || '')
+                    }
+                });
+            })()}
 
-    <div class="content-section iris-assist-section">
-        <div class="iris-assist-content">
-            <div class="iris-assist-title">Ask Iris about this exercise</div>
-            <p class="iris-assist-description">Open the Iris chat to discuss this exercise or get guidance.</p>
-        </div>
-        ${ButtonComponent.generate({
-            label: 'Ask Iris',
-            variant: 'primary',
-            id: 'askIrisAboutExerciseBtn',
-            command: 'document.getElementById("askIrisAboutExerciseBtn").click()',
-            fullWidth: false
-        })}
-    </div>
+    ${ContainerComponent.generate({
+                id: 'iris-assist-section',
+                className: 'iris-assist-section',
+                header: {
+                    title: 'Ask Iris about this exercise',
+                    subtitle: 'Open the Iris chat to discuss this exercise or get guidance.',
+                    actionsHtml: ButtonComponent.generate({
+                        label: 'Ask Iris',
+                        variant: 'primary',
+                        id: 'askIrisAboutExerciseBtn',
+                        command: 'document.getElementById("askIrisAboutExerciseBtn").click()',
+                        fullWidth: false
+                    })
+                },
+                bodyHtml: ''
+            })}
 
-    <div class="content-section">
-        <div class="section-title">Exercise Description</div>
-        <div class="problem-statement">${problemStatement}</div>
-        
-        ${
-          downloadLinks.length > 0
-            ? `
+    ${ContainerComponent.generate({
+                id: 'exercise-description',
+                header: {
+                    title: 'Exercise Description'
+                },
+                bodyHtml: `<div class="problem-statement">${problemStatement}</div>
+        ${downloadLinks.length > 0
+                        ? `
         <div class="downloads-section">
-            <div class="section-title">Downloads</div>
+            <div class="downloads-section-title">Downloads</div>
             <div class="download-links">
                 ${downloadLinks
-                  .map(
-                    (link) => `
+                            .map(
+                                (link) => `
                     ${ButtonComponent.generate({
-                        label: `<span class="download-icon">📄</span>${link.text}`,
-                        variant: 'link',
-                        command: `downloadFile('${link.url}', '${link.text}')`,
-                        className: 'download-link'
-                    })}
+                                    label: `<span class="download-icon">📄</span>${link.text}`,
+                                    variant: 'link',
+                                    command: `downloadFile('${link.url}', '${link.text}')`,
+                                    className: 'download-link'
+                                })}
                 `
-                  )
-                  .join("")}
+                            )
+                            .join("")}
             </div>
         </div>
         `
-            : ""
-        }
-    </div>
+                        : ""
+                    }`
+            })}
     
-    ${
-      !hideDeveloperTools
-        ? `
+    ${!hideDeveloperTools
+                ? `
     <div class="action-buttons">
         ${ButtonComponent.generate({
-            label: 'Open Raw JSON',
-            variant: 'secondary',
-            command: 'openInEditor()'
-        })}
+                    label: 'Open Raw JSON',
+                    variant: 'secondary',
+                    command: 'openInEditor()'
+                })}
         ${ButtonComponent.generate({
-            label: 'Copy Exercise Data',
-            variant: 'secondary',
-            command: 'copyToClipboard()'
-        })}
+                    label: 'Copy Exercise Data',
+                    variant: 'secondary',
+                    command: 'copyToClipboard()'
+                })}
         ${ButtonComponent.generate({
-            label: 'Submission Details',
-            variant: 'secondary',
-            command: 'showSubmissionDetails()'
-        })}
+                    label: 'Submission Details',
+                    variant: 'secondary',
+                    command: 'showSubmissionDetails()'
+                })}
     </div>
     `
-        : ""
-    }
+                : ""
+            }
 
     <script>
         const vscode = acquireVsCodeApi();
@@ -564,6 +570,8 @@ export class ExerciseDetailView {
         }
         
         ${BackLinkComponent.generateScript()}
+        
+        ${ContainerComponent.generateScript()}
         
         ${SubmissionStatusComponent.generateScript()}
         
@@ -1463,5 +1471,5 @@ export class ExerciseDetailView {
     </script>
 </body>
 </html>`;
-  }
+    }
 }
