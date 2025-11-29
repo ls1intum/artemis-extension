@@ -1,6 +1,7 @@
 import { readCssFiles } from '../utils';
-import { ServiceHealthComponent } from '../components/serviceHealth/serviceHealthComponent';
 import { ButtonComponent } from '../components/button/buttonComponent';
+import { ContainerComponent } from '../components/container/containerComponent';
+import { ServiceHealthComponent } from '../components/serviceHealth/serviceHealthComponent';
 import { TextInputComponent } from '../components/input/textInputComponent';
 
 /**
@@ -9,11 +10,99 @@ import { TextInputComponent } from '../components/input/textInputComponent';
 export class LoginView {
     public generateHtml(): string {
         const styles = readCssFiles(
-            'login/login.css',
-            'components/serviceHealth/service-health.css',
+            'components/container/container.css',
             'components/button/button.css',
-            'components/input/input.css'
+            'components/input/input.css',
+            'components/serviceHealth/service-health.css',
+            'login/login.css'
         );
+
+        const loginFormHtml = `
+            <form id="loginForm" class="login-form">
+                ${TextInputComponent.generate({
+            id: 'username',
+            name: 'username',
+            type: 'text',
+            placeholder: 'Enter your TUM username',
+            label: 'Username',
+            required: true,
+            autocomplete: 'username',
+            fullWidth: true
+        })}
+                ${TextInputComponent.generate({
+            id: 'password',
+            name: 'password',
+            type: 'password',
+            placeholder: 'Enter your password',
+            label: 'Password',
+            required: true,
+            autocomplete: 'current-password',
+            fullWidth: true
+        })}
+                <div class="checkbox-group">
+                    <input type="checkbox" id="rememberMe" name="rememberMe" checked />
+                    <label for="rememberMe">Remember me on this device</label>
+                </div>
+                ${ButtonComponent.generate({
+            label: 'Login to Artemis',
+            variant: 'primary',
+            id: 'loginButton',
+            type: 'submit',
+            fullWidth: true,
+            alignText: 'center',
+            height: '2.5rem'
+        })}
+                <div id="statusMessage" class="status"></div>
+            </form>
+            <div id="serverStatus" class="server-status">
+                ${ServiceHealthComponent.generateHtml({ showTitle: true, compact: true, autoCheck: false })}
+            </div>
+        `;
+
+        const quickLinksHtml = `
+            <div class="quick-links">
+                ${ButtonComponent.generate({
+            label: 'Open Artemis in Browser →',
+            variant: 'link',
+            command: 'openArtemisWebsite()',
+            id: 'openWebsiteLink',
+            alignText: 'left'
+        })}
+                ${ButtonComponent.generate({
+            label: 'Open Artemis Settings →',
+            variant: 'link',
+            command: 'openArtemisSettings()',
+            id: 'openSettingsLink',
+            alignText: 'left'
+        })}
+            </div>
+        `;
+
+        const loggedInCard = ContainerComponent.generate({
+            id: 'loggedInCard',
+            className: 'login-container',
+            variant: 'highlight',
+            header: {
+                title: "You're already logged in!",
+                subtitle: 'We found an active Artemis session'
+            },
+            bodyHtml: `
+                <div class="logged-in">
+                    <div class="user-info">
+                        <div>
+                            <div class="label">Username</div>
+                            <div class="value" id="loggedInUsername">-</div>
+                        </div>
+                        <div>
+                            <div class="label">Server URL</div>
+                            <div class="value" id="loggedInServerUrl">-</div>
+                        </div>
+                    </div>
+                    <button class="btn" id="viewDashboardButton">Go to Dashboard</button>
+                    <button class="logout-btn" id="openLogoutButton">Logout from Artemis</button>
+                </div>
+            `
+        });
 
         return `<!DOCTYPE html>
 <html lang="en">
@@ -27,97 +116,39 @@ export class LoginView {
 
 </head>
 <body>
-    <div class="header">
-        <div class="logo">
-            <h1>Artemis Login</h1>
-            <p>VS Code Extension for the Artemis Learning Platform</p>
-        </div>
-    </div>
-
-    <div id="loadingIndicator" class="loading-indicator">
-        <div class="loading-spinner"></div>
-        <div class="loading-content">
-            <div class="loading-text">Checking authentication<span class="loading-dots"></span></div>
-            <div class="loading-subtext">Please wait while we verify your credentials</div>
-        </div>
-    </div>
-
-    <div class="login-container" id="loginSection">
-        <form id="loginForm">
-            ${TextInputComponent.generate({
-                id: 'username',
-                name: 'username',
-                type: 'text',
-                placeholder: 'Enter your TUM username',
-                label: 'Username',
-                required: true,
-                autocomplete: 'username',
-                fullWidth: true
-            })}
-            ${TextInputComponent.generate({
-                id: 'password',
-                name: 'password',
-                type: 'password',
-                placeholder: 'Enter your password',
-                label: 'Password',
-                required: true,
-                autocomplete: 'current-password',
-                fullWidth: true
-            })}
-            <div class="checkbox-group">
-                <input type="checkbox" id="rememberMe" name="rememberMe" checked />
-                <label for="rememberMe">Remember me on this device</label>
+    <div class="login-page">
+        <div class="header">
+            <div class="logo">
+                <h1>Artemis Login</h1>
+                <p>VS Code Extension for the Artemis Learning Platform</p>
             </div>
-            ${ButtonComponent.generate({
-                label: 'Login to Artemis',
-                variant: 'primary',
-                id: 'loginButton',
-                type: 'submit',
-                fullWidth: true,
-                alignText: 'center',
-                height: '2.5rem'
-            })}
-            <div id="statusMessage" class="status"></div>
-        </form>
-        
-        <!-- Server Health Status Component -->
-        <div id="serverStatus" class="server-status">
-            ${ServiceHealthComponent.generateHtml({ showTitle: true, compact: true, autoCheck: false })}
         </div>
-        
-        <div class="quick-links">
-            ${ButtonComponent.generate({
-                label: 'Open Artemis in Browser →',
-                variant: 'link',
-                command: 'openArtemisWebsite()',
-                id: 'openWebsiteLink',
-                alignText: 'left'
-            })}
-            ${ButtonComponent.generate({
-                label: 'Open Artemis Settings →',
-                variant: 'link',
-                command: 'openArtemisSettings()',
-                id: 'openSettingsLink',
-                alignText: 'left'
-            })}
-        </div>
-    </div>
 
-    <div class="login-container" id="loggedInSection" style="display: none;">
-        <div class="logged-in">
-            <h2>You're already logged in! ✅</h2>
-            <div class="user-info">
-                <div>
-                    <div class="label">Username</div>
-                    <div class="value" id="loggedInUsername">-</div>
-                </div>
-                <div>
-                    <div class="label">Server URL</div>
-                    <div class="value" id="loggedInServerUrl">-</div>
-                </div>
+        <div id="loadingIndicator" class="loading-indicator">
+            <div class="loading-spinner"></div>
+            <div class="loading-content">
+                <div class="loading-text">Checking authentication<span class="loading-dots"></span></div>
+                <div class="loading-subtext">Please wait while we verify your credentials</div>
             </div>
-            <button class="btn" id="viewDashboardButton">Go to Dashboard</button>
-            <button class="logout-btn" id="openLogoutButton">Logout from Artemis</button>
+        </div>
+
+        <div class="login-stack">
+            <div id="loginSection">
+                ${ContainerComponent.generate({
+            id: 'loginContainer',
+            className: 'login-container',
+            header: {
+                title: 'Login to Artemis',
+                subtitle: 'Use your TUM credentials to continue'
+            },
+            bodyHtml: loginFormHtml,
+            footerHtml: quickLinksHtml
+        })}
+            </div>
+
+            <div id="loggedInSection" style="display: none;">
+                ${loggedInCard}
+            </div>
         </div>
     </div>
 
