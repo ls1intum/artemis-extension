@@ -13,9 +13,7 @@
   overflow-wrap: break-word;
 }
 
-.ui-container--default {
-  /* Default variant inherits base styles */
-}
+/* .ui-container--default inherits base styles */
 
 .ui-container--tight {
   padding: 12px;
@@ -147,36 +145,14 @@
   justify-content: flex-end;
 }
 
-.ui-container__toggle {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  border: 1px solid var(--theme-border);
-  background: var(--theme-card-background);
-  color: var(--theme-foreground);
-  padding: 4px 8px;
-  border-radius: 6px;
-  cursor: pointer;
-  transition: var(--theme-transition);
-  min-height: 28px;
+/* Override CollapseButton styles when used as container toggle */
+.ui-container__toggle.icon-btn-collapse {
+  background: transparent;
+  border: none;
 }
 
-.ui-container__toggle:hover {
-  background: var(--theme-hover-background);
-}
-
-.ui-container__chevron {
-  border: solid var(--theme-foreground);
-  border-width: 0 2px 2px 0;
-  display: inline-block;
-  padding: 4px;
-  transform: rotate(45deg);
-  transition: var(--theme-transition);
-}
-
-.ui-container.is-collapsed .ui-container__chevron {
-  transform: rotate(-135deg);
+.ui-container__toggle.icon-btn-collapse:hover:not(.icon-btn-disabled) {
+  background: var(--vscode-toolbar-hoverBackground, rgba(90, 93, 94, 0.31));
 }
 
 .ui-container__toolbar {
@@ -209,9 +185,7 @@
   flex-wrap: wrap;
 }
 
-.ui-container__content {
-  /* No constraints - content flows naturally */
-}
+/* .ui-container__content - no constraints, content flows naturally */
 
 .ui-container.is-collapsed .ui-container__content {
   display: none;

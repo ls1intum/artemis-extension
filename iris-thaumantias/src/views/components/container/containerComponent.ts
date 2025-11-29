@@ -1,3 +1,5 @@
+import { CollapseButton } from '../button/iconButtons/collapseButton';
+
 export type ContainerVariant = 'default' | 'muted' | 'highlight' | 'warning';
 export type ContainerPadding = 'default' | 'tight' | 'cozy' | 'spacious' | 'none';
 export type ContainerAccentPosition = 'left' | 'top' | 'none';
@@ -242,18 +244,24 @@ export class ContainerComponent {
     const iconHtml = icon ? `<span class="ui-container__icon">${icon}</span>` : '';
 
     const toggleHtml = collapsible
-      ? `
-        <button
-          class="ui-container__toggle"
-          type="button"
-          aria-expanded="${isCollapsed ? 'false' : 'true'}"
-          aria-controls="${this._escapeAttr(collapseId)}"
-          aria-label="${this._escapeAttr(ariaToggleLabel || 'Toggle section')}"
-          data-container-toggle="${this._escapeAttr(containerId)}"
-        >
-          <span class="ui-container__chevron" aria-hidden="true"></span>
-        </button>
-      `
+      ? CollapseButton.generate({
+          className: 'ui-container__toggle',
+          collapsed: isCollapsed,
+          targetId: collapseId,
+          title: ariaToggleLabel || 'Toggle section',
+          command: `(function(e) {
+            e.stopPropagation();
+            const btn = e.currentTarget;
+            const container = document.getElementById('${this._escapeAttr(containerId)}');
+            if (container) {
+              const collapsed = container.classList.toggle('is-collapsed');
+              btn.classList.toggle('is-collapsed', collapsed);
+              btn.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+              const content = document.getElementById('${this._escapeAttr(collapseId)}');
+              if (content) content.setAttribute('aria-hidden', collapsed ? 'true' : 'false');
+            }
+          })(event)`
+        })
       : '';
 
     const actions = actionsHtml

@@ -83,3 +83,55 @@
     gap: 4px;
     align-items: center;
 }
+
+/* Collapse/expand toggle button */
+.icon-btn-collapse {
+    color: var(--vscode-icon-foreground, #c5c5c5);
+}
+
+.icon-btn-collapse:hover:not(.icon-btn-disabled) {
+    background-color: var(--vscode-toolbar-hoverBackground, rgba(90, 93, 94, 0.31));
+    color: var(--vscode-foreground, #cccccc);
+}
+
+.icon-btn-collapse:active:not(.icon-btn-disabled) {
+    background-color: var(--vscode-toolbar-activeBackground, rgba(99, 102, 103, 0.4));
+}
+
+.icon-btn-collapse .collapse-chevron {
+    transition: transform 0.2s ease;
+}
+
+/* Direction variants - defines the "expanded" rotation */
+.icon-btn-collapse--down .collapse-chevron {
+    transform: rotate(0deg);
+}
+
+.icon-btn-collapse--up .collapse-chevron {
+    transform: rotate(180deg);
+}
+
+.icon-btn-collapse--left .collapse-chevron {
+    transform: rotate(90deg);
+}
+
+.icon-btn-collapse--right .collapse-chevron {
+    transform: rotate(-90deg);
+}
+
+/* Collapsed state - rotate chevron 180deg from expanded */
+.icon-btn-collapse.is-collapsed.icon-btn-collapse--down .collapse-chevron {
+    transform: rotate(-180deg);
+}
+
+.icon-btn-collapse.is-collapsed.icon-btn-collapse--up .collapse-chevron {
+    transform: rotate(0deg);
+}
+
+.icon-btn-collapse.is-collapsed.icon-btn-collapse--left .collapse-chevron {
+    transform: rotate(-90deg);
+}
+
+.icon-btn-collapse.is-collapsed.icon-btn-collapse--right .collapse-chevron {
+    transform: rotate(90deg);
+}

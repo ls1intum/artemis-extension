@@ -20,6 +20,7 @@ export class ExamStartView {
         const styles = readCssFiles(
             "components/container/container.css",
             "components/button/button.css",
+            "components/button/iconButtons/iconButtons.css",
             "components/backLink/back-link.css",
             "examStart/exam-start.css"
         );
