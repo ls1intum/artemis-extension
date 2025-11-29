@@ -229,7 +229,7 @@ suite('WorkspaceDetectionService', () => {
             // In test environment, there may or may not be workspace folders
             // We test the function can be called without throwing
             const result = await getWorkspaceRepositoryUrl();
-            
+
             // Result is either null (no workspace) or a string (workspace exists)
             assert.ok(result === null || typeof result === 'string');
         });
@@ -243,7 +243,7 @@ suite('WorkspaceDetectionService', () => {
             };
 
             const result = await getWorkspaceRepositoryUrl(mockWorkspaceFolder);
-            
+
             // Should return null because the directory doesn't exist or isn't a git repo
             assert.strictEqual(result, null);
         });
@@ -268,14 +268,14 @@ suite('WorkspaceDetectionService', () => {
 
             // In test environment without a matching workspace, should return null
             const result = await detectWorkspaceExercise(exercises);
-            
+
             // Either null (no workspace or no match) or a DetectedExercise
             assert.ok(result === null || (result && typeof result.id === 'number'));
         });
 
         test('should return null for empty exercise list', async () => {
             const result = await detectWorkspaceExercise([]);
-            
+
             assert.strictEqual(result, null);
         });
 
@@ -291,7 +291,7 @@ suite('WorkspaceDetectionService', () => {
             };
 
             const result = await detectWorkspaceExercise(exercises, mockWorkspaceFolder);
-            
+
             // Should return null because the mock folder doesn't exist
             assert.strictEqual(result, null);
         });
@@ -315,7 +315,7 @@ suite('WorkspaceDetectionService', () => {
             ];
 
             const result = await isExerciseInCurrentWorkspace(1, exercises);
-            
+
             // In test environment, likely no matching workspace
             assert.strictEqual(typeof result, 'boolean');
         });
@@ -326,13 +326,13 @@ suite('WorkspaceDetectionService', () => {
             ];
 
             const result = await isExerciseInCurrentWorkspace(999, exercises);
-            
+
             assert.strictEqual(result, false);
         });
 
         test('should return false with empty exercise list', async () => {
             const result = await isExerciseInCurrentWorkspace(1, []);
-            
+
             assert.strictEqual(result, false);
         });
 
@@ -348,7 +348,7 @@ suite('WorkspaceDetectionService', () => {
             };
 
             const result = await isExerciseInCurrentWorkspace(1, exercises, mockWorkspaceFolder);
-            
+
             // Should return false because mock folder doesn't exist
             assert.strictEqual(result, false);
         });
