@@ -161,13 +161,12 @@ export class ExamStartView {
     </style>
 </head>
 <body>
+    ${BackLinkComponent.generateHtml({
+        label: "← Back to Course",
+        command: "backToCourseDetails",
+        wrap: true,
+    })}
     <div class="exam-start-container">
-        ${BackLinkComponent.generateHtml({
-            label: "← Back to Course",
-            command: "backToCourseDetails",
-            wrap: true,
-        })}
-        
         ${headerCard}
         ${rulesCard}
         ${confirmationCard}
