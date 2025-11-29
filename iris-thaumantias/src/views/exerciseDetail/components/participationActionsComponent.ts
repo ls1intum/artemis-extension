@@ -142,13 +142,13 @@ export class ParticipationActionsComponent {
     isPractice: boolean = false,
     isExamExercise?: boolean
   ): string {
-    const practiceLabel = isPractice 
+    const practiceLabel = isPractice
       ? `<div class="practice-mode-indicator">
            <span class="codicon codicon-beaker"></span> Practice Mode
-         </div>` 
+         </div>`
       : '';
 
-    const openInBrowserItem = !isExamExercise 
+    const openInBrowserItem = !isExamExercise
       ? `<button class="dropdown-item" onclick="openExerciseInBrowser()">Open in browser</button>`
       : '';
 
@@ -159,39 +159,39 @@ export class ParticipationActionsComponent {
         <div class="cloned-repo-notice" id="clonedRepoNotice" style="display: none;">
           <span id="clonedRepoMessage">Repository recently cloned.</span> 
           ${ButtonComponent.generate({
-            label: "Open now",
-            variant: "link",
-            command: "openClonedRepository(); return false;",
-            className: "open-repo-link",
-          })}
+      label: "Open now",
+      variant: "link",
+      command: "openClonedRepository(); return false;",
+      className: "open-repo-link",
+    })}
         </div>
         <div class="unsaved-changes-banner" id="unsavedChangesBanner" style="display: none;">
           <span class="unsaved-changes-icon">⚠️</span>
           <span class="unsaved-changes-text">
             <strong>Unsaved changes detected.</strong> Please save your files before submitting.
             ${ButtonComponent.generate({
-              label: "Configure auto-save",
-              variant: "link",
-              command: "openAutoSaveSettings(); return false;",
-              className: "unsaved-changes-link",
-            })}
+      label: "Configure auto-save",
+      variant: "link",
+      command: "openAutoSaveSettings(); return false;",
+      className: "unsaved-changes-link",
+    })}
           </span>
         </div>
         <div class="submit-button-group" id="submitBtnGroup" style="display: none;">
           ${ButtonComponent.generate({
-            label: "Submit",
-            variant: "primary",
-            id: "submitBtn",
-            command: "submitExercise()",
-            className: "participate-btn",
-          })}
+      label: "Submit",
+      variant: "primary",
+      id: "submitBtn",
+      command: "submitExercise()",
+      className: "participate-btn",
+    })}
           ${ButtonComponent.generate({
-            icon: uploadMessageIcon,
-            variant: "primary",
-            id: "uploadMessageBtn",
-            command: "toggleCommitMessageInput()",
-            className: "upload-message-btn",
-          })}
+      icon: uploadMessageIcon,
+      variant: "primary",
+      id: "uploadMessageBtn",
+      command: "toggleCommitMessageInput()",
+      className: "upload-message-btn",
+    })}
         </div>
         <div class="commit-message-input-container" id="commitMessageContainer" style="display: none;">
           <input type="text" id="commitMessageInput" class="commit-message-input" placeholder="Enter commit message..." />
