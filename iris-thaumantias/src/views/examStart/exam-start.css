@@ -47,9 +47,8 @@ body {
 }
 
 .rules-content {
-    background: #ffffff;
-    color: #000000;
-    border-radius: var(--theme-container-radius);
+    background: var(--theme-card-background);
+    color: var(--theme-foreground);
     padding: 16px;
     font-size: 14px;
     white-space: pre-line;
