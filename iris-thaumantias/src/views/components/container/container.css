@@ -278,4 +278,124 @@
   opacity: 0.8;
 }
 
+/* ===========================================
+   Text Alignment (Body Content)
+   =========================================== */
+.ui-container--text-left {
+  text-align: left;
+}
+
+.ui-container--text-center {
+  text-align: center;
+}
+
+.ui-container--text-center .ui-container__body {
+  align-items: center;
+}
+
+.ui-container--text-right {
+  text-align: right;
+}
+
+.ui-container--text-right .ui-container__body {
+  align-items: flex-end;
+}
+
+/* ===========================================
+   Vertical Alignment (requires explicit height)
+   =========================================== */
+.ui-container--valign-top .ui-container__content {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  height: 100%;
+}
+
+.ui-container--valign-center .ui-container__content {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  height: 100%;
+}
+
+.ui-container--valign-bottom .ui-container__content {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  height: 100%;
+}
+
+/* ===========================================
+   Header Text Alignment
+   =========================================== */
+.ui-container__header--left {
+  justify-content: flex-start;
+}
+
+.ui-container__header--left .ui-container__header-main {
+  justify-content: flex-start;
+}
+
+.ui-container__header--center {
+  justify-content: center;
+}
+
+.ui-container__header--center .ui-container__header-main {
+  justify-content: center;
+  flex: none;
+}
+
+.ui-container__header--right {
+  justify-content: flex-end;
+}
+
+.ui-container__header--right .ui-container__header-main {
+  justify-content: flex-end;
+}
+
+/* ===========================================
+   Header Title Font Sizes
+   =========================================== */
+.ui-container__title--small {
+  font-size: 13px;
+}
+
+.ui-container__title--large {
+  font-size: 20px;
+}
+
+.ui-container__title--xlarge {
+  font-size: 26px;
+}
+
+/* ===========================================
+   Header Subtitle Font Sizes
+   =========================================== */
+.ui-container__subtitle--small {
+  font-size: 11px;
+}
+
+.ui-container__subtitle--large {
+  font-size: 15px;
+}
+
+.ui-container__subtitle--xlarge {
+  font-size: 18px;
+}
+
+/* ===========================================
+   Body Font Sizes
+   =========================================== */
+.ui-container--body-font-small .ui-container__body {
+  font-size: 12px;
+}
+
+.ui-container--body-font-large .ui-container__body {
+  font-size: 16px;
+}
+
+.ui-container--body-font-xlarge .ui-container__body {
+  font-size: 20px;
+}
+
 

@@ -2,6 +2,9 @@ export type ContainerVariant = 'default' | 'muted' | 'highlight' | 'warning';
 export type ContainerPadding = 'default' | 'tight' | 'cozy' | 'spacious' | 'none';
 export type ContainerAccentPosition = 'left' | 'top' | 'none';
 export type ContainerStateType = 'empty' | 'info' | 'warning' | 'error' | 'loading';
+export type ContainerTextAlign = 'left' | 'center' | 'right';
+export type ContainerVerticalAlign = 'top' | 'center' | 'bottom';
+export type ContainerFontSize = 'small' | 'default' | 'large' | 'xlarge';
 
 export interface ContainerState {
   type: ContainerStateType;
@@ -30,6 +33,12 @@ export interface ContainerHeaderOptions {
   ariaToggleLabel?: string;
   /** Show a divider line below the header */
   divider?: boolean;
+  /** Text alignment for the header */
+  textAlign?: ContainerTextAlign;
+  /** Font size for the title */
+  titleSize?: ContainerFontSize;
+  /** Font size for the subtitle */
+  subtitleSize?: ContainerFontSize;
 }
 
 export interface ContainerOptions {
@@ -57,6 +66,12 @@ export interface ContainerOptions {
   dataAttributes?: Record<string, string>;
   /** Header configuration */
   header?: ContainerHeaderOptions;
+  /** Text alignment for body content */
+  textAlign?: ContainerTextAlign;
+  /** Vertical alignment for body content (requires explicit height) */
+  verticalAlign?: ContainerVerticalAlign;
+  /** Font size for body content */
+  bodyFontSize?: ContainerFontSize;
 }
 
 /**
@@ -87,7 +102,10 @@ export class ContainerComponent {
       footerClassName = '',
       state,
       dataAttributes = {},
-      header
+      header,
+      textAlign,
+      verticalAlign,
+      bodyFontSize
     } = options;
 
     const containerId = id || `ui-container-${Math.random().toString(36).slice(2, 8)}`;
@@ -106,6 +124,9 @@ export class ContainerComponent {
       accentPosition === 'top' ? 'ui-container--accent-top' : '',
       listMode ? 'ui-container--list' : '',
       isCollapsed ? 'is-collapsed' : '',
+      textAlign ? `ui-container--text-${textAlign}` : '',
+      verticalAlign ? `ui-container--valign-${verticalAlign}` : '',
+      bodyFontSize && bodyFontSize !== 'default' ? `ui-container--body-font-${bodyFontSize}` : '',
       className
     ]
       .filter(Boolean)
@@ -203,14 +224,19 @@ export class ContainerComponent {
       actionsHtml,
       collapsible,
       ariaToggleLabel,
-      divider
+      divider,
+      textAlign,
+      titleSize,
+      subtitleSize
     } = header;
 
+    const titleSizeClass = titleSize && titleSize !== 'default' ? ` ui-container__title--${titleSize}` : '';
+    const subtitleSizeClass = subtitleSize && subtitleSize !== 'default' ? ` ui-container__subtitle--${subtitleSize}` : '';
     const titleHtml = title
-      ? `<p class="ui-container__title">${this._escapeHtml(title)}</p>`
+      ? `<p class="ui-container__title${titleSizeClass}">${this._escapeHtml(title)}</p>`
       : '';
     const subtitleHtml = subtitle
-      ? `<p class="ui-container__subtitle">${this._escapeHtml(subtitle)}</p>`
+      ? `<p class="ui-container__subtitle${subtitleSizeClass}">${this._escapeHtml(subtitle)}</p>`
       : '';
     const badgeHtml = badge ? `<span class="ui-container__badge">${this._escapeHtml(badge)}</span>` : '';
     const iconHtml = icon ? `<span class="ui-container__icon">${icon}</span>` : '';
@@ -246,9 +272,10 @@ export class ContainerComponent {
     `;
 
     const dividerHtml = divider ? '<div class="ui-container__divider"></div>' : '';
+    const headerAlignClass = textAlign ? ` ui-container__header--${textAlign}` : '';
 
     return `
-      <div class="ui-container__header">
+      <div class="ui-container__header${headerAlignClass}">
         ${headerMain}
         ${actions}
       </div>
