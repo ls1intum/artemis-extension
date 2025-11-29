@@ -215,6 +215,11 @@
   border-bottom: 1px solid var(--theme-border);
 }
 
+/* Hide divider when collapsed */
+.ui-container.is-collapsed .ui-container__divider {
+  display: none;
+}
+
 .ui-container__state {
   border: 1px dashed var(--theme-border);
   border-radius: calc(var(--theme-container-radius) * 0.75);

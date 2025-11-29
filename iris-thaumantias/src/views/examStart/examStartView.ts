@@ -111,6 +111,7 @@ export class ExamStartView {
                 subtitle: "Please review before you begin",
                 collapsible: true,
                 ariaToggleLabel: "Toggle exam rules",
+                divider: true,
             },
             bodyHtml: `<div class="rules-content">${startText}</div>`,
         });
