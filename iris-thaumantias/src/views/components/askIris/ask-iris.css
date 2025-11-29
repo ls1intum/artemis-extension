@@ -1,0 +1,46 @@
+.ask-iris-card {
+    border-color: var(--theme-border-strong, var(--theme-border));
+}
+
+.ask-iris-card .ui-container__header {
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 0;
+}
+
+.ask-iris-card .ui-container__title {
+    font-size: 18px;
+}
+
+.ask-iris-card .ui-container__subtitle {
+    font-size: 14px;
+    line-height: 1.5;
+}
+
+.ask-iris-card .ui-container__content {
+    margin-top: 0;
+}
+
+.ask-iris-card .ui-container__body:empty {
+    display: none;
+}
+
+.ask-iris-card .ui-container__actions {
+    align-self: center;
+}
+
+.ask-iris-card .ui-container__actions .btn {
+    min-width: 110px;
+}
+
+@media (max-width: 640px) {
+    .ask-iris-card .ui-container__header {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+
+    .ask-iris-card .ui-container__actions {
+        width: 100%;
+        justify-content: flex-start;
+    }
+}

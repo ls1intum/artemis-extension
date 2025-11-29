@@ -7,6 +7,7 @@ export type { WebViewActionHandler } from './app/types';
 export { ServiceHealthComponent } from './components/serviceHealth/serviceHealthComponent';
 export { BackLinkComponent } from './components/backLink/backLinkComponent';
 export { ButtonComponent, type ButtonOptions } from './components/button/buttonComponent';
+export { AskIrisComponent, type AskIrisOptions } from './components/askIris/askIrisComponent';
 
 export { AiCheckerView } from './aiChecker/aiCheckerView';
 export { CourseDetailView } from './courseDetail/courseDetailView';
@@ -19,4 +20,3 @@ export { IrisChatView } from './irisChat/irisChatView';
 export { LoginView } from './login/loginView';
 export { ServiceStatusView } from './serviceStatus/serviceStatusView';
 export { GitCredentialsView } from './gitCredentials/gitCredentialsView';
-

@@ -6,9 +6,11 @@
   box-shadow: var(--theme-box-shadow);
   color: var(--theme-foreground);
   position: relative;
-  overflow: visible;
+  overflow: hidden;
   transition: var(--theme-transition);
   outline: 1px dashed salmon;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
 }
 
 .ui-container--default {
@@ -121,7 +123,7 @@
   opacity: 0.75;
   overflow: hidden;
   text-overflow: ellipsis;
-  white-space: nowrap;
+  /* Allow subtitle to wrap to multiple lines */
 }
 
 .ui-container__badge {

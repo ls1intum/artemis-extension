@@ -7,6 +7,7 @@ import { TextInputComponent } from '../components/input/textInputComponent';
 import { ListItemComponent } from '../components/listItem/listItemComponent';
 import { DropdownComponent } from '../components/dropdown/dropdownComponent';
 import { BadgeComponent } from '../components/badge/badgeComponent';
+import { AskIrisComponent } from '../components/askIris/askIrisComponent';
 
 export class CourseDetailView {
     private _extensionContext: vscode.ExtensionContext;
@@ -27,7 +28,9 @@ export class CourseDetailView {
             'components/input/input.css',
             'components/listItem/list-item.css',
             'components/dropdown/dropdown.css',
-            'components/badge/badge.css'
+            'components/badge/badge.css',
+            'components/container/container.css',
+            'components/askIris/ask-iris.css'
         );
 
         if (!courseData) {
@@ -256,19 +259,13 @@ export class CourseDetailView {
         </div>
     </div>
     
-    <div class="section iris-assist-cell">
-        <div class="iris-assist-content">
-            <div class="iris-assist-title">Ask Iris about this course</div>
-            <p class="iris-assist-description">Open the Iris chat to discuss this course or its exercises.</p>
-        </div>
-        ${ButtonComponent.generate({
-            label: 'Ask Iris',
-            variant: 'primary',
-            id: 'askIrisAboutCourseBtn',
-            command: 'document.getElementById("askIrisAboutCourseBtn").click()',
-            fullWidth: false
+    ${AskIrisComponent.generate({
+            id: 'ask-iris-course',
+            className: 'section',
+            title: 'Ask Iris about this course',
+            description: 'Open the Iris chat to discuss this course or its exercises.',
+            buttonId: 'askIrisAboutCourseBtn'
         })}
-    </div>
 
     <div class="section collapsible-section" id="exams-section">
         <div class="section-title collapsible-header" onclick="toggleSection('exams-section')">

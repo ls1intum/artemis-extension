@@ -6,6 +6,7 @@ import { ButtonComponent } from "../components/button/buttonComponent";
 import { FullscreenButton, CloseButton } from "../components/button/iconButtons";
 import { BadgeComponent } from "../components/badge/badgeComponent";
 import { ContainerComponent } from "../components/container/containerComponent";
+import { AskIrisComponent } from "../components/askIris/askIrisComponent";
 import { SubmissionStatusComponent } from "../exerciseDetail/components/submissionStatusComponent";
 import { ParticipationActionsComponent } from "../exerciseDetail/components/participationActionsComponent";
 import { RepositoryStatusScripts } from "../exerciseDetail/components/repositoryStatusScripts";
@@ -47,7 +48,8 @@ export class ExamExerciseDetailView {
             "components/button/button.css",
             "components/button/iconButtons/iconButtons.css",
             "components/badge/badge.css",
-            "components/container/container.css"
+            "components/container/container.css",
+            "components/askIris/ask-iris.css"
         );
 
         // Get webview URI for the bundled components script (only if webview is provided)
@@ -283,21 +285,12 @@ export class ExamExerciseDetailView {
                 });
             })()}
 
-    ${ContainerComponent.generate({
+    ${AskIrisComponent.generate({
                 id: 'iris-assist-section',
                 className: 'iris-assist-section',
-                header: {
-                    title: 'Ask Iris about this exercise',
-                    subtitle: 'Open the Iris chat to discuss this exercise or get guidance.',
-                    actionsHtml: ButtonComponent.generate({
-                        label: 'Ask Iris',
-                        variant: 'primary',
-                        id: 'askIrisAboutExerciseBtn',
-                        command: 'document.getElementById("askIrisAboutExerciseBtn").click()',
-                        fullWidth: false
-                    })
-                },
-                bodyHtml: ''
+                title: 'Ask Iris about this exercise',
+                description: 'Open the Iris chat to discuss this exercise or get guidance.',
+                buttonId: 'askIrisAboutExerciseBtn'
             })}
 
     ${ContainerComponent.generate({
