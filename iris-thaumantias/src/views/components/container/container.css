@@ -75,6 +75,11 @@
   margin-bottom: 12px;
 }
 
+/* Remove header bottom margin when collapsed */
+.ui-container.is-collapsed .ui-container__header {
+  margin-bottom: 0;
+}
+
 .ui-container__header-main {
   display: flex;
   align-items: center;
