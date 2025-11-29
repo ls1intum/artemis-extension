@@ -52,9 +52,9 @@
   /* Layout & effects */
   --theme-button-shadow: none;
   --theme-button-shadow-hover: none;
-  --theme-container-padding: 20px;
+  --theme-container-padding: 16px;
   --theme-container-radius: 3px;
-  --theme-element-spacing: 12px;
+  --theme-element-spacing: 6px;
   --theme-form-spacing: 8px;
   --theme-box-shadow: none;
   --theme-backdrop: none;

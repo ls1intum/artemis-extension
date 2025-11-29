@@ -2,7 +2,7 @@
   background: var(--theme-card-background);
   border: 1px solid var(--theme-border);
   border-radius: var(--theme-container-radius);
-  padding: var(--theme-container-padding);
+  padding: 12px var(--theme-container-padding);
   margin-bottom: var(--theme-element-spacing);
   transition: none;
   position: relative;
