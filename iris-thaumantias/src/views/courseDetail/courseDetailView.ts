@@ -284,30 +284,30 @@ export class CourseDetailView {
                 <div class="exercise-search">
                     <div class="search-input-wrapper">
                         ${TextInputComponent.generate({
-                            id: 'exerciseSearch',
-                            type: 'search',
-                            placeholder: 'Search exercises...',
-                            size: 'medium',
-                            className: 'search-input',
-                            height: '2rem'
-                        })}
+                id: 'exerciseSearch',
+                type: 'search',
+                placeholder: 'Search exercises...',
+                size: 'medium',
+                className: 'search-input',
+                height: '2rem'
+            })}
                     </div>
                     ${DropdownComponent.generate({
-                        id: 'exerciseSort',
-                        size: 'medium',
-                        onChange: 'sortExercises(this.value)',
-                        height: '2rem',
-                        options: [
-                            { value: 'id-desc', label: 'Latest Added', selected: true },
-                            { value: 'id-asc', label: 'Oldest Added' },
-                            { value: 'title-asc', label: 'Title (A-Z)' },
-                            { value: 'title-desc', label: 'Title (Z-A)' },
-                            { value: 'due-asc', label: 'Due Date (Earliest)' },
-                            { value: 'due-desc', label: 'Due Date (Latest)' },
-                            { value: 'points-asc', label: 'Points (Low-High)' },
-                            { value: 'points-desc', label: 'Points (High-Low)' }
-                        ]
-                    })}
+                id: 'exerciseSort',
+                size: 'medium',
+                onChange: 'sortExercises(this.value)',
+                height: '2rem',
+                options: [
+                    { value: 'id-desc', label: 'Latest Added', selected: true },
+                    { value: 'id-asc', label: 'Oldest Added' },
+                    { value: 'title-asc', label: 'Title (A-Z)' },
+                    { value: 'title-desc', label: 'Title (Z-A)' },
+                    { value: 'due-asc', label: 'Due Date (Earliest)' },
+                    { value: 'due-desc', label: 'Due Date (Latest)' },
+                    { value: 'points-asc', label: 'Points (Low-High)' },
+                    { value: 'points-desc', label: 'Points (High-Low)' }
+                ]
+            })}
                 </div>
                 <div class="exercises-scroll-container">
                     <div class="exercises-list">
@@ -322,15 +322,15 @@ export class CourseDetailView {
         const developerTools = !hideDeveloperTools ? `
             <div class="action-buttons">
                 ${ButtonComponent.generate({
-                    label: 'Open Raw JSON',
-                    variant: 'secondary',
-                    command: 'openInEditor()'
-                })}
+            label: 'Open Raw JSON',
+            variant: 'secondary',
+            command: 'openInEditor()'
+        })}
                 ${ButtonComponent.generate({
-                    label: 'Copy Course Data',
-                    variant: 'secondary',
-                    command: 'copyToClipboard()'
-                })}
+            label: 'Copy Course Data',
+            variant: 'secondary',
+            command: 'copyToClipboard()'
+        })}
             </div>
         ` : '';
 
