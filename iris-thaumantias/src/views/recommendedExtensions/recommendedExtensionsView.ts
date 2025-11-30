@@ -119,22 +119,22 @@ export class RecommendedExtensionsView {
 
     private _renderExtensionCard(extension: RecommendedExtensionCategory['extensions'][number]): string {
         const isInstalled = extension.isInstalled === true;
-        
+
         // Use BadgeComponent for status and optional pills
         const statusBadge = BadgeComponent.generate({
             label: isInstalled ? 'Installed' : 'Not installed',
             variant: isInstalled ? 'success' : 'secondary',
             className: 'status-badge'
         });
-        
-        const optionalBadge = extension.optional 
+
+        const optionalBadge = extension.optional
             ? BadgeComponent.generate({
                 label: 'Optional',
                 variant: 'secondary',
                 className: 'optional-badge'
             })
             : '';
-        
+
         const publisherLine = extension.version ? `${extension.publisher} • v${extension.version}` : extension.publisher;
 
         return ListItemComponent.generate(
@@ -164,17 +164,17 @@ export class RecommendedExtensionsView {
                     <p class="extension-reason">${extension.reason}</p>
                 </div>
                 ${ButtonComponent.generate({
-                    label: 'View in Marketplace',
-                    variant: 'secondary',
-                    className: 'marketplace-button',
-                    command: `openExtensionMarketplace('${extension.id}')`
-                })}
+                label: 'View in Marketplace',
+                variant: 'secondary',
+                className: 'marketplace-button',
+                command: `openExtensionMarketplace('${extension.id}')`
+            })}
             `
         );
     }
 
     private _renderFilterControls(categories: RecommendedExtensionCategory[]): string {
-        const categoryButtons = categories.map(category => 
+        const categoryButtons = categories.map(category =>
             ButtonComponent.generate({
                 label: category.name,
                 variant: 'secondary',
@@ -189,12 +189,12 @@ export class RecommendedExtensionsView {
             <div class="filter-label">FILTER</div>
             <div class="filter-controls">
                 ${ButtonComponent.generate({
-                    label: 'All categories',
-                    variant: 'primary',
-                    className: 'filter-button active',
-                    command: `filterCategory('all')`,
-                    dataAttributes: { 'category': 'all' }
-                })}
+            label: 'All categories',
+            variant: 'primary',
+            className: 'filter-button active',
+            command: `filterCategory('all')`,
+            dataAttributes: { 'category': 'all' }
+        })}
                 ${categoryButtons}
             </div>
         </div>`;
