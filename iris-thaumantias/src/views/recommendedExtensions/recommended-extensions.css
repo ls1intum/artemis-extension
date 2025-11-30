@@ -12,48 +12,12 @@
             margin: 0 auto;
             display: flex;
             flex-direction: column;
-            gap: calc(var(--theme-element-spacing) * 1.5);
+            gap: 16px;
         }
 
-        .header-container {
-            background: var(--theme-card-background);
-            border: 1px solid var(--theme-border);
-            border-radius: var(--theme-container-radius);
-            padding: var(--theme-container-padding);
-            box-shadow: var(--theme-box-shadow);
-            backdrop-filter: var(--theme-backdrop);
-            overflow: hidden;
-        }
-
-        .view-header {
-            display: flex;
-            flex-direction: column;
-            gap: 6px;
-            margin-bottom: var(--theme-element-spacing);
-        }
-
-        .view-header > * {
-            line-height: 1.35;
-        }
-
-        .view-title {
-            font-size: 26px;
-            font-weight: 700;
-            margin: 0;
-            letter-spacing: -0.01em;
-        }
-
-        .view-subtitle {
-            font-size: 14px;
-            opacity: 0.7;
-            margin: 0;
-            max-width: 640px;
-        }
-
-        .category-section {
-            display: flex;
-            flex-direction: column;
-            gap: var(--theme-element-spacing);
+        /* Header container adjustments */
+        .header-container .ui-container__body {
+            padding-top: 0;
         }
 
         .filter-bar {
@@ -61,8 +25,6 @@
             flex-wrap: wrap;
             align-items: center;
             gap: 8px;
-            margin-top: 4px;
-            margin-bottom: calc(var(--theme-element-spacing) * 0.75);
         }
 
         .filter-label {
@@ -79,35 +41,18 @@
             gap: 8px;
         }
 
-        .category-header {
-            border-bottom: 1px solid var(--theme-border);
-            padding-bottom: 12px;
-            margin-bottom: calc(var(--theme-element-spacing) * 0.75);
-        }
-
-        .category-name {
-            font-size: 20px;
-            margin: 0;
-            line-height: 1.4;
-        }
-
-        .category-description {
-            font-size: 14px;
-            margin: 4px 0 0 0;
-            opacity: 0.75;
-        }
-
-        .extensions-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
-            gap: var(--theme-element-spacing);
+        /* Extensions list within category container */
+        .extensions-list {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
         }
 
         /* Extension card content styles (ListItemComponent handles the container) */
         .extension-card {
             display: flex;
             flex-direction: column;
-            gap: 18px;
+            gap: 12px;
         }
         
         .extension-card .extension-header {
@@ -134,9 +79,9 @@
         }
 
         .extension-card .extension-name {
-            font-size: 18px;
+            font-size: 16px;
             font-weight: 600;
-            margin: 0 0 4px 0;
+            margin: 0;
         }
 
         .extension-card .extension-publisher {
@@ -152,44 +97,32 @@
         }
 
         .extension-card .extension-reason-label {
-            font-size: 12px;
+            font-size: 11px;
             font-weight: 600;
             text-transform: uppercase;
             letter-spacing: 0.04em;
-            opacity: 0.75;
+            opacity: 0.65;
         }
 
         .extension-card .extension-reason {
-            font-size: 14px;
+            font-size: 13px;
             margin: 0;
             line-height: 1.5;
+            opacity: 0.85;
         }
 
         .extension-card .extension-reason-block {
             display: flex;
             flex-direction: column;
-            gap: 6px;
+            gap: 4px;
+            padding: 8px 10px;
+            background: var(--theme-background);
+            border-radius: 6px;
+            border: 1px dashed var(--theme-border);
         }
-
-        .empty-state {
-            background: var(--theme-card-background);
-            border: 1px solid var(--theme-border);
-            border-radius: var(--theme-container-radius);
-            box-shadow: var(--theme-box-shadow);
-            backdrop-filter: var(--theme-backdrop);
-            padding: var(--theme-container-padding);
-            text-align: center;
-            font-size: 14px;
-            opacity: 0.75;
-        }
-
 
         @media (max-width: 768px) {
             body {
                 padding: 0 12px 12px 12px;
-            }
-
-            .extensions-grid {
-                grid-template-columns: 1fr;
             }
         }

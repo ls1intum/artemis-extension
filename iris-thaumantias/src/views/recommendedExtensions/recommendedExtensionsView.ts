@@ -4,6 +4,7 @@ import { BackLinkComponent } from '../components/backLink/backLinkComponent';
 import { ButtonComponent } from '../components/button/buttonComponent';
 import { ListItemComponent } from '../components/listItem/listItemComponent';
 import { BadgeComponent } from '../components/badge/badgeComponent';
+import { ContainerComponent } from '../components/container/containerComponent';
 
 export class RecommendedExtensionsView {
     public generateHtml(categories: RecommendedExtensionCategory[] = []): string {
@@ -12,6 +13,7 @@ export class RecommendedExtensionsView {
             'components/button/button.css',
             'components/listItem/list-item.css',
             'components/badge/badge.css',
+            'components/container/container.css',
             'recommendedExtensions/recommended-extensions.css'
         );
 
@@ -21,6 +23,16 @@ export class RecommendedExtensionsView {
             ? categories.map(category => this._renderCategory(category)).join('')
             : this._renderEmptyState();
         const filterControls = hasCategories ? this._renderFilterControls(categories) : '';
+
+        const headerContainer = ContainerComponent.generate({
+            className: 'header-container',
+            header: {
+                title: 'Recommended Extensions',
+                subtitle: 'Improve your Artemis workflow with curated VS Code extensions.',
+                titleSize: 'xlarge'
+            },
+            bodyHtml: filterControls
+        });
 
         return `<!DOCTYPE html>
 <html lang="en">
@@ -34,15 +46,9 @@ export class RecommendedExtensionsView {
 
 </head>
 <body>
+    ${BackLinkComponent.generateHtml()}
     <div class="recommended-container">
-        ${BackLinkComponent.generateHtml()}
-        <div class="header-container">
-            <div class="view-header">
-                <h1 class="view-title">Recommended Extensions</h1>
-                <p class="view-subtitle">Improve your Artemis workflow with curated VS Code extensions.</p>
-            </div>
-            ${filterControls}
-        </div>
+        ${headerContainer}
         ${categorySections}
     </div>
 
@@ -85,6 +91,8 @@ export class RecommendedExtensionsView {
                 }
             });
         };
+
+        ${ContainerComponent.generateScript()}
     </script>
 </body>
 </html>`;
@@ -93,16 +101,20 @@ export class RecommendedExtensionsView {
     private _renderCategory(category: RecommendedExtensionCategory): string {
         const extensionsHtml = category.extensions.map(extension => this._renderExtensionCard(extension)).join('');
 
-        return `
-        <section class="category-section" data-category-id="${category.id}">
-            <header class="category-header">
-                <h2 class="category-name">${category.name}</h2>
-                <p class="category-description">${category.description}</p>
-            </header>
-            <div class="extensions-grid">
-                ${extensionsHtml}
-            </div>
-        </section>`;
+        return ContainerComponent.generate({
+            className: 'category-section',
+            listMode: true,
+            header: {
+                title: category.name,
+                subtitle: category.description,
+                titleSize: 'large',
+                divider: true
+            },
+            bodyHtml: `<div class="extensions-list">${extensionsHtml}</div>`,
+            dataAttributes: {
+                'category-id': category.id
+            }
+        });
     }
 
     private _renderExtensionCard(extension: RecommendedExtensionCategory['extensions'][number]): string {
@@ -189,8 +201,14 @@ export class RecommendedExtensionsView {
     }
 
     private _renderEmptyState(): string {
-        return `<div class="empty-state">
-            No recommended extensions available right now. Check back soon!
-        </div>`;
+        return ContainerComponent.generate({
+            className: 'empty-state',
+            textAlign: 'center',
+            state: {
+                type: 'info',
+                message: 'No recommended extensions available',
+                hint: 'Check back soon for curated extension recommendations!'
+            }
+        });
     }
 }
