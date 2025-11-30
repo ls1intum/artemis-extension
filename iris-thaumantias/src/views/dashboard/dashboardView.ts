@@ -222,9 +222,17 @@ export class DashboardView {
             fullWidth: true
         })}
                 ${ButtonComponent.generate({
+            label: 'Open Settings',
+            icon: gearIcon,
+            variant: 'primary',
+            id: 'openSettingsBtn',
+            command: 'document.getElementById("openSettingsBtn").click()',
+            fullWidth: true
+        })}
+                ${ButtonComponent.generate({
             label: 'AI Checker',
             icon: star4Icon,
-            variant: 'primary',
+            variant: 'secondary',
             id: 'checkAiConfigBtn',
             command: 'document.getElementById("checkAiConfigBtn").click()',
             fullWidth: true
@@ -232,7 +240,7 @@ export class DashboardView {
                 ${ButtonComponent.generate({
             label: 'Service Status',
             icon: stethoscopeIcon,
-            variant: 'primary',
+            variant: 'secondary',
             id: 'checkServiceStatusBtn',
             command: 'document.getElementById("checkServiceStatusBtn").click()',
             fullWidth: true
@@ -240,7 +248,7 @@ export class DashboardView {
                 ${ButtonComponent.generate({
             label: 'Recommended Extensions',
             icon: puzzleIcon,
-            variant: 'primary',
+            variant: 'secondary',
             id: 'recommendedExtensionsBtn',
             command: 'document.getElementById("recommendedExtensionsBtn").click()',
             fullWidth: true
@@ -248,7 +256,7 @@ export class DashboardView {
                 ${ButtonComponent.generate({
             label: 'Open Artemis in browser',
             icon: webIcon,
-            variant: 'primary',
+            variant: 'secondary',
             id: 'openWebsiteBtn',
             command: 'document.getElementById("openWebsiteBtn").click()',
             fullWidth: true
@@ -259,14 +267,6 @@ export class DashboardView {
             variant: 'secondary',
             id: 'gitCredentialsBtn',
             command: 'document.getElementById("gitCredentialsBtn").click()',
-            fullWidth: true
-        })}
-                ${ButtonComponent.generate({
-            label: 'Open Settings',
-            icon: gearIcon,
-            variant: 'secondary',
-            id: 'openSettingsBtn',
-            command: 'document.getElementById("openSettingsBtn").click()',
             fullWidth: true
         })}
                 ${ButtonComponent.generate({
