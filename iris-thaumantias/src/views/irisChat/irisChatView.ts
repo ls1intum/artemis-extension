@@ -89,13 +89,13 @@ export class IrisChatView {
                         </div>
                     </div>
                     ${CollapseButton.generate({
-                        id: 'contextDropdownArrow',
-                        collapsed: true,
-                        direction: 'down',
-                        targetId: 'contextDropdownMenu',
-                        title: 'Toggle context menu',
-                        className: 'context-collapse-btn'
-                    })}
+                    id: 'contextDropdownArrow',
+                    collapsed: true,
+                    direction: 'down',
+                    targetId: 'contextDropdownMenu',
+                    title: 'Toggle context menu',
+                    className: 'context-collapse-btn'
+                })}
                 </div>`
             )}
 
@@ -119,15 +119,37 @@ export class IrisChatView {
                         <div class="session-list" id="sessionList"></div>
                         <div class="dropdown-divider"></div>
                         <div class="dropdown-section">
-                            <button class="dropdown-action-btn" id="newSessionBtn" onclick="createNewSession()" disabled>
-                                <span class="button-icon">${plusIcon}</span> New Conversation
-                            </button>
-                            <button class="dropdown-action-btn" id="workspaceContextBtn" onclick="switchToWorkspaceContext()" disabled>
-                                <span class="button-icon">${lockIcon}</span> Switch to Workspace
-                            </button>
-                            <button class="dropdown-action-btn" onclick="requestContextSwitch()">
-                                <span class="button-icon">${switchIcon}</span> Switch to Different Context
-                            </button>
+                            ${ButtonComponent.generate({
+                                label: 'New Conversation',
+                                icon: plusIcon,
+                                variant: 'ghost',
+                                id: 'newSessionBtn',
+                                command: 'createNewSession()',
+                                disabled: true,
+                                fullWidth: true,
+                                className: 'dropdown-action-btn',
+                                height: '2rem'
+                            })}
+                            ${ButtonComponent.generate({
+                                label: 'Switch to Workspace',
+                                icon: lockIcon,
+                                variant: 'ghost',
+                                id: 'workspaceContextBtn',
+                                command: 'switchToWorkspaceContext()',
+                                disabled: true,
+                                fullWidth: true,
+                                className: 'dropdown-action-btn',
+                                height: '2rem'
+                            })}
+                            ${ButtonComponent.generate({
+                                label: 'Switch to Different Context',
+                                icon: switchIcon,
+                                variant: 'ghost',
+                                command: 'requestContextSwitch()',
+                                fullWidth: true,
+                                className: 'dropdown-action-btn',
+                                height: '2rem'
+                            })}
                         </div>
                     </div>
 
@@ -1023,11 +1045,12 @@ export class IrisChatView {
             const hasMessages = messageElements.length > 0;
 
             newSessionBtn.disabled = !hasMessages;
-            
-            if (!hasMessages) {
-                newSessionBtn.title = 'Send at least one message before creating a new conversation';
-            } else {
+            if (hasMessages) {
+                newSessionBtn.classList.remove('btn-disabled');
                 newSessionBtn.title = 'Create a new conversation';
+            } else {
+                newSessionBtn.classList.add('btn-disabled');
+                newSessionBtn.title = 'Send at least one message before creating a new conversation';
             }
         }
 
@@ -1044,11 +1067,12 @@ export class IrisChatView {
             );
 
             workspaceBtn.disabled = !hasWorkspaceExercise;
-            
-            if (!hasWorkspaceExercise) {
-                workspaceBtn.title = 'No workspace exercise detected';
-            } else {
+            if (hasWorkspaceExercise) {
+                workspaceBtn.classList.remove('btn-disabled');
                 workspaceBtn.title = 'Switch to workspace exercise context';
+            } else {
+                workspaceBtn.classList.add('btn-disabled');
+                workspaceBtn.title = 'No workspace exercise detected';
             }
         }
 

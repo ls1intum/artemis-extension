@@ -67,28 +67,28 @@
     transform: none !important;
 }
 
-/* Icon color inheritance - stroke for outlined icons, fill for solid icons */
+/* Icon color inheritance - use fill by default for solid icons */
 .btn svg {
-    stroke: currentColor;
-    fill: none;
+    fill: currentColor;
+    stroke: none;
 }
 
 .btn svg path,
 .btn svg circle,
 .btn svg rect,
 .btn svg polygon {
-    stroke: currentColor;
-    fill: none;
-}
-
-/* For icons that need fill (like solid icons), override with fill attribute */
-.btn svg[fill]:not([fill="none"]),
-.btn svg path[fill]:not([fill="none"]),
-.btn svg circle[fill]:not([fill="none"]),
-.btn svg rect[fill]:not([fill="none"]),
-.btn svg polygon[fill]:not([fill="none"]) {
     fill: currentColor;
     stroke: none;
+}
+
+/* For icons that explicitly need stroke (outlined icons), use stroke attribute */
+.btn svg[stroke]:not([stroke="none"]),
+.btn svg path[stroke]:not([stroke="none"]),
+.btn svg circle[stroke]:not([stroke="none"]),
+.btn svg rect[stroke]:not([stroke="none"]),
+.btn svg polygon[stroke]:not([stroke="none"]) {
+    stroke: currentColor;
+    fill: none;
 }
 
 /* Primary Button - Blue solid background like "Commit" */
@@ -207,6 +207,32 @@
 
 .btn-link .btn-icon,
 .btn-link .btn-icon svg {
+    color: inherit;
+}
+
+/* Ghost Button - transparent background with blue/white hover effect, ideal for menu items */
+.btn-ghost {
+    background-color: transparent;
+    color: var(--vscode-foreground, currentColor);
+    border: none;
+    padding: 8px 12px;
+    text-align: left;
+    justify-content: flex-start;
+    border-radius: 4px;
+}
+
+.btn-ghost:hover:not(.btn-disabled) {
+    background-color: var(--vscode-button-background, #007acc);
+    color: var(--vscode-button-foreground, #ffffff);
+}
+
+.btn-ghost:active:not(.btn-disabled) {
+    background-color: var(--vscode-button-hoverBackground, #005a9e);
+    color: var(--vscode-button-foreground, #ffffff);
+}
+
+.btn-ghost .btn-icon,
+.btn-ghost .btn-icon svg {
     color: inherit;
 }
 

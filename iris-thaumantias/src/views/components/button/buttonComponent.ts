@@ -4,7 +4,7 @@ export interface ButtonOptions {
     /** Icon SVG string (from IconDefinitions) */
     icon?: string;
     /** Button variant */
-    variant?: 'primary' | 'secondary' | 'icon' | 'link';
+    variant?: 'primary' | 'secondary' | 'icon' | 'link' | 'ghost';
     /** Additional CSS classes */
     className?: string;
     /** Button click command */

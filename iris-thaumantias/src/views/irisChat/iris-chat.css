@@ -241,27 +241,10 @@ body {
     padding: 6px 8px 0;
 }
 
-.dropdown-action-btn {
+/* Dropdown action buttons - using ghost button component */
+.dropdown-action-btn.btn-ghost {
     width: 100%;
-    padding: 8px 10px;
-    background: none;
-    border: none;
-    text-align: left;
     font-size: 13px;
-    color: var(--theme-foreground);
-    cursor: pointer;
-    border-radius: 4px;
-    transition: var(--theme-transition);
-}
-
-.dropdown-action-btn:hover:not(:disabled) {
-    background: var(--theme-button-background);
-    color: var(--theme-button-foreground);
-}
-
-.dropdown-action-btn:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
 }
 
 
