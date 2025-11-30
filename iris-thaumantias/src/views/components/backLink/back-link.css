@@ -27,6 +27,7 @@
 
 .back-link:hover {
     color: var(--theme-link-hover);
+    text-decoration: underline;
 }
 
 .back-link:focus-visible {
