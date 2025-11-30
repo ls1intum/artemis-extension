@@ -8,6 +8,8 @@ import { ListItemComponent } from '../components/listItem/listItemComponent';
 import { DropdownComponent } from '../components/dropdown/dropdownComponent';
 import { BadgeComponent } from '../components/badge/badgeComponent';
 import { AskIrisComponent } from '../components/askIris/askIrisComponent';
+import { ContainerComponent } from '../components/container/containerComponent';
+import { FullscreenButton } from '../components/button/iconButtons/fullscreenButton';
 
 export class CourseDetailView {
     private _extensionContext: vscode.ExtensionContext;
@@ -25,6 +27,7 @@ export class CourseDetailView {
             'components/backLink/back-link.css',
             'courseDetail/course-detail.css',
             'components/button/button.css',
+            'components/button/iconButtons/iconButtons.css',
             'components/input/input.css',
             'components/listItem/list-item.css',
             'components/dropdown/dropdown.css',
@@ -41,6 +44,16 @@ export class CourseDetailView {
     }
 
     private _getEmptyStateHtml(styles: string): string {
+        const emptyContainer = ContainerComponent.generate({
+            className: 'empty-state-container',
+            textAlign: 'center',
+            state: {
+                type: 'info',
+                message: 'No course selected',
+                hint: 'Select a course to view its details'
+            }
+        });
+
         return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -52,10 +65,9 @@ export class CourseDetailView {
     </style>
 </head>
 <body>
-    <div class="empty-state">
-        <h2>Course Details</h2>
-        <p>Select a course to view its details</p>
-    ${BackLinkComponent.generateHtml({ wrap: false })}
+    ${BackLinkComponent.generateHtml()}
+    <div class="course-detail-container">
+        ${emptyContainer}
     </div>
     
     <script>
@@ -136,20 +148,17 @@ export class CourseDetailView {
 
                 let status = 'Upcoming';
                 let showBadge = false;
-                let activeOutline: string | undefined;
 
                 if (now > end) {
                     status = 'Finished';
                 } else if (now >= start && now <= end) {
                     status = 'Active';
                     showBadge = true;
-                    activeOutline = '2px solid var(--theme-button-background)';
                 }
 
                 const statusBadge = showBadge ? BadgeComponent.generate({
                     label: status,
                     variant: 'primary',
-                    height: '1rem',
                     className: 'exam-status-badge'
                 }) : '';
 
@@ -158,7 +167,6 @@ export class CourseDetailView {
                         className: 'exam-item',
                         clickable: true,
                         command: `openExam(${exam.id})`,
-                        outline: activeOutline,
                         dataAttributes: {
                             'title': (exam.title?.toLowerCase() || ''),
                             'id': exam.id.toString()
@@ -226,114 +234,131 @@ export class CourseDetailView {
             exercisesHtml = `<div class="no-exercises">${noExercisesMessage}</div>`;
         }
 
+        // Course header container
+        const courseHeaderContainer = ContainerComponent.generate({
+            className: 'course-header-container',
+            header: {
+                title: courseTitle,
+                badge: semester,
+                titleSize: 'xlarge',
+                actionsHtml: FullscreenButton.generate({
+                    id: 'fullscreenBtn',
+                    command: 'toggleFullscreen()',
+                    title: 'Open in new tab'
+                })
+            },
+            bodyHtml: `
+                <div class="course-color-indicator" style="background-color: ${courseColor};"></div>
+                <p class="course-description">${courseDescription}</p>
+                <div class="course-stats">
+                    <span class="stat-item">${exerciseCount} exercises</span>
+                    <span class="stat-item">${studentCount} students</span>
+                    <span class="stat-item">${instructorGroup}</span>
+                    <span class="stat-item">ID: ${course?.id || 'Unknown'}</span>
+                </div>
+            `
+        });
+
+        // Exams container
+        const examsContainer = examCount > 0 ? ContainerComponent.generate({
+            className: 'exams-container',
+            id: 'exams-section',
+            header: {
+                title: 'Exams',
+                badge: examCount.toString(),
+                divider: true,
+                collapsible: true
+            },
+            bodyHtml: `<div class="exam-list">${examsHtml}</div>`
+        }) : '';
+
+        // Exercises container
+        const exercisesContainer = ContainerComponent.generate({
+            className: 'exercises-container-section',
+            header: {
+                title: 'Exercises',
+                badge: exerciseCount.toString(),
+                divider: true
+            },
+            bodyHtml: `
+                <div class="exercise-search">
+                    <div class="search-input-wrapper">
+                        ${TextInputComponent.generate({
+                            id: 'exerciseSearch',
+                            type: 'search',
+                            placeholder: 'Search exercises...',
+                            size: 'medium',
+                            className: 'search-input',
+                            height: '2rem'
+                        })}
+                    </div>
+                    ${DropdownComponent.generate({
+                        id: 'exerciseSort',
+                        size: 'medium',
+                        onChange: 'sortExercises(this.value)',
+                        height: '2rem',
+                        options: [
+                            { value: 'id-desc', label: 'Latest Added', selected: true },
+                            { value: 'id-asc', label: 'Oldest Added' },
+                            { value: 'title-asc', label: 'Title (A-Z)' },
+                            { value: 'title-desc', label: 'Title (Z-A)' },
+                            { value: 'due-asc', label: 'Due Date (Earliest)' },
+                            { value: 'due-desc', label: 'Due Date (Latest)' },
+                            { value: 'points-asc', label: 'Points (Low-High)' },
+                            { value: 'points-desc', label: 'Points (High-Low)' }
+                        ]
+                    })}
+                </div>
+                <div class="exercises-scroll-container">
+                    <div class="exercises-list">
+                        ${exercisesHtml}
+                        <div class="no-exercises-found">No exercises found matching your search.</div>
+                    </div>
+                </div>
+            `
+        });
+
+        // Developer tools section
+        const developerTools = !hideDeveloperTools ? `
+            <div class="action-buttons">
+                ${ButtonComponent.generate({
+                    label: 'Open Raw JSON',
+                    variant: 'secondary',
+                    command: 'openInEditor()'
+                })}
+                ${ButtonComponent.generate({
+                    label: 'Copy Course Data',
+                    variant: 'secondary',
+                    command: 'copyToClipboard()'
+                })}
+            </div>
+        ` : '';
+
         return `<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Course Details</title>
-        <style>
+    <style>
         ${styles}
-        </style>
+    </style>
 </head>
 <body>
-    <div class="back-link-container">
-        ${BackLinkComponent.generateHtml({ wrap: false })}
-        <button class="fullscreen-btn" id="fullscreenBtn" onclick="toggleFullscreen()" title="Open course in new editor tab">
-            ⛶
-        </button>
-    </div>
-    
-    <div class="course-header">
-        <div class="course-color-indicator" style="background-color: ${courseColor};"></div>
-        <div class="course-header-content">
-            <div class="course-title">${courseTitle}</div>
-            <div class="course-semester">${semester}</div>
-            <div class="course-description">${courseDescription}</div>
-            <div class="course-stats">
-                <div class="stat-item">${exerciseCount} exercises</div>
-                <div class="stat-item">${studentCount} students</div>
-                <div class="stat-item">${instructorGroup}</div>
-                <div class="stat-item">ID: ${course?.id || 'Unknown'}</div>
-            </div>
-        </div>
-    </div>
-    
-    ${AskIrisComponent.generate({
+    ${BackLinkComponent.generateHtml()}
+    <div class="course-detail-container">
+        ${courseHeaderContainer}
+        ${AskIrisComponent.generate({
             id: 'ask-iris-course',
-            className: 'section',
+            className: 'iris-section',
             title: 'Ask Iris about this course',
             description: 'Open the Iris chat to discuss this course or its exercises.',
             buttonId: 'askIrisAboutCourseBtn'
         })}
-
-    <div class="section collapsible-section" id="exams-section">
-        <div class="section-title collapsible-header" onclick="toggleSection('exams-section')">
-            <div class="header-left">
-                <span>Exams</span>
-                <span class="exam-count-badge">${examCount}</span>
-            </div>
-            <span class="collapse-icon"></span>
-        </div>
-        <div class="collapsible-content">
-            <div class="exam-list">
-                ${examsHtml}
-            </div>
-        </div>
+        ${examsContainer}
+        ${exercisesContainer}
+        ${developerTools}
     </div>
-    
-    <div class="section">
-        <div class="section-title">Exercises</div>
-        <div class="exercise-search">
-            <div class="search-input-wrapper">
-                ${TextInputComponent.generate({
-            id: 'exerciseSearch',
-            type: 'search',
-            placeholder: 'Search exercises...',
-            size: 'medium',
-            className: 'search-input',
-            height: '2rem'
-        })}
-            </div>
-            ${DropdownComponent.generate({
-            id: 'exerciseSort',
-            size: 'medium',
-            onChange: 'sortExercises(this.value)',
-            height: '2rem',
-            options: [
-                { value: 'id-desc', label: 'Latest Added', selected: true },
-                { value: 'id-asc', label: 'Oldest Added' },
-                { value: 'title-asc', label: 'Title (A-Z)' },
-                { value: 'title-desc', label: 'Title (Z-A)' },
-                { value: 'due-asc', label: 'Due Date (Earliest)' },
-                { value: 'due-desc', label: 'Due Date (Latest)' },
-                { value: 'points-asc', label: 'Points (Low-High)' },
-                { value: 'points-desc', label: 'Points (High-Low)' }
-            ]
-        })}
-        </div>
-        <div class="exercises-container">
-            <div class="exercises-list">
-                ${exercisesHtml}
-                <div class="no-exercises-found">No exercises found matching your search.</div>
-            </div>
-        </div>
-    </div>
-    
-    ${!hideDeveloperTools ? `
-    <div class="action-buttons">
-        ${ButtonComponent.generate({
-            label: 'Open Raw JSON',
-            variant: 'secondary',
-            command: 'openInEditor()'
-        })}
-        ${ButtonComponent.generate({
-            label: 'Copy Course Data',
-            variant: 'secondary',
-            command: 'copyToClipboard()'
-        })}
-    </div>
-    ` : ''}
 
     <script>
         const vscode = acquireVsCodeApi();
@@ -341,16 +366,10 @@ export class CourseDetailView {
         const askIrisButton = document.getElementById('askIrisAboutCourseBtn');
         
         ${BackLinkComponent.generateScript()}
+        ${ContainerComponent.generateScript()}
         
         // Enable keyboard navigation for list items
         ${ListItemComponent.generateScript()}
-        
-        window.toggleSection = function(sectionId) {
-            const section = document.getElementById(sectionId);
-            if (section) {
-                section.classList.toggle('collapsed');
-            }
-        }
 
         if (askIrisButton) {
             askIrisButton.addEventListener('click', () => {

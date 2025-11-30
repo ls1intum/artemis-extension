@@ -7,36 +7,20 @@ body {
             transition: var(--theme-transition);
         }
 
-        .empty-state {
-            text-align: center;
-            padding: 48px 16px;
-            color: var(--theme-foreground);
-            opacity: 0.6;
+        .course-detail-container {
+            max-width: 900px;
+            margin: 0 auto;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
         }
 
-        .empty-state h2 {
-            margin: 0 0 16px 0;
-            font-size: 24px;
-        }
-
-        .empty-state p {
-            margin: 0;
-            font-size: 14px;
-        }
-
-        .course-header {
-            background: var(--theme-card-background);
-            border: 1px solid var(--theme-border);
-            border-radius: var(--theme-container-radius);
-            padding: 20px;
-            margin-top: 16px;
-            margin-bottom: 16px;
-            box-shadow: var(--theme-box-shadow);
-            overflow: hidden; /* clamp inner overflow */
+        /* Course header adjustments */
+        .course-header-container {
             position: relative;
         }
 
-        .course-color-indicator {
+        .course-header-container .course-color-indicator {
             position: absolute;
             top: 0;
             left: 0;
@@ -45,187 +29,24 @@ body {
             border-radius: var(--theme-container-radius) 0 0 var(--theme-container-radius);
         }
 
-        .course-header-content {
-            margin-left: 12px;
-        }
-
-        .course-title {
-            font-size: 20px;
-            font-weight: 700;
-            color: var(--theme-foreground);
-            margin: 0 0 8px 0;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        .course-semester {
-            display: inline-block;
-            background: var(--theme-button-background);
-            color: var(--theme-button-foreground);
-            padding: 4px 8px;
-            border-radius: 4px;
-            font-size: 12px;
-            font-weight: 600;
-            margin-bottom: 12px;
-        }
-
         .course-description {
             color: var(--theme-foreground);
-            opacity: 0.9;
+            opacity: 0.85;
             font-size: 14px;
             line-height: 1.5;
-            margin-bottom: 16px;
+            margin: 0 0 12px 0;
         }
 
         .course-stats {
             display: flex;
-            gap: 20px;
+            gap: 16px;
             flex-wrap: wrap;
         }
 
         .stat-item {
-            display: flex;
-            align-items: center;
-            gap: 6px;
             font-size: 13px;
             color: var(--theme-foreground);
-            opacity: 0.9;
-        }
-
-        .section {
-            background: var(--theme-card-background);
-            border: 1px solid var(--theme-border);
-            border-radius: var(--theme-container-radius);
-            padding: 16px;
-            margin-bottom: 16px;
-            box-shadow: var(--theme-box-shadow);
-            overflow: hidden; /* clamp inner overflow */
-        }
-
-        .iris-assist-cell {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 16px;
-            flex-wrap: wrap;
-        }
-
-        .iris-assist-content {
-            display: flex;
-            flex-direction: column;
-            gap: 4px;
-            min-width: 220px;
-            flex: 1;
-        }
-
-        .iris-assist-title {
-            font-size: 16px;
-            font-weight: 600;
-            color: var(--theme-foreground);
-            margin: 0;
-        }
-
-        .iris-assist-description {
-            font-size: 13px;
-            color: var(--theme-foreground);
-            opacity: 0.75;
-            margin: 0;
-        }
-
-        .iris-assist-button {
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            background: var(--theme-button-background);
-            color: var(--theme-button-foreground);
-            border: 1px solid var(--theme-button-background);
-            padding: 10px 16px;
-            border-radius: 6px;
-            cursor: pointer;
-            font-size: 13px;
-            font-weight: 500;
-            transition: var(--theme-transition);
-        }
-
-        .iris-assist-button:hover {
-            background: var(--theme-button-hover);
-            border-color: var(--theme-button-hover);
-        }
-
-        .iris-assist-button:active {
-            background: var(--theme-button-active);
-        }
-
-        .iris-assist-button-icon {
-            width: 18px;
-            height: 18px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-
-        .iris-assist-button-icon svg {
-            width: 100%;
-            height: 100%;
-            display: block;
-        }
-
-        .section-title {
-            font-size: 16px;
-            font-weight: 600;
-            color: var(--theme-foreground);
-            margin: 0 0 12px 0;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-
-        /* Exercise item content styles (ListItemComponent handles the container) */
-        .exercise-item .exercise-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 6px;
-            gap: 8px;
-            flex-wrap: nowrap; /* Keep on same line, let title truncate first */
-        }
-
-        .exercise-item .exercise-title {
-            font-weight: 600;
-            color: var(--theme-foreground);
-            flex: 1;
-            min-width: 0; /* Allow flex item to shrink below content size */
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            margin-right: 8px;
-        }
-
-        .exercise-type-icon {
-            background: var(--theme-button-background);
-            color: var(--theme-button-foreground);
-            flex-shrink: 0; /* Don't shrink the icon */
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            width: 20px;
-            height: 20px;
-            border-radius: 4px;
-        }
-
-        .exercise-item .exercise-type-icon svg {
-            width: 12px;
-            height: 12px;
-        }
-
-        .exercise-item .exercise-info {
-            display: flex;
-            gap: 16px;
-            font-size: 12px;
-            color: var(--theme-foreground);
-            opacity: 0.9;
-            flex-wrap: wrap;
+            opacity: 0.8;
         }
 
         /* Exercise search and container */
@@ -244,20 +65,64 @@ body {
             margin-bottom: 0;
         }
 
-        .search-input {
-            flex: 1;
-        }
-
-        .exercises-container {
+        .exercises-scroll-container {
             max-height: 400px;
             overflow-y: auto;
             border: 1px solid var(--theme-border);
-            border-radius: var(--theme-container-radius);
-            background: var(--theme-card-background);
+            border-radius: 8px;
+            background: transparent;
         }
 
         .exercises-list {
             padding: 8px;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        /* Exercise item content styles */
+        .exercise-item .exercise-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .exercise-item .exercise-title {
+            font-weight: 600;
+            color: var(--theme-foreground);
+            flex: 1;
+            min-width: 0;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .exercise-type-icon {
+            background: var(--theme-button-background);
+            color: var(--theme-button-foreground);
+            flex-shrink: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 20px;
+            height: 20px;
+            border-radius: 4px;
+        }
+
+        .exercise-item .exercise-type-icon svg {
+            width: 12px;
+            height: 12px;
+        }
+
+        .exercise-item .exercise-info {
+            display: flex;
+            gap: 16px;
+            font-size: 12px;
+            color: var(--theme-foreground);
+            opacity: 0.8;
+            flex-wrap: wrap;
+            margin-top: 4px;
         }
 
         .no-exercises-found {
@@ -269,7 +134,7 @@ body {
             display: none;
         }
 
-        .no-exercises, .more-exercises {
+        .no-exercises {
             text-align: center;
             color: var(--theme-foreground);
             opacity: 0.6;
@@ -277,64 +142,24 @@ body {
             padding: 16px 0;
         }
 
-        .more-exercises {
-            padding: 8px 0;
-            font-size: 13px;
-        }
-
         .action-buttons {
             display: flex;
             gap: 8px;
-            margin-top: 16px;
             flex-wrap: wrap;
         }
 
-        /* Sticky header container */
-        .back-link-container {
-            margin: 0;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-        }
-
-        /* Fullscreen button styling */
-        .fullscreen-btn {
-            width: 32px;
-            height: 32px;
-            border-radius: 6px;
-            border: 1px solid var(--theme-border);
-            background: var(--theme-card-background);
-            color: var(--theme-foreground);
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 14px;
-            transition: var(--theme-transition);
-            flex-shrink: 0;
-        }
-
-        .fullscreen-btn:hover {
-            background: var(--theme-button-background);
-            color: var(--theme-button-foreground);
-            transform: scale(1.05);
-        }
-
-        /* Exam item styles */
+        /* Exam list styles */
         .exam-list {
-            padding: 8px;
-            border: 1px solid var(--theme-border);
-            border-radius: var(--theme-container-radius);
-            background: var(--theme-card-background);
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
         }
 
         .exam-item .exam-header {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 6px;
             gap: 8px;
-            flex-wrap: nowrap;
         }
 
         .exam-item .exam-title {
@@ -349,71 +174,11 @@ body {
 
         .exam-item .exam-info {
             display: flex;
-            gap: 16px;
+            gap: 12px;
             font-size: 12px;
             color: var(--theme-foreground);
-            opacity: 0.9;
-            flex-wrap: wrap;
-        }
-
-        /* Collapsible section styles */
-        .collapsible-header {
-            cursor: pointer;
-            user-select: none;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-
-        .header-left {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        .exam-count-badge {
-            display: none;
-            background: var(--theme-button-background);
-            color: var(--theme-button-foreground);
-            font-size: 11px;
-            font-weight: 600;
-            padding: 2px 6px;
-            border-radius: 10px;
-            line-height: 1;
-        }
-
-        .collapsible-section.collapsed .exam-count-badge {
-            display: inline-block;
-        }
-
-        .collapse-icon {
-            width: 16px;
-            height: 16px;
-            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23999999' d='M6 9L1 4h10z'/%3E%3C/svg%3E");
-            background-repeat: no-repeat;
-            background-position: center;
-            transition: transform 0.2s ease;
             opacity: 0.8;
-        }
-
-        /* When collapsed, rotate to point right (since default is down) */
-        .collapsible-section.collapsed .collapse-icon {
-            transform: rotate(-90deg);
-        }
-
-        .collapsible-content {
-            max-height: 500px;
-            overflow: hidden;
-            transition: max-height 0.3s ease, opacity 0.3s ease;
-            opacity: 1;
-        }
-
-        .collapsible-section.collapsed .collapsible-content {
-            max-height: 0;
-            opacity: 0;
-        }
-        
-        /* Remove bottom margin from header when collapsed to reduce whitespace */
-        .collapsible-section.collapsed .section-title {
-            margin-bottom: 0;
+            flex-wrap: wrap;
+            margin-top: 4px;
+            align-items: center;
         }
