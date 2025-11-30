@@ -184,13 +184,13 @@ export class IrisChatView {
                     readonly
                 ></textarea>
                 ${ButtonComponent.generate({
-                    label: 'Send',
-                    variant: 'primary',
-                    id: 'sendButton',
-                    disabled: true,
-                    command: 'sendMessage()',
-                    className: 'chat-send-button'
-                })}
+                label: 'Send',
+                variant: 'primary',
+                id: 'sendButton',
+                disabled: true,
+                command: 'sendMessage()',
+                className: 'chat-send-button'
+            })}
             </div>
             <div class="iris-disclaimer-banner">
                 <span class="disclaimer-text">
