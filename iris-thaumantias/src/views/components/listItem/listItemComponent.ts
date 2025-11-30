@@ -67,8 +67,8 @@ export class ListItemComponent {
     ].filter(Boolean).join(' ');
 
     // Build highlight badge HTML
-    const badgeHtml = highlighted && highlightLabel 
-      ? `<span class="list-item__highlight-badge">${this._escapeHtml(highlightLabel)}</span>` 
+    const badgeHtml = highlighted && highlightLabel
+      ? `<span class="list-item__highlight-badge">${this._escapeHtml(highlightLabel)}</span>`
       : '';
 
     // Build data attributes
