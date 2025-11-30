@@ -3,46 +3,46 @@ import { IconDefinitions } from "../../utils/iconDefinitions";
 import { readCssFiles } from "../utils";
 
 export class IrisChatView {
-  private _extensionContext: vscode.ExtensionContext;
+    private _extensionContext: vscode.ExtensionContext;
 
-  constructor(
-    extensionContext: vscode.ExtensionContext
-  ) {
-    this._extensionContext = extensionContext;
-  }
-
-  public generateHtml(
-    webview?: vscode.Webview,
-    showDiagnostics: boolean = false
-  ): string {
-    const styles = readCssFiles("irisChat/iris-chat.css");
-
-    const trashIcon = IconDefinitions.getIcon("trash");
-    const stethoscopeIcon = IconDefinitions.getIcon("stethoscope");
-    const questionMarkIcon = IconDefinitions.getIcon("question-mark");
-    const refreshIcon = IconDefinitions.getIcon("refresh");
-    const courseIcon = IconDefinitions.getIcon("course");
-    const exerciseIcon = IconDefinitions.getIcon("exercise");
-    const lockIcon = IconDefinitions.getIcon("shield");
-    const workspaceIcon = IconDefinitions.getIcon("workspace");
-    const checkIcon = `<svg viewBox="0 0 16 16" fill="currentColor"><path d="M13.78 4.22a.75.75 0 010 1.06l-7.25 7.25a.75.75 0 01-1.06 0L2.22 9.28a.75.75 0 011.06-1.06L6 10.94l6.72-6.72a.75.75 0 011.06 0z"/></svg>`;
-    const plusIcon = `<svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 2a.75.75 0 01.75.75v4.5h4.5a.75.75 0 010 1.5h-4.5v4.5a.75.75 0 01-1.5 0v-4.5h-4.5a.75.75 0 010-1.5h4.5v-4.5A.75.75 0 018 2z"/></svg>`;
-    const switchIcon = `<svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 2a.75.75 0 01.75.75v4.5h4.5a.75.75 0 010 1.5h-4.5v4.5a.75.75 0 01-1.5 0v-4.5h-4.5a.75.75 0 010-1.5h4.5v-4.5A.75.75 0 018 2z"/></svg>`;
-    // VS Code icons for file status
-    const fileIcon = `<svg viewBox="0 0 16 16" fill="currentColor"><path d="M9.5 1H4a1 1 0 00-1 1v12a1 1 0 001 1h8a1 1 0 001-1V5.5L9.5 1zM4 0a2 2 0 00-2 2v12a2 2 0 002 2h8a2 2 0 002-2V5.5L9.5 0H4z"/><path d="M9.5 1v4H13L9.5 1z"/></svg>`;
-    const closeIcon = `<svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 8.707l3.646 3.647.708-.707L8.707 8l3.647-3.646-.707-.708L8 7.293 4.354 3.646l-.707.708L7.293 8l-3.646 3.646.707.708L8 8.707z"/></svg>`;
-    const chevronIcon = `<svg viewBox="0 0 16 16" fill="currentColor"><path d="M7.976 10.072l4.357-4.357.62.618L8.284 11h-.618L3 6.333l.619-.618 4.357 4.357z"/></svg>`;
-
-    // Get the path to the iris logo image
-    let irisLogoSrc = "";
-    if (webview) {
-      const irisLogoUri = vscode.Uri.file(
-        this._extensionContext.asAbsolutePath("media/iris-logo-big-left.png")
-      );
-      irisLogoSrc = webview.asWebviewUri(irisLogoUri).toString();
+    constructor(
+        extensionContext: vscode.ExtensionContext
+    ) {
+        this._extensionContext = extensionContext;
     }
 
-    return `<!DOCTYPE html>
+    public generateHtml(
+        webview?: vscode.Webview,
+        showDiagnostics: boolean = false
+    ): string {
+        const styles = readCssFiles("irisChat/iris-chat.css");
+
+        const trashIcon = IconDefinitions.getIcon("trash");
+        const stethoscopeIcon = IconDefinitions.getIcon("stethoscope");
+        const questionMarkIcon = IconDefinitions.getIcon("question-mark");
+        const refreshIcon = IconDefinitions.getIcon("refresh");
+        const courseIcon = IconDefinitions.getIcon("course");
+        const exerciseIcon = IconDefinitions.getIcon("exercise");
+        const lockIcon = IconDefinitions.getIcon("shield");
+        const workspaceIcon = IconDefinitions.getIcon("workspace");
+        const checkIcon = `<svg viewBox="0 0 16 16" fill="currentColor"><path d="M13.78 4.22a.75.75 0 010 1.06l-7.25 7.25a.75.75 0 01-1.06 0L2.22 9.28a.75.75 0 011.06-1.06L6 10.94l6.72-6.72a.75.75 0 011.06 0z"/></svg>`;
+        const plusIcon = `<svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 2a.75.75 0 01.75.75v4.5h4.5a.75.75 0 010 1.5h-4.5v4.5a.75.75 0 01-1.5 0v-4.5h-4.5a.75.75 0 010-1.5h4.5v-4.5A.75.75 0 018 2z"/></svg>`;
+        const switchIcon = `<svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 2a.75.75 0 01.75.75v4.5h4.5a.75.75 0 010 1.5h-4.5v4.5a.75.75 0 01-1.5 0v-4.5h-4.5a.75.75 0 010-1.5h4.5v-4.5A.75.75 0 018 2z"/></svg>`;
+        // VS Code icons for file status
+        const fileIcon = `<svg viewBox="0 0 16 16" fill="currentColor"><path d="M9.5 1H4a1 1 0 00-1 1v12a1 1 0 001 1h8a1 1 0 001-1V5.5L9.5 1zM4 0a2 2 0 00-2 2v12a2 2 0 002 2h8a2 2 0 002-2V5.5L9.5 0H4z"/><path d="M9.5 1v4H13L9.5 1z"/></svg>`;
+        const closeIcon = `<svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 8.707l3.646 3.647.708-.707L8.707 8l3.647-3.646-.707-.708L8 7.293 4.354 3.646l-.707.708L7.293 8l-3.646 3.646.707.708L8 8.707z"/></svg>`;
+        const chevronIcon = `<svg viewBox="0 0 16 16" fill="currentColor"><path d="M7.976 10.072l4.357-4.357.62.618L8.284 11h-.618L3 6.333l.619-.618 4.357 4.357z"/></svg>`;
+
+        // Get the path to the iris logo image
+        let irisLogoSrc = "";
+        if (webview) {
+            const irisLogoUri = vscode.Uri.file(
+                this._extensionContext.asAbsolutePath("media/iris-logo-big-left.png")
+            );
+            irisLogoSrc = webview.asWebviewUri(irisLogoUri).toString();
+        }
+
+        return `<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -55,8 +55,7 @@ export class IrisChatView {
 <body>
     <div class="chat-container">
         <div class="chat-header">
-            ${
-              irisLogoSrc
+            ${irisLogoSrc
                 ? `<img src="${irisLogoSrc}" alt="Iris Logo" class="chat-header-logo" />`
                 : ""
             }
@@ -268,9 +267,8 @@ export class IrisChatView {
                         <div class="menu-item-description">Learn how contexts impact responses</div>
                     </div>
                 </div>
-                ${
-                  showDiagnostics
-                    ? `
+                ${showDiagnostics
+                ? `
                 <div class="menu-item" onclick="openDiagnostics()">
                     ${stethoscopeIcon}
                     <div class="menu-item-content">
@@ -286,8 +284,8 @@ export class IrisChatView {
                     </div>
                 </div>
                 `
-                    : ""
-                }
+                : ""
+            }
             </div>
 
             <div class="menu-section">
@@ -1284,5 +1282,5 @@ export class IrisChatView {
     </script>
 </body>
 </html>`;
-  }
+    }
 }
