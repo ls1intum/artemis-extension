@@ -43,12 +43,15 @@ export class ExamConductionView {
         const exercisesHtml = exercises.map((exercise: any, index: number) => {
             const exerciseIcon = IconDefinitions.getIcon(exercise.type);
             const points = exercise.maxPoints || 0;
+            const isWorkspaceExercise = exercise.id === workspaceExerciseId;
 
             return ListItemComponent.generate(
                 {
                     className: 'exercise-item',
                     clickable: true,
                     command: `openExamExercise(${index})`,
+                    highlighted: isWorkspaceExercise,
+                    highlightLabel: isWorkspaceExercise ? 'Open' : undefined,
                     dataAttributes: {
                         'id': exercise.id.toString(),
                         'title': exercise.title
@@ -138,18 +141,6 @@ export class ExamConductionView {
 
         const vscode = acquireVsCodeApi();
         const studentExam = ${JSON.stringify(studentExam)};
-        const workspaceExerciseId = ${workspaceExerciseId};
-        
-        // Highlight the workspace exercise
-        if (workspaceExerciseId) {
-            const exerciseItems = document.querySelectorAll('.exercise-item');
-            exerciseItems.forEach(item => {
-                const exerciseId = parseInt(item.dataset.id);
-                if (exerciseId === workspaceExerciseId) {
-                    item.classList.add('workspace-active');
-                }
-            });
-        }
         
         // Timer Logic
         function initTimer() {

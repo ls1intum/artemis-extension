@@ -604,7 +604,7 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
     private async openFullscreenPanel(options: {
         viewId: string;
         title: string;
-        detailHtml: () => string;
+        detailHtml: () => string | Promise<string>;
         cssInjections?: string[];
         onDetect?: () => Record<string, unknown> | void;
         onDispose?: (metadata?: Record<string, unknown>) => void;
@@ -621,7 +621,7 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
                 }
             );
 
-            let fullscreenHtml = options.detailHtml();
+            let fullscreenHtml = await options.detailHtml();
             if (options.cssInjections && options.cssInjections.length > 0) {
                 const cssBlock = `
                     <style>

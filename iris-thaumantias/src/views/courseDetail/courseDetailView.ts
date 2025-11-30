@@ -10,6 +10,7 @@ import { BadgeComponent } from '../components/badge/badgeComponent';
 import { AskIrisComponent } from '../components/askIris/askIrisComponent';
 import { ContainerComponent } from '../components/container/containerComponent';
 import { FullscreenButton } from '../components/button/iconButtons/fullscreenButton';
+import { detectWorkspaceExercise } from '../../services';
 
 export class CourseDetailView {
     private _extensionContext: vscode.ExtensionContext;
@@ -22,7 +23,7 @@ export class CourseDetailView {
         return IconDefinitions.getIcon(type);
     }
 
-    public generateHtml(courseData: any, hideDeveloperTools: boolean = false, webview?: vscode.Webview): string {
+    public async generateHtml(courseData: any, hideDeveloperTools: boolean = false, webview?: vscode.Webview): Promise<string> {
         const styles = readCssFiles(
             'components/backLink/back-link.css',
             'courseDetail/course-detail.css',
@@ -40,7 +41,7 @@ export class CourseDetailView {
             return this._getEmptyStateHtml(styles);
         }
 
-        return this._getCourseDetailHtml(courseData, hideDeveloperTools, styles, webview);
+        return await this._getCourseDetailHtml(courseData, hideDeveloperTools, styles, webview);
     }
 
     private _getEmptyStateHtml(styles: string): string {
@@ -79,7 +80,7 @@ export class CourseDetailView {
 </html>`;
     }
 
-    private _getCourseDetailHtml(courseData: any, hideDeveloperTools: boolean, styles: string, webview?: vscode.Webview): string {
+    private async _getCourseDetailHtml(courseData: any, hideDeveloperTools: boolean, styles: string, webview?: vscode.Webview): Promise<string> {
         const course = courseData?.course;
         if (!course) {
             return this._getEmptyStateHtml(styles);
@@ -93,6 +94,11 @@ export class CourseDetailView {
         const studentCount = course?.numberOfStudents || 0;
         const courseColor = course?.color || '#6c757d';  // Default to gray if no color
         const starAssistIcon = IconDefinitions.getIcon('star_4_edges');
+
+        // Detect workspace exercise
+        const exercises = course?.exercises || [];
+        const detectedExercise = await detectWorkspaceExercise(exercises);
+        const workspaceExerciseId = detectedExercise?.id ?? null;
 
         // Format exercises
         let exercisesHtml = '';
@@ -146,27 +152,15 @@ export class CourseDetailView {
                 const start = exam.startDate ? new Date(exam.startDate).getTime() : 0;
                 const end = exam.endDate ? new Date(exam.endDate).getTime() : 0;
 
-                let status = 'Upcoming';
-                let showBadge = false;
-
-                if (now > end) {
-                    status = 'Finished';
-                } else if (now >= start && now <= end) {
-                    status = 'Active';
-                    showBadge = true;
-                }
-
-                const statusBadge = showBadge ? BadgeComponent.generate({
-                    label: status,
-                    variant: 'primary',
-                    className: 'exam-status-badge'
-                }) : '';
+                const isActive = now >= start && now <= end;
 
                 return ListItemComponent.generate(
                     {
                         className: 'exam-item',
                         clickable: true,
                         command: `openExam(${exam.id})`,
+                        highlighted: isActive,
+                        highlightLabel: isActive ? 'Active' : undefined,
                         dataAttributes: {
                             'title': (exam.title?.toLowerCase() || ''),
                             'id': exam.id.toString()
@@ -178,7 +172,6 @@ export class CourseDetailView {
                         </div>
                         <div class="exam-info">
                             <span>${startDate} - ${endDate}</span>
-                            ${statusBadge}
                         </div>
                     `
                 );
@@ -195,6 +188,7 @@ export class CourseDetailView {
                 const exerciseIcon = this._getExerciseIcon(exercise.type);
                 const dueDateTimestamp = exercise.dueDate ? new Date(exercise.dueDate).getTime() : 0;
                 const points = exercise.maxPoints || 0;
+                const isWorkspaceExercise = exercise.id === workspaceExerciseId;
 
                 // Use ListItemComponent for consistent styling
                 return ListItemComponent.generate(
@@ -202,6 +196,8 @@ export class CourseDetailView {
                         className: 'exercise-item',
                         clickable: true,
                         command: `openExerciseDetails(${exercise.id})`,
+                        highlighted: isWorkspaceExercise,
+                        highlightLabel: isWorkspaceExercise ? 'Open' : undefined,
                         dataAttributes: {
                             'title': (exercise.title?.toLowerCase() || ''),
                             'type': (exercise.type?.toLowerCase() || ''),

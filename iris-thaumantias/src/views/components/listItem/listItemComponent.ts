@@ -13,6 +13,10 @@ export interface ListItemConfig {
   selected?: boolean;
   /** Whether the item is disabled */
   disabled?: boolean;
+  /** Whether the item is highlighted (e.g., workspace active) */
+  highlighted?: boolean;
+  /** Label text for the highlight badge (e.g., 'Open') */
+  highlightLabel?: string;
   /** Additional data attributes */
   dataAttributes?: Record<string, string>;
   /** Custom background color */
@@ -44,6 +48,8 @@ export class ListItemComponent {
       hover = true,
       selected = false,
       disabled = false,
+      highlighted = false,
+      highlightLabel,
       dataAttributes = {},
       background,
       outline
@@ -56,8 +62,14 @@ export class ListItemComponent {
       clickable ? 'list-item--clickable' : '',
       hover ? 'list-item--hover' : '',
       selected ? 'list-item--selected' : '',
-      disabled ? 'list-item--disabled' : ''
+      disabled ? 'list-item--disabled' : '',
+      highlighted ? 'list-item--highlighted' : ''
     ].filter(Boolean).join(' ');
+
+    // Build highlight badge HTML
+    const badgeHtml = highlighted && highlightLabel 
+      ? `<span class="list-item__highlight-badge">${this._escapeHtml(highlightLabel)}</span>` 
+      : '';
 
     // Build data attributes
     const dataAttrs = Object.entries(dataAttributes)
@@ -94,6 +106,7 @@ export class ListItemComponent {
         ${dataAttrs}
         ${styleAttr}
       >
+        ${badgeHtml}
         ${content}
       </div>
     `;

@@ -76,7 +76,7 @@ export class ViewRouter {
                     this._appStateManager.archivedCoursesData
                 );
             case 'course-detail':
-                return this._courseDetailView.generateHtml(this._appStateManager.currentCourseData, hideDeveloperTools, webview);
+                return await this._courseDetailView.generateHtml(this._appStateManager.currentCourseData, hideDeveloperTools, webview);
             case 'exercise-detail':
                 return this._exerciseDetailView.generateHtml(this._appStateManager.currentExerciseData, hideDeveloperTools, webview);
             case 'exam-exercise-detail': {
