@@ -55,27 +55,6 @@ export class ExerciseRegistry {
         }
     }
 
-    public findByRepositoryUrl(repoUrl: string): ExerciseRegistryEntry | null {
-        const normalizeUrl = (url: string) => {
-            return url
-                .replace(/^git@([^:]+):/, 'https://$1/')
-                .replace(/^https?:\/\/[^@]*@/, 'https://')
-                .replace(/\.git$/, '')
-                .replace(/\/$/, '')
-                .toLowerCase();
-        };
-
-        const normalizedSearchUrl = normalizeUrl(repoUrl);
-
-        for (const exercise of this.exercises.values()) {
-            if (normalizeUrl(exercise.repositoryUri) === normalizedSearchUrl) {
-                return exercise;
-            }
-        }
-
-        return null;
-    }
-
     public getAllExercises(): ExerciseRegistryEntry[] {
         return Array.from(this.exercises.values());
     }

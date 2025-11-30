@@ -5,7 +5,6 @@ export { IrisSessionManager } from './irisSessionManager';
 export {
     detectWorkspaceExercise,
     findExerciseByRepositoryUrl,
-    getWorkspaceRepositoryUrl,
     normalizeRepositoryUrl,
     isExerciseInCurrentWorkspace,
     type DetectedExercise,

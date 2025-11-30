@@ -4,7 +4,7 @@ import { execFile, spawn } from 'child_process';
 import { promisify } from 'util';
 import type { CommandContext, CommandMap } from './types';
 import { VSCODE_CONFIG, checkWorkspaceFiles } from '../../../utils';
-import { detectWorkspaceExercise, type ExerciseSource } from '../../../services';
+import { detectWorkspaceExercise, normalizeRepositoryUrl, type ExerciseSource } from '../../../services';
 
 const execFileAsync = promisify(execFile);
 
@@ -128,17 +128,8 @@ export class RepositoryCommandModule {
 
                     const currentRepoUrl = stdout.trim();
 
-                    const normalizeUrl = (url: string) => {
-                        return url
-                            .replace(/^git@([^:]+):/, 'https://$1/')
-                            .replace(/^https?:\/\/[^@]*@/, 'https://')
-                            .replace(/\.git$/, '')
-                            .replace(/\/$/, '')
-                            .toLowerCase();
-                    };
-
-                    const normalizedCurrent = normalizeUrl(currentRepoUrl);
-                    const normalizedExpected = normalizeUrl(expectedRepoUrl);
+                    const normalizedCurrent = normalizeRepositoryUrl(currentRepoUrl);
+                    const normalizedExpected = normalizeRepositoryUrl(expectedRepoUrl);
 
                     isConnected = normalizedCurrent === normalizedExpected;
 
@@ -168,7 +159,7 @@ export class RepositoryCommandModule {
                                     const gradedParticipation = participations.find((p: any) => !p.testRun);
 
                                     if (gradedParticipation?.repositoryUri) {
-                                        const normalizedGraded = normalizeUrl(gradedParticipation.repositoryUri);
+                                        const normalizedGraded = normalizeRepositoryUrl(gradedParticipation.repositoryUri);
                                         if (normalizedCurrent === normalizedGraded) {
                                             isGradedRepo = true;
                                         }

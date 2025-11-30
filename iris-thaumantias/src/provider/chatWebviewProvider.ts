@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import { IrisChatView } from '../views/irisChat/irisChatView';
 import { ExerciseRegistry } from './exerciseRegistry';
 import { ContextStore } from './contextStore';
+import { detectWorkspaceExercise } from '../services';
 import {
     ActiveContext,
     StoredSession,
@@ -266,39 +267,23 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
     }
 
     private async _detectWorkspaceExercise(): Promise<void> {
-        const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
-        if (!workspaceFolder) {
-            return;
-        }
-
         try {
-            const { exec } = require('child_process');
-            const { promisify } = require('util');
-            const execAsync = promisify(exec);
-
-            const { stdout } = await execAsync('git remote get-url origin', {
-                cwd: workspaceFolder.uri.fsPath,
-            });
-
-            const repoUrl = stdout.trim();
-            if (!repoUrl) {
-                return;
-            }
-
             const registry = ExerciseRegistry.getInstance();
-            const matchedExercise = registry.findByRepositoryUrl(repoUrl);
-            if (!matchedExercise) {
+            const exercises = registry.getAllExercises();
+            
+            const detected = await detectWorkspaceExercise(exercises);
+            if (!detected) {
                 return;
             }
 
-            const baseTitle = matchedExercise.title.replace(/ \\(Workspace\\)$/i, '');
+            const baseTitle = detected.title.replace(/ \(Workspace\)$/i, '');
             const displayTitle = `${baseTitle} (Workspace)`;
 
             this._contextStore.registerExercise({
-                id: matchedExercise.id,
+                id: detected.id,
                 title: displayTitle,
-                shortName: matchedExercise.shortName,
-                repositoryUri: matchedExercise.repositoryUri,
+                shortName: detected.shortName,
+                repositoryUri: detected.repositoryUri,
                 source: 'workspace-detected',
                 isWorkspace: true,
             });
