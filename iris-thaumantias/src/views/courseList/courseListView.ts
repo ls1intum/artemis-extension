@@ -20,13 +20,13 @@ export class CourseListView {
             'components/input/input.css',
             'components/dropdown/dropdown.css'
         );
-        
+
         return this._getCourseListHtml(coursesData, archivedCoursesData, styles);
     }
 
     private _getCourseListHtml(coursesData: any | undefined, archivedCoursesData: any[] | undefined, styles: string): string {
         let coursesHtml = '';
-        
+
         // Generate current courses
         if (coursesData?.courses) {
             coursesHtml = coursesData.courses.map((courseData: any) => {
@@ -35,7 +35,7 @@ export class CourseListView {
                 const semester = course.semester || 'No semester';
                 const description = course.description || 'No description available';
                 const courseColor = course.color || '#6c757d';
-                
+
                 return ListItemComponent.generate(
                     {
                         className: 'course-item',
@@ -72,11 +72,11 @@ export class CourseListView {
             loadArchivedButton = `
                 <div class="load-archived-section">
                     ${ButtonComponent.generate({
-                        label: 'Load Archived Courses',
-                        variant: 'secondary',
-                        command: 'loadArchivedCourses()',
-                        className: 'load-archived-btn'
-                    })}
+                label: 'Load Archived Courses',
+                variant: 'secondary',
+                command: 'loadArchivedCourses()',
+                className: 'load-archived-btn'
+            })}
                 </div>
             `;
         }
@@ -87,7 +87,7 @@ export class CourseListView {
             const archivedItemsHtml = archivedCoursesData.map((course: any) => {
                 const courseColor = course.color || '#6c757d';
                 const semester = course.semester || 'No semester';
-                
+
                 return ListItemComponent.generate(
                     {
                         className: 'course-item archived-course',
@@ -156,62 +156,62 @@ export class CourseListView {
             bodyHtml: `
                 <div class="search-container">
                     ${TextInputComponent.generate({
-                        id: 'courseSearch',
-                        type: 'search',
-                        placeholder: 'Search courses by title, semester, or description...',
-                        className: 'search-input',
-                        height: '2.5rem'
-                    })}
+                id: 'courseSearch',
+                type: 'search',
+                placeholder: 'Search courses by title, semester, or description...',
+                className: 'search-input',
+                height: '2.5rem'
+            })}
                 </div>
                 <div class="controls-grid">
                     <div class="control-group">
                         ${DropdownComponent.generate({
-                            id: 'typeFilter',
-                            label: 'Type',
-                            size: 'medium',
-                            onChange: 'window.handleFiltersChange()',
-                            options: [
-                                { value: 'all', label: 'All Courses', selected: true },
-                                { value: 'active', label: 'Active Only' },
-                                { value: 'archived', label: 'Archived Only' }
-                            ]
-                        })}
+                id: 'typeFilter',
+                label: 'Type',
+                size: 'medium',
+                onChange: 'window.handleFiltersChange()',
+                options: [
+                    { value: 'all', label: 'All Courses', selected: true },
+                    { value: 'active', label: 'Active Only' },
+                    { value: 'archived', label: 'Archived Only' }
+                ]
+            })}
                     </div>
                     <div class="control-group">
                         ${DropdownComponent.generate({
-                            id: 'semesterFilter',
-                            label: 'Semester',
-                            size: 'medium',
-                            onChange: 'window.handleFiltersChange()',
-                            options: [
-                                { value: 'all', label: 'All Semesters', selected: true }
-                            ]
-                        })}
+                id: 'semesterFilter',
+                label: 'Semester',
+                size: 'medium',
+                onChange: 'window.handleFiltersChange()',
+                options: [
+                    { value: 'all', label: 'All Semesters', selected: true }
+                ]
+            })}
                     </div>
                     <div class="control-group">
                         ${DropdownComponent.generate({
-                            id: 'sortBy',
-                            label: 'Sort by',
-                            size: 'medium',
-                            onChange: 'window.handleFiltersChange()',
-                            options: [
-                                { value: 'title-asc', label: 'Title (A-Z)' },
-                                { value: 'title-desc', label: 'Title (Z-A)' },
-                                { value: 'semester-desc', label: 'Newest First', selected: true },
-                                { value: 'semester-asc', label: 'Oldest First' },
-                                { value: 'exercises-desc', label: 'Most Exercises' },
-                                { value: 'exercises-asc', label: 'Least Exercises' }
-                            ]
-                        })}
+                id: 'sortBy',
+                label: 'Sort by',
+                size: 'medium',
+                onChange: 'window.handleFiltersChange()',
+                options: [
+                    { value: 'title-asc', label: 'Title (A-Z)' },
+                    { value: 'title-desc', label: 'Title (Z-A)' },
+                    { value: 'semester-desc', label: 'Newest First', selected: true },
+                    { value: 'semester-asc', label: 'Oldest First' },
+                    { value: 'exercises-desc', label: 'Most Exercises' },
+                    { value: 'exercises-asc', label: 'Least Exercises' }
+                ]
+            })}
                     </div>
                     <div class="control-group control-group--action">
                         ${ButtonComponent.generate({
-                            id: 'clearFiltersBtn',
-                            label: 'Clear Filters',
-                            variant: 'secondary',
-                            command: 'window.clearAllFilters()',
-                            disabled: true
-                        })}
+                id: 'clearFiltersBtn',
+                label: 'Clear Filters',
+                variant: 'secondary',
+                command: 'window.clearAllFilters()',
+                disabled: true
+            })}
                     </div>
                 </div>
             `
@@ -228,7 +228,7 @@ export class CourseListView {
             },
             bodyHtml: coursesHtml || '<div class="no-courses">No courses available</div>'
         });
-        
+
         return `<!DOCTYPE html>
 <html lang="en">
 <head>
