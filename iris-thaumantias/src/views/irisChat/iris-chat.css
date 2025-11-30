@@ -963,25 +963,9 @@ body {
     outline: none;
 }
 
-.send-button {
-    background: var(--theme-button-background);
-    color: var(--theme-button-foreground);
-    border: none;
-    border-radius: 8px;
-    padding: 8px 14px;
-    font-size: 13px;
-    cursor: pointer;
-    transition: var(--theme-transition);
-}
-
-.send-button:hover:not(:disabled) {
-    opacity: 0.9;
-    transform: translateY(-1px);
-}
-
-.send-button:disabled {
-    cursor: not-allowed;
-    opacity: 0.6;
+/* Send button styling override */
+.chat-send-button {
+    flex-shrink: 0;
 }
 
 .help-overlay {

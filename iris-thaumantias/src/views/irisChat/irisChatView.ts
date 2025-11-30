@@ -2,6 +2,7 @@ import * as vscode from "vscode";
 import { IconDefinitions } from "../../utils/iconDefinitions";
 import { readCssFiles } from "../utils";
 import { BurgerMenuButton } from "../components/button/iconButtons";
+import { ButtonComponent } from "../components/button/buttonComponent";
 
 export class IrisChatView {
     private _extensionContext: vscode.ExtensionContext;
@@ -16,7 +17,7 @@ export class IrisChatView {
         webview?: vscode.Webview,
         showDiagnostics: boolean = false
     ): string {
-        const styles = readCssFiles("irisChat/iris-chat.css", "components/button/iconButtons/iconButtons.css");
+        const styles = readCssFiles("irisChat/iris-chat.css", "components/button/iconButtons/iconButtons.css", "components/button/button.css");
 
         const trashIcon = IconDefinitions.getIcon("trash");
         const stethoscopeIcon = IconDefinitions.getIcon("stethoscope");
@@ -182,9 +183,14 @@ export class IrisChatView {
                     disabled
                     readonly
                 ></textarea>
-                <button class="send-button" id="sendButton" disabled>
-                    Send
-                </button>
+                ${ButtonComponent.generate({
+                    label: 'Send',
+                    variant: 'primary',
+                    id: 'sendButton',
+                    disabled: true,
+                    command: 'sendMessage()',
+                    className: 'chat-send-button'
+                })}
             </div>
             <div class="iris-disclaimer-banner">
                 <span class="disclaimer-text">
