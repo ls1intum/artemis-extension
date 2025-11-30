@@ -13,13 +13,15 @@
             padding: 0;
             max-width: 800px;
             margin: 0 auto;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
         }
         .dashboard-header {
             background: var(--theme-card-background);
             border: 1px solid var(--theme-border);
             border-radius: var(--theme-container-radius);
             padding: var(--theme-container-padding);
-            margin-bottom: var(--theme-element-spacing);
             box-shadow: var(--theme-box-shadow);
             backdrop-filter: var(--theme-backdrop);
             overflow: hidden; /* clamp inner overflow for rounded corners */
@@ -44,7 +46,6 @@
             border: 1px solid var(--theme-border);
             border-radius: var(--theme-container-radius);
             padding: var(--theme-container-padding);
-            margin-bottom: var(--theme-element-spacing);
             box-shadow: var(--theme-box-shadow);
             backdrop-filter: var(--theme-backdrop);
             overflow: hidden;
@@ -129,7 +130,6 @@
             border: 1px solid var(--theme-border);
             border-radius: var(--theme-container-radius);
             padding: var(--theme-container-padding);
-            margin-bottom: var(--theme-element-spacing);
             box-shadow: var(--theme-box-shadow);
             backdrop-filter: var(--theme-backdrop);
             overflow: hidden; /* clamp inner overflow for rounded corners */
@@ -198,7 +198,7 @@
         }
         /* Recent Courses Section */
         .recent-courses {
-            margin-bottom: var(--theme-element-spacing);
+            /* Spacing handled by .dashboard flex gap */
         }
         .recent-courses .ui-container__actions {
             display: flex;
