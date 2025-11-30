@@ -1317,3 +1317,46 @@ body {
         transform: scale(1);
     }
 }
+
+/* Iris Disabled Banner */
+.iris-disabled-banner {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 16px 14px;
+    margin-bottom: 12px;
+    background: rgba(239, 68, 68, 0.08);
+    border: 1px solid rgba(239, 68, 68, 0.25);
+    border-radius: 8px;
+    animation: slideDown 0.3s ease-out;
+}
+
+.iris-disabled-banner-content {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    text-align: center;
+}
+
+.iris-disabled-banner-icon {
+    width: 20px;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: rgb(239, 68, 68);
+    flex-shrink: 0;
+}
+
+.iris-disabled-banner-icon svg {
+    width: 18px;
+    height: 18px;
+    fill: currentColor;
+}
+
+.iris-disabled-banner-text {
+    font-size: 13px;
+    font-weight: 500;
+    color: rgb(220, 38, 38);
+    line-height: 1.4;
+}

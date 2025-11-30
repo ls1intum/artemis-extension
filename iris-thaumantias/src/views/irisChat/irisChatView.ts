@@ -144,6 +144,17 @@ export class IrisChatView {
         </div>
 
         <div class="chat-input-container">
+            <div class="iris-disabled-banner" id="irisDisabledBanner" style="display: none;">
+                <div class="iris-disabled-banner-content">
+                    <span class="iris-disabled-banner-icon">
+                        <svg viewBox="0 0 16 16" fill="currentColor">
+                            <path d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1zM0 8a8 8 0 1 1 16 0A8 8 0 0 1 0 8z"/>
+                            <path d="M4.646 4.646a.5.5 0 0 1 .708 0L8 7.293l2.646-2.647a.5.5 0 0 1 .708.708L8.707 8l2.647 2.646a.5.5 0 0 1-.708.708L8 8.707l-2.646 2.647a.5.5 0 0 1-.708-.708L7.293 8 4.646 5.354a.5.5 0 0 1 0-.708z"/>
+                        </svg>
+                    </span>
+                    <span class="iris-disabled-banner-text" id="irisDisabledMessage">Iris is not available for this context</span>
+                </div>
+            </div>
             <div class="websocket-status-banner" id="websocketStatusBanner" style="display: none;">
                 <div class="websocket-status-content">
                     <span class="websocket-status-icon">⚠️</span>
@@ -1132,11 +1143,63 @@ export class IrisChatView {
             }
         }
 
+        function showDisabledBanner(message) {
+            const banner = document.getElementById('irisDisabledBanner');
+            const messageEl = document.getElementById('irisDisabledMessage');
+            const inputWrapper = document.querySelector('.chat-input-wrapper');
+            
+            if (banner) {
+                banner.style.display = 'flex';
+                if (messageEl && message) {
+                    messageEl.textContent = message;
+                }
+            }
+            
+            // Hide the input wrapper when disabled
+            if (inputWrapper) {
+                inputWrapper.style.display = 'none';
+            }
+            
+            // Also disable input as a safety measure
+            const input = document.getElementById('chatInput');
+            const button = document.getElementById('sendButton');
+            if (input) {
+                input.disabled = true;
+                input.readOnly = true;
+            }
+            if (button) {
+                button.disabled = true;
+            }
+        }
+
+        function hideDisabledBanner() {
+            const banner = document.getElementById('irisDisabledBanner');
+            const inputWrapper = document.querySelector('.chat-input-wrapper');
+            
+            if (banner) {
+                banner.style.display = 'none';
+            }
+            
+            // Show the input wrapper again
+            if (inputWrapper) {
+                inputWrapper.style.display = 'flex';
+            }
+        }
+
         window.addEventListener('message', event => {
             const message = event.data;
             console.log('[WebsocketLog] 📬 Received message from extension:', message.command, message);
 
             switch (message.command) {
+                case 'showDisabledState':
+                    console.log('[WebsocketLog] 🚫 Showing disabled state');
+                    showDisabledBanner(message.message);
+                    break;
+                case 'hideDisabledState':
+                    console.log('[WebsocketLog] ✅ Hiding disabled state');
+                    hideDisabledBanner();
+                    updateChatInputState();
+                    break;
                 case 'updateIrisState':
                     console.log('[WebsocketLog] 🔄 Updating Iris state');
                     if (message.state) {

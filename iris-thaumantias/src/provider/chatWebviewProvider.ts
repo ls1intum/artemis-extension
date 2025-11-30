@@ -472,10 +472,6 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
                 : settings?.irisProgrammingExerciseChatSettings;
 
             if (!chatSettings?.enabled) {
-                const contextLabel = context.type === 'course' ? 'course' : 'exercise';
-                vscode.window.showWarningMessage(
-                    `Iris chat is not enabled for this ${contextLabel}. Please contact your instructor.`
-                );
                 console.log('Iris chat is disabled in settings');
                 return false;
             }
@@ -490,14 +486,14 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
         } catch (error: any) {
             console.error('Error checking Iris settings:', error);
 
-            // If it's a 403, Iris is probably disabled
+            // If it's a 403, Iris is probably disabled - return false to show disabled overlay
             if (error.status === 403 || error.message?.includes('403')) {
-                vscode.window.showWarningMessage('Iris is not available for this context.');
+                console.log('Iris is not available (403 error)');
                 return false;
             }
 
-            // For other errors, show a generic message but don't block
-            vscode.window.showWarningMessage(`Could not load Iris settings: ${error.message}`);
+            // For other errors, log but still return false to show disabled state
+            console.log(`Could not load Iris settings: ${error.message}`);
             return false;
         }
     }
@@ -536,13 +532,25 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
 
             if (!isEnabled) {
                 console.log('Iris is disabled, not loading sessions');
-                // Clear any existing sessions and show empty state
+                // Clear any existing sessions and show disabled overlay
                 if (this._view) {
                     this._view.webview.postMessage({
                         command: 'clearChatMessages'
                     });
+                    const contextLabel = activeContext.type === 'course' ? 'course' : 'exercise';
+                    this._view.webview.postMessage({
+                        command: 'showDisabledState',
+                        message: `Iris chat is not enabled for this ${contextLabel}. Please contact your instructor.`
+                    });
                 }
                 return;
+            }
+
+            // Hide disabled overlay if it was previously shown
+            if (this._view) {
+                this._view.webview.postMessage({
+                    command: 'hideDisabledState'
+                });
             }
 
             // Step 1: Fetch session metadata (fast, lightweight)
@@ -1041,7 +1049,15 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
         // Check if Iris is enabled
         const isEnabled = await this._checkAndLoadIrisSettings(activeContext);
         if (!isEnabled) {
-            return; // Error message already shown in _checkAndLoadIrisSettings
+            // Show disabled overlay when trying to send a message with Iris disabled
+            if (this._view) {
+                const contextLabel = activeContext.type === 'course' ? 'course' : 'exercise';
+                this._view.webview.postMessage({
+                    command: 'showDisabledState',
+                    message: `Iris chat is not enabled for this ${contextLabel}. Please contact your instructor.`
+                });
+            }
+            return;
         }
 
         try {
