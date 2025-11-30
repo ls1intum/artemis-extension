@@ -68,10 +68,21 @@ export class ExamStartView {
         // Check if exam can be started (within 5 minutes of start time)
         const now = new Date();
         const examStartDate = exam.startDate ? new Date(exam.startDate) : null;
+        const examEndDate = exam.endDate ? new Date(exam.endDate) : null;
         const waitTimeMinutes = 5;
         const canStart = examStartDate
             ? now.getTime() + waitTimeMinutes * 60 * 1000 >= examStartDate.getTime()
             : false;
+
+        // Calculate relative time for start
+        const hasStarted = examStartDate ? now >= examStartDate : false;
+        const startLabel = hasStarted ? "Started" : "Starts";
+        const startRelative = examStartDate ? this.getRelativeTime(examStartDate, now) : "";
+        
+        // Calculate relative time for end
+        const hasEnded = examEndDate ? now >= examEndDate : false;
+        const endLabel = hasEnded ? "Ended" : "Ends";
+        const endRelative = examEndDate ? this.getRelativeTime(examEndDate, now) : "";
 
         const debugButton = !hideDeveloperTools
             ? ButtonComponent.generate({
@@ -92,12 +103,14 @@ export class ExamStartView {
             bodyHtml: `
                 <div class="exam-dates">
                     <div class="exam-date">
-                        <div class="label">Starts</div>
+                        <div class="label">${startLabel}</div>
                         <div class="value">${startDate}</div>
+                        ${startRelative ? `<div class="relative">${startRelative}</div>` : ''}
                     </div>
                     <div class="exam-date">
-                        <div class="label">Ends</div>
+                        <div class="label">${endLabel}</div>
                         <div class="value">${endDate}</div>
+                        ${endRelative ? `<div class="relative">${endRelative}</div>` : ''}
                     </div>
                 </div>
             `,
@@ -206,5 +219,31 @@ export class ExamStartView {
     </script>
 </body>
 </html>`;
+    }
+
+    /**
+     * Get a human-readable relative time string
+     */
+    private getRelativeTime(targetDate: Date, now: Date): string {
+        const diffMs = targetDate.getTime() - now.getTime();
+        const absDiffMs = Math.abs(diffMs);
+        const isPast = diffMs < 0;
+
+        const minutes = Math.floor(absDiffMs / (1000 * 60));
+        const hours = Math.floor(absDiffMs / (1000 * 60 * 60));
+        const days = Math.floor(absDiffMs / (1000 * 60 * 60 * 24));
+
+        let timeStr: string;
+        if (days > 0) {
+            timeStr = days === 1 ? '1 day' : `${days} days`;
+        } else if (hours > 0) {
+            timeStr = hours === 1 ? '1 hour' : `${hours} hours`;
+        } else if (minutes > 0) {
+            timeStr = minutes === 1 ? '1 minute' : `${minutes} minutes`;
+        } else {
+            timeStr = 'less than a minute';
+        }
+
+        return isPast ? `${timeStr} ago` : `in ${timeStr}`;
     }
 }
