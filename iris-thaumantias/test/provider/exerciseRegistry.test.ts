@@ -12,7 +12,7 @@ suite('ExerciseRegistry Test Suite', () => {
 
     test('should register and retrieve exercise', () => {
         registry.registerExercise(1, 'Test Exercise', 'https://git.example.com/test', 'test-ex');
-        
+
         const exercises = registry.getAllExercises();
         assert.strictEqual(exercises.length, 1);
         assert.strictEqual(exercises[0].id, 1);
@@ -55,9 +55,9 @@ suite('ExerciseRegistry Test Suite', () => {
     test('should clear all exercises', () => {
         registry.registerExercise(1, 'Test 1', 'https://git.example.com/test1');
         registry.registerExercise(2, 'Test 2', 'https://git.example.com/test2');
-        
+
         registry.clear();
-        
+
         const exercises = registry.getAllExercises();
         assert.strictEqual(exercises.length, 0);
     });

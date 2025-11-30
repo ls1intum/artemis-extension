@@ -41,7 +41,7 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
         this._contextStore = new ContextStore(this._extensionContext);
         this._fileMonitorService = new FileMonitorService();
         this._disposables.push(this._fileMonitorService);
-        
+
         if (this._artemisApiService && this._websocketService) {
             this._irisSessionManager = new IrisSessionManager(this._artemisApiService, this._websocketService);
             this._disposables.push(this._irisSessionManager);
@@ -270,7 +270,7 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
         try {
             const registry = ExerciseRegistry.getInstance();
             const exercises = registry.getAllExercises();
-            
+
             const detected = await detectWorkspaceExercise(exercises);
             if (!detected) {
                 return;
@@ -467,8 +467,8 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
             }
 
             // Check if Iris chat is enabled
-            const chatSettings = context.type === 'course' 
-                ? settings?.irisChatSettings 
+            const chatSettings = context.type === 'course'
+                ? settings?.irisChatSettings
                 : settings?.irisProgrammingExerciseChatSettings;
 
             if (!chatSettings?.enabled) {
@@ -489,7 +489,7 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
             return true;
         } catch (error: any) {
             console.error('Error checking Iris settings:', error);
-            
+
             // If it's a 403, Iris is probably disabled
             if (error.status === 403 || error.message?.includes('403')) {
                 vscode.window.showWarningMessage('Iris is not available for this context.');
@@ -504,10 +504,10 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
 
     private async _loadAllSessionsForContext(): Promise<void> {
         const activeContext = this._contextStore.getActiveContext();
-        
+
         console.log('🔄 [LOAD SESSIONS] Starting _loadAllSessionsForContext');
         console.log('🔄 [LOAD SESSIONS] Active context:', activeContext);
-        
+
         if (!activeContext || !this._artemisApiService || !this._view) {
             console.log('🔄 [LOAD SESSIONS] Cannot load sessions: missing context, API service, or view', {
                 hasContext: !!activeContext,
@@ -538,8 +538,8 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
                 console.log('Iris is disabled, not loading sessions');
                 // Clear any existing sessions and show empty state
                 if (this._view) {
-                    this._view.webview.postMessage({ 
-                        command: 'clearChatMessages' 
+                    this._view.webview.postMessage({
+                        command: 'clearChatMessages'
                     });
                 }
                 return;
@@ -707,7 +707,7 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
     private _handleSwitchToWorkspaceContext(): void {
         // Find the workspace exercise from recent exercises
         const snapshot = this._contextStore.snapshot();
-        const workspaceExercise = snapshot.recentExercises.find(exercise => 
+        const workspaceExercise = snapshot.recentExercises.find(exercise =>
             exercise.isWorkspace || /\(Workspace\)/i.test(exercise.title)
         );
 
@@ -1019,7 +1019,7 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
 
     private async _handleChatMessage(message: any): Promise<void> {
         console.log('[WebsocketLog] 📤 _handleChatMessage called with:', { text: message?.text?.substring(0, 50) });
-        
+
         if (!message?.text) {
             console.log('[WebsocketLog] ⚠️ No text in message, returning');
             return;
@@ -1079,11 +1079,11 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
             }
 
             // Get or create Iris session
-            console.log('[WebsocketLog] 🔑 Checking for existing Iris session...', { 
+            console.log('[WebsocketLog] 🔑 Checking for existing Iris session...', {
                 hasSessionId: !!this._irisSessionManager?.currentSessionId,
-                sessionId: this._irisSessionManager?.currentSessionId 
+                sessionId: this._irisSessionManager?.currentSessionId
             });
-            
+
             if (!this._irisSessionManager?.currentSessionId) {
                 console.log('[WebsocketLog] 🆕 No active session found, initializing new Iris session...');
                 await this._initializeIrisSession(activeContext);
@@ -1097,14 +1097,14 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
 
             // Collect uncommitted files from the current workspace
             let uncommittedFiles: Map<string, string> | undefined;
-            
+
             // Check if the user has enabled sending uncommitted changes
             const sendUncommittedChanges = vscode.workspace.getConfiguration('artemis.iris').get<boolean>('sendUncommittedChanges', true);
-            
+
             if (sendUncommittedChanges) {
                 try {
                     const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
-                    
+
                     // Use unified checker with full options (content + filters + status)
                     const result = await checkWorkspaceFiles(workspaceFolder, {
                         includeContent: true,
@@ -1113,22 +1113,22 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
                         checkUnpushed: true,
                         includeDirty: true
                     });
-                    
+
                     // Convert to Map for backward compatibility
                     uncommittedFiles = new Map();
                     result.files
                         .filter(f => f.status === 'included' && f.content !== undefined)
                         .forEach(f => uncommittedFiles!.set(f.path, f.content!));
-                    
+
                     if (uncommittedFiles.size > 0) {
                         console.log(`📁 Sending ${uncommittedFiles.size} uncommitted file(s) to Iris`);
-                        
+
                         // Update display with detailed analysis
                         if (this._view) {
                             const excludedFiles = result.files
                                 .filter(f => f.status === 'excluded')
                                 .map(f => ({ path: f.path, reason: f.reason || 'Excluded' }));
-                                
+
                             this._view.webview.postMessage({
                                 command: 'updateReferencedFiles',
                                 includedFiles: Array.from(uncommittedFiles.keys()),
@@ -1139,7 +1139,7 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
                     }
                 } catch (error: any) {
                     console.error('Error collecting uncommitted files:', error);
-                    
+
                     // Show user-friendly error message based on error type
                     if (error.message?.includes('Git')) {
                         vscode.window.showWarningMessage(
@@ -1162,7 +1162,7 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
                             }
                         });
                     }
-                    
+
                     // Continue without uncommitted files - this is not a critical error
                     uncommittedFiles = undefined;
                 }
@@ -1229,7 +1229,7 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
             const isHelpful = feedback === 'positive';
             await this._artemisApiService.markMessageHelpful(sessionId, messageId, isHelpful);
             console.log(`Feedback submitted: ${feedback} for message ${messageId} in session ${sessionId}`);
-            
+
             // Optional: Show user confirmation
             // vscode.window.showInformationMessage('Thanks for your feedback!');
         } catch (error) {
@@ -1239,12 +1239,12 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
     }
 
     private async _initializeIrisSession(context: ActiveContext): Promise<void> {
-        console.log('[WebsocketLog] 🎬 _initializeIrisSession called', { 
-            contextType: context.type, 
-            contextId: context.id, 
-            contextTitle: context.title 
+        console.log('[WebsocketLog] 🎬 _initializeIrisSession called', {
+            contextType: context.type,
+            contextId: context.id,
+            contextTitle: context.title
         });
-        
+
         if (!this._artemisApiService || !this._irisSessionManager) {
             console.error('[WebsocketLog] ❌ No Artemis API service or Session Manager available');
             return;
@@ -1265,7 +1265,7 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
             });
 
             const sessionId = await this._irisSessionManager.initializeSession(context, activeLocalSession?.artemisSessionId);
-            
+
             // If we didn't have a stored session ID, store it now
             if (!activeLocalSession?.artemisSessionId) {
                 console.log('Storing NEW Artemis session ID mapping:', sessionId);
@@ -1692,11 +1692,11 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
             shortName,
             source: this._mapReasonToSource(reason),
         });
-        
+
         // Clear any existing sessions for this context before loading new ones
         const contextKey = `course:${courseId}`;
         this._contextStore.clearSessionsForContext(contextKey);
-        
+
         // Set context without automatically ensuring a session (we'll load from server first)
         this._contextStore.setActiveContext({
             type: 'course',
@@ -1751,15 +1751,15 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
             source: this._mapReasonToSource(reason),
             isWorkspace: reason === 'workspace-detected' || reason === 'auto-workspace',
         });
-        
-        console.log('📍 [SET EXERCISE CONTEXT] Exercise registered. Active context AFTER registerExercise:', 
+
+        console.log('📍 [SET EXERCISE CONTEXT] Exercise registered. Active context AFTER registerExercise:',
             this._contextStore.getActiveContext());
-        
+
         // Clear any existing sessions for this context before loading new ones
         const contextKey = `exercise:${exerciseId}`;
         console.log('📍 [SET EXERCISE CONTEXT] Clearing sessions for context key:', contextKey);
         this._contextStore.clearSessionsForContext(contextKey);
-        
+
         // Set context without automatically ensuring a session (we'll load from server first)
         console.log('📍 [SET EXERCISE CONTEXT] Setting active context to:', {
             type: 'exercise',
@@ -1778,7 +1778,7 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
             selectedAt: Date.now(),
         }, false);
 
-        console.log('📍 [SET EXERCISE CONTEXT] Active context AFTER setActiveContext:', 
+        console.log('📍 [SET EXERCISE CONTEXT] Active context AFTER setActiveContext:',
             this._contextStore.getActiveContext());
 
         this._resetSessionStateForContextChange();
@@ -1789,9 +1789,9 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
         }
 
         vscode.window.showInformationMessage(`Exercise context set to: ${exerciseTitle}`);
-        
+
         console.log('📍 [SET EXERCISE CONTEXT] Starting to load sessions for context...');
-        
+
         // Load sessions for the new context, then update UI
         // The snapshot will be posted after sessions are loaded
         void this._loadAllSessionsForContext();
