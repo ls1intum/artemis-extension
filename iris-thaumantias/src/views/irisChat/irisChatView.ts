@@ -296,33 +296,33 @@ export class IrisChatView {
             <div class="menu-section">
                 <h4 class="menu-section-title">Chat Options</h4>
                 ${ListItemComponent.generate(
-                    {
-                        className: 'menu-item',
-                        clickable: true,
-                        command: 'resetChatSessions()'
-                    },
-                    `${refreshIcon}
+                {
+                    className: 'menu-item',
+                    clickable: true,
+                    command: 'resetChatSessions()'
+                },
+                `${refreshIcon}
                     <div class="menu-item-content">
                         <div class="menu-item-title">Reset & Sync Sessions</div>
                         <div class="menu-item-description">Clear local data and reload from server</div>
                     </div>`
-                )}
+            )}
             </div>
 
             <div class="menu-section">
                 <h4 class="menu-section-title">Help</h4>
                 ${ListItemComponent.generate(
-                    {
-                        className: 'menu-item',
-                        clickable: true,
-                        command: 'openHelpPopup()'
-                    },
-                    `${questionMarkIcon}
+                {
+                    className: 'menu-item',
+                    clickable: true,
+                    command: 'openHelpPopup()'
+                },
+                `${questionMarkIcon}
                     <div class="menu-item-content">
                         <div class="menu-item-title">Chat Context Guide</div>
                         <div class="menu-item-description">Learn how contexts impact responses</div>
                     </div>`
-                )}
+            )}
                 ${showDiagnostics
                 ? `
                 ${ListItemComponent.generate(
