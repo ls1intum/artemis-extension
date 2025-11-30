@@ -66,9 +66,9 @@ export class ListItemComponent {
       highlighted ? 'list-item--highlighted' : ''
     ].filter(Boolean).join(' ');
 
-    // Build highlight badge HTML
+    // Build highlight badge HTML with fade background
     const badgeHtml = highlighted && highlightLabel
-      ? `<span class="list-item__highlight-badge">${this._escapeHtml(highlightLabel)}</span>`
+      ? `<span class="list-item__highlight-badge"><span class="list-item__highlight-fade"></span><span class="list-item__highlight-text">${this._escapeHtml(highlightLabel)}</span></span>`
       : '';
 
     // Build data attributes

@@ -54,11 +54,30 @@
   box-shadow: inset 0 0 0 2px var(--vscode-focusBorder, #007acc);
 }
 
-/* Highlight badge */
+/* Highlight badge container */
 .list-item__highlight-badge {
   position: absolute;
   top: 6px;
   right: 6px;
+  display: flex;
+  align-items: center;
+  z-index: 1;
+}
+
+/* Fading background behind badge */
+.list-item__highlight-fade {
+  position: absolute;
+  top: -4px;
+  right: 0;
+  bottom: -4px;
+  left: -30px;
+  background: linear-gradient(to right, transparent, var(--theme-card-background, #1e1e1e) 50%);
+  pointer-events: none;
+}
+
+/* Badge text */
+.list-item__highlight-text {
+  position: relative;
   background: var(--vscode-focusBorder, #007acc);
   color: white;
   font-size: 10px;
@@ -67,11 +86,10 @@
   border-radius: 4px;
   text-transform: uppercase;
   letter-spacing: 0.5px;
-  transition: opacity 0.15s ease;
-  z-index: 1;
 }
 
 /* Badge fades on hover */
 .list-item--highlighted:hover .list-item__highlight-badge {
-  opacity: 0.3;
+  opacity: 0.1;
+  transition: opacity 0.15s ease;
 }
