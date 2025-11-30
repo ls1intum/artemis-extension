@@ -48,8 +48,8 @@ export class AiCheckerView {
                         variant: ext.isInstalled ? 'success' : 'secondary'
                     });
                     const statusValue = ext.isInstalled ? 'installed' : 'missing';
-                    const publisherLine = ext.isInstalled && ext.version !== '—' 
-                        ? `${ext.publisher} • v${ext.version}` 
+                    const publisherLine = ext.isInstalled && ext.version !== '—'
+                        ? `${ext.publisher} • v${ext.version}`
                         : ext.publisher;
 
                     return ListItemComponent.generate(
@@ -75,11 +75,11 @@ export class AiCheckerView {
                             </div>
                             <p class="extension-description">${ext.description}</p>
                             ${ButtonComponent.generate({
-                                label: 'View in Marketplace',
-                                variant: 'secondary',
-                                className: 'marketplace-btn',
-                                command: `searchMarketplace('${ext.id}')`
-                            })}
+                            label: 'View in Marketplace',
+                            variant: 'secondary',
+                            className: 'marketplace-btn',
+                            command: `searchMarketplace('${ext.id}')`
+                        })}
                         `
                     );
                 }).join('');
@@ -109,7 +109,7 @@ export class AiCheckerView {
             bodyHtml: groups.length > 0 ? this._renderFilterBar(providerOptions) : ''
         });
 
-        const contentContainer = groups.length > 0 
+        const contentContainer = groups.length > 0
             ? `<div class="provider-groups" id="extensionsList">${groupsMarkup}</div>
                <p class="no-extensions hidden" id="noExtensionsFiltered">No extensions match your filters.</p>`
             : ContainerComponent.generate({
@@ -255,11 +255,11 @@ export class AiCheckerView {
                     </select>
                 </div>
                 ${ButtonComponent.generate({
-                    label: 'Clear',
-                    variant: 'secondary',
-                    className: 'refresh-btn',
-                    command: 'refreshExtensions()'
-                })}
+            label: 'Clear',
+            variant: 'secondary',
+            className: 'refresh-btn',
+            command: 'refreshExtensions()'
+        })}
             </div>
         `;
     }
