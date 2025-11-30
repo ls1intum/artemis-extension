@@ -13,7 +13,6 @@ All notable changes to the Artemis VS Code extension will be documented in this 
 ### Changed
 
 - **View Refactoring**: Major refactoring of all views (CourseDetail, CourseList, Dashboard, etc.) to use the new ContainerComponent for improved maintainability and consistent styling.
-- **Workspace Detection Service**: Moved exercise detection logic to a dedicated service with repository URL normalization and practice repository support.
 
 ### Fixed
 
