@@ -41,41 +41,9 @@ body {
     font-weight: 600;
 }
 
-.burger-menu {
-    background: none;
-    border: none;
-    color: var(--theme-foreground);
-    cursor: pointer;
-    padding: 8px;
-    border-radius: 4px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: var(--theme-transition);
-    font-size: 18px;
+/* Position burger menu button in chat header */
+.chat-header-burger {
     margin-left: auto;
-}
-
-.burger-menu:hover {
-    background: var(--theme-button-background);
-    color: var(--theme-button-foreground);
-}
-
-.burger-icon {
-    width: 20px;
-    height: 20px;
-    display: flex;
-    flex-direction: column;
-    justify-content: space-between;
-    align-items: center;
-}
-
-.burger-line {
-    width: 100%;
-    height: 2px;
-    background: currentColor;
-    transition: var(--theme-transition);
-    border-radius: 1px;
 }
 
 /* Iris Disclaimer Banner */

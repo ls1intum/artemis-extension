@@ -135,3 +135,22 @@
 .icon-btn-collapse.is-collapsed.icon-btn-collapse--right .collapse-chevron {
     transform: rotate(90deg);
 }
+
+/* Burger menu button */
+.icon-btn-burger-menu {
+    color: var(--vscode-icon-foreground, #c5c5c5);
+}
+
+.icon-btn-burger-menu:hover:not(.icon-btn-disabled) {
+    background-color: var(--vscode-toolbar-hoverBackground, rgba(90, 93, 94, 0.31));
+    color: var(--vscode-foreground, #cccccc);
+}
+
+.icon-btn-burger-menu:active:not(.icon-btn-disabled) {
+    background-color: var(--vscode-toolbar-activeBackground, rgba(99, 102, 103, 0.4));
+}
+
+/* Open state - subtle highlight to indicate menu is open */
+.icon-btn-burger-menu-open {
+    background-color: var(--vscode-toolbar-activeBackground, rgba(99, 102, 103, 0.4));
+}

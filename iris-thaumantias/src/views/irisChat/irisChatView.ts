@@ -1,6 +1,7 @@
 import * as vscode from "vscode";
 import { IconDefinitions } from "../../utils/iconDefinitions";
 import { readCssFiles } from "../utils";
+import { BurgerMenuButton } from "../components/button/iconButtons";
 
 export class IrisChatView {
     private _extensionContext: vscode.ExtensionContext;
@@ -15,7 +16,7 @@ export class IrisChatView {
         webview?: vscode.Webview,
         showDiagnostics: boolean = false
     ): string {
-        const styles = readCssFiles("irisChat/iris-chat.css");
+        const styles = readCssFiles("irisChat/iris-chat.css", "components/button/iconButtons/iconButtons.css");
 
         const trashIcon = IconDefinitions.getIcon("trash");
         const stethoscopeIcon = IconDefinitions.getIcon("stethoscope");
@@ -60,13 +61,12 @@ export class IrisChatView {
                 : ""
             }
             <h1 class="chat-title">Chat with Iris</h1>
-            <button class="burger-menu" onclick="toggleSideMenu()" title="Menu">
-                <div class="burger-icon">
-                    <div class="burger-line"></div>
-                    <div class="burger-line"></div>
-                    <div class="burger-line"></div>
-                </div>
-            </button>
+            ${BurgerMenuButton.generate({
+                id: 'burgerMenuBtn',
+                command: 'toggleSideMenu()',
+                title: 'Menu',
+                className: 'chat-header-burger'
+            })}
         </div>
 
         <div class="context-bean-container" id="contextBeanContainer">
@@ -306,24 +306,24 @@ export class IrisChatView {
         window.toggleSideMenu = function() {
             const sideMenu = document.getElementById('sideMenu');
             const menuOverlay = document.getElementById('menuOverlay');
-            const burger = document.querySelector('.burger-menu');
+            const burger = document.getElementById('burgerMenuBtn');
             const isOpen = sideMenu.classList.contains('open');
 
             if (isOpen) {
                 sideMenu.classList.remove('open');
                 menuOverlay.classList.remove('open');
-                burger?.classList.remove('active');
+                burger?.classList.remove('icon-btn-burger-menu-open');
             } else {
                 sideMenu.classList.add('open');
                 menuOverlay.classList.add('open');
-                burger?.classList.add('active');
+                burger?.classList.add('icon-btn-burger-menu-open');
             }
         };
 
         window.closeSideMenu = function() {
             document.getElementById('sideMenu').classList.remove('open');
             document.getElementById('menuOverlay').classList.remove('open');
-            document.querySelector('.burger-menu')?.classList.remove('active');
+            document.getElementById('burgerMenuBtn')?.classList.remove('icon-btn-burger-menu-open');
         };
 
         window.openHelpPopup = function() {
