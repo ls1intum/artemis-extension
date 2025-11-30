@@ -64,48 +64,30 @@ body {
     position: relative;
 }
 
-.context-bean {
-    position: relative;
-    background: var(--theme-card-background);
+/* Override list-item styles for context bean */
+.context-bean.list-item {
+    margin-bottom: 0;
+    padding: 0;
     border: 1px solid var(--theme-border);
     border-radius: 6px;
     box-shadow: var(--theme-box-shadow);
 }
 
-
-
-
-
-
-
-
-
-
-
-
-
+.context-bean.list-item:hover {
+    border-color: var(--theme-border);
+}
 
 .context-bean-header {
     padding: 10px 12px;
     display: flex;
     align-items: center;
     justify-content: space-between;
-    cursor: pointer;
-    transition: var(--theme-transition);
+    border-radius: 6px;
 }
 
-.context-bean-header:hover {
-    background: var(--theme-button-background);
-}
-
-.context-bean-header:hover .context-text,
-.context-bean-header:hover .context-icon {
-    color: var(--theme-button-foreground);
-}
-
-.context-bean-header:hover .context-subtext,
-.context-bean-header:hover .context-dropdown-arrow {
-    opacity: 0.85;
+/* Collapse button positioning */
+.context-collapse-btn {
+    flex-shrink: 0;
 }
 
 .context-info {
@@ -188,10 +170,6 @@ body {
 
 .context-subtext {
     font-size: 11px;
-}
-
-.context-dropdown-arrow {
-    font-size: 10px;
 }
 
 .context-dropdown-menu {
@@ -311,28 +289,12 @@ body {
     display: block;
 }
 
-.session-item {
+/* Session list items - using list-item component */
+.session-item.list-item {
     padding: 10px 12px;
-    margin: 4px 0;
+    margin: 4px 8px;
     border-radius: 8px;
-    cursor: pointer;
-    transition: var(--theme-transition);
-}
-
-.session-item:hover {
-    background: var(--theme-button-background);
-}
-
-
-
-
-
-
-
-
-.session-item.active {
-    background: var(--theme-highlight-background);
-    border: 1px solid var(--theme-highlight);
+    border-color: transparent;
 }
 
 .session-item-header {

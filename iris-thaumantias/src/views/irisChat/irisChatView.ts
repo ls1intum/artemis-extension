@@ -1,8 +1,9 @@
 import * as vscode from "vscode";
 import { IconDefinitions } from "../../utils/iconDefinitions";
 import { readCssFiles } from "../utils";
-import { BurgerMenuButton } from "../components/button/iconButtons";
+import { BurgerMenuButton, CollapseButton } from "../components/button/iconButtons";
 import { ButtonComponent } from "../components/button/buttonComponent";
+import { ListItemComponent } from "../components/listItem/listItemComponent";
 
 export class IrisChatView {
     private _extensionContext: vscode.ExtensionContext;
@@ -17,7 +18,7 @@ export class IrisChatView {
         webview?: vscode.Webview,
         showDiagnostics: boolean = false
     ): string {
-        const styles = readCssFiles("irisChat/iris-chat.css", "components/button/iconButtons/iconButtons.css", "components/button/button.css");
+        const styles = readCssFiles("irisChat/iris-chat.css", "components/button/iconButtons/iconButtons.css", "components/button/button.css", "components/listItem/list-item.css");
 
         const trashIcon = IconDefinitions.getIcon("trash");
         const stethoscopeIcon = IconDefinitions.getIcon("stethoscope");
@@ -71,8 +72,14 @@ export class IrisChatView {
         </div>
 
         <div class="context-bean-container" id="contextBeanContainer">
-            <div class="context-bean" id="contextBean">
-                <div class="context-bean-header" onclick="toggleContextDropdown()">
+            ${ListItemComponent.generate(
+                {
+                    id: 'contextBean',
+                    className: 'context-bean',
+                    clickable: true,
+                    command: 'toggleContextDropdown()'
+                },
+                `<div class="context-bean-header">
                     <div class="context-info">
                         <span class="context-lock-icon" id="contextLockIcon" style="display: none;">${lockIcon}</span>
                         <span class="context-icon" id="contextIcon">${courseIcon}</span>
@@ -81,8 +88,16 @@ export class IrisChatView {
                             <span class="context-subtext" id="contextSubtext" style="display: none;"></span>
                         </div>
                     </div>
-                    <span class="context-dropdown-arrow" id="contextDropdownArrow">▼</span>
-                </div>
+                    ${CollapseButton.generate({
+                        id: 'contextDropdownArrow',
+                        collapsed: true,
+                        direction: 'down',
+                        targetId: 'contextDropdownMenu',
+                        title: 'Toggle context menu',
+                        className: 'context-collapse-btn'
+                    })}
+                </div>`
+            )}
 
                 <div class="context-dropdown-menu" id="contextDropdownMenu" style="display: none;">
                     <div class="context-search-container">
@@ -131,7 +146,6 @@ export class IrisChatView {
                         </div>
                     </div>
                 </div>
-            </div>
         </div>
 
         <div class="chat-messages" id="chatMessages">
@@ -384,7 +398,13 @@ export class IrisChatView {
             const isOpen = dropdown.style.display === 'block';
 
             dropdown.style.display = isOpen ? 'none' : 'block';
-            arrow.textContent = isOpen ? '▼' : '▲';
+            if (isOpen) {
+                arrow.classList.add('is-collapsed');
+                arrow.setAttribute('aria-expanded', 'false');
+            } else {
+                arrow.classList.remove('is-collapsed');
+                arrow.setAttribute('aria-expanded', 'true');
+            }
 
             if (!isOpen) {
                 const input = document.getElementById('contextSearchInput');
@@ -403,7 +423,8 @@ export class IrisChatView {
             const dropdown = document.getElementById('contextDropdownMenu');
             const arrow = document.getElementById('contextDropdownArrow');
             dropdown.style.display = 'none';
-            arrow.textContent = '▼';
+            arrow.classList.add('is-collapsed');
+            arrow.setAttribute('aria-expanded', 'false');
             resetSearch(false);
             forceContextPicker = false;
         };
@@ -542,7 +563,9 @@ export class IrisChatView {
             sortedSessions.forEach(session => {
                 const isActive = session.id === irisState.activeSessionId;
                 const element = document.createElement('div');
-                element.className = 'session-item' + (isActive ? ' active' : '');
+                element.className = 'list-item list-item--clickable list-item--hover session-item' + (isActive ? ' list-item--selected' : '');
+                element.setAttribute('role', 'button');
+                element.setAttribute('tabindex', '0');
                 element.onclick = () => window.selectSession(session.id);
                 const checkIconSvg = \`${checkIcon}\`;
                 element.innerHTML = \`
@@ -1227,7 +1250,8 @@ export class IrisChatView {
                         const dropdown = document.getElementById('contextDropdownMenu');
                         const arrow = document.getElementById('contextDropdownArrow');
                         dropdown.style.display = 'block';
-                        arrow.textContent = '▲';
+                        arrow.classList.remove('is-collapsed');
+                        arrow.setAttribute('aria-expanded', 'true');
                         updateContextBean();
                         updateDropdownContent();
                         updateChatInputState();
