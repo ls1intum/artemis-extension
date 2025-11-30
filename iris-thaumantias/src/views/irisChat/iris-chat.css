@@ -1083,12 +1083,7 @@ body {
     font-size: 16px;
 }
 
-.close-menu-btn {
-    background: none;
-    border: none;
-    font-size: 22px;
-    cursor: pointer;
-}
+/* Close button uses icon-btn component */
 
 .side-menu-content {
     flex: 1;
@@ -1106,32 +1101,22 @@ body {
     letter-spacing: 0.6px;
 }
 
-.menu-item {
+/* Menu items using list-item component */
+.menu-item.list-item {
     display: flex;
     gap: 12px;
     align-items: center;
-    padding: 10px 8px;
-    cursor: pointer;
+    padding: 10px 12px;
     border-radius: 8px;
-    transition: var(--theme-transition);
+    border-color: transparent;
+    margin-bottom: 4px;
 }
 
-
-
-
-
-
-
-
-
-
-
-.menu-item svg {
+.menu-item.list-item svg {
     width: 18px;
     height: 18px;
     color: var(--theme-foreground);
     flex-shrink: 0;
-    transition: var(--theme-transition);
 }
 
 .menu-item-content {

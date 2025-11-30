@@ -1,7 +1,7 @@
 import * as vscode from "vscode";
 import { IconDefinitions } from "../../utils/iconDefinitions";
 import { readCssFiles } from "../utils";
-import { BurgerMenuButton, CollapseButton } from "../components/button/iconButtons";
+import { BurgerMenuButton, CollapseButton, CloseButton } from "../components/button/iconButtons";
 import { ButtonComponent } from "../components/button/buttonComponent";
 import { ListItemComponent } from "../components/listItem/listItemComponent";
 
@@ -286,45 +286,69 @@ export class IrisChatView {
     <div class="side-menu" id="sideMenu">
         <div class="side-menu-header">
             <h3 class="side-menu-title">Menu</h3>
-            <button class="close-menu-btn" onclick="closeSideMenu()" title="Close Menu">×</button>
+            ${CloseButton.generate({
+                command: 'closeSideMenu()',
+                title: 'Close Menu',
+                className: 'close-menu-btn'
+            })}
         </div>
         <div class="side-menu-content">
             <div class="menu-section">
                 <h4 class="menu-section-title">Chat Options</h4>
-                <div class="menu-item" onclick="resetChatSessions()">
-                    ${refreshIcon}
+                ${ListItemComponent.generate(
+                    {
+                        className: 'menu-item',
+                        clickable: true,
+                        command: 'resetChatSessions()'
+                    },
+                    `${refreshIcon}
                     <div class="menu-item-content">
                         <div class="menu-item-title">Reset & Sync Sessions</div>
                         <div class="menu-item-description">Clear local data and reload from server</div>
-                    </div>
-                </div>
+                    </div>`
+                )}
             </div>
 
             <div class="menu-section">
                 <h4 class="menu-section-title">Help</h4>
-                <div class="menu-item" onclick="openHelpPopup()">
-                    ${questionMarkIcon}
+                ${ListItemComponent.generate(
+                    {
+                        className: 'menu-item',
+                        clickable: true,
+                        command: 'openHelpPopup()'
+                    },
+                    `${questionMarkIcon}
                     <div class="menu-item-content">
                         <div class="menu-item-title">Chat Context Guide</div>
                         <div class="menu-item-description">Learn how contexts impact responses</div>
-                    </div>
-                </div>
+                    </div>`
+                )}
                 ${showDiagnostics
                 ? `
-                <div class="menu-item" onclick="openDiagnostics()">
-                    ${stethoscopeIcon}
+                ${ListItemComponent.generate(
+                    {
+                        className: 'menu-item',
+                        clickable: true,
+                        command: 'openDiagnostics()'
+                    },
+                    `${stethoscopeIcon}
                     <div class="menu-item-content">
                         <div class="menu-item-title">Diagnostics</div>
                         <div class="menu-item-description">View detailed context and session state</div>
-                    </div>
-                </div>
-                <div class="menu-item" onclick="debugSessions()">
-                    ${stethoscopeIcon}
+                    </div>`
+                )}
+                ${ListItemComponent.generate(
+                    {
+                        className: 'menu-item',
+                        clickable: true,
+                        command: 'debugSessions()'
+                    },
+                    `${stethoscopeIcon}
                     <div class="menu-item-content">
                         <div class="menu-item-title">Debug Sessions (Raw)</div>
                         <div class="menu-item-description">View raw Artemis session data</div>
-                    </div>
-                </div>
+                    </div>`
+                )}
                 `
                 : ""
             }
