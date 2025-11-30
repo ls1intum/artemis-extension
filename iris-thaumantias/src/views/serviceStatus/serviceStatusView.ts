@@ -23,14 +23,14 @@ export class ServiceStatusView {
             'components/input/input.css',
             'components/button/button.css'
         );
-        
+
         return this._getServiceStatusHtml(styles, serverUrl);
     }
 
     private _getServiceStatusHtml(styles: string, serverUrl?: string): string {
         // Get icon SVGs
         const stethoscopeIcon = IconDefinitions.getIcon('stethoscope');
-        
+
         // Header container
         const headerContainer = ContainerComponent.generate({
             className: 'header-container',
@@ -50,12 +50,12 @@ export class ServiceStatusView {
             },
             bodyHtml: `
                 ${TextInputComponent.generate({
-                    id: 'serverUrl',
-                    type: 'text',
-                    value: serverUrl,
-                    disabled: true,
-                    fullWidth: true,
-                })}
+                id: 'serverUrl',
+                type: 'text',
+                value: serverUrl,
+                disabled: true,
+                fullWidth: true,
+            })}
             `
         });
 
@@ -69,7 +69,7 @@ export class ServiceStatusView {
             },
             bodyHtml: ServiceHealthComponent.generateHtml({ showTitle: false, compact: false, autoCheck: true })
         });
-        
+
         return `<!DOCTYPE html>
 <html lang="en">
 <head>
