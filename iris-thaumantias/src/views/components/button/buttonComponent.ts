@@ -81,12 +81,12 @@ export class ButtonComponent {
         const disabledAttr = disabled ? ' disabled' : '';
         const onclickAttr = command && !disabled ? ` onclick="${command}"` : '';
         const typeAttr = ` type="${type}"`;
-        
+
         // Build data attributes
         const dataAttrs = Object.entries(dataAttributes)
             .map(([key, value]) => ` data-${key}="${value}"`)
             .join('');
-        
+
         // Build inline styles for fixed dimensions
         const inlineStyles = [];
         if (width) {

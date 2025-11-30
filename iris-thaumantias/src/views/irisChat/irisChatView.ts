@@ -120,36 +120,36 @@ export class IrisChatView {
                         <div class="dropdown-divider"></div>
                         <div class="dropdown-section">
                             ${ButtonComponent.generate({
-                                label: 'New Conversation',
-                                icon: plusIcon,
-                                variant: 'ghost',
-                                id: 'newSessionBtn',
-                                command: 'createNewSession()',
-                                disabled: true,
-                                fullWidth: true,
-                                className: 'dropdown-action-btn',
-                                height: '2rem'
-                            })}
+                label: 'New Conversation',
+                icon: plusIcon,
+                variant: 'ghost',
+                id: 'newSessionBtn',
+                command: 'createNewSession()',
+                disabled: true,
+                fullWidth: true,
+                className: 'dropdown-action-btn',
+                height: '2rem'
+            })}
                             ${ButtonComponent.generate({
-                                label: 'Switch to Workspace',
-                                icon: lockIcon,
-                                variant: 'ghost',
-                                id: 'workspaceContextBtn',
-                                command: 'switchToWorkspaceContext()',
-                                disabled: true,
-                                fullWidth: true,
-                                className: 'dropdown-action-btn',
-                                height: '2rem'
-                            })}
+                label: 'Switch to Workspace',
+                icon: lockIcon,
+                variant: 'ghost',
+                id: 'workspaceContextBtn',
+                command: 'switchToWorkspaceContext()',
+                disabled: true,
+                fullWidth: true,
+                className: 'dropdown-action-btn',
+                height: '2rem'
+            })}
                             ${ButtonComponent.generate({
-                                label: 'Switch to Different Context',
-                                icon: switchIcon,
-                                variant: 'ghost',
-                                command: 'requestContextSwitch()',
-                                fullWidth: true,
-                                className: 'dropdown-action-btn',
-                                height: '2rem'
-                            })}
+                label: 'Switch to Different Context',
+                icon: switchIcon,
+                variant: 'ghost',
+                command: 'requestContextSwitch()',
+                fullWidth: true,
+                className: 'dropdown-action-btn',
+                height: '2rem'
+            })}
                         </div>
                     </div>
 
