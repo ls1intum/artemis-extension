@@ -209,12 +209,11 @@ export class CourseDetailView {
                     },
                     `
                         <div class="exercise-header">
-                            <span class="exercise-title">${exercise.title}</span>
                             <span class="exercise-type-icon">${exerciseIcon}</span>
+                            <span class="exercise-title">${exercise.title}</span>
                         </div>
                         <div class="exercise-info">
                             <span>Due: ${dueDate}</span>
-                            <span>Released: ${releaseDate}</span>
                             <span>${points} ${points === 1 ? 'point' : 'points'}</span>
                         </div>
                     `
