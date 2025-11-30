@@ -14,10 +14,6 @@ All notable changes to the Artemis VS Code extension will be documented in this 
 
 - **View Refactoring**: Major refactoring of all views (CourseDetail, CourseList, Dashboard, etc.) to use the new ContainerComponent for improved maintainability and consistent styling.
 
-### Fixed
-
-- **CSS Cleanup**: Removed ~2000+ lines of duplicate CSS by consolidating styles into reusable components.
-
 ## [0.2.6] - 2025-11-21
 
 ### Added
