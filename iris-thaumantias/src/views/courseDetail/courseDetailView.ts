@@ -235,12 +235,7 @@ export class CourseDetailView {
             header: {
                 title: courseTitle,
                 badge: semester,
-                titleSize: 'xlarge',
-                actionsHtml: FullscreenButton.generate({
-                    id: 'fullscreenBtn',
-                    command: 'toggleFullscreen()',
-                    title: 'Open in new tab'
-                })
+                titleSize: 'xlarge'
             },
             bodyHtml: `
                 <div class="course-color-indicator" style="background-color: ${courseColor};"></div>
@@ -340,7 +335,14 @@ export class CourseDetailView {
     </style>
 </head>
 <body>
-    ${BackLinkComponent.generateHtml()}
+    <div class="back-link-container">
+        ${BackLinkComponent.generateHtml({ wrap: false })}
+        ${FullscreenButton.generate({
+            id: 'fullscreenBtn',
+            command: 'toggleFullscreen()',
+            title: 'Open in new tab'
+        })}
+    </div>
     <div class="course-detail-container">
         ${courseHeaderContainer}
         ${AskIrisComponent.generate({
