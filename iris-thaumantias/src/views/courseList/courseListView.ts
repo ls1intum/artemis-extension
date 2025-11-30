@@ -4,12 +4,18 @@ import { ButtonComponent } from '../components/button/buttonComponent';
 import { IconDefinitions } from '../../utils/iconDefinitions';
 import { TextInputComponent } from '../components/input/textInputComponent';
 import { DropdownComponent } from '../components/dropdown/dropdownComponent';
+import { ContainerComponent } from '../components/container/containerComponent';
+import { ListItemComponent } from '../components/listItem/listItemComponent';
+import { BadgeComponent } from '../components/badge/badgeComponent';
 
 export class CourseListView {
     public generateHtml(coursesData: any | undefined, archivedCoursesData: any[] | undefined): string {
         const styles = readCssFiles(
             'components/backLink/back-link.css',
             'components/button/button.css',
+            'components/container/container.css',
+            'components/listItem/list-item.css',
+            'components/badge/badge.css',
             'courseList/course-list.css',
             'components/input/input.css',
             'components/dropdown/dropdown.css'
@@ -28,15 +34,24 @@ export class CourseListView {
                 const exerciseCount = course.exercises ? course.exercises.length : 0;
                 const semester = course.semester || 'No semester';
                 const description = course.description || 'No description available';
-                const courseColor = course.color || '#6c757d';  // Default to gray if no color
+                const courseColor = course.color || '#6c757d';
                 
-                return `
-                    <div class="course-item" onclick="viewCourseDetails(${JSON.stringify(courseData).replace(/"/g, '&quot;')})">
+                return ListItemComponent.generate(
+                    {
+                        className: 'course-item',
+                        clickable: true,
+                        hover: true,
+                        command: `viewCourseDetails(${JSON.stringify(courseData).replace(/"/g, '&quot;')})`,
+                        dataAttributes: {
+                            'course-id': course.id.toString()
+                        }
+                    },
+                    `
                         <div class="course-color-indicator" style="background-color: ${courseColor};"></div>
                         <div class="course-content">
                             <div class="course-header">
                                 <div class="course-title">${course.title}</div>
-                                <div class="course-semester">${semester}</div>
+                                ${BadgeComponent.generate({ label: semester, variant: 'primary', className: 'course-semester' })}
                             </div>
                             <div class="course-description">${description}</div>
                             <div class="course-stats">
@@ -44,8 +59,8 @@ export class CourseListView {
                                 <span>ID: ${course.id}</span>
                             </div>
                         </div>
-                    </div>
-                `;
+                    `
+                );
             }).join('');
         } else {
             coursesHtml = '<div class="no-courses">No courses available</div>';
@@ -56,9 +71,12 @@ export class CourseListView {
         if (!archivedCoursesData) {
             loadArchivedButton = `
                 <div class="load-archived-section">
-                    <button class="load-archived-btn" onclick="loadArchivedCourses()">
-                        Load Archived Courses
-                    </button>
+                    ${ButtonComponent.generate({
+                        label: 'Load Archived Courses',
+                        variant: 'secondary',
+                        command: 'loadArchivedCourses()',
+                        className: 'load-archived-btn'
+                    })}
                 </div>
             `;
         }
@@ -70,47 +88,146 @@ export class CourseListView {
                 const courseColor = course.color || '#6c757d';
                 const semester = course.semester || 'No semester';
                 
-                return `
-                    <div class="course-item archived-course" onclick="viewArchivedCourse(${course.id})">
+                return ListItemComponent.generate(
+                    {
+                        className: 'course-item archived-course',
+                        clickable: true,
+                        hover: true,
+                        command: `viewArchivedCourse(${course.id})`,
+                        dataAttributes: {
+                            'course-id': course.id.toString()
+                        }
+                    },
+                    `
                         <div class="course-color-indicator" style="background-color: ${courseColor};"></div>
                         <div class="course-content">
                             <div class="course-header">
                                 <div class="course-title">${course.title}</div>
-                                <div class="course-semester archived">${semester}</div>
+                                ${BadgeComponent.generate({ label: semester, variant: 'secondary', className: 'course-semester archived' })}
                             </div>
                             <div class="course-stats">
                                 <span>ID: ${course.id}</span>
                                 <span class="archived-label">Archived</span>
                             </div>
                         </div>
-                    </div>
-                `;
+                    `
+                );
             }).join('');
 
-            archivedCoursesHtml = `
-                <div class="archived-section">
-                    <div class="section-separator">
-                        <div class="separator-line"></div>
-                        <div class="separator-text">Archived Courses</div>
-                        <div class="separator-line"></div>
-                    </div>
-                    <div class="archived-courses-container">
-                        ${archivedItemsHtml}
-                    </div>
-                </div>
-            `;
+            archivedCoursesHtml = ContainerComponent.generate({
+                className: 'archived-section',
+                listMode: true,
+                header: {
+                    title: 'Archived Courses',
+                    badge: archivedCoursesData.length.toString(),
+                    divider: true
+                },
+                bodyHtml: `<div class="archived-courses-container">${archivedItemsHtml}</div>`
+            });
         } else if (archivedCoursesData && archivedCoursesData.length === 0) {
-            archivedCoursesHtml = `
-                <div class="archived-section">
-                    <div class="section-separator">
-                        <div class="separator-line"></div>
-                        <div class="separator-text">Archived Courses</div>
-                        <div class="separator-line"></div>
-                    </div>
-                    <div class="no-courses">No archived courses available</div>
-                </div>
-            `;
+            archivedCoursesHtml = ContainerComponent.generate({
+                className: 'archived-section',
+                header: {
+                    title: 'Archived Courses',
+                    divider: true
+                },
+                state: {
+                    type: 'info',
+                    message: 'No archived courses available'
+                }
+            });
         }
+
+        // Generate header with search and filters
+        const headerContainer = ContainerComponent.generate({
+            className: 'header-container',
+            header: {
+                title: 'All Courses',
+                subtitle: 'Browse and manage your enrolled courses',
+                titleSize: 'xlarge',
+                actionsHtml: ButtonComponent.generate({
+                    label: 'Reload',
+                    icon: IconDefinitions.getIcon('refresh'),
+                    variant: 'primary',
+                    command: 'reloadCourses()',
+                    height: '2rem'
+                })
+            },
+            bodyHtml: `
+                <div class="search-container">
+                    ${TextInputComponent.generate({
+                        id: 'courseSearch',
+                        type: 'search',
+                        placeholder: 'Search courses by title, semester, or description...',
+                        className: 'search-input',
+                        height: '2.5rem'
+                    })}
+                </div>
+                <div class="controls-grid">
+                    <div class="control-group">
+                        ${DropdownComponent.generate({
+                            id: 'typeFilter',
+                            label: 'Type',
+                            size: 'medium',
+                            onChange: 'window.handleFiltersChange()',
+                            options: [
+                                { value: 'all', label: 'All Courses', selected: true },
+                                { value: 'active', label: 'Active Only' },
+                                { value: 'archived', label: 'Archived Only' }
+                            ]
+                        })}
+                    </div>
+                    <div class="control-group">
+                        ${DropdownComponent.generate({
+                            id: 'semesterFilter',
+                            label: 'Semester',
+                            size: 'medium',
+                            onChange: 'window.handleFiltersChange()',
+                            options: [
+                                { value: 'all', label: 'All Semesters', selected: true }
+                            ]
+                        })}
+                    </div>
+                    <div class="control-group">
+                        ${DropdownComponent.generate({
+                            id: 'sortBy',
+                            label: 'Sort by',
+                            size: 'medium',
+                            onChange: 'window.handleFiltersChange()',
+                            options: [
+                                { value: 'title-asc', label: 'Title (A-Z)' },
+                                { value: 'title-desc', label: 'Title (Z-A)' },
+                                { value: 'semester-desc', label: 'Newest First', selected: true },
+                                { value: 'semester-asc', label: 'Oldest First' },
+                                { value: 'exercises-desc', label: 'Most Exercises' },
+                                { value: 'exercises-asc', label: 'Least Exercises' }
+                            ]
+                        })}
+                    </div>
+                    <div class="control-group control-group--action">
+                        ${ButtonComponent.generate({
+                            id: 'clearFiltersBtn',
+                            label: 'Clear Filters',
+                            variant: 'secondary',
+                            command: 'window.clearAllFilters()',
+                            disabled: true
+                        })}
+                    </div>
+                </div>
+            `
+        });
+
+        // Generate active courses container
+        const activeCoursesContainer = ContainerComponent.generate({
+            className: 'courses-section',
+            listMode: true,
+            header: {
+                title: 'Active Courses',
+                badge: coursesData?.courses?.length?.toString() || '0',
+                divider: true
+            },
+            bodyHtml: coursesHtml || '<div class="no-courses">No courses available</div>'
+        });
         
         return `<!DOCTYPE html>
 <html lang="en">
@@ -124,109 +241,21 @@ export class CourseListView {
 </head>
 <body>
     ${BackLinkComponent.generateHtml()}
-    
-    <div class="header">
-        <h1>All Courses</h1>
-        <div class="search-container">
-            ${TextInputComponent.generate({
-                id: 'courseSearch',
-                type: 'search',
-                placeholder: 'Search courses by title, semester, or description...',
-                className: 'search-input',
-                height: '2.5rem'
-            })}
-            ${ButtonComponent.generate({
-                label: 'Reload Courses',
-                icon: IconDefinitions.getIcon('refresh'),
-                variant: 'primary',
-                command: 'reloadCourses()',
-                className: 'reload-courses-btn',
-                height: '2.5rem'
-            })}
+    <div class="course-list-container">
+        ${headerContainer}
+        <div id="searchResults" class="search-results-info" style="display: none;"></div>
+        <div class="courses-wrapper">
+            ${activeCoursesContainer}
+            ${loadArchivedButton}
+            ${archivedCoursesHtml}
         </div>
-            <div class="controls-container" id="controlsContainer">
-                <div class="controls-header" onclick="toggleControls()">
-                    <h3 class="controls-header-title">Filter & Sort Options</h3>
-                    <div class="controls-toggle">▼</div>
-                </div>
-                <div class="controls-content">
-                    <div class="controls-grid">
-                        <div class="control-section filter-section">
-                            <h3 class="control-section-title">Filter</h3>
-                            <div class="control-row">
-                                <div class="control-group">
-                                    ${DropdownComponent.generate({
-                                        id: 'typeFilter',
-                                        label: 'Type',
-                                        size: 'medium',
-                                        onChange: 'window.handleFiltersChange()',
-                                        options: [
-                                            { value: 'all', label: 'All Courses', selected: true },
-                                            { value: 'active', label: 'Active Only' },
-                                            { value: 'archived', label: 'Archived Only' }
-                                        ]
-                                    })}
-                                </div>
-                                <div class="control-group">
-                                    ${DropdownComponent.generate({
-                                        id: 'semesterFilter',
-                                        label: 'Semester',
-                                        size: 'medium',
-                                        onChange: 'window.handleFiltersChange()',
-                                        options: [
-                                            { value: 'all', label: 'All Semesters', selected: true }
-                                            // Options will be populated dynamically
-                                        ]
-                                    })}
-                                </div>
-                            </div>
-                        </div>
-                        <div class="control-section sort-section">
-                            <h3 class="control-section-title">Sort</h3>
-                            <div class="control-group">
-                                ${DropdownComponent.generate({
-                                    id: 'sortBy',
-                                    label: 'Order by',
-                                    size: 'medium',
-                                    onChange: 'window.handleFiltersChange()',
-                                    options: [
-                                        { value: 'title-asc', label: 'Title (A-Z)' },
-                                        { value: 'title-desc', label: 'Title (Z-A)' },
-                                        { value: 'semester-desc', label: 'Newest First', selected: true },
-                                        { value: 'semester-asc', label: 'Oldest First' },
-                                        { value: 'exercises-desc', label: 'Most Exercises' },
-                                        { value: 'exercises-asc', label: 'Least Exercises' }
-                                    ]
-                                })}
-                            </div>
-                        </div>
-                        <div class="clear-section">
-                            ${ButtonComponent.generate({
-                                id: 'clearFiltersBtn',
-                                label: 'Clear Filters',
-                                variant: 'secondary',
-                                command: 'window.clearAllFilters()',
-                                disabled: true
-                            })}
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-    
-    <div id="searchResults" class="search-results-info" style="display: none;"></div>
-    
-    <div class="courses-container">
-        ${coursesHtml}
-        ${loadArchivedButton}
-        ${archivedCoursesHtml}
     </div>
 
     <script>
         const vscode = acquireVsCodeApi();
         
         ${BackLinkComponent.generateScript()}
+        ${ContainerComponent.generateScript()}
         
         window.reloadCourses = function() {
             vscode.postMessage({ command: 'reloadCourses' });
@@ -370,11 +399,11 @@ export class CourseListView {
             // Apply visibility and reorder
             courseItems.forEach(item => item.classList.add('hidden'));
             
-            const coursesContainer = document.querySelector('.courses-container');
+            const coursesSection = document.querySelector('.courses-section');
             const loadArchivedSection = document.querySelector('.load-archived-section');
             
-            // Get insertion point (before archived section or load button)
-            const insertionPoint = archivedSection || loadArchivedSection || null;
+            // Get the body of the courses section for reordering
+            const coursesSectionBody = coursesSection?.querySelector('.ui-container__body');
             
             filteredCourses.forEach((item, index) => {
                 item.classList.remove('hidden');
@@ -384,10 +413,6 @@ export class CourseListView {
                     visibleArchivedCourses++;
                 } else {
                     visibleActiveCourses++;
-                    // Reorder active courses
-                    if (coursesContainer && insertionPoint) {
-                        coursesContainer.insertBefore(item, insertionPoint);
-                    }
                 }
             });
 
@@ -397,7 +422,13 @@ export class CourseListView {
                     (visibleArchivedCourses > 0 || (typeFilter === 'all' && totalArchivedCourses > 0));
                 
                 archivedSection.style.display = showArchivedSection ? 'block' : 'none';
-                if (archivedSeparator) archivedSeparator.style.display = showArchivedSection ? 'flex' : 'none';
+            }
+
+            // Handle courses section visibility
+            if (coursesSection) {
+                const showCoursesSection = (typeFilter !== 'archived') && 
+                    (visibleActiveCourses > 0 || totalActiveCourses > 0);
+                coursesSection.style.display = showCoursesSection ? 'block' : 'none';
             }
 
             // Update search results info
@@ -449,7 +480,7 @@ export class CourseListView {
         }
 
         function handleNoCoursesMessage(searchTerm, typeFilter, visibleActiveCourses, totalActiveCourses) {
-            const noCoursesMsg = document.querySelector('.courses-container .no-courses');
+            const noCoursesMsg = document.querySelector('.courses-section .no-courses');
             if (!noCoursesMsg) return;
 
             const hasActiveFilters = searchTerm !== '' || typeFilter !== 'all';
@@ -478,14 +509,6 @@ export class CourseListView {
             if (sortBy) sortBy.value = 'semester-desc';
             
             window.handleFiltersChange();
-        };
-
-        // Toggle controls visibility
-        window.toggleControls = function() {
-            const container = document.getElementById('controlsContainer');
-            if (container) {
-                container.classList.toggle('expanded');
-            }
         };
 
         // Populate semester filter options
