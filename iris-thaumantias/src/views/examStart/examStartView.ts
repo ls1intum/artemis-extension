@@ -78,7 +78,7 @@ export class ExamStartView {
         const hasStarted = examStartDate ? now >= examStartDate : false;
         const startLabel = hasStarted ? "Started" : "Starts";
         const startRelative = examStartDate ? this.getRelativeTime(examStartDate, now) : "";
-        
+
         // Calculate relative time for end
         const hasEnded = examEndDate ? now >= examEndDate : false;
         const endLabel = hasEnded ? "Ended" : "Ends";
