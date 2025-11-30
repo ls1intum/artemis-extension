@@ -975,11 +975,15 @@ export class IrisChatView {
                 input.readOnly = false;
                 input.placeholder = 'Ask Iris a question...';
                 button.disabled = false;
+                button.classList.remove('btn-disabled');
+                button.onclick = sendMessage;
             } else {
                 input.disabled = true;
                 input.readOnly = true;
                 input.placeholder = 'Select a context to start chatting';
                 button.disabled = true;
+                button.classList.add('btn-disabled');
+                button.onclick = null;
             }
         }
 
