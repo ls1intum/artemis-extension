@@ -3,6 +3,9 @@ import { AiExtension } from '../app/appStateManager';
 import { readCssFiles } from '../utils';
 import { BackLinkComponent } from '../components/backLink/backLinkComponent';
 import { ButtonComponent } from '../components/button/buttonComponent';
+import { ContainerComponent } from '../components/container/containerComponent';
+import { BadgeComponent } from '../components/badge/badgeComponent';
+import { ListItemComponent } from '../components/listItem/listItemComponent';
 
 interface ProviderGroup {
     provider: string;
@@ -21,6 +24,9 @@ export class AiCheckerView {
         const styles = readCssFiles(
             'components/backLink/back-link.css',
             'components/button/button.css',
+            'components/container/container.css',
+            'components/badge/badge.css',
+            'components/listItem/list-item.css',
             'aiChecker/ai-checker.css'
         );
 
@@ -37,60 +43,84 @@ export class AiCheckerView {
         const groupsMarkup = groups
             .map(group => {
                 const extensionsMarkup = group.extensions.map(ext => {
-                    const statusClass = ext.isInstalled
-                        ? 'status-installed'
-                        : 'status-missing';
+                    const statusBadge = BadgeComponent.generate({
+                        label: ext.isInstalled ? 'Installed' : 'Not installed',
+                        variant: ext.isInstalled ? 'success' : 'secondary'
+                    });
                     const statusValue = ext.isInstalled ? 'installed' : 'missing';
-                    const statusLabel = ext.isInstalled
-                        ? '● Installed'
-                        : '✖ Not installed';
+                    const publisherLine = ext.isInstalled && ext.version !== '—' 
+                        ? `${ext.publisher} • v${ext.version}` 
+                        : ext.publisher;
 
-                    return `
-                        <div class="extension-item" data-provider="${group.provider.toLowerCase()}" data-status="${statusValue}" data-installed="${ext.isInstalled}" data-name="${ext.name.toLowerCase()}" data-ext-id="${ext.id}">
-                            <div class="extension-content">
-                                <div class="extension-top">
+                    return ListItemComponent.generate(
+                        {
+                            className: 'extension-item',
+                            clickable: false,
+                            hover: true,
+                            dataAttributes: {
+                                'provider': group.provider.toLowerCase(),
+                                'status': statusValue,
+                                'installed': ext.isInstalled.toString(),
+                                'name': ext.name.toLowerCase(),
+                                'ext-id': ext.id
+                            }
+                        },
+                        `
+                            <div class="extension-header">
+                                <div class="extension-info">
                                     <h3 class="extension-name">${ext.name}</h3>
-                                    <span class="status-badge ${statusClass}">
-                                        ${statusLabel}
-                                    </span>
+                                    <p class="extension-publisher">${publisherLine}</p>
                                 </div>
-                                ${ext.isInstalled ? `
-                                <div class="extension-details">
-                                    <p class="extension-publisher">${ext.publisher}${ext.version !== '—' ? ` • v${ext.version}` : ''}</p>
-                                    <p class="extension-description">${ext.description}</p>
-                                    ${ButtonComponent.generate({
-                                        label: 'View in Marketplace',
-                                        variant: 'secondary',
-                                        className: 'marketplace-btn',
-                                        command: `searchMarketplace('${ext.id}')`
-                                    })}
-                                </div>
-                                ` : `
-                                <div class="extension-details">
-                                    <p class="extension-description">${ext.description}</p>
-                                    ${ButtonComponent.generate({
-                                        label: 'View in Marketplace',
-                                        variant: 'secondary',
-                                        className: 'marketplace-btn',
-                                        command: `searchMarketplace('${ext.id}')`
-                                    })}
-                                </div>
-                                `}
+                                ${statusBadge}
                             </div>
-                        </div>
-                    `;
+                            <p class="extension-description">${ext.description}</p>
+                            ${ButtonComponent.generate({
+                                label: 'View in Marketplace',
+                                variant: 'secondary',
+                                className: 'marketplace-btn',
+                                command: `searchMarketplace('${ext.id}')`
+                            })}
+                        `
+                    );
                 }).join('');
 
-                return `
-                    <section class="provider-group" data-provider="${group.provider.toLowerCase()}">
-                        <header class="provider-header">
-                            <span class="provider-chip" style="background-color: ${group.color};">${group.provider}</span>
-                            <span class="provider-count">${group.extensions.length} extension${group.extensions.length !== 1 ? 's' : ''}</span>
-                        </header>
-                        ${extensionsMarkup}
-                    </section>
-                `;
+                return ContainerComponent.generate({
+                    className: 'provider-group',
+                    listMode: true,
+                    header: {
+                        title: group.provider,
+                        badge: `${group.extensions.length}`,
+                        actionsHtml: `<span class="provider-chip" style="background-color: ${group.color};"></span>`
+                    },
+                    bodyHtml: `<div class="extensions-list">${extensionsMarkup}</div>`,
+                    dataAttributes: {
+                        'provider': group.provider.toLowerCase()
+                    }
+                });
             }).join('');
+
+        const headerContainer = ContainerComponent.generate({
+            className: 'header-container',
+            header: {
+                title: 'AI Checker',
+                subtitle: 'Check and manage your AI-powered learning assistants',
+                titleSize: 'xlarge'
+            },
+            bodyHtml: groups.length > 0 ? this._renderFilterBar(providerOptions) : ''
+        });
+
+        const contentContainer = groups.length > 0 
+            ? `<div class="provider-groups" id="extensionsList">${groupsMarkup}</div>
+               <p class="no-extensions hidden" id="noExtensionsFiltered">No extensions match your filters.</p>`
+            : ContainerComponent.generate({
+                className: 'empty-state',
+                textAlign: 'center',
+                state: {
+                    type: 'info',
+                    message: 'No AI extensions detected',
+                    hint: 'AI extensions help you get intelligent assistance while coding.'
+                }
+            });
 
         return `<!DOCTYPE html>
 <html lang="en">
@@ -101,65 +131,19 @@ export class AiCheckerView {
     <style>
         ${styles}
     </style>
-
 </head>
 <body>
+    ${BackLinkComponent.generateHtml()}
     <div class="ai-checker-container">
-        ${BackLinkComponent.generateHtml()}
-        
-        <div class="header">
-            <div class="header-content">
-                <h1>AI Checker</h1>
-                <p>Check and manage your AI-powered learning assistants</p>
-            </div>
-        </div>
-        
-        <div class="content">
-            <div class="status-view">
-                <h3>Installed AI Extensions</h3>
-                ${groups.length > 0 ? `
-                    <div class="filter-bar">
-                        <div class="filter-field">
-                            <label for="aiFilterSearch">Search</label>
-                            <input id="aiFilterSearch" type="search" placeholder="Search AI tools by name" />
-                        </div>
-                        <div class="filter-field">
-                            <label for="aiFilterProvider">Provider</label>
-                            <select id="aiFilterProvider">
-                                <option value="all" selected>All providers</option>
-                                ${providerOptions}
-                            </select>
-                        </div>
-                        <div class="filter-field">
-                            <label for="aiFilterStatus">Status</label>
-                            <select id="aiFilterStatus">
-                                <option value="all" selected>All statuses</option>
-                                <option value="installed">Installed</option>
-                                <option value="missing">Not installed</option>
-                            </select>
-                        </div>
-                        <div class="refresh-btn-wrapper">
-                            <button class="refresh-btn" onclick="refreshExtensions()">
-                                <span>↻</span>
-                                Refresh
-                            </button>
-                        </div>
-                    </div>
-                    <div class="extensions-list" id="extensionsList">
-                        ${groupsMarkup}
-                    </div>
-                    <p class="no-extensions hidden" id="noExtensionsFiltered">No extensions match your filters.</p>
-                ` : `
-                    <p class="no-extensions">No AI extensions detected</p>
-                `}
-            </div>
-        </div>
+        ${headerContainer}
+        ${contentContainer}
     </div>
 
     <script>
         const vscode = acquireVsCodeApi();
 
         ${BackLinkComponent.generateScript()}
+        ${ContainerComponent.generateScript()}
 
         function refreshExtensions() {
             vscode.postMessage({ command: 'showAiConfig' });
@@ -246,5 +230,37 @@ export class AiCheckerView {
                 extensions: [...group.extensions].sort((a, b) => a.name.localeCompare(b.name))
             }))
             .sort((a, b) => a.provider.localeCompare(b.provider));
+    }
+
+    private _renderFilterBar(providerOptions: string): string {
+        return `
+            <div class="filter-bar">
+                <div class="filter-field">
+                    <label for="aiFilterSearch">Search</label>
+                    <input id="aiFilterSearch" type="search" placeholder="Search AI tools by name" />
+                </div>
+                <div class="filter-field">
+                    <label for="aiFilterProvider">Provider</label>
+                    <select id="aiFilterProvider">
+                        <option value="all" selected>All providers</option>
+                        ${providerOptions}
+                    </select>
+                </div>
+                <div class="filter-field">
+                    <label for="aiFilterStatus">Status</label>
+                    <select id="aiFilterStatus">
+                        <option value="all" selected>All statuses</option>
+                        <option value="installed">Installed</option>
+                        <option value="missing">Not installed</option>
+                    </select>
+                </div>
+                ${ButtonComponent.generate({
+                    label: 'Clear',
+                    variant: 'secondary',
+                    className: 'refresh-btn',
+                    command: 'refreshExtensions()'
+                })}
+            </div>
+        `;
     }
 }
