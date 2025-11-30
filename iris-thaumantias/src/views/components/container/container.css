@@ -93,11 +93,14 @@
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-}
-
-.ui-container__icon img {
   width: 28px;
   height: 28px;
+}
+
+.ui-container__icon img,
+.ui-container__icon svg {
+  width: 100%;
+  height: 100%;
   object-fit: contain;
   display: block;
 }

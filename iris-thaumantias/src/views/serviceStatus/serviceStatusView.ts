@@ -5,6 +5,7 @@ import { readCssFiles } from '../utils';
 import { BackLinkComponent } from '../components/backLink/backLinkComponent';
 import { TextInputComponent } from '../components/input/textInputComponent';
 import { ButtonComponent } from '../components/button/buttonComponent';
+import { ContainerComponent } from '../components/container/containerComponent';
 
 export class ServiceStatusView {
     private _extensionContext: vscode.ExtensionContext;
@@ -16,6 +17,7 @@ export class ServiceStatusView {
     public generateHtml(serverUrl?: string, webview?: vscode.Webview): string {
         const styles = readCssFiles(
             'components/backLink/back-link.css',
+            'components/container/container.css',
             'serviceStatus/service-status.css',
             'components/serviceHealth/service-health.css',
             'components/input/input.css',
@@ -28,7 +30,45 @@ export class ServiceStatusView {
     private _getServiceStatusHtml(styles: string, serverUrl?: string): string {
         // Get icon SVGs
         const stethoscopeIcon = IconDefinitions.getIcon('stethoscope');
-        const refreshIcon = IconDefinitions.getIcon('refresh');
+        
+        // Header container
+        const headerContainer = ContainerComponent.generate({
+            className: 'header-container',
+            header: {
+                title: 'Service Status',
+                subtitle: 'Real-time monitoring of Artemis services',
+                titleSize: 'xlarge',
+                icon: stethoscopeIcon
+            }
+        });
+
+        // Server info container
+        const serverInfoContainer = ContainerComponent.generate({
+            className: 'server-info-container',
+            header: {
+                title: 'Connected Server'
+            },
+            bodyHtml: `
+                ${TextInputComponent.generate({
+                    id: 'serverUrl',
+                    type: 'text',
+                    value: serverUrl,
+                    disabled: true,
+                    fullWidth: true,
+                })}
+            `
+        });
+
+        // Service health container
+        const healthContainer = ContainerComponent.generate({
+            className: 'health-container',
+            header: {
+                title: 'Health Checks',
+                subtitle: 'Click on each service to see detailed information',
+                divider: true
+            },
+            bodyHtml: ServiceHealthComponent.generateHtml({ showTitle: false, compact: false, autoCheck: true })
+        });
         
         return `<!DOCTYPE html>
 <html lang="en">
@@ -39,32 +79,13 @@ export class ServiceStatusView {
     <style>
         ${styles}
     </style>
-
 </head>
 <body>
+    ${BackLinkComponent.generateHtml()}
     <div class="service-status-container">
-        ${BackLinkComponent.generateHtml()}
-        
-        <div class="header">
-            <h1 class="header-title">
-                <span class="header-icon">${stethoscopeIcon}</span>
-                Service Status
-            </h1>
-            <p class="header-subtitle">Real-time monitoring of Artemis services</p>
-        </div>
-        
-        <div class="server-info">
-            <h3 class="server-info-title">Connected Server</h3>
-            ${TextInputComponent.generate({
-                id: 'serverUrl',
-                type: 'text',
-                value: serverUrl ,
-                disabled: true,
-                fullWidth: true,
-            })}
-        </div>
-        
-        ${ServiceHealthComponent.generateHtml({ showTitle: true, compact: false, autoCheck: true })}
+        ${headerContainer}
+        ${serverInfoContainer}
+        ${healthContainer}
     </div>
 
     <script>
@@ -74,6 +95,7 @@ export class ServiceStatusView {
         ${ServiceHealthComponent.generateScript()}
         
         ${BackLinkComponent.generateScript()}
+        ${ContainerComponent.generateScript()}
     </script>
 </body>
 </html>`;
