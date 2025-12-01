@@ -79,7 +79,8 @@ export class ButtonComponent {
 
         const idAttr = id ? ` id="${id}"` : '';
         const disabledAttr = disabled ? ' disabled' : '';
-        const onclickAttr = command && !disabled ? ` onclick="${command}"` : '';
+        // Always include onclick handler - disabled attribute will prevent click events
+        const onclickAttr = command ? ` onclick="${command}"` : '';
         const typeAttr = ` type="${type}"`;
 
         // Build data attributes
