@@ -5,6 +5,7 @@ import { BurgerMenuButton, CollapseButton, CloseButton } from "../components/but
 import { ButtonComponent } from "../components/button/buttonComponent";
 import { ListItemComponent } from "../components/listItem/listItemComponent";
 import { HelpPopupComponent } from "../components/helpPopup";
+import { SideMenuComponent, type SideMenuSection } from "../components/sideMenu";
 
 export class IrisChatView {
     private _extensionContext: vscode.ExtensionContext;
@@ -239,87 +240,54 @@ export class IrisChatView {
 
     ${HelpPopupComponent.generate()}
 
-    <div class="menu-overlay" id="menuOverlay" onclick="closeSideMenu()"></div>
-    <div class="side-menu" id="sideMenu">
-        <div class="side-menu-header">
-            <h3 class="side-menu-title">Menu</h3>
-            ${CloseButton.generate({
-                command: 'closeSideMenu()',
-                title: 'Close Menu',
-                className: 'close-menu-btn'
-            })}
-        </div>
-        <div class="side-menu-content">
-            <div class="menu-section">
-                <h4 class="menu-section-title">Chat Options</h4>
-                ${ListItemComponent.generate(
-                {
-                    className: 'menu-item',
-                    clickable: true,
-                    command: 'resetChatSessions()'
-                },
-                `${refreshIcon}
-                    <div class="menu-item-content">
-                        <div class="menu-item-title">Reset & Sync Sessions</div>
-                        <div class="menu-item-description">Clear local data and reload from server</div>
-                    </div>`
-            )}
-            </div>
-
-            <div class="menu-section">
-                <h4 class="menu-section-title">Help</h4>
-                ${ListItemComponent.generate(
-                {
-                    className: 'menu-item',
-                    clickable: true,
-                    command: 'openHelpPopup()'
-                },
-                `${questionMarkIcon}
-                    <div class="menu-item-content">
-                        <div class="menu-item-title">Chat Context Guide</div>
-                        <div class="menu-item-description">Learn how contexts impact responses</div>
-                    </div>`
-            )}
-                ${showDiagnostics
-                ? `
-                ${ListItemComponent.generate(
+    ${(() => {
+        const menuSections: SideMenuSection[] = [
+            {
+                title: 'Chat Options',
+                items: [
                     {
-                        className: 'menu-item',
-                        clickable: true,
-                        command: 'openDiagnostics()'
-                    },
-                    `${stethoscopeIcon}
-                    <div class="menu-item-content">
-                        <div class="menu-item-title">Diagnostics</div>
-                        <div class="menu-item-description">View detailed context and session state</div>
-                    </div>`
-                )}
-                ${ListItemComponent.generate(
+                        icon: 'refresh',
+                        title: 'Reset & Sync Sessions',
+                        description: 'Clear local data and reload from server',
+                        command: 'resetChatSessions()'
+                    }
+                ]
+            },
+            {
+                title: 'Help',
+                items: [
                     {
-                        className: 'menu-item',
-                        clickable: true,
-                        command: 'debugSessions()'
+                        icon: 'question-mark',
+                        title: 'Chat Context Guide',
+                        description: 'Learn how contexts impact responses',
+                        command: 'openHelpPopup()'
                     },
-                    `${stethoscopeIcon}
-                    <div class="menu-item-content">
-                        <div class="menu-item-title">Debug Sessions (Raw)</div>
-                        <div class="menu-item-description">View raw Artemis session data</div>
-                    </div>`
-                )}
-                `
-                : ""
-            }
-            </div>
-
-            <div class="menu-section">
-                <h4 class="menu-section-title">About</h4>
-                <div class="menu-info">
+                    ...(showDiagnostics ? [
+                        {
+                            icon: 'stethoscope',
+                            title: 'Diagnostics',
+                            description: 'View detailed context and session state',
+                            command: 'openDiagnostics()'
+                        },
+                        {
+                            icon: 'stethoscope',
+                            title: 'Debug Sessions (Raw)',
+                            description: 'View raw Artemis session data',
+                            command: 'debugSessions()'
+                        }
+                    ] : [])
+                ]
+            },
+            {
+                title: 'About',
+                customHtml: `<div class="menu-info">
                     <strong>Iris Chat</strong><br>
                     AI-powered guidance tailored to your Artemis coursework and exercises.
-                </div>
-            </div>
-        </div>
-    </div>
+                </div>`
+            }
+        ];
+        return SideMenuComponent.generate({ sections: menuSections });
+    })()}
 
     <script>
         console.log('[WebsocketLog] 🚀 Iris Chat webview script initializing...');
@@ -330,28 +298,7 @@ export class IrisChatView {
             vscode.postMessage({ command: 'openFile', filePath });
         };
 
-        window.toggleSideMenu = function() {
-            const sideMenu = document.getElementById('sideMenu');
-            const menuOverlay = document.getElementById('menuOverlay');
-            const burger = document.getElementById('burgerMenuBtn');
-            const isOpen = sideMenu.classList.contains('open');
-
-            if (isOpen) {
-                sideMenu.classList.remove('open');
-                menuOverlay.classList.remove('open');
-                burger?.classList.remove('icon-btn-burger-menu-open');
-            } else {
-                sideMenu.classList.add('open');
-                menuOverlay.classList.add('open');
-                burger?.classList.add('icon-btn-burger-menu-open');
-            }
-        };
-
-        window.closeSideMenu = function() {
-            document.getElementById('sideMenu').classList.remove('open');
-            document.getElementById('menuOverlay').classList.remove('open');
-            document.getElementById('burgerMenuBtn')?.classList.remove('icon-btn-burger-menu-open');
-        };
+        ${SideMenuComponent.getScript()}
 
         ${HelpPopupComponent.getScript()}
 
