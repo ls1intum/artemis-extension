@@ -171,7 +171,7 @@ export class ContextStore {
         console.log('🔧 [CONTEXT STORE] registerExercise called with:', input);
         console.log('🔧 [CONTEXT STORE] Current active context:', this.state.activeContext);
         console.log(`[IRISDEBUG] registerExercise: id=${input.id}, isWorkspace=${input.isWorkspace}, source=${input.source}`);
-        
+
         const entry = this.upsertExercise(input);
         this.recalculateExercisePriorities();
         this.trimExerciseHistory();
@@ -180,9 +180,9 @@ export class ContextStore {
             // Only override the active context if:
             // 1. There is no active context, OR
             // 2. The active context is NOT user-selected (respect explicit user choices)
-            const shouldOverride = !this.state.activeContext || 
-                                   this.state.activeContext.source !== 'user-selected';
-            
+            const shouldOverride = !this.state.activeContext ||
+                this.state.activeContext.source !== 'user-selected';
+
             if (shouldOverride) {
                 console.log('🔧 [CONTEXT STORE] Source is workspace-detected, setting active context to workspace exercise');
                 this.setActiveContext({
@@ -254,14 +254,14 @@ export class ContextStore {
         console.log('🔧 [CONTEXT STORE] setActiveContext called with:', context);
         console.log('🔧 [CONTEXT STORE] ensureSession:', ensureSession);
         console.log('🔧 [CONTEXT STORE] Previous active context:', this.state.activeContext);
-        
+
         this.state.activeContext = {
             ...context,
             selectedAt: now(),
         };
-        
+
         console.log('🔧 [CONTEXT STORE] New active context set to:', this.state.activeContext);
-        
+
         if (ensureSession) {
             this.ensureSessionForActive();
         }
