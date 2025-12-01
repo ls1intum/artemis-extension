@@ -3,7 +3,7 @@ import { IconDefinitions } from "../../utils";
 import { readCssFiles, processMarkdown, transformExerciseData } from "../utils";
 import { BackLinkComponent } from "../components/backLink/backLinkComponent";
 import { ButtonComponent } from "../components/button/buttonComponent";
-import { FullscreenButton, CloseButton } from "../components/button/iconButtons";
+import { FullscreenButton, CloseButton, ReloadButton } from "../components/button/iconButtons";
 import { BadgeComponent } from "../components/badge/badgeComponent";
 import { ContainerComponent } from "../components/container/containerComponent";
 import { AskIrisComponent } from "../components/askIris/askIrisComponent";
@@ -151,6 +151,11 @@ export class ExerciseDetailView {
             command: "backToCourseDetails",
             label: "← Back to Course",
             wrap: false,
+        })}
+        ${ReloadButton.generate({
+            id: 'reloadExerciseBtn',
+            command: `reloadExerciseDetail(${exerciseId})`,
+            title: 'Reload Exercise'
         })}
         ${FullscreenButton.generate({
             id: 'fullscreenBtn',
@@ -567,6 +572,11 @@ export class ExerciseDetailView {
         ${ContainerComponent.generateScript()}
         
         ${SubmissionStatusComponent.generateScript()}
+        
+        // Reload exercise detail
+        window.reloadExerciseDetail = function(exerciseId) {
+            vscode.postMessage({ command: 'reloadExerciseDetail', exerciseId: exerciseId });
+        };
         
         // PlantUML render function
         window.renderPlantUmlDiagrams = function() {

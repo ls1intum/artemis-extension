@@ -10,6 +10,17 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
+    gap: 8px;
+}
+
+/* Group icon buttons on the right */
+.back-link-container .icon-btn {
+    flex-shrink: 0;
+}
+
+/* Push icon buttons to the right */
+.back-link-container .back-link {
+    flex: 1;
 }
 
 .back-link {

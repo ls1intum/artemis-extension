@@ -27,6 +27,9 @@ export class NavigationCommandModule {
             showGitCredentials: this.handleShowGitCredentials,
             loadArchivedCourses: this.handleLoadArchivedCourses,
             reloadCourses: this.handleReloadCourses,
+            reloadDashboard: this.handleReloadDashboard,
+            reloadCourseDetail: this.handleReloadCourseDetail,
+            reloadExerciseDetail: this.handleReloadExerciseDetail,
             viewArchivedCourse: this.handleViewArchivedCourse,
             openExercise: this.handleOpenExercise,
             toggleFullscreen: this.handleToggleFullscreen,
@@ -297,6 +300,46 @@ export class NavigationCommandModule {
         } catch (error) {
             console.error('Reload courses error:', error);
             vscode.window.showErrorMessage('Error reloading courses');
+        }
+    };
+
+    private handleReloadDashboard = async (): Promise<void> => {
+        try {
+            this.context.appStateManager.clearDashboardData();
+            const userInfo = this.context.appStateManager.userInfo;
+            if (userInfo) {
+                await this.context.actionHandler.showDashboard(userInfo);
+            }
+        } catch (error) {
+            console.error('Reload dashboard error:', error);
+            vscode.window.showErrorMessage('Error reloading dashboard');
+        }
+    };
+
+    private handleReloadCourseDetail = async (message: any): Promise<void> => {
+        try {
+            const courseId = message.courseId || this.context.appStateManager.currentCourseData?.course?.id;
+            if (courseId) {
+                this.context.appStateManager.clearCurrentCourseData();
+                await this.context.appStateManager.showCourseDetail(courseId);
+                this.context.actionHandler.render();
+            }
+        } catch (error) {
+            console.error('Reload course detail error:', error);
+            vscode.window.showErrorMessage('Error reloading course details');
+        }
+    };
+
+    private handleReloadExerciseDetail = async (message: any): Promise<void> => {
+        try {
+            const exerciseId = message.exerciseId || this.context.appStateManager.currentExerciseData?.exercise?.id || this.context.appStateManager.currentExerciseData?.id;
+            if (exerciseId) {
+                this.context.appStateManager.clearCurrentExerciseData();
+                await this.context.actionHandler.openExerciseDetails(exerciseId);
+            }
+        } catch (error) {
+            console.error('Reload exercise detail error:', error);
+            vscode.window.showErrorMessage('Error reloading exercise details');
         }
     };
 

@@ -154,3 +154,31 @@
 .icon-btn-burger-menu-open {
     background-color: var(--vscode-toolbar-activeBackground, rgba(99, 102, 103, 0.4));
 }
+
+/* Reload button */
+.icon-btn-reload {
+    color: var(--vscode-icon-foreground, #c5c5c5);
+}
+
+.icon-btn-reload:hover:not(.icon-btn-disabled) {
+    background-color: var(--vscode-toolbar-hoverBackground, rgba(90, 93, 94, 0.31));
+    color: var(--vscode-foreground, #cccccc);
+}
+
+.icon-btn-reload:active:not(.icon-btn-disabled) {
+    background-color: var(--vscode-toolbar-activeBackground, rgba(99, 102, 103, 0.4));
+}
+
+/* Loading state - spinning animation */
+.icon-btn-loading svg {
+    animation: icon-btn-spin 1s linear infinite;
+}
+
+@keyframes icon-btn-spin {
+    from {
+        transform: rotate(0deg);
+    }
+    to {
+        transform: rotate(360deg);
+    }
+}

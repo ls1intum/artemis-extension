@@ -10,6 +10,7 @@ import { BadgeComponent } from '../components/badge/badgeComponent';
 import { AskIrisComponent } from '../components/askIris/askIrisComponent';
 import { ContainerComponent } from '../components/container/containerComponent';
 import { FullscreenButton } from '../components/button/iconButtons/fullscreenButton';
+import { ReloadButton } from '../components/button/iconButtons';
 import { detectWorkspaceExercise } from '../../services';
 
 export class CourseDetailView {
@@ -337,6 +338,11 @@ export class CourseDetailView {
 <body>
     <div class="back-link-container">
         ${BackLinkComponent.generateHtml({ wrap: false })}
+        ${ReloadButton.generate({
+            id: 'reloadCourseBtn',
+            command: `reloadCourseDetail(${course?.id})`,
+            title: 'Reload Course'
+        })}
         ${FullscreenButton.generate({
             id: 'fullscreenBtn',
             command: 'toggleFullscreen()',
@@ -367,6 +373,11 @@ export class CourseDetailView {
         
         // Enable keyboard navigation for list items
         ${ListItemComponent.generateScript()}
+
+        // Reload course detail
+        window.reloadCourseDetail = function(courseId) {
+            vscode.postMessage({ command: 'reloadCourseDetail', courseId: courseId });
+        };
 
         if (askIrisButton) {
             askIrisButton.addEventListener('click', () => {

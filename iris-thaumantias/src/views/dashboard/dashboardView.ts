@@ -3,6 +3,7 @@ import { VSCODE_CONFIG } from '../../utils';
 import { IconDefinitions } from '../../utils/iconDefinitions';
 import { readCssFiles } from '../utils';
 import { ButtonComponent } from '../components/button/buttonComponent';
+import { ReloadButton } from '../components/button/iconButtons';
 import { ListItemComponent } from '../components/listItem/listItemComponent';
 import { DropdownComponent } from '../components/dropdown/dropdownComponent';
 import { ContainerComponent } from '../components/container/containerComponent';
@@ -18,6 +19,7 @@ export class DashboardView {
         const styles = readCssFiles(
             'dashboard/dashboard.css',
             'components/button/button.css',
+            'components/button/iconButtons/iconButtons.css',
             'components/listItem/list-item.css',
             'components/dropdown/dropdown.css',
             'components/container/container.css'
@@ -142,6 +144,11 @@ export class DashboardView {
                     command: 'showAllCourses()',
                     className: 'show-all-link',
                     height: '1rem'
+                })}
+                        ${ReloadButton.generate({
+                    id: 'reloadDashboardBtn',
+                    command: 'reloadDashboard()',
+                    title: 'Reload Courses'
                 })}
                     </div>
                 `,
@@ -313,6 +320,11 @@ export class DashboardView {
 
     <script>
         const vscode = acquireVsCodeApi();
+        
+        // Reload dashboard
+        window.reloadDashboard = function() {
+            vscode.postMessage({ command: 'reloadDashboard' });
+        };
         
         // Dashboard action buttons
         const browseCoursesBtn = document.getElementById('browseCoursesBtn');

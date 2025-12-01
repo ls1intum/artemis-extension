@@ -201,6 +201,18 @@ export class AppStateManager {
         this._coursesData = undefined;
     }
 
+    public clearCurrentCourseData(): void {
+        this._currentCourseData = undefined;
+    }
+
+    public clearCurrentExerciseData(): void {
+        this._currentExerciseData = undefined;
+    }
+
+    public clearDashboardData(): void {
+        this._coursesData = undefined;
+    }
+
     public setCoursesData(data: any): void {
         this._coursesData = data;
     }
