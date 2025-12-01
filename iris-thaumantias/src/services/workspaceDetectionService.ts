@@ -33,12 +33,13 @@ export interface ExerciseSource {
  * Handles various URL formats:
  * - SSH: git@github.com:user/repo.git
  * - HTTPS with credentials: https://user@github.com/user/repo.git
- * - HTTPS: https://github.com/user/repo.git
+ * - HTTPS/HTTP: https://github.com/user/repo.git or http://github.com/user/repo.git
  */
 export function normalizeRepositoryUrl(url: string): string {
     return url
         .replace(/^git@([^:]+):/, 'https://$1/')
         .replace(/^https?:\/\/[^@]*@/, 'https://')
+        .replace(/^http:\/\//, 'https://')
         .replace(/\.git$/, '')
         .replace(/\/$/, '')
         .toLowerCase();
