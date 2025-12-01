@@ -568,15 +568,16 @@ export class IrisChatView {
             const contextPickerSection = document.getElementById('contextPickerSection');
             const searchSection = document.getElementById('searchResultsSection');
 
+            // Always hide the old search section - we integrate search into the recent lists now
+            searchSection.style.display = 'none';
+
             if (searchQuery && searchQuery.length > 0) {
+                // When searching, always show the context picker with filtered results
                 sessionSection.style.display = 'none';
-                contextPickerSection.style.display = 'none';
-                searchSection.style.display = 'block';
-                renderSearchResults();
+                contextPickerSection.style.display = 'block';
+                renderRecentLists();
                 return;
             }
-
-            searchSection.style.display = 'none';
 
             if (irisState.context && !forceContextPicker) {
                 sessionSection.style.display = 'block';
@@ -634,20 +635,54 @@ export class IrisChatView {
         function renderRecentLists() {
             const exercisesList = document.getElementById('recentExercisesList');
             const coursesList = document.getElementById('recentCoursesList');
+            const exercisesHeader = exercisesList.previousElementSibling;
+            const coursesHeader = coursesList.previousElementSibling;
 
             exercisesList.innerHTML = '';
             coursesList.innerHTML = '';
 
-            if (irisState.recentExercises.length === 0) {
-                exercisesList.innerHTML = '<div class="context-empty">No exercises yet</div>';
+            const query = searchQuery ? searchQuery.trim().toLowerCase() : '';
+            const isSearching = query.length > 0;
+
+            // When searching, filter from ALL exercises/courses, otherwise use recent lists
+            // Limit to 3 items each for a compact view
+            let exercises = isSearching 
+                ? (irisState.allExercises || []).filter(item =>
+                    item.title.toLowerCase().includes(query) ||
+                    (item.shortName && item.shortName.toLowerCase().includes(query)) ||
+                    (item.repositoryUri && item.repositoryUri.toLowerCase().includes(query))
+                  ).slice(0, 3)
+                : irisState.recentExercises.slice(0, 3);
+
+            let courses = isSearching
+                ? (irisState.allCourses || []).filter(item =>
+                    item.title.toLowerCase().includes(query) ||
+                    (item.shortName && item.shortName.toLowerCase().includes(query))
+                  ).slice(0, 3)
+                : irisState.recentCourses.slice(0, 3);
+
+            // Update headers based on search state
+            if (exercisesHeader) {
+                exercisesHeader.textContent = isSearching ? 'Exercises' : 'Recent Exercises';
+            }
+            if (coursesHeader) {
+                coursesHeader.textContent = isSearching ? 'Courses' : 'Recent Courses';
+            }
+
+            if (exercises.length === 0) {
+                exercisesList.innerHTML = isSearching 
+                    ? '<div class="context-empty">No matching exercises</div>'
+                    : '<div class="context-empty">No exercises yet</div>';
             } else {
                 const exerciseIconSvg = \`${exerciseIcon}\`;
                 const lockIconSvg = \`${lockIcon}\`;
-                irisState.recentExercises.forEach(exercise => {
+                exercises.forEach(exercise => {
                     const element = document.createElement('div');
-                    element.className = 'context-item';
-                    element.onclick = () => window.selectContext('exercise', exercise.id, exercise.title, exercise.shortName);
                     const isWorkspace = exercise.isWorkspace || /\\(Workspace\\)/i.test(exercise.title);
+                    element.className = 'list-item list-item--clickable list-item--hover context-item';
+                    element.setAttribute('role', 'button');
+                    element.setAttribute('tabindex', '0');
+                    element.onclick = () => window.selectContext('exercise', exercise.id, exercise.title, exercise.shortName);
                     element.innerHTML = \`
                         <div class="context-item-icon">\${exerciseIconSvg}</div>
                         <div class="context-item-content">
@@ -659,13 +694,17 @@ export class IrisChatView {
                 });
             }
 
-            if (irisState.recentCourses.length === 0) {
-                coursesList.innerHTML = '<div class="context-empty">No courses yet</div>';
+            if (courses.length === 0) {
+                coursesList.innerHTML = isSearching
+                    ? '<div class="context-empty">No matching courses</div>'
+                    : '<div class="context-empty">No courses yet</div>';
             } else {
                 const courseIconSvg = \`${courseIcon}\`;
-                irisState.recentCourses.forEach(course => {
+                courses.forEach(course => {
                     const element = document.createElement('div');
-                    element.className = 'context-item';
+                    element.className = 'list-item list-item--clickable list-item--hover context-item';
+                    element.setAttribute('role', 'button');
+                    element.setAttribute('tabindex', '0');
                     element.onclick = () => window.selectContext('course', course.id, course.title, course.shortName);
                     element.innerHTML = \`
                         <div class="context-item-icon">\${courseIconSvg}</div>
@@ -1353,7 +1392,10 @@ export class IrisChatView {
         document.addEventListener('click', event => {
             const bean = document.getElementById('contextBean');
             const dropdown = document.getElementById('contextDropdownMenu');
-            if (dropdown.style.display === 'block' && bean && !bean.contains(event.target)) {
+            // Close dropdown only if clicking outside both the bean and the dropdown menu
+            if (dropdown.style.display === 'block' && 
+                bean && !bean.contains(event.target) && 
+                dropdown && !dropdown.contains(event.target)) {
                 window.closeDropdown();
             }
         });

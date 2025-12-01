@@ -182,8 +182,9 @@ body {
     border: 1px solid var(--theme-border);
     border-radius: 6px;
     box-shadow: var(--theme-box-shadow);
-    max-height: 420px;
-    overflow-y: auto;
+    max-height: 480px;
+    display: flex;
+    flex-direction: column;
     z-index: 1000;
 }
 
@@ -218,8 +219,9 @@ body {
     opacity: 0.5;
 }
 
-.session-section,
-.context-picker-section {
+.session-section {
+    flex: 1;
+    overflow-y: auto;
     padding: 8px 0 12px;
 }
 
@@ -321,20 +323,34 @@ body {
     font-size: 12px;
 }
 
+/* Context picker section - scrollable area */
+.context-picker-section {
+    flex: 1;
+    overflow-y: auto;
+    padding: 8px 0 0;
+}
+
 .context-picker-group {
-    padding: 0 8px 6px;
+    padding: 0 8px 10px;
+    position: relative;
 }
 
+/* List container with border */
 .context-list {
-    padding: 0;
+    padding: 6px;
+    max-height: 130px; /* Show ~2 items */
+    overflow-y: auto;
+    position: relative;
+    border: 1px solid var(--theme-border);
+    border-radius: 8px;
+    background: transparent;
 }
 
-.context-item {
+/* Context items using list-item component */
+.context-item.list-item {
     padding: 8px 10px;
     margin: 4px 0;
-    border: 1px solid var(--theme-border);
     border-radius: 6px;
-    cursor: pointer;
     display: flex;
     align-items: center;
     gap: 10px;
@@ -380,9 +396,11 @@ body {
 
 .context-empty,
 .context-empty-info {
-    padding: 12px 12px 8px;
-    font-size: 12px;
+    padding: 8px 12px;
+    font-size: 11px;
     text-align: left;
+    color: var(--theme-muted);
+    flex-shrink: 0;
 }
 
 .search-results-section {

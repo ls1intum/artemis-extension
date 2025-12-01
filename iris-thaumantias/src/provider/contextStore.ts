@@ -148,6 +148,10 @@ export class ContextStore {
             a.title.localeCompare(b.title, undefined, { sensitivity: 'base' })
         );
 
+        // Debug logging for workspace exercises
+        const workspaceExercisesInSnapshot = recentExercises.filter(ex => ex.isWorkspace);
+        console.log(`[IRISDEBUG] snapshot(): workspace exercises in recentExercises: ${JSON.stringify(workspaceExercisesInSnapshot.map(ex => ({ id: ex.id, title: ex.title, isWorkspace: ex.isWorkspace })))}`);
+
         return {
             activeContext: active,
             activeSession,
@@ -166,6 +170,7 @@ export class ContextStore {
     public registerExercise(input: ExerciseInput): ContextSnapshot {
         console.log('🔧 [CONTEXT STORE] registerExercise called with:', input);
         console.log('🔧 [CONTEXT STORE] Current active context:', this.state.activeContext);
+        console.log(`[IRISDEBUG] registerExercise: id=${input.id}, isWorkspace=${input.isWorkspace}, source=${input.source}`);
         
         const entry = this.upsertExercise(input);
         this.recalculateExercisePriorities();
@@ -466,6 +471,16 @@ export class ContextStore {
             this.state.recentExercises.find(ex => ex.id === input.id);
 
         const lastViewed = now();
+        const isWorkspace = input.isWorkspace ?? existing?.isWorkspace ?? false;
+
+        console.log(`[IRISDEBUG] upsertExercise called: id=${input.id}, input.isWorkspace=${input.isWorkspace}, existing?.isWorkspace=${existing?.isWorkspace}, resolved isWorkspace=${isWorkspace}`);
+
+        // If this exercise is being marked as workspace, clear the flag from all other exercises
+        if (isWorkspace) {
+            console.log(`[IRISDEBUG] Exercise ${input.id} is workspace, clearing flag from others`);
+            this.clearWorkspaceFlagFromOtherExercises(input.id);
+        }
+
         const merged: TrackedExercise = {
             id: input.id,
             title: input.title || existing?.title || `Exercise ${input.id}`,
@@ -475,12 +490,14 @@ export class ContextStore {
             lastViewed,
             score: input.score ?? existing?.score,
             repositoryUri: input.repositoryUri ?? existing?.repositoryUri,
-            isWorkspace: input.isWorkspace ?? existing?.isWorkspace ?? false,
+            isWorkspace,
             priority: 0,
             lastUpdated: now(),
         };
 
         merged.priority = this.calculateExercisePriority(merged);
+
+        console.log(`[IRISDEBUG] upsertExercise merged: id=${merged.id}, isWorkspace=${merged.isWorkspace}, priority=${merged.priority}`);
 
         this.state.allExercises = this.upsertList(
             this.state.allExercises,
@@ -493,7 +510,45 @@ export class ContextStore {
             item => item.id === merged.id
         );
 
+        // Log current workspace exercises after upsert
+        const workspaceExercises = this.state.recentExercises.filter(ex => ex.isWorkspace);
+        console.log(`[IRISDEBUG] After upsert, workspace exercises: ${JSON.stringify(workspaceExercises.map(ex => ({ id: ex.id, title: ex.title, isWorkspace: ex.isWorkspace })))}`);
+
         return merged;
+    }
+
+    /**
+     * Clears the isWorkspace flag from all exercises except the specified one.
+     * This ensures only one exercise can be marked as the current workspace at a time.
+     */
+    private clearWorkspaceFlagFromOtherExercises(currentWorkspaceId: number): void {
+        const beforeAll = this.state.allExercises.filter(ex => ex.isWorkspace).map(ex => ex.id);
+        const beforeRecent = this.state.recentExercises.filter(ex => ex.isWorkspace).map(ex => ex.id);
+        console.log(`[IRISDEBUG] clearWorkspaceFlagFromOtherExercises: currentWorkspaceId=${currentWorkspaceId}, before allExercises workspace ids=${JSON.stringify(beforeAll)}, recentExercises workspace ids=${JSON.stringify(beforeRecent)}`);
+
+        this.state.allExercises = this.state.allExercises.map(exercise => {
+            if (exercise.id !== currentWorkspaceId && exercise.isWorkspace) {
+                console.log(`[IRISDEBUG] Clearing isWorkspace from allExercises: id=${exercise.id}, title=${exercise.title}`);
+                return {
+                    ...exercise,
+                    isWorkspace: false,
+                    priority: this.calculateExercisePriority({ ...exercise, isWorkspace: false }),
+                };
+            }
+            return exercise;
+        });
+
+        this.state.recentExercises = this.state.recentExercises.map(exercise => {
+            if (exercise.id !== currentWorkspaceId && exercise.isWorkspace) {
+                console.log(`[IRISDEBUG] Clearing isWorkspace from recentExercises: id=${exercise.id}, title=${exercise.title}`);
+                return {
+                    ...exercise,
+                    isWorkspace: false,
+                    priority: this.calculateExercisePriority({ ...exercise, isWorkspace: false }),
+                };
+            }
+            return exercise;;
+        });
     }
 
     private upsertCourse(input: CourseInput): TrackedCourse {
