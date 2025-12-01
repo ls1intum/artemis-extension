@@ -1,7 +1,7 @@
 import type { CommandContext, CommandMap } from './types';
 
 export class HealthCommandModule {
-    constructor(private readonly context: CommandContext) {}
+    constructor(private readonly context: CommandContext) { }
 
     public getHandlers(): CommandMap {
         return {
@@ -24,7 +24,7 @@ export class HealthCommandModule {
         try {
             cookieHeader = await this.context.authManager.getCookieHeader();
         } catch (error) {
-            console.log('No authentication cookie available for health checks');
+            console.log('[Health Check] No authentication cookie available for health checks');
         }
 
         try {

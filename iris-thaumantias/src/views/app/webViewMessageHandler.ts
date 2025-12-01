@@ -19,7 +19,7 @@ import { UtilityCommandModule } from './commands/utilityCommands';
 export class WebViewMessageHandler {
     private _authContextUpdater?: (isAuthenticated: boolean) => Promise<void>;
     private _sendMessage: (message: any) => void = (message: any) => {
-        console.log('Message to send to webview:', message);
+        console.log('[Webview] Message to send to webview:', message);
     };
     private readonly commandHandlers: Map<string, CommandHandler> = new Map();
     private readonly repositoryModule: RepositoryCommandModule;

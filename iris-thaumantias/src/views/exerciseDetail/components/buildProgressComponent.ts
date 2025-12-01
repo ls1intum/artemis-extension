@@ -23,7 +23,7 @@ export class BuildProgressComponent {
     const { state, message, progressPercent = 5, isIndeterminate = true, buildTimingInfo } = data;
 
     // Calculate initial progress and message
-    const { displayMessage, calculatedProgress, calculatedIndeterminate } = 
+    const { displayMessage, calculatedProgress, calculatedIndeterminate } =
       this._calculateProgress(state, message, progressPercent, isIndeterminate, buildTimingInfo);
 
     // Generate progress bar HTML
@@ -69,7 +69,7 @@ export class BuildProgressComponent {
       const now = new Date();
       const totalTime = eta.getTime() - startDate.getTime();
       const elapsed = now.getTime() - startDate.getTime();
-      
+
       calculatedProgress = Math.min(100, Math.max(5, (elapsed / totalTime) * 100));
       calculatedIndeterminate = false;
 
@@ -206,7 +206,7 @@ export class BuildProgressComponent {
        * Handle submission processing state updates from WebSocket
        */
       window.handleSubmissionProcessing = function(state, buildTimingInfo) {
-        console.log('⚙️ Received submission processing update:', state, buildTimingInfo);
+        console.log('[Build Progress] ⚙️ Received submission processing update:', state, buildTimingInfo);
         
         let message = '';
         let progressPercent = 0;
@@ -257,7 +257,7 @@ export class BuildProgressComponent {
         const startAttr = buildStatusSection.getAttribute('data-start');
 
         if (etaAttr && startAttr) {
-          console.log('🔄 Initializing build progress updates from page load data');
+          console.log('[Build Progress] 🔄 Initializing build progress updates from page load data');
           const buildTimingInfo = {
             estimatedCompletionDate: etaAttr,
             buildStartDate: startAttr

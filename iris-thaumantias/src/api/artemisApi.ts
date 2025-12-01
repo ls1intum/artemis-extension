@@ -96,11 +96,11 @@ export class ArtemisApiService {
             for (const participation of exerciseData.exercise.studentParticipations) {
                 const submissionCount = participation.submissions?.length || 0;
                 const resultCount = participation.results?.length || 0;
-                console.log(`📊 Participation ${participation.id}: ${submissionCount} submissions, ${resultCount} results`);
+                console.log(`[Artemis API] 📊 Participation ${participation.id}: ${submissionCount} submissions, ${resultCount} results`);
 
                 if (submissionCount === 0) {
-                    console.warn(`⚠️ Participation ${participation.id} has no submissions array or it's empty`);
-                    console.log('Participation data:', JSON.stringify(participation, null, 2));
+                    console.warn(`[Artemis API] ⚠️ Participation ${participation.id} has no submissions array or it's empty`);
+                    console.log('[Artemis API] Participation data:', JSON.stringify(participation, null, 2));
                 }
             }
         } else {
@@ -122,7 +122,7 @@ export class ArtemisApiService {
             // Check if response has content
             const text = await response.text();
             if (!text || text.trim() === '') {
-                console.log(`No pending submission for participation ${participationId}`);
+                console.log(`[Artemis API] No pending submission for participation ${participationId}`);
                 return null;
             }
 
@@ -131,7 +131,7 @@ export class ArtemisApiService {
             return data;
         } catch (error) {
             // If no pending submission exists, API may return 404 or empty response
-            console.log(`No pending submission for participation ${participationId}:`, error);
+            console.log(`[Artemis API] No pending submission for participation ${participationId}:`, error);
             return null;
         }
     }
@@ -429,7 +429,7 @@ export class ArtemisApiService {
         // Older Artemis backends will ignore unknown fields (Jackson default behavior)
         if (uncommittedFiles && uncommittedFiles.size > 0) {
             messagePayload.uncommittedFiles = Object.fromEntries(uncommittedFiles);
-            console.log(`Sending ${uncommittedFiles.size} uncommitted files to Iris`);
+            console.log(`[Iris API] Sending ${uncommittedFiles.size} uncommitted files to Iris`);
         }
 
         try {

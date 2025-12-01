@@ -359,7 +359,7 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
                 }
                 break;
             default:
-                console.log('Unhandled message in chat view:', message);
+                console.log('[Iris Chat] Unhandled message in chat view:', message);
                 break;
         }
     }
@@ -460,7 +460,7 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
         }
 
         try {
-            console.log(`Checking Iris settings for ${context.type}: ${context.title}`);
+            console.log(`[Iris Chat] Checking Iris settings for ${context.type}: ${context.title}`);
 
             // Fetch settings based on context type
             let settings: any;
@@ -479,11 +479,11 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
                 : settings?.irisProgrammingExerciseChatSettings;
 
             if (!chatSettings?.enabled) {
-                console.log('Iris chat is disabled in settings');
+                console.log('[Iris Chat] Iris chat is disabled in settings');
                 return false;
             }
 
-            console.log('Iris chat is enabled, settings loaded:', {
+            console.log('[Iris Chat] Iris chat is enabled, settings loaded:', {
                 enabled: chatSettings.enabled,
                 rateLimit: chatSettings.rateLimit,
                 rateLimitTimeframeHours: chatSettings.rateLimitTimeframeHours
@@ -495,12 +495,12 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
 
             // If it's a 403, Iris is probably disabled - return false to show disabled overlay
             if (error.status === 403 || error.message?.includes('403')) {
-                console.log('Iris is not available (403 error)');
+                console.log('[Iris Chat] Iris is not available (403 error)');
                 return false;
             }
 
             // For other errors, log but still return false to show disabled state
-            console.log(`Could not load Iris settings: ${error.message}`);
+            console.log(`[Iris Chat] Could not load Iris settings: ${error.message}`);
             return false;
         }
     }
@@ -533,12 +533,12 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
             const isEnabled = await this._checkAndLoadIrisSettings(activeContext);
 
             if (!this._isCurrentContext(targetContext, loadToken)) {
-                console.log('Context changed while checking Iris settings, aborting load');
+                console.log('[Iris Chat] Context changed while checking Iris settings, aborting load');
                 return;
             }
 
             if (!isEnabled) {
-                console.log('Iris is disabled, not loading sessions');
+                console.log('[Iris Chat] Iris is disabled, not loading sessions');
                 // Clear any existing sessions and show disabled overlay
                 if (this._view) {
                     this._view.webview.postMessage({
@@ -567,11 +567,11 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
             } else if (activeContext.type === 'exercise') {
                 artemisSessionsMetadata = await this._artemisApiService.getExerciseChatSessions(activeContext.id);
             } else {
-                console.log(`Unsupported context type: ${activeContext.type}`);
+                console.log(`[Iris Chat] Unsupported context type: ${activeContext.type}`);
                 return;
             }
 
-            console.log(`Fetched ${artemisSessionsMetadata.length} session(s) metadata from Artemis`);
+            console.log(`[Iris Chat] Fetched ${artemisSessionsMetadata.length} session(s) metadata from Artemis`);
 
             // Step 2: Fetch messages for each session (to display in list)
             const artemisSessionsListFromServer: any[] = await Promise.all(
@@ -580,7 +580,7 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
                         return { ...session, messages: [] };
                     }
                     try {
-                        console.log(`Fetching messages for session ${session.id}...`);
+                        console.log(`[Iris Chat] Fetching messages for session ${session.id}...`);
                         const messages = await this._artemisApiService.getChatMessages(session.id);
                         return {
                             ...session,
@@ -600,12 +600,12 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
 
             // CLEAR all existing sessions for this context to avoid stale data
             if (!this._isCurrentContext(targetContext, loadToken)) {
-                console.log('Context changed before clearing sessions, aborting load');
+                console.log('[Iris Chat] Context changed before clearing sessions, aborting load');
                 return;
             }
 
             const contextKey = `${targetContext.type}:${targetContext.id}`;
-            console.log(`Clearing all existing sessions for context ${contextKey} before loading fresh data from Artemis`);
+            console.log(`[Iris Chat] Clearing all existing sessions for context ${contextKey} before loading fresh data from Artemis`);
             this._contextStore.clearSessionsForContext(contextKey);
 
             // Clear chat messages immediately after clearing sessions to avoid showing old messages
@@ -622,12 +622,12 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
                     return dateB - dateA;
                 });
 
-                console.log(`Importing ${artemisSessionsListFromServer.length} sessions from Artemis`);
+                console.log(`[Iris Chat] Importing ${artemisSessionsListFromServer.length} sessions from Artemis`);
 
                 for (const artemisSession of artemisSessionsListFromServer) {
 
                     if (!this._isCurrentContext(targetContext, loadToken)) {
-                        console.log('Context changed while importing sessions, aborting load');
+                        console.log('[Iris Chat] Context changed while importing sessions, aborting load');
                         return;
                     }
 
@@ -644,7 +644,7 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
                         }
                     }
 
-                    console.log(`Importing session ${artemisSession.id}: ${messageCount} messages, preview: "${preview}"`);
+                    console.log(`[Iris Chat] Importing session ${artemisSession.id}: ${messageCount} messages, preview: "${preview}"`);
 
                     // Create local session with Artemis session ID and messages
                     this._contextStore.createSessionWithDetails(
@@ -656,7 +656,7 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
                     );
                 }
 
-                console.log(`Imported ${artemisSessionsListFromServer.length} sessions for ${activeContext.type} ${activeContext.id}`);
+                console.log(`[Iris Chat] Imported ${artemisSessionsListFromServer.length} sessions for ${activeContext.type} ${activeContext.id}`);
             }
 
             // Get the latest snapshot after importing sessions
@@ -665,7 +665,7 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
             // If there are sessions, switch to the first one and load its messages
             if (updatedSnapshot.sessions.length > 0) {
                 if (!this._isCurrentContext(targetContext, loadToken)) {
-                    console.log('Context changed before switching to first session, aborting load');
+                    console.log('[Iris Chat] Context changed before switching to first session, aborting load');
                     return;
                 }
 
@@ -674,16 +674,16 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
 
                 // Load messages for the first session
                 if (!this._isCurrentContext(targetContext, loadToken)) {
-                    console.log('Context changed before loading messages, aborting load');
+                    console.log('[Iris Chat] Context changed before loading messages, aborting load');
                     return;
                 }
 
                 await this._loadIrisMessages();
             } else {
                 // No sessions exist, create a new one
-                console.log('No sessions found, creating a new one');
+                console.log('[Iris Chat] No sessions found, creating a new one');
                 if (!this._isCurrentContext(targetContext, loadToken)) {
-                    console.log('Context changed before creating new session, aborting load');
+                    console.log('[Iris Chat] Context changed before creating new session, aborting load');
                     return;
                 }
                 this._contextStore.createSession();
@@ -692,7 +692,7 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
 
             // Post updated snapshot to show sessions in UI
             if (!this._isCurrentContext(targetContext, loadToken)) {
-                console.log('Context changed before posting snapshot, aborting load');
+                console.log('[Iris Chat] Context changed before posting snapshot, aborting load');
                 return;
             }
 
@@ -703,7 +703,7 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
             vscode.window.showWarningMessage(`Could not load sessions: ${error.message}`);
 
             if (!this._isCurrentContext(targetContext, loadToken)) {
-                console.log('Context changed during error handling, skipping fallback session creation');
+                console.log('[Iris Chat] Context changed during error handling, skipping fallback session creation');
                 return;
             }
 
@@ -1181,7 +1181,7 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
                         .forEach(f => uncommittedFiles!.set(f.path, f.content!));
 
                     if (uncommittedFiles.size > 0) {
-                        console.log(`📁 Sending ${uncommittedFiles.size} uncommitted file(s) to Iris`);
+                        console.log(`[Iris Chat] 📁 Sending ${uncommittedFiles.size} uncommitted file(s) to Iris`);
 
                         // Update display with detailed analysis
                         if (this._view) {
@@ -1227,7 +1227,7 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
                     uncommittedFiles = undefined;
                 }
             } else {
-                console.log('📁 Uncommitted changes sending is disabled by user setting');
+                console.log('[Iris Chat] 📁 Uncommitted changes sending is disabled by user setting');
             }
 
             // Send message to Iris
@@ -1273,7 +1273,7 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
         const messageId: number | undefined = message.messageId;
         const feedback: string | undefined = message.feedback;
 
-        console.log('Message feedback received:', { sessionId, messageId, feedback });
+        console.log('[Iris Chat] Message feedback received:', { sessionId, messageId, feedback });
 
         if (!sessionId || !messageId || !feedback) {
             console.warn('Missing required feedback data:', { sessionId, messageId, feedback });
@@ -1288,7 +1288,7 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
         try {
             const isHelpful = feedback === 'positive';
             await this._artemisApiService.markMessageHelpful(sessionId, messageId, isHelpful);
-            console.log(`Feedback submitted: ${feedback} for message ${messageId} in session ${sessionId}`);
+            console.log(`[Iris Chat] Feedback submitted: ${feedback} for message ${messageId} in session ${sessionId}`);
 
             // Optional: Show user confirmation
             // vscode.window.showInformationMessage('Thanks for your feedback!');
@@ -1311,13 +1311,13 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
         }
 
         try {
-            console.log(`Initializing Iris session for ${context.type}: ${context.title} (ID: ${context.id})`);
+            console.log(`[Iris Chat] Initializing Iris session for ${context.type}: ${context.title} (ID: ${context.id})`);
 
             // Check if we have a stored Artemis session ID for this local session
             const snapshot = this._contextStore.snapshot();
             const activeLocalSession = snapshot.activeSession;
 
-            console.log('Active local session:', {
+            console.log('[Iris Chat] Active local session:', {
                 id: activeLocalSession?.id,
                 messageCount: activeLocalSession?.messageCount,
                 artemisSessionId: activeLocalSession?.artemisSessionId,
@@ -1328,22 +1328,22 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
 
             // If we didn't have a stored session ID, store it now
             if (!activeLocalSession?.artemisSessionId) {
-                console.log('Storing NEW Artemis session ID mapping:', sessionId);
+                console.log('[Iris Chat] Storing NEW Artemis session ID mapping:', sessionId);
                 this._storeArtemisSessionId(sessionId);
             }
 
             console.log('[WebsocketLog] 🎯 Iris session initialized with ID:', sessionId);
 
             // Load existing messages if any
-            console.log('Fetching messages for session:', sessionId);
+            console.log('[Iris Chat] Fetching messages for session:', sessionId);
             const messages = await this._artemisApiService.getChatMessages(sessionId);
-            console.log(`Received ${messages?.length || 0} messages from Iris`);
+            console.log(`[Iris Chat] Received ${messages?.length || 0} messages from Iris`);
 
             // If we expected messages but got none, the stored session might be stale
             if (activeLocalSession?.messageCount && activeLocalSession.messageCount > 0 &&
                 (!messages || messages.length === 0)) {
-                console.log('Warning: Expected', activeLocalSession.messageCount, 'messages but got none. Stored session might be stale.');
-                console.log('Clearing stale Artemis session ID mapping...');
+                console.log('[Iris Chat] Warning: Expected', activeLocalSession.messageCount, 'messages but got none. Stored session might be stale.');
+                console.log('[Iris Chat] Clearing stale Artemis session ID mapping...');
 
                 // Clear the stale mapping
                 this._storeArtemisSessionId(undefined as any);
@@ -1359,7 +1359,7 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
             }
 
             if (this._view && messages && messages.length > 0) {
-                console.log('Sending messages to webview:', messages);
+                console.log('[Iris Chat] Sending messages to webview:', messages);
 
                 const formattedMessages = messages.map((msg: any) => {
                     // Extract content from the message structure
@@ -1396,11 +1396,11 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
                             command: 'loadMessages',
                             messages: formattedMessages
                         });
-                        console.log('Messages sent to webview');
+                        console.log('[Iris Chat] Messages sent to webview');
                     }
                 }, 100);
             } else {
-                console.log('No messages to load or view not ready');
+                console.log('[Iris Chat] No messages to load or view not ready');
             }
 
             vscode.window.showInformationMessage(`Connected to Iris for ${context.title}`);
@@ -1411,7 +1411,7 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
     }
 
     public clearAllSessions(): void {
-        console.log('Clearing all local Iris sessions...');
+        console.log('[Iris Chat] Clearing all local Iris sessions...');
 
         if (this._irisSessionManager) {
             this._irisSessionManager.unsubscribe();
@@ -1428,7 +1428,7 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
         // Post updated snapshot
         this._postSnapshot();
 
-        console.log('All Iris sessions cleared');
+        console.log('[Iris Chat] All Iris sessions cleared');
     }
 
     private async _handleReconnectWebSocket(): Promise<void> {
@@ -1450,7 +1450,7 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
 
             // If we have an active Iris session, resubscribe to it
             if (this._irisSessionManager?.currentSessionId && this._websocketService.isConnected()) {
-                console.log('Resubscribing to Iris session after reconnect:', this._irisSessionManager.currentSessionId);
+                console.log('[Iris Chat] Resubscribing to Iris session after reconnect:', this._irisSessionManager.currentSessionId);
                 this._irisSessionManager.subscribeToSession(this._irisSessionManager.currentSessionId);
             }
 
@@ -1486,7 +1486,7 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
             const activeContext = this._contextStore.getActiveContext();
             if (activeContext && this._artemisApiService) {
                 try {
-                    console.log('Fetching all Iris sessions from Artemis for context:', activeContext.title);
+                    console.log('[Iris Chat] Fetching all Iris sessions from Artemis for context:', activeContext.title);
 
                     // Step 1: Fetch session metadata
                     let artemisSessionsMetadata: any[] = [];
@@ -1496,7 +1496,7 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
                         artemisSessionsMetadata = await this._artemisApiService.getExerciseChatSessions(activeContext.id);
                     }
 
-                    console.log(`Fetched ${artemisSessionsMetadata.length} session(s) metadata from Artemis`);
+                    console.log(`[Iris Chat] Fetched ${artemisSessionsMetadata.length} session(s) metadata from Artemis`);
 
                     // Step 2: Fetch messages for all sessions
                     const artemisSessionsListFromServer: any[] = await Promise.all(
@@ -1542,7 +1542,7 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
                                 }
                             }
 
-                            console.log(`Importing session ${artemisSession.id}: ${messageCount} messages, preview: "${preview}"`);
+                            console.log(`[Iris Chat] Importing session ${artemisSession.id}: ${messageCount} messages, preview: "${preview}"`);
 
                             // Create local session with messages
                             this._contextStore.createSessionWithDetails(
@@ -1664,7 +1664,7 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
     }
 
     public createNewSession(): void {
-        console.log('Creating new session');
+        console.log('[Iris Chat] Creating new session');
 
         if (this._irisSessionManager) {
             this._irisSessionManager.unsubscribe();
@@ -1701,7 +1701,7 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
     }
 
     public switchToSession(sessionId: string): void {
-        console.log('Switching to session:', sessionId);
+        console.log('[Iris Chat] Switching to session:', sessionId);
 
         if (this._irisSessionManager) {
             this._irisSessionManager.unsubscribe();

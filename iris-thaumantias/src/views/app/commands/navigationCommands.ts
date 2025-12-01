@@ -327,7 +327,7 @@ export class NavigationCommandModule {
 
                     if (foundExercise) {
                         parentCourseData = courseData;
-                        console.log(`📚 Found parent course for exercise ${exerciseId}: ${courseData.course?.title}`);
+                        console.log(`[Navigation] 📚 Found parent course for exercise ${exerciseId}: ${courseData.course?.title}`);
                         break;
                     }
                 }

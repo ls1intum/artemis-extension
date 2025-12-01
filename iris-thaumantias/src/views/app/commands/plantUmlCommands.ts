@@ -3,7 +3,7 @@ import { processPlantUml } from '../../../utils';
 import type { CommandContext, CommandMap } from './types';
 
 export class PlantUmlCommandModule {
-    constructor(private readonly context: CommandContext) {}
+    constructor(private readonly context: CommandContext) { }
 
     public getHandlers(): CommandMap {
         return {
@@ -23,8 +23,8 @@ export class PlantUmlCommandModule {
         }
 
         try {
-            console.log('🎨 Rendering PlantUML diagrams from exercise:', exerciseTitle);
-            console.log('📊 PlantUML content:', plantUmlDiagrams);
+            console.log('[PlantUML] 🎨 Rendering PlantUML diagrams from exercise:', exerciseTitle);
+            console.log('[PlantUML] 📊 PlantUML content:', plantUmlDiagrams);
 
             const combinedPlantUml = plantUmlDiagrams.join('\n\n');
 
@@ -56,7 +56,7 @@ export class PlantUmlCommandModule {
         }
 
         try {
-            console.log(`🎨 Rendering inline PlantUML diagram ${index + 1}`);
+            console.log(`[PlantUML] 🎨 Rendering inline PlantUML diagram ${index + 1}`);
 
             const processedPlantUml = processPlantUml(plantUml);
             const isDarkTheme = vscode.window.activeColorTheme.kind === vscode.ColorThemeKind.Dark;
@@ -68,7 +68,7 @@ export class PlantUmlCommandModule {
                 svg: svg
             });
 
-            console.log(`✅ Inline PlantUML diagram ${index + 1} rendered successfully`);
+            console.log(`[PlantUML] ✅ Inline PlantUML diagram ${index + 1} rendered successfully`);
         } catch (error) {
             console.error(`Render inline PlantUML error for diagram ${index + 1}:`, error);
             const errorMsg = error instanceof Error ? error.message : 'Unknown error';
@@ -90,7 +90,7 @@ export class PlantUmlCommandModule {
         }
 
         try {
-            console.log(`🎨 Opening PlantUML diagram ${index + 1} in new tab`);
+            console.log(`[PlantUML] 🎨 Opening PlantUML diagram ${index + 1} in new tab`);
 
             const processedPlantUml = processPlantUml(plantUml);
             await vscode.commands.executeCommand('artemis.renderPlantUmlFromWebview', processedPlantUml, `Diagram ${index + 1}`);

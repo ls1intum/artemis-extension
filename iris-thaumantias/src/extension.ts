@@ -13,7 +13,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
 	// Use the console to output diagnostic information (console.log) and errors (console.error)
 	// This line of code will only be executed once when your extension is activated
-	console.log('Congratulations, your extension "iris-thaumantias" is now active!');
+	console.log('[Extension] Congratulations, your extension "iris-thaumantias" is now active!');
 
 	// Initialize the auth manager and API service
 	const authManager = new AuthManager(context);
@@ -410,12 +410,12 @@ export async function activate(context: vscode.ExtensionContext) {
 		'artemis.renderPlantUmlFromWebview',
 		async (plantUmlText: string, exerciseTitle?: string) => {
 			try {
-				console.log('🎨 Rendering PlantUML from webview');
-				console.log('📊 PlantUML content:', plantUmlText);
+				console.log('[PlantUML] 🎨 Rendering PlantUML from webview');
+				console.log('[PlantUML] 📊 PlantUML content:', plantUmlText);
 
 				// Process the PlantUML text to replace testsColor(...) with "green"
 				const processedPlantUml = processPlantUml(plantUmlText);
-				console.log('✅ Processed PlantUML:', processedPlantUml);
+				console.log('[PlantUML] ✅ Processed PlantUML:', processedPlantUml);
 
 				// Determine if we should use dark theme
 				const isDarkTheme = vscode.window.activeColorTheme.kind === vscode.ColorThemeKind.Dark;
@@ -490,7 +490,7 @@ export async function activate(context: vscode.ExtensionContext) {
 	// Listen for configuration changes
 	const configChangeListener = vscode.workspace.onDidChangeConfiguration(event => {
 		if (event.affectsConfiguration(`${VSCODE_CONFIG.ARTEMIS_SECTION}.${VSCODE_CONFIG.SERVER_URL_KEY}`)) {
-			console.log('Artemis server URL configuration changed');
+			console.log('[Config] Artemis server URL configuration changed');
 
 			// Optionally show a message to the user about the server URL change
 			const config = vscode.workspace.getConfiguration(VSCODE_CONFIG.ARTEMIS_SECTION);
@@ -514,7 +514,7 @@ export async function activate(context: vscode.ExtensionContext) {
 		}
 
 		if (event.affectsConfiguration(`${VSCODE_CONFIG.ARTEMIS_SECTION}.${VSCODE_CONFIG.SHOW_IRIS_EXPLANATION_KEY}`)) {
-			console.log('Artemis showIrisExplanation configuration changed');
+			console.log('[Config] Artemis showIrisExplanation configuration changed');
 
 			// Refresh the main webview to show/hide the Iris explanation
 			artemisWebviewProvider.refreshTheme();

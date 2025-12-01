@@ -38,7 +38,7 @@ export class SubmissionStatusComponent {
     // Check if there's a pending submission (build in progress)
     // This takes priority over showing old results
     if (pendingSubmission && isProgrammingExercise) {
-      console.log('🔨 Showing building state for pending submission');
+      console.log('[Build Status] 🔨 Showing building state for pending submission');
       return this._generateBuildingStatus(pendingSubmission, participationId);
     }
 
@@ -185,46 +185,46 @@ export class SubmissionStatusComponent {
     } else {
       statusBadge = successful
         ? BadgeComponent.generate({
-            label: "Build Success",
-            variant: "success",
-          })
+          label: "Build Success",
+          variant: "success",
+        })
         : BadgeComponent.generate({
-            label: "Tests Failed",
-            variant: "error",
-          });
+          label: "Tests Failed",
+          variant: "error",
+        });
     }
 
     // Build action buttons
     const buildFailedButtons = buildFailed
       ? `${ButtonComponent.generate({
-          label: "View build log",
-          variant: "link",
-          command:
-            "viewBuildLog(event, " +
-            participationId +
-            ", " +
-            (result?.id || "null") +
-            ")",
-          id: "buildLogLink",
-          className: "build-log-link",
-        })}
+        label: "View build log",
+        variant: "link",
+        command:
+          "viewBuildLog(event, " +
+          participationId +
+          ", " +
+          (result?.id || "null") +
+          ")",
+        id: "buildLogLink",
+        className: "build-log-link",
+      })}
         ${ButtonComponent.generate({
-          label: "Go to source →",
-          variant: "link",
-          command: "goToSourceError(event)",
-          id: "goToSourceLink",
-          className: "go-to-source-link",
-        })}`
+        label: "Go to source →",
+        variant: "link",
+        command: "goToSourceError(event)",
+        id: "goToSourceLink",
+        className: "go-to-source-link",
+      })}`
       : "";
 
     const testResultsButton = hasTestInfo
       ? ButtonComponent.generate({
-          label: "See test results",
-          variant: "link",
-          command: "toggleTestResults(event)",
-          id: "testResultsToggle",
-          className: "test-results-toggle",
-        })
+        label: "See test results",
+        variant: "link",
+        command: "toggleTestResults(event)",
+        id: "testResultsToggle",
+        className: "test-results-toggle",
+      })
       : "";
 
     const testResultsModal = hasTestInfo
@@ -233,10 +233,10 @@ export class SubmissionStatusComponent {
             <div class="test-results-modal-header">
               <div class="test-results-modal-title">Test Results</div>
               ${CloseButton.generate({
-                command: "closeTestResultsModal()",
-                title: "Close test results",
-                className: "test-results-modal-close",
-              })}
+        command: "closeTestResultsModal()",
+        title: "Close test results",
+        className: "test-results-modal-close",
+      })}
             </div>
             <div class="test-results-modal-body">
               <div class="test-results-container" id="testResultsContainer">
@@ -447,7 +447,7 @@ export class SubmissionStatusComponent {
 
       // Auto-fetch build logs to enable "Go to Source" button
       window.fetchBuildLogsForError = function(participationId, resultId) {
-        console.log('🔍 Auto-fetching build logs to parse errors...');
+        console.log('[Build Log] 🔍 Auto-fetching build logs to parse errors...');
         
         vscode.postMessage({
           command: 'fetchBuildLogsForError',

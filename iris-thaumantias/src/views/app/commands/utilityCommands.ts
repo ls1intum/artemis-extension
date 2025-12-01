@@ -3,7 +3,7 @@ import type { CommandContext, CommandMap } from './types';
 import { BuildLogParser, normalizeRelativePath } from '../../../utils';
 
 export class UtilityCommandModule {
-    constructor(private readonly context: CommandContext) {}
+    constructor(private readonly context: CommandContext) { }
 
     public getHandlers(): CommandMap {
         return {
@@ -97,7 +97,7 @@ export class UtilityCommandModule {
 
             const resultDetails = await this.context.artemisApi.getResultDetails(participationId, resultId);
 
-            console.log('Result details received:', JSON.stringify(resultDetails, null, 2));
+            console.log('[Test Results] Result details received:', JSON.stringify(resultDetails, null, 2));
 
             let feedbacks: any[] = [];
 
@@ -107,7 +107,7 @@ export class UtilityCommandModule {
                 feedbacks = resultDetails.feedbacks;
             }
 
-            console.log('Feedbacks array:', feedbacks.length, 'items');
+            console.log('[Test Results] Feedbacks array:', feedbacks.length, 'items');
 
             if (feedbacks.length > 0) {
                 const testCases = feedbacks
@@ -121,14 +121,14 @@ export class UtilityCommandModule {
                         visibility: feedback.testCase?.visibility
                     }));
 
-                console.log('Mapped test cases:', testCases.length, 'items');
+                console.log('[Test Results] Mapped test cases:', testCases.length, 'items');
 
                 this.context.sendMessage({
                     command: 'testResultsData',
                     testCases: testCases
                 });
             } else {
-                console.log('No feedbacks found in result details');
+                console.log('[Test Results] No feedbacks found in result details');
                 this.context.sendMessage({
                     command: 'testResultsData',
                     testCases: []
@@ -157,7 +157,7 @@ export class UtilityCommandModule {
             // Get the server URL from configuration
             const config = vscode.workspace.getConfiguration('artemis');
             const serverUrl = config.get<string>('serverUrl', 'https://artemis.cit.tum.de');
-            
+
             // Construct the exercise URL
             // Format: https://artemis.cit.tum.de/courses/{courseId}/exercises/{exerciseId}
             let exerciseUrl: string;
@@ -208,7 +208,7 @@ export class UtilityCommandModule {
 
             // Create header with metadata and error summary
             let header = `${'='.repeat(80)}\nArtemis Build Log\n${'='.repeat(80)}\n\n`;
-            
+
             if (firstError) {
                 header += `⚠️  First Error Found:\n`;
                 header += `   ${BuildLogParser.formatError(firstError)}\n\n`;
@@ -308,12 +308,12 @@ export class UtilityCommandModule {
                 return;
             }
 
-            console.log('🔍 Fetching build logs in background to parse errors...');
+            console.log('[Build Log] 🔍 Fetching build logs in background to parse errors...');
 
             const buildLogs = await this.context.artemisApi.getBuildLogs(participationId, resultId);
 
             if (!buildLogs || buildLogs.length === 0) {
-                console.log('No build logs available for error parsing');
+                console.log('[Build Log] No build logs available for error parsing');
                 return;
             }
 
@@ -322,13 +322,13 @@ export class UtilityCommandModule {
 
             // Send parsed error back to webview so it can show "Go to Source" button
             if (firstError) {
-                console.log('✅ Parsed error from build logs:', firstError);
+                console.log('[Build Log] ✅ Parsed error from build logs:', firstError);
 
                 // Show CodeLens above the error line
                 if (this.context.buildCodeLens) {
                     this.context.buildCodeLens.setErrors(firstError.filePath, [firstError]);
                 }
-                
+
                 this.context.sendMessage({
                     command: 'buildLogParsed',
                     error: firstError,
@@ -336,7 +336,7 @@ export class UtilityCommandModule {
                     resultId: resultId
                 });
             } else {
-                console.log('No parseable errors found in build logs');
+                console.log('[Build Log] No parseable errors found in build logs');
             }
         } catch (error) {
             console.error('Fetch build logs for error:', error);
@@ -346,12 +346,12 @@ export class UtilityCommandModule {
 
     private handleClearBuildErrors = async (): Promise<void> => {
         try {
-            console.log('🧹 Clearing CodeLens build errors...');
-            
+            console.log('[Build Log] 🧹 Clearing CodeLens build errors...');
+
             // Clear all build errors from CodeLens
             if (this.context.buildCodeLens) {
                 this.context.buildCodeLens.clearErrors();
-                console.log('✅ CodeLens errors cleared');
+                console.log('[Build Log] ✅ CodeLens errors cleared');
             }
         } catch (error) {
             console.error('Error clearing build errors:', error);

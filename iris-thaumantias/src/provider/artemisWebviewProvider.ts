@@ -413,7 +413,7 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
                 try {
                     const user = await this._artemisApi.getCurrentUser();
                     await this.withServerUrl(async serverUrl => {
-                        console.log(`Auto-authenticated user: ${user.login}`);
+                        console.log(`[Auth] Auto-authenticated user: ${user.login}`);
                         await this.showDashboard({
                             username: user.login || 'User',
                             serverUrl: serverUrl,
@@ -422,7 +422,7 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
                     });
                 } catch (userError) {
                     // If getCurrentUser fails, stored credentials are invalid
-                    console.log('Stored credentials are invalid, clearing...');
+                    console.log('[Auth] Stored credentials are invalid, clearing...');
                     await this._authManager.clear();
 
                     // Update authentication context

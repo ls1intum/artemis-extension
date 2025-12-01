@@ -571,7 +571,7 @@ export class ExerciseDetailView {
         // PlantUML render function
         window.renderPlantUmlDiagrams = function() {
             if (plantUmlDiagrams.length > 0) {
-                console.log('🎨 Rendering PlantUML diagrams:', plantUmlDiagrams);
+                console.log('[PlantUML] 🎨 Rendering PlantUML diagrams:', plantUmlDiagrams);
                 vscode.postMessage({
                     command: 'renderPlantUml',
                     plantUmlDiagrams: plantUmlDiagrams,
@@ -648,7 +648,7 @@ export class ExerciseDetailView {
                 return;
             }
 
-            console.log('Rendering test results:', testCases);
+            console.log('[Test Results] Rendering test results:', testCases);
 
             if (!testCases || !testCases.length) {
                 container.innerHTML = '<div class="test-results-loading">No test results available</div>';
@@ -954,11 +954,11 @@ export class ExerciseDetailView {
                     break;
                 case 'testResultsData':
                     // Received test results data
-                    console.log('Received testResultsData message:', message);
+                    console.log('[Test Results] Received testResultsData message:', message);
                     if (message.testCases) {
                         renderTestResults(message.testCases);
                     } else {
-                        console.log('No testCases in message, showing error');
+                        console.log('[Test Results] No testCases in message, showing error');
                         const container = document.getElementById('testResultsContainer');
                         if (container) {
                             container.innerHTML = '<div class="test-results-loading">Error: ' + (message.error || 'No test data received') + '</div>';
@@ -968,12 +968,12 @@ export class ExerciseDetailView {
                     break;
                 case 'buildLogParsed':
                     // Build log was parsed and error information is available
-                    console.log('Received buildLogParsed message:', message);
+                    console.log('[Build Log] Received buildLogParsed message:', message);
                     const goToSourceLink = document.getElementById('goToSourceLink');
                     if (goToSourceLink && message.error) {
                         goToSourceLink.dataset.errorData = JSON.stringify(message.error);
                         goToSourceLink.style.display = 'inline-block';
-                        console.log('✅ "Go to Source" button enabled');
+                        console.log('[Build Log] ✅ "Go to Source" button enabled');
                     }
                     break;
                 case 'showClonedRepoNotice':
@@ -1046,7 +1046,7 @@ export class ExerciseDetailView {
                             const results = latestSubmission.results || [];
                             const latestResult = results.length > 0 ? results[results.length - 1] : null;
                             
-                            console.log('🔍 Build failed detected on page load, auto-fetching logs for error parsing...');
+                            console.log('[Build Log] 🔍 Build failed detected on page load, auto-fetching logs for error parsing...');
                             fetchBuildLogsForError(participation.id, latestResult?.id);
                         }
                     }
@@ -1361,7 +1361,7 @@ export class ExerciseDetailView {
                 targetSubmission.results.push(result);
             }
 
-            console.log('✅ Updated exerciseData with new result. Submission results:', targetSubmission.results.length);
+            console.log('[Submission] ✅ Updated exerciseData with new result. Submission results:', targetSubmission.results.length);
 
             const exercise = getActiveExercise();
             const scorePercentage = typeof result.score === 'number' ? result.score : 0;
@@ -1410,11 +1410,11 @@ export class ExerciseDetailView {
 
             // Auto-fetch build logs if build failed to enable "Go to Source" button
             if (buildFailed && participationId && resultId) {
-                console.log('🔍 Build failed detected via WebSocket, auto-fetching logs for error parsing...');
+                console.log('[Build Log] 🔍 Build failed detected via WebSocket, auto-fetching logs for error parsing...');
                 fetchBuildLogsForError(participationId, resultId);
             } else if (!buildFailed) {
                 // Build succeeded - clear any existing CodeLens errors
-                console.log('✅ Build succeeded, requesting CodeLens error clear...');
+                console.log('[Build Log] ✅ Build succeeded, requesting CodeLens error clear...');
                 vscode.postMessage({
                     command: 'clearBuildErrors'
                 });
@@ -1422,7 +1422,7 @@ export class ExerciseDetailView {
         }
 
         function handleNewSubmission(submission) {
-            console.log('📤 Received new submission from WebSocket:', submission);
+            console.log('[Submission] 📤 Received new submission from WebSocket:', submission);
 
             if (!submission || !window.exerciseData) {
                 return;
@@ -1431,7 +1431,7 @@ export class ExerciseDetailView {
             const participation = resolveParticipationForSubmission(submission);
 
             if (!participation) {
-                console.log('ℹ️ Ignoring submission that does not belong to the active exercise or participation.');
+                console.log('[Submission] ℹ️ Ignoring submission that does not belong to the active exercise or participation.');
                 return;
             }
 
@@ -1454,7 +1454,7 @@ export class ExerciseDetailView {
                 participation.submissions.push(submission);
             }
 
-            console.log('✅ Updated exerciseData with new submission. Total submissions:', participation.submissions.length);
+            console.log('[Submission] ✅ Updated exerciseData with new submission. Total submissions:', participation.submissions.length);
 
             setSubmitLoading(true);
             

@@ -826,7 +826,7 @@ export class IrisChatView {
             const feedbackContainer = parentMessage.querySelector('.message-feedback');
             const allButtons = parentMessage.querySelectorAll('.feedback-button');
 
-            console.log('Feedback clicked:', feedbackType, 'for message:', message);
+            console.log('[Iris Chat] Feedback clicked:', feedbackType, 'for message:', message);
 
             // Don't allow clicking the same button again (no undo, only change)
             if (button.classList.contains('selected')) {
@@ -960,12 +960,12 @@ export class IrisChatView {
         }
 
         function loadMessages(messages) {
-            console.log('Loading messages:', messages);
+            console.log('[Iris Chat] Loading messages:', messages);
             const chatMessages = document.getElementById('chatMessages');
             chatMessages.innerHTML = '';
             
             if (!messages || messages.length === 0) {
-                console.log('No messages to load');
+                console.log('[Iris Chat] No messages to load');
                 updateNewSessionButtonState();
                 return;
             }

@@ -428,7 +428,7 @@ export class DashboardView {
             try {
                 localStorage.setItem('recentCoursesSortPreference', sortOption);
             } catch (e) {
-                console.log('Could not save sort preference:', e);
+                console.log('[Dashboard] Could not save sort preference:', e);
             }
 
             // Helper function to get latest release date
@@ -546,7 +546,7 @@ export class DashboardView {
                     handleRecentCoursesSort(savedSort);
                 }
             } catch (e) {
-                console.log('Could not load sort preference:', e);
+                console.log('[Dashboard] Could not load sort preference:', e);
             }
         });
     </script>
