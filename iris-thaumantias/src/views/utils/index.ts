@@ -17,3 +17,4 @@ export {
   formatMessageContent,
   getMessageFormatterScript
 } from './messageFormatter';
+export { getChatMessageRendererScript } from './chatMessageRenderer';
