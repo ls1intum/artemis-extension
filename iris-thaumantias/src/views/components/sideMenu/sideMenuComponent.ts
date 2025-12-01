@@ -54,10 +54,10 @@ export class SideMenuComponent {
                 <div class="side-menu-header">
                     <h3 class="side-menu-title">${title}</h3>
                     ${CloseButton.generate({
-                        command: 'closeSideMenu()',
-                        title: 'Close Menu',
-                        className: 'close-menu-btn'
-                    })}
+            command: 'closeSideMenu()',
+            title: 'Close Menu',
+            className: 'close-menu-btn'
+        })}
                 </div>
                 <div class="side-menu-content">
                     ${sectionsHtml}

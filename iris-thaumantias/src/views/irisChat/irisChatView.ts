@@ -241,53 +241,53 @@ export class IrisChatView {
     ${HelpPopupComponent.generate()}
 
     ${(() => {
-        const menuSections: SideMenuSection[] = [
-            {
-                title: 'Chat Options',
-                items: [
+                const menuSections: SideMenuSection[] = [
                     {
-                        icon: 'refresh',
-                        title: 'Reset & Sync Sessions',
-                        description: 'Clear local data and reload from server',
-                        command: 'resetChatSessions()'
-                    }
-                ]
-            },
-            {
-                title: 'Help',
-                items: [
-                    {
-                        icon: 'question-mark',
-                        title: 'Chat Context Guide',
-                        description: 'Learn how contexts impact responses',
-                        command: 'openHelpPopup()'
+                        title: 'Chat Options',
+                        items: [
+                            {
+                                icon: 'refresh',
+                                title: 'Reset & Sync Sessions',
+                                description: 'Clear local data and reload from server',
+                                command: 'resetChatSessions()'
+                            }
+                        ]
                     },
-                    ...(showDiagnostics ? [
-                        {
-                            icon: 'stethoscope',
-                            title: 'Diagnostics',
-                            description: 'View detailed context and session state',
-                            command: 'openDiagnostics()'
-                        },
-                        {
-                            icon: 'stethoscope',
-                            title: 'Debug Sessions (Raw)',
-                            description: 'View raw Artemis session data',
-                            command: 'debugSessions()'
-                        }
-                    ] : [])
-                ]
-            },
-            {
-                title: 'About',
-                customHtml: `<div class="menu-info">
+                    {
+                        title: 'Help',
+                        items: [
+                            {
+                                icon: 'question-mark',
+                                title: 'Chat Context Guide',
+                                description: 'Learn how contexts impact responses',
+                                command: 'openHelpPopup()'
+                            },
+                            ...(showDiagnostics ? [
+                                {
+                                    icon: 'stethoscope',
+                                    title: 'Diagnostics',
+                                    description: 'View detailed context and session state',
+                                    command: 'openDiagnostics()'
+                                },
+                                {
+                                    icon: 'stethoscope',
+                                    title: 'Debug Sessions (Raw)',
+                                    description: 'View raw Artemis session data',
+                                    command: 'debugSessions()'
+                                }
+                            ] : [])
+                        ]
+                    },
+                    {
+                        title: 'About',
+                        customHtml: `<div class="menu-info">
                     <strong>Iris Chat</strong><br>
                     AI-powered guidance tailored to your Artemis coursework and exercises.
                 </div>`
-            }
-        ];
-        return SideMenuComponent.generate({ sections: menuSections });
-    })()}
+                    }
+                ];
+                return SideMenuComponent.generate({ sections: menuSections });
+            })()}
 
     <script>
         console.log('[WebsocketLog] 🚀 Iris Chat webview script initializing...');
