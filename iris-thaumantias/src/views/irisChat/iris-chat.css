@@ -754,11 +754,11 @@ body {
 .referenced-files-banner {
     display: flex;
     flex-direction: column;
-    padding: 10px 14px;
+    padding: 10px 12px;
     margin-bottom: 12px;
-    background: rgba(59, 130, 246, 0.1);
-    border: 1px solid rgba(59, 130, 246, 0.3);
-    border-radius: 6px;
+    background: var(--theme-card-background);
+    border: 1px solid var(--theme-border);
+    border-radius: 8px;
     animation: slideDown 0.3s ease-out;
 }
 
@@ -770,14 +770,11 @@ body {
     user-select: none;
 }
 
-.referenced-files-header:hover {
-    opacity: 0.8;
-}
-
 .referenced-files-icon {
     font-size: 14px;
     display: flex;
     align-items: center;
+    color: var(--theme-foreground);
 }
 
 .referenced-files-icon svg {
@@ -790,12 +787,13 @@ body {
     flex: 1;
     font-size: 13px;
     font-weight: 500;
-    color: rgb(37, 99, 235);
+    color: var(--theme-foreground);
 }
 
 .referenced-files-arrow {
     font-size: 10px;
-    color: rgb(37, 99, 235);
+    color: var(--theme-foreground);
+    opacity: 0.6;
     transition: transform 0.2s ease;
     display: flex;
     align-items: center;
@@ -809,47 +807,27 @@ body {
 
 .referenced-files-list {
     margin-top: 8px;
-    padding-top: 8px;
-    border-top: 1px solid rgba(59, 130, 246, 0.2);
+    padding: 0;
     max-height: 200px;
     overflow-y: auto;
+    background: transparent;
 }
 
-.referenced-file-item {
+/* File items - override list-item component for compact sizing */
+.referenced-file-item.list-item {
     display: flex;
     align-items: center;
     gap: 8px;
-    padding: 6px 8px;
+    padding: 6px 10px;
     margin-bottom: 4px;
-    background: rgba(59, 130, 246, 0.05);
-    border-radius: 4px;
     font-size: 12px;
-    color: var(--theme-foreground);
-    transition: var(--theme-transition);
-}
-
-.referenced-file-item:hover {
-    background: rgba(59, 130, 246, 0.15);
-}
-
-.referenced-file-item.included {
-    background: rgba(34, 197, 94, 0.05);
-}
-
-.referenced-file-item.included:hover {
-    background: rgba(34, 197, 94, 0.15);
 }
 
 .referenced-file-item.excluded {
-    background: rgba(239, 68, 68, 0.05);
-    border-left: 3px solid rgba(239, 68, 68, 0.5);
-    padding-left: 12px; /* Extra padding to account for border */
-    padding-left: 12px; /* Extra padding to account for border */
     opacity: 0.7;
 }
 
 .referenced-file-item.excluded:hover {
-    background: rgba(239, 68, 68, 0.15);
     opacity: 1;
 }
 

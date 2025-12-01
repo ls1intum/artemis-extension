@@ -353,6 +353,11 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
                     vscode.commands.executeCommand('workbench.action.openSettings', message.setting);
                 }
                 break;
+            case 'openFile':
+                if (message.filePath) {
+                    this._handleOpenFile(message.filePath);
+                }
+                break;
             default:
                 console.log('Unhandled message in chat view:', message);
                 break;
@@ -712,6 +717,33 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
     private _handleSwitchContext(): void {
         this._contextStore.unlockActiveContext();
         this._postSnapshot({ showContextPicker: true });
+    }
+
+    private _handleOpenFile(filePath: string): void {
+        // Try to find and open the file in the workspace
+        const workspaceFolders = vscode.workspace.workspaceFolders;
+        if (!workspaceFolders || workspaceFolders.length === 0) {
+            vscode.window.showWarningMessage('No workspace folder open');
+            return;
+        }
+
+        // Try to find the file in the workspace
+        const fileUri = vscode.Uri.joinPath(workspaceFolders[0].uri, filePath);
+        vscode.workspace.openTextDocument(fileUri).then(
+            doc => vscode.window.showTextDocument(doc),
+            () => {
+                // If not found with the exact path, try to find it
+                vscode.workspace.findFiles(`**/${filePath.split('/').pop()}`).then(files => {
+                    if (files.length > 0) {
+                        vscode.workspace.openTextDocument(files[0]).then(
+                            doc => vscode.window.showTextDocument(doc)
+                        );
+                    } else {
+                        vscode.window.showWarningMessage(`Could not find file: ${filePath}`);
+                    }
+                });
+            }
+        );
     }
 
     private _handleSwitchToWorkspaceContext(): void {

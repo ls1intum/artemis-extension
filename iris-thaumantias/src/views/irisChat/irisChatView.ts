@@ -369,6 +369,10 @@ export class IrisChatView {
         const vscode = acquireVsCodeApi();
         console.log('[WebsocketLog] ✅ VS Code API acquired');
 
+        window.openFile = function(filePath) {
+            vscode.postMessage({ command: 'openFile', filePath });
+        };
+
         window.toggleSideMenu = function() {
             const sideMenu = document.getElementById('sideMenu');
             const menuOverlay = document.getElementById('menuOverlay');
@@ -1225,15 +1229,27 @@ export class IrisChatView {
             if (list) {
                 let html = '';
                 
+                // Helper to get just the filename from a path
+                const getFileName = (path) => path.split('/').pop() || path;
+                
                 // Add included files
                 if (includedFiles.length > 0) {
-                    html += includedFiles.map(file => \`
-                        <div class="referenced-file-item included" title="\${file}">
+                    html += includedFiles.map(file => {
+                        const escapedFile = file.replace(/'/g, "\\\\'");
+                        const fileName = getFileName(file);
+                        return \`
+                        <div class="list-item list-item--clickable list-item--hover referenced-file-item included" 
+                             title="\${file}" 
+                             role="button" 
+                             tabindex="0"
+                             onclick="openFile('\${escapedFile}')"
+                             onkeydown="if(event.key==='Enter') openFile('\${escapedFile}')">
                             <span class="file-icon">\${fileIconSvg}</span>
-                            <span class="file-name">\${file}</span>
+                            <span class="file-name">\${fileName}</span>
                             <span class="file-status">Will be sent</span>
                         </div>
-                    \`).join('');
+                    \`;
+                    }).join('');
                 }
                 
                 // Add excluded files
@@ -1241,13 +1257,24 @@ export class IrisChatView {
                     if (includedFiles.length > 0) {
                         html += '<div class="file-list-divider">Excluded files</div>';
                     }
-                    html += excludedFiles.map(file => \`
-                        <div class="referenced-file-item excluded" title="\${file.path} - \${file.reason || 'Excluded'}">
+                    html += excludedFiles.map(file => {
+                        const escapedPath = file.path.replace(/'/g, "\\\\'");
+                        const fileName = getFileName(file.path);
+                        // Show "File type ignored" for file type restrictions, otherwise show the reason
+                        const statusText = file.reason?.includes('not allowed') ? 'File type ignored' : (file.reason || 'Excluded');
+                        return \`
+                        <div class="list-item list-item--clickable list-item--hover referenced-file-item excluded" 
+                             title="\${file.path} - \${file.reason || 'Excluded'}"
+                             role="button"
+                             tabindex="0"
+                             onclick="openFile('\${escapedPath}')"
+                             onkeydown="if(event.key==='Enter') openFile('\${escapedPath}')">
                             <span class="file-icon">\${closeIconSvg}</span>
-                            <span class="file-name">\${file.path}</span>
-                            <span class="file-status">\${file.reason || 'Excluded'}</span>
+                            <span class="file-name">\${fileName}</span>
+                            <span class="file-status">\${statusText}</span>
                         </div>
-                    \`).join('');
+                    \`;
+                    }).join('');
                 }
                 
                 list.innerHTML = html;
