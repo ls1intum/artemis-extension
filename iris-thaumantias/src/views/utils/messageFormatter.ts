@@ -34,12 +34,12 @@ export function escapeHtml(text: string): string {
 export function formatMessageContent(text: string): string {
     // First, escape HTML to prevent XSS
     let formatted = escapeHtml(text);
-    
+
     // Parse code blocks FIRST with placeholders to protect from line break conversion
     // Match and consume newlines around code blocks so they don't become <br> tags
     const codeBlockPlaceholders: string[] = [];
     formatted = formatted.replace(
-        /(\n\n)?\n*```(\w+)?\n([\s\S]*?)```\n*(\n\n)?/g, 
+        /(\n\n)?\n*```(\w+)?\n([\s\S]*?)```\n*(\n\n)?/g,
         (match, beforeNewlines, language, code, afterNewlines) => {
             const index = codeBlockPlaceholders.length;
             const classAttr = language ? ` class="language-${escapeHtml(language)}"` : '';
@@ -50,24 +50,24 @@ export function formatMessageContent(text: string): string {
             return placeholder;
         }
     );
-    
+
     // Parse inline code (single backticks)
     formatted = formatted.replace(/`([^`]+)`/g, '<code>$1</code>');
-    
+
     // Parse bold: **text**
     formatted = formatted.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
-    
+
     // Parse italic: *text* (but not if part of **)
     formatted = formatted.replace(/(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)/g, '<em>$1</em>');
-    
+
     // Convert line breaks to <br> (code blocks are protected by placeholders)
     formatted = formatted.replace(/\n/g, '<br>');
-    
+
     // Restore code blocks from placeholders
     codeBlockPlaceholders.forEach((codeBlock, index) => {
         formatted = formatted.replace(`___CODEBLOCK_${index}___`, codeBlock);
     });
-    
+
     return formatted;
 }
 

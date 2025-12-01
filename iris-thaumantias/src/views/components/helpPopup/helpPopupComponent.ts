@@ -19,7 +19,7 @@ export class HelpPopupComponent {
      */
     public static generate(options: HelpPopupOptions = {}): string {
         const { className = '' } = options;
-        
+
         const exerciseIcon = IconDefinitions.getIcon('exercise');
         const courseIcon = IconDefinitions.getIcon('course');
 
@@ -61,10 +61,10 @@ export class HelpPopupComponent {
                 <div class="help-popup-header">
                     <h2 class="help-popup-title">Chat Context Guide</h2>
                     ${CloseButton.generate({
-                        command: 'closeHelpPopup()',
-                        title: 'Close Help',
-                        className: 'close-help-btn'
-                    })}
+            command: 'closeHelpPopup()',
+            title: 'Close Help',
+            className: 'close-help-btn'
+        })}
                 </div>
                 <div class="help-popup-content">
                     <p class="help-intro">
