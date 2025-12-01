@@ -179,6 +179,32 @@ export class IconDefinitions {
             <path d="M9.9 9.9a3 3 0 0 0 4.24 4.24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
             <line x1="1" y1="1" x2="23" y2="23" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
         </svg>`,
+
+        'check': `<svg viewBox="0 0 16 16" fill="currentColor">
+            <path d="M13.78 4.22a.75.75 0 010 1.06l-7.25 7.25a.75.75 0 01-1.06 0L2.22 9.28a.75.75 0 011.06-1.06L6 10.94l6.72-6.72a.75.75 0 011.06 0z"/>
+        </svg>`,
+
+        'plus': `<svg viewBox="0 0 16 16" fill="currentColor">
+            <path d="M8 2a.75.75 0 01.75.75v4.5h4.5a.75.75 0 010 1.5h-4.5v4.5a.75.75 0 01-1.5 0v-4.5h-4.5a.75.75 0 010-1.5h4.5v-4.5A.75.75 0 018 2z"/>
+        </svg>`,
+
+        'file': `<svg viewBox="0 0 16 16" fill="currentColor">
+            <path d="M9.5 1H4a1 1 0 00-1 1v12a1 1 0 001 1h8a1 1 0 001-1V5.5L9.5 1zM4 0a2 2 0 00-2 2v12a2 2 0 002 2h8a2 2 0 002-2V5.5L9.5 0H4z"/>
+            <path d="M9.5 1v4H13L9.5 1z"/>
+        </svg>`,
+
+        'close': `<svg viewBox="0 0 16 16" fill="currentColor">
+            <path d="M8 8.707l3.646 3.647.708-.707L8.707 8l3.647-3.646-.707-.708L8 7.293 4.354 3.646l-.707.708L7.293 8l-3.646 3.646.707.708L8 8.707z"/>
+        </svg>`,
+
+        'chevron-down': `<svg viewBox="0 0 16 16" fill="currentColor">
+            <path d="M7.976 10.072l4.357-4.357.62.618L8.284 11h-.618L3 6.333l.619-.618 4.357 4.357z"/>
+        </svg>`,
+
+        'info-circle': `<svg viewBox="0 0 16 16" fill="currentColor">
+            <path d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1zM0 8a8 8 0 1 1 16 0A8 8 0 0 1 0 8z"/>
+            <path d="M4.646 4.646a.5.5 0 0 1 .708 0L8 7.293l2.646-2.647a.5.5 0 0 1 .708.708L8.707 8l2.647 2.646a.5.5 0 0 1-.708.708L8 8.707l-2.646 2.647a.5.5 0 0 1-.708-.708L7.293 8 4.646 5.354a.5.5 0 0 1 0-.708z"/>
+        </svg>`,
     };
 
     /**

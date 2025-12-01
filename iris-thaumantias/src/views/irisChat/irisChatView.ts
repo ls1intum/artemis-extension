@@ -1,9 +1,10 @@
 import * as vscode from "vscode";
 import { IconDefinitions } from "../../utils/iconDefinitions";
-import { readCssFiles } from "../utils";
+import { readCssFiles, getMessageFormatterScript } from "../utils";
 import { BurgerMenuButton, CollapseButton, CloseButton } from "../components/button/iconButtons";
 import { ButtonComponent } from "../components/button/buttonComponent";
 import { ListItemComponent } from "../components/listItem/listItemComponent";
+import { HelpPopupComponent } from "../components/helpPopup";
 
 export class IrisChatView {
     private _extensionContext: vscode.ExtensionContext;
@@ -28,13 +29,12 @@ export class IrisChatView {
         const exerciseIcon = IconDefinitions.getIcon("exercise");
         const lockIcon = IconDefinitions.getIcon("shield");
         const workspaceIcon = IconDefinitions.getIcon("workspace");
-        const checkIcon = `<svg viewBox="0 0 16 16" fill="currentColor"><path d="M13.78 4.22a.75.75 0 010 1.06l-7.25 7.25a.75.75 0 01-1.06 0L2.22 9.28a.75.75 0 011.06-1.06L6 10.94l6.72-6.72a.75.75 0 011.06 0z"/></svg>`;
-        const plusIcon = `<svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 2a.75.75 0 01.75.75v4.5h4.5a.75.75 0 010 1.5h-4.5v4.5a.75.75 0 01-1.5 0v-4.5h-4.5a.75.75 0 010-1.5h4.5v-4.5A.75.75 0 018 2z"/></svg>`;
-        const switchIcon = `<svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 2a.75.75 0 01.75.75v4.5h4.5a.75.75 0 010 1.5h-4.5v4.5a.75.75 0 01-1.5 0v-4.5h-4.5a.75.75 0 010-1.5h4.5v-4.5A.75.75 0 018 2z"/></svg>`;
-        // VS Code icons for file status
-        const fileIcon = `<svg viewBox="0 0 16 16" fill="currentColor"><path d="M9.5 1H4a1 1 0 00-1 1v12a1 1 0 001 1h8a1 1 0 001-1V5.5L9.5 1zM4 0a2 2 0 00-2 2v12a2 2 0 002 2h8a2 2 0 002-2V5.5L9.5 0H4z"/><path d="M9.5 1v4H13L9.5 1z"/></svg>`;
-        const closeIcon = `<svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 8.707l3.646 3.647.708-.707L8.707 8l3.647-3.646-.707-.708L8 7.293 4.354 3.646l-.707.708L7.293 8l-3.646 3.646.707.708L8 8.707z"/></svg>`;
-        const chevronIcon = `<svg viewBox="0 0 16 16" fill="currentColor"><path d="M7.976 10.072l4.357-4.357.62.618L8.284 11h-.618L3 6.333l.619-.618 4.357 4.357z"/></svg>`;
+        const checkIcon = IconDefinitions.getIcon("check");
+        const plusIcon = IconDefinitions.getIcon("plus");
+        const switchIcon = IconDefinitions.getIcon("plus"); // Same as plus icon
+        const fileIcon = IconDefinitions.getIcon("file");
+        const closeIcon = IconDefinitions.getIcon("close");
+        const chevronIcon = IconDefinitions.getIcon("chevron-down");
 
         // Get the path to the iris logo image
         let irisLogoSrc = "";
@@ -237,50 +237,7 @@ export class IrisChatView {
         </div>
     </div>
 
-    <div class="help-overlay" id="helpOverlay" onclick="closeHelpPopup()"></div>
-    <div class="help-popup" id="helpPopup">
-        <div class="help-popup-header">
-            <h2 class="help-popup-title">Chat Context Guide</h2>
-            <button class="close-help-btn" onclick="closeHelpPopup()" title="Close Help">×</button>
-        </div>
-        <div class="help-popup-content">
-            <p class="help-intro">
-                Choose the right chat context to get the most relevant help from Iris. Each context is designed for specific types of questions and learning scenarios.
-            </p>
-            <div class="help-sections">
-                <div class="help-section">
-                    <div class="help-section-header">
-                        <span class="help-icon">${exerciseIcon}</span>
-                        <h3>Exercises</h3>
-                    </div>
-                    <div class="help-section-content">
-                        <p><strong>Best for:</strong> Hands-on programming work, debugging, and implementation hints.</p>
-                        <p><strong>Use when you want to:</strong></p>
-                        <ul>
-                            <li>Understand or refine your solution approach</li>
-                            <li>Debug code or clarify error messages</li>
-                            <li>Get targeted hints about the next step</li>
-                        </ul>
-                    </div>
-                </div>
-                <div class="help-section">
-                    <div class="help-section-header">
-                        <span class="help-icon">${courseIcon}</span>
-                        <h3>Courses</h3>
-                    </div>
-                    <div class="help-section-content">
-                        <p><strong>Best for:</strong> Conceptual understanding, broader course context, or lecture materials.</p>
-                        <p><strong>Use when you want to:</strong></p>
-                        <ul>
-                            <li>Clarify theoretical concepts</li>
-                            <li>Understand how exercises fit into the course</li>
-                            <li>Plan your learning path across topics</li>
-                        </ul>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
+    ${HelpPopupComponent.generate()}
 
     <div class="menu-overlay" id="menuOverlay" onclick="closeSideMenu()"></div>
     <div class="side-menu" id="sideMenu">
@@ -396,16 +353,7 @@ export class IrisChatView {
             document.getElementById('burgerMenuBtn')?.classList.remove('icon-btn-burger-menu-open');
         };
 
-        window.openHelpPopup = function() {
-            document.getElementById('helpOverlay').classList.add('open');
-            document.getElementById('helpPopup').classList.add('open');
-            closeSideMenu();
-        };
-
-        window.closeHelpPopup = function() {
-            document.getElementById('helpOverlay').classList.remove('open');
-            document.getElementById('helpPopup').classList.remove('open');
-        };
+        ${HelpPopupComponent.getScript()}
 
         window.openUncommittedChangesSettings = function() {
             vscode.postMessage({
@@ -974,46 +922,7 @@ export class IrisChatView {
             console.log(\`Loaded \${messages.length} messages\`);
         }
 
-        function escapeHtml(text) {
-            const div = document.createElement('div');
-            div.textContent = text;
-            return div.innerHTML;
-        }
-
-        function formatMessageContent(text) {
-            // First, escape HTML to prevent XSS
-            let formatted = escapeHtml(text);
-            
-            // Parse code blocks FIRST with placeholders to protect from line break conversion
-            // Match and consume newlines around code blocks so they don't become <br> tags
-            const codeBlockPlaceholders = [];
-            formatted = formatted.replace(/(\\n\\n)?\\n*\`\`\`(\\w+)?\\n([\\s\\S]*?)\`\`\`\\n*(\\n\\n)?/g, (match, beforeNewlines, language, code, afterNewlines) => {
-                const index = codeBlockPlaceholders.length;
-                const classAttr = language ? ' class="language-' + escapeHtml(language) + '"' : '';
-                const placeholder = '___CODEBLOCK_' + index + '___';
-                codeBlockPlaceholders.push('<pre class="code-block"><code' + classAttr + '>' + code.trimEnd() + '</code></pre>');
-                return placeholder;
-            });
-            
-            // Parse inline code (single backticks)
-            formatted = formatted.replace(/\`([^\`]+)\`/g, '<code>$1</code>');
-            
-            // Parse bold: **text**
-            formatted = formatted.replace(/\\*\\*(.+?)\\*\\*/g, '<strong>$1</strong>');
-            
-            // Parse italic: *text* (but not if part of **)
-            formatted = formatted.replace(/(?<!\\*)\\*(?!\\*)(.+?)(?<!\\*)\\*(?!\\*)/g, '<em>$1</em>');
-            
-            // Convert line breaks to <br> (code blocks are protected by placeholders)
-            formatted = formatted.replace(/\\n/g, '<br>');
-            
-            // Restore code blocks from placeholders
-            codeBlockPlaceholders.forEach((codeBlock, index) => {
-                formatted = formatted.replace('___CODEBLOCK_' + index + '___', codeBlock);
-            });
-            
-            return formatted;
-        }
+        ${getMessageFormatterScript()}
 
         function showThinkingIndicator() {
             console.log('[WebsocketLog] 🔄 showThinkingIndicator called');

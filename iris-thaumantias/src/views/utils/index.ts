@@ -12,3 +12,8 @@ export {
   calculateScorePoints,
   type TransformedExerciseData
 } from './exerciseDataTransformer';
+export {
+  escapeHtml,
+  formatMessageContent,
+  getMessageFormatterScript
+} from './messageFormatter';
