@@ -18,6 +18,7 @@ yarn-error.log*
 # Build output
 dist/
 out/
+local/
 *.vsix
 
 # IDE
