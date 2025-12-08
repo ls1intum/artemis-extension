@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
-import { ContextStore } from '../provider/contextStore';
+import { ContextStore } from './contextStore';
 import { ArtemisApiService } from '../api';
-import { ExerciseRegistry } from '../provider/exerciseRegistry';
+import { ExerciseRegistry } from './exerciseRegistry';
 
 export class ChatDiagnosticsService {
     constructor(

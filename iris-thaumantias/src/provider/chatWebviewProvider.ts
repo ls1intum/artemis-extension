@@ -1,8 +1,5 @@
 import * as vscode from 'vscode';
 import { IrisChatView } from '../views/irisChat/irisChatView';
-import { ExerciseRegistry } from './exerciseRegistry';
-import { ContextStore } from './contextStore';
-import { detectWorkspaceExercise } from '../services';
 import {
     ActiveContext,
     StoredSession,
@@ -10,7 +7,15 @@ import {
     ContextSnapshot,
 } from './contextTypes';
 import { ArtemisApiService } from '../api';
-import { ArtemisWebsocketService, FileMonitorService, IrisSessionManager, ChatDiagnosticsService } from '../services';
+import {
+    ArtemisWebsocketService,
+    FileMonitorService,
+    IrisSessionManager,
+    ChatDiagnosticsService,
+    ContextStore,
+    ExerciseRegistry,
+    detectWorkspaceExercise
+} from '../services';
 import { checkWorkspaceFiles } from '../utils';
 
 type ChatContextReason =
