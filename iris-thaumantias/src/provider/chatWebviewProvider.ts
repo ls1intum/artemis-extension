@@ -283,23 +283,28 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
 
             // If registry is empty, try to fetch courses first to populate it
             if (exercises.length === 0 && this._artemisApiService) {
-                console.log('[Iris Chat] Registry empty, fetching dashboard courses to populate exercises...');
+                console.log('[Iris Chat] Registry empty, fetching courses to populate exercises...');
                 try {
                     const dashboardData = await this._artemisApiService.getCoursesForDashboard();
                     const courses = dashboardData?.courses;
                     
-                    if (courses && Array.isArray(courses)) {
-                        for (const course of courses) {
-                            // Dashboard data structure might be different, usually has exercises directly
-                            if (course.exercises) {
-                                registry.registerFromCourseData({ exercises: course.exercises });
+                    if (courses && Array.isArray(courses) && courses.length > 0) {
+                        // Flatten all exercises from all courses (same as main extension does)
+                        for (const courseData of courses) {
+                            const courseExercises = courseData?.course?.exercises || courseData?.exercises || [];
+                            if (courseExercises.length > 0) {
+                                // Register exercises from this course
+                                registry.registerFromCourseData({ 
+                                    course: courseData.course || courseData,
+                                    exercises: courseExercises 
+                                });
                             }
                         }
                     }
                     exercises = registry.getAllExercises();
-                    console.log(`[Iris Chat] Registry populated with ${exercises.length} exercises from dashboard`);
+                    console.log(`[Iris Chat] Registry populated with ${exercises.length} exercises`);
                 } catch (error) {
-                    console.warn('[Iris Chat] Failed to fetch dashboard courses for registry population:', error);
+                    console.warn('[Iris Chat] Failed to fetch courses for registry population:', error);
                 }
             }
 
