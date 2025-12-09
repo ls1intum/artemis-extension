@@ -15,7 +15,7 @@ export class ChatMessageService {
         private readonly _postMessage: (message: any) => void,
         private readonly _initializeIrisSession: (context: ActiveContext) => Promise<void>,
         private readonly _postSnapshot: () => void
-    ) {}
+    ) { }
 
     public async handleChatMessage(messageText: string, activeContext: ActiveContext): Promise<void> {
         console.log('[WebsocketLog] 📤 handleChatMessage called with:', { text: messageText?.substring(0, 50) });
