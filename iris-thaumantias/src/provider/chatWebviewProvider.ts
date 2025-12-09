@@ -13,11 +13,11 @@ import {
     IrisSessionManager,
     ChatDiagnosticsService,
     ChatSessionService,
+    ChatMessageService,
     ContextStore,
     ExerciseRegistry,
     detectWorkspaceExercise
 } from '../services';
-import { checkWorkspaceFiles } from '../utils';
 
 type ChatContextReason =
     | 'user-selected'
@@ -38,6 +38,7 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
     private _irisSessionManager?: IrisSessionManager;
     private _chatDiagnosticsService: ChatDiagnosticsService;
     private _chatSessionService: ChatSessionService;
+    private _chatMessageService: ChatMessageService;
 
     constructor(
         private readonly _extensionUri: vscode.Uri,
@@ -55,6 +56,15 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
             (message) => this._view?.webview.postMessage(message),
             () => this._loadIrisMessages(),
             () => this.createNewSession(),
+            () => this._postSnapshot()
+        );
+        this._chatMessageService = new ChatMessageService(
+            this._contextStore,
+            this._artemisApiService,
+            this._websocketService,
+            () => this._irisSessionManager,
+            (message) => this._view?.webview.postMessage(message),
+            (context) => this._initializeIrisSession(context),
             () => this._postSnapshot()
         );
 
@@ -640,23 +650,10 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
 
 
     private async _handleChatMessage(message: any): Promise<void> {
-        console.log('[WebsocketLog] 📤 _handleChatMessage called with:', { text: message?.text?.substring(0, 50) });
-
-        if (!message?.text) {
-            console.log('[WebsocketLog] ⚠️ No text in message, returning');
-            return;
-        }
-
         const activeContext = this._contextStore.getActiveContext();
         if (!activeContext) {
             console.log('[WebsocketLog] ⚠️ No active context');
             vscode.window.showErrorMessage('Please select a course or exercise context first');
-            return;
-        }
-        console.log('[WebsocketLog] ✅ Active context:', { type: activeContext.type, id: activeContext.id, title: activeContext.title });
-
-        if (!this._artemisApiService) {
-            vscode.window.showErrorMessage('Artemis API service not available');
             return;
         }
 
@@ -674,168 +671,8 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
             return;
         }
 
-        try {
-            // Check WebSocket connection before sending
-            console.log('[WebsocketLog] 🔍 Checking WebSocket connection before sending message...');
-            if (this._websocketService && !this._websocketService.isConnected()) {
-                console.log('[WebsocketLog] ⚠️ WebSocket not connected, attempting to connect...');
-                try {
-                    await this._websocketService.connect();
-                    console.log('[WebsocketLog] ✅ WebSocket connected successfully');
-                } catch (error) {
-                    console.error('[WebsocketLog] ❌ Failed to connect WebSocket:', error);
-                    vscode.window.showWarningMessage('WebSocket connection failed. You may not receive responses in real-time.');
-                }
-            } else if (this._websocketService) {
-                console.log('[WebsocketLog] ✅ WebSocket already connected');
-            } else {
-                console.warn('[WebsocketLog] ⚠️ No WebSocket service available');
-            }
-
-            // Show user message immediately
-            console.log('[WebsocketLog] 💬 Sending user message to webview');
-            if (this._view) {
-                this._view.webview.postMessage({
-                    command: 'addMessage',
-                    message: {
-                        role: 'user',
-                        content: message.text,
-                        timestamp: Date.now()
-                    }
-                });
-                console.log('[WebsocketLog] ✅ User message sent to webview (this should trigger thinking indicator)');
-            } else {
-                console.log('[WebsocketLog] ⚠️ No view available to send message');
-            }
-
-            // Get or create Iris session
-            console.log('[WebsocketLog] 🔑 Checking for existing Iris session...', {
-                hasSessionId: !!this._irisSessionManager?.currentSessionId,
-                sessionId: this._irisSessionManager?.currentSessionId
-            });
-
-            if (!this._irisSessionManager?.currentSessionId) {
-                console.log('[WebsocketLog] 🆕 No active session found, initializing new Iris session...');
-                await this._initializeIrisSession(activeContext);
-            } else {
-                console.log('[WebsocketLog] ✅ Using existing Iris session:', this._irisSessionManager.currentSessionId);
-            }
-
-            if (!this._irisSessionManager?.currentSessionId) {
-                throw new Error('Failed to initialize Iris session');
-            }
-
-            // Collect uncommitted files from the current workspace
-            let uncommittedFiles: Map<string, string> | undefined;
-
-            // Check if the user has enabled sending uncommitted changes
-            const sendUncommittedChanges = vscode.workspace.getConfiguration('artemis.iris').get<boolean>('sendUncommittedChanges', true);
-
-            if (sendUncommittedChanges) {
-                try {
-                    const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
-
-                    // Use unified checker with full options (content + filters + status)
-                    const result = await checkWorkspaceFiles(workspaceFolder, {
-                        includeContent: true,
-                        applyFilters: true,
-                        includeStatus: true,
-                        checkUnpushed: true,
-                        includeDirty: true
-                    });
-
-                    // Convert to Map for backward compatibility
-                    uncommittedFiles = new Map();
-                    result.files
-                        .filter(f => f.status === 'included' && f.content !== undefined)
-                        .forEach(f => uncommittedFiles!.set(f.path, f.content!));
-
-                    if (uncommittedFiles.size > 0) {
-                        console.log(`[Iris Chat] 📁 Sending ${uncommittedFiles.size} uncommitted file(s) to Iris`);
-
-                        // Update display with detailed analysis
-                        if (this._view) {
-                            const excludedFiles = result.files
-                                .filter(f => f.status === 'excluded')
-                                .map(f => ({ path: f.path, reason: f.reason || 'Excluded' }));
-
-                            this._view.webview.postMessage({
-                                command: 'updateReferencedFiles',
-                                includedFiles: Array.from(uncommittedFiles.keys()),
-                                excludedFiles: excludedFiles,
-                                totalCount: result.totalCount
-                            });
-                        }
-                    }
-                } catch (error: any) {
-                    console.error('Error collecting uncommitted files:', error);
-
-                    // Show user-friendly error message based on error type
-                    if (error.message?.includes('Git')) {
-                        vscode.window.showWarningMessage(
-                            'Failed to collect uncommitted files from Git. Iris will only see your repository content.',
-                            'OK'
-                        );
-                    } else if (error.code === 'ENOENT') {
-                        vscode.window.showWarningMessage(
-                            'Some files could not be read. Iris might not have full context of your changes.',
-                            'OK'
-                        );
-                    } else {
-                        vscode.window.showWarningMessage(
-                            'Could not collect uncommitted changes. Iris will work with repository content only.',
-                            'Disable Feature',
-                            'OK'
-                        ).then(selection => {
-                            if (selection === 'Disable Feature') {
-                                vscode.workspace.getConfiguration('artemis.iris').update('sendUncommittedChanges', false, true);
-                            }
-                        });
-                    }
-
-                    // Continue without uncommitted files - this is not a critical error
-                    uncommittedFiles = undefined;
-                }
-            } else {
-                console.log('[Iris Chat] 📁 Uncommitted changes sending is disabled by user setting');
-            }
-
-            // Send message to Iris
-            // The response will come through WebSocket, so we don't need to wait for it here
-            console.log('[WebsocketLog] 🚀 Sending message to Artemis API...', {
-                sessionId: this._irisSessionManager.currentSessionId,
-                messageLength: message.text.length,
-                hasUncommittedFiles: uncommittedFiles ? uncommittedFiles.size : 0
-            });
-            await this._artemisApiService.sendChatMessage(
-                this._irisSessionManager.currentSessionId,
-                message.text,
-                uncommittedFiles
-            );
-
-            console.log('[WebsocketLog] ✅ Message sent to Iris, waiting for WebSocket response...');
-
-            // Note: The assistant's response will arrive via WebSocket
-            // and will be handled by _handleIrisWebSocketMessage()
-
-            this._contextStore.incrementActiveSessionMessageCount();
-            this._postSnapshot();
-
-        } catch (error: any) {
-            console.error('Error sending chat message:', error);
-            vscode.window.showErrorMessage(`Failed to send message: ${error.message}`);
-
-            if (this._view) {
-                this._view.webview.postMessage({
-                    command: 'addMessage',
-                    message: {
-                        role: 'error',
-                        content: `Error: ${error.message}`,
-                        timestamp: Date.now()
-                    }
-                });
-            }
-        }
+        // Delegate to ChatMessageService
+        await this._chatMessageService.handleChatMessage(message.text, activeContext);
     }
 
     private async _handleMessageFeedback(message: any): Promise<void> {
