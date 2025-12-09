@@ -287,16 +287,16 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
                 try {
                     const dashboardData = await this._artemisApiService.getCoursesForDashboard();
                     const courses = dashboardData?.courses;
-                    
+
                     if (courses && Array.isArray(courses) && courses.length > 0) {
                         // Flatten all exercises from all courses (same as main extension does)
                         for (const courseData of courses) {
                             const courseExercises = courseData?.course?.exercises || courseData?.exercises || [];
                             if (courseExercises.length > 0) {
                                 // Register exercises from this course
-                                registry.registerFromCourseData({ 
+                                registry.registerFromCourseData({
                                     course: courseData.course || courseData,
-                                    exercises: courseExercises 
+                                    exercises: courseExercises
                                 });
                             }
                         }
@@ -309,13 +309,13 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
             }
 
             const detected = await detectWorkspaceExercise(exercises);
-            
+
             if (detected) {
                 console.log(`[Iris Chat] Detected workspace exercise: ${detected.title} (ID: ${detected.id})`);
             } else {
                 console.log('[Iris Chat] No workspace exercise detected matching current git remote');
             }
-            
+
             if (!detected) {
                 // If we have a stale workspace-detected context but can't verify it anymore, clear it
                 // We do this even if exercises.length is 0, because if we just tried to fetch and got nothing,
