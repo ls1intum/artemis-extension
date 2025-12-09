@@ -36,13 +36,16 @@ export interface ExerciseSource {
  * - HTTPS/HTTP: https://github.com/user/repo.git or http://github.com/user/repo.git
  */
 export function normalizeRepositoryUrl(url: string): string {
-    return url
+    const normalized = url
         .replace(/^git@([^:]+):/, 'https://$1/')
         .replace(/^https?:\/\/[^@]*@/, 'https://')
         .replace(/^http:\/\//, 'https://')
         .replace(/\.git$/, '')
         .replace(/\/$/, '')
         .toLowerCase();
+    
+    // console.log(`[WorkspaceDetection] Normalized URL: ${url} -> ${normalized}`);
+    return normalized;
 }
 
 /**

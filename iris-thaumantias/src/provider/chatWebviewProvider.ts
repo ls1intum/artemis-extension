@@ -302,6 +302,12 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
 
             const detected = await detectWorkspaceExercise(exercises);
             
+            if (detected) {
+                console.log(`[Iris Chat] Detected workspace exercise: ${detected.title} (ID: ${detected.id})`);
+            } else {
+                console.log('[Iris Chat] No workspace exercise detected matching current git remote');
+            }
+            
             if (!detected) {
                 // If we have a stale workspace-detected context but can't verify it anymore, clear it
                 // Only do this if we actually have exercises to check against (to avoid clearing on offline/error)
