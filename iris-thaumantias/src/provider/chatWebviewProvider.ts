@@ -279,10 +279,40 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
     private async _detectWorkspaceExercise(): Promise<void> {
         try {
             const registry = ExerciseRegistry.getInstance();
-            const exercises = registry.getAllExercises();
+            let exercises = registry.getAllExercises();
+
+            // If registry is empty, try to fetch courses first to populate it
+            if (exercises.length === 0 && this._artemisApiService) {
+                console.log('[Iris Chat] Registry empty, fetching courses to populate exercises...');
+                try {
+                    const courses = await this._artemisApiService.getCourses();
+                    if (courses && Array.isArray(courses)) {
+                        for (const course of courses) {
+                            if (course.exercises) {
+                                registry.registerFromCourseData({ exercises: course.exercises });
+                            }
+                        }
+                    }
+                    exercises = registry.getAllExercises();
+                    console.log(`[Iris Chat] Registry populated with ${exercises.length} exercises`);
+                } catch (error) {
+                    console.warn('[Iris Chat] Failed to fetch courses for registry population:', error);
+                }
+            }
 
             const detected = await detectWorkspaceExercise(exercises);
+            
             if (!detected) {
+                // If we have a stale workspace-detected context but can't verify it anymore, clear it
+                // Only do this if we actually have exercises to check against (to avoid clearing on offline/error)
+                if (exercises.length > 0) {
+                    const current = this._contextStore.getActiveContext();
+                    if (current && current.source === 'workspace-detected') {
+                        console.log('[Iris Chat] Clearing stale workspace context:', current.title);
+                        this._contextStore.clearActiveContext();
+                        this._postSnapshot();
+                    }
+                }
                 return;
             }
 
