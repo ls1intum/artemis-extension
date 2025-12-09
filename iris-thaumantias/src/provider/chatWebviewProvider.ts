@@ -283,20 +283,23 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
 
             // If registry is empty, try to fetch courses first to populate it
             if (exercises.length === 0 && this._artemisApiService) {
-                console.log('[Iris Chat] Registry empty, fetching courses to populate exercises...');
+                console.log('[Iris Chat] Registry empty, fetching dashboard courses to populate exercises...');
                 try {
-                    const courses = await this._artemisApiService.getCourses();
+                    const dashboardData = await this._artemisApiService.getCoursesForDashboard();
+                    const courses = dashboardData?.courses;
+                    
                     if (courses && Array.isArray(courses)) {
                         for (const course of courses) {
+                            // Dashboard data structure might be different, usually has exercises directly
                             if (course.exercises) {
                                 registry.registerFromCourseData({ exercises: course.exercises });
                             }
                         }
                     }
                     exercises = registry.getAllExercises();
-                    console.log(`[Iris Chat] Registry populated with ${exercises.length} exercises`);
+                    console.log(`[Iris Chat] Registry populated with ${exercises.length} exercises from dashboard`);
                 } catch (error) {
-                    console.warn('[Iris Chat] Failed to fetch courses for registry population:', error);
+                    console.warn('[Iris Chat] Failed to fetch dashboard courses for registry population:', error);
                 }
             }
 
@@ -310,14 +313,13 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
             
             if (!detected) {
                 // If we have a stale workspace-detected context but can't verify it anymore, clear it
-                // Only do this if we actually have exercises to check against (to avoid clearing on offline/error)
-                if (exercises.length > 0) {
-                    const current = this._contextStore.getActiveContext();
-                    if (current && current.source === 'workspace-detected') {
-                        console.log('[Iris Chat] Clearing stale workspace context:', current.title);
-                        this._contextStore.clearActiveContext();
-                        this._postSnapshot();
-                    }
+                // We do this even if exercises.length is 0, because if we just tried to fetch and got nothing,
+                // it means we really don't know about this exercise.
+                const current = this._contextStore.getActiveContext();
+                if (current && current.source === 'workspace-detected') {
+                    console.log('[Iris Chat] Clearing stale workspace context:', current.title);
+                    this._contextStore.clearActiveContext();
+                    this._postSnapshot();
                 }
                 return;
             }
