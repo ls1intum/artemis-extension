@@ -14,6 +14,7 @@ import {
     ChatDiagnosticsService,
     ChatSessionService,
     ChatMessageService,
+    ChatContextManager,
     ContextStore,
     ExerciseRegistry,
     detectWorkspaceExercise
@@ -39,6 +40,7 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
     private _chatDiagnosticsService: ChatDiagnosticsService;
     private _chatSessionService: ChatSessionService;
     private _chatMessageService: ChatMessageService;
+    private _chatContextManager: ChatContextManager;
 
     constructor(
         private readonly _extensionUri: vscode.Uri,
@@ -66,6 +68,12 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
             (message) => this._view?.webview.postMessage(message),
             (context) => this._initializeIrisSession(context),
             () => this._postSnapshot()
+        );
+        this._chatContextManager = new ChatContextManager(
+            this._contextStore,
+            this._chatSessionService,
+            () => this._irisSessionManager,
+            (message) => this._view?.webview.postMessage(message)
         );
 
         if (this._artemisApiService && this._websocketService) {
@@ -428,52 +436,7 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
     }
 
     private _handleContextSelection(contextType: ChatContextType, itemId: number, itemName: string, itemShortName?: string): void {
-        if (contextType === 'exercise') {
-            this._contextStore.registerExercise({
-                id: itemId,
-                title: itemName,
-                shortName: itemShortName,
-                source: 'user-selected',
-            });
-        } else if (contextType === 'course') {
-            this._contextStore.registerCourse({
-                id: itemId,
-                title: itemName,
-                shortName: itemShortName,
-                source: 'user-selected',
-            });
-        }
-
-        this._contextStore.setActiveContext({
-            type: contextType,
-            id: itemId,
-            title: itemName,
-            shortName: itemShortName,
-            source: 'user-selected',
-            locked: false,
-            selectedAt: Date.now(),
-        });
-
-        // Reset Iris session when context changes
-        if (this._irisSessionManager) {
-            this._irisSessionManager.unsubscribe();
-        }
-
-        // Clear chat messages
-        if (this._view) {
-            this._view.webview.postMessage({ command: 'clearChatMessages' });
-        }
-
-        // Don't post snapshot yet - wait for sessions to load first
-
-        const label = contextType === 'exercise' ? 'Exercise' : contextType === 'course' ? 'Course' : 'Context';
-        vscode.window.showInformationMessage(`${label} context set to: ${itemName}`);
-
-        // Load all sessions for the new context and initialize
-        // The snapshot will be posted after sessions are loaded
-        this._chatSessionService.loadAllSessionsForContext().catch((err: any) => {
-            console.error('Error loading Iris sessions:', err);
-        });
+        this._chatContextManager.handleContextSelection(contextType, itemId, itemName, itemShortName);
     }
 
     private async _loadIrisMessages(): Promise<void> {
@@ -510,7 +473,7 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
 
 
     private _handleSwitchContext(): void {
-        this._contextStore.unlockActiveContext();
+        this._chatContextManager.handleSwitchContext();
         this._postSnapshot({ showContextPicker: true });
     }
 
@@ -542,109 +505,25 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
     }
 
     private _handleSwitchToWorkspaceContext(): void {
-        // Find the workspace exercise from all exercises (not just recent)
-        const snapshot = this._contextStore.snapshot();
-
-        console.log('[IRISDEBUG] _handleSwitchToWorkspaceContext called');
-        console.log('[IRISDEBUG] recentExercises:', snapshot.recentExercises.map(e => ({ id: e.id, title: e.title, isWorkspace: e.isWorkspace })));
-        console.log('[IRISDEBUG] allExercises with isWorkspace:', snapshot.allExercises.filter(e => e.isWorkspace).map(e => ({ id: e.id, title: e.title })));
-
-        // Search in both recent and all exercises
-        const workspaceExercise = snapshot.recentExercises.find(exercise =>
-            exercise.isWorkspace || /\(Workspace\)/i.test(exercise.title)
-        ) || snapshot.allExercises.find(exercise =>
-            exercise.isWorkspace || /\(Workspace\)/i.test(exercise.title)
-        );
-
-        console.log('[IRISDEBUG] Found workspaceExercise:', workspaceExercise);
-
-        if (!workspaceExercise) {
-            vscode.window.showWarningMessage('No workspace exercise detected. Open a workspace folder with a git repository.');
-            return;
+        const workspaceExercise = this._chatContextManager.handleSwitchToWorkspaceContext();
+        if (workspaceExercise) {
+            this.setExerciseContext(
+                workspaceExercise.id,
+                workspaceExercise.title,
+                'workspace-detected',
+                workspaceExercise.shortName,
+                workspaceExercise.releaseDate,
+                workspaceExercise.dueDate
+            );
         }
-
-        // Switch to the workspace exercise context
-        this.setExerciseContext(
-            workspaceExercise.id,
-            workspaceExercise.title,
-            'workspace-detected',
-            workspaceExercise.shortName,
-            workspaceExercise.releaseDate,
-            workspaceExercise.dueDate
-        );
     }
 
     private _handleCourseSelection(courseId: number): void {
-        const latest = this._contextStore.registerCourse({
-            id: courseId,
-            title: `Course ${courseId}`,
-        });
-        const course = latest.recentCourses.find(course => course.id === courseId) ?? latest.allCourses.find(c => c.id === courseId);
-        this._contextStore.setActiveContext({
-            type: 'course',
-            id: courseId,
-            title: course?.title ?? `Course ${courseId}`,
-            shortName: course?.shortName,
-            source: 'user-selected',
-            locked: false,
-            selectedAt: Date.now(),
-        });
-
-        // Reset Iris session when context changes
-        if (this._irisSessionManager) {
-            this._irisSessionManager.unsubscribe();
-        }
-
-        // Clear chat messages
-        if (this._view) {
-            this._view.webview.postMessage({ command: 'clearChatMessages' });
-        }
-
-        // Don't post snapshot yet - wait for sessions to load first
-
-        // Load all sessions for the new context
-        // The snapshot will be posted after sessions are loaded
-        this._chatSessionService.loadAllSessionsForContext().catch((err: any) => {
-            console.error('Error loading Iris sessions:', err);
-        });
+        this._chatContextManager.handleCourseSelection(courseId);
     }
 
     private _handleExerciseSelection(exerciseId: number): void {
-        const latest = this._contextStore.registerExercise({
-            id: exerciseId,
-            title: `Exercise ${exerciseId}`,
-        });
-        const exercise =
-            latest.recentExercises.find(ex => ex.id === exerciseId) ?? latest.allExercises.find(ex => ex.id === exerciseId);
-        this._contextStore.setActiveContext({
-            type: 'exercise',
-            id: exerciseId,
-            title: exercise?.title ?? `Exercise ${exerciseId}`,
-            shortName: exercise?.shortName,
-            source: 'user-selected',
-            locked: false,
-            selectedAt: Date.now(),
-        });
-
-        // Reset Iris session when context changes
-        if (this._irisSessionManager) {
-            this._irisSessionManager.unsubscribe();
-        }
-
-        // Clear chat messages
-        if (this._view) {
-            this._view.webview.postMessage({ command: 'clearChatMessages' });
-        }
-
-        // Don't post snapshot yet - wait for sessions to load first
-
-        vscode.window.showInformationMessage(`Exercise context set to: ${exercise?.title ?? `Exercise ${exerciseId}`}`);
-
-        // Load all sessions for the new context
-        // The snapshot will be posted after sessions are loaded
-        this._chatSessionService.loadAllSessionsForContext().catch((err: any) => {
-            console.error('Error loading Iris sessions:', err);
-        });
+        this._chatContextManager.handleExerciseSelection(exerciseId);
     }
 
 
