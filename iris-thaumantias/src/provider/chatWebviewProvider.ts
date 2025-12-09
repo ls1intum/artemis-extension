@@ -489,21 +489,12 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
             return;
         }
 
-        // If we have an active session ID, just reload the messages for that session
-        // (this handles the case when the sidebar is reopened and the webview is recreated)
-        if (this._irisSessionManager?.currentSessionId) {
-            console.log('[WebsocketLog] 🔄 Active session found on view reopen, reloading messages...', {
-                sessionId: this._irisSessionManager.currentSessionId
-            });
-            await this._loadIrisMessages();
-        } else {
-            // No session initialized yet, load all sessions for the context
-            console.log('[WebsocketLog] 📋 Active context found on startup, loading Iris messages...', {
-                contextType: activeContext.type,
-                contextId: activeContext.id
-            });
-            await this._chatSessionService.loadAllSessionsForContext();
-        }
+        // Always reload sessions fresh from Artemis when view loads
+        console.log('[WebsocketLog] 🔄 Reloading all sessions fresh from Artemis...', {
+            contextType: activeContext.type,
+            contextId: activeContext.id
+        });
+        await this._chatSessionService.loadAllSessionsForContext();
     }
 
 

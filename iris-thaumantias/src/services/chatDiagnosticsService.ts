@@ -7,7 +7,7 @@ export class ChatDiagnosticsService {
     constructor(
         private readonly _contextStore: ContextStore,
         private readonly _artemisApiService?: ArtemisApiService
-    ) {}
+    ) { }
 
     public async handleOpenDiagnostics(): Promise<void> {
         const snapshot = this._contextStore.snapshot();

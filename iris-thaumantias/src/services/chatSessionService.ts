@@ -13,7 +13,7 @@ export class ChatSessionService {
         private readonly _onSessionLoaded: () => Promise<void>,
         private readonly _onCreateNewSession: () => void,
         private readonly _onPostSnapshot: () => void
-    ) {}
+    ) { }
 
     public get contextLoadToken(): number {
         return this._contextLoadToken;
