@@ -140,13 +140,11 @@ export class AppStateManager {
         }
     }
 
-    public async showExerciseDetail(exerciseId: number, forceRefresh: boolean = true): Promise<void> {
+    public async showExerciseDetail(exerciseId: number): Promise<void> {
         try {
-            // ALWAYS fetch fresh data by default to ensure we have the latest results
+            // ALWAYS fetch fresh data to ensure we have the latest results
             // This prevents stale data when WebSocket fails or disconnects
-            // Only skip if explicitly requested AND same exercise
-            const shouldFetch = forceRefresh ||
-                !this._currentExerciseData ||
+            const shouldFetch = !this._currentExerciseData ||
                 this._currentExerciseData?.exercise?.id !== exerciseId;
 
             if (shouldFetch) {
@@ -191,7 +189,7 @@ export class AppStateManager {
             const exerciseId = this._currentExerciseData?.exercise?.id || this._currentExerciseData?.id;
             if (exerciseId) {
                 console.log(`[App State] 🔄 Refreshing exercise ${exerciseId}`);
-                await this.showExerciseDetail(exerciseId, true); // Force refresh
+                await this.showExerciseDetail(exerciseId);
             }
         }
     }
