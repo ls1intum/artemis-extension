@@ -142,7 +142,8 @@ suite('AppStateManager Clear Methods Test Suite', () => {
         mockApiService.getExerciseDetailsCalled = false;
 
         // Force refresh
-        await stateManager.showExerciseDetail(789, true);
+        stateManager.clearCurrentExerciseData();
+        await stateManager.showExerciseDetail(789);
 
         assert.ok(mockApiService.getExerciseDetailsCalled);
     });
