@@ -1,6 +1,6 @@
 import * as assert from 'assert';
 import * as vscode from 'vscode';
-import { BuildErrorCodeLensProvider } from '../../src/services/buildErrorCodeLensProvider';
+import { BuildErrorCodeLensProvider } from '../../src/provider/buildErrorCodeLensProvider';
 import { ParsedBuildError } from '../../src/types/artemis';
 import { MockTextDocument } from '../mocks/vscodeMocks';
 
