@@ -12,7 +12,7 @@ export class SessionManagementService {
         private readonly _postMessage: (message: any) => void,
         private readonly _postSnapshot: () => void,
         private readonly _loadIrisMessages: () => Promise<void>
-    ) {}
+    ) { }
 
     public createNewSession(): void {
         console.log('[Iris Chat] Creating new session');
