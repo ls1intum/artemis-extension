@@ -7,7 +7,7 @@ export class WebSocketMessageHandler {
         private readonly _websocketService: ArtemisWebsocketService | undefined,
         private readonly _getIrisSessionManager: () => IrisSessionManager | undefined,
         private readonly _postMessage: (message: any) => void
-    ) {}
+    ) { }
 
     public handleIrisWebSocketMessage(data: any): void {
         console.log('[WebsocketLog] 🔔 Received Iris WebSocket message:', JSON.stringify(data, null, 2));
