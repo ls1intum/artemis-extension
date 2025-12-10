@@ -85,7 +85,7 @@ export class GitService {
             const args = globalScope
                 ? ['config', '--global', '--get', key]
                 : ['config', '--get', key];
-            
+
             const { stdout } = await execFileAsync('git', args, {
                 cwd: options.cwd,
                 timeout: options.timeout
