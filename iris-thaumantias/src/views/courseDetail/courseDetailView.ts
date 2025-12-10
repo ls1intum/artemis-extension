@@ -109,6 +109,7 @@ export class CourseDetailView {
         const exams = course?.exams || [];
         let examsHtml = '';
         const examCount = exams.length;
+        let hasActiveExam = false;
 
         if (exams.length > 0) {
             // Sort exams: Active first, then Upcoming, then Finished
@@ -126,6 +127,14 @@ export class CourseDetailView {
                 const bEnd = b.endDate ? new Date(b.endDate).getTime() : 0;
                 const bIsActive = now >= bStart && now <= bEnd;
                 const bIsUpcoming = now < bStart;
+
+                // Check if any exam is active
+                if (aIsActive) {
+                    hasActiveExam = true;
+                }
+                if (bIsActive) {
+                    hasActiveExam = true;
+                }
 
                 // Priority: Active > Upcoming > Finished
                 if (aIsActive && !bIsActive) {
@@ -258,7 +267,8 @@ export class CourseDetailView {
                 title: 'Exams',
                 badge: examCount.toString(),
                 divider: true,
-                collapsible: true
+                collapsible: true,
+                collapsed: !hasActiveExam  // Only expand if there's an active exam
             },
             bodyHtml: `<div class="exam-list">${examsHtml}</div>`
         }) : '';
