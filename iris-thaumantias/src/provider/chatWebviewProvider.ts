@@ -15,6 +15,7 @@ import {
     ChatSessionService,
     ChatMessageService,
     ChatContextManager,
+    SessionManagementService,
     ContextStore,
     ExerciseRegistry,
     detectWorkspaceExercise
@@ -41,6 +42,7 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
     private _chatSessionService: ChatSessionService;
     private _chatMessageService: ChatMessageService;
     private _chatContextManager: ChatContextManager;
+    private _sessionManagementService: SessionManagementService;
 
     constructor(
         private readonly _extensionUri: vscode.Uri,
@@ -74,6 +76,14 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
             this._chatSessionService,
             () => this._irisSessionManager,
             (message) => this._view?.webview.postMessage(message)
+        );
+        this._sessionManagementService = new SessionManagementService(
+            this._contextStore,
+            this._artemisApiService,
+            () => this._irisSessionManager,
+            (message) => this._view?.webview.postMessage(message),
+            () => this._postSnapshot(),
+            () => this._loadIrisMessages()
         );
 
         if (this._artemisApiService && this._websocketService) {
@@ -615,7 +625,8 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
             // If we didn't have a stored session ID, store it now
             if (!activeLocalSession?.artemisSessionId) {
                 console.log('[Iris Chat] Storing NEW Artemis session ID mapping:', sessionId);
-                this._storeArtemisSessionId(sessionId);
+                this._contextStore.setArtemisSessionId(sessionId);
+                this._postSnapshot();
             }
 
             console.log('[WebsocketLog] 🎯 Iris session initialized with ID:', sessionId);
@@ -632,7 +643,8 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
                 console.log('[Iris Chat] Clearing stale Artemis session ID mapping...');
 
                 // Clear the stale mapping
-                this._storeArtemisSessionId(undefined as any);
+                this._contextStore.setArtemisSessionId(undefined as any);
+                this._postSnapshot();
 
                 vscode.window.showWarningMessage(
                     'This conversation\'s messages could not be found on the server. They may have been deleted. The session mapping has been reset.',
@@ -759,146 +771,7 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
     }
 
     private async _handleResetSessions(): Promise<void> {
-        const confirmation = await vscode.window.showWarningMessage(
-            'This will clear all local Iris chat session data and reload all sessions from Artemis. Continue?',
-            { modal: true },
-            'Yes, Reset & Reload'
-        );
-
-        if (confirmation === 'Yes, Reset & Reload') {
-            this.clearAllSessions();
-
-            // If there's an active context, reload all sessions from Artemis
-            const activeContext = this._contextStore.getActiveContext();
-            if (activeContext && this._artemisApiService) {
-                try {
-                    console.log('[Iris Chat] Fetching all Iris sessions from Artemis for context:', activeContext.title);
-
-                    // Step 1: Fetch session metadata
-                    let artemisSessionsMetadata: any[] = [];
-                    if (activeContext.type === 'course') {
-                        artemisSessionsMetadata = await this._artemisApiService.getCourseChatSessions(activeContext.id);
-                    } else if (activeContext.type === 'exercise') {
-                        artemisSessionsMetadata = await this._artemisApiService.getExerciseChatSessions(activeContext.id);
-                    }
-
-                    console.log(`[Iris Chat] Fetched ${artemisSessionsMetadata.length} session(s) metadata from Artemis`);
-
-                    // Step 2: Fetch messages for all sessions
-                    const artemisSessionsListFromServer: any[] = await Promise.all(
-                        artemisSessionsMetadata.map(async (session) => {
-                            try {
-                                const messages = await this._artemisApiService!.getChatMessages(session.id);
-                                return {
-                                    ...session,
-                                    messages: messages
-                                };
-                            } catch (error) {
-                                console.warn(`Failed to fetch messages for session ${session.id}:`, error);
-                                return {
-                                    ...session,
-                                    messages: []
-                                };
-                            }
-                        })
-                    );
-
-                    console.log(`Fetched messages for all ${artemisSessionsListFromServer.length} sessions`);
-
-                    // Import all sessions from Artemis
-                    if (artemisSessionsListFromServer.length > 0) {
-                        // Sort sessions by creation date (newest first)
-                        artemisSessionsListFromServer.sort((a, b) => {
-                            const dateA = a.creationDate ? new Date(a.creationDate).getTime() : 0;
-                            const dateB = b.creationDate ? new Date(b.creationDate).getTime() : 0;
-                            return dateB - dateA;
-                        });
-
-                        for (const artemisSession of artemisSessionsListFromServer) {
-                            // Create local session for each Artemis session
-                            const messageCount = artemisSession.messages?.length || 0;
-                            const createdAt = artemisSession.creationDate ? new Date(artemisSession.creationDate).getTime() : Date.now();
-
-                            // Create preview from first user message or use default
-                            let preview = 'New conversation';
-                            if (artemisSession.messages && artemisSession.messages.length > 0) {
-                                const firstUserMsg = artemisSession.messages.find((m: any) => m.sender === 'USER');
-                                if (firstUserMsg?.content?.[0]?.textContent) {
-                                    preview = firstUserMsg.content[0].textContent.substring(0, 50);
-                                }
-                            }
-
-                            console.log(`[Iris Chat] Importing session ${artemisSession.id}: ${messageCount} messages, preview: "${preview}"`);
-
-                            // Create local session with messages
-                            this._contextStore.createSessionWithDetails(
-                                preview,
-                                messageCount,
-                                createdAt,
-                                artemisSession.id,
-                                artemisSession.messages || []
-                            );
-                        }
-
-                        // Switch to the first (most recent) session
-                        this._contextStore.switchToFirstSession();
-
-                        // Post updated snapshot to show sessions in UI
-                        this._postSnapshot();
-
-                        // Get the first session's messages from the data we already have
-                        const firstSession = artemisSessionsListFromServer[0];
-                        if (firstSession.messages && firstSession.messages.length > 0) {
-                            const formattedMessages = firstSession.messages.map((msg: any) => {
-                                let content = '';
-                                if (msg.content && Array.isArray(msg.content) && msg.content.length > 0) {
-                                    content = msg.content.map((item: any) => {
-                                        if (item.textContent) {
-                                            return item.textContent;
-                                        }
-                                        return item.toString();
-                                    }).join('\n');
-                                } else if (typeof msg.content === 'string') {
-                                    content = msg.content;
-                                }
-
-                                return {
-                                    id: msg.id,
-                                    role: msg.sender === 'USER' ? 'user' : 'assistant',
-                                    content: content,
-                                    timestamp: msg.sentAt ? new Date(msg.sentAt).getTime() : Date.now(),
-                                    helpful: msg.helpful // true, false, or null
-                                };
-                            });
-
-                            // Send messages to webview
-                            if (this._view) {
-                                this._view.webview.postMessage({
-                                    command: 'loadMessages',
-                                    messages: formattedMessages
-                                });
-                            }
-
-                            // Store the Artemis session ID and subscribe to WebSocket
-                            if (this._irisSessionManager) {
-                                this._irisSessionManager.subscribeToSession(firstSession.id);
-                            }
-                        }
-
-                        vscode.window.showInformationMessage(
-                            `✅ Loaded ${artemisSessionsListFromServer.length} session(s) from Artemis`
-                        );
-                    } else {
-                        vscode.window.showInformationMessage('✅ No existing sessions found on Artemis');
-                    }
-                } catch (error: any) {
-                    console.error('Failed to reload sessions from Artemis:', error);
-                    vscode.window.showWarningMessage('Sessions cleared, but failed to reload from Artemis: ' + error.message);
-                }
-            } else {
-                vscode.window.showInformationMessage('✅ Iris chat sessions have been reset');
-            }
-        }
+        await this._sessionManagementService.handleResetSessions();
     }
 
     public refreshTheme(): void {
@@ -950,60 +823,11 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
     }
 
     public createNewSession(): void {
-        console.log('[Iris Chat] Creating new session');
-
-        if (this._irisSessionManager) {
-            this._irisSessionManager.unsubscribe();
-        }
-
-        this._contextStore.createSession();
-        this._postSnapshot();
-
-        if (this._view) {
-            this._view.webview.postMessage({ command: 'clearChatMessages' });
-        }
-
-        // Create a brand new Iris session on the backend
-        const activeContext = this._contextStore.getActiveContext();
-        if (activeContext && this._irisSessionManager) {
-            this._irisSessionManager.createNewSession(activeContext)
-                .then(sessionId => {
-                    this._storeArtemisSessionId(sessionId);
-                    vscode.window.showInformationMessage('New conversation started!');
-                })
-                .catch(err => {
-                    console.error('Error creating new Iris session:', err);
-                    vscode.window.showErrorMessage(`Failed to create new conversation: ${err.message}`);
-                });
-        }
-    }
-
-    // private async _createNewIrisSession(): Promise<void> { ... } // Removed
-
-    private _storeArtemisSessionId(artemisSessionId: number): void {
-        // Store the Artemis session ID in the active local session
-        this._contextStore.setArtemisSessionId(artemisSessionId);
-        this._postSnapshot();
+        this._sessionManagementService.createNewSession();
     }
 
     public switchToSession(sessionId: string): void {
-        console.log('[Iris Chat] Switching to session:', sessionId);
-
-        if (this._irisSessionManager) {
-            this._irisSessionManager.unsubscribe();
-        }
-
-        this._contextStore.switchSession(sessionId);
-        this._postSnapshot();
-
-        if (this._view) {
-            this._view.webview.postMessage({ command: 'clearChatMessages' });
-        }
-
-        // Load messages for the switched session
-        this._loadIrisMessages().catch(err => {
-            console.error('Error loading messages for switched session:', err);
-        });
+        this._sessionManagementService.switchToSession(sessionId);
     }
 
     public getSelectedContext(): ActiveContext | null {
