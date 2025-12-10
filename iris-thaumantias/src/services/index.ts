@@ -5,6 +5,7 @@ export { ChatMessageService } from './chatMessageService';
 export { ChatContextManager } from './chatContextManager';
 export { SessionManagementService } from './sessionManagementService';
 export { WebSocketMessageHandler } from './websocketMessageHandler';
+export { GitService } from './gitService';
 export { FileMonitorService } from './fileMonitorService';
 export { IrisSessionManager } from './irisSessionManager';
 export { ContextStore } from './contextStore';

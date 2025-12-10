@@ -1,12 +1,8 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
-import { execFile, spawn } from 'child_process';
-import { promisify } from 'util';
 import type { CommandContext, CommandMap } from './types';
 import { VSCODE_CONFIG, checkWorkspaceFiles } from '../../../utils';
-import { detectWorkspaceExercise, normalizeRepositoryUrl, type ExerciseSource } from '../../../services';
-
-const execFileAsync = promisify(execFile);
+import { detectWorkspaceExercise, normalizeRepositoryUrl, type ExerciseSource, GitService } from '../../../services';
 
 interface RepoContext {
     expectedRepoUrl: string;
@@ -21,8 +17,10 @@ export class RepositoryCommandModule {
     private clonedRepositories: Map<number, { path: string; title: string }> = new Map();
     private dirtyPagesCheckDebounce?: NodeJS.Timeout;
     private textDocumentChangeListener?: vscode.Disposable;
+    private readonly gitService: GitService;
 
     constructor(private readonly context: CommandContext) {
+        this.gitService = new GitService();
         this.registerWorkspaceListeners();
     }
 
@@ -122,11 +120,9 @@ export class RepositoryCommandModule {
 
             if (workspaceFolder) {
                 try {
-                    const { stdout } = await execFileAsync('git', ['remote', 'get-url', 'origin'], {
+                    const currentRepoUrl = await this.gitService.getRemoteUrl({
                         cwd: workspaceFolder.uri.fsPath
                     });
-
-                    const currentRepoUrl = stdout.trim();
 
                     const normalizedCurrent = normalizeRepositoryUrl(currentRepoUrl);
                     const normalizedExpected = normalizeRepositoryUrl(expectedRepoUrl);
@@ -196,9 +192,8 @@ export class RepositoryCommandModule {
                 return;
             }
 
-            try {
-                await execFileAsync('git', ['--version']);
-            } catch {
+            const isGitAvailable = await this.gitService.isGitAvailable();
+            if (!isGitAvailable) {
                 vscode.window.showErrorMessage('Git not found in PATH. Please install Git to clone repositories.');
                 return;
             }
@@ -491,7 +486,7 @@ export class RepositoryCommandModule {
                 cancellable: false
             }, async () => {
                 try {
-                    await execFileAsync('git', ['pull', '--rebase'], { cwd });
+                    await this.gitService.pullWithRebase({ cwd });
                     vscode.window.showInformationMessage(`Successfully pulled changes for "${exerciseTitle}".`);
 
                     if (this.currentRepoContext) {
@@ -546,7 +541,7 @@ export class RepositoryCommandModule {
                 }
 
                 progress.report({ message: 'Staging changes...' });
-                await execFileAsync('git', ['add', '-A'], { cwd });
+                await this.gitService.addAll({ cwd });
 
                 const config = vscode.workspace.getConfiguration(VSCODE_CONFIG.ARTEMIS_SECTION);
                 const configuredDefault = config.get<string>(
@@ -558,11 +553,11 @@ export class RepositoryCommandModule {
                 await this.ensureGitIdentityConfigured(cwd);
 
                 progress.report({ message: 'Committing changes...' });
-                await execFileAsync('git', ['commit', '-m', messageText], { cwd });
+                await this.gitService.commit(messageText, { cwd });
 
                 progress.report({ message: 'Syncing with remote...' });
                 try {
-                    await execFileAsync('git', ['pull', '--rebase'], { cwd });
+                    await this.gitService.pullWithRebase({ cwd });
                 } catch (pullError: any) {
                     if (pullError.message && pullError.message.includes('CONFLICT')) {
                         throw new Error('Merge conflict detected. Please resolve conflicts manually using git and try again.');
@@ -571,7 +566,7 @@ export class RepositoryCommandModule {
                 }
 
                 progress.report({ message: 'Pushing to Artemis...' });
-                await execFileAsync('git', ['push'], { cwd });
+                await this.gitService.push({ cwd });
             });
 
             vscode.window.showInformationMessage(`Successfully submitted "${exerciseTitle}".`);
@@ -600,10 +595,9 @@ export class RepositoryCommandModule {
     };
 
     private async ensureGitIdentityConfigured(cwd: string): Promise<void> {
-        const existingName = await this.getGitConfigValue('user.name', cwd);
-        const existingEmail = await this.getGitConfigValue('user.email', cwd);
+        const identity = await this.gitService.getIdentity({ cwd });
 
-        if (existingName && existingEmail) {
+        if (identity) {
             return;
         }
 
@@ -622,23 +616,11 @@ export class RepositoryCommandModule {
     }
 
     private async getGitConfigValue(key: string, cwd: string): Promise<string | undefined> {
-        const readValue = async (args: string[], options?: { cwd?: string }) => {
-            try {
-                const { stdout } = await execFileAsync('git', args, options);
-                const stdoutString = typeof stdout === 'string' ? stdout : stdout.toString('utf8');
-                const value = stdoutString.trim();
-                return value.length > 0 ? value : undefined;
-            } catch {
-                return undefined;
-            }
-        };
-
-        const local = await readValue(['config', '--get', key], { cwd });
+        const local = await this.gitService.getConfigValue(key, { cwd }, false);
         if (local) {
             return local;
         }
-
-        return await readValue(['config', '--global', '--get', key]);
+        return await this.gitService.getConfigValue(key, { cwd }, true);
     }
 
     private handleSaveGitIdentity = async (message: any): Promise<void> => {
@@ -666,8 +648,7 @@ export class RepositoryCommandModule {
         }
 
         try {
-            await execFileAsync('git', ['config', '--global', 'user.name', rawName]);
-            await execFileAsync('git', ['config', '--global', 'user.email', rawEmail]);
+            await this.gitService.setGlobalIdentity({ name: rawName, email: rawEmail });
             sendResult('success', 'Git identity saved globally.');
             vscode.window.showInformationMessage('Git author information saved globally.');
         } catch (error: any) {
@@ -736,7 +717,10 @@ export class RepositoryCommandModule {
         }
 
         try {
-            await execFileAsync('git', ['--version']);
+            const isGitAvailable = await this.gitService.isGitAvailable();
+            if (!isGitAvailable) {
+                throw new Error('Git not available');
+            }
         } catch {
             sendResult('error', 'Git is not available on the PATH.');
             vscode.window.showErrorMessage('Git is not available on this system. Please install Git and try again.');
@@ -744,7 +728,7 @@ export class RepositoryCommandModule {
         }
 
         try {
-            await this.ensureCredentialHelperConfigured();
+            await this.gitService.ensureCredentialHelper();
         } catch (error: any) {
             console.error('Failed to configure credential helper:', error);
             const messageText = error instanceof Error ? error.message : 'Unknown error';
@@ -754,7 +738,7 @@ export class RepositoryCommandModule {
         }
 
         try {
-            await this.storeCredentialEntry(host, rawUsername, rawToken);
+            await this.gitService.storeCredentials(`https://${host}`, rawUsername, rawToken);
             const successMessage = `Saved Git credentials for ${host}.`;
             sendResult('success', successMessage);
             vscode.window.showInformationMessage(successMessage);
@@ -765,42 +749,6 @@ export class RepositoryCommandModule {
             vscode.window.showErrorMessage(`Failed to save Git credentials: ${messageText}`);
         }
     };
-
-    private async ensureCredentialHelperConfigured(): Promise<void> {
-        try {
-            const { stdout } = await execFileAsync('git', ['config', '--global', '--get', 'credential.helper']);
-            if (!stdout || stdout.trim().length === 0) {
-                await execFileAsync('git', ['config', '--global', 'credential.helper', 'store']);
-            }
-        } catch {
-            await execFileAsync('git', ['config', '--global', 'credential.helper', 'store']);
-        }
-    }
-
-    private async storeCredentialEntry(host: string, username: string, password: string): Promise<void> {
-        const input = `protocol=https\nhost=${host}\nusername=${username}\npassword=${password}\n\n`;
-
-        await new Promise<void>((resolve, reject) => {
-            const child = spawn('git', ['credential', 'approve']);
-            let stderr = '';
-
-            child.on('error', (error) => reject(error));
-            child.stderr.on('data', (data) => {
-                stderr += data.toString();
-            });
-            child.on('close', (code) => {
-                if (code === 0) {
-                    resolve();
-                } else {
-                    reject(new Error(stderr.trim() || `git credential approve exited with code ${code}`));
-                }
-            });
-
-            child.stdin.write(input);
-            child.stdin.end();
-        });
-    }
-
     private registerWorkspaceListeners(): void {
         if (this.workspaceListenersRegistered) {
             return;
