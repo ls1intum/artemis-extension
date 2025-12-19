@@ -2,6 +2,22 @@
 
 All notable changes to the Artemis VS Code extension will be documented in this file.
 
+## [0.3.0] - 2025-11-30
+
+### Added
+
+- **Exam Mode**: Full support for participating in Artemis exams directly from VS Code, including exam start, conduction, and exercise detail views with real-time timer display and status updates.
+- **Iris Disabled Banner**: When Iris chat is not enabled for a course or exercise, an inline banner is shown in the input area instead of blocking the entire UI.
+- **ContainerComponent**: New reusable UI component for consistent container styling with collapsible sections across all views.
+- **Reload Button**: Added reload functionality across views to refresh data from the Artemis server
+  - Dashboard: Reload button in "Recent Courses" header to refresh course list
+  - Course Detail: Reload button in navigation bar to refresh course and exercise data
+  - Exercise Detail: Reload button in navigation bar to refresh exercise, results, and build logs
+
+### Changed
+
+- **View Refactoring**: Major refactoring of all views (CourseDetail, CourseList, Dashboard, etc.) to use the new ContainerComponent for improved maintainability and consistent styling.
+
 ## [0.2.6] - 2025-11-21
 
 ### Added
