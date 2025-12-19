@@ -46,6 +46,7 @@ export class DashboardView {
         const puzzleIcon = IconDefinitions.getIcon('puzzle');
         const exerciseIcon = IconDefinitions.getIcon('exercise');
         const gitIcon = IconDefinitions.getIcon('git');
+        const bugIcon = IconDefinitions.getIcon('bug');
 
         // Get the path to the iris logo image
         let irisLogoSrc = '';
@@ -245,14 +246,6 @@ export class DashboardView {
             fullWidth: true
         })}
                 ${ButtonComponent.generate({
-            label: 'Service Status',
-            icon: stethoscopeIcon,
-            variant: 'secondary',
-            id: 'checkServiceStatusBtn',
-            command: 'document.getElementById("checkServiceStatusBtn").click()',
-            fullWidth: true
-        })}
-                ${ButtonComponent.generate({
             label: 'Recommended Extensions',
             icon: puzzleIcon,
             variant: 'secondary',
@@ -274,6 +267,14 @@ export class DashboardView {
             variant: 'secondary',
             id: 'gitCredentialsBtn',
             command: 'document.getElementById("gitCredentialsBtn").click()',
+            fullWidth: true
+        })}
+                ${ButtonComponent.generate({
+            label: 'Bug Report',
+            icon: bugIcon,
+            variant: 'secondary',
+            id: 'bugReportBtn',
+            command: 'document.getElementById("bugReportBtn").click()',
             fullWidth: true
         })}
                 ${ButtonComponent.generate({
@@ -329,10 +330,10 @@ export class DashboardView {
         // Dashboard action buttons
         const browseCoursesBtn = document.getElementById('browseCoursesBtn');
         const checkAiConfigBtn = document.getElementById('checkAiConfigBtn');
-        const checkServiceStatusBtn = document.getElementById('checkServiceStatusBtn');
         const recommendedExtensionsBtn = document.getElementById('recommendedExtensionsBtn');
         const openWebsiteBtn = document.getElementById('openWebsiteBtn');
         const gitCredentialsBtn = document.getElementById('gitCredentialsBtn');
+        const bugReportBtn = document.getElementById('bugReportBtn');
         const openSettingsBtn = document.getElementById('openSettingsBtn');
         const logoutBtn = document.getElementById('logoutBtn');
         
@@ -365,12 +366,6 @@ export class DashboardView {
                 vscode.postMessage({ command: 'showAiConfig' });
             });
         }
-        
-        if (checkServiceStatusBtn) {
-            checkServiceStatusBtn.addEventListener('click', () => {
-                vscode.postMessage({ command: 'showServiceStatus' });
-            });
-        }
 
         if (recommendedExtensionsBtn) {
             recommendedExtensionsBtn.addEventListener('click', () => {
@@ -387,6 +382,12 @@ export class DashboardView {
         if (gitCredentialsBtn) {
             gitCredentialsBtn.addEventListener('click', () => {
                 vscode.postMessage({ command: 'showGitCredentials' });
+            });
+        }
+
+        if (bugReportBtn) {
+            bugReportBtn.addEventListener('click', () => {
+                vscode.postMessage({ command: 'openBugReport' });
             });
         }
         
