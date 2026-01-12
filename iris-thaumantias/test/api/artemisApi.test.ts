@@ -385,7 +385,7 @@ suite('Artemis API Service Test Suite', () => {
     test('should check Iris health', async () => {
         const mockStatus = { active: true };
         global.fetch = async (url: any) => {
-            assert.ok(url.includes('/api/iris/status'));
+            assert.ok(url.includes('/api/iris/courses/1/status'));
             return {
                 ok: true,
                 status: 200,
@@ -393,12 +393,12 @@ suite('Artemis API Service Test Suite', () => {
             } as any;
         };
 
-        const status = await apiService.checkIrisHealth();
+        const status = await apiService.checkIrisHealth(1);
         assert.deepStrictEqual(status, mockStatus);
     });
 
     test('should render PlantUML', async () => {
-        const mockSvg = '<svg>...</svg>';
+        const mockSvg = '<svg>test</svg>';
         global.fetch = async (url: any) => {
             assert.ok(url.includes('/api/programming/plantuml/svg'));
             assert.ok(url.includes('plantuml='));
