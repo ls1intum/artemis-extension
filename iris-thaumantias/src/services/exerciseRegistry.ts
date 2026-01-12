@@ -3,6 +3,7 @@ export interface ExerciseRegistryEntry {
     title: string;
     repositoryUri: string;
     shortName?: string;
+    courseId?: number;
 }
 
 export class ExerciseRegistry {
@@ -16,12 +17,13 @@ export class ExerciseRegistry {
         return ExerciseRegistry.instance;
     }
 
-    public registerExercise(id: number, title: string, repositoryUri: string, shortName?: string): void {
-        this.exercises.set(id, { id, title, repositoryUri, shortName });
+    public registerExercise(id: number, title: string, repositoryUri: string, shortName?: string, courseId?: number): void {
+        this.exercises.set(id, { id, title, repositoryUri, shortName, courseId });
     }
 
     public registerFromCourseData(courseData: any): void {
         const exercises = courseData?.course?.exercises || courseData?.exercises || [];
+        const courseId = courseData?.course?.id ?? courseData?.id;
 
         let registeredCount = 0;
         const registered: string[] = [];
@@ -35,7 +37,8 @@ export class ExerciseRegistry {
                     exercise.id,
                     exercise.title,
                     participations[0].repositoryUri,
-                    exercise.shortName
+                    exercise.shortName,
+                    courseId
                 );
                 registeredCount++;
                 registered.push(`${exercise.id}: ${exercise.title}`);

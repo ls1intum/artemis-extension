@@ -211,6 +211,15 @@ export async function activate(context: vscode.ExtensionContext) {
 				return;
 			}
 
+			const chatProvider = (global as any).chatWebviewProvider;
+			const activeContext = chatProvider?.getSelectedContext?.();
+			const courseId = activeContext?.type === 'course' ? activeContext.id : activeContext?.courseId;
+
+			if (!courseId) {
+				vscode.window.showWarningMessage('Please select a course or exercise context before checking Iris health status.');
+				return;
+			}
+
 			// Show progress indicator
 			await vscode.window.withProgress({
 				location: vscode.ProgressLocation.Notification,
@@ -218,7 +227,7 @@ export async function activate(context: vscode.ExtensionContext) {
 				cancellable: false
 			}, async (progress) => {
 				try {
-					const healthStatus = await artemisApiService.checkIrisHealth();
+					const healthStatus = await artemisApiService.checkIrisHealth(courseId);
 
 					if (healthStatus.active === true) {
 						const rateLimitInfo = healthStatus.rateLimitInfo;

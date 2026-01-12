@@ -579,7 +579,8 @@ export class ExamExerciseDetailView {
                     exerciseTitle: ${JSON.stringify(transformed.exerciseTitle)},
                     exerciseShortName: ${JSON.stringify(exerciseShortName)},
                     releaseDate: ${JSON.stringify(releaseDateRaw)},
-                    dueDate: ${JSON.stringify(dueDateRaw)}
+                    dueDate: ${JSON.stringify(dueDateRaw)},
+                    courseId: ${exerciseData.exercise?.course?.id || exerciseData.course?.id}
                 });
             });
         }

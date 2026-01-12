@@ -19,10 +19,12 @@ export class ChatContextManager {
         itemShortName?: string
     ): void {
         if (contextType === 'exercise') {
+            const tracked = this._contextStore.getExerciseById(itemId);
             this._contextStore.registerExercise({
                 id: itemId,
                 title: itemName,
                 shortName: itemShortName,
+                courseId: tracked?.courseId,
                 source: 'user-selected',
             });
         } else if (contextType === 'course') {
@@ -39,6 +41,7 @@ export class ChatContextManager {
             id: itemId,
             title: itemName,
             shortName: itemShortName,
+            courseId: contextType === 'exercise' ? this._contextStore.getExerciseById(itemId)?.courseId : undefined,
             source: 'user-selected',
             locked: false,
             selectedAt: Date.now(),
@@ -83,9 +86,11 @@ export class ChatContextManager {
     }
 
     public handleExerciseSelection(exerciseId: number): void {
+        const tracked = this._contextStore.getExerciseById(exerciseId);
         const latest = this._contextStore.registerExercise({
             id: exerciseId,
             title: `Exercise ${exerciseId}`,
+            courseId: tracked?.courseId,
         });
         const exercise = latest.recentExercises.find(ex => ex.id === exerciseId) ?? latest.allExercises.find(ex => ex.id === exerciseId);
 
@@ -94,6 +99,7 @@ export class ChatContextManager {
             id: exerciseId,
             title: exercise?.title ?? `Exercise ${exerciseId}`,
             shortName: exercise?.shortName,
+            courseId: exercise?.courseId,
             source: 'user-selected',
             locked: false,
             selectedAt: Date.now(),

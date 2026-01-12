@@ -17,13 +17,15 @@ export class IrisCommandModule {
         const exerciseShortName: string | undefined = message.exerciseShortName;
         const releaseDate: string | undefined = message.releaseDate;
         const dueDate: string | undefined = message.dueDate;
+        const courseId: number | undefined = message.courseId;
 
         console.log('🎯 [ASK IRIS] Button clicked with data:', {
             exerciseId,
             exerciseTitle,
             exerciseShortName,
             releaseDate,
-            dueDate
+            dueDate,
+            courseId
         });
 
         if (!exerciseId) {
@@ -45,7 +47,8 @@ export class IrisCommandModule {
             reason: 'user-selected',
             shortName: exerciseShortName,
             releaseDate,
-            dueDate
+            dueDate,
+            courseId
         });
 
         // Note: We don't call updateDetectedExercise here because it can trigger
@@ -53,7 +56,7 @@ export class IrisCommandModule {
         // The setExerciseContext call below will properly register and set the context.
 
         if (chatProvider && typeof chatProvider.setExerciseContext === 'function') {
-            chatProvider.setExerciseContext(exerciseId, title, 'user-selected', exerciseShortName, releaseDate, dueDate);
+            chatProvider.setExerciseContext(exerciseId, title, 'user-selected', exerciseShortName, releaseDate, dueDate, courseId);
             console.log('🎯 [ASK IRIS] setExerciseContext called successfully');
         } else {
             console.warn('🎯 [ASK IRIS] WARNING: Chat provider is unavailable or does not support exercise context selection');

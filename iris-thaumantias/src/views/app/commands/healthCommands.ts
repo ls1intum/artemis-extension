@@ -11,13 +11,20 @@ export class HealthCommandModule {
 
     private handlePerformHealthChecks = async (message: any): Promise<void> => {
         const serverUrl: string = message.serverUrl;
+        const resolvedCourseId = message.courseId
+            ?? this.context.appStateManager.currentCourseData?.course?.id
+            ?? this.context.appStateManager.currentExerciseData?.exercise?.course?.id
+            ?? this.context.appStateManager.currentExerciseData?.course?.id;
+        const irisEndpoint = resolvedCourseId
+            ? `${serverUrl}/api/iris/courses/${resolvedCourseId}/status`
+            : `${serverUrl}/api/iris/courses/{courseId}/status`;
 
         const results: any = {
             serverReachability: { status: 'unknown', message: 'Not checked', endpoint: serverUrl, httpStatus: null, response: null },
             authService: { status: 'unknown', message: 'Not checked', endpoint: `${serverUrl}/api/core/public/authenticate`, httpStatus: null, response: null },
             apiAvailability: { status: 'unknown', message: 'Not checked', endpoint: `${serverUrl}/management/health`, httpStatus: null, response: null },
             websocket: { status: 'unknown', message: 'Not checked', endpoint: `${serverUrl}/websocket`, httpStatus: null, response: null },
-            irisService: { status: 'unknown', message: 'Not checked', endpoint: `${serverUrl}/api/iris/status`, httpStatus: null, response: null }
+            irisService: { status: 'unknown', message: 'Not checked', endpoint: irisEndpoint, httpStatus: null, response: null }
         };
 
         let cookieHeader: string | undefined;
@@ -157,83 +164,93 @@ export class HealthCommandModule {
                 }
             }
 
-            try {
-                const irisHeaders: Record<string, string> = {};
-                if (cookieHeader) {
-                    irisHeaders['Cookie'] = cookieHeader;
-                }
+            if (!resolvedCourseId) {
+                results.irisService = {
+                    status: 'unknown',
+                    message: 'Select a course to check Iris',
+                    endpoint: irisEndpoint,
+                    httpStatus: null,
+                    response: 'Course context not available'
+                };
+            } else {
+                try {
+                    const irisHeaders: Record<string, string> = {};
+                    if (cookieHeader) {
+                        irisHeaders['Cookie'] = cookieHeader;
+                    }
 
-                const irisResponse = await fetch(`${serverUrl}/api/iris/status`, {
-                    method: 'GET',
-                    headers: irisHeaders,
-                    signal: AbortSignal.timeout(8000)
-                });
+                    const irisResponse = await fetch(irisEndpoint, {
+                        method: 'GET',
+                        headers: irisHeaders,
+                        signal: AbortSignal.timeout(8000)
+                    });
 
-                if (irisResponse.ok) {
-                    try {
-                        const irisData: any = await irisResponse.json();
-                        const isActive = irisData.active === true;
-                        const rateLimit = irisData.rateLimitInfo ?
-                            `Rate limit: ${irisData.rateLimitInfo.currentMessageCount}/${irisData.rateLimitInfo.rateLimit}` :
-                            'No rate limit info';
+                    if (irisResponse.ok) {
+                        try {
+                            const irisData: any = await irisResponse.json();
+                            const isActive = irisData.active === true;
+                            const rateLimit = irisData.rateLimitInfo ?
+                                `Rate limit: ${irisData.rateLimitInfo.currentMessageCount}/${irisData.rateLimitInfo.rateLimit}` :
+                                'No rate limit info';
 
-                        results.irisService = {
-                            status: isActive ? 'online' : 'offline',
-                            message: isActive ? 'Active' : 'Inactive',
-                            endpoint: `${serverUrl}/api/iris/status`,
-                            httpStatus: irisResponse.status,
-                            response: `${irisResponse.status} ${irisResponse.statusText} - ${isActive ? 'Active' : 'Inactive'} (${rateLimit})`
-                        };
-                    } catch (parseError) {
+                            results.irisService = {
+                                status: isActive ? 'online' : 'offline',
+                                message: isActive ? 'Active' : 'Inactive',
+                                endpoint: irisEndpoint,
+                                httpStatus: irisResponse.status,
+                                response: `${irisResponse.status} ${irisResponse.statusText} - ${isActive ? 'Active' : 'Inactive'} (${rateLimit})`
+                            };
+                        } catch (parseError) {
+                            results.irisService = {
+                                status: 'online',
+                                message: 'Available',
+                                endpoint: irisEndpoint,
+                                httpStatus: irisResponse.status,
+                                response: `${irisResponse.status} ${irisResponse.statusText} (Authenticated)`
+                            };
+                        }
+                    } else if (irisResponse.status === 401) {
                         results.irisService = {
                             status: 'online',
                             message: 'Available',
-                            endpoint: `${serverUrl}/api/iris/status`,
+                            endpoint: irisEndpoint,
                             httpStatus: irisResponse.status,
-                            response: `${irisResponse.status} ${irisResponse.statusText} (Authenticated)`
+                            response: `${irisResponse.status} ${irisResponse.statusText} (Requires authentication)`
+                        };
+                    } else if (irisResponse.status === 403) {
+                        results.irisService = {
+                            status: 'online',
+                            message: 'Available',
+                            endpoint: irisEndpoint,
+                            httpStatus: irisResponse.status,
+                            response: `${irisResponse.status} ${irisResponse.statusText} (Requires permission)`
+                        };
+                    } else if (irisResponse.status === 404) {
+                        results.irisService = {
+                            status: 'unknown',
+                            message: 'Not configured',
+                            endpoint: irisEndpoint,
+                            httpStatus: irisResponse.status,
+                            response: `${irisResponse.status} ${irisResponse.statusText} (Iris not enabled)`
+                        };
+                    } else {
+                        results.irisService = {
+                            status: 'offline',
+                            message: `Error ${irisResponse.status}`,
+                            endpoint: irisEndpoint,
+                            httpStatus: irisResponse.status,
+                            response: `${irisResponse.status} ${irisResponse.statusText}`
                         };
                     }
-                } else if (irisResponse.status === 401) {
-                    results.irisService = {
-                        status: 'online',
-                        message: 'Available',
-                        endpoint: `${serverUrl}/api/iris/status`,
-                        httpStatus: irisResponse.status,
-                        response: `${irisResponse.status} ${irisResponse.statusText} (Requires authentication)`
-                    };
-                } else if (irisResponse.status === 403) {
-                    results.irisService = {
-                        status: 'online',
-                        message: 'Available',
-                        endpoint: `${serverUrl}/api/iris/status`,
-                        httpStatus: irisResponse.status,
-                        response: `${irisResponse.status} ${irisResponse.statusText} (Requires permission)`
-                    };
-                } else if (irisResponse.status === 404) {
+                } catch (error: any) {
                     results.irisService = {
                         status: 'unknown',
-                        message: 'Not configured',
-                        endpoint: `${serverUrl}/api/iris/status`,
-                        httpStatus: irisResponse.status,
-                        response: `${irisResponse.status} ${irisResponse.statusText} (Iris not enabled)`
-                    };
-                } else {
-                    results.irisService = {
-                        status: 'offline',
-                        message: `Error ${irisResponse.status}`,
-                        endpoint: `${serverUrl}/api/iris/status`,
-                        httpStatus: irisResponse.status,
-                        response: `${irisResponse.status} ${irisResponse.statusText}`
+                        message: error.name === 'TimeoutError' ? 'Timeout' : 'Cannot check',
+                        endpoint: irisEndpoint,
+                        httpStatus: null,
+                        response: error.message || 'Network error'
                     };
                 }
-            } catch (error: any) {
-                results.irisService = {
-                    status: 'unknown',
-                    message: error.name === 'TimeoutError' ? 'Timeout' : 'Cannot check',
-                    endpoint: `${serverUrl}/api/iris/status`,
-                    httpStatus: null,
-                    response: error.message || 'Network error'
-                };
             }
         } catch (error) {
             console.error('Error performing health checks:', error);

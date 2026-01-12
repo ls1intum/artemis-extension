@@ -10,6 +10,7 @@ export interface ActiveContext {
     id: number;
     title: string;
     shortName?: string;
+    courseId?: number;
     source: ContextSource;
     locked: boolean;
     selectedAt: number;
@@ -19,6 +20,7 @@ export interface TrackedExercise {
     id: number;
     title: string;
     shortName?: string;
+    courseId?: number;
     releaseDate?: string;
     dueDate?: string;
     lastViewed?: number;

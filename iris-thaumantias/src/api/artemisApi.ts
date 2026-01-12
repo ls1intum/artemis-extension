@@ -309,9 +309,9 @@ export class ArtemisApiService {
         return storedServerUrl !== currentServerUrl;
     }
 
-    // Check Iris health status
-    async checkIrisHealth(): Promise<IrisHealthStatus> {
-        const response = await this.makeRequest('/api/iris/status');
+    // Check Iris health status (course-scoped)
+    async checkIrisHealth(courseId: number): Promise<IrisHealthStatus> {
+        const response = await this.makeRequest(`/api/iris/courses/${courseId}/status`);
         return response.json() as Promise<IrisHealthStatus>;
     }
 
@@ -331,10 +331,14 @@ export class ArtemisApiService {
         return response.json();
     }
 
-    // Get Iris settings for an exercise
+    // Get Iris settings for an exercise (resolved via course settings)
     async getIrisExerciseChatSettings(exerciseId: number): Promise<any> {
-        const response = await this.makeRequest(`/api/iris/exercises/${exerciseId}/iris-settings`);
-        return response.json();
+        const exerciseDetails = await this.getExerciseDetails(exerciseId);
+        const courseId = exerciseDetails?.exercise?.course?.id ?? exerciseDetails?.course?.id;
+        if (!courseId) {
+            throw new Error('Failed to resolve course for Iris exercise settings');
+        }
+        return this.getIrisCourseChatSettings(courseId);
     }
 
     // Get or create current chat session for a course

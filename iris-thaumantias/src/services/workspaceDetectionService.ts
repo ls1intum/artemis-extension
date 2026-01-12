@@ -12,6 +12,7 @@ export interface DetectedExercise {
     title: string;
     shortName?: string;
     repositoryUri: string;
+    courseId?: number;
 }
 
 /**
@@ -21,6 +22,7 @@ export interface ExerciseSource {
     id: number;
     title: string;
     shortName?: string;
+    courseId?: number;
     repositoryUri?: string;
     studentParticipations?: Array<{
         repositoryUri?: string;
@@ -96,7 +98,8 @@ export function findExerciseByRepositoryUrl(
                     id: exercise.id,
                     title: exercise.title,
                     shortName: exercise.shortName,
-                    repositoryUri: exercise.repositoryUri
+                    repositoryUri: exercise.repositoryUri,
+                    courseId: exercise.courseId
                 };
             }
         }
@@ -110,7 +113,8 @@ export function findExerciseByRepositoryUrl(
                         id: exercise.id,
                         title: exercise.title,
                         shortName: exercise.shortName,
-                        repositoryUri: participation.repositoryUri
+                        repositoryUri: participation.repositoryUri,
+                        courseId: exercise.courseId
                     };
                 }
             }
@@ -125,28 +129,30 @@ export function findExerciseByRepositoryUrl(
         for (const exercise of exercises) {
             if (exercise.repositoryUri) {
                 if (normalizeRepositoryUrl(exercise.repositoryUri) === potentialGradedUrl) {
-                    return {
-                        id: exercise.id,
-                        title: exercise.title,
-                        shortName: exercise.shortName,
-                        repositoryUri: exercise.repositoryUri
-                    };
-                }
+                return {
+                    id: exercise.id,
+                    title: exercise.title,
+                    shortName: exercise.shortName,
+                    repositoryUri: exercise.repositoryUri,
+                    courseId: exercise.courseId
+                };
             }
+        }
 
             const participations = exercise.studentParticipations || [];
             for (const participation of participations) {
                 if (participation.repositoryUri) {
                     if (normalizeRepositoryUrl(participation.repositoryUri) === potentialGradedUrl) {
-                        return {
-                            id: exercise.id,
-                            title: exercise.title,
-                            shortName: exercise.shortName,
-                            repositoryUri: participation.repositoryUri
-                        };
-                    }
+                    return {
+                        id: exercise.id,
+                        title: exercise.title,
+                        shortName: exercise.shortName,
+                        repositoryUri: participation.repositoryUri,
+                        courseId: exercise.courseId
+                    };
                 }
             }
+        }
         }
     }
 
@@ -187,4 +193,3 @@ export async function isExerciseInCurrentWorkspace(
     const detected = await detectWorkspaceExercise(exercises, workspaceFolder);
     return detected?.id === exerciseId;
 }
-

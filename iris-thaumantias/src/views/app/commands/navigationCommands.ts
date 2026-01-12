@@ -218,7 +218,7 @@ export class NavigationCommandModule {
                             const dueDate = exercise.dueDate;
                             const shortName = exercise.shortName;
 
-                            chatProvider.updateDetectedExercise(exerciseTitle, exerciseId, releaseDate, dueDate, shortName);
+                            chatProvider.updateDetectedExercise(exerciseTitle, exerciseId, releaseDate, dueDate, shortName, courseId);
                             console.log(`📚 [Course Exercises] Updated exercise from course: ${exerciseTitle} (ID: ${exerciseId})`);
                         }
                     });

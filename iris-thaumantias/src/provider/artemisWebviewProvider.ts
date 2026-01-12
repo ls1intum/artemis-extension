@@ -141,7 +141,9 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
                     registry.registerExercise(
                         exerciseIdFromData,
                         exerciseTitle,
-                        participations[0].repositoryUri
+                        participations[0].repositoryUri,
+                        exercise.shortName,
+                        exercise.course?.id
                     );
                     console.log('📚 [Exercise Registry] Registered individual exercise:', exerciseTitle);
                 }
@@ -152,7 +154,7 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
                     const releaseDate = exercise.releaseDate || exercise.startDate;
                     const dueDate = exercise.dueDate;
                     const shortName = exercise.shortName;
-                    chatProvider.updateDetectedExercise(exerciseTitle, exerciseIdFromData, releaseDate, dueDate, shortName);
+                    chatProvider.updateDetectedExercise(exerciseTitle, exerciseIdFromData, releaseDate, dueDate, shortName, exercise.course?.id);
                 }
             }
         }
@@ -466,9 +468,10 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
                 const exerciseTitle = exerciseData.exercise?.title || exerciseData.title || 'Untitled';
                 const exerciseId = exerciseData.exercise?.id || exerciseData.id || 0;
                 const shortName = exerciseData.exercise?.shortName || exerciseData.shortName;
+                const courseId = exerciseData.exercise?.course?.id || exerciseData.course?.id;
                 const chatProvider = (global as any).chatWebviewProvider;
                 if (chatProvider && typeof chatProvider.updateDetectedExercise === 'function') {
-                    chatProvider.updateDetectedExercise(exerciseTitle, exerciseId, undefined, undefined, shortName);
+                    chatProvider.updateDetectedExercise(exerciseTitle, exerciseId, undefined, undefined, shortName, courseId);
                 }
                 return { exerciseId };
             },
