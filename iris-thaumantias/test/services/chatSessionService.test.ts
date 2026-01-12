@@ -19,10 +19,10 @@ suite('ChatSessionService Test Suite', () => {
     setup(() => {
         mockContext = new MockExtensionContext();
         contextStore = new ContextStore(mockContext);
-        
+
         // Create stubbed API service
         mockApiService = sinon.createStubInstance(ArtemisApiService);
-        
+
         // Create spies for callbacks
         postMessageSpy = sinon.spy();
         onSessionLoadedSpy = sinon.stub().resolves();

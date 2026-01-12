@@ -20,15 +20,15 @@ suite('ChatContextManager Test Suite', () => {
     setup(() => {
         mockContext = new MockExtensionContext();
         contextStore = new ContextStore(mockContext);
-        
+
         // Create stubbed services
         chatSessionService = sinon.createStubInstance(ChatSessionService);
         chatSessionService.loadAllSessionsForContext.resolves();
-        
+
         irisSessionManager = sinon.createStubInstance(IrisSessionManager);
-        
+
         postMessageSpy = sinon.spy();
-        
+
         // Stub vscode.window methods
         showInformationMessageStub = sinon.stub(vscode.window, 'showInformationMessage');
         showWarningMessageStub = sinon.stub(vscode.window, 'showWarningMessage');
