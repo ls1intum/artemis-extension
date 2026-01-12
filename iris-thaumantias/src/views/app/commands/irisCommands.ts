@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import { ProviderRegistry } from '../../../services/ProviderRegistry';
 import type { CommandContext, CommandMap } from './types';
 
 export class IrisCommandModule {
@@ -37,7 +38,7 @@ export class IrisCommandModule {
         console.log('🎯 [ASK IRIS] Focusing Iris chat view...');
         await vscode.commands.executeCommand('iris.chatView.focus');
 
-        const chatProvider = (global as any).chatWebviewProvider;
+        const chatProvider = ProviderRegistry.getInstance().getChatWebviewProvider();
         const title = exerciseTitle || `Exercise ${exerciseId}`;
 
         console.log('🎯 [ASK IRIS] Chat provider available:', !!chatProvider);
@@ -76,7 +77,7 @@ export class IrisCommandModule {
 
         await vscode.commands.executeCommand('iris.chatView.focus');
 
-        const chatProvider = (global as any).chatWebviewProvider;
+        const chatProvider = ProviderRegistry.getInstance().getChatWebviewProvider();
         if (chatProvider && typeof chatProvider.setCourseContext === 'function') {
             chatProvider.setCourseContext(courseId, courseTitle || `Course ${courseId}`, 'user-selected', courseShortName);
         } else {

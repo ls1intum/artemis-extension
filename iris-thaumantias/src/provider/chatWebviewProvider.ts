@@ -5,7 +5,7 @@ import {
     StoredSession,
     ChatContextType,
     ContextSnapshot,
-} from './contextTypes';
+} from '../types';
 import { ArtemisApiService } from '../api';
 import {
     ArtemisWebsocketService,

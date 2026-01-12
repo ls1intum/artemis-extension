@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 import { ContextStore } from './contextStore';
 import { ChatSessionService } from './chatSessionService';
 import { IrisSessionManager } from './irisSessionManager';
-import { ChatContextType, TrackedExercise } from '../provider/contextTypes';
+import { ChatContextType, TrackedExercise } from '../types';
 
 export class ChatContextManager {
     constructor(

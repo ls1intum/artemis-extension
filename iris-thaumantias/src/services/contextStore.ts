@@ -7,7 +7,7 @@ import {
     StoredSession,
     TrackedCourse,
     TrackedExercise,
-} from '../provider/contextTypes';
+} from '../types';
 
 interface StoredState {
     version: number;

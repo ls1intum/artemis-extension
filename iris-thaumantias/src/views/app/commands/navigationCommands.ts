@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import { ExerciseRegistry } from '../../../services';
+import { ProviderRegistry } from '../../../services/ProviderRegistry';
 import type { CommandContext, CommandMap } from './types';
 
 interface CourseQuickPickItem extends vscode.QuickPickItem {
@@ -198,7 +199,7 @@ export class NavigationCommandModule {
             const registry = ExerciseRegistry.getInstance();
             registry.registerFromCourseData(courseData);
 
-            const chatProvider = (global as any).chatWebviewProvider;
+            const chatProvider = ProviderRegistry.getInstance().getChatWebviewProvider();
             if (course) {
                 const courseTitle = course.title || 'Untitled Course';
                 const courseId = course.id || 0;

@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import { ContextStore } from './contextStore';
 import { ArtemisApiService } from '../api';
-import { ActiveContext } from '../provider/contextTypes';
+import { ActiveContext } from '../types';
 
 export class ChatSessionService {
     private _contextLoadToken = 0;
