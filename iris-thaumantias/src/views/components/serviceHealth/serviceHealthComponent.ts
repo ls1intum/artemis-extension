@@ -323,7 +323,7 @@ export class ServiceHealthComponent {
                         );
                         updateTooltip(
                             'irisService',
-                            results.irisService.endpoint || '/api/iris/status',
+                            results.irisService.endpoint || '/api/iris/courses/{courseId}/status',
                             results.irisService.httpStatus,
                             results.irisService.response || results.irisService.message
                         );

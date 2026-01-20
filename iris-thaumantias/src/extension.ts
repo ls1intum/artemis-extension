@@ -5,6 +5,7 @@ import { ArtemisWebviewProvider, ChatWebviewProvider, BuildErrorCodeLensProvider
 import { AuthManager } from './auth';
 import { ArtemisApiService } from './api';
 import { ArtemisWebsocketService } from './services';
+import { ProviderRegistry } from './services/ProviderRegistry';
 import { VSCODE_CONFIG, processPlantUml, normalizeRelativePath } from './utils';
 
 // This method is called when your extension is activated
@@ -20,9 +21,6 @@ export async function activate(context: vscode.ExtensionContext) {
 	const artemisApiService = new ArtemisApiService(authManager);
 	const artemisWebsocketService = new ArtemisWebsocketService(authManager);
 	const buildErrorCodeLensProvider = new BuildErrorCodeLensProvider();
-
-	// Make WebSocket service available globally for commands
-	(global as any).artemisWebsocketService = artemisWebsocketService;
 
 	// Register CodeLens provider for all languages
 	context.subscriptions.push(
@@ -109,9 +107,10 @@ export async function activate(context: vscode.ExtensionContext) {
 		vscode.window.registerWebviewViewProvider(ChatWebviewProvider.viewType, chatWebviewProvider)
 	);
 
-	// Store providers in global state so they can be accessed by other parts of the extension
-	(global as any).artemisWebviewProvider = artemisWebviewProvider;
-	(global as any).chatWebviewProvider = chatWebviewProvider;
+	// Register providers in the registry so they can be accessed by other parts of the extension
+	const providerRegistry = ProviderRegistry.getInstance();
+	providerRegistry.setArtemisWebviewProvider(artemisWebviewProvider);
+	providerRegistry.setChatWebviewProvider(chatWebviewProvider);
 
 	// Register command for CodeLens to navigate to error
 	const goToSourceErrorCommand = vscode.commands.registerCommand(
@@ -211,6 +210,15 @@ export async function activate(context: vscode.ExtensionContext) {
 				return;
 			}
 
+			const chatProvider = ProviderRegistry.getInstance().getChatWebviewProvider();
+			const activeContext = chatProvider?.getSelectedContext?.();
+			const courseId = activeContext?.type === 'course' ? activeContext.id : activeContext?.courseId;
+
+			if (!courseId) {
+				vscode.window.showWarningMessage('Please select a course or exercise context before checking Iris health status.');
+				return;
+			}
+
 			// Show progress indicator
 			await vscode.window.withProgress({
 				location: vscode.ProgressLocation.Notification,
@@ -218,7 +226,7 @@ export async function activate(context: vscode.ExtensionContext) {
 				cancellable: false
 			}, async (progress) => {
 				try {
-					const healthStatus = await artemisApiService.checkIrisHealth();
+					const healthStatus = await artemisApiService.checkIrisHealth(courseId);
 
 					if (healthStatus.active === true) {
 						const rateLimitInfo = healthStatus.rateLimitInfo;

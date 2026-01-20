@@ -9,4 +9,4 @@ export type {
     ContextSource,
     TrackedCourse,
     TrackedExercise
-} from './contextTypes';
+} from '../types';

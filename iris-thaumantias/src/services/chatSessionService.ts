@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import { ContextStore } from './contextStore';
 import { ArtemisApiService } from '../api';
-import { ActiveContext } from '../provider/contextTypes';
+import { ActiveContext } from '../types';
 
 export class ChatSessionService {
     private _contextLoadToken = 0;
@@ -45,16 +45,19 @@ export class ChatSessionService {
             if (context.type === 'course') {
                 settings = await this._artemisApiService.getIrisCourseChatSettings(context.id);
             } else if (context.type === 'exercise') {
-                settings = await this._artemisApiService.getIrisExerciseChatSettings(context.id);
+                const courseId = await this.resolveCourseIdForExercise(context);
+                if (!courseId) {
+                    console.warn('[Iris Chat] Unable to resolve course for exercise context; cannot check Iris settings');
+                    return false;
+                }
+                settings = await this._artemisApiService.getIrisCourseChatSettings(courseId);
             } else {
                 console.warn(`Unsupported context type for Iris: ${context.type}`);
                 return false;
             }
 
             // Check if Iris chat is enabled
-            const chatSettings = context.type === 'course'
-                ? settings?.irisChatSettings
-                : settings?.irisProgrammingExerciseChatSettings;
+            const chatSettings = settings?.settings;
 
             if (!chatSettings?.enabled) {
                 console.log('[Iris Chat] Iris chat is disabled in settings');
@@ -63,8 +66,8 @@ export class ChatSessionService {
 
             console.log('[Iris Chat] Iris chat is enabled, settings loaded:', {
                 enabled: chatSettings.enabled,
-                rateLimit: chatSettings.rateLimit,
-                rateLimitTimeframeHours: chatSettings.rateLimitTimeframeHours
+                rateLimit: settings?.effectiveRateLimit?.requests,
+                rateLimitTimeframeHours: settings?.effectiveRateLimit?.timeframeHours
             });
 
             return true;
@@ -80,6 +83,34 @@ export class ChatSessionService {
             // For other errors, log but still return false to show disabled state
             console.log(`[Iris Chat] Could not load Iris settings: ${error.message}`);
             return false;
+        }
+    }
+
+    private async resolveCourseIdForExercise(context: ActiveContext): Promise<number | undefined> {
+        if (context.courseId) {
+            return context.courseId;
+        }
+
+        const tracked = this._contextStore.getExerciseById(context.id);
+        if (tracked?.courseId) {
+            return tracked.courseId;
+        }
+
+        try {
+            const exerciseDetails = await this._artemisApiService?.getExerciseDetails(context.id);
+            const resolvedCourseId = exerciseDetails?.exercise?.course?.id ?? exerciseDetails?.course?.id;
+            if (resolvedCourseId) {
+                this._contextStore.registerExercise({
+                    id: context.id,
+                    title: context.title,
+                    shortName: context.shortName,
+                    courseId: resolvedCourseId,
+                });
+            }
+            return resolvedCourseId;
+        } catch (error) {
+            console.warn('[Iris Chat] Failed to resolve course from exercise details:', error);
+            return undefined;
         }
     }
 

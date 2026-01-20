@@ -5,7 +5,7 @@ import {
     StoredSession,
     ChatContextType,
     ContextSnapshot,
-} from './contextTypes';
+} from '../types';
 import { ArtemisApiService } from '../api';
 import {
     ArtemisWebsocketService,
@@ -322,6 +322,7 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
                 id: detected.id,
                 title: displayTitle,
                 shortName: detected.shortName,
+                courseId: detected.courseId,
                 repositoryUri: detected.repositoryUri,
                 source: 'workspace-detected',
                 isWorkspace: true,
@@ -479,7 +480,8 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
                 'workspace-detected',
                 workspaceExercise.shortName,
                 workspaceExercise.releaseDate,
-                workspaceExercise.dueDate
+                workspaceExercise.dueDate,
+                workspaceExercise.courseId
             );
         }
     }
@@ -712,11 +714,13 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
         releaseDate?: string,
         dueDate?: string,
         shortName?: string,
+        courseId?: number,
     ): void {
         this._contextStore.registerExercise({
             id: exerciseId,
             title: exerciseTitle,
             shortName,
+            courseId,
             releaseDate,
             dueDate,
             source: 'system-default',
@@ -754,7 +758,14 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
     }
 
     public getSelectedContext(): ActiveContext | null {
-        return this._contextStore.getActiveContext();
+        const active = this._contextStore.getActiveContext();
+        if (active?.type === 'exercise' && !active.courseId) {
+            const tracked = this._contextStore.getExerciseById(active.id);
+            if (tracked?.courseId) {
+                return { ...active, courseId: tracked.courseId };
+            }
+        }
+        return active;
     }
 
     public getSelectedExerciseId(): number | undefined {
@@ -822,6 +833,7 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
         shortName?: string,
         releaseDate?: string,
         dueDate?: string,
+        courseId?: number,
     ): void {
         console.log('📍 [SET EXERCISE CONTEXT] Called with:', {
             exerciseId,
@@ -829,6 +841,7 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
             shortName,
             releaseDate,
             dueDate,
+            courseId,
             reason,
             source: this._mapReasonToSource(reason)
         });
@@ -839,6 +852,7 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
             id: exerciseId,
             title: exerciseTitle,
             shortName,
+            courseId,
             releaseDate,
             dueDate,
             source: this._mapReasonToSource(reason),
@@ -866,6 +880,7 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
             id: exerciseId,
             title: exerciseTitle,
             shortName,
+            courseId,
             source: this._mapReasonToSource(reason),
             locked: reason === 'workspace-detected' || reason === 'auto-workspace',
             selectedAt: Date.now(),

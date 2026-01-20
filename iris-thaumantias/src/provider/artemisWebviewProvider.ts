@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import { AuthManager } from '../auth';
 import { ArtemisApiService } from '../api';
 import { ArtemisWebsocketService } from '../services';
+import { ProviderRegistry } from '../services/ProviderRegistry';
 import { CONFIG, VSCODE_CONFIG } from '../utils';
 import { AI_EXTENSIONS_BLOCKLIST } from '../utils/aiExtensionsBlocklist';
 import { getRecommendedExtensionsByCategory } from '../utils/recommendedExtensions';
@@ -141,18 +142,20 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
                     registry.registerExercise(
                         exerciseIdFromData,
                         exerciseTitle,
-                        participations[0].repositoryUri
+                        participations[0].repositoryUri,
+                        exercise.shortName,
+                        exercise.course?.id
                     );
                     console.log('📚 [Exercise Registry] Registered individual exercise:', exerciseTitle);
                 }
 
-                const chatProvider = (global as any).chatWebviewProvider;
+                const chatProvider = ProviderRegistry.getInstance().getChatWebviewProvider();
                 if (chatProvider && typeof chatProvider.updateDetectedExercise === 'function') {
                     // Extract date fields from exercise
                     const releaseDate = exercise.releaseDate || exercise.startDate;
                     const dueDate = exercise.dueDate;
                     const shortName = exercise.shortName;
-                    chatProvider.updateDetectedExercise(exerciseTitle, exerciseIdFromData, releaseDate, dueDate, shortName);
+                    chatProvider.updateDetectedExercise(exerciseTitle, exerciseIdFromData, releaseDate, dueDate, shortName, exercise.course?.id);
                 }
             }
         }
@@ -466,9 +469,10 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
                 const exerciseTitle = exerciseData.exercise?.title || exerciseData.title || 'Untitled';
                 const exerciseId = exerciseData.exercise?.id || exerciseData.id || 0;
                 const shortName = exerciseData.exercise?.shortName || exerciseData.shortName;
-                const chatProvider = (global as any).chatWebviewProvider;
+                const courseId = exerciseData.exercise?.course?.id || exerciseData.course?.id;
+                const chatProvider = ProviderRegistry.getInstance().getChatWebviewProvider();
                 if (chatProvider && typeof chatProvider.updateDetectedExercise === 'function') {
-                    chatProvider.updateDetectedExercise(exerciseTitle, exerciseId, undefined, undefined, shortName);
+                    chatProvider.updateDetectedExercise(exerciseTitle, exerciseId, undefined, undefined, shortName, courseId);
                 }
                 return { exerciseId };
             },
@@ -476,7 +480,7 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
                 if (!metadata?.exerciseId) {
                     return;
                 }
-                const chatProvider = (global as any).chatWebviewProvider;
+                const chatProvider = ProviderRegistry.getInstance().getChatWebviewProvider();
                 if (chatProvider && typeof chatProvider.removeDetectedExercise === 'function') {
                     chatProvider.removeDetectedExercise(metadata.exerciseId);
                 }
@@ -501,7 +505,7 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
                 if (!course) {
                     return undefined;
                 }
-                const chatProvider = (global as any).chatWebviewProvider;
+                const chatProvider = ProviderRegistry.getInstance().getChatWebviewProvider();
                 if (chatProvider && typeof chatProvider.updateDetectedCourse === 'function') {
                     chatProvider.updateDetectedCourse(
                         course.title || 'Untitled Course',
@@ -509,13 +513,13 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
                         course.shortName
                     );
                 }
-                return { courseId: course.id };
+                return { courseId: course.id || 0 };
             },
-            onDispose: metadata => {
+            onDispose: (metadata?: { courseId?: number }) => {
                 if (!metadata?.courseId) {
                     return;
                 }
-                const chatProvider = (global as any).chatWebviewProvider;
+                const chatProvider = ProviderRegistry.getInstance().getChatWebviewProvider();
                 if (chatProvider && typeof chatProvider.removeDetectedCourse === 'function') {
                     chatProvider.removeDetectedCourse(metadata.courseId);
                 }

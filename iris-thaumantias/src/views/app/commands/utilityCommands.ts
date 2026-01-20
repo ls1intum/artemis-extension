@@ -10,6 +10,7 @@ export class UtilityCommandModule {
             alert: this.handleAlert,
             openSettings: this.handleOpenSettings,
             openWebsite: this.handleOpenWebsite,
+            openBugReport: this.handleOpenBugReport,
             openInEditor: this.handleOpenInEditor,
             copyToClipboard: this.handleCopyToClipboard,
             searchMarketplace: this.handleSearchMarketplace,
@@ -36,6 +37,10 @@ export class UtilityCommandModule {
 
     private handleOpenWebsite = async (): Promise<void> => {
         await vscode.env.openExternal(vscode.Uri.parse('https://artemis.tum.de/courses'));
+    };
+
+    private handleOpenBugReport = async (): Promise<void> => {
+        await vscode.env.openExternal(vscode.Uri.parse('https://github.com/ls1intum/artemis-extension/issues'));
     };
 
     private handleOpenInEditor = async (message: any): Promise<void> => {

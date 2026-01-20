@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import { ArtemisApiService } from '../api';
 import { ArtemisWebsocketService } from './artemisWebsocketService';
-import { ActiveContext } from '../provider/contextTypes';
+import { ActiveContext } from '../types';
 
 export class IrisSessionManager implements vscode.Disposable {
     private _currentArtemisSessionId?: number;
@@ -38,7 +38,7 @@ export class IrisSessionManager implements vscode.Disposable {
 
     public async initializeSession(context: ActiveContext, storedSessionId?: number): Promise<number> {
         console.log('[IrisSessionManager] Initializing session for', context.type, context.id);
-        
+
         let sessionId: number;
 
         if (storedSessionId) {

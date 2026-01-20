@@ -3,7 +3,7 @@ import { ArtemisApiService } from '../api';
 import { ArtemisWebsocketService } from './artemisWebsocketService';
 import { IrisSessionManager } from './irisSessionManager';
 import { ContextStore } from './contextStore';
-import { ActiveContext } from '../provider/contextTypes';
+import { ActiveContext } from '../types';
 import { checkWorkspaceFiles } from '../utils';
 
 export class ChatMessageService {

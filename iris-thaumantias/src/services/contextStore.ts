@@ -7,7 +7,7 @@ import {
     StoredSession,
     TrackedCourse,
     TrackedExercise,
-} from '../provider/contextTypes';
+} from '../types';
 
 interface StoredState {
     version: number;
@@ -24,6 +24,7 @@ interface ExerciseInput {
     id: number;
     title: string;
     shortName?: string;
+    courseId?: number;
     releaseDate?: string;
     dueDate?: string;
     score?: number;
@@ -167,6 +168,11 @@ export class ContextStore {
         return this.state.activeContext;
     }
 
+    public getExerciseById(exerciseId: number): TrackedExercise | undefined {
+        return this.state.allExercises.find(exercise => exercise.id === exerciseId)
+            ?? this.state.recentExercises.find(exercise => exercise.id === exerciseId);
+    }
+
     public registerExercise(input: ExerciseInput): ContextSnapshot {
         console.log('🔧 [CONTEXT STORE] registerExercise called with:', input);
         console.log('🔧 [CONTEXT STORE] Current active context:', this.state.activeContext);
@@ -190,6 +196,7 @@ export class ContextStore {
                     id: entry.id,
                     title: entry.title,
                     shortName: entry.shortName,
+                    courseId: entry.courseId,
                     source: 'workspace-detected',
                     locked: true,
                     selectedAt: now(),
@@ -485,6 +492,7 @@ export class ContextStore {
             id: input.id,
             title: input.title || existing?.title || `Exercise ${input.id}`,
             shortName: input.shortName ?? existing?.shortName,
+            courseId: input.courseId ?? existing?.courseId,
             releaseDate: input.releaseDate ?? existing?.releaseDate,
             dueDate: input.dueDate ?? existing?.dueDate,
             lastViewed,
@@ -621,6 +629,7 @@ export class ContextStore {
                 id: bestExercise.id,
                 title: bestExercise.title,
                 shortName: bestExercise.shortName,
+                courseId: bestExercise.courseId,
                 source: 'system-default',
                 locked: false,
                 selectedAt: now(),
