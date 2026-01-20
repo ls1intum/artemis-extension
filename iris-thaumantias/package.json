@@ -174,7 +174,7 @@
     "@vscode/test-electron": "2.5.2",
     "esbuild": "0.27.2",
     "eslint": "9.39.2",
-    "npm-run-all2": "5.0.0",
+    "npm-run-all2": "5.0.2",
     "sinon": "^21.0.1",
     "typescript": "5.9.3"
   },
