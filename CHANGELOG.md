@@ -2,6 +2,16 @@
 
 All notable changes to the Artemis VS Code extension will be documented in this file.
 
+## [0.3.1] - 2025-12-19
+
+### Added
+
+- **Bug Report Button**: New dashboard button to quickly report bugs and issues on GitHub.
+
+### Changed
+
+- **Architecture Refactoring**: Major internal refactoring to improve code maintainability
+
 ## [0.3.0] - 2025-11-30
 
 ### Added
