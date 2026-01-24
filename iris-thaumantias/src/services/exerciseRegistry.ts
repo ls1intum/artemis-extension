@@ -65,4 +65,12 @@ export class ExerciseRegistry {
     public clear(): void {
         this.exercises.clear();
     }
+
+    /**
+     * Reset the singleton instance for testing purposes.
+     * This should only be used in test files to ensure clean state between tests.
+     */
+    public static resetForTesting(): void {
+        ExerciseRegistry.instance = undefined as unknown as ExerciseRegistry;
+    }
 }

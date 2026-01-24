@@ -555,7 +555,7 @@ export class ContextStore {
                     priority: this.calculateExercisePriority({ ...exercise, isWorkspace: false }),
                 };
             }
-            return exercise;;
+            return exercise;
         });
     }
 

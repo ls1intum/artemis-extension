@@ -23,19 +23,27 @@ export class ArtemisWebsocketService {
     private _reconnectDelay: number = 3000; // 3 seconds
     private _subscriptions: Map<string, StompSubscription> = new Map();
     private _messageHandlers: WebSocketMessageHandler[] = [];
-    private _connectionStateCallbacks: Array<(isConnected: boolean) => void> = [];
+    private _connectionStateCallbacks: Set<(isConnected: boolean) => void> = new Set();
 
     constructor(authManager: AuthManager) {
         this._authManager = authManager;
     }
 
     /**
-     * Register a callback for connection state changes
+     * Register a callback for connection state changes.
+     * Returns an unsubscribe function to prevent memory leaks.
+     * @param callback Function to call when connection state changes
+     * @returns Unsubscribe function - call this when the component is disposed
      */
-    public onConnectionStateChange(callback: (isConnected: boolean) => void): void {
-        this._connectionStateCallbacks.push(callback);
+    public onConnectionStateChange(callback: (isConnected: boolean) => void): () => void {
+        this._connectionStateCallbacks.add(callback);
         // Immediately notify of current state
         callback(this._isConnected);
+        
+        // Return unsubscribe function
+        return () => {
+            this._connectionStateCallbacks.delete(callback);
+        };
     }
 
     /**
@@ -427,6 +435,7 @@ export class ArtemisWebsocketService {
      */
     public dispose(): void {
         this.disconnect();
+        this._connectionStateCallbacks.clear();
     }
 
     // Private helper methods
