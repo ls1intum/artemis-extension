@@ -123,18 +123,12 @@ export class ChatContextManager {
     public handleSwitchToWorkspaceContext(): TrackedExercise | undefined {
         const snapshot = this._contextStore.snapshot();
 
-        console.log('[IRISDEBUG] _handleSwitchToWorkspaceContext called');
-        console.log('[IRISDEBUG] recentExercises:', snapshot.recentExercises.map(e => ({ id: e.id, title: e.title, isWorkspace: e.isWorkspace })));
-        console.log('[IRISDEBUG] allExercises with isWorkspace:', snapshot.allExercises.filter(e => e.isWorkspace).map(e => ({ id: e.id, title: e.title })));
-
         // Search in both recent and all exercises
         const workspaceExercise = snapshot.recentExercises.find(exercise =>
             exercise.isWorkspace || /\(Workspace\)/i.test(exercise.title)
         ) || snapshot.allExercises.find(exercise =>
             exercise.isWorkspace || /\(Workspace\)/i.test(exercise.title)
         );
-
-        console.log('[IRISDEBUG] Found workspaceExercise:', workspaceExercise);
 
         if (!workspaceExercise) {
             vscode.window.showWarningMessage('No workspace exercise detected. Open a workspace folder with a git repository.');

@@ -2,7 +2,7 @@ import { Client, StompConfig, StompSubscription, IFrame, IMessage } from '@stomp
 import WebSocket from 'ws';
 import * as vscode from 'vscode';
 import { AuthManager } from '../auth';
-import { VSCODE_CONFIG } from '../utils';
+import { VSCODE_CONFIG, WEBSOCKET_TOPICS } from '../utils';
 import {
     ResultDTO,
     ProgrammingSubmission,
@@ -204,7 +204,7 @@ export class ArtemisWebsocketService {
 
         // IMPORTANT: Topic is plural 'newResults', not singular 'newResult'
         // See: webapp/app/core/course/shared/services/participation-websocket.service.ts
-        const topic = '/user/topic/newResults';
+        const topic = WEBSOCKET_TOPICS.NEW_RESULTS;
         if (this._subscriptions.has(topic)) {
             this._log(`Already subscribed to ${topic}`);
             return;
@@ -239,7 +239,7 @@ export class ArtemisWebsocketService {
             return;
         }
 
-        const topic = '/user/topic/newSubmissions';
+        const topic = WEBSOCKET_TOPICS.NEW_SUBMISSIONS;
         if (this._subscriptions.has(topic)) {
             this._log(`Already subscribed to ${topic}`);
             return;
@@ -274,7 +274,7 @@ export class ArtemisWebsocketService {
             return;
         }
 
-        const topic = '/user/topic/submissionProcessing';
+        const topic = WEBSOCKET_TOPICS.SUBMISSION_PROCESSING;
         if (this._subscriptions.has(topic)) {
             this._log(`Already subscribed to ${topic}`);
             return;
@@ -311,7 +311,7 @@ export class ArtemisWebsocketService {
         }
 
         // Use /user/topic/ prefix for user-specific authenticated messages
-        const topic = `/user/topic/iris/${sessionId}`;
+        const topic = WEBSOCKET_TOPICS.irisSession(sessionId);
 
         // Check if already subscribed
         if (this._subscriptions.has(topic)) {
@@ -356,7 +356,7 @@ export class ArtemisWebsocketService {
      * Unsubscribe from a specific Iris session
      */
     public unsubscribeFromIrisSession(sessionId: number): void {
-        const topic = `/user/topic/iris/${sessionId}`;
+        const topic = WEBSOCKET_TOPICS.irisSession(sessionId);
         const subscription = this._subscriptions.get(topic);
 
         if (subscription) {

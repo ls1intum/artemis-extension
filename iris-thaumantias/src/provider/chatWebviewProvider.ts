@@ -316,8 +316,6 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
             const baseTitle = detected.title.replace(/ \(Workspace\)$/i, '');
             const displayTitle = `${baseTitle} (Workspace)`;
 
-            console.log(`[IRISDEBUG] chatWebviewProvider: Registering workspace exercise id=${detected.id}, title=${displayTitle}, isWorkspace=true`);
-
             this._contextStore.registerExercise({
                 id: detected.id,
                 title: displayTitle,
