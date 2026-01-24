@@ -39,7 +39,7 @@ export class ArtemisWebsocketService {
         this._connectionStateCallbacks.add(callback);
         // Immediately notify of current state
         callback(this._isConnected);
-        
+
         // Return unsubscribe function
         return () => {
             this._connectionStateCallbacks.delete(callback);
