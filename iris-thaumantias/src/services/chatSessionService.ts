@@ -46,7 +46,7 @@ export class ChatSessionService {
                 console.log('[Iris Chat] Iris profile not active on server (global check failed)');
                 return false;
             }
-            
+
             // Step 2: Fetch course-level settings based on context type
             let settings: any;
             if (context.type === 'course') {
