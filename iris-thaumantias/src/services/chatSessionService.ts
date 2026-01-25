@@ -40,7 +40,14 @@ export class ChatSessionService {
         try {
             console.log(`[Iris Chat] Checking Iris settings for ${context.type}: ${context.title}`);
 
-            // Fetch settings based on context type
+            // Step 1: Check if Iris is globally enabled (server profile)
+            const profileInfo = await this._artemisApiService.getProfileInfo();
+            if (!this._artemisApiService.isIrisProfileActive(profileInfo)) {
+                console.log('[Iris Chat] Iris profile not active on server (global check failed)');
+                return false;
+            }
+            
+            // Step 2: Fetch course-level settings based on context type
             let settings: any;
             if (context.type === 'course') {
                 settings = await this._artemisApiService.getIrisCourseChatSettings(context.id);

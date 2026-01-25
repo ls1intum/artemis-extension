@@ -7,6 +7,7 @@ All notable changes to the Artemis VS Code extension will be documented in this 
 ### Fixed
 
 - **Course List Navigation**: Clicking a course in the "All Courses" view now opens the correct course details.
+- **Iris Availability Check**: Added global server profile check before checking course-level Iris settings, matching the Artemis webapp behavior.
 
 ## [0.3.1] - 2025-12-19
 

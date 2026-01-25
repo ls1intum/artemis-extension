@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import { AuthManager } from '../auth';
 import { CONFIG, VSCODE_CONFIG } from '../utils';
-import { IrisHealthStatus } from '../types';
+import { IrisHealthStatus, ProfileInfo, PROFILE_IRIS } from '../types';
 
 export class ArtemisApiService {
     private authManager: AuthManager;
@@ -313,6 +313,17 @@ export class ArtemisApiService {
     async checkIrisHealth(courseId: number): Promise<IrisHealthStatus> {
         const response = await this.makeRequest(`/api/iris/courses/${courseId}/status`);
         return response.json() as Promise<IrisHealthStatus>;
+    }
+
+    // Get server profile information (includes activeProfiles to check if Iris is globally enabled)
+    async getProfileInfo(): Promise<ProfileInfo> {
+        const response = await this.makeRequest('/management/info');
+        return response.json() as Promise<ProfileInfo>;
+    }
+
+    // Check if the Iris profile is active on the server (global Iris enablement)
+    isIrisProfileActive(profileInfo: ProfileInfo): boolean {
+        return profileInfo.activeProfiles?.includes(PROFILE_IRIS) ?? false;
     }
 
     // Render PlantUML diagram to SVG
