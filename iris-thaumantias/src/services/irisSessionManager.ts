@@ -6,6 +6,7 @@ import { ActiveContext } from '../types';
 export class IrisSessionManager implements vscode.Disposable {
     private _currentArtemisSessionId?: number;
     private _irisUnsubscribe?: () => void;
+    private _connectionStateUnsubscribe?: () => void;
     private readonly _onDidReceiveMessage = new vscode.EventEmitter<any>();
     public readonly onDidReceiveMessage = this._onDidReceiveMessage.event;
     private readonly _onDidConnectionStateChange = new vscode.EventEmitter<boolean>();
@@ -20,6 +21,11 @@ export class IrisSessionManager implements vscode.Disposable {
 
     public dispose(): void {
         this.unsubscribe();
+        // Unsubscribe from connection state changes to prevent memory leaks
+        if (this._connectionStateUnsubscribe) {
+            this._connectionStateUnsubscribe();
+            this._connectionStateUnsubscribe = undefined;
+        }
         this._onDidReceiveMessage.dispose();
         this._onDidConnectionStateChange.dispose();
     }
@@ -112,7 +118,8 @@ export class IrisSessionManager implements vscode.Disposable {
     }
 
     private _startWebSocketMonitoring(): void {
-        this._websocketService.onConnectionStateChange((isConnected: boolean) => {
+        // Store unsubscribe function for cleanup in dispose()
+        this._connectionStateUnsubscribe = this._websocketService.onConnectionStateChange((isConnected: boolean) => {
             console.log('[IrisSessionManager] WebSocket connection state changed:', isConnected);
             this._onDidConnectionStateChange.fire(isConnected);
 

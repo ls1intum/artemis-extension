@@ -1,3 +1,13 @@
+// Server profile types
+export interface ProfileInfo {
+    activeProfiles: string[];
+    ribbonEnv?: string;
+    inProduction?: boolean;
+    openApiEnabled?: boolean;
+}
+
+export const PROFILE_IRIS = 'iris';
+
 // Authentication related types
 export interface LoginCredentials {
     username: string;

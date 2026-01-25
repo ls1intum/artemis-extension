@@ -26,10 +26,11 @@ export class CourseListView {
 
     private _getCourseListHtml(coursesData: any | undefined, archivedCoursesData: any[] | undefined, styles: string): string {
         let coursesHtml = '';
+        const safeCoursesJson = JSON.stringify(coursesData?.courses ?? []).replace(/</g, '\\u003c');
 
         // Generate current courses
         if (coursesData?.courses) {
-            coursesHtml = coursesData.courses.map((courseData: any) => {
+            coursesHtml = coursesData.courses.map((courseData: any, courseIndex: number) => {
                 const course = courseData.course;
                 const exerciseCount = course.exercises ? course.exercises.length : 0;
                 const semester = course.semester || 'No semester';
@@ -41,9 +42,10 @@ export class CourseListView {
                         className: 'course-item',
                         clickable: true,
                         hover: true,
-                        command: `viewCourseDetails(${JSON.stringify(courseData).replace(/"/g, '&quot;')})`,
+                        command: `viewCourseDetails(${courseIndex})`,
                         dataAttributes: {
-                            'course-id': course.id.toString()
+                            'course-id': course.id.toString(),
+                            'course-index': courseIndex.toString()
                         }
                     },
                     `
@@ -253,6 +255,7 @@ export class CourseListView {
 
     <script>
         const vscode = acquireVsCodeApi();
+        const courseListData = ${safeCoursesJson};
         
         ${BackLinkComponent.generateScript()}
         ${ContainerComponent.generateScript()}
@@ -261,7 +264,13 @@ export class CourseListView {
             vscode.postMessage({ command: 'reloadCourses' });
         };
         
-        window.viewCourseDetails = function(courseData) {
+        window.viewCourseDetails = function(courseIndex) {
+            const courseData = Array.isArray(courseListData) ? courseListData[courseIndex] : undefined;
+            if (!courseData) {
+                console.warn('[Course List] Course not found for index:', courseIndex);
+                return;
+            }
+            
             vscode.postMessage({ 
                 command: 'viewCourseDetails',
                 courseData: courseData

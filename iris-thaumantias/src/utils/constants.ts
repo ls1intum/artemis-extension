@@ -38,3 +38,11 @@ export const VSCODE_CONFIG = {
 
 // File processing constants
 export const MAX_FILE_SIZE_BYTES = 1024 * 1024; // 1MB - Maximum file size for content inclusion
+
+// WebSocket topic paths for STOMP subscriptions
+export const WEBSOCKET_TOPICS = {
+    NEW_RESULTS: '/user/topic/newResults',
+    NEW_SUBMISSIONS: '/user/topic/newSubmissions',
+    SUBMISSION_PROCESSING: '/user/topic/submissionProcessing',
+    irisSession: (sessionId: number) => `/user/topic/iris/${sessionId}`,
+} as const;

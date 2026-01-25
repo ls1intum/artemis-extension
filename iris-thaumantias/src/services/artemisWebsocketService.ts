@@ -2,7 +2,7 @@ import { Client, StompConfig, StompSubscription, IFrame, IMessage } from '@stomp
 import WebSocket from 'ws';
 import * as vscode from 'vscode';
 import { AuthManager } from '../auth';
-import { VSCODE_CONFIG } from '../utils';
+import { VSCODE_CONFIG, WEBSOCKET_TOPICS } from '../utils';
 import {
     ResultDTO,
     ProgrammingSubmission,
@@ -23,19 +23,27 @@ export class ArtemisWebsocketService {
     private _reconnectDelay: number = 3000; // 3 seconds
     private _subscriptions: Map<string, StompSubscription> = new Map();
     private _messageHandlers: WebSocketMessageHandler[] = [];
-    private _connectionStateCallbacks: Array<(isConnected: boolean) => void> = [];
+    private _connectionStateCallbacks: Set<(isConnected: boolean) => void> = new Set();
 
     constructor(authManager: AuthManager) {
         this._authManager = authManager;
     }
 
     /**
-     * Register a callback for connection state changes
+     * Register a callback for connection state changes.
+     * Returns an unsubscribe function to prevent memory leaks.
+     * @param callback Function to call when connection state changes
+     * @returns Unsubscribe function - call this when the component is disposed
      */
-    public onConnectionStateChange(callback: (isConnected: boolean) => void): void {
-        this._connectionStateCallbacks.push(callback);
+    public onConnectionStateChange(callback: (isConnected: boolean) => void): () => void {
+        this._connectionStateCallbacks.add(callback);
         // Immediately notify of current state
         callback(this._isConnected);
+
+        // Return unsubscribe function
+        return () => {
+            this._connectionStateCallbacks.delete(callback);
+        };
     }
 
     /**
@@ -196,7 +204,7 @@ export class ArtemisWebsocketService {
 
         // IMPORTANT: Topic is plural 'newResults', not singular 'newResult'
         // See: webapp/app/core/course/shared/services/participation-websocket.service.ts
-        const topic = '/user/topic/newResults';
+        const topic = WEBSOCKET_TOPICS.NEW_RESULTS;
         if (this._subscriptions.has(topic)) {
             this._log(`Already subscribed to ${topic}`);
             return;
@@ -231,7 +239,7 @@ export class ArtemisWebsocketService {
             return;
         }
 
-        const topic = '/user/topic/newSubmissions';
+        const topic = WEBSOCKET_TOPICS.NEW_SUBMISSIONS;
         if (this._subscriptions.has(topic)) {
             this._log(`Already subscribed to ${topic}`);
             return;
@@ -266,7 +274,7 @@ export class ArtemisWebsocketService {
             return;
         }
 
-        const topic = '/user/topic/submissionProcessing';
+        const topic = WEBSOCKET_TOPICS.SUBMISSION_PROCESSING;
         if (this._subscriptions.has(topic)) {
             this._log(`Already subscribed to ${topic}`);
             return;
@@ -303,7 +311,7 @@ export class ArtemisWebsocketService {
         }
 
         // Use /user/topic/ prefix for user-specific authenticated messages
-        const topic = `/user/topic/iris/${sessionId}`;
+        const topic = WEBSOCKET_TOPICS.irisSession(sessionId);
 
         // Check if already subscribed
         if (this._subscriptions.has(topic)) {
@@ -348,7 +356,7 @@ export class ArtemisWebsocketService {
      * Unsubscribe from a specific Iris session
      */
     public unsubscribeFromIrisSession(sessionId: number): void {
-        const topic = `/user/topic/iris/${sessionId}`;
+        const topic = WEBSOCKET_TOPICS.irisSession(sessionId);
         const subscription = this._subscriptions.get(topic);
 
         if (subscription) {
@@ -427,6 +435,7 @@ export class ArtemisWebsocketService {
      */
     public dispose(): void {
         this.disconnect();
+        this._connectionStateCallbacks.clear();
     }
 
     // Private helper methods
