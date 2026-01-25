@@ -4,6 +4,10 @@ All notable changes to the Artemis VS Code extension will be documented in this 
 
 ## [0.3.2] - 2026-01-25
 
+### Added
+
+- **Struggle Detection Telemetry**: Real-time monitoring of student activity patterns including diagnostic errors, inactivity periods, and build failures to identify when students need help. Includes a live debug panel with struggle score visualization and detailed metrics for development and monitoring purposes.
+
 ### Fixed
 
 - **Course List Navigation**: Clicking a course in the "All Courses" view now opens the correct course details.
