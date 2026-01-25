@@ -2,6 +2,14 @@
 
 All notable changes to the Artemis VS Code extension will be documented in this file.
 
+## [0.3.2] - 2026-01-25
+
+### Fixed
+
+- **Course List Navigation**: Clicking a course in the "All Courses" view now opens the correct course details.
+- **Iris Availability Check**: Added global server profile check before checking course-level Iris settings, matching the Artemis webapp behavior.
+- **Memory Leaks and Error Handling**: Fixed connection state callback leaks, added error handlers for async operations, and improved resource disposal in WebSocket services.
+
 ## [0.3.1] - 2025-12-19
 
 ### Added
