@@ -4,7 +4,7 @@ import * as vscode from 'vscode';
 import { ArtemisWebviewProvider, ChatWebviewProvider, BuildErrorCodeLensProvider } from './provider';
 import { AuthManager } from './auth';
 import { ArtemisApiService } from './api';
-import { ArtemisWebsocketService } from './services';
+import { ArtemisWebsocketService, TelemetryManager } from './services';
 import { ProviderRegistry } from './services/ProviderRegistry';
 import { VSCODE_CONFIG, processPlantUml, normalizeRelativePath } from './utils';
 
@@ -21,6 +21,10 @@ export async function activate(context: vscode.ExtensionContext) {
 	const artemisApiService = new ArtemisApiService(authManager);
 	const artemisWebsocketService = new ArtemisWebsocketService(authManager);
 	const buildErrorCodeLensProvider = new BuildErrorCodeLensProvider();
+	const telemetryManager = new TelemetryManager();
+
+	// Connect telemetry manager to websocket service for build results
+	telemetryManager.setWebsocketService(artemisWebsocketService);
 
 	// Register CodeLens provider for all languages
 	context.subscriptions.push(
@@ -103,6 +107,10 @@ export async function activate(context: vscode.ExtensionContext) {
 
 	// Register the Chat view provider
 	const chatWebviewProvider = new ChatWebviewProvider(context.extensionUri, context, artemisApiService, artemisWebsocketService);
+	
+	// Pass telemetry manager to chat provider for struggle context integration
+	chatWebviewProvider.setTelemetryManager(telemetryManager);
+	
 	context.subscriptions.push(
 		vscode.window.registerWebviewViewProvider(ChatWebviewProvider.viewType, chatWebviewProvider)
 	);
@@ -111,6 +119,15 @@ export async function activate(context: vscode.ExtensionContext) {
 	const providerRegistry = ProviderRegistry.getInstance();
 	providerRegistry.setArtemisWebviewProvider(artemisWebviewProvider);
 	providerRegistry.setChatWebviewProvider(chatWebviewProvider);
+
+	// Add telemetry manager to subscriptions for proper disposal
+	context.subscriptions.push(telemetryManager);
+
+	// Register command to show struggle score dialog (debug)
+	const showStruggleScoreCommand = vscode.commands.registerCommand('artemis.showStruggleScore', async () => {
+		await telemetryManager.showStruggleScoreDialog();
+	});
+	context.subscriptions.push(showStruggleScoreCommand);
 
 	// Register command for CodeLens to navigate to error
 	const goToSourceErrorCommand = vscode.commands.registerCommand(

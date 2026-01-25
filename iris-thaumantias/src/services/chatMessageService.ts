@@ -5,6 +5,7 @@ import { IrisSessionManager } from './irisSessionManager';
 import { ContextStore } from './contextStore';
 import { ActiveContext } from '../types';
 import { checkWorkspaceFiles } from '../utils';
+import { StruggleContext } from './telemetry';
 
 export class ChatMessageService {
     constructor(
@@ -17,7 +18,7 @@ export class ChatMessageService {
         private readonly _postSnapshot: () => void
     ) { }
 
-    public async handleChatMessage(messageText: string, activeContext: ActiveContext): Promise<void> {
+    public async handleChatMessage(messageText: string, activeContext: ActiveContext, struggleContext?: StruggleContext): Promise<void> {
         console.log('[WebsocketLog] 📤 handleChatMessage called with:', { text: messageText?.substring(0, 50) });
 
         if (!messageText) {
@@ -26,6 +27,15 @@ export class ChatMessageService {
         }
 
         console.log('[WebsocketLog] ✅ Active context:', { type: activeContext.type, id: activeContext.id, title: activeContext.title });
+        
+        if (struggleContext) {
+            console.log('[WebsocketLog] 📊 Struggle context:', {
+                isStruggling: struggleContext.isStruggling,
+                score: struggleContext.score,
+                persistentErrors: struggleContext.persistentErrors.length,
+                buildFailures: struggleContext.buildFailures
+            });
+        }
 
         if (!this._artemisApiService) {
             vscode.window.showErrorMessage('Artemis API service not available');

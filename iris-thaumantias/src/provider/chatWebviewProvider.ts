@@ -19,7 +19,9 @@ import {
     WebSocketMessageHandler,
     ContextStore,
     ExerciseRegistry,
-    detectWorkspaceExercise
+    detectWorkspaceExercise,
+    TelemetryManager,
+    StruggleContext
 } from '../services';
 
 type ChatContextReason =
@@ -45,6 +47,7 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
     private _chatContextManager: ChatContextManager;
     private _sessionManagementService: SessionManagementService;
     private _websocketMessageHandler: WebSocketMessageHandler;
+    private _telemetryManager?: TelemetryManager;
 
     constructor(
         private readonly _extensionUri: vscode.Uri,
@@ -109,6 +112,23 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
                 });
             }
         });
+    }
+
+    /**
+     * Set the telemetry manager for struggle detection integration
+     */
+    public setTelemetryManager(telemetryManager: TelemetryManager): void {
+        this._telemetryManager = telemetryManager;
+        
+        // Start exercise session when context is selected
+        console.log('[ChatWebviewProvider] Telemetry manager connected');
+    }
+
+    /**
+     * Get current struggle context for Iris chat integration
+     */
+    public getStruggleContext(): StruggleContext | undefined {
+        return this._telemetryManager?.getStruggleContext();
     }
 
     public dispose(): void {
@@ -523,8 +543,11 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
             return;
         }
 
-        // Delegate to ChatMessageService
-        await this._chatMessageService.handleChatMessage(message.text, activeContext);
+        // Get struggle context if available
+        const struggleContext = this.getStruggleContext();
+
+        // Delegate to ChatMessageService with struggle context
+        await this._chatMessageService.handleChatMessage(message.text, activeContext, struggleContext);
     }
 
     private async _handleMessageFeedback(message: any): Promise<void> {

@@ -19,3 +19,6 @@ export {
     type DetectedExercise,
     type ExerciseSource
 } from './workspaceDetectionService';
+
+// Telemetry services
+export * from './telemetry';
