@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
+import * as fs from 'fs';
 import type { CommandContext, CommandMap } from './types';
 import { VSCODE_CONFIG, checkWorkspaceFiles } from '../../../utils';
 import { detectWorkspaceExercise, normalizeRepositoryUrl, type ExerciseSource, GitService } from '../../../services';
@@ -42,7 +43,16 @@ export class RepositoryCommandModule {
     }
 
     public hasRecentlyClonedRepo(exerciseId: number): boolean {
-        return this.clonedRepositories.has(exerciseId);
+        const repoInfo = this.clonedRepositories.get(exerciseId);
+        if (!repoInfo) {
+            return false;
+        }
+        // Validate that the cached path still exists
+        if (!fs.existsSync(repoInfo.path)) {
+            this.clonedRepositories.delete(exerciseId);
+            return false;
+        }
+        return true;
     }
 
     private handleDetectWorkspaceExercise = async (): Promise<void> => {
@@ -414,6 +424,13 @@ export class RepositoryCommandModule {
 
             if (!repoInfo) {
                 vscode.window.showWarningMessage('No cloned repository found for this exercise. Please clone it first.');
+                return;
+            }
+
+            // Validate that the cached path still exists
+            if (!fs.existsSync(repoInfo.path)) {
+                this.clonedRepositories.delete(exerciseId);
+                vscode.window.showWarningMessage('The cloned repository folder no longer exists. Please clone it again.');
                 return;
             }
 
