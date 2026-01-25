@@ -143,31 +143,25 @@ export class AppStateManager {
     public async showExerciseDetail(exerciseId: number): Promise<void> {
         try {
             // ALWAYS fetch fresh data to ensure we have the latest results
-            // This prevents stale data when WebSocket fails or disconnects
-            const shouldFetch = !this._currentExerciseData ||
-                this._currentExerciseData?.exercise?.id !== exerciseId;
+            // Exercise data changes frequently (new submissions, build results)
+            // and stale data can occur when WebSocket fails or disconnects
+            console.log(`[App State] 🔄 Fetching fresh exercise data for exercise ${exerciseId}`);
+            const exerciseDetails = await this._artemisApi.getExerciseDetails(exerciseId);
+            this._currentExerciseData = exerciseDetails;
 
-            if (shouldFetch) {
-                console.log(`[App State] 🔄 Fetching fresh exercise data for exercise ${exerciseId}`);
-                const exerciseDetails = await this._artemisApi.getExerciseDetails(exerciseId);
-                this._currentExerciseData = exerciseDetails;
+            // Check for pending submissions (builds in progress)
+            const participation = exerciseDetails.exercise?.studentParticipations?.[0];
+            if (participation?.id) {
+                console.log(`[App State] 🔍 Checking for pending submission for participation ${participation.id}`);
+                const pendingSubmission = await this._artemisApi.getLatestPendingSubmission(participation.id);
 
-                // Check for pending submissions (builds in progress)
-                const participation = exerciseDetails.exercise?.studentParticipations?.[0];
-                if (participation?.id) {
-                    console.log(`[App State] 🔍 Checking for pending submission for participation ${participation.id}`);
-                    const pendingSubmission = await this._artemisApi.getLatestPendingSubmission(participation.id);
-
-                    if (pendingSubmission) {
-                        console.log(`[App State] ⏳ Found pending submission - build in progress!`);
-                        // Store pending submission info for the view to use
-                        this._currentExerciseData.pendingSubmission = pendingSubmission;
-                    } else {
-                        console.log(`[App State] ✅ No pending submission - latest result is final`);
-                    }
+                if (pendingSubmission) {
+                    console.log(`[App State] ⏳ Found pending submission - build in progress!`);
+                    // Store pending submission info for the view to use
+                    this._currentExerciseData.pendingSubmission = pendingSubmission;
+                } else {
+                    console.log(`[App State] ✅ No pending submission - latest result is final`);
                 }
-            } else {
-                console.log(`[App State] 📦 Using cached exercise data for exercise ${exerciseId}`);
             }
 
             this._currentState = 'exercise-detail';

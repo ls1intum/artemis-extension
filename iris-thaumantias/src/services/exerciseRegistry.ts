@@ -21,9 +21,35 @@ export class ExerciseRegistry {
         this.exercises.set(id, { id, title, repositoryUri, shortName, courseId });
     }
 
+    /**
+     * Clears all exercises belonging to a specific course.
+     * This should be called before re-registering exercises from fresh course data
+     * to ensure deleted exercises are removed from the registry.
+     */
+    public clearCourse(courseId: number): void {
+        const toDelete: number[] = [];
+        for (const [exerciseId, entry] of this.exercises) {
+            if (entry.courseId === courseId) {
+                toDelete.push(exerciseId);
+            }
+        }
+        for (const id of toDelete) {
+            this.exercises.delete(id);
+        }
+        if (toDelete.length > 0) {
+            console.log(`📚 [Exercise Registry] Cleared ${toDelete.length} exercises for course ${courseId}`);
+        }
+    }
+
     public registerFromCourseData(courseData: any): void {
         const exercises = courseData?.course?.exercises || courseData?.exercises || [];
         const courseId = courseData?.course?.id ?? courseData?.id;
+
+        // Clear existing exercises for this course before registering fresh data
+        // This ensures deleted exercises are properly removed from the registry
+        if (courseId !== undefined && courseId !== null) {
+            this.clearCourse(courseId);
+        }
 
         let registeredCount = 0;
         const registered: string[] = [];
