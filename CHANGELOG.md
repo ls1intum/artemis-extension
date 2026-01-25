@@ -2,6 +2,15 @@
 
 All notable changes to the Artemis VS Code extension will be documented in this file.
 
+## [Unreleased]
+
+### Fixed
+
+- **ExerciseRegistry**: Now clears stale exercises per-course when fresh data is registered
+- **AuthManager**: 401 responses now properly clear cached auth and prompt re-login
+- **AppStateManager**: Exercise data is now always fetched fresh to show current results
+- **RepositoryCommands**: Cached repository paths are now validated before use
+
 ## [0.3.1] - 2025-12-19
 
 ### Added
