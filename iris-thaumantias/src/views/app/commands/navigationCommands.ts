@@ -327,7 +327,25 @@ export class NavigationCommandModule {
             const courseId = message.courseId || this.context.appStateManager.currentCourseData?.course?.id;
             if (courseId) {
                 this.context.appStateManager.clearCurrentCourseData();
-                await this.context.appStateManager.showCourseDetail(courseId);
+
+                // Fetch fresh course data from the single-course dashboard endpoint
+                const dashboardDTO = await this.context.artemisApi.getCourseForDashboard(courseId);
+
+                // Build courseData structure expected by showCourseDetail
+                const courseData = {
+                    course: dashboardDTO.course
+                };
+
+                // Fetch exams separately (not included in dashboard endpoint)
+                try {
+                    const exams = await this.context.artemisApi.getExamsForCourse(courseId);
+                    courseData.course.exams = exams;
+                } catch (error) {
+                    console.error('Error fetching exams during reload:', error);
+                    // Continue without exams if fetch fails
+                }
+
+                this.context.appStateManager.showCourseDetail(courseData);
                 this.context.actionHandler.render();
             }
         } catch (error) {

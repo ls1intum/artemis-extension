@@ -86,6 +86,12 @@ export class ArtemisApiService {
         return response.json() as Promise<any[]>;
     }
 
+    // Get a single course with exercises and participations for dashboard
+    async getCourseForDashboard(courseId: number): Promise<any> {
+        const response = await this.makeRequest(`/api/core/courses/${courseId}/for-dashboard`);
+        return response.json();
+    }
+
     // Get detailed course information for a specific course
     async getCourseDetails(courseId: number): Promise<any> {
         const response = await this.makeRequest(`/api/core/courses/${courseId}`);
