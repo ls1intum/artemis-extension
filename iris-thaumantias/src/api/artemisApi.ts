@@ -32,7 +32,7 @@ export class ArtemisApiService {
             if (response.status === 401) {
                 // Token expired or invalid - clear cached credentials
                 await this.authManager.clear();
-                
+
                 // Notify user and prompt for re-login
                 const loginAction = 'Log In';
                 vscode.window.showWarningMessage(
@@ -43,7 +43,7 @@ export class ArtemisApiService {
                         vscode.commands.executeCommand('artemis.login');
                     }
                 });
-                
+
                 const error = new Error('Authentication failed. Please log in again.');
                 (error as any).status = 401;
                 throw error;
