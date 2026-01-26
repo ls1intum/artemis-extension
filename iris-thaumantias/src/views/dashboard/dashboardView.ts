@@ -61,6 +61,15 @@ export class DashboardView {
             irisLogoSrc = '';
         }
 
+        // Get the path to the Artemis logo (blue) image
+        let artemisLogoSrc = '';
+        if (webview) {
+            const artemisLogoUri = vscode.Uri.file(
+                this._extensionContext.asAbsolutePath('media/artemis-blue.png')
+            );
+            artemisLogoSrc = webview.asWebviewUri(artemisLogoUri).toString();
+        }
+
         // Generate recent courses HTML
         let recentCoursesHtml = '';
         let coursesDataJson = 'null';
@@ -167,7 +176,8 @@ export class DashboardView {
             className: 'dashboard-header',
             bodyHtml: `
                 <h1 class="dashboard-title">
-                    Welcome to Artemis
+                    ${artemisLogoSrc ? `<a href="#" onclick="openArtemisWebsite(); return false;" class="artemis-logo-link"><img src="${artemisLogoSrc}" alt="Artemis Logo" class="artemis-header-logo" /></a>` : ''}
+                    <span>Welcome to <a href="#" onclick="openArtemisWebsite(); return false;" class="artemis-title-link">Artemis</a></span>
                 </h1>
                 <p class="dashboard-subtitle">Your programming learning companion</p>
             `
@@ -352,7 +362,12 @@ export class DashboardView {
 
     <script>
         const vscode = acquireVsCodeApi();
-        
+
+        // Open Artemis website
+        window.openArtemisWebsite = function() {
+            vscode.postMessage({ command: 'openWebsite' });
+        };
+
         // Reload dashboard
         window.reloadDashboard = function() {
             vscode.postMessage({ command: 'reloadDashboard' });
