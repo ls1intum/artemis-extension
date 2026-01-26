@@ -326,29 +326,22 @@ export class NavigationCommandModule {
             if (courseId) {
                 this.context.appStateManager.clearCurrentCourseData();
 
-                // Fetch fresh course details, exercises, and exams from the API
-                const [courseDetails, exercises] = await Promise.all([
-                    this.context.artemisApi.getCourseDetails(courseId),
-                    this.context.artemisApi.getExercises(courseId)
-                ]);
+                // Fetch fresh course data from the single-course dashboard endpoint
+                const dashboardDTO = await this.context.artemisApi.getCourseForDashboard(courseId);
 
-                // Fetch exams separately (may fail for some courses)
-                let exams: any[] = [];
+                // Build courseData structure expected by showCourseDetail
+                const courseData = {
+                    course: dashboardDTO.course
+                };
+
+                // Fetch exams separately (not included in dashboard endpoint)
                 try {
-                    exams = await this.context.artemisApi.getExamsForCourse(courseId);
+                    const exams = await this.context.artemisApi.getExamsForCourse(courseId);
+                    courseData.course.exams = exams;
                 } catch (error) {
                     console.error('Error fetching exams during reload:', error);
                     // Continue without exams if fetch fails
                 }
-
-                // Create the courseData structure expected by showCourseDetail
-                const courseData = {
-                    course: {
-                        ...courseDetails,
-                        exercises: exercises || [],
-                        exams: exams || []
-                    }
-                };
 
                 this.context.appStateManager.showCourseDetail(courseData);
                 this.context.actionHandler.render();
