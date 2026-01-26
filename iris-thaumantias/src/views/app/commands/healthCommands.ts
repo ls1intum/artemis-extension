@@ -11,30 +11,16 @@ export class HealthCommandModule {
 
     private handlePerformHealthChecks = async (message: any): Promise<void> => {
         const serverUrl: string = message.serverUrl;
-        const resolvedCourseId = message.courseId
-            ?? this.context.appStateManager.currentCourseData?.course?.id
-            ?? this.context.appStateManager.currentExerciseData?.exercise?.course?.id
-            ?? this.context.appStateManager.currentExerciseData?.course?.id;
-        const irisEndpoint = resolvedCourseId
-            ? `${serverUrl}/api/iris/courses/${resolvedCourseId}/status`
-            : `${serverUrl}/api/iris/courses/{courseId}/status`;
 
+        // Simplified health checks - only meaningful ones
         const results: any = {
             serverReachability: { status: 'unknown', message: 'Not checked', endpoint: serverUrl, httpStatus: null, response: null },
-            authService: { status: 'unknown', message: 'Not checked', endpoint: `${serverUrl}/api/core/public/authenticate`, httpStatus: null, response: null },
             apiAvailability: { status: 'unknown', message: 'Not checked', endpoint: `${serverUrl}/management/health`, httpStatus: null, response: null },
-            websocket: { status: 'unknown', message: 'Not checked', endpoint: `${serverUrl}/websocket`, httpStatus: null, response: null },
-            irisService: { status: 'unknown', message: 'Not checked', endpoint: irisEndpoint, httpStatus: null, response: null }
+            irisService: { status: 'unknown', message: 'Not checked', endpoint: `${serverUrl}/management/info`, httpStatus: null, response: null }
         };
 
-        let cookieHeader: string | undefined;
         try {
-            cookieHeader = await this.context.authManager.getCookieHeader();
-        } catch (error) {
-            console.log('[Health Check] No authentication cookie available for health checks');
-        }
-
-        try {
+            // 1. Server Reachability - Basic connectivity check
             try {
                 const reachabilityResponse = await fetch(serverUrl, {
                     method: 'HEAD',
@@ -57,57 +43,33 @@ export class HealthCommandModule {
                 };
             }
 
-            try {
-                const authResponse = await fetch(`${serverUrl}/api/core/public/authenticate`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ username: '', password: '', rememberMe: false }),
-                    signal: AbortSignal.timeout(8000)
-                });
-
-                if (authResponse.status === 400 || authResponse.status === 401 || authResponse.status === 200) {
-                    results.authService = {
-                        status: 'online',
-                        message: 'Available',
-                        endpoint: `${serverUrl}/api/core/public/authenticate`,
-                        httpStatus: authResponse.status,
-                        response: `${authResponse.status} ${authResponse.statusText} (Expected - requires credentials)`
-                    };
-                } else {
-                    results.authService = {
-                        status: 'offline',
-                        message: `Error ${authResponse.status}`,
-                        endpoint: `${serverUrl}/api/core/public/authenticate`,
-                        httpStatus: authResponse.status,
-                        response: `${authResponse.status} ${authResponse.statusText}`
-                    };
-                }
-            } catch (error: any) {
-                results.authService = {
-                    status: 'offline',
-                    message: error.name === 'TimeoutError' ? 'Timeout' : 'Unavailable',
-                    endpoint: `${serverUrl}/api/core/public/authenticate`,
-                    httpStatus: null,
-                    response: error.message || 'Network error'
-                };
-            }
-
+            // 2. API Availability - Spring Actuator health endpoint (shows if backend is healthy)
             try {
                 const healthResponse = await fetch(`${serverUrl}/management/health`, {
                     method: 'GET',
                     signal: AbortSignal.timeout(8000)
                 });
 
-                const healthText = healthResponse.ok ? await healthResponse.text() : null;
-
                 if (healthResponse.ok) {
-                    results.apiAvailability = {
-                        status: 'online',
-                        message: 'Available',
-                        endpoint: `${serverUrl}/management/health`,
-                        httpStatus: healthResponse.status,
-                        response: healthText ? healthText.substring(0, 100) : `${healthResponse.status} ${healthResponse.statusText}`
-                    };
+                    try {
+                        const healthData = await healthResponse.json() as { status?: string };
+                        const status = healthData.status || 'UNKNOWN';
+                        results.apiAvailability = {
+                            status: status === 'UP' ? 'online' : 'offline',
+                            message: status === 'UP' ? 'Healthy' : status,
+                            endpoint: `${serverUrl}/management/health`,
+                            httpStatus: healthResponse.status,
+                            response: `Backend status: ${status}`
+                        };
+                    } catch {
+                        results.apiAvailability = {
+                            status: 'online',
+                            message: 'Available',
+                            endpoint: `${serverUrl}/management/health`,
+                            httpStatus: healthResponse.status,
+                            response: `${healthResponse.status} ${healthResponse.statusText}`
+                        };
+                    }
                 } else {
                     results.apiAvailability = {
                         status: 'offline',
@@ -127,130 +89,54 @@ export class HealthCommandModule {
                 };
             }
 
+            // 3. Iris AI Service - Check if Iris profile is active using /management/info
             try {
-                const websocketUrl = new URL(serverUrl);
-                websocketUrl.protocol = websocketUrl.protocol === 'https:' ? 'wss:' : 'ws:';
-                websocketUrl.pathname = '/websocket';
-
-                const websocketResponse = await fetch(websocketUrl.toString(), {
-                    method: 'HEAD',
-                    signal: AbortSignal.timeout(5000)
+                const infoResponse = await fetch(`${serverUrl}/management/info`, {
+                    method: 'GET',
+                    signal: AbortSignal.timeout(8000)
                 });
 
-                results.websocket = {
-                    status: websocketResponse.ok ? 'online' : 'offline',
-                    message: websocketResponse.ok ? 'Available' : `Error ${websocketResponse.status}`,
-                    endpoint: `${serverUrl}/websocket`,
-                    httpStatus: websocketResponse.status,
-                    response: `${websocketResponse.status} ${websocketResponse.statusText}`
-                };
-            } catch (error: any) {
-                if (results.serverReachability.status === 'online') {
-                    results.websocket = {
-                        status: 'unknown',
-                        message: error.name === 'TimeoutError' ? 'Timeout' : 'Cannot check',
-                        endpoint: `${serverUrl}/websocket`,
-                        httpStatus: null,
-                        response: error.message || 'Network error'
-                    };
-                } else {
-                    results.websocket = {
-                        status: 'offline',
-                        message: 'Server unreachable',
-                        endpoint: `${serverUrl}/websocket`,
-                        httpStatus: 'N/A',
-                        response: 'Cannot connect - server unreachable'
-                    };
-                }
-            }
-
-            if (!resolvedCourseId) {
-                results.irisService = {
-                    status: 'unknown',
-                    message: 'Select a course to check Iris',
-                    endpoint: irisEndpoint,
-                    httpStatus: null,
-                    response: 'Course context not available'
-                };
-            } else {
-                try {
-                    const irisHeaders: Record<string, string> = {};
-                    if (cookieHeader) {
-                        irisHeaders['Cookie'] = cookieHeader;
-                    }
-
-                    const irisResponse = await fetch(irisEndpoint, {
-                        method: 'GET',
-                        headers: irisHeaders,
-                        signal: AbortSignal.timeout(8000)
-                    });
-
-                    if (irisResponse.ok) {
-                        try {
-                            const irisData: any = await irisResponse.json();
-                            const isActive = irisData.active === true;
-                            const rateLimit = irisData.rateLimitInfo ?
-                                `Rate limit: ${irisData.rateLimitInfo.currentMessageCount}/${irisData.rateLimitInfo.rateLimit}` :
-                                'No rate limit info';
-
-                            results.irisService = {
-                                status: isActive ? 'online' : 'offline',
-                                message: isActive ? 'Active' : 'Inactive',
-                                endpoint: irisEndpoint,
-                                httpStatus: irisResponse.status,
-                                response: `${irisResponse.status} ${irisResponse.statusText} - ${isActive ? 'Active' : 'Inactive'} (${rateLimit})`
-                            };
-                        } catch (parseError) {
-                            results.irisService = {
-                                status: 'online',
-                                message: 'Available',
-                                endpoint: irisEndpoint,
-                                httpStatus: irisResponse.status,
-                                response: `${irisResponse.status} ${irisResponse.statusText} (Authenticated)`
-                            };
-                        }
-                    } else if (irisResponse.status === 401) {
+                if (infoResponse.ok) {
+                    try {
+                        const infoData = await infoResponse.json() as { activeProfiles?: string[] };
+                        const profiles = infoData.activeProfiles || [];
+                        const isIrisActive = profiles.includes('iris');
+                        
                         results.irisService = {
-                            status: 'online',
-                            message: 'Available',
-                            endpoint: irisEndpoint,
-                            httpStatus: irisResponse.status,
-                            response: `${irisResponse.status} ${irisResponse.statusText} (Requires authentication)`
+                            status: isIrisActive ? 'online' : 'offline',
+                            message: isIrisActive ? 'Active' : 'Not enabled',
+                            endpoint: `${serverUrl}/management/info`,
+                            httpStatus: infoResponse.status,
+                            response: isIrisActive 
+                                ? `Iris profile active (${profiles.length} profiles loaded)`
+                                : `Iris profile not in activeProfiles`
                         };
-                    } else if (irisResponse.status === 403) {
-                        results.irisService = {
-                            status: 'online',
-                            message: 'Available',
-                            endpoint: irisEndpoint,
-                            httpStatus: irisResponse.status,
-                            response: `${irisResponse.status} ${irisResponse.statusText} (Requires permission)`
-                        };
-                    } else if (irisResponse.status === 404) {
+                    } catch {
                         results.irisService = {
                             status: 'unknown',
-                            message: 'Not configured',
-                            endpoint: irisEndpoint,
-                            httpStatus: irisResponse.status,
-                            response: `${irisResponse.status} ${irisResponse.statusText} (Iris not enabled)`
-                        };
-                    } else {
-                        results.irisService = {
-                            status: 'offline',
-                            message: `Error ${irisResponse.status}`,
-                            endpoint: irisEndpoint,
-                            httpStatus: irisResponse.status,
-                            response: `${irisResponse.status} ${irisResponse.statusText}`
+                            message: 'Parse error',
+                            endpoint: `${serverUrl}/management/info`,
+                            httpStatus: infoResponse.status,
+                            response: 'Could not parse profile information'
                         };
                     }
-                } catch (error: any) {
+                } else {
                     results.irisService = {
                         status: 'unknown',
-                        message: error.name === 'TimeoutError' ? 'Timeout' : 'Cannot check',
-                        endpoint: irisEndpoint,
-                        httpStatus: null,
-                        response: error.message || 'Network error'
+                        message: `Error ${infoResponse.status}`,
+                        endpoint: `${serverUrl}/management/info`,
+                        httpStatus: infoResponse.status,
+                        response: `${infoResponse.status} ${infoResponse.statusText}`
                     };
                 }
+            } catch (error: any) {
+                results.irisService = {
+                    status: 'unknown',
+                    message: error.name === 'TimeoutError' ? 'Timeout' : 'Cannot check',
+                    endpoint: `${serverUrl}/management/info`,
+                    httpStatus: null,
+                    response: error.message || 'Network error'
+                };
             }
         } catch (error) {
             console.error('Error performing health checks:', error);
