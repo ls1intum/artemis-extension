@@ -96,13 +96,20 @@ export class NavigationCommandModule {
             
             // Provide specific error messages based on HTTP status and error details
             let userMessage = 'Failed to open exam.';
+            const detail = error.detail?.toLowerCase() || error.message?.toLowerCase() || '';
             
-            if (error.status === 403) {
-                const detail = error.detail?.toLowerCase() || '';
+            // Handle specific error codes from Artemis (format: error.errorKey)
+            if (detail.includes('examhasalreadyended') || detail.includes('already ended')) {
+                userMessage = 'This exam has already ended. You can no longer participate in this exam.';
+            } else if (detail.includes('examhasnotyetstarted') || detail.includes('not yet started')) {
+                userMessage = 'This exam has not started yet. Please wait until the exam begins.';
+            } else if (detail.includes('examnotvisible') || detail.includes('not visible')) {
+                userMessage = 'This exam is not yet available. Please check the exam schedule.';
+            } else if (detail.includes('studentexamalreadysubmitted') || detail.includes('already submitted')) {
+                userMessage = 'You have already submitted this exam. You cannot participate again.';
+            } else if (error.status === 403) {
                 if (detail.includes('not registered')) {
                     userMessage = 'You are not registered for this exam. Please contact your instructor.';
-                } else if (detail.includes('not visible') || detail.includes('visible date')) {
-                    userMessage = 'This exam is not yet available. Please check the exam schedule.';
                 } else if (detail.includes('instructor') || detail.includes('editor') || detail.includes('admin')) {
                     userMessage = 'Instructors and administrators cannot participate in exams as students.';
                 } else if (detail.includes('not a student') || detail.includes('student group')) {
@@ -113,6 +120,19 @@ export class NavigationCommandModule {
                     userMessage = error.detail 
                         ? `Access denied: ${error.detail}`
                         : 'Access denied. You may not be registered for this exam or it may not be available yet.';
+                }
+            } else if (error.status === 400) {
+                // Bad request - usually means validation error or exam state issue
+                if (error.detail) {
+                    // Clean up error key format (e.g., "error.examHasAlreadyEnded" -> "Exam has already ended")
+                    const cleanedDetail = error.detail
+                        .replace(/^error\./, '')
+                        .replace(/([A-Z])/g, ' $1')
+                        .trim()
+                        .toLowerCase();
+                    userMessage = `Cannot open exam: ${cleanedDetail.charAt(0).toUpperCase() + cleanedDetail.slice(1)}.`;
+                } else {
+                    userMessage = 'Cannot open exam due to an invalid request.';
                 }
             } else if (error.status === 404) {
                 userMessage = 'Exam not found. Please check if the exam still exists.';
