@@ -8,3 +8,4 @@ export type {
     TrackedCourse,
     TrackedExercise
 } from './context';
+export { PROFILE_IRIS } from './artemis';
