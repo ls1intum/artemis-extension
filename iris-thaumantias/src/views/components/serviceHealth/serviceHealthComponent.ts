@@ -23,6 +23,7 @@ export class ServiceHealthComponent {
         } = options;
 
         const refreshIcon = IconDefinitions.getIcon('refresh');
+        const chevronIcon = IconDefinitions.getIcon('chevron-right');
         const titleSection = showTitle ? `
             <h3 class="health-checks-title">
                 🔍 Service Health Checks
@@ -31,94 +32,42 @@ export class ServiceHealthComponent {
 
         const compactClass = compact ? 'health-compact' : '';
 
+        const generateHealthItem = (serviceId: string, label: string): string => `
+            <div class="health-status-item" data-service="${serviceId}">
+                <div class="health-status-main">
+                    <span class="health-label">${label}</span>
+                    <span class="health-value">
+                        <span class="health-indicator unknown" id="health-${serviceId}"></span>
+                        <span id="health-${serviceId}Text">Not checked</span>
+                        <span class="health-chevron" id="chevron-${serviceId}">${chevronIcon}</span>
+                    </span>
+                </div>
+                <div class="health-details" id="details-${serviceId}">
+                    <div class="details-content">
+                        <div class="detail-row">
+                            <span class="detail-label">Endpoint:</span>
+                            <code class="detail-value" id="endpoint-${serviceId}">-</code>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">HTTP Status:</span>
+                            <span class="detail-value" id="httpStatus-${serviceId}">-</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">Response:</span>
+                            <span class="detail-value" id="response-${serviceId}">-</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+
         return `
         <div class="service-health-component ${compactClass}" data-auto-check="${autoCheck}">
             ${titleSection}
             
-            <div class="health-status-item" data-service="serverReachability">
-                <div class="health-status-main">
-                    <span class="health-label">Server Reachability</span>
-                    <span class="health-value">
-                        <span class="health-indicator unknown" id="health-serverReachability"></span>
-                        <span id="health-serverReachabilityText">Not checked</span>
-                    </span>
-                </div>
-                <div class="health-tooltip" id="tooltip-serverReachability">
-                    <div class="tooltip-content">
-                        <strong>Endpoint:</strong> <code id="endpoint-serverReachability">-</code><br>
-                        <strong>HTTP Status:</strong> <span id="httpStatus-serverReachability">-</span><br>
-                        <strong>Response:</strong> <span id="response-serverReachability">-</span>
-                    </div>
-                </div>
-            </div>
-            
-            <div class="health-status-item" data-service="authService">
-                <div class="health-status-main">
-                    <span class="health-label">Authentication Service</span>
-                    <span class="health-value">
-                        <span class="health-indicator unknown" id="health-authService"></span>
-                        <span id="health-authServiceText">Not checked</span>
-                    </span>
-                </div>
-                <div class="health-tooltip" id="tooltip-authService">
-                    <div class="tooltip-content">
-                        <strong>Endpoint:</strong> <code id="endpoint-authService">-</code><br>
-                        <strong>HTTP Status:</strong> <span id="httpStatus-authService">-</span><br>
-                        <strong>Response:</strong> <span id="response-authService">-</span>
-                    </div>
-                </div>
-            </div>
-            
-            <div class="health-status-item" data-service="apiAvailability">
-                <div class="health-status-main">
-                    <span class="health-label">API Availability</span>
-                    <span class="health-value">
-                        <span class="health-indicator unknown" id="health-apiAvailability"></span>
-                        <span id="health-apiAvailabilityText">Not checked</span>
-                    </span>
-                </div>
-                <div class="health-tooltip" id="tooltip-apiAvailability">
-                    <div class="tooltip-content">
-                        <strong>Endpoint:</strong> <code id="endpoint-apiAvailability">-</code><br>
-                        <strong>HTTP Status:</strong> <span id="httpStatus-apiAvailability">-</span><br>
-                        <strong>Response:</strong> <span id="response-apiAvailability">-</span>
-                    </div>
-                </div>
-            </div>
-            
-            <div class="health-status-item" data-service="websocket">
-                <div class="health-status-main">
-                    <span class="health-label">WebSocket Connection</span>
-                    <span class="health-value">
-                        <span class="health-indicator unknown" id="health-websocket"></span>
-                        <span id="health-websocketText">Not checked</span>
-                    </span>
-                </div>
-                <div class="health-tooltip" id="tooltip-websocket">
-                    <div class="tooltip-content">
-                        <strong>Endpoint:</strong> <code id="endpoint-websocket">-</code><br>
-                        <strong>HTTP Status:</strong> <span id="httpStatus-websocket">-</span><br>
-                        <strong>Response:</strong> <span id="response-websocket">-</span>
-                    </div>
-                </div>
-            </div>
-            
-            <div class="health-status-item" data-service="irisService">
-                <div class="health-status-main">
-                    <span class="health-label">Iris AI Service</span>
-                    <span class="health-value">
-                        <span class="health-indicator unknown" id="health-irisService"></span>
-                        <span id="health-irisServiceText">Not checked</span>
-                    </span>
-                </div>
-                <div class="health-tooltip" id="tooltip-irisService">
-                    <div class="tooltip-content">
-                        <strong>Endpoint:</strong> <code id="endpoint-irisService">-</code><br>
-                        <strong>HTTP Status:</strong> <span id="httpStatus-irisService">-</span><br>
-                        <strong>Response:</strong> <span id="response-irisService">-</span>
-                    </div>
-                </div>
-            </div>
+            ${generateHealthItem('serverReachability', 'Server Reachability')}
+            ${generateHealthItem('apiAvailability', 'API Availability')}
+            ${generateHealthItem('irisService', 'Iris AI Service')}
             
             <div class="health-last-check" id="health-lastCheckTime">Last checked: Never</div>
             
@@ -148,30 +97,69 @@ export class ServiceHealthComponent {
             const autoCheck = healthComponent.dataset.autoCheck === 'true';
             const checkBtn = document.getElementById('health-checkBtn');
             
-            // DOM element references
+            // Track expanded state for each service (only 3 checks now)
+            const expandedStates = {
+                serverReachability: false,
+                apiAvailability: false,
+                irisService: false
+            };
+            
+            // DOM element references (only 3 checks now)
             const elements = {
                 serverReachability: {
                     indicator: document.getElementById('health-serverReachability'),
-                    text: document.getElementById('health-serverReachabilityText')
-                },
-                authService: {
-                    indicator: document.getElementById('health-authService'),
-                    text: document.getElementById('health-authServiceText')
+                    text: document.getElementById('health-serverReachabilityText'),
+                    details: document.getElementById('details-serverReachability'),
+                    chevron: document.getElementById('chevron-serverReachability'),
+                    item: document.querySelector('[data-service="serverReachability"]')
                 },
                 apiAvailability: {
                     indicator: document.getElementById('health-apiAvailability'),
-                    text: document.getElementById('health-apiAvailabilityText')
-                },
-                websocket: {
-                    indicator: document.getElementById('health-websocket'),
-                    text: document.getElementById('health-websocketText')
+                    text: document.getElementById('health-apiAvailabilityText'),
+                    details: document.getElementById('details-apiAvailability'),
+                    chevron: document.getElementById('chevron-apiAvailability'),
+                    item: document.querySelector('[data-service="apiAvailability"]')
                 },
                 irisService: {
                     indicator: document.getElementById('health-irisService'),
-                    text: document.getElementById('health-irisServiceText')
+                    text: document.getElementById('health-irisServiceText'),
+                    details: document.getElementById('details-irisService'),
+                    chevron: document.getElementById('chevron-irisService'),
+                    item: document.querySelector('[data-service="irisService"]')
                 },
                 lastCheckTime: document.getElementById('health-lastCheckTime')
             };
+            
+            // Toggle details visibility on click
+            function toggleDetails(key) {
+                const element = elements[key];
+                if (!element || !element.details || !element.chevron || !element.item) return;
+                
+                expandedStates[key] = !expandedStates[key];
+                
+                if (expandedStates[key]) {
+                    element.details.classList.add('expanded');
+                    element.chevron.classList.add('expanded');
+                    element.item.classList.add('expanded');
+                } else {
+                    element.details.classList.remove('expanded');
+                    element.chevron.classList.remove('expanded');
+                    element.item.classList.remove('expanded');
+                }
+            }
+            
+            // Add click handlers to all health items
+            Object.keys(elements).forEach(key => {
+                if (key === 'lastCheckTime') return;
+                const element = elements[key];
+                if (element && element.item) {
+                    element.item.addEventListener('click', (e) => {
+                        // Don't toggle if clicking on link or button inside
+                        if (e.target.tagName === 'A' || e.target.tagName === 'BUTTON') return;
+                        toggleDetails(key);
+                    });
+                }
+            });
             
             // Helper function to update status indicators
             function updateStatusIndicator(key, status, message) {
@@ -184,8 +172,8 @@ export class ServiceHealthComponent {
                 }
             }
             
-            // Helper function to update tooltip information
-            function updateTooltip(key, endpoint, httpStatus, response) {
+            // Helper function to update details information
+            function updateDetails(key, endpoint, httpStatus, response) {
                 const endpointEl = document.getElementById('endpoint-' + key);
                 const httpStatusEl = document.getElementById('httpStatus-' + key);
                 const responseEl = document.getElementById('response-' + key);
@@ -196,14 +184,15 @@ export class ServiceHealthComponent {
                 if (httpStatusEl) {
                     httpStatusEl.textContent = httpStatus || '-';
                     // Color code the HTTP status
+                    httpStatusEl.className = 'detail-value';
                     if (httpStatus) {
                         const statusCode = parseInt(httpStatus);
                         if (statusCode >= 200 && statusCode < 300) {
-                            httpStatusEl.style.color = 'var(--theme-success)';
+                            httpStatusEl.classList.add('status-success');
                         } else if (statusCode >= 400 && statusCode < 500) {
-                            httpStatusEl.style.color = 'var(--theme-warning, #f59e0b)';
+                            httpStatusEl.classList.add('status-warning');
                         } else if (statusCode >= 500) {
-                            httpStatusEl.style.color = 'var(--theme-error)';
+                            httpStatusEl.classList.add('status-error');
                         }
                     }
                 }
@@ -258,32 +247,18 @@ export class ServiceHealthComponent {
                 if (message.command === 'healthCheckResults') {
                     const results = message.results;
                     
-                    // Update each indicator with results and tooltip data
+                    // Update each indicator with results and details data
                     if (results.serverReachability) {
                         updateStatusIndicator(
                             'serverReachability',
                             results.serverReachability.status,
                             results.serverReachability.message
                         );
-                        updateTooltip(
+                        updateDetails(
                             'serverReachability',
                             results.serverReachability.endpoint || 'Server Root (HEAD)',
                             results.serverReachability.httpStatus,
                             results.serverReachability.response || results.serverReachability.message
-                        );
-                    }
-                    
-                    if (results.authService) {
-                        updateStatusIndicator(
-                            'authService',
-                            results.authService.status,
-                            results.authService.message
-                        );
-                        updateTooltip(
-                            'authService',
-                            results.authService.endpoint || '/api/core/public/authenticate',
-                            results.authService.httpStatus,
-                            results.authService.response || results.authService.message
                         );
                     }
                     
@@ -293,25 +268,11 @@ export class ServiceHealthComponent {
                             results.apiAvailability.status,
                             results.apiAvailability.message
                         );
-                        updateTooltip(
+                        updateDetails(
                             'apiAvailability',
                             results.apiAvailability.endpoint || '/management/health',
                             results.apiAvailability.httpStatus,
                             results.apiAvailability.response || results.apiAvailability.message
-                        );
-                    }
-                    
-                    if (results.websocket) {
-                        updateStatusIndicator(
-                            'websocket',
-                            results.websocket.status,
-                            results.websocket.message
-                        );
-                        updateTooltip(
-                            'websocket',
-                            results.websocket.endpoint || '/websocket/tracker',
-                            results.websocket.httpStatus || 'N/A',
-                            results.websocket.response || results.websocket.message
                         );
                     }
                     
@@ -321,9 +282,9 @@ export class ServiceHealthComponent {
                             results.irisService.status,
                             results.irisService.message
                         );
-                        updateTooltip(
+                        updateDetails(
                             'irisService',
-                            results.irisService.endpoint || '/api/iris/courses/{courseId}/status',
+                            results.irisService.endpoint || '/management/info',
                             results.irisService.httpStatus,
                             results.irisService.response || results.irisService.message
                         );

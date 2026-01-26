@@ -217,12 +217,3 @@ export interface ParsedBuildError {
     column?: number;   // Column number (1-based, optional)
     message: string;   // Error message
 }
-
-// Profile information types
-export interface ProfileInfo {
-    activeProfiles?: string[];
-    [key: string]: any;
-}
-
-// Iris profile constant
-export const PROFILE_IRIS = 'iris';
