@@ -142,6 +142,16 @@
           "type": "boolean",
           "default": true,
           "description": "Ask to set a default clone folder when cloning for the first time (if no default is configured)"
+        },
+        "artemis.struggleDetection.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable struggle detection to receive helpful hints when you might be stuck on a problem"
+        },
+        "artemis.struggleDetection.developerMode": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "Show live struggle detection score and debug information in the status bar. **Note**: Only works when struggle detection is enabled."
         }
       }
     }

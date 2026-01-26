@@ -8,6 +8,7 @@ import { StruggleScoreService } from './struggleScoreService';
 import { InterventionService } from './interventionService';
 import { InterventionFilter } from './interventionFilter';
 import { ArtemisWebsocketService } from '../artemisWebsocketService';
+import { VSCODE_CONFIG } from '../../utils/constants';
 
 /**
  * Central orchestration service for all telemetry and struggle detection.
@@ -89,7 +90,7 @@ export class TelemetryManager implements vscode.Disposable {
 
         // Listen for configuration changes
         const configListener = vscode.workspace.onDidChangeConfiguration(event => {
-            if (event.affectsConfiguration('artemis.telemetry') || event.affectsConfiguration('artemis.hideDeveloperTools')) {
+            if (event.affectsConfiguration(VSCODE_CONFIG.STRUGGLE_DETECTION.SECTION)) {
                 this._loadConfiguration();
             }
         });
@@ -194,29 +195,29 @@ export class TelemetryManager implements vscode.Disposable {
      * Load configuration from settings
      */
     private _loadConfiguration(): void {
-        const config = vscode.workspace.getConfiguration('artemis.telemetry');
-        this._isEnabled = config.get<boolean>('enabled', true);
+        const config = vscode.workspace.getConfiguration(VSCODE_CONFIG.STRUGGLE_DETECTION.SECTION);
+        this._isEnabled = config.get<boolean>(VSCODE_CONFIG.STRUGGLE_DETECTION.ENABLED_KEY, true);
 
-        // Debug mode is enabled when hideDeveloperTools is false
-        const hideDeveloperTools = vscode.workspace.getConfiguration('artemis').get<boolean>('hideDeveloperTools', true);
+        // Developer mode shows live score in status bar (only works when struggle detection is enabled)
         const wasDebugMode = this._debugMode;
-        this._debugMode = !hideDeveloperTools;
+        const developerMode = config.get<boolean>(VSCODE_CONFIG.STRUGGLE_DETECTION.DEVELOPER_MODE_KEY, false);
+        this._debugMode = this._isEnabled && developerMode;
 
         if (!this._isEnabled) {
             this._interventionService.hideHint();
             this._debugStatusBarItem.hide();
-            this._log('Telemetry disabled');
+            this._log('Struggle detection disabled');
         } else {
-            this._log('Telemetry enabled');
+            this._log('Struggle detection enabled');
         }
 
         // Handle debug mode changes
         if (this._debugMode && !wasDebugMode) {
             this._startDebugUpdates();
-            this._log('Debug mode ENABLED - showing live score in status bar');
+            this._log('Developer mode ENABLED - showing live score in status bar');
         } else if (!this._debugMode && wasDebugMode) {
             this._stopDebugUpdates();
-            this._log('Debug mode DISABLED');
+            this._log('Developer mode DISABLED');
         }
     }
 
