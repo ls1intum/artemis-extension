@@ -34,8 +34,35 @@ export class ArtemisApiService {
                 (error as any).status = 401;
                 throw error;
             }
-            const error = new Error(`API request failed: ${response.status} ${response.statusText}`);
+            
+            // Try to extract detailed error message from response body
+            let errorMessage = `API request failed: ${response.status}`;
+            let errorDetail: string | undefined;
+            try {
+                const errorBody = await response.text();
+                if (errorBody) {
+                    try {
+                        const parsed = JSON.parse(errorBody);
+                        // Artemis uses different fields for error messages
+                        errorDetail = parsed.message || parsed.detail || parsed.title || parsed.error;
+                    } catch {
+                        // Response is not JSON, use raw text if meaningful
+                        if (errorBody.length < 200 && !errorBody.includes('<')) {
+                            errorDetail = errorBody;
+                        }
+                    }
+                }
+            } catch {
+                // Failed to read response body, continue with generic message
+            }
+            
+            if (errorDetail) {
+                errorMessage = `${errorMessage}: ${errorDetail}`;
+            }
+            
+            const error = new Error(errorMessage);
             (error as any).status = response.status;
+            (error as any).detail = errorDetail;
             throw error;
         }
 

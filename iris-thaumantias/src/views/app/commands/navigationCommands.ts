@@ -91,9 +91,36 @@ export class NavigationCommandModule {
                 this.context.appStateManager.showExamStart({ studentExam, courseId, examId });
                 this.context.actionHandler.render();
             }
-        } catch (error) {
+        } catch (error: any) {
             console.error('[EXAMMODE] Error opening exam:', error);
-            vscode.window.showErrorMessage('Failed to open exam. Please try again.');
+            
+            // Provide specific error messages based on HTTP status and error details
+            let userMessage = 'Failed to open exam.';
+            
+            if (error.status === 403) {
+                const detail = error.detail?.toLowerCase() || '';
+                if (detail.includes('not registered')) {
+                    userMessage = 'You are not registered for this exam. Please contact your instructor.';
+                } else if (detail.includes('not visible') || detail.includes('visible date')) {
+                    userMessage = 'This exam is not yet available. Please check the exam schedule.';
+                } else if (detail.includes('instructor') || detail.includes('editor') || detail.includes('admin')) {
+                    userMessage = 'Instructors and administrators cannot participate in exams as students.';
+                } else if (detail.includes('not a student') || detail.includes('student group')) {
+                    userMessage = 'You are not enrolled as a student in this course.';
+                } else if (detail.includes('start') && detail.includes('early')) {
+                    userMessage = 'The exam cannot be started yet. Please wait until closer to the start time.';
+                } else {
+                    userMessage = error.detail 
+                        ? `Access denied: ${error.detail}`
+                        : 'Access denied. You may not be registered for this exam or it may not be available yet.';
+                }
+            } else if (error.status === 404) {
+                userMessage = 'Exam not found. Please check if the exam still exists.';
+            } else if (error.detail) {
+                userMessage = `Failed to open exam: ${error.detail}`;
+            }
+            
+            vscode.window.showErrorMessage(userMessage);
         }
     };
 
