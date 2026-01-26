@@ -150,20 +150,20 @@ suite('Artemis API Service Test Suite', () => {
         assert.deepStrictEqual(dashboard, mockDashboard);
     });
 
-    test('should get exercises for course', async () => {
+    test('should get single course for dashboard', async () => {
         const courseId = 1;
-        const mockExercises = [{ id: 1, title: 'Ex 1' }];
+        const mockCourseData = { course: { id: 1, title: 'Course 1', exercises: [] } };
         global.fetch = async (url: any) => {
-            assert.ok(url.includes(`/api/core/courses/${courseId}/exercises`));
+            assert.ok(url.includes(`/api/core/courses/${courseId}/for-dashboard`));
             return {
                 ok: true,
                 status: 200,
-                json: async () => mockExercises,
+                json: async () => mockCourseData,
             } as any;
         };
 
-        const exercises = await apiService.getExercises(courseId);
-        assert.deepStrictEqual(exercises, mockExercises);
+        const courseData = await apiService.getCourseForDashboard(courseId);
+        assert.deepStrictEqual(courseData, mockCourseData);
     });
 
     test('should get course details', async () => {
