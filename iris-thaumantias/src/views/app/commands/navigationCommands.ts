@@ -24,6 +24,7 @@ export class NavigationCommandModule {
             backToExam: this.handleBackToExam,
             showAiConfig: this.handleShowAiConfig,
             showServiceStatus: this.handleShowServiceStatus,
+            showStruggleDetection: this.handleShowStruggleDetection,
             showRecommendedExtensions: this.handleShowRecommendedExtensions,
             showGitCredentials: this.handleShowGitCredentials,
             loadArchivedCourses: this.handleLoadArchivedCourses,
@@ -265,6 +266,10 @@ export class NavigationCommandModule {
 
     private handleShowServiceStatus = async (): Promise<void> => {
         this.context.actionHandler.showServiceStatus();
+    };
+
+    private handleShowStruggleDetection = async (): Promise<void> => {
+        this.context.actionHandler.showStruggleDetection();
     };
 
     private handleShowRecommendedExtensions = async (): Promise<void> => {

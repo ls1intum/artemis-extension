@@ -8,6 +8,7 @@ import { ExerciseDetailView } from '../exerciseDetail/exerciseDetailView';
 import { ExamExerciseDetailView } from '../examExerciseDetail/examExerciseDetailView';
 import { LoginView } from '../login/loginView';
 import { ServiceStatusView } from '../serviceStatus/serviceStatusView';
+import { StruggleDetectionView } from '../struggleDetection/struggleDetectionView';
 import { RecommendedExtensionsView } from '../recommendedExtensions/recommendedExtensionsView';
 import { GitCredentialsView } from '../gitCredentials/gitCredentialsView';
 import { ExamStartView } from '../examStart/examStartView';
@@ -25,6 +26,7 @@ export class ViewRouter {
     private readonly _examExerciseDetailView: ExamExerciseDetailView;
     private readonly _aiCheckerView: AiCheckerView;
     private readonly _serviceStatusView: ServiceStatusView;
+    private readonly _struggleDetectionView: StruggleDetectionView;
     private readonly _recommendedExtensionsView: RecommendedExtensionsView;
     private readonly _gitCredentialsView: GitCredentialsView;
     private readonly _examStartView: ExamStartView;
@@ -44,6 +46,7 @@ export class ViewRouter {
         this._examExerciseDetailView = new ExamExerciseDetailView(this._extensionContext);
         this._aiCheckerView = new AiCheckerView(this._extensionContext);
         this._serviceStatusView = new ServiceStatusView(this._extensionContext);
+        this._struggleDetectionView = new StruggleDetectionView(this._extensionContext);
         this._recommendedExtensionsView = new RecommendedExtensionsView();
         this._gitCredentialsView = new GitCredentialsView(this._extensionContext);
         this._examStartView = new ExamStartView(this._extensionContext);
@@ -58,9 +61,9 @@ export class ViewRouter {
 
         const state = this._appStateManager.currentState;
 
-        // Read developer tools setting
+        // Read developer tools setting (inverted: developerMode=true means hideDeveloperTools=false)
         const config = vscode.workspace.getConfiguration('artemis');
-        const hideDeveloperTools = config.get<boolean>('hideDeveloperTools', false);
+        const hideDeveloperTools = !config.get<boolean>('developerMode', false);
 
         switch (state) {
             case 'dashboard': {
@@ -99,6 +102,9 @@ export class ViewRouter {
             case 'service-status': {
                 const serverUrl = this._appStateManager.userInfo?.serverUrl;
                 return this._serviceStatusView.generateHtml(serverUrl, webview);
+            }
+            case 'struggle-detection': {
+                return this._struggleDetectionView.generateHtml(webview);
             }
             case 'recommended-extensions': {
                 const categories = this._appStateManager.recommendedExtensions || [];

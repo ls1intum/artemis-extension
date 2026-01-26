@@ -1,7 +1,7 @@
 import { ArtemisApiService } from '../../api';
 import { getRecommendedExtensionsByCategory, type RecommendedExtensionCategory } from '../../utils/recommendedExtensions';
 
-export type AppState = 'login' | 'dashboard' | 'course-list' | 'course-detail' | 'exercise-detail' | 'exam-exercise-detail' | 'ai-config' | 'service-status' | 'recommended-extensions' | 'git-credentials' | 'exam-start' | 'exam-conduction';
+export type AppState = 'login' | 'dashboard' | 'course-list' | 'course-detail' | 'exercise-detail' | 'exam-exercise-detail' | 'ai-config' | 'service-status' | 'struggle-detection' | 'recommended-extensions' | 'git-credentials' | 'exam-start' | 'exam-conduction';
 
 export interface UserInfo {
     username: string;
@@ -225,6 +225,10 @@ export class AppStateManager {
 
     public showServiceStatus(): void {
         this._currentState = 'service-status';
+    }
+
+    public showStruggleDetection(): void {
+        this._currentState = 'struggle-detection';
     }
 
     public showRecommendedExtensions(recommendedExtensions?: RecommendedExtensionCategory[]): void {

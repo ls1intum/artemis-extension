@@ -147,7 +147,28 @@
             grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
             gap: 12px;
         }
-        
+
+        /* Toggle More Actions Button */
+        .toggle-more-container {
+            display: flex;
+            justify-content: center;
+        }
+
+        /* Hidden Actions Container */
+        .hidden-actions {
+            animation: fadeIn 0.2s ease;
+        }
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(-8px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
         /* Workspace Exercise Item - using ListItemComponent */
         .workspace-exercise-container {
             margin-bottom: 16px;

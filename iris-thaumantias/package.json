@@ -56,6 +56,11 @@
         "command": "artemis.connectWebSocket",
         "title": "Connect to Artemis WebSocket",
         "icon": "$(plug)"
+      },
+      {
+        "command": "artemis.showStruggleScore",
+        "title": "Show Struggle Detection Score (Debug)",
+        "icon": "$(graph)"
       }
     ],
     "viewsContainers": {
@@ -112,10 +117,10 @@
           "default": true,
           "markdownDescription": "Allow Iris to access your uncommitted file changes (unsaved, unstaged, and unpushed files). When enabled, Iris can see your current work-in-progress code to provide better assistance. **Privacy**: Only files from your current workspace are sent, and only when you send a message to Iris."
         },
-        "artemis.hideDeveloperTools": {
+        "artemis.developerMode": {
           "type": "boolean",
-          "default": true,
-          "description": "Hide developer tools and debugging buttons"
+          "default": false,
+          "markdownDescription": "Enable developer mode to show debugging tools, including debug buttons in views and live struggle detection score in the status bar."
         },
         "artemis.defaultCommitMessage": {
           "type": "string",
@@ -137,6 +142,11 @@
           "type": "boolean",
           "default": true,
           "description": "Ask to set a default clone folder when cloning for the first time (if no default is configured)"
+        },
+        "artemis.struggleDetection.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable struggle detection to receive helpful hints when you might be stuck on a problem"
         }
       }
     }
