@@ -224,7 +224,7 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
 
         // Listen for configuration changes to re-render when settings change
         vscode.workspace.onDidChangeConfiguration(event => {
-            if (event.affectsConfiguration('artemis.hideDeveloperTools')) {
+            if (event.affectsConfiguration('artemis.developerMode')) {
                 this.render();
             }
         });
@@ -460,7 +460,7 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
             title: `Exercise: ${exerciseData.exercise?.title || exerciseData.title || 'Untitled'}`,
             detailHtml: () => {
                 const detailView = new ExerciseDetailView(this._extensionContext);
-                return detailView.generateHtml(exerciseData, this.shouldHideDeveloperTools());
+                return detailView.generateHtml(exerciseData, !this.isDeveloperMode());
             },
             cssInjections: [
                 '.back-link, .fullscreen-btn { display: none !important; }'
@@ -494,7 +494,7 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
             title: `Course: ${courseData.course?.title || courseData.title || 'Untitled'}`,
             detailHtml: () => {
                 const detailView = new CourseDetailView(this._extensionContext);
-                return detailView.generateHtml(courseData, this.shouldHideDeveloperTools());
+                return detailView.generateHtml(courseData, !this.isDeveloperMode());
             },
             cssInjections: [
                 '.back-link, .fullscreen-btn { display: none !important; }',
@@ -600,9 +600,9 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
         this.postServerUrl();
     }
 
-    private shouldHideDeveloperTools(): boolean {
+    private isDeveloperMode(): boolean {
         const config = vscode.workspace.getConfiguration('artemis');
-        return config.get<boolean>('hideDeveloperTools', false);
+        return config.get<boolean>('developerMode', false);
     }
 
     private async openFullscreenPanel(options: {

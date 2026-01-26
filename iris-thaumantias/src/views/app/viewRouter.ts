@@ -58,9 +58,9 @@ export class ViewRouter {
 
         const state = this._appStateManager.currentState;
 
-        // Read developer tools setting
+        // Read developer tools setting (inverted: developerMode=true means hideDeveloperTools=false)
         const config = vscode.workspace.getConfiguration('artemis');
-        const hideDeveloperTools = config.get<boolean>('hideDeveloperTools', false);
+        const hideDeveloperTools = !config.get<boolean>('developerMode', false);
 
         switch (state) {
             case 'dashboard': {

@@ -90,7 +90,8 @@ export class TelemetryManager implements vscode.Disposable {
 
         // Listen for configuration changes
         const configListener = vscode.workspace.onDidChangeConfiguration(event => {
-            if (event.affectsConfiguration(VSCODE_CONFIG.STRUGGLE_DETECTION.SECTION)) {
+            if (event.affectsConfiguration(VSCODE_CONFIG.STRUGGLE_DETECTION.SECTION) ||
+                event.affectsConfiguration(`${VSCODE_CONFIG.ARTEMIS_SECTION}.${VSCODE_CONFIG.DEVELOPER_MODE_KEY}`)) {
                 this._loadConfiguration();
             }
         });
@@ -195,12 +196,13 @@ export class TelemetryManager implements vscode.Disposable {
      * Load configuration from settings
      */
     private _loadConfiguration(): void {
-        const config = vscode.workspace.getConfiguration(VSCODE_CONFIG.STRUGGLE_DETECTION.SECTION);
-        this._isEnabled = config.get<boolean>(VSCODE_CONFIG.STRUGGLE_DETECTION.ENABLED_KEY, true);
+        const struggleConfig = vscode.workspace.getConfiguration(VSCODE_CONFIG.STRUGGLE_DETECTION.SECTION);
+        this._isEnabled = struggleConfig.get<boolean>(VSCODE_CONFIG.STRUGGLE_DETECTION.ENABLED_KEY, true);
 
         // Developer mode shows live score in status bar (only works when struggle detection is enabled)
         const wasDebugMode = this._debugMode;
-        const developerMode = config.get<boolean>(VSCODE_CONFIG.STRUGGLE_DETECTION.DEVELOPER_MODE_KEY, false);
+        const artemisConfig = vscode.workspace.getConfiguration(VSCODE_CONFIG.ARTEMIS_SECTION);
+        const developerMode = artemisConfig.get<boolean>(VSCODE_CONFIG.DEVELOPER_MODE_KEY, false);
         this._debugMode = this._isEnabled && developerMode;
 
         if (!this._isEnabled) {
