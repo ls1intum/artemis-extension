@@ -143,7 +143,7 @@ The Artemis platform, which this extension connects to, offers extensive capabil
 
 The extension connects to the Artemis application server via REST APIs, providing seamless integration between your local development environment and the Artemis platform. The server architecture includes:
 
-- **Application Server**: Spring Boot-based backend with REST interfaces
+- **Application Server**: Spring Boot-based server with REST interfaces
 - **Version Control System**: Git repository management for programming exercises
 - **Continuous Integration**: Automated testing and feedback generation
 - **Build Agents**: Docker-based execution environments for secure code testing
