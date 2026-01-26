@@ -119,7 +119,7 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
      */
     public setTelemetryManager(telemetryManager: TelemetryManager): void {
         this._telemetryManager = telemetryManager;
-        
+
         // Start exercise session when context is selected
         console.log('[ChatWebviewProvider] Telemetry manager connected');
     }
