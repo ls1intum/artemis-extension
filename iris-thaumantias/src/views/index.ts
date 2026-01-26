@@ -19,4 +19,5 @@ export { RecommendedExtensionsView } from './recommendedExtensions/recommendedEx
 export { IrisChatView } from './irisChat/irisChatView';
 export { LoginView } from './login/loginView';
 export { ServiceStatusView } from './serviceStatus/serviceStatusView';
+export { StruggleDetectionView } from './struggleDetection/struggleDetectionView';
 export { GitCredentialsView } from './gitCredentials/gitCredentialsView';

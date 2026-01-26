@@ -34,6 +34,11 @@ export const VSCODE_CONFIG = {
     DEFAULT_COMMIT_MESSAGE_KEY: 'defaultCommitMessage',
     DEFAULT_CLONE_PATH_KEY: 'defaultClonePath',
     SHOW_SET_DEFAULT_CLONE_PATH_PROMPT_KEY: 'showSetDefaultClonePathPrompt',
+    DEVELOPER_MODE_KEY: 'developerMode',
+    STRUGGLE_DETECTION: {
+        SECTION: 'artemis.struggleDetection',
+        ENABLED_KEY: 'enabled',
+    },
 } as const;
 
 // File processing constants

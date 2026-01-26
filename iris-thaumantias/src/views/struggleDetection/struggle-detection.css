@@ -1,0 +1,219 @@
+body {
+    font-family: var(--theme-font-family);
+    color: var(--theme-foreground);
+    background: var(--theme-background);
+    margin: 0;
+    padding: 0 16px 16px 16px;
+    transition: var(--theme-transition);
+}
+
+.struggle-detection-container {
+    max-width: 980px;
+    margin: 0 auto;
+    padding: 0 0 48px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.struggle-header .ui-container__body {
+    padding-top: 4px;
+}
+
+.struggle-intro {
+    margin: 0;
+    opacity: 0.8;
+    line-height: 1.6;
+}
+
+.steps-list {
+    margin: 0;
+    padding-left: 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    line-height: 1.6;
+}
+
+.signal-grid {
+    display: grid;
+    gap: 12px;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+}
+
+.signal-card {
+    background: var(--theme-background);
+    border: 1px solid var(--theme-border);
+    border-radius: 8px;
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.signal-card h3 {
+    margin: 0;
+    font-size: 15px;
+    font-weight: 600;
+}
+
+.signal-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    opacity: 0.7;
+}
+
+.signal-meta span {
+    padding: 2px 6px;
+    border-radius: 999px;
+    border: 1px solid var(--theme-border);
+    background: var(--theme-secondary-background);
+}
+
+.signal-details {
+    margin: 0;
+    font-size: 13px;
+    line-height: 1.55;
+    opacity: 0.85;
+}
+
+.score-grid {
+    display: grid;
+    gap: 12px;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+}
+
+.score-card {
+    border: 1px dashed var(--theme-border);
+    border-radius: 8px;
+    padding: 12px;
+    background: var(--theme-background);
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.score-title {
+    font-size: 13px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    opacity: 0.7;
+}
+
+.score-code {
+    margin: 0;
+    padding: 10px;
+    border-radius: 6px;
+    background: var(--theme-code-background);
+    border: 1px solid var(--theme-border);
+    font-family: var(--theme-font-family-mono);
+    font-size: 12px;
+    line-height: 1.45;
+    white-space: pre-wrap;
+}
+
+.score-note {
+    margin: 0;
+    font-size: 12px;
+    opacity: 0.75;
+}
+
+.score-list {
+    margin: 0;
+    padding-left: 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    font-size: 13px;
+    line-height: 1.5;
+    opacity: 0.85;
+}
+
+.threshold-list {
+    margin-top: 12px;
+    display: grid;
+    gap: 8px;
+}
+
+.threshold-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 8px 12px;
+    border-radius: 8px;
+    border: 1px solid var(--theme-border);
+    background: var(--theme-background);
+    font-size: 13px;
+}
+
+.threshold-row span {
+    font-weight: 600;
+}
+
+.threshold-row[data-level="subtle"] {
+    background: var(--theme-info-background);
+    border-color: var(--theme-info-border);
+    color: var(--theme-info-foreground);
+}
+
+.threshold-row[data-level="notification"] {
+    background: var(--theme-warning-background);
+    border-color: var(--theme-warning-border);
+    color: var(--theme-warning-foreground);
+}
+
+.threshold-row[data-level="proactive"] {
+    background: var(--theme-error-background);
+    border-color: var(--theme-error-border);
+    color: var(--theme-error-foreground);
+}
+
+.guardrail-grid {
+    display: grid;
+    gap: 12px;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+}
+
+.guardrail-card {
+    border: 1px solid var(--theme-border);
+    border-radius: 8px;
+    padding: 12px;
+    background: var(--theme-background);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.guardrail-card h3 {
+    margin: 0;
+    font-size: 15px;
+    font-weight: 600;
+}
+
+.guardrail-list {
+    margin: 0;
+    padding-left: 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    font-size: 13px;
+    line-height: 1.55;
+    opacity: 0.85;
+}
+
+@media (max-width: 720px) {
+    body {
+        padding: 0 12px 12px 12px;
+    }
+
+    .threshold-row {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+}

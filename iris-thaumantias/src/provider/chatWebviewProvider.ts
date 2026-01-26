@@ -119,7 +119,7 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
      */
     public setTelemetryManager(telemetryManager: TelemetryManager): void {
         this._telemetryManager = telemetryManager;
-        
+
         // Start exercise session when context is selected
         console.log('[ChatWebviewProvider] Telemetry manager connected');
     }
@@ -163,7 +163,7 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
         };
 
         const config = vscode.workspace.getConfiguration('artemis');
-        const showDeveloperTools = !config.get<boolean>('hideDeveloperTools', true);
+        const showDeveloperTools = config.get<boolean>('developerMode', false);
         webviewView.webview.html = this._getOrCreateIrisChatView().generateHtml(webviewView.webview, showDeveloperTools);
 
         const messageListener = webviewView.webview.onDidReceiveMessage(message => {
@@ -192,7 +192,7 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
         this._disposables.push(workspaceListener);
 
         const configListener = vscode.workspace.onDidChangeConfiguration(event => {
-            if (event.affectsConfiguration('artemis.hideDeveloperTools')) {
+            if (event.affectsConfiguration('artemis.developerMode')) {
                 this.refreshTheme();
             }
             if (event.affectsConfiguration('artemis.iris.sendUncommittedChanges')) {
@@ -730,7 +730,7 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
     public refreshTheme(): void {
         if (this._view) {
             const config = vscode.workspace.getConfiguration('artemis');
-            const showDeveloperTools = !config.get<boolean>('hideDeveloperTools', true);
+            const showDeveloperTools = config.get<boolean>('developerMode', false);
             this._view.webview.html = this._getOrCreateIrisChatView().generateHtml(this._view.webview, showDeveloperTools);
             this._postSnapshot();
         }
