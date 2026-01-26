@@ -7,33 +7,33 @@ export interface TransformedExerciseData {
   exerciseType: string;
   maxPoints: number;
   bonusPoints: number;
-  
+
   // Date info
   releaseDate: string;
   dueDateDisplay: string;
   timeRemainingDisplay: string;
   isDueSoon: boolean;
-  
+
   // Configuration
   mode: string;
   includedInScore: string;
   filePattern: string;
-  
+
   // Participation data
   hasParticipation: boolean;
   firstParticipation?: any;
   participationId?: number;
   latestSubmission?: any;
   latestResult?: any;
-  
+
   // Exercise type flags
   isProgrammingExercise: boolean;
   isQuizExercise: boolean;
-  
+
   // Practice mode
   isPracticeAvailable: boolean;
   practiceParticipation?: any;
-  
+
   // Score calculations
   scorePercentage?: number;
   scorePoints?: number;
@@ -43,7 +43,7 @@ export interface TransformedExerciseData {
 }
 
 /**
- * Get latest submission by ID (matches Artemis frontend approach)
+ * Get latest submission by ID (matches Artemis client approach)
  * IDs are database auto-increment, guaranteed to be sequential with submission time
  */
 export function getLatestSubmission(participation: any): any | undefined {
@@ -63,7 +63,7 @@ export function getLatestSubmission(participation: any): any | undefined {
 }
 
 /**
- * Get latest result by completionDate (matches Artemis frontend approach)
+ * Get latest result by completionDate (matches Artemis client approach)
  * Results can complete out of order due to varying build times
  * Uses completionDate to ensure the most recently completed result is returned
  */
@@ -185,9 +185,9 @@ export function formatExerciseType(type: string | undefined): string {
 export function formatFilePattern(filePattern: string | undefined): string {
   return filePattern
     ? filePattern
-        .split(",")
-        .map((ext: string) => ext.trim().toUpperCase())
-        .join(", ")
+      .split(",")
+      .map((ext: string) => ext.trim().toUpperCase())
+      .join(", ")
     : "";
 }
 
@@ -245,18 +245,18 @@ export function transformExerciseData(exercise: any): TransformedExerciseData {
   // Practice mode calculation
   const isTeamMode = !!exercise.teamMode;
   const dueDatePassed = exercise.dueDate ? new Date(exercise.dueDate).getTime() < new Date().getTime() : false;
-  
+
   let practiceParticipation: any | undefined;
   if (hasParticipation) {
-      // In Artemis, practice participations usually have testRun set to true
-      practiceParticipation = exercise.studentParticipations.find((p: any) => p.testRun);
+    // In Artemis, practice participations usually have testRun set to true
+    practiceParticipation = exercise.studentParticipations.find((p: any) => p.testRun);
   }
-  
+
   // Logic: Programming exercise + Due date passed + Not team mode + No active practice participation
-  const isPracticeAvailable = isProgrammingExercise && 
-                              dueDatePassed && 
-                              !isTeamMode && 
-                              !practiceParticipation;
+  const isPracticeAvailable = isProgrammingExercise &&
+    dueDatePassed &&
+    !isTeamMode &&
+    !practiceParticipation;
 
   // Determine which participation to use for display (practice takes precedence if active)
   const displayParticipation = practiceParticipation || firstParticipation;

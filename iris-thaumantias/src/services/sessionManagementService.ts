@@ -27,7 +27,7 @@ export class SessionManagementService {
 
         this._postMessage({ command: 'clearChatMessages' });
 
-        // Create a brand new Iris session on the backend
+        // Create a brand new Iris session on the server
         const activeContext = this._contextStore.getActiveContext();
         if (activeContext && irisSessionManager) {
             irisSessionManager.createNewSession(activeContext)

@@ -371,7 +371,7 @@ export class ExamExerciseDetailView {
             return Array.isArray(participations) ? participations : [];
         }
 
-        // Get latest submission by ID (matches Artemis frontend)
+        // Get latest submission by ID (matches Artemis client)
         // IDs are database auto-increment, guaranteed sequential with submission time
         function getLatestSubmission(participation) {
             const submissions = participation?.submissions;
@@ -385,7 +385,7 @@ export class ExamExerciseDetailView {
             });
         }
 
-        // Get latest result by completionDate (matches Artemis frontend)
+        // Get latest result by completionDate (matches Artemis client)
         // Results can complete out of order due to varying build times
         // Uses completionDate to ensure the most recently completed result is returned
         function getLatestResult(submission) {
