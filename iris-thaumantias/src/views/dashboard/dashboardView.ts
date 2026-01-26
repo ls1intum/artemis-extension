@@ -262,22 +262,6 @@ export class DashboardView {
             fullWidth: true
         })}
                 ${ButtonComponent.generate({
-            label: 'Git Credentials',
-            icon: gitIcon,
-            variant: 'secondary',
-            id: 'gitCredentialsBtn',
-            command: 'document.getElementById("gitCredentialsBtn").click()',
-            fullWidth: true
-        })}
-                ${ButtonComponent.generate({
-            label: 'Bug Report',
-            icon: bugIcon,
-            variant: 'secondary',
-            id: 'bugReportBtn',
-            command: 'document.getElementById("bugReportBtn").click()',
-            fullWidth: true
-        })}
-                ${ButtonComponent.generate({
             label: 'Logout from Artemis',
             icon: logoutIcon,
             variant: 'secondary',
@@ -287,12 +271,50 @@ export class DashboardView {
             fullWidth: true
         })}
             </div>
+            <div class="toggle-more-container">
+                ${ButtonComponent.generate({
+            label: 'Show more',
+            variant: 'link',
+            id: 'toggleMoreActionsBtn',
+            command: 'toggleMoreActions()',
+            className: 'toggle-more-btn',
+            height: '1.5rem'
+        })}
+            </div>
+            <div class="hidden-actions" id="hiddenActionsContainer" style="display: none;">
+                <div class="action-buttons">
+                    ${ButtonComponent.generate({
+            label: 'Service Status',
+            icon: stethoscopeIcon,
+            variant: 'secondary',
+            id: 'serviceStatusBtn',
+            command: 'document.getElementById("serviceStatusBtn").click()',
+            fullWidth: true
+        })}
+                    ${ButtonComponent.generate({
+            label: 'Git Credentials',
+            icon: gitIcon,
+            variant: 'secondary',
+            id: 'gitCredentialsBtn',
+            command: 'document.getElementById("gitCredentialsBtn").click()',
+            fullWidth: true
+        })}
+                    ${ButtonComponent.generate({
+            label: 'Bug Report',
+            icon: bugIcon,
+            variant: 'secondary',
+            id: 'bugReportBtn',
+            command: 'document.getElementById("bugReportBtn").click()',
+            fullWidth: true
+        })}
+                </div>
+            </div>
         `;
 
         const quickActionsContainer = ContainerComponent.generate({
             className: 'quick-actions',
             header: {
-                title: 'Quick Actions',
+                title: 'Tools & Settings',
                 divider: true
             },
             bodyHtml: quickActionsBody
@@ -332,6 +354,7 @@ export class DashboardView {
         const checkAiConfigBtn = document.getElementById('checkAiConfigBtn');
         const recommendedExtensionsBtn = document.getElementById('recommendedExtensionsBtn');
         const openWebsiteBtn = document.getElementById('openWebsiteBtn');
+        const serviceStatusBtn = document.getElementById('serviceStatusBtn');
         const gitCredentialsBtn = document.getElementById('gitCredentialsBtn');
         const bugReportBtn = document.getElementById('bugReportBtn');
         const openSettingsBtn = document.getElementById('openSettingsBtn');
@@ -379,6 +402,12 @@ export class DashboardView {
             });
         }
 
+        if (serviceStatusBtn) {
+            serviceStatusBtn.addEventListener('click', () => {
+                vscode.postMessage({ command: 'showServiceStatus' });
+            });
+        }
+
         if (gitCredentialsBtn) {
             gitCredentialsBtn.addEventListener('click', () => {
                 vscode.postMessage({ command: 'showGitCredentials' });
@@ -402,7 +431,19 @@ export class DashboardView {
                 vscode.postMessage({ command: 'logout' });
             });
         }
-        
+
+        // Toggle more actions functionality
+        window.toggleMoreActions = function() {
+            const hiddenContainer = document.getElementById('hiddenActionsContainer');
+            const toggleBtn = document.getElementById('toggleMoreActionsBtn');
+
+            if (hiddenContainer && toggleBtn) {
+                const isHidden = hiddenContainer.style.display === 'none';
+                hiddenContainer.style.display = isHidden ? 'block' : 'none';
+                toggleBtn.textContent = isHidden ? 'Show less' : 'Show more';
+            }
+        };
+
         // Recent courses functionality
         window.showAllCourses = function() {
             vscode.postMessage({ command: 'showAllCourses' });

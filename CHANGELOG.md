@@ -8,6 +8,10 @@ All notable changes to the Artemis VS Code extension will be documented in this 
 
 - **Struggle Detection**: Real-time monitoring system that tracks student coding activity to detect when they're experiencing difficulties. The system analyzes error patterns, inactivity periods, and build failures to identify struggle signals, enabling proactive assistance through Iris. Includes a developer debug panel for monitoring detection metrics in real-time.
 
+### Changed
+
+- **Dashboard Tools & Settings**: Renamed "Quick Actions" section to "Tools & Settings". Now shows only 6 buttons initially with additional options (Git Credentials, Bug Report) available via "Show more" toggle for a cleaner dashboard layout.
+
 ### Fixed
 
 - **Course List Navigation**: Clicking a course in the "All Courses" view now opens the correct course details.
