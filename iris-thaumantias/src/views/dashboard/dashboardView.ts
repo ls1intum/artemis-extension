@@ -47,6 +47,7 @@ export class DashboardView {
         const exerciseIcon = IconDefinitions.getIcon('exercise');
         const gitIcon = IconDefinitions.getIcon('git');
         const bugIcon = IconDefinitions.getIcon('bug');
+        const targetIcon = IconDefinitions.getIcon('target');
 
         // Get the path to the iris logo image
         let irisLogoSrc = '';
@@ -284,6 +285,14 @@ export class DashboardView {
             <div class="hidden-actions" id="hiddenActionsContainer" style="display: none;">
                 <div class="action-buttons">
                     ${ButtonComponent.generate({
+            label: 'Struggle Detection',
+            icon: targetIcon,
+            variant: 'secondary',
+            id: 'struggleDetectionBtn',
+            command: 'document.getElementById("struggleDetectionBtn").click()',
+            fullWidth: true
+        })}
+                    ${ButtonComponent.generate({
             label: 'Service Status',
             icon: stethoscopeIcon,
             variant: 'secondary',
@@ -354,6 +363,7 @@ export class DashboardView {
         const checkAiConfigBtn = document.getElementById('checkAiConfigBtn');
         const recommendedExtensionsBtn = document.getElementById('recommendedExtensionsBtn');
         const openWebsiteBtn = document.getElementById('openWebsiteBtn');
+        const struggleDetectionBtn = document.getElementById('struggleDetectionBtn');
         const serviceStatusBtn = document.getElementById('serviceStatusBtn');
         const gitCredentialsBtn = document.getElementById('gitCredentialsBtn');
         const bugReportBtn = document.getElementById('bugReportBtn');
@@ -399,6 +409,12 @@ export class DashboardView {
         if (openWebsiteBtn) {
             openWebsiteBtn.addEventListener('click', () => {
                 vscode.postMessage({ command: 'openWebsite' });
+            });
+        }
+
+        if (struggleDetectionBtn) {
+            struggleDetectionBtn.addEventListener('click', () => {
+                vscode.postMessage({ command: 'showStruggleDetection' });
             });
         }
 

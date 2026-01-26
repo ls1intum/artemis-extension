@@ -339,6 +339,13 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
         }
     }
 
+    public showStruggleDetection(): void {
+        this._appStateManager.showStruggleDetection();
+        if (this._view) {
+            this.render();
+        }
+    }
+
     public showGitCredentials(): void {
         this._appStateManager.showGitCredentials();
         if (this._view) {
