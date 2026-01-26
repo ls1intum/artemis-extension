@@ -325,7 +325,32 @@ export class NavigationCommandModule {
             const courseId = message.courseId || this.context.appStateManager.currentCourseData?.course?.id;
             if (courseId) {
                 this.context.appStateManager.clearCurrentCourseData();
-                await this.context.appStateManager.showCourseDetail(courseId);
+
+                // Fetch fresh course details, exercises, and exams from the API
+                const [courseDetails, exercises] = await Promise.all([
+                    this.context.artemisApi.getCourseDetails(courseId),
+                    this.context.artemisApi.getExercises(courseId)
+                ]);
+
+                // Fetch exams separately (may fail for some courses)
+                let exams: any[] = [];
+                try {
+                    exams = await this.context.artemisApi.getExamsForCourse(courseId);
+                } catch (error) {
+                    console.error('Error fetching exams during reload:', error);
+                    // Continue without exams if fetch fails
+                }
+
+                // Create the courseData structure expected by showCourseDetail
+                const courseData = {
+                    course: {
+                        ...courseDetails,
+                        exercises: exercises || [],
+                        exams: exams || []
+                    }
+                };
+
+                this.context.appStateManager.showCourseDetail(courseData);
                 this.context.actionHandler.render();
             }
         } catch (error) {
