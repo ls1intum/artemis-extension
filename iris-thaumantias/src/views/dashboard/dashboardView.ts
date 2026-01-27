@@ -8,14 +8,53 @@ import { ListItemComponent } from '../components/listItem/listItemComponent';
 import { DropdownComponent } from '../components/dropdown/dropdownComponent';
 import { ContainerComponent } from '../components/container/containerComponent';
 
+interface DashboardIcons {
+    course: string;
+    artemisLogo: string;
+    gear: string;
+    star4: string;
+    stethoscope: string;
+    logout: string;
+    puzzle: string;
+    exercise: string;
+    git: string;
+    bug: string;
+    target: string;
+}
+
+interface UserInfo {
+    username: string;
+    serverUrl: string;
+    user?: unknown;
+}
+
+interface CourseData {
+    course: {
+        id?: number;
+        title: string;
+        exercises?: Exercise[];
+        startDate?: string;
+        creationDate?: string;
+    };
+}
+
+interface Exercise {
+    releaseDate?: string;
+    startDate?: string;
+}
+
 export class DashboardView {
-    private _extensionContext: vscode.ExtensionContext;
+    private readonly _extensionContext: vscode.ExtensionContext;
 
     constructor(extensionContext: vscode.ExtensionContext) {
         this._extensionContext = extensionContext;
     }
 
-    public generateHtml(userInfo: { username: string; serverUrl: string; user?: any }, coursesData: any | undefined, webview?: vscode.Webview): string {
+    public generateHtml(
+        userInfo: UserInfo,
+        coursesData: { courses?: CourseData[] } | undefined,
+        webview?: vscode.Webview
+    ): string {
         const styles = readCssFiles(
             'dashboard/dashboard.css',
             'components/button/button.css',
@@ -25,110 +64,48 @@ export class DashboardView {
             'components/container/container.css'
         );
 
-        // Check if Iris explanation should be shown
         const config = vscode.workspace.getConfiguration(VSCODE_CONFIG.ARTEMIS_SECTION);
         const showIrisExplanation = config.get<boolean>(VSCODE_CONFIG.SHOW_IRIS_EXPLANATION_KEY, true);
 
-        return this._getDashboardHtml(userInfo, coursesData, webview, showIrisExplanation, styles);
+        return this._buildDashboardHtml({
+            userInfo,
+            coursesData,
+            webview,
+            showIrisExplanation,
+            styles
+        });
     }
 
-    private _getDashboardHtml(userInfo: { username: string; serverUrl: string; user?: any }, coursesData: any | undefined, webview: vscode.Webview | undefined, showIrisExplanation: boolean, styles: string): string {
-        const username = userInfo?.username || 'Unknown';
-        const serverUrl = userInfo?.serverUrl || 'Unknown';
+    private _loadIcons(): DashboardIcons {
+        return {
+            course: IconDefinitions.getIcon('course'),
+            artemisLogo: IconDefinitions.getIcon('artemis-logo'),
+            gear: IconDefinitions.getIcon('gear'),
+            star4: IconDefinitions.getIcon('star-4-edges'),
+            stethoscope: IconDefinitions.getIcon('stethoscope'),
+            logout: IconDefinitions.getIcon('logout'),
+            puzzle: IconDefinitions.getIcon('puzzle'),
+            exercise: IconDefinitions.getIcon('exercise'),
+            git: IconDefinitions.getIcon('git'),
+            bug: IconDefinitions.getIcon('bug'),
+            target: IconDefinitions.getIcon('target')
+        };
+    }
 
-        // Get icon SVGs
-        const courseIcon = IconDefinitions.getIcon('course');
-        const webIcon = IconDefinitions.getIcon('artemis-logo');
-        const gearIcon = IconDefinitions.getIcon('gear');
-        const star4Icon = IconDefinitions.getIcon('star-4-edges');
-        const stethoscopeIcon = IconDefinitions.getIcon('stethoscope');
-        const logoutIcon = IconDefinitions.getIcon('logout');
-        const puzzleIcon = IconDefinitions.getIcon('puzzle');
-        const exerciseIcon = IconDefinitions.getIcon('exercise');
-        const gitIcon = IconDefinitions.getIcon('git');
-        const bugIcon = IconDefinitions.getIcon('bug');
-        const targetIcon = IconDefinitions.getIcon('target');
+    private _buildDashboardHtml(options: {
+        userInfo: UserInfo;
+        coursesData: { courses?: CourseData[] } | undefined;
+        webview: vscode.Webview | undefined;
+        showIrisExplanation: boolean;
+        styles: string;
+    }): string {
+        const { userInfo, coursesData, webview, showIrisExplanation, styles } = options;
+        const icons = this._loadIcons();
 
-        // Get the path to the iris logo image
-        let irisLogoSrc = '';
-        if (webview) {
-            const irisLogoUri = vscode.Uri.file(
-                this._extensionContext.asAbsolutePath('media/iris-logo-big-left.png')
-            );
-            irisLogoSrc = webview.asWebviewUri(irisLogoUri).toString();
-        } else {
-            // Fallback to showing the "I" text if webview is not provided
-            irisLogoSrc = '';
-        }
+        const irisLogoSrc = this._getWebviewImageUri(webview, 'media/iris-logo-big-left.png');
+        const artemisLogoSrc = this._getWebviewImageUri(webview, 'media/artemis-blue.png');
 
-        // Get the path to the Artemis logo (blue) image
-        let artemisLogoSrc = '';
-        if (webview) {
-            const artemisLogoUri = vscode.Uri.file(
-                this._extensionContext.asAbsolutePath('media/artemis-blue.png')
-            );
-            artemisLogoSrc = webview.asWebviewUri(artemisLogoUri).toString();
-        }
-
-        // Generate recent courses HTML
-        let recentCoursesHtml = '';
-        let coursesDataJson = 'null';
-        let sortedCoursesJson = 'null';
-        if (coursesData?.courses) {
-            coursesDataJson = JSON.stringify(coursesData.courses);
-
-            // Sort courses by latest released exercise
-            const sortedCourses = [...coursesData.courses].sort((a: any, b: any) => {
-                const getLatestReleaseDate = (courseData: any): number => {
-                    const course = courseData.course;
-                    if (!course.exercises || course.exercises.length === 0) {
-                        return 0; // Courses without exercises go to the end
-                    }
-
-                    // Find the latest release date among all exercises
-                    const latestDate = course.exercises.reduce((latest: number, exercise: any) => {
-                        const releaseDate = exercise.releaseDate || exercise.startDate;
-                        if (releaseDate) {
-                            const timestamp = new Date(releaseDate).getTime();
-                            return timestamp > latest ? timestamp : latest;
-                        }
-                        return latest;
-                    }, 0);
-
-                    return latestDate;
-                };
-
-                const aLatest = getLatestReleaseDate(a);
-                const bLatest = getLatestReleaseDate(b);
-                return bLatest - aLatest; // Descending order (most recent first)
-            });
-
-            sortedCoursesJson = JSON.stringify(sortedCourses);
-            const recentCourses = sortedCourses.slice(0, 3);
-            recentCoursesHtml = recentCourses.map((courseData: any, index: number) => {
-                const course = courseData.course;
-                const exerciseCount = course.exercises ? course.exercises.length : 0;
-
-                // Use ListItemComponent for consistent styling
-                return ListItemComponent.generate(
-                    {
-                        className: 'recent-course-item',
-                        clickable: true,
-                        command: `viewRecentCourseDetails(${index})`,
-                        dataAttributes: {
-                            'course-index': index.toString(),
-                            'course-id': course.id?.toString() || ''
-                        }
-                    },
-                    `
-                        <div class="course-title">${course.title}</div>
-                        <div class="course-info">${exerciseCount} exercises</div>
-                    `
-                );
-            }).join('');
-        } else {
-            recentCoursesHtml = '<div class="no-courses">Loading courses...</div>';
-        }
+        const { recentCoursesHtml, coursesDataJson, sortedCoursesJson } = this._buildRecentCoursesData(coursesData?.courses);
 
         const recentCoursesContainer = ContainerComponent.generate({
             className: 'recent-courses',
@@ -221,7 +198,7 @@ export class DashboardView {
             },
             `
                         <div class="workspace-exercise-content">
-                            <div class="workspace-exercise-icon">${exerciseIcon}</div>
+                            <div class="workspace-exercise-icon">${icons.exercise}</div>
                             <div class="workspace-exercise-text">
                                 <div class="workspace-exercise-title">Current Workspace Exercise</div>
                                 <div class="workspace-exercise-name" id="workspaceExerciseName">Loading...</div>
@@ -234,7 +211,7 @@ export class DashboardView {
             <div class="action-buttons">
                 ${ButtonComponent.generate({
             label: 'Browse Courses',
-            icon: courseIcon,
+            icon: icons.course,
             variant: 'primary',
             id: 'browseCoursesBtn',
             command: 'document.getElementById("browseCoursesBtn").click()',
@@ -242,7 +219,7 @@ export class DashboardView {
         })}
                 ${ButtonComponent.generate({
             label: 'Open Settings',
-            icon: gearIcon,
+            icon: icons.gear,
             variant: 'primary',
             id: 'openSettingsBtn',
             command: 'document.getElementById("openSettingsBtn").click()',
@@ -250,7 +227,7 @@ export class DashboardView {
         })}
                 ${ButtonComponent.generate({
             label: 'AI Checker',
-            icon: star4Icon,
+            icon: icons.star4,
             variant: 'secondary',
             id: 'checkAiConfigBtn',
             command: 'document.getElementById("checkAiConfigBtn").click()',
@@ -258,7 +235,7 @@ export class DashboardView {
         })}
                 ${ButtonComponent.generate({
             label: 'Recommended Extensions',
-            icon: puzzleIcon,
+            icon: icons.puzzle,
             variant: 'secondary',
             id: 'recommendedExtensionsBtn',
             command: 'document.getElementById("recommendedExtensionsBtn").click()',
@@ -266,7 +243,7 @@ export class DashboardView {
         })}
                 ${ButtonComponent.generate({
             label: 'Open Artemis in browser',
-            icon: webIcon,
+            icon: icons.artemisLogo,
             variant: 'secondary',
             id: 'openWebsiteBtn',
             command: 'document.getElementById("openWebsiteBtn").click()',
@@ -274,7 +251,7 @@ export class DashboardView {
         })}
                 ${ButtonComponent.generate({
             label: 'Logout from Artemis',
-            icon: logoutIcon,
+            icon: icons.logout,
             variant: 'secondary',
             className: 'btn-danger',
             id: 'logoutBtn',
@@ -296,7 +273,7 @@ export class DashboardView {
                 <div class="action-buttons">
                     ${ButtonComponent.generate({
             label: 'Struggle Detection',
-            icon: targetIcon,
+            icon: icons.target,
             variant: 'secondary',
             id: 'struggleDetectionBtn',
             command: 'document.getElementById("struggleDetectionBtn").click()',
@@ -304,7 +281,7 @@ export class DashboardView {
         })}
                     ${ButtonComponent.generate({
             label: 'Service Status',
-            icon: stethoscopeIcon,
+            icon: icons.stethoscope,
             variant: 'secondary',
             id: 'serviceStatusBtn',
             command: 'document.getElementById("serviceStatusBtn").click()',
@@ -312,7 +289,7 @@ export class DashboardView {
         })}
                     ${ButtonComponent.generate({
             label: 'Git Credentials',
-            icon: gitIcon,
+            icon: icons.git,
             variant: 'secondary',
             id: 'gitCredentialsBtn',
             command: 'document.getElementById("gitCredentialsBtn").click()',
@@ -320,7 +297,7 @@ export class DashboardView {
         })}
                     ${ButtonComponent.generate({
             label: 'Bug Report',
-            icon: bugIcon,
+            icon: icons.bug,
             variant: 'secondary',
             id: 'bugReportBtn',
             command: 'document.getElementById("bugReportBtn").click()',
@@ -627,7 +604,6 @@ export class DashboardView {
                 const sortDropdown = document.getElementById('recentCoursesSort');
                 if (savedSort && sortDropdown) {
                     sortDropdown.value = savedSort;
-                    // Apply the saved sort
                     handleRecentCoursesSort(savedSort);
                 }
             } catch (e) {
@@ -637,5 +613,81 @@ export class DashboardView {
     </script>
 </body>
 </html>`;
+    }
+
+    private _getWebviewImageUri(webview: vscode.Webview | undefined, relativePath: string): string {
+        if (!webview) {
+            return '';
+        }
+        const uri = vscode.Uri.file(this._extensionContext.asAbsolutePath(relativePath));
+        return webview.asWebviewUri(uri).toString();
+    }
+
+    private _getLatestReleaseDate(courseData: CourseData): number {
+        const course = courseData.course;
+        if (!course.exercises || course.exercises.length === 0) {
+            return 0;
+        }
+
+        return course.exercises.reduce((latest: number, exercise: Exercise) => {
+            const releaseDate = exercise.releaseDate || exercise.startDate;
+            if (releaseDate) {
+                const timestamp = new Date(releaseDate).getTime();
+                return timestamp > latest ? timestamp : latest;
+            }
+            return latest;
+        }, 0);
+    }
+
+    private _sortCoursesByLatestExercise(courses: CourseData[]): CourseData[] {
+        return [...courses].sort((a, b) => {
+            const aLatest = this._getLatestReleaseDate(a);
+            const bLatest = this._getLatestReleaseDate(b);
+            return bLatest - aLatest;
+        });
+    }
+
+    private _buildRecentCoursesData(courses: CourseData[] | undefined): {
+        recentCoursesHtml: string;
+        coursesDataJson: string;
+        sortedCoursesJson: string;
+    } {
+        if (!courses) {
+            return {
+                recentCoursesHtml: '<div class="no-courses">Loading courses...</div>',
+                coursesDataJson: 'null',
+                sortedCoursesJson: 'null'
+            };
+        }
+
+        const sortedCourses = this._sortCoursesByLatestExercise(courses);
+        const recentCourses = sortedCourses.slice(0, 3);
+
+        const recentCoursesHtml = recentCourses.map((courseData, index) => {
+            const course = courseData.course;
+            const exerciseCount = course.exercises?.length ?? 0;
+
+            return ListItemComponent.generate(
+                {
+                    className: 'recent-course-item',
+                    clickable: true,
+                    command: `viewRecentCourseDetails(${index})`,
+                    dataAttributes: {
+                        'course-index': index.toString(),
+                        'course-id': course.id?.toString() || ''
+                    }
+                },
+                `
+                    <div class="course-title">${course.title}</div>
+                    <div class="course-info">${exerciseCount} exercises</div>
+                `
+            );
+        }).join('');
+
+        return {
+            recentCoursesHtml,
+            coursesDataJson: JSON.stringify(courses),
+            sortedCoursesJson: JSON.stringify(sortedCourses)
+        };
     }
 }
