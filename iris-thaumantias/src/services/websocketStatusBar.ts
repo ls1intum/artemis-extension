@@ -104,10 +104,10 @@ export class WebSocketStatusBarService implements vscode.Disposable {
         // Initial status update
         this._updateStatusFromService();
 
-        // Update tooltip every 2 seconds to catch subscription changes
+        // Update tooltip AND status bar text every 2 seconds to catch subscription changes
         this._tooltipUpdateInterval = setInterval(() => {
             if (this._isDebugMode) {
-                this._updateTooltip();
+                this._updateStatusBarItem();
             }
         }, 2000);
     }
