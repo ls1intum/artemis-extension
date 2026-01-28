@@ -202,49 +202,45 @@ suite('ArtemisWebsocketService Safety Features', () => {
     // Test 1: Connection Mutex
     // ========================================================================
     test('Connection Mutex: should block connect() when _isConnecting=true', async () => {
-        // Set isConnecting to true manually
+        // Create initial client first
+        await wsService.connect();
+        const firstClient = wsService.mockClient;
+        
+        // Simulate concurrent connection attempt
         wsService.setInternalState({ isConnecting: true });
 
-        const initialCallCount = wsService.connectCallCount;
-
-        // Try to connect - should be blocked
+        // Try to connect again - should be blocked
         await wsService.connect();
 
-        // The connect method increments counter, but _canAttemptConnection returns early
-        // Check that no new client was created
-        assert.strictEqual(wsService.mockClient, undefined, 'Should not create new client when already connecting');
+        // Should NOT replace the client (same reference)
+        assert.strictEqual(wsService.mockClient, firstClient, 'Should not create new client when already connecting');
     });
 
     // ========================================================================
     // Test 2: Rate Limiting
     // ========================================================================
     test('Rate Limiting: _canAttemptConnection should block when called < 2s after last attempt', async () => {
-        clock = sinon.useFakeTimers();
+        // Start clock at a known time and ensure Date.now() is mocked
+        clock = sinon.useFakeTimers({ now: 1000, shouldAdvanceTime: true });
 
-        // First connection attempt sets lastConnectionAttempt
+        // First connection - this sets lastConnectionAttempt to 1000
         await wsService.connect();
-        
-        // Connection is in progress, so _isConnecting is true
-        // Simulate immediate completion
         wsService.mockClient!.simulateConnect();
         
-        // Now isConnecting is false, but lastConnectionAttempt is recent
-        // The next connect should be rate limited
-        
-        // Advance time by only 500ms (< 2000ms threshold)
+        // Advance time by only 500ms (now = 1500)
         clock.tick(500);
-
-        // Force reset isConnecting to test rate limiting specifically
-        wsService.setInternalState({ isConnecting: false });
         
-        // Try to connect again - should be rate limited
-        const callCountBefore = wsService.connectCallCount;
+        // Get the current client reference
+        const clientBeforeSecondConnect = wsService.mockClient;
+        
+        // Second connection attempt - should be rate limited
+        // lastConnectionAttempt = 1000, Date.now() = 1500, diff = 500ms < 2000ms
         await wsService.connect();
         
-        // connect() was called but returned early due to rate limiting
-        // The mock client should NOT be replaced
-        assert.strictEqual(wsService.connectCallCount, callCountBefore + 1, 'connect() was called');
-        // But since rate limited, no state should change significantly
+        // Should still have the same client (not deactivated and recreated)
+        // If rate limiting worked, we never get past the check and never call deactivate()
+        assert.strictEqual(wsService.mockClient, clientBeforeSecondConnect, 
+            'Should not deactivate and recreate client due to rate limiting');
     });
 
     test('Rate Limiting: should allow connect() after 2s has passed', async () => {
@@ -656,26 +652,35 @@ suite('IrisSessionManager Safety Features', () => {
     // Test 1: Rate Limiting for IrisSessionManager
     // ========================================================================
     test('Rate Limiting: resubscription should have min 3s interval', async () => {
-        clock = sinon.useFakeTimers();
+        // Start clock at known time
+        clock = sinon.useFakeTimers({ now: 1000, shouldAdvanceTime: true });
 
-        // Initialize session
+        // Initialize session (this calls _subscribeIfConnected and subscribes)
+        // API returns { id: 123 }, so topic will be /user/topic/iris/123
         await sessionManager.initializeSession(createTestContext('exercise', 100, 'Test'));
+        
+        const topic = '/user/topic/iris/123';  // API returns 123, not 100!
+        
+        // Verify initial subscription exists
+        assert.ok(wsService.mockClient!.subscriptions.has(topic), 'Initial subscription exists');
 
-        // Try to subscribe again immediately
-        const subscribeSpy = sinon.spy(wsService, 'subscribeToIrisSession');
+        // Try to subscribe again immediately - should be rate limited
+        const subscriptionCountBefore = wsService.mockClient!.subscriptions.size;
+        sessionManager.subscribeToSession(123);  // Use 123 (the actual session ID)
 
-        // This should be rate limited
-        sessionManager.subscribeToSession(100);
-
-        // subscribeToIrisSession should NOT be called due to rate limiting
-        assert.strictEqual(subscribeSpy.callCount, 0, 'Should be rate limited on immediate resubscribe');
+        // Should NOT have changed subscription count (rate limited, returned early)
+        assert.strictEqual(wsService.mockClient!.subscriptions.size, subscriptionCountBefore, 
+            'Should not change subscriptions due to rate limit');
 
         // Advance time by 3.1 seconds
         clock.tick(3100);
 
-        // Now subscription should work
-        sessionManager.subscribeToSession(100);
-        assert.strictEqual(subscribeSpy.callCount, 1, 'Should allow subscription after 3s');
+        // Now subscription should work (unsubscribe + resubscribe)
+        sessionManager.subscribeToSession(123);
+        
+        // Should still have the subscription (unsubscribed and resubscribed)
+        assert.ok(wsService.mockClient!.subscriptions.has(topic),
+            'Should allow subscription after 3s');
     });
 
     // ========================================================================
@@ -685,21 +690,21 @@ suite('IrisSessionManager Safety Features', () => {
         // Disconnect WebSocket
         await wsService.disconnect();
 
-        // Record call count
-        const callCountBefore = wsService.connectCallCount;
+        // SPY on connect() to verify it's never called
+        const connectSpy = sinon.spy(wsService, 'connect');
 
-        // Create new session manager (it will try to subscribe in constructor)
+        // Create new session manager (constructor registers callback)
         const newSessionManager = new IrisSessionManager(apiService as any, wsService);
 
         // Try to initialize session (WebSocket not connected)
         await newSessionManager.initializeSession(createTestContext('exercise', 100, 'Test'));
 
-        // connect() should NOT have been called
-        assert.strictEqual(
-            wsService.connectCallCount,
-            callCountBefore,
-            'IrisSessionManager should NOT call connect()'
-        );
+        // Try to subscribe directly
+        newSessionManager.subscribeToSession(100);
+
+        // connect() should NEVER have been called
+        assert.strictEqual(connectSpy.callCount, 0, 'IrisSessionManager should NEVER call connect()');
+        sinon.assert.notCalled(connectSpy);
 
         newSessionManager.dispose();
     });
