@@ -2,7 +2,7 @@
   "name": "iris-thaumantias",
   "displayName": "Artemis - TUM",
   "description": "Artemis brings interactive learning to life with instant, individual feedback on programming exercises, quizzes, modeling tasks, and more. This VS Code extension integrates Iris, an LLM-based virtual assistant that supports students with instant answers about exercises, lectures, and learning performance. Iris provides context-aware, personalized assistance for programming exercises, encouraging independent problem-solving through subtle hints and guiding questions instead of giving full solutions.",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "publisher": "aet-tum",
   "license": "MIT",
   "icon": "media/artemis-blue.png",
@@ -117,6 +117,11 @@
           "default": true,
           "description": "Hide developer tools and debugging buttons"
         },
+        "artemis.debugMode": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "Enable debug mode to show additional developer tools like WebSocket status in the status bar. Useful for troubleshooting connection issues."
+        },
         "artemis.defaultCommitMessage": {
           "type": "string",
           "default": "Solution submission via Iris extension",
@@ -179,7 +184,8 @@
     "typescript": "5.9.3"
   },
   "dependencies": {
-    "@stomp/stompjs": "7.2.1",
+    "@stomp/stompjs": "^7.2.1",
+    "rxjs": "^7.8.2",
     "ws": "8.19.0"
   }
 }

@@ -4,7 +4,7 @@ import * as vscode from 'vscode';
 import { ArtemisWebviewProvider, ChatWebviewProvider, BuildErrorCodeLensProvider } from './provider';
 import { AuthManager } from './auth';
 import { ArtemisApiService } from './api';
-import { ArtemisWebsocketService } from './services';
+import { ArtemisWebsocketService, WebSocketStatusBarService } from './services';
 import { ProviderRegistry } from './services/ProviderRegistry';
 import { VSCODE_CONFIG, processPlantUml, normalizeRelativePath } from './utils';
 
@@ -21,6 +21,9 @@ export async function activate(context: vscode.ExtensionContext) {
 	const artemisApiService = new ArtemisApiService(authManager);
 	const artemisWebsocketService = new ArtemisWebsocketService(authManager);
 	const buildErrorCodeLensProvider = new BuildErrorCodeLensProvider();
+	
+	// Initialize WebSocket debug status bar (only visible when debugMode is enabled)
+	const websocketStatusBarService = new WebSocketStatusBarService(artemisWebsocketService);
 
 	// Register CodeLens provider for all languages
 	context.subscriptions.push(
@@ -316,6 +319,10 @@ export async function activate(context: vscode.ExtensionContext) {
 				``,
 				`**Reconnection:**`,
 				`• Attempts: ${debugInfo.reconnectAttempts}/${debugInfo.maxReconnectAttempts}`,
+				`• Current Delay: ${debugInfo.currentReconnectDelay}ms`,
+				`• Gave Up: ${debugInfo.connectionGaveUp ? 'Yes ⛔' : 'No'}`,
+				`• Session ID: ${debugInfo.sessionId}`,
+				`• Callbacks: ${debugInfo.callbackCount}`,
 			);
 
 			const message = statusLines.join('\n');
@@ -325,6 +332,9 @@ export async function activate(context: vscode.ExtensionContext) {
 			if (!debugInfo.hasCookie) {
 				// Not logged in
 				actions = ['Login to Artemis', 'Show Details', 'Copy to Clipboard'];
+			} else if (debugInfo.connectionGaveUp) {
+				// Gave up on reconnecting
+				actions = ['Reset & Retry', 'Show Details', 'Copy to Clipboard'];
 			} else if (!isConnected) {
 				// Logged in but not connected
 				actions = ['Retry Connection', 'Show Details', 'Copy to Clipboard'];
@@ -335,7 +345,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
 			// Show in a modal with action buttons
 			const action = await vscode.window.showInformationMessage(
-				`${icon} WebSocket: ${isConnected ? 'Connected' : 'Disconnected'}${!debugInfo.hasCookie ? ' (Not logged in)' : ''}`,
+				`${icon} WebSocket: ${isConnected ? 'Connected' : 'Disconnected'}${debugInfo.connectionGaveUp ? ' (gave up)' : ''}${!debugInfo.hasCookie ? ' (Not logged in)' : ''}`,
 				{ modal: false },
 				...actions
 			);
@@ -343,9 +353,10 @@ export async function activate(context: vscode.ExtensionContext) {
 			if (action === 'Login to Artemis') {
 				// Open the Artemis sidebar to login
 				await vscode.commands.executeCommand('artemis.loginView.focus');
-			} else if (action === 'Retry Connection') {
-				// Try to reconnect
+			} else if (action === 'Reset & Retry' || action === 'Retry Connection') {
+				// Reset connection state and try to reconnect
 				try {
+					artemisWebsocketService.resetConnectionState();
 					await artemisWebsocketService.connect();
 					vscode.window.showInformationMessage('WebSocket connection attempt started...');
 				} catch (error) {
@@ -538,6 +549,7 @@ export async function activate(context: vscode.ExtensionContext) {
 	context.subscriptions.push(renderPlantUmlFromWebviewCommand);
 	context.subscriptions.push(configChangeListener);
 	context.subscriptions.push(artemisWebsocketService);
+	context.subscriptions.push(websocketStatusBarService);
 }
 
 // This method is called when your extension is deactivated
