@@ -614,7 +614,7 @@ suite('IrisSessionManager Safety Features', () => {
     let apiService: sinon.SinonStubbedInstance<ArtemisApiService>;
     let sessionManager: IrisSessionManager;
     let context: MockExtensionContext;
-    let clock: sinon.SinonFakeTimers;
+    let clock: sinon.SinonFakeTimers | undefined;
 
     setup(async () => {
         context = new MockExtensionContext();
@@ -652,9 +652,8 @@ suite('IrisSessionManager Safety Features', () => {
     // Test 1: Rate Limiting for IrisSessionManager
     // ========================================================================
     test('Rate Limiting: resubscription should have min 3s interval', async () => {
-        // Start clock at known time
-        clock = sinon.useFakeTimers({ now: 1000, shouldAdvanceTime: true });
-
+        // Don't use fake timers for this test - they interfere with IrisSessionManager's Date.now()
+        
         // Initialize session (this calls _subscribeIfConnected and subscribes)
         // API returns { id: 123 }, so topic will be /user/topic/iris/123
         await sessionManager.initializeSession(createTestContext('exercise', 100, 'Test'));
@@ -672,8 +671,8 @@ suite('IrisSessionManager Safety Features', () => {
         assert.strictEqual(wsService.mockClient!.subscriptions.size, subscriptionCountBefore, 
             'Should not change subscriptions due to rate limit');
 
-        // Advance time by 3.1 seconds
-        clock.tick(3100);
+        // Wait 3.1 seconds for real
+        await new Promise(resolve => setTimeout(resolve, 3100));
 
         // Now subscription should work (unsubscribe + resubscribe)
         sessionManager.subscribeToSession(123);
@@ -681,7 +680,7 @@ suite('IrisSessionManager Safety Features', () => {
         // Should still have the subscription (unsubscribed and resubscribed)
         assert.ok(wsService.mockClient!.subscriptions.has(topic),
             'Should allow subscription after 3s');
-    });
+    }).timeout(5000);  // Increase timeout since we're waiting for real
 
     // ========================================================================
     // Test 2: No connect() Calls from IrisSessionManager
