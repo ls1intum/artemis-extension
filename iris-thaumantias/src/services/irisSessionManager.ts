@@ -3,9 +3,28 @@ import { ArtemisApiService } from '../api';
 import { ArtemisWebsocketService } from './artemisWebsocketService';
 import { ActiveContext } from '../types';
 
+/**
+ * Minimum interval between resubscription attempts (milliseconds).
+ * Prevents rapid resubscription loops.
+ */
+const MIN_RESUBSCRIBE_INTERVAL_MS = 3000;
+
+/**
+ * Manages Iris chat sessions and WebSocket subscriptions.
+ * 
+ * SAFETY FEATURES to prevent connection flooding:
+ * 1. Stores unsubscribe function for connection state callback
+ * 2. Rate-limits resubscription attempts
+ * 3. Does NOT call connect() - only subscribes if already connected
+ * 4. Tracks subscription state to prevent duplicate subscriptions
+ */
 export class IrisSessionManager implements vscode.Disposable {
     private _currentArtemisSessionId?: number;
     private _irisUnsubscribe?: () => void;
+    private _connectionStateUnsubscribe?: () => void; // NEW: Store unsubscribe function
+    private _lastResubscribeAttempt: number = 0; // NEW: Rate limiting
+    private _isSubscribed: boolean = false; // NEW: Track subscription state
+    
     private readonly _onDidReceiveMessage = new vscode.EventEmitter<any>();
     public readonly onDidReceiveMessage = this._onDidReceiveMessage.event;
     private readonly _onDidConnectionStateChange = new vscode.EventEmitter<boolean>();
@@ -19,6 +38,14 @@ export class IrisSessionManager implements vscode.Disposable {
     }
 
     public dispose(): void {
+        console.log('[IrisSessionManager] Disposing...');
+        
+        // Unsubscribe from connection state changes FIRST
+        if (this._connectionStateUnsubscribe) {
+            this._connectionStateUnsubscribe();
+            this._connectionStateUnsubscribe = undefined;
+        }
+        
         this.unsubscribe();
         this._onDidReceiveMessage.dispose();
         this._onDidConnectionStateChange.dispose();
@@ -30,10 +57,15 @@ export class IrisSessionManager implements vscode.Disposable {
 
     public unsubscribe(): void {
         if (this._irisUnsubscribe) {
-            console.log('[IrisSessionManager] Unsubscribing from previous Iris session');
-            this._irisUnsubscribe();
+            console.log('[IrisSessionManager] Unsubscribing from Iris session');
+            try {
+                this._irisUnsubscribe();
+            } catch (e) {
+                console.error('[IrisSessionManager] Error during unsubscribe:', e);
+            }
             this._irisUnsubscribe = undefined;
         }
+        this._isSubscribed = false;
     }
 
     public async initializeSession(context: ActiveContext, storedSessionId?: number): Promise<number> {
@@ -58,7 +90,7 @@ export class IrisSessionManager implements vscode.Disposable {
         }
 
         this._currentArtemisSessionId = sessionId;
-        this.subscribeToSession(sessionId);
+        await this._subscribeIfConnected(sessionId);
         return sessionId;
     }
 
@@ -75,50 +107,83 @@ export class IrisSessionManager implements vscode.Disposable {
         }
 
         this._currentArtemisSessionId = newSession.id;
-        this.subscribeToSession(newSession.id);
+        await this._subscribeIfConnected(newSession.id);
         return newSession.id;
     }
 
-    public subscribeToSession(sessionId: number): void {
+    /**
+     * Subscribe to session ONLY if WebSocket is already connected.
+     * Does NOT attempt to connect - that would cause a loop!
+     * 
+     * SAFETY: This method never calls connect() on the WebSocket service.
+     */
+    private async _subscribeIfConnected(sessionId: number): Promise<void> {
+        // Check rate limiting
+        const now = Date.now();
+        const timeSinceLastAttempt = now - this._lastResubscribeAttempt;
+        if (timeSinceLastAttempt < MIN_RESUBSCRIBE_INTERVAL_MS) {
+            console.log(`[IrisSessionManager] Rate limited: ${MIN_RESUBSCRIBE_INTERVAL_MS - timeSinceLastAttempt}ms until next subscribe`);
+            return;
+        }
+        this._lastResubscribeAttempt = now;
+
+        // Unsubscribe from previous session first
         this.unsubscribe();
 
-        if (this._websocketService.isConnected()) {
-            console.log('[IrisSessionManager] Subscribing to Iris WebSocket session:', sessionId);
-            try {
-                this._irisUnsubscribe = this._websocketService.subscribeToIrisSession(
-                    sessionId,
-                    (data: any) => this._handleWebSocketMessage(data)
-                );
-                console.log('[IrisSessionManager] Successfully subscribed');
-            } catch (error) {
-                console.error('[IrisSessionManager] Failed to subscribe:', error);
-            }
-        } else {
-            console.log('[IrisSessionManager] WebSocket not connected, attempting to connect...');
-            this._websocketService.connect().then(() => {
-                console.log('[IrisSessionManager] Connected, subscribing to:', sessionId);
-                this._irisUnsubscribe = this._websocketService.subscribeToIrisSession(
-                    sessionId,
-                    (data: any) => this._handleWebSocketMessage(data)
-                );
-            }).catch(err => {
-                console.error('[IrisSessionManager] Failed to connect WebSocket:', err);
-            });
+        if (!this._websocketService.isConnected()) {
+            console.log('[IrisSessionManager] WebSocket not connected, will subscribe when connected');
+            // NOTE: We do NOT call connect() here! The connection state callback will handle this.
+            return;
         }
+
+        console.log('[IrisSessionManager] Subscribing to Iris WebSocket session:', sessionId);
+        try {
+            this._irisUnsubscribe = this._websocketService.subscribeToIrisSession(
+                sessionId,
+                (data: any) => this._handleWebSocketMessage(data)
+            );
+            this._isSubscribed = true;
+            console.log('[IrisSessionManager] Successfully subscribed to session:', sessionId);
+        } catch (error) {
+            console.error('[IrisSessionManager] Failed to subscribe:', error);
+            this._isSubscribed = false;
+        }
+    }
+
+    /**
+     * Public method to explicitly subscribe to a session.
+     * Use this when you know the WebSocket should be connected.
+     */
+    public subscribeToSession(sessionId: number): void {
+        this._subscribeIfConnected(sessionId);
     }
 
     private _handleWebSocketMessage(data: any): void {
         this._onDidReceiveMessage.fire(data);
     }
 
+    /**
+     * Monitor WebSocket connection state and resubscribe when reconnected.
+     * 
+     * SAFETY FEATURES:
+     * 1. Stores unsubscribe function to prevent callback accumulation
+     * 2. Does NOT call connect() - only subscribes if already connected
+     * 3. Rate-limits resubscription attempts
+     */
     private _startWebSocketMonitoring(): void {
-        this._websocketService.onConnectionStateChange((isConnected: boolean) => {
+        // IMPORTANT: Store the unsubscribe function!
+        this._connectionStateUnsubscribe = this._websocketService.onConnectionStateChange((isConnected: boolean) => {
             console.log('[IrisSessionManager] WebSocket connection state changed:', isConnected);
             this._onDidConnectionStateChange.fire(isConnected);
 
-            if (isConnected && this._currentArtemisSessionId) {
+            // Only resubscribe if:
+            // 1. We just connected
+            // 2. We have a session to subscribe to
+            // 3. We're not already subscribed
+            if (isConnected && this._currentArtemisSessionId && !this._isSubscribed) {
                 console.log('[IrisSessionManager] Reconnected, resubscribing to session:', this._currentArtemisSessionId);
-                this.subscribeToSession(this._currentArtemisSessionId);
+                // NOTE: _subscribeIfConnected does NOT call connect() - it's safe!
+                this._subscribeIfConnected(this._currentArtemisSessionId);
             }
         });
     }

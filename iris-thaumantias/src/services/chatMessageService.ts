@@ -83,21 +83,39 @@ export class ChatMessageService {
         }
     }
 
+    /**
+     * Ensure WebSocket is connected before sending a message.
+     * 
+     * SAFETY: Uses ensureConnection() which has all safety guards:
+     * - Rate limiting
+     * - Max attempts
+     * - Mutex protection
+     */
     private async _ensureWebSocketConnection(): Promise<void> {
         console.log('[WebsocketLog] 🔍 Checking WebSocket connection before sending message...');
-        if (this._websocketService && !this._websocketService.isConnected()) {
-            console.log('[WebsocketLog] ⚠️ WebSocket not connected, attempting to connect...');
-            try {
-                await this._websocketService.connect();
-                console.log('[WebsocketLog] ✅ WebSocket connected successfully');
-            } catch (error) {
-                console.error('[WebsocketLog] ❌ Failed to connect WebSocket:', error);
-                vscode.window.showWarningMessage('WebSocket connection failed. You may not receive responses in real-time.');
-            }
-        } else if (this._websocketService) {
-            console.log('[WebsocketLog] ✅ WebSocket already connected');
-        } else {
+        if (!this._websocketService) {
             console.warn('[WebsocketLog] ⚠️ No WebSocket service available');
+            return;
+        }
+        
+        if (this._websocketService.isConnected()) {
+            console.log('[WebsocketLog] ✅ WebSocket already connected');
+            return;
+        }
+        
+        console.log('[WebsocketLog] ⚠️ WebSocket not connected, attempting to connect...');
+        try {
+            // Use ensureConnection() which has all safety guards
+            const connected = await this._websocketService.ensureConnection();
+            if (connected) {
+                console.log('[WebsocketLog] ✅ WebSocket connected successfully');
+            } else {
+                console.warn('[WebsocketLog] ⚠️ WebSocket connection not established');
+                vscode.window.showWarningMessage('WebSocket connection not available. You may not receive responses in real-time.');
+            }
+        } catch (error) {
+            console.error('[WebsocketLog] ❌ Failed to connect WebSocket:', error);
+            vscode.window.showWarningMessage('WebSocket connection failed. You may not receive responses in real-time.');
         }
     }
 
