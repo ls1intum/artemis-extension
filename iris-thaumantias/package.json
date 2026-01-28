@@ -117,6 +117,11 @@
           "default": true,
           "description": "Hide developer tools and debugging buttons"
         },
+        "artemis.debugMode": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "Enable debug mode to show additional developer tools like WebSocket status in the status bar. Useful for troubleshooting connection issues."
+        },
         "artemis.defaultCommitMessage": {
           "type": "string",
           "default": "Solution submission via Iris extension",

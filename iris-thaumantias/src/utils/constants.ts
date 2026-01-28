@@ -34,6 +34,7 @@ export const VSCODE_CONFIG = {
     DEFAULT_COMMIT_MESSAGE_KEY: 'defaultCommitMessage',
     DEFAULT_CLONE_PATH_KEY: 'defaultClonePath',
     SHOW_SET_DEFAULT_CLONE_PATH_PROMPT_KEY: 'showSetDefaultClonePathPrompt',
+    DEBUG_MODE_KEY: 'debugMode',
 } as const;
 
 // File processing constants

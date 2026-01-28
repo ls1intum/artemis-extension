@@ -4,7 +4,7 @@ import * as vscode from 'vscode';
 import { ArtemisWebviewProvider, ChatWebviewProvider, BuildErrorCodeLensProvider } from './provider';
 import { AuthManager } from './auth';
 import { ArtemisApiService } from './api';
-import { ArtemisWebsocketService } from './services';
+import { ArtemisWebsocketService, WebSocketStatusBarService } from './services';
 import { ProviderRegistry } from './services/ProviderRegistry';
 import { VSCODE_CONFIG, processPlantUml, normalizeRelativePath } from './utils';
 
@@ -21,6 +21,9 @@ export async function activate(context: vscode.ExtensionContext) {
 	const artemisApiService = new ArtemisApiService(authManager);
 	const artemisWebsocketService = new ArtemisWebsocketService(authManager);
 	const buildErrorCodeLensProvider = new BuildErrorCodeLensProvider();
+	
+	// Initialize WebSocket debug status bar (only visible when debugMode is enabled)
+	const websocketStatusBarService = new WebSocketStatusBarService(artemisWebsocketService);
 
 	// Register CodeLens provider for all languages
 	context.subscriptions.push(
@@ -546,6 +549,7 @@ export async function activate(context: vscode.ExtensionContext) {
 	context.subscriptions.push(renderPlantUmlFromWebviewCommand);
 	context.subscriptions.push(configChangeListener);
 	context.subscriptions.push(artemisWebsocketService);
+	context.subscriptions.push(websocketStatusBarService);
 }
 
 // This method is called when your extension is deactivated
