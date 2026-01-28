@@ -6,29 +6,11 @@ All notable changes to the Artemis VS Code extension will be documented in this 
 
 ### Fixed
 
-- **CRITICAL: WebSocket Connection Flooding Prevention**: Complete overhaul of WebSocket handling to prevent connection flooding that could cause up to 120,000 connections in extreme cases
-  
-  **Root Cause Fixed:**
-  - `IrisSessionManager` was calling `connect()` in a loop via `subscribeToSession()` → connection state callback → `subscribeToSession()` → repeat
-  - Connection state callbacks accumulated without cleanup, causing exponential callback invocations
-  - Mutex check happened AFTER `deactivate()`, allowing the loop to bypass protection
-  
-  **Safety Features Added:**
-  - **Rate Limiting**: Minimum 2 seconds between connection attempts (cannot be bypassed)
-  - **Max Attempts**: After 20 failed attempts, gives up completely (user must manually reset)
-  - **Proper Mutex**: Connection check happens BEFORE any deactivation
-  - **Disconnect Flag**: `_isDisconnecting` prevents reconnect triggers during intentional disconnect
-  - **Callback Cleanup**: `onConnectionStateChange()` now returns unsubscribe function to prevent accumulation
-  - **No Loop**: `IrisSessionManager` no longer calls `connect()` - only subscribes if already connected
-  - **Resubscription Rate Limiting**: Minimum 3 seconds between resubscription attempts
-  - **Subscription State Tracking**: Prevents duplicate subscriptions
-  
-  **Matching Artemis Webapp Behavior:**
-  - Exponential backoff: 500ms initial, doubling up to 10s max
-  - 5-second debounced disconnect notifications (CONNECTION_STATE_DELAY_MS)
-  - 10-second heartbeat intervals
-  - Secure 12-character session IDs
-  - User-Agent header for server-side identification
+- **CRITICAL: WebSocket Connection Flooding Prevention**: Fixed critical bug that could cause up to 120,000 connections. Added comprehensive safety features including rate limiting (min 2s between attempts), max attempts (20), connection mutex, and callback cleanup. Added 22 new safety tests.
+
+### Added
+
+- **WebSocket Debug StatusBar**: New optional debug tool (enable via `artemis.debugMode` setting) showing real-time connection status with subscription count, detailed hover info, and quick actions menu.
 
 ## [0.3.1] - 2025-12-19
 
