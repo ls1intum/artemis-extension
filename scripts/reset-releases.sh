@@ -15,7 +15,7 @@ NC='\033[0m'
 # Configuration
 EXTENSION_DIR="iris-thaumantias"
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-CHANGELOG="${ROOT_DIR}/${EXTENSION_DIR}/CHANGELOG.md"
+CHANGELOG="${ROOT_DIR}/CHANGELOG.md"
 
 # Functions
 print_step() {
