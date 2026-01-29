@@ -12,7 +12,7 @@
     "url": "https://github.com/ls1intum/artemis-extension"
   },
   "engines": {
-    "vscode": "^1.108.0"
+    "vscode": "^1.97.0"
   },
   "categories": [
     "Education",
