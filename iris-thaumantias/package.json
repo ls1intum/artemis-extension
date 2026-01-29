@@ -12,7 +12,7 @@
     "url": "https://github.com/ls1intum/artemis-extension"
   },
   "engines": {
-    "vscode": "^1.970"
+    "vscode": "^1.97.0"
   },
   "categories": [
     "Education",
@@ -171,12 +171,12 @@
     "coverage:all": "npm run compile-tests && npm run compile && npm run lint && vscode-test --coverage",
     "clean": "rm -rf dist out *.vsix",
     "compile:clean": "npm run clean && npm run compile"
-  },97.0
+  },
   "devDependencies": {
     "@types/mocha": "10.0.10",
     "@types/node": "24.10.9",
     "@types/sinon": "^21.0.0",
-    "@types/vscode": "1.108.1",
+    "@types/vscode": "1.97.0",
     "@types/ws": "8.18.1",
     "@typescript-eslint/eslint-plugin": "8.53.1",
     "@typescript-eslint/parser": "8.53.1",
