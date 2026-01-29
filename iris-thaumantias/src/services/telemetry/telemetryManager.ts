@@ -355,10 +355,18 @@ export class TelemetryManager implements vscode.Disposable {
      * Get emoji based on score
      */
     private _getScoreEmoji(score: number): string {
-        if (score < 20) return '$(pass-filled)';
-        if (score < 35) return '$(circle-filled)';
-        if (score < 55) return '$(warning)';
-        if (score < 75) return '$(flame)';
+        if (score < 20) {
+            return '$(pass-filled)';
+        }
+        if (score < 35) {
+            return '$(circle-filled)';
+        }
+        if (score < 55) {
+            return '$(warning)';
+        }
+        if (score < 75) {
+            return '$(flame)';
+        }
         return '$(alert)';
     }
 
@@ -378,8 +386,12 @@ export class TelemetryManager implements vscode.Disposable {
      * Get background color based on score
      */
     private _getScoreBackground(score: number): vscode.ThemeColor | undefined {
-        if (score < 35) return undefined;
-        if (score < 55) return new vscode.ThemeColor('statusBarItem.warningBackground');
+        if (score < 35) {
+            return undefined;
+        }
+        if (score < 55) {
+            return new vscode.ThemeColor('statusBarItem.warningBackground');
+        }
         return new vscode.ThemeColor('statusBarItem.errorBackground');
     }
 
