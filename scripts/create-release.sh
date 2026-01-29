@@ -16,7 +16,7 @@ NC='\033[0m' # No Color
 EXTENSION_DIR="iris-thaumantias"
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PACKAGE_JSON="${ROOT_DIR}/${EXTENSION_DIR}/package.json"
-CHANGELOG="${ROOT_DIR}/${EXTENSION_DIR}/CHANGELOG.md"
+CHANGELOG="${ROOT_DIR}/CHANGELOG.md"
 
 # Functions
 print_step() {
