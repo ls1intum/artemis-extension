@@ -2,13 +2,11 @@
 
 All notable changes to the Artemis VS Code extension will be documented in this file.
 
-## [Unreleased]
-
 ## [0.3.3] - 2026-01-29
 
 ### Fixed
 
-- **User-Agent Tracking**: Ensured User-Agent header ('VS Code Extension') is consistently set on all API and WebSocket requests for improved server-side tracking and debugging. This allows server administrators to clearly distinguish Extension traffic from other clients.
+- **User-Agent Tracking**: Ensured User-Agent header ('VS Code Extension') is consistently set on all API and WebSocket requests.
 
 ## [0.3.2] - 2026-01-28
 

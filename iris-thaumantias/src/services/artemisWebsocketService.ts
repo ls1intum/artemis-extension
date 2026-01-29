@@ -50,18 +50,18 @@ export class ArtemisWebsocketService {
     private _reconnectAttempts: number = 0;
     private _lastConnectionAttempt: number = 0; // NEW: Track last attempt time
     private _connectionGaveUp: boolean = false; // NEW: Track if we gave up
-    
+
     // Artemis webapp uses these values (see websocket.service.ts lines 305-314)
     private readonly _initialReconnectDelay: number = 500;  // Start at 500ms like webapp
     private readonly _maxReconnectDelay: number = 10000;    // Max 10 seconds like webapp
     private readonly _connectionTimeout: number = 10000;    // Abort connection after 10s (like webapp)
     private readonly _heartbeatInterval: number = 10000;    // 10 seconds for heartbeats
-    
+
     // Track connection state for debounced notifications
     private _wasConnectedOnce: boolean = false;
     private _connectionStateDebounceTimer?: ReturnType<typeof setTimeout>;
     private _pendingDisconnectNotification: boolean = false;
-    
+
     private _subscriptions: Map<string, StompSubscription> = new Map();
     private _subscriptionCounter: number = 0;
     private _sessionId: string = '';
@@ -104,10 +104,10 @@ export class ArtemisWebsocketService {
         const callbackId = `cb_${++this._callbackIdCounter}`;
         this._connectionStateCallbacks.set(callbackId, callback);
         this._log(`Connection state callback registered: ${callbackId} (total: ${this._connectionStateCallbacks.size})`);
-        
+
         // Immediately notify of current state
         callback(this._isConnected, this._wasConnectedOnce);
-        
+
         // Return unsubscribe function
         return () => {
             this._connectionStateCallbacks.delete(callbackId);
@@ -173,34 +173,34 @@ export class ArtemisWebsocketService {
         if (this._connectionGaveUp) {
             return { allowed: false, reason: 'Max connection attempts reached. Call resetConnectionState() to retry.' };
         }
-        
+
         // Check if already connecting
         if (this._isConnecting) {
             return { allowed: false, reason: 'Connection already in progress' };
         }
-        
+
         // Check if disconnecting
         if (this._isDisconnecting) {
             return { allowed: false, reason: 'Disconnect in progress' };
         }
-        
+
         // Check rate limiting
         const now = Date.now();
         const timeSinceLastAttempt = now - this._lastConnectionAttempt;
         if (this._lastConnectionAttempt > 0 && timeSinceLastAttempt < MIN_CONNECTION_INTERVAL_MS) {
-            return { 
-                allowed: false, 
-                reason: `Rate limited: ${MIN_CONNECTION_INTERVAL_MS - timeSinceLastAttempt}ms until next attempt` 
+            return {
+                allowed: false,
+                reason: `Rate limited: ${MIN_CONNECTION_INTERVAL_MS - timeSinceLastAttempt}ms until next attempt`
             };
         }
-        
+
         // Check max attempts
         if (this._reconnectAttempts >= MAX_CONNECTION_ATTEMPTS) {
             this._connectionGaveUp = true;
             this._log(`🛑 MAX CONNECTION ATTEMPTS (${MAX_CONNECTION_ATTEMPTS}) REACHED - GIVING UP`);
             return { allowed: false, reason: `Max attempts (${MAX_CONNECTION_ATTEMPTS}) reached` };
         }
-        
+
         return { allowed: true };
     }
 
@@ -352,7 +352,7 @@ export class ArtemisWebsocketService {
     public async disconnect(): Promise<void> {
         // Set flag to prevent reconnect loop
         this._isDisconnecting = true;
-        
+
         // Clear any pending disconnect notification
         if (this._connectionStateDebounceTimer) {
             clearTimeout(this._connectionStateDebounceTimer);
@@ -382,7 +382,7 @@ export class ArtemisWebsocketService {
             this._client = undefined;
             this._isConnected = false;
             this._isConnecting = false;
-            
+
             // Reset all state on intentional disconnect
             this._wasConnectedOnce = false;
             this._reconnectAttempts = 0;
@@ -392,7 +392,7 @@ export class ArtemisWebsocketService {
             this._pendingDisconnectNotification = false;
             this._sessionId = this._generateSecureSessionId();
         }
-        
+
         this._isDisconnecting = false;
     }
 
@@ -669,11 +669,11 @@ export class ArtemisWebsocketService {
      */
     public dispose(): void {
         this._log('Disposing WebSocket service');
-        
+
         // Clear all callbacks to prevent memory leaks
         this._connectionStateCallbacks.clear();
         this._messageHandlers = [];
-        
+
         if (this._connectionStateDebounceTimer) {
             clearTimeout(this._connectionStateDebounceTimer);
             this._connectionStateDebounceTimer = undefined;
@@ -689,20 +689,20 @@ export class ArtemisWebsocketService {
             this._log('Ignoring onConnected during disconnect');
             return;
         }
-        
+
         this._isConnected = true;
         this._isConnecting = false;
         this._reconnectAttempts = 0; // Reset on successful connection
         this._connectionGaveUp = false; // Allow future reconnects
         this._wasConnectedOnce = true;
-        
+
         // Cancel any pending disconnect notification
         if (this._connectionStateDebounceTimer) {
             clearTimeout(this._connectionStateDebounceTimer);
             this._connectionStateDebounceTimer = undefined;
             this._pendingDisconnectNotification = false;
         }
-        
+
         this._log('✅ Connected to Artemis WebSocket');
 
         // Immediately notify of connection (no delay for connect events)
@@ -729,7 +729,7 @@ export class ArtemisWebsocketService {
             this._log('Ignoring onDisconnected during intentional disconnect');
             return;
         }
-        
+
         this._isConnected = false;
         // NOTE: Do NOT reset _isConnecting here - it's managed by connect()
         this._subscriptions.clear();
@@ -749,7 +749,7 @@ export class ArtemisWebsocketService {
 
         // Track reconnect attempts for logging and max limit
         this._reconnectAttempts++;
-        
+
         if (this._reconnectAttempts >= MAX_CONNECTION_ATTEMPTS) {
             this._connectionGaveUp = true;
             this._log(`🛑 MAX RECONNECTION ATTEMPTS (${MAX_CONNECTION_ATTEMPTS}) REACHED`);
@@ -758,7 +758,7 @@ export class ArtemisWebsocketService {
             const nextDelay = this._getReconnectDelay();
             this._log(`STOMP will attempt reconnection with delay: ${nextDelay}ms (attempt ${this._reconnectAttempts}/${MAX_CONNECTION_ATTEMPTS})`);
         }
-        
+
         // IMPORTANT: We do NOT call connect() here!
         // The STOMP library handles automatic reconnection.
         // Calling connect() here would cause the reconnection loop bug.
@@ -770,7 +770,7 @@ export class ArtemisWebsocketService {
     private _notifyConnectionStateChange(isConnected: boolean): void {
         const callbackCount = this._connectionStateCallbacks.size;
         this._log(`Notifying ${callbackCount} callbacks: connected=${isConnected}`);
-        
+
         this._connectionStateCallbacks.forEach((callback, id) => {
             try {
                 callback(isConnected, this._wasConnectedOnce);
