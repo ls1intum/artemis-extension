@@ -2,6 +2,16 @@
 
 All notable changes to the Artemis VS Code extension will be documented in this file.
 
+## [0.3.2] - 2026-01-28
+
+### Fixed
+
+- **CRITICAL: WebSocket Connection Flooding Prevention**: Fixed critical bug that could cause up to 120,000 connections. Added comprehensive safety features including rate limiting (min 2s between attempts), max attempts (20), connection mutex, and callback cleanup. Added 22 new safety tests.
+
+### Added
+
+- **WebSocket Debug StatusBar**: New optional debug tool (enable via `artemis.debugMode` setting) showing real-time connection status with subscription count, detailed hover info, and quick actions menu.
+
 ## [0.3.1] - 2025-12-19
 
 ### Added
