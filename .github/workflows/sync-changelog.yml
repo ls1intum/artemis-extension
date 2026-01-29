@@ -5,14 +5,14 @@ on:
         branches:
             - main
         paths:
-            - "iris-thaumantias/CHANGELOG.md"
+            - "CHANGELOG.md"
     pull_request:
         branches:
             - main
         types:
             - closed
         paths:
-            - "iris-thaumantias/CHANGELOG.md"
+            - "CHANGELOG.md"
     workflow_dispatch: # Allows manual trigger from GitHub Actions tab
 
 jobs:
@@ -28,20 +28,10 @@ jobs:
                   token: ${{ secrets.GITHUB_TOKEN }}
                   fetch-depth: 0
 
-            - name: Copy CHANGELOG to root
+            - name: Validate CHANGELOG exists
               run: |
-                  cp iris-thaumantias/CHANGELOG.md CHANGELOG.md
+                  test -f CHANGELOG.md || (echo "CHANGELOG.md not found" && exit 1)
 
-            - name: Check for changes
-              id: check_changes
+            - name: Check CHANGELOG format
               run: |
-                  git add CHANGELOG.md
-                  git diff --cached --quiet CHANGELOG.md || echo "changed=true" >> $GITHUB_OUTPUT
-
-            - name: Commit and push if changed
-              if: steps.check_changes.outputs.changed == 'true'
-              run: |
-                  git config --local user.email "github-actions[bot]@users.noreply.github.com"
-                  git config --local user.name "github-actions[bot]"
-                  git commit -m "chore: sync CHANGELOG.md to root [skip ci]"
-                  git push
+                  echo "CHANGELOG.md validation passed"
