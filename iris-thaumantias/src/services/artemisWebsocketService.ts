@@ -2,7 +2,7 @@ import { Client, StompConfig, StompSubscription, IFrame, IMessage } from '@stomp
 import WebSocket from 'ws';
 import * as vscode from 'vscode';
 import { AuthManager } from '../auth';
-import { VSCODE_CONFIG } from '../utils';
+import { CONFIG, VSCODE_CONFIG } from '../utils';
 import {
     ResultDTO,
     ProgrammingSubmission,
@@ -297,7 +297,7 @@ export class ArtemisWebsocketService {
                     const ws = new WebSocket(wsUrl, {
                         headers: {
                             'Cookie': cookie,
-                            'User-Agent': 'Iris-Thaumantias VS Code Extension'
+                            'User-Agent': CONFIG.API.USER_AGENT
                         }
                     });
 

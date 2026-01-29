@@ -23,6 +23,7 @@ export class ArtemisApiService {
             ...options,
             headers: {
                 'Content-Type': 'application/json',
+                'User-Agent': CONFIG.API.USER_AGENT,
                 ...headers,
                 ...options.headers,
             },
