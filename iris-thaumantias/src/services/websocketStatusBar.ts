@@ -118,9 +118,9 @@ export class WebSocketStatusBarService implements vscode.Disposable {
     private _updateDebugModeState(): void {
         const config = vscode.workspace.getConfiguration(VSCODE_CONFIG.ARTEMIS_SECTION);
         this._isDebugMode = config.get<boolean>(VSCODE_CONFIG.DEVELOPER_MODE_KEY, false);
-        
+
         this._log(`Developer mode: ${this._isDebugMode}`);
-        
+
         if (this._isDebugMode) {
             this._statusBarItem.show();
         } else {
@@ -134,7 +134,7 @@ export class WebSocketStatusBarService implements vscode.Disposable {
     private async _updateStatusFromService(): Promise<void> {
         const isConnected = this._websocketService.isConnected();
         const hasGivenUp = this._websocketService.hasGivenUp();
-        
+
         if (hasGivenUp) {
             this._currentStatus = WebSocketStatus.GaveUp;
         } else if (isConnected) {
@@ -142,7 +142,7 @@ export class WebSocketStatusBarService implements vscode.Disposable {
         } else {
             this._currentStatus = WebSocketStatus.Disconnected;
         }
-        
+
         await this._updateStatusBarItem();
     }
 
@@ -151,7 +151,7 @@ export class WebSocketStatusBarService implements vscode.Disposable {
      */
     private async _updateStatus(isConnected: boolean, wasEverConnected?: boolean): Promise<void> {
         const hasGivenUp = this._websocketService.hasGivenUp();
-        
+
         if (hasGivenUp) {
             this._currentStatus = WebSocketStatus.GaveUp;
         } else if (isConnected) {
@@ -163,7 +163,7 @@ export class WebSocketStatusBarService implements vscode.Disposable {
         } else {
             this._currentStatus = WebSocketStatus.Disconnected;
         }
-        
+
         await this._updateStatusBarItem();
     }
 
@@ -243,10 +243,10 @@ export class WebSocketStatusBarService implements vscode.Disposable {
         // Connection Status
         const statusIcon = info.isConnected ? '✅' : info.connectionGaveUp ? '⛔' : '❌';
         const statusText = info.isConnected ? 'Connected' : info.connectionGaveUp ? 'Gave Up' : 'Disconnected';
-        
+
         md.appendMarkdown(`## WebSocket Debug Info\n\n`);
         md.appendMarkdown(`**Status:** ${statusIcon} ${statusText}\n\n`);
-        
+
         // Connection Details
         md.appendMarkdown(`---\n\n`);
         md.appendMarkdown(`**Connection Details:**\n`);
@@ -409,7 +409,7 @@ export class WebSocketStatusBarService implements vscode.Disposable {
         });
 
         await this._updateStatusFromService();
-        
+
         if (this._websocketService.isConnected()) {
             vscode.window.showInformationMessage('✅ WebSocket connected');
         }
@@ -431,7 +431,7 @@ export class WebSocketStatusBarService implements vscode.Disposable {
     private async _handleResetAndReconnect(): Promise<void> {
         this._websocketService.resetConnectionState();
         this._lastError = undefined;
-        
+
         this._currentStatus = WebSocketStatus.Connecting;
         await this._updateStatusBarItem();
 
@@ -444,7 +444,7 @@ export class WebSocketStatusBarService implements vscode.Disposable {
         });
 
         await this._updateStatusFromService();
-        
+
         if (this._websocketService.isConnected()) {
             vscode.window.showInformationMessage('✅ WebSocket reset and connected');
         }

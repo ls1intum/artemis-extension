@@ -25,7 +25,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
 	// Connect telemetry manager to websocket service for build results
 	telemetryManager.setWebsocketService(artemisWebsocketService);
-	
+
 	// Initialize WebSocket debug status bar (only visible when developerMode is enabled)
 	const websocketStatusBarService = new WebSocketStatusBarService(artemisWebsocketService);
 
@@ -110,10 +110,10 @@ export async function activate(context: vscode.ExtensionContext) {
 
 	// Register the Chat view provider
 	const chatWebviewProvider = new ChatWebviewProvider(context.extensionUri, context, artemisApiService, artemisWebsocketService);
-	
+
 	// Pass telemetry manager to chat provider for struggle context integration
 	chatWebviewProvider.setTelemetryManager(telemetryManager);
-	
+
 	context.subscriptions.push(
 		vscode.window.registerWebviewViewProvider(ChatWebviewProvider.viewType, chatWebviewProvider)
 	);

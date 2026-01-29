@@ -24,7 +24,7 @@ export class IrisSessionManager implements vscode.Disposable {
     private _connectionStateUnsubscribe?: () => void;
     private _lastResubscribeAttempt: number = 0;
     private _isSubscribed: boolean = false;
-    
+
     private readonly _onDidReceiveMessage = new vscode.EventEmitter<any>();
     public readonly onDidReceiveMessage = this._onDidReceiveMessage.event;
     private readonly _onDidConnectionStateChange = new vscode.EventEmitter<boolean>();
@@ -39,13 +39,13 @@ export class IrisSessionManager implements vscode.Disposable {
 
     public dispose(): void {
         console.log('[IrisSessionManager] Disposing...');
-        
+
         // Unsubscribe from connection state changes FIRST
         if (this._connectionStateUnsubscribe) {
             this._connectionStateUnsubscribe();
             this._connectionStateUnsubscribe = undefined;
         }
-        
+
         this.unsubscribe();
         this._onDidReceiveMessage.dispose();
         this._onDidConnectionStateChange.dispose();
