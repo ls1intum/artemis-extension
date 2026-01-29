@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { ExerciseRegistry } from '../../../services';
 import { ProviderRegistry } from '../../../services/ProviderRegistry';
+import { ExamErrorHandler } from '../../../services/examErrorHandler';
 import type { CommandContext, CommandMap } from './types';
 
 interface CourseQuickPickItem extends vscode.QuickPickItem {
@@ -92,11 +93,13 @@ export class NavigationCommandModule {
                 this.context.appStateManager.showExamStart({ studentExam, courseId, examId });
                 this.context.actionHandler.render();
             }
-        } catch (error) {
+        } catch (error: any) {
             console.error('[EXAMMODE] Error opening exam:', error);
-            vscode.window.showErrorMessage('Failed to open exam. Please try again.');
+            const userMessage = ExamErrorHandler.getExamErrorMessage(error);
+            vscode.window.showErrorMessage(userMessage);
         }
     };
+
 
     private handleStartExam = async (message: any): Promise<void> => {
         try {

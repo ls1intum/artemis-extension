@@ -2,18 +2,22 @@
 
 All notable changes to the Artemis VS Code extension will be documented in this file.
 
-## [0.3.2] - 2026-01-25
+## [Unreleased] - 0.4.0
 
 ### Added
 
 - **Struggle Detection**: Real-time monitoring system that tracks student coding activity to detect when they're experiencing difficulties. The system analyzes error patterns, inactivity periods, and build failures to identify struggle signals, enabling proactive assistance through Iris. Includes a developer debug panel for monitoring detection metrics in real-time.
+- **WebSocket Debug StatusBar**: New optional debug tool (enable via `artemis.developerMode` setting) showing real-time connection status with subscription count, detailed hover info, and quick actions menu.
 
 ### Changed
 
 - **Dashboard Tools & Settings**: Renamed "Quick Actions" section to "Tools & Settings". Now shows only 6 buttons initially with additional options (Git Credentials, Bug Report) available via "Show more" toggle for a cleaner dashboard layout.
+- **Developer Mode**: All developer/debug settings are now consolidated under the single `artemis.developerMode` setting.
 
 ### Fixed
 
+- **User-Agent Tracking**: Ensured User-Agent header ('VS Code Extension') is consistently set on all API and WebSocket requests.
+- **CRITICAL: WebSocket Connection Flooding Prevention**: Fixed critical bug that could cause up to 120,000 connections. Added comprehensive safety features including rate limiting (min 2s between attempts), max attempts (20), connection mutex, and callback cleanup. Added 22 new safety tests.
 - **Course List Navigation**: Clicking a course in the "All Courses" view now opens the correct course details.
 - **Iris Availability Check**: Added global server profile check before checking course-level Iris settings, matching the Artemis webapp behavior.
 - **Memory Leaks and Error Handling**: Fixed connection state callback leaks, added error handlers for async operations, and improved resource disposal in WebSocket services.
@@ -165,7 +169,7 @@ All notable changes to the Artemis VS Code extension will be documented in this 
 ### Fixed
 
 - **Test Results Loading Freeze**: Added 15-second timeout to prevent infinite "Loading test results..." state when API requests hang or fail, includes retry button
-- **Latest Result Selection**: Fixed result selection logic to use `completionDate` instead of ID when determining the latest test result. This ensures that when multiple builds complete out of order (e.g., due to varying build times), the most recently completed result is always displayed, matching Artemis web frontend behavior
+- **Latest Result Selection**: Fixed result selection logic to use `completionDate` instead of ID when determining the latest test result. This ensures that when multiple builds complete out of order (e.g., due to varying build times), the most recently completed result is always displayed, matching Artemis web client behavior
 
 ## [0.1.3] - 2025-10-17
 

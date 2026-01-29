@@ -72,13 +72,13 @@ export class ServiceHealthComponent {
             <div class="health-last-check" id="health-lastCheckTime">Last checked: Never</div>
             
             ${ButtonComponent.generate({
-                id: 'health-checkBtn',
-                label: 'Check Status',
-                icon: refreshIcon,
-                variant: 'primary',
-                fullWidth: true,
-                height: '2.5rem'
-            })}
+            id: 'health-checkBtn',
+            label: 'Check Status',
+            icon: refreshIcon,
+            variant: 'primary',
+            fullWidth: true,
+            height: '2.5rem'
+        })}
         </div>`;
     }
 
@@ -233,7 +233,7 @@ export class ServiceHealthComponent {
                     }
                 });
                 
-                // Request health checks from extension backend
+                // Request health checks from extension server
                 vscode.postMessage({ 
                     command: 'performHealthChecks',
                     serverUrl: serverUrl 

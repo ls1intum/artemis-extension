@@ -47,7 +47,7 @@ export interface StoredSession {
     messageCount: number;
     createdAt: number;
     lastActivity: number;
-    artemisSessionId?: number; // The Iris session ID from the backend
+    artemisSessionId?: number; // The Iris session ID from the server
 }
 
 export interface ContextSnapshot {

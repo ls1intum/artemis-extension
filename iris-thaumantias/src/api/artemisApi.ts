@@ -23,6 +23,7 @@ export class ArtemisApiService {
             ...options,
             headers: {
                 'Content-Type': 'application/json',
+                'User-Agent': CONFIG.API.USER_AGENT,
                 ...headers,
                 ...options.headers,
             },
@@ -48,8 +49,35 @@ export class ArtemisApiService {
                 (error as any).status = 401;
                 throw error;
             }
-            const error = new Error(`API request failed: ${response.status} ${response.statusText}`);
+
+            // Try to extract detailed error message from response body
+            let errorMessage = `API request failed: ${response.status}`;
+            let errorDetail: string | undefined;
+            try {
+                const errorBody = await response.text();
+                if (errorBody) {
+                    try {
+                        const parsed = JSON.parse(errorBody);
+                        // Artemis uses different fields for error messages
+                        errorDetail = parsed.message || parsed.detail || parsed.title || parsed.error;
+                    } catch {
+                        // Response is not JSON, use raw text if meaningful
+                        if (errorBody.length < 200 && !errorBody.includes('<')) {
+                            errorDetail = errorBody;
+                        }
+                    }
+                }
+            } catch {
+                // Failed to read response body, continue with generic message
+            }
+
+            if (errorDetail) {
+                errorMessage = `${errorMessage}: ${errorDetail}`;
+            }
+
+            const error = new Error(errorMessage);
             (error as any).status = response.status;
+            (error as any).detail = errorDetail;
             throw error;
         }
 
@@ -93,7 +121,7 @@ export class ArtemisApiService {
     }
 
     // Get exercise details for a specific exercise
-    // According to Artemis frontend code, this endpoint already includes:
+    // According to Artemis client code, this endpoint already includes:
     // - studentParticipations with ALL submissions and results
     // No query parameters or additional enrichment needed
     async getExerciseDetails(exerciseId: number): Promise<any> {
@@ -455,7 +483,7 @@ export class ArtemisApiService {
 
         // Add uncommitted files if provided
         // Note: Only add if non-empty to maintain backward compatibility
-        // Older Artemis backends will ignore unknown fields (Jackson default behavior)
+        // Older Artemis servers will ignore unknown fields (Jackson default behavior)
         if (uncommittedFiles && uncommittedFiles.size > 0) {
             messagePayload.uncommittedFiles = Object.fromEntries(uncommittedFiles);
             console.log(`[Iris API] Sending ${uncommittedFiles.size} uncommitted files to Iris`);
@@ -472,9 +500,9 @@ export class ArtemisApiService {
             return response.json();
         } catch (error: any) {
             // If sending with uncommittedFiles fails, retry without them
-            // This handles the case where the backend doesn't support the feature yet
+            // This handles the case where the server doesn't support the feature yet
             if (uncommittedFiles && uncommittedFiles.size > 0 && error.status === 400) {
-                console.warn('Failed to send uncommitted files, retrying without them (backend might not support this feature yet)');
+                console.warn('Failed to send uncommitted files, retrying without them (server might not support this feature yet)');
                 const fallbackPayload = {
                     sentAt: new Date().toISOString(),
                     content: [

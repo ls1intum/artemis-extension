@@ -38,7 +38,7 @@ export class ExamConductionView {
         // For simplicity in this view, we'll rely on the client side timer if we can pass the absolute end time.
         // But studentExam usually has 'individualEndDate' if it's a real exam.
         // If not, we might need to calculate it.
-        // Let's assume we pass the full studentExam object to the frontend and let it handle the timer logic or just display static info for now.
+        // Let's assume we pass the full studentExam object to the client and let it handle the timer logic or just display static info for now.
 
         const exercisesHtml = exercises.map((exercise: any, index: number) => {
             const exerciseIcon = IconDefinitions.getIcon(exercise.type);

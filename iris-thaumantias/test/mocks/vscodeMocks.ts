@@ -17,6 +17,10 @@ export class MockSecretStorage implements vscode.SecretStorage {
         this.secrets.delete(key);
         return Promise.resolve();
     }
+
+    keys(): Thenable<string[]> {
+        return Promise.resolve(Array.from(this.secrets.keys()));
+    }
 }
 
 export class MockMemento implements vscode.Memento {
@@ -78,6 +82,7 @@ export class MockTextDocument implements vscode.TextDocument {
     isClosed: boolean = false;
     eol: vscode.EndOfLine = vscode.EndOfLine.LF;
     lineCount: number = 100;
+    encoding: string = 'utf-8';
 
     constructor(uri: vscode.Uri, fileName: string) {
         this.uri = uri;

@@ -2,7 +2,7 @@
   "name": "iris-thaumantias",
   "displayName": "Artemis - TUM",
   "description": "Artemis brings interactive learning to life with instant, individual feedback on programming exercises, quizzes, modeling tasks, and more. This VS Code extension integrates Iris, an LLM-based virtual assistant that supports students with instant answers about exercises, lectures, and learning performance. Iris provides context-aware, personalized assistance for programming exercises, encouraging independent problem-solving through subtle hints and guiding questions instead of giving full solutions.",
-  "version": "0.3.2",
+  "version": "0.4.0-dev",
   "publisher": "aet-tum",
   "license": "MIT",
   "icon": "media/artemis-blue.png",
@@ -122,6 +122,11 @@
           "default": false,
           "markdownDescription": "Enable developer mode to show debugging tools, including debug buttons in views and live struggle detection score in the status bar."
         },
+        "artemis.debugMode": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "Enable debug mode to show additional developer tools like WebSocket status in the status bar. Useful for troubleshooting connection issues."
+        },
         "artemis.defaultCommitMessage": {
           "type": "string",
           "default": "Solution submission via Iris extension",
@@ -178,18 +183,19 @@
     "@types/sinon": "^21.0.0",
     "@types/vscode": "^1.97.0",
     "@types/ws": "8.18.1",
-    "@typescript-eslint/eslint-plugin": "8.53.1",
-    "@typescript-eslint/parser": "8.53.1",
+    "@typescript-eslint/eslint-plugin": "8.54.0",
+    "@typescript-eslint/parser": "8.54.0",
     "@vscode/test-cli": "0.0.12",
     "@vscode/test-electron": "2.5.2",
     "esbuild": "0.27.2",
     "eslint": "9.39.2",
-    "npm-run-all2": "5.0.0",
+    "npm-run-all2": "8.0.4",
     "sinon": "^21.0.1",
     "typescript": "5.9.3"
   },
   "dependencies": {
-    "@stomp/stompjs": "7.2.1",
+    "@stomp/stompjs": "^7.2.1",
+    "rxjs": "^7.8.2",
     "ws": "8.19.0"
   }
 }
