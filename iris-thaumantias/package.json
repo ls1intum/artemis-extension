@@ -171,7 +171,7 @@
     "coverage:all": "npm run compile-tests && npm run compile && npm run lint && vscode-test --coverage",
     "clean": "rm -rf dist out *.vsix",
     "compile:clean": "npm run clean && npm run compile"
-  },
+  },^
   "devDependencies": {
     "@types/mocha": "10.0.10",
     "@types/node": "24.10.9",
