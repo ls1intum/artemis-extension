@@ -367,7 +367,6 @@ npm run watch
 - **Problems panel**: View TypeScript and ESLint errors
 
 #### Debug Tips
-- Use `console.log()` for quick debugging (appears in Debug Console)
 - Set conditional breakpoints for specific scenarios
 - Use "Restart" (Ctrl+Shift+F5) to reload the extension with changes
 - Check the "Extension Host" output panel for extension errors

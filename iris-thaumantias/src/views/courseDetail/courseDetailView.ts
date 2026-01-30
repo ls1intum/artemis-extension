@@ -528,7 +528,7 @@ export class CourseDetailView {
 
         window.openExam = function(examId) {
             const course = (courseData && (courseData.course || courseData)) || {};
-            console.log('[EXAMMODE] Requesting to open exam:', examId, 'for course:', course.id);
+            vscode.postMessage({ command: 'webviewLog', level: 'info', text: '[EXAMMODE] Requesting to open exam: ' + examId + ' for course: ' + course.id });
             vscode.postMessage({ 
                 command: 'openExam',
                 examId: examId,

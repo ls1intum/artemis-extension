@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import { ContextStore } from './contextStore';
 import { ArtemisApiService } from '../api';
 import { ExerciseRegistry } from './exerciseRegistry';
+import { logger, LogLevel } from './loggingService';
 
 export class ChatDiagnosticsService {
     constructor(
@@ -155,7 +156,7 @@ export class ChatDiagnosticsService {
                             messages: messages
                         };
                     } catch (error) {
-                        console.warn(`Failed to fetch messages for session ${session.id}:`, error);
+                        logger.warn(`Failed to fetch messages for session ${session.id}:`, undefined, error);
                         return {
                             ...session,
                             messages: []
@@ -221,7 +222,7 @@ export class ChatDiagnosticsService {
 
             vscode.window.showInformationMessage(`Found ${artemisSessionsListFromServer.length} session(s) on Artemis`);
         } catch (error: any) {
-            console.error('Error fetching debug session data:', error);
+            logger.error('Error fetching debug session data:', undefined, error);
             vscode.window.showErrorMessage(`Failed to fetch sessions from Artemis: ${error.message}`);
         }
     }

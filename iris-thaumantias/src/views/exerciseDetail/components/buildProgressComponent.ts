@@ -206,7 +206,7 @@ export class BuildProgressComponent {
        * Handle submission processing state updates from WebSocket
        */
       window.handleSubmissionProcessing = function(state, buildTimingInfo) {
-        console.log('[Build Progress] ⚙️ Received submission processing update:', state, buildTimingInfo);
+        vscode.postMessage({ command: 'webviewLog', level: 'info', message: '[Build Progress] ⚙️ Received submission processing update: ' + state });
         
         let message = '';
         let progressPercent = 0;
@@ -257,7 +257,7 @@ export class BuildProgressComponent {
         const startAttr = buildStatusSection.getAttribute('data-start');
 
         if (etaAttr && startAttr) {
-          console.log('[Build Progress] 🔄 Initializing build progress updates from page load data');
+          vscode.postMessage({ command: 'webviewLog', level: 'info', message: '[Build Progress] 🔄 Initializing build progress updates from page load data' });
           const buildTimingInfo = {
             estimatedCompletionDate: etaAttr,
             buildStartDate: startAttr

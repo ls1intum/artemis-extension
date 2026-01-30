@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import { AuthManager } from '../auth';
 import { CONFIG, VSCODE_CONFIG } from '../utils';
 import { IrisHealthStatus, ProfileInfo, PROFILE_IRIS } from '../types';
+import { logger, LogLevel, LogCategory } from '../services/loggingService';
 
 export class ArtemisApiService {
     private authManager: AuthManager;
@@ -138,15 +139,15 @@ export class ArtemisApiService {
             for (const participation of exerciseData.exercise.studentParticipations) {
                 const submissionCount = participation.submissions?.length || 0;
                 const resultCount = participation.results?.length || 0;
-                console.log(`[Artemis API] 📊 Participation ${participation.id}: ${submissionCount} submissions, ${resultCount} results`);
+                logger.api(`📊 Participation ${participation.id}: ${submissionCount} submissions, ${resultCount} results`);
 
                 if (submissionCount === 0) {
-                    console.warn(`[Artemis API] ⚠️ Participation ${participation.id} has no submissions array or it's empty`);
-                    console.log('[Artemis API] Participation data:', JSON.stringify(participation, null, 2));
+                    logger.apiWarn(`⚠️ Participation ${participation.id} has no submissions array or it's empty`);
+                    logger.api(`Participation data: ${JSON.stringify(participation, null, 2)}`);
                 }
             }
         } else {
-            console.warn('⚠️ No student participations found in exercise details response');
+            logger.apiWarn('⚠️ No student participations found in exercise details response');
         }
 
         return exerciseData;
@@ -164,7 +165,7 @@ export class ArtemisApiService {
             // Check if response has content
             const text = await response.text();
             if (!text || text.trim() === '') {
-                console.log(`[Artemis API] No pending submission for participation ${participationId}`);
+                logger.api(`No pending submission for participation ${participationId}`);
                 return null;
             }
 
@@ -173,7 +174,7 @@ export class ArtemisApiService {
             return data;
         } catch (error) {
             // If no pending submission exists, API may return 404 or empty response
-            console.log(`[Artemis API] No pending submission for participation ${participationId}:`, error);
+            logger.api(`No pending submission for participation ${participationId}: ${error}`);
             return null;
         }
     }
@@ -339,7 +340,7 @@ export class ArtemisApiService {
             const user = await this.getCurrentUser();
             return !!user;
         } catch (error) {
-            console.error('Authentication validation failed:', error);
+            logger.error('Authentication validation failed', LogCategory.API, error);
             return false;
         }
     }
@@ -447,7 +448,7 @@ export class ArtemisApiService {
                         messages: messages
                     };
                 } catch (error) {
-                    console.warn(`Failed to fetch messages for session ${session.id}:`, error);
+                    logger.warn(`Failed to fetch messages for session ${session.id}: ${error}`, LogCategory.API);
                     return {
                         ...session,
                         messages: []
@@ -486,7 +487,7 @@ export class ArtemisApiService {
         // Older Artemis servers will ignore unknown fields (Jackson default behavior)
         if (uncommittedFiles && uncommittedFiles.size > 0) {
             messagePayload.uncommittedFiles = Object.fromEntries(uncommittedFiles);
-            console.log(`[Iris API] Sending ${uncommittedFiles.size} uncommitted files to Iris`);
+            logger.api(`Sending ${uncommittedFiles.size} uncommitted files to Iris`);
         }
 
         try {
@@ -502,7 +503,7 @@ export class ArtemisApiService {
             // If sending with uncommittedFiles fails, retry without them
             // This handles the case where the server doesn't support the feature yet
             if (uncommittedFiles && uncommittedFiles.size > 0 && error.status === 400) {
-                console.warn('Failed to send uncommitted files, retrying without them (server might not support this feature yet)');
+                logger.apiWarn('Failed to send uncommitted files, retrying without them (server might not support this feature yet)');
                 const fallbackPayload = {
                     sentAt: new Date().toISOString(),
                     content: [

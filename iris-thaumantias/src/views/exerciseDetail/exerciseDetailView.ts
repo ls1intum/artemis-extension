@@ -491,11 +491,11 @@ export class ExerciseDetailView {
         function renderPlantUmlDiagram(index, plantUml) {
             const placeholder = document.querySelector(\`.plantuml-placeholder[data-index="\${index}"]\`);
             if (!placeholder) {
-                console.error('PlantUML placeholder not found for index:', index);
+                vscode.postMessage({ command: 'webviewLog', level: 'error', text: '[PlantUML] Placeholder not found for index: ' + index });
                 return;
             }
             
-            console.log(\`🎨 Auto-rendering PlantUML diagram \${index + 1}/\${plantUmlDiagrams.length}\`);
+            vscode.postMessage({ command: 'webviewLog', level: 'info', text: '[PlantUML] 🎨 Auto-rendering diagram ' + (index + 1) + '/' + plantUmlDiagrams.length });
             
             // Request rendering from VS Code
             vscode.postMessage({
@@ -530,7 +530,7 @@ export class ExerciseDetailView {
                     });
                     
                     placeholder.parentNode.replaceChild(container, placeholder);
-                    console.log(\`✅ PlantUML diagram \${message.index + 1} rendered successfully\`);
+                    vscode.postMessage({ command: 'webviewLog', level: 'info', text: '[PlantUML] ✅ Diagram ' + (message.index + 1) + ' rendered successfully' });
                 }
             } else if (message.command === 'plantUmlError') {
                 const placeholder = document.querySelector(\`.plantuml-placeholder[data-index="\${message.index}"]\`);
@@ -539,14 +539,14 @@ export class ExerciseDetailView {
                     errorDiv.className = 'plantuml-error';
                     errorDiv.textContent = \`Error rendering PlantUML: \${message.error}\`;
                     placeholder.parentNode.replaceChild(errorDiv, placeholder);
-                    console.error(\`❌ PlantUML diagram \${message.index + 1} failed to render:\`, message.error);
+                    vscode.postMessage({ command: 'webviewLog', level: 'error', text: '[PlantUML] ❌ Diagram ' + (message.index + 1) + ' failed to render: ' + message.error });
                 }
             }
         });
         
         // Auto-render all PlantUML diagrams on page load
         if (plantUmlDiagrams.length > 0) {
-            console.log(\`📊 Found \${plantUmlDiagrams.length} PlantUML diagram(s), auto-rendering...\`);
+            vscode.postMessage({ command: 'webviewLog', level: 'info', text: '[PlantUML] 📊 Found ' + plantUmlDiagrams.length + ' diagram(s), auto-rendering...' });
             plantUmlDiagrams.forEach((diagram, index) => {
                 renderPlantUmlDiagram(index, diagram);
             });
@@ -582,7 +582,7 @@ export class ExerciseDetailView {
         // PlantUML render function
         window.renderPlantUmlDiagrams = function() {
             if (plantUmlDiagrams.length > 0) {
-                console.log('[PlantUML] 🎨 Rendering PlantUML diagrams:', plantUmlDiagrams);
+                vscode.postMessage({ command: 'webviewLog', level: 'info', text: '[PlantUML] 🎨 Rendering diagrams: ' + JSON.stringify(plantUmlDiagrams) });
                 vscode.postMessage({
                     command: 'renderPlantUml',
                     plantUmlDiagrams: plantUmlDiagrams,
@@ -642,7 +642,7 @@ export class ExerciseDetailView {
                     resultId: latestResult.id
                 });
             } catch (e) {
-                console.error('Error preparing submission details:', e);
+                vscode.postMessage({ command: 'webviewLog', level: 'error', text: '[Submission] Error preparing submission details: ' + e });
                 vscode.postMessage({ command: 'alert', text: 'Error preparing submission details operation.' });
             }
         };
@@ -659,7 +659,7 @@ export class ExerciseDetailView {
                 return;
             }
 
-            console.log('[Test Results] Rendering test results:', testCases);
+            vscode.postMessage({ command: 'webviewLog', level: 'info', text: '[Test Results] Rendering test results: ' + JSON.stringify(testCases) });
 
             if (!testCases || !testCases.length) {
                 container.innerHTML = '<div class="test-results-loading">No test results available</div>';
@@ -933,11 +933,11 @@ export class ExerciseDetailView {
                     }
                     break;
                 case 'submissionResult':
-                    console.log('[WebsocketLog] 📨 Received submissionResult', { success: message.success, error: message.error });
-                    console.log('[WebsocketLog] 🔄 Setting submit loading to FALSE');
+                    vscode.postMessage({ command: 'webviewLog', level: 'info', text: '[Submission] 📨 Received submissionResult: success=' + message.success + ', error=' + message.error });
+                    vscode.postMessage({ command: 'webviewLog', level: 'info', text: '[Submission] 🔄 Setting submit loading to FALSE' });
                     setSubmitLoading(false);
                     if (message.success) {
-                        console.log('[WebsocketLog] ✅ Submission successful');
+                        vscode.postMessage({ command: 'webviewLog', level: 'info', text: '[Submission] ✅ Submission successful' });
                         const input = document.getElementById('commitMessageInput');
                         const container = document.getElementById('commitMessageContainer');
                         if (input) {
@@ -948,7 +948,7 @@ export class ExerciseDetailView {
                         }
                         checkRepositoryStatus(true);
                     } else if (message.error) {
-                        console.warn('Submission failed:', message.error);
+                        vscode.postMessage({ command: 'webviewLog', level: 'warn', text: '[Submission] Submission failed: ' + message.error });
                     }
                     break;
                 case 'newResult':
@@ -965,11 +965,11 @@ export class ExerciseDetailView {
                     break;
                 case 'testResultsData':
                     // Received test results data
-                    console.log('[Test Results] Received testResultsData message:', message);
+                    vscode.postMessage({ command: 'webviewLog', level: 'info', text: '[Test Results] Received testResultsData message: ' + JSON.stringify(message) });
                     if (message.testCases) {
                         renderTestResults(message.testCases);
                     } else {
-                        console.log('[Test Results] No testCases in message, showing error');
+                        vscode.postMessage({ command: 'webviewLog', level: 'info', text: '[Test Results] No testCases in message, showing error' });
                         const container = document.getElementById('testResultsContainer');
                         if (container) {
                             container.innerHTML = '<div class="test-results-loading">Error: ' + (message.error || 'No test data received') + '</div>';
@@ -979,12 +979,12 @@ export class ExerciseDetailView {
                     break;
                 case 'buildLogParsed':
                     // Build log was parsed and error information is available
-                    console.log('[Build Log] Received buildLogParsed message:', message);
+                    vscode.postMessage({ command: 'webviewLog', level: 'info', text: '[Build Log] Received buildLogParsed message: ' + JSON.stringify(message) });
                     const goToSourceLink = document.getElementById('goToSourceLink');
                     if (goToSourceLink && message.error) {
                         goToSourceLink.dataset.errorData = JSON.stringify(message.error);
                         goToSourceLink.style.display = 'inline-block';
-                        console.log('[Build Log] ✅ "Go to Source" button enabled');
+                        vscode.postMessage({ command: 'webviewLog', level: 'info', text: '[Build Log] ✅ "Go to Source" button enabled' });
                     }
                     break;
                 case 'showClonedRepoNotice':
@@ -1057,13 +1057,13 @@ export class ExerciseDetailView {
                             const results = latestSubmission.results || [];
                             const latestResult = results.length > 0 ? results[results.length - 1] : null;
                             
-                            console.log('[Build Log] 🔍 Build failed detected on page load, auto-fetching logs for error parsing...');
+                            vscode.postMessage({ command: 'webviewLog', level: 'info', text: '[Build Log] 🔍 Build failed detected on page load, auto-fetching logs for error parsing...' });
                             fetchBuildLogsForError(participation.id, latestResult?.id);
                         }
                     }
                 }
             } catch (e) {
-                console.error('Error auto-fetching build logs:', e);
+                vscode.postMessage({ command: 'webviewLog', level: 'error', text: '[Build Log] Error auto-fetching build logs: ' + e });
             }
         })();
 
@@ -1217,16 +1217,16 @@ export class ExerciseDetailView {
         };
 
         function dispatchSubmission(commitMessage) {
-            console.log('[WebsocketLog] 📤 dispatchSubmission called', { hasCommitMessage: !!commitMessage });
+            vscode.postMessage({ command: 'webviewLog', level: 'info', text: '[Submission] 📤 dispatchSubmission called, hasCommitMessage=' + !!commitMessage });
             const submitBtn = document.getElementById('submitBtn');
             const uploadBtn = document.getElementById('uploadMessageBtn');
 
             const isSubmitDisabled = submitBtn ? submitBtn.disabled : false;
             const isUploadDisabled = uploadBtn ? uploadBtn.disabled : false;
-            console.log('[WebsocketLog] 🔍 Button states:', { isSubmitDisabled, isUploadDisabled });
+            vscode.postMessage({ command: 'webviewLog', level: 'info', text: '[Submission] 🔍 Button states: isSubmitDisabled=' + isSubmitDisabled + ', isUploadDisabled=' + isUploadDisabled });
             
             if (isSubmitDisabled || isUploadDisabled) {
-                console.log('[WebsocketLog] ⚠️ Buttons disabled, cannot submit');
+                vscode.postMessage({ command: 'webviewLog', level: 'info', text: '[Submission] ⚠️ Buttons disabled, cannot submit' });
                 vscode.postMessage({ command: 'alert', text: 'No local changes detected to submit.' });
                 return;
             }
@@ -1248,14 +1248,9 @@ export class ExerciseDetailView {
                     return;
                 }
 
-                console.log('[WebsocketLog] 🔄 Setting submit loading to TRUE');
+                vscode.postMessage({ command: 'webviewLog', level: 'info', text: '[Submission] 🔄 Setting submit loading to TRUE' });
                 setSubmitLoading(true);
-                console.log('[WebsocketLog] 🚀 Posting submitExercise command to extension', {
-                    participationId: participation.id,
-                    exerciseId: ex.id,
-                    exerciseTitle: ex.title,
-                    hasCommitMessage: !!commitMessage
-                });
+                vscode.postMessage({ command: 'webviewLog', level: 'info', text: '[Submission] 🚀 Posting submitExercise command: participationId=' + participation.id + ', exerciseId=' + ex.id + ', exerciseTitle=' + ex.title + ', hasCommitMessage=' + !!commitMessage });
                 vscode.postMessage({
                     command: 'submitExercise',
                     participationId: participation.id,
@@ -1263,7 +1258,7 @@ export class ExerciseDetailView {
                     exerciseTitle: ex.title,
                     commitMessage: commitMessage
                 });
-                console.log('[WebsocketLog] ✅ submitExercise command posted');
+                vscode.postMessage({ command: 'webviewLog', level: 'info', text: '[Submission] ✅ submitExercise command posted' });
             } catch (e) {
                 setSubmitLoading(false);
                 vscode.postMessage({ command: 'alert', text: 'Error preparing submit operation.' });
@@ -1271,13 +1266,13 @@ export class ExerciseDetailView {
         }
 
         window.submitExercise = function() {
-            console.log('[WebsocketLog] 🖱️ window.submitExercise called (submit button clicked)');
+            vscode.postMessage({ command: 'webviewLog', level: 'info', text: '[Submission] 🖱️ window.submitExercise called (submit button clicked)' });
             const commitInput = document.getElementById('commitMessageInput');
             const commitContainer = document.getElementById('commitMessageContainer');
             const commitMessage = commitContainer && commitContainer.style.display !== 'none'
                 ? (commitInput?.value.trim() || undefined)
                 : undefined;
-            console.log('[WebsocketLog] 📝 Commit message:', commitMessage || '(default)');
+            vscode.postMessage({ command: 'webviewLog', level: 'info', text: '[Submission] 📝 Commit message: ' + (commitMessage || '(default)') });
             dispatchSubmission(commitMessage);
         };
 
@@ -1372,7 +1367,7 @@ export class ExerciseDetailView {
                 targetSubmission.results.push(result);
             }
 
-            console.log('[Submission] ✅ Updated exerciseData with new result. Submission results:', targetSubmission.results.length);
+            vscode.postMessage({ command: 'webviewLog', level: 'info', text: '[Submission] ✅ Updated exerciseData with new result. Submission results: ' + targetSubmission.results.length });
 
             const exercise = getActiveExercise();
             const scorePercentage = typeof result.score === 'number' ? result.score : 0;
@@ -1421,11 +1416,11 @@ export class ExerciseDetailView {
 
             // Auto-fetch build logs if build failed to enable "Go to Source" button
             if (buildFailed && participationId && resultId) {
-                console.log('[Build Log] 🔍 Build failed detected via WebSocket, auto-fetching logs for error parsing...');
+                vscode.postMessage({ command: 'webviewLog', level: 'info', text: '[Build Log] 🔍 Build failed detected via WebSocket, auto-fetching logs for error parsing...' });
                 fetchBuildLogsForError(participationId, resultId);
             } else if (!buildFailed) {
                 // Build succeeded - clear any existing CodeLens errors
-                console.log('[Build Log] ✅ Build succeeded, requesting CodeLens error clear...');
+                vscode.postMessage({ command: 'webviewLog', level: 'info', text: '[Build Log] ✅ Build succeeded, requesting CodeLens error clear...' });
                 vscode.postMessage({
                     command: 'clearBuildErrors'
                 });
@@ -1433,7 +1428,7 @@ export class ExerciseDetailView {
         }
 
         function handleNewSubmission(submission) {
-            console.log('[Submission] 📤 Received new submission from WebSocket:', submission);
+            vscode.postMessage({ command: 'webviewLog', level: 'info', text: '[Submission] 📤 Received new submission from WebSocket: ' + JSON.stringify(submission) });
 
             if (!submission || !window.exerciseData) {
                 return;
@@ -1442,7 +1437,7 @@ export class ExerciseDetailView {
             const participation = resolveParticipationForSubmission(submission);
 
             if (!participation) {
-                console.log('[Submission] ℹ️ Ignoring submission that does not belong to the active exercise or participation.');
+                vscode.postMessage({ command: 'webviewLog', level: 'info', text: '[Submission] ℹ️ Ignoring submission that does not belong to the active exercise or participation.' });
                 return;
             }
 
@@ -1465,7 +1460,7 @@ export class ExerciseDetailView {
                 participation.submissions.push(submission);
             }
 
-            console.log('[Submission] ✅ Updated exerciseData with new submission. Total submissions:', participation.submissions.length);
+            vscode.postMessage({ command: 'webviewLog', level: 'info', text: '[Submission] ✅ Updated exerciseData with new submission. Total submissions: ' + participation.submissions.length });
 
             setSubmitLoading(true);
             

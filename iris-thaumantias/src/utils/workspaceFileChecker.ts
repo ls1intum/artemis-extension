@@ -3,6 +3,7 @@ import { promisify } from 'util';
 import { execFile } from 'child_process';
 import * as fs from 'fs';
 import { MAX_FILE_SIZE_BYTES } from './constants';
+import { logger, LogLevel, LogCategory } from '../services/loggingService';
 
 const execFileAsync = promisify(execFile);
 const readFileAsync = promisify(fs.readFile);
@@ -26,18 +27,18 @@ const ALLOWED_EXTENSIONS = new Set([
     '.sql',                                         // SQL
     '.sh', '.bash', '.zsh', '.fish',               // Shell scripts
     '.ps1', '.psm1',                                // PowerShell
-    
+
     // Markup & Data
     '.html', '.htm', '.xml', '.xhtml',             // Markup
     '.css', '.scss', '.sass', '.less',             // Stylesheets
     '.json', '.yaml', '.yml', '.toml',             // Config formats
     '.md', '.markdown', '.rst', '.txt',            // Documentation
-    
+
     // Build & Config files
     '.gradle', '.properties', '.pro',               // Build configs
     '.cmake', '.mk',                                // Build systems
     '.dockerfile',                                  // Docker
-    
+
     // Other
     '.gitignore', '.gitattributes',                // Git configs
     '.env', '.envrc',                               // Environment files
@@ -89,7 +90,7 @@ export async function checkWorkspaceFiles(
     options: FileCheckOptions = {}
 ): Promise<FileCheckResult> {
     const folder = workspaceFolder || vscode.workspace.workspaceFolders?.[0];
-    
+
     if (!folder) {
         return {
             hasChanges: false,
@@ -116,7 +117,7 @@ export async function checkWorkspaceFiles(
         const dirtyFiles = dirtyFilesOverride ?? vscode.workspace.textDocuments
             .filter(doc => doc.isDirty && !doc.isUntitled && doc.uri.scheme === 'file')
             .map(doc => vscode.workspace.asRelativePath(doc.uri, false));
-        
+
         // Skip git checks when an explicit override is provided
         if (dirtyFilesOverride) {
             dirtyFiles.forEach(file => allFiles.add(file));
@@ -130,10 +131,10 @@ export async function checkWorkspaceFiles(
                     }
                     const git = gitExtension.exports.getAPI(1);
                     if (git && git.repositories.length > 0) {
-                        const repo = folder ? 
-                            git.repositories.find((r: any) => r.rootUri.fsPath === folder.uri.fsPath) : 
+                        const repo = folder ?
+                            git.repositories.find((r: any) => r.rootUri.fsPath === folder.uri.fsPath) :
                             git.repositories[0];
-                        
+
                         if (repo) {
                             // Check each dirty file to see if it's gitignored
                             for (const file of dirtyFiles) {
@@ -144,11 +145,11 @@ export async function checkWorkspaceFiles(
                                         () => false, // File is tracked, not ignored
                                         () => true   // File is not tracked (likely ignored)
                                     );
-                                    
+
                                     if (!isIgnored) {
                                         allFiles.add(file);
                                     } else {
-                                        console.log(`[Workspace File Checker] Skipping gitignored dirty file: ${file}`);
+                                        logger.fileMonitor(`Skipping gitignored dirty file: ${file}`);
                                     }
                                 } catch {
                                     // If we can't determine, include it to be safe
@@ -164,7 +165,7 @@ export async function checkWorkspaceFiles(
                         dirtyFiles.forEach(file => allFiles.add(file));
                     }
                 } catch (error) {
-                    console.error('[Workspace File Checker] Error checking gitignore status:', error);
+                    logger.error('Error checking gitignore status', LogCategory.FILE_MONITOR, error);
                     // On error, include all dirty files to be safe
                     dirtyFiles.forEach(file => allFiles.add(file));
                 }
@@ -196,7 +197,7 @@ export async function checkWorkspaceFiles(
                 });
         }
     } catch (error) {
-        console.error('[Workspace File Checker] Git status failed:', error);
+        logger.error('Git status failed', LogCategory.FILE_MONITOR, error);
     }
 
     // 3. Get unpushed commits (if requested)
@@ -214,7 +215,7 @@ export async function checkWorkspaceFiles(
             }
         } catch (error) {
             // No upstream or other error - ignore
-            console.log('[Workspace File Checker] No upstream branch or git diff failed');
+            logger.fileMonitor('No upstream branch or git diff failed');
         }
     }
 
@@ -250,7 +251,7 @@ export async function checkWorkspaceFiles(
                 const content = await readFileAsync(absolutePath, 'utf-8');
                 fileInfo.content = content;
             } catch (error) {
-                console.error(`[Workspace File Checker] Failed to read ${relativePath}:`, error);
+                logger.error(`Failed to read ${relativePath}`, LogCategory.FILE_MONITOR, error);
                 fileInfo.content = '';
             }
         }
@@ -285,7 +286,7 @@ async function shouldExcludeFile(folder: vscode.WorkspaceFolder, relativePath: s
 
     // Whitelist check: only allow specific extensions
     const ext = relativePath.substring(relativePath.lastIndexOf('.')).toLowerCase();
-    
+
     // Special case: files without extensions (like Dockerfile, Makefile, etc.)
     const fileName = pathParts[pathParts.length - 1];
     const hasNoExtension = !fileName.includes('.') || fileName.startsWith('.');
@@ -296,7 +297,7 @@ async function shouldExcludeFile(folder: vscode.WorkspaceFolder, relativePath: s
         fileName.toLowerCase() === 'gradlew' ||
         fileName.toLowerCase() === 'mvnw'
     );
-    
+
     if (!isSpecialFile && !ALLOWED_EXTENSIONS.has(ext)) {
         return `File type not allowed (${ext || 'no extension'})`;
     }
@@ -305,7 +306,7 @@ async function shouldExcludeFile(folder: vscode.WorkspaceFolder, relativePath: s
     try {
         const absolutePath = vscode.Uri.joinPath(folder.uri, relativePath).fsPath;
         const stats = await statAsync(absolutePath);
-        
+
         if (stats.size > MAX_FILE_SIZE_BYTES) {
             const sizeMB = (stats.size / (1024 * 1024)).toFixed(2);
             return `File too large (${sizeMB}MB > 1MB)`;

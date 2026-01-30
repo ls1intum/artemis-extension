@@ -46,7 +46,6 @@ export function normalizeRepositoryUrl(url: string): string {
         .replace(/\/$/, '')
         .toLowerCase();
 
-    // console.log(`[WorkspaceDetection] Normalized URL: ${url} -> ${normalized}`);
     return normalized;
 }
 

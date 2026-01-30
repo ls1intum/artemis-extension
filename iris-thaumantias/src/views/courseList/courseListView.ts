@@ -267,7 +267,7 @@ export class CourseListView {
         window.viewCourseDetails = function(courseIndex) {
             const courseData = Array.isArray(courseListData) ? courseListData[courseIndex] : undefined;
             if (!courseData) {
-                console.warn('[Course List] Course not found for index:', courseIndex);
+                vscode.postMessage({ command: 'webviewLog', level: 'warn', text: '[Course List] Course not found for index: ' + courseIndex });
                 return;
             }
             

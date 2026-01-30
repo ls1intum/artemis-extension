@@ -6,6 +6,7 @@ import { ContextStore } from './contextStore';
 import { ActiveContext } from '../types';
 import { checkWorkspaceFiles } from '../utils';
 import { StruggleContext } from './telemetry';
+import { logger, LogCategory } from './loggingService';
 
 export class ChatMessageService {
     constructor(
@@ -19,22 +20,22 @@ export class ChatMessageService {
     ) { }
 
     public async handleChatMessage(messageText: string, activeContext: ActiveContext, struggleContext?: StruggleContext): Promise<void> {
-        console.log('[WebsocketLog] 📤 handleChatMessage called with:', { text: messageText?.substring(0, 50) });
+        logger.websocket(`📤 handleChatMessage called with: ${JSON.stringify({ text: messageText?.substring(0, 50) })}`);
 
         if (!messageText) {
-            console.log('[WebsocketLog] ⚠️ No text in message, returning');
+            logger.websocket('⚠️ No text in message, returning');
             return;
         }
 
-        console.log('[WebsocketLog] ✅ Active context:', { type: activeContext.type, id: activeContext.id, title: activeContext.title });
-        
+        logger.websocket(`✅ Active context: ${JSON.stringify({ type: activeContext.type, id: activeContext.id, title: activeContext.title })}`);
+
         if (struggleContext) {
-            console.log('[WebsocketLog] 📊 Struggle context:', {
+            logger.websocket(`📊 Struggle context: ${JSON.stringify({
                 isStruggling: struggleContext.isStruggling,
                 score: struggleContext.score,
                 persistentErrors: struggleContext.persistentErrors.length,
                 buildFailures: struggleContext.buildFailures
-            });
+            })}`);
         }
 
         if (!this._artemisApiService) {
@@ -61,25 +62,25 @@ export class ChatMessageService {
             const uncommittedFiles = await this._collectUncommittedFiles();
 
             // Send message to Iris
-            console.log('[WebsocketLog] 🚀 Sending message to Artemis API...', {
+            logger.websocket(`🚀 Sending message to Artemis API... ${JSON.stringify({
                 sessionId: irisSessionManager.currentSessionId,
                 messageLength: messageText.length,
                 hasUncommittedFiles: uncommittedFiles ? uncommittedFiles.size : 0
-            });
+            })}`);
             await this._artemisApiService.sendChatMessage(
                 irisSessionManager.currentSessionId,
                 messageText,
                 uncommittedFiles
             );
 
-            console.log('[WebsocketLog] ✅ Message sent to Iris, waiting for WebSocket response...');
+            logger.websocket('✅ Message sent to Iris, waiting for WebSocket response...');
 
             // Note: The assistant's response will arrive via WebSocket
             this._contextStore.incrementActiveSessionMessageCount();
             this._postSnapshot();
 
         } catch (error: any) {
-            console.error('Error sending chat message:', error);
+            logger.error('Error sending chat message', LogCategory.IRIS_CHAT, error);
             vscode.window.showErrorMessage(`Failed to send message: ${error.message}`);
 
             this._postMessage({
@@ -102,35 +103,35 @@ export class ChatMessageService {
      * - Mutex protection
      */
     private async _ensureWebSocketConnection(): Promise<void> {
-        console.log('[WebsocketLog] 🔍 Checking WebSocket connection before sending message...');
+        logger.websocket('🔍 Checking WebSocket connection before sending message...');
         if (!this._websocketService) {
-            console.warn('[WebsocketLog] ⚠️ No WebSocket service available');
+            logger.warn('⚠️ No WebSocket service available', LogCategory.WEBSOCKET);
             return;
         }
-        
+
         if (this._websocketService.isConnected()) {
-            console.log('[WebsocketLog] ✅ WebSocket already connected');
+            logger.websocket('✅ WebSocket already connected');
             return;
         }
-        
-        console.log('[WebsocketLog] ⚠️ WebSocket not connected, attempting to connect...');
+
+        logger.websocket('⚠️ WebSocket not connected, attempting to connect...');
         try {
             // Use ensureConnection() which has all safety guards
             const connected = await this._websocketService.ensureConnection();
             if (connected) {
-                console.log('[WebsocketLog] ✅ WebSocket connected successfully');
+                logger.websocket('✅ WebSocket connected successfully');
             } else {
-                console.warn('[WebsocketLog] ⚠️ WebSocket connection not established');
+                logger.warn('⚠️ WebSocket connection not established', LogCategory.WEBSOCKET);
                 vscode.window.showWarningMessage('WebSocket connection not available. You may not receive responses in real-time.');
             }
         } catch (error) {
-            console.error('[WebsocketLog] ❌ Failed to connect WebSocket:', error);
+            logger.error('❌ Failed to connect WebSocket', LogCategory.WEBSOCKET, error as Error);
             vscode.window.showWarningMessage('WebSocket connection failed. You may not receive responses in real-time.');
         }
     }
 
     private _displayUserMessage(text: string): void {
-        console.log('[WebsocketLog] 💬 Sending user message to webview');
+        logger.websocket('💬 Sending user message to webview');
         this._postMessage({
             command: 'addMessage',
             message: {
@@ -139,21 +140,21 @@ export class ChatMessageService {
                 timestamp: Date.now()
             }
         });
-        console.log('[WebsocketLog] ✅ User message sent to webview (this should trigger thinking indicator)');
+        logger.websocket('✅ User message sent to webview (this should trigger thinking indicator)');
     }
 
     private async _ensureIrisSession(activeContext: ActiveContext): Promise<void> {
         const irisSessionManager = this._getIrisSessionManager();
-        console.log('[WebsocketLog] 🔑 Checking for existing Iris session...', {
+        logger.websocket(`🔑 Checking for existing Iris session... ${JSON.stringify({
             hasSessionId: !!irisSessionManager?.currentSessionId,
             sessionId: irisSessionManager?.currentSessionId
-        });
+        })}`);
 
         if (!irisSessionManager?.currentSessionId) {
-            console.log('[WebsocketLog] 🆕 No active session found, initializing new Iris session...');
+            logger.websocket('🆕 No active session found, initializing new Iris session...');
             await this._initializeIrisSession(activeContext);
         } else {
-            console.log('[WebsocketLog] ✅ Using existing Iris session:', irisSessionManager.currentSessionId);
+            logger.websocket(`✅ Using existing Iris session: ${irisSessionManager.currentSessionId}`);
         }
     }
 
@@ -164,7 +165,7 @@ export class ChatMessageService {
         const sendUncommittedChanges = vscode.workspace.getConfiguration('artemis.iris').get<boolean>('sendUncommittedChanges', true);
 
         if (!sendUncommittedChanges) {
-            console.log('[Iris Chat] 📁 Uncommitted changes sending is disabled by user setting');
+            logger.irisChat('📁 Uncommitted changes sending is disabled by user setting');
             return undefined;
         }
 
@@ -187,7 +188,7 @@ export class ChatMessageService {
                 .forEach(f => uncommittedFiles!.set(f.path, f.content!));
 
             if (uncommittedFiles.size > 0) {
-                console.log(`[Iris Chat] 📁 Sending ${uncommittedFiles.size} uncommitted file(s) to Iris`);
+                logger.irisChat(`📁 Sending ${uncommittedFiles.size} uncommitted file(s) to Iris`);
 
                 // Update display with detailed analysis
                 const excludedFiles = result.files
@@ -204,7 +205,7 @@ export class ChatMessageService {
 
             return uncommittedFiles;
         } catch (error: any) {
-            console.error('Error collecting uncommitted files:', error);
+            logger.error('Error collecting uncommitted files', LogCategory.IRIS_CHAT, error);
 
             // Show user-friendly error message based on error type
             if (error.message?.includes('Git')) {

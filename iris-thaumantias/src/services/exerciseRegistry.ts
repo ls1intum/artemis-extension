@@ -1,3 +1,5 @@
+import { logger } from './loggingService';
+
 export interface ExerciseRegistryEntry {
     id: number;
     title: string;
@@ -37,7 +39,7 @@ export class ExerciseRegistry {
             this.exercises.delete(id);
         }
         if (toDelete.length > 0) {
-            console.log(`📚 [Exercise Registry] Cleared ${toDelete.length} exercises for course ${courseId}`);
+            logger.exercise(`Cleared ${toDelete.length} exercises for course ${courseId}`);
         }
     }
 
@@ -73,14 +75,14 @@ export class ExerciseRegistry {
             }
         }
 
-        console.log(`📚 [Exercise Registry] Processed ${exercises.length} exercises: ${registeredCount} registered, ${skipped.length} skipped. Total in registry: ${this.exercises.size}`);
+        logger.exercise(`Processed ${exercises.length} exercises: ${registeredCount} registered, ${skipped.length} skipped. Total in registry: ${this.exercises.size}`);
         if (registered.length > 0) {
-            console.log(`   ✅ Registered: ${registered.join(', ')}`);
+            logger.exercise(`✅ Registered: ${registered.join(', ')}`);
         }
         if (skipped.length > 0 && skipped.length <= 3) {
-            console.log(`   ⏭️  Skipped: ${skipped.join(', ')}`);
+            logger.exercise(`⏭️  Skipped: ${skipped.join(', ')}`);
         } else if (skipped.length > 3) {
-            console.log(`   ⏭️  Skipped ${skipped.length} exercises (no repository URIs)`);
+            logger.exercise(`⏭️  Skipped ${skipped.length} exercises (no repository URIs)`);
         }
     }
 

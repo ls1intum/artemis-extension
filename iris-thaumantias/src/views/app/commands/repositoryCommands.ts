@@ -4,6 +4,7 @@ import * as fs from 'fs';
 import type { CommandContext, CommandMap } from './types';
 import { VSCODE_CONFIG, checkWorkspaceFiles } from '../../../utils';
 import { detectWorkspaceExercise, normalizeRepositoryUrl, type ExerciseSource, GitService } from '../../../services';
+import { logger } from '../../../services/loggingService';
 
 interface RepoContext {
     expectedRepoUrl: string;
@@ -66,7 +67,7 @@ export class RepositoryCommandModule {
                 exerciseTitle: detected?.title ?? null
             });
         } catch (error) {
-            console.error('Error detecting workspace exercise:', error);
+            logger.submissionWarn('Error detecting workspace exercise:', error);
             this.context.sendMessage({
                 command: 'workspaceExerciseDetected',
                 exerciseId: null,
@@ -108,7 +109,7 @@ export class RepositoryCommandModule {
                 await this.context.actionHandler.openExerciseDetails(exerciseId);
             }
         } catch (error) {
-            console.error('Failed to start exercise participation:', error);
+            logger.submissionError('Failed to start exercise participation:', error);
             vscode.window.showErrorMessage(
                 `Failed to start participation in "${exerciseTitle}": ${error instanceof Error ? error.message : 'Unknown error'}`
             );
@@ -148,7 +149,7 @@ export class RepositoryCommandModule {
                             });
                             hasChanges = result.hasChanges;
                         } catch (statusError: any) {
-                            console.warn('Failed to determine repository changes:', statusError);
+                            logger.submissionWarn('Failed to determine repository changes:', statusError);
                             hasChanges = false;
                         }
                     } else {
@@ -188,7 +189,7 @@ export class RepositoryCommandModule {
                 isGradedRepo: isGradedRepo
             });
         } catch (error: any) {
-            console.error('Check repository status error:', error);
+            logger.submissionError('Check repository status error:', error);
             vscode.window.showErrorMessage('Error checking repository status');
         }
     };
@@ -352,7 +353,7 @@ export class RepositoryCommandModule {
             try {
                 vcsToken = await this.context.artemisApi.getOrCreateVcsAccessToken(participationId);
             } catch (tokenErr) {
-                console.error('Failed to get participation token:', tokenErr);
+                logger.submissionError('Failed to get participation token:', tokenErr);
                 vscode.window.showErrorMessage('Failed to obtain VCS access token for cloning.');
                 return;
             }
@@ -364,7 +365,7 @@ export class RepositoryCommandModule {
                     username = currentUser.login;
                 }
             } catch (userErr) {
-                console.warn('Could not fetch current user, defaulting username:', userErr);
+                logger.submissionWarn('Could not fetch current user, defaulting username:', userErr);
             }
 
             let cloneUrl: string;
@@ -411,7 +412,7 @@ export class RepositoryCommandModule {
                 }, 3000);
             }
         } catch (error) {
-            console.error('Clone repository error:', error);
+            logger.submissionError('Clone repository error:', error);
             vscode.window.showErrorMessage('Failed to clone repository.');
         }
     };
@@ -439,7 +440,7 @@ export class RepositoryCommandModule {
 
             this.clonedRepositories.delete(exerciseId);
         } catch (error) {
-            console.error('Open cloned repository error:', error);
+            logger.submissionError('Open cloned repository error:', error);
             vscode.window.showErrorMessage('Failed to open cloned repository.');
         }
     };
@@ -457,7 +458,7 @@ export class RepositoryCommandModule {
             try {
                 vcsToken = await this.context.artemisApi.getOrCreateVcsAccessToken(participationId);
             } catch (tokenErr) {
-                console.error('Failed to get participation token:', tokenErr);
+                logger.submissionError('Failed to get participation token:', tokenErr);
                 vscode.window.showErrorMessage('Failed to obtain VCS access token.');
                 return;
             }
@@ -480,7 +481,7 @@ export class RepositoryCommandModule {
                 vscode.window.showErrorMessage('Failed to construct clone URL.');
             }
         } catch (error) {
-            console.error('Copy clone URL error:', error);
+            logger.submissionError('Copy clone URL error:', error);
             vscode.window.showErrorMessage('Failed to copy clone URL.');
         }
     };
@@ -520,7 +521,7 @@ export class RepositoryCommandModule {
                 }
             });
         } catch (error: any) {
-            console.error('Pull changes error:', error);
+            logger.submissionError('Pull changes error:', error);
             const errorMessage = error instanceof Error ? error.message : 'Failed to pull changes.';
             vscode.window.showErrorMessage(errorMessage);
         }
@@ -579,7 +580,7 @@ export class RepositoryCommandModule {
                     if (pullError.message && pullError.message.includes('CONFLICT')) {
                         throw new Error('Merge conflict detected. Please resolve conflicts manually using git and try again.');
                     }
-                    console.warn('Pull failed, but continuing with push:', pullError.message);
+                    logger.submissionWarn('Pull failed, but continuing with push:', pullError.message);
                 }
 
                 progress.report({ message: 'Pushing to Artemis...' });
@@ -591,15 +592,15 @@ export class RepositoryCommandModule {
 
             // Ensure WebSocket is connected to receive real-time result updates
             if (this.context.websocketService && !this.context.websocketService.isConnected()) {
-                console.log('[WebsocketLog] 🔌 Submission successful - ensuring WebSocket connection for result updates...');
+                logger.websocket('🔌 Submission successful - ensuring WebSocket connection for result updates...');
                 try {
                     await this.context.websocketService.connect();
                 } catch (wsError) {
-                    console.warn('[WebsocketLog] Failed to connect WebSocket after submission:', wsError);
+                    logger.websocketError('Failed to connect WebSocket after submission:', wsError);
                 }
             }
         } catch (error: any) {
-            console.error('Submit exercise error:', error);
+            logger.submissionError('Submit exercise error:', error);
             const errorMessage = error instanceof Error ? error.message : 'Failed to submit exercise.';
 
             // Don't show error notification if user is being directed to Git Credentials Helper
@@ -669,7 +670,7 @@ export class RepositoryCommandModule {
             sendResult('success', 'Git identity saved globally.');
             vscode.window.showInformationMessage('Git author information saved globally.');
         } catch (error: any) {
-            console.error('Failed to save Git identity globally:', error);
+            logger.submissionError('Failed to save Git identity globally:', error);
             const messageText = error instanceof Error ? error.message : 'Unknown error';
             sendResult('error', `Failed to save Git identity: ${messageText}`);
             vscode.window.showErrorMessage(`Failed to save Git identity: ${messageText}`);
@@ -727,7 +728,7 @@ export class RepositoryCommandModule {
                 throw new Error('Missing host in server URL.');
             }
         } catch (error) {
-            console.error('Invalid Artemis server URL:', error);
+            logger.submissionError('Invalid Artemis server URL:', error);
             sendResult('error', 'Invalid Artemis server URL.');
             vscode.window.showErrorMessage('Invalid Artemis server URL. Please verify the value and try again.');
             return;
@@ -747,7 +748,7 @@ export class RepositoryCommandModule {
         try {
             await this.gitService.ensureCredentialHelper();
         } catch (error: any) {
-            console.error('Failed to configure credential helper:', error);
+            logger.submissionError('Failed to configure credential helper:', error);
             const messageText = error instanceof Error ? error.message : 'Unknown error';
             sendResult('error', `Failed to configure credential helper: ${messageText}`);
             vscode.window.showErrorMessage(`Failed to configure Git credential helper: ${messageText}`);
@@ -760,7 +761,7 @@ export class RepositoryCommandModule {
             sendResult('success', successMessage);
             vscode.window.showInformationMessage(successMessage);
         } catch (error: any) {
-            console.error('Failed to store credential entry:', error);
+            logger.submissionError('Failed to store credential entry:', error);
             const messageText = error instanceof Error ? error.message : 'Unknown error';
             sendResult('error', `Failed to save credentials: ${messageText}`);
             vscode.window.showErrorMessage(`Failed to save Git credentials: ${messageText}`);
@@ -904,7 +905,7 @@ export class RepositoryCommandModule {
                 await this.context.actionHandler.openExerciseDetails(exerciseId);
             }
         } catch (error) {
-            console.error('Failed to start practice participation:', error);
+            logger.submissionError('Failed to start practice participation:', error);
             vscode.window.showErrorMessage(
                 `Failed to start practice mode for "${exerciseTitle}": ${error instanceof Error ? error.message : 'Unknown error'}`
             );

@@ -9,6 +9,7 @@ import { InterventionService } from './interventionService';
 import { InterventionFilter } from './interventionFilter';
 import { ArtemisWebsocketService } from '../artemisWebsocketService';
 import { VSCODE_CONFIG } from '../../utils/constants';
+import { logger, LogLevel, LogCategory } from '../loggingService';
 
 /**
  * Central orchestration service for all telemetry and struggle detection.
@@ -23,7 +24,7 @@ export class TelemetryManager implements vscode.Disposable {
     private readonly _scoreService: StruggleScoreService;
     private readonly _interventionService: InterventionService;
     private readonly _interventionFilter: InterventionFilter;
-    
+
     private _websocketService: ArtemisWebsocketService | undefined;
     private _scoreCheckTimer: NodeJS.Timeout | undefined;
     private _isEnabled: boolean = true;
@@ -60,14 +61,14 @@ export class TelemetryManager implements vscode.Disposable {
         this._inactivityService = new InactivityService();
         this._thrashingDetector = new ThrashingDetector();
         this._buildTracker = new BuildResultTracker();
-        
+
         this._scoreService = new StruggleScoreService(
             this._diagnosticService,
             this._inactivityService,
             this._thrashingDetector,
             this._buildTracker
         );
-        
+
         this._interventionService = new InterventionService();
         this._interventionFilter = new InterventionFilter();
 
@@ -129,11 +130,11 @@ export class TelemetryManager implements vscode.Disposable {
      */
     public setWebsocketService(websocketService: ArtemisWebsocketService): void {
         this._websocketService = websocketService;
-        
+
         // Register build tracker as a message handler
         websocketService.registerMessageHandler(this._buildTracker);
-        
-        console.log('[TelemetryManager] WebSocket service connected');
+
+        logger.telemetry('WebSocket service connected');
     }
 
     /**
@@ -143,7 +144,7 @@ export class TelemetryManager implements vscode.Disposable {
         this._interventionFilter.setExerciseStartTime();
         this._inactivityService.reset();
         this._thrashingDetector.reset();
-        console.log('[TelemetryManager] Exercise session started');
+        logger.telemetry('Exercise session started');
     }
 
     /**
@@ -317,7 +318,7 @@ export class TelemetryManager implements vscode.Disposable {
     private _startDebugUpdates(): void {
         this._updateDebugStatusBar();
         this._debugStatusBarItem.show();
-        
+
         this._debugUpdateTimer = setInterval(() => {
             this._updateDebugStatusBar();
         }, TelemetryManager.DEBUG_UPDATE_INTERVAL_MS);
@@ -345,7 +346,7 @@ export class TelemetryManager implements vscode.Disposable {
         const score = this._scoreService.calculateScore();
         const emoji = this._getScoreEmoji(score.combined);
         const actionIcon = this._getActionIcon(score.recommendedAction);
-        
+
         this._debugStatusBarItem.text = `${emoji} Score: ${score.combined} ${actionIcon}`;
         this._debugStatusBarItem.tooltip = this._buildDebugTooltip(score);
         this._debugStatusBarItem.backgroundColor = this._getScoreBackground(score.combined);
@@ -429,7 +430,7 @@ export class TelemetryManager implements vscode.Disposable {
     private _log(message: string): void {
         const timestamp = new Date().toLocaleTimeString();
         this._outputChannel.appendLine(`[${timestamp}] ${message}`);
-        console.log(`[TelemetryManager] ${message}`);
+        logger.telemetry(message);
     }
 
     /**
@@ -455,14 +456,14 @@ export class TelemetryManager implements vscode.Disposable {
         this._outputChannel.appendLine('🔴 DIAGNOSTICS');
         this._outputChannel.appendLine(`   Total tracked: ${diagnostics.length}`);
         this._outputChannel.appendLine(`   Persistent errors: ${score.local.persistentErrors.length}`);
-        
+
         if (score.local.persistentErrors.length > 0) {
             this._outputChannel.appendLine('   Top errors:');
             score.local.persistentErrors.slice(0, 3).forEach((err, i) => {
                 this._outputChannel.appendLine(`     ${i + 1}. ${err.substring(0, 50)}...`);
             });
         }
-        
+
         this._outputChannel.appendLine('');
         this._outputChannel.appendLine('⏱️ ACTIVITY');
         this._outputChannel.appendLine(`   Pattern: ${pattern}`);
@@ -481,7 +482,7 @@ export class TelemetryManager implements vscode.Disposable {
      */
     public async showStruggleScoreDialog(): Promise<void> {
         const score = this._scoreService.calculateScore();
-        
+
         // Log to output channel
         this._logCurrentState();
         this._outputChannel.show(true); // Show but preserve focus

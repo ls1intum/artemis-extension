@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import { ContextStore } from './contextStore';
 import { ArtemisApiService } from '../api';
 import { ActiveContext } from '../types';
+import { logger, LogCategory } from './loggingService';
 
 export class ChatSessionService {
     private _contextLoadToken = 0;
@@ -33,17 +34,17 @@ export class ChatSessionService {
 
     public async checkAndLoadIrisSettings(context: ActiveContext): Promise<boolean> {
         if (!this._artemisApiService) {
-            console.warn('Artemis API service not available');
+            logger.warn('Artemis API service not available', LogCategory.IRIS_CHAT);
             return false;
         }
 
         try {
-            console.log(`[Iris Chat] Checking Iris settings for ${context.type}: ${context.title}`);
+            logger.irisChat(`Checking Iris settings for ${context.type}: ${context.title}`);
 
             // Step 1: Check if Iris is globally enabled (server profile)
             const profileInfo = await this._artemisApiService.getProfileInfo();
             if (!this._artemisApiService.isIrisProfileActive(profileInfo)) {
-                console.log('[Iris Chat] Iris profile not active on server (global check failed)');
+                logger.irisChat('Iris profile not active on server (global check failed)');
                 return false;
             }
 
@@ -54,12 +55,12 @@ export class ChatSessionService {
             } else if (context.type === 'exercise') {
                 const courseId = await this.resolveCourseIdForExercise(context);
                 if (!courseId) {
-                    console.warn('[Iris Chat] Unable to resolve course for exercise context; cannot check Iris settings');
+                    logger.warn('Unable to resolve course for exercise context; cannot check Iris settings', LogCategory.IRIS_CHAT);
                     return false;
                 }
                 settings = await this._artemisApiService.getIrisCourseChatSettings(courseId);
             } else {
-                console.warn(`Unsupported context type for Iris: ${context.type}`);
+                logger.warn(`Unsupported context type for Iris: ${context.type}`, LogCategory.IRIS_CHAT);
                 return false;
             }
 
@@ -67,11 +68,11 @@ export class ChatSessionService {
             const chatSettings = settings?.settings;
 
             if (!chatSettings?.enabled) {
-                console.log('[Iris Chat] Iris chat is disabled in settings');
+                logger.irisChat('Iris chat is disabled in settings');
                 return false;
             }
 
-            console.log('[Iris Chat] Iris chat is enabled, settings loaded:', {
+            logger.irisChat('Iris chat is enabled, settings loaded:', {
                 enabled: chatSettings.enabled,
                 rateLimit: settings?.effectiveRateLimit?.requests,
                 rateLimitTimeframeHours: settings?.effectiveRateLimit?.timeframeHours
@@ -79,16 +80,16 @@ export class ChatSessionService {
 
             return true;
         } catch (error: any) {
-            console.error('Error checking Iris settings:', error);
+            logger.error('Error checking Iris settings:', LogCategory.IRIS_CHAT, error);
 
             // If it's a 403, Iris is probably disabled - return false to show disabled overlay
             if (error.status === 403 || error.message?.includes('403')) {
-                console.log('[Iris Chat] Iris is not available (403 error)');
+                logger.irisChat('Iris is not available (403 error)');
                 return false;
             }
 
             // For other errors, log but still return false to show disabled state
-            console.log(`[Iris Chat] Could not load Iris settings: ${error.message}`);
+            logger.irisChat(`Could not load Iris settings: ${error.message}`);
             return false;
         }
     }
@@ -116,7 +117,7 @@ export class ChatSessionService {
             }
             return resolvedCourseId;
         } catch (error) {
-            console.warn('[Iris Chat] Failed to resolve course from exercise details:', error);
+            logger.warn('Failed to resolve course from exercise details:', LogCategory.IRIS_CHAT, error);
             return undefined;
         }
     }
@@ -124,11 +125,11 @@ export class ChatSessionService {
     public async loadAllSessionsForContext(): Promise<void> {
         const activeContext = this._contextStore.getActiveContext();
 
-        console.log('🔄 [LOAD SESSIONS] Starting loadAllSessionsForContext');
-        console.log('🔄 [LOAD SESSIONS] Active context:', activeContext);
+        logger.session('Starting loadAllSessionsForContext');
+        logger.session('Active context:', activeContext);
 
         if (!activeContext || !this._artemisApiService) {
-            console.log('🔄 [LOAD SESSIONS] Cannot load sessions: missing context or API service', {
+            logger.session('Cannot load sessions: missing context or API service', {
                 hasContext: !!activeContext,
                 hasApiService: !!this._artemisApiService
             });
@@ -138,22 +139,22 @@ export class ChatSessionService {
         const targetContext: ActiveContext = { ...activeContext };
         const loadToken = this.incrementLoadToken();
 
-        console.log('🔄 [LOAD SESSIONS] Target context for loading:', targetContext);
-        console.log('🔄 [LOAD SESSIONS] Load token:', loadToken);
+        logger.session('Target context for loading:', targetContext);
+        logger.session('Load token:', loadToken);
 
         try {
-            console.log(`🔄 [LOAD SESSIONS] Loading all Iris sessions for ${activeContext.type}: ${activeContext.title} (ID: ${activeContext.id})`);
+            logger.session(`Loading all Iris sessions for ${activeContext.type}: ${activeContext.title} (ID: ${activeContext.id})`);
 
             // Step 0: Check if Iris is enabled for this context
             const isEnabled = await this.checkAndLoadIrisSettings(activeContext);
 
             if (!this.isCurrentContext(targetContext, loadToken)) {
-                console.log('[Iris Chat] Context changed while checking Iris settings, aborting load');
+                logger.irisChat('Context changed while checking Iris settings, aborting load');
                 return;
             }
 
             if (!isEnabled) {
-                console.log('[Iris Chat] Iris is disabled, not loading sessions');
+                logger.irisChat('Iris is disabled, not loading sessions');
                 // Clear any existing sessions and show disabled overlay
                 this._postMessage({
                     command: 'clearChatMessages'
@@ -178,11 +179,11 @@ export class ChatSessionService {
             } else if (activeContext.type === 'exercise') {
                 artemisSessionsMetadata = await this._artemisApiService.getExerciseChatSessions(activeContext.id);
             } else {
-                console.log(`[Iris Chat] Unsupported context type: ${activeContext.type}`);
+                logger.irisChat(`Unsupported context type: ${activeContext.type}`);
                 return;
             }
 
-            console.log(`[Iris Chat] Fetched ${artemisSessionsMetadata.length} session(s) metadata from Artemis`);
+            logger.irisChat(`Fetched ${artemisSessionsMetadata.length} session(s) metadata from Artemis`);
 
             // Step 2: Fetch messages for each session (to display in list)
             const artemisSessionsListFromServer: any[] = await Promise.all(
@@ -191,14 +192,14 @@ export class ChatSessionService {
                         return { ...session, messages: [] };
                     }
                     try {
-                        console.log(`[Iris Chat] Fetching messages for session ${session.id}...`);
+                        logger.irisChat(`Fetching messages for session ${session.id}...`);
                         const messages = await this._artemisApiService.getChatMessages(session.id);
                         return {
                             ...session,
                             messages: messages
                         };
                     } catch (error) {
-                        console.warn(`Failed to fetch messages for session ${session.id}:`, error);
+                        logger.warn(`Failed to fetch messages for session ${session.id}:`, LogCategory.IRIS_CHAT, error);
                         return {
                             ...session,
                             messages: []
@@ -207,16 +208,16 @@ export class ChatSessionService {
                 })
             );
 
-            console.log(`Fetched messages for all ${artemisSessionsListFromServer.length} sessions`);
+            logger.irisChat(`Fetched messages for all ${artemisSessionsListFromServer.length} sessions`);
 
             // CLEAR all existing sessions for this context to avoid stale data
             if (!this.isCurrentContext(targetContext, loadToken)) {
-                console.log('[Iris Chat] Context changed before clearing sessions, aborting load');
+                logger.irisChat('Context changed before clearing sessions, aborting load');
                 return;
             }
 
             const contextKey = `${targetContext.type}:${targetContext.id}`;
-            console.log(`[Iris Chat] Clearing all existing sessions for context ${contextKey} before loading fresh data from Artemis`);
+            logger.irisChat(`Clearing all existing sessions for context ${contextKey} before loading fresh data from Artemis`);
             this._contextStore.clearSessionsForContext(contextKey);
 
             // Clear chat messages immediately after clearing sessions to avoid showing old messages
@@ -231,12 +232,12 @@ export class ChatSessionService {
                     return dateB - dateA;
                 });
 
-                console.log(`[Iris Chat] Importing ${artemisSessionsListFromServer.length} sessions from Artemis`);
+                logger.irisChat(`Importing ${artemisSessionsListFromServer.length} sessions from Artemis`);
 
                 for (const artemisSession of artemisSessionsListFromServer) {
 
                     if (!this.isCurrentContext(targetContext, loadToken)) {
-                        console.log('[Iris Chat] Context changed while importing sessions, aborting load');
+                        logger.irisChat('Context changed while importing sessions, aborting load');
                         return;
                     }
 
@@ -253,7 +254,7 @@ export class ChatSessionService {
                         }
                     }
 
-                    console.log(`[Iris Chat] Importing session ${artemisSession.id}: ${messageCount} messages, preview: "${preview}"`);
+                    logger.irisChat(`Importing session ${artemisSession.id}: ${messageCount} messages, preview: "${preview}"`);
 
                     // Create local session with Artemis session ID and messages
                     this._contextStore.createSessionWithDetails(
@@ -265,7 +266,7 @@ export class ChatSessionService {
                     );
                 }
 
-                console.log(`[Iris Chat] Imported ${artemisSessionsListFromServer.length} sessions for ${activeContext.type} ${activeContext.id}`);
+                logger.irisChat(`Imported ${artemisSessionsListFromServer.length} sessions for ${activeContext.type} ${activeContext.id}`);
             }
 
             // Get the latest snapshot after importing sessions
@@ -274,7 +275,7 @@ export class ChatSessionService {
             // If there are sessions, switch to the first one and load its messages
             if (updatedSnapshot.sessions.length > 0) {
                 if (!this.isCurrentContext(targetContext, loadToken)) {
-                    console.log('[Iris Chat] Context changed before switching to first session, aborting load');
+                    logger.irisChat('Context changed before switching to first session, aborting load');
                     return;
                 }
 
@@ -283,16 +284,16 @@ export class ChatSessionService {
 
                 // Load messages for the first session
                 if (!this.isCurrentContext(targetContext, loadToken)) {
-                    console.log('[Iris Chat] Context changed before loading messages, aborting load');
+                    logger.irisChat('Context changed before loading messages, aborting load');
                     return;
                 }
 
                 await this._onSessionLoaded();
             } else {
                 // No sessions exist, create a new one
-                console.log('[Iris Chat] No sessions found, creating a new one');
+                logger.irisChat('No sessions found, creating a new one');
                 if (!this.isCurrentContext(targetContext, loadToken)) {
-                    console.log('[Iris Chat] Context changed before creating new session, aborting load');
+                    logger.irisChat('Context changed before creating new session, aborting load');
                     return;
                 }
                 this._contextStore.createSession();
@@ -301,18 +302,18 @@ export class ChatSessionService {
 
             // Post updated snapshot to show sessions in UI
             if (!this.isCurrentContext(targetContext, loadToken)) {
-                console.log('[Iris Chat] Context changed before posting snapshot, aborting load');
+                logger.irisChat('Context changed before posting snapshot, aborting load');
                 return;
             }
 
             this._onPostSnapshot();
 
         } catch (error: any) {
-            console.error('Error loading sessions for context:', error);
+            logger.error('Error loading sessions for context:', LogCategory.SESSION, error);
             vscode.window.showWarningMessage(`Could not load sessions: ${error.message}`);
 
             if (!this.isCurrentContext(targetContext, loadToken)) {
-                console.log('[Iris Chat] Context changed during error handling, skipping fallback session creation');
+                logger.irisChat('Context changed during error handling, skipping fallback session creation');
                 return;
             }
 

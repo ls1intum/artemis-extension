@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import { CONFIG } from '../utils';
+import { logger, LogCategory } from '../services/loggingService';
 
 // Manages authentication cookies (JWT in HttpOnly cookie)
 export class AuthManager {
@@ -70,7 +71,7 @@ export class AuthManager {
                 await this.setAuthCookie(cookieHeader, persist);
             }
         } catch (err) {
-            console.error('Failed to capture auth cookie:', err);
+            logger.error('Failed to capture auth cookie:', LogCategory.AUTH, err);
         }
     }
 
@@ -79,13 +80,13 @@ export class AuthManager {
         if (this.memoryCookie) {
             return this.memoryCookie;
         }
-        
+
         // 2. Check new storage location (artemis-auth-token) - primary
         const artemisToken = await this.context.secrets.get(CONFIG.SECRET_KEYS.ARTEMIS_TOKEN);
         if (artemisToken) {
             return artemisToken;
         }
-        
+
         // 3. Check old storage location (artemis-auth-cookie) - fallback for migration
         const stored = await this.context.secrets.get(AuthManager.SECRET_KEY);
         return stored || undefined;
@@ -93,7 +94,7 @@ export class AuthManager {
 
     public async getAuthHeaders(): Promise<Record<string, string>> {
         const cookie = await this.getCookieHeader();
-        
+
         if (cookie) {
             return { 'Cookie': cookie };
         } else {
@@ -116,7 +117,7 @@ export class AuthManager {
             await this.context.secrets.delete(CONFIG.SECRET_KEYS.ARTEMIS_TOKEN);
             await this.context.secrets.delete(CONFIG.SECRET_KEYS.ARTEMIS_SERVER_URL);
         } catch (err) {
-            console.error('Failed to clear auth credentials from secrets:', err);
+            logger.error('Failed to clear auth credentials from secrets:', LogCategory.AUTH, err);
         }
     }
 }

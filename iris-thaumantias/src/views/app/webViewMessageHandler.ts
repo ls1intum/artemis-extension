@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { AuthManager } from '../../auth';
 import { ArtemisApiService } from '../../api';
+import { logger, LogLevel, LogCategory } from '../../services/loggingService';
 import { ArtemisWebsocketService } from '../../services';
 import { AppStateManager } from './appStateManager';
 import type { WebViewActionHandler } from './types';
@@ -19,7 +20,7 @@ import { UtilityCommandModule } from './commands/utilityCommands';
 export class WebViewMessageHandler {
     private _authContextUpdater?: (isAuthenticated: boolean) => Promise<void>;
     private _sendMessage: (message: any) => void = (message: any) => {
-        console.log('[Webview] Message to send to webview:', message);
+        logger.debug('Message to send to webview:', LogCategory.VIEW, message);
     };
     private readonly commandHandlers: Map<string, CommandHandler> = new Map();
     private readonly repositoryModule: RepositoryCommandModule;
@@ -59,7 +60,7 @@ export class WebViewMessageHandler {
             const handlers = module.getHandlers();
             Object.entries(handlers).forEach(([command, handler]) => {
                 if (this.commandHandlers.has(command)) {
-                    console.warn(`Duplicate handler registered for command "${command}". Overwriting existing handler.`);
+                    logger.warn(`Duplicate handler registered for command "${command}". Overwriting existing handler.`, LogCategory.VIEW);
                 }
                 this.commandHandlers.set(command, handler);
             });
@@ -87,13 +88,13 @@ export class WebViewMessageHandler {
         try {
             const handler = this.commandHandlers.get(message.command);
             if (!handler) {
-                console.warn('Unknown message command:', message.command);
+                logger.warn(`Unknown message command: ${message.command}`, LogCategory.VIEW);
                 return;
             }
 
             await handler(message);
         } catch (error) {
-            console.error('Error handling message:', error);
+            logger.error('Error handling message:', LogCategory.VIEW, error);
             vscode.window.showErrorMessage(`Error processing command: ${message.command}`);
         }
     }

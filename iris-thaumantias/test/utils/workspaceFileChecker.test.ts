@@ -5,6 +5,7 @@ import * as os from 'os';
 import * as vscode from 'vscode';
 import { execSync } from 'child_process';
 import { checkWorkspaceFiles } from '../../src/utils/workspaceFileChecker';
+import { logger, LogCategory } from '../../src/services/loggingService';
 
 suite('Workspace File Checker Test Suite', () => {
     let tempDir: string;
@@ -15,7 +16,7 @@ suite('Workspace File Checker Test Suite', () => {
         try {
             execSync('git init', { cwd: tempDir });
         } catch (e) {
-            console.error('Failed to init git repo:', e);
+            logger.error('Failed to init git repo', LogCategory.TEST, e);
         }
     });
 
@@ -23,13 +24,13 @@ suite('Workspace File Checker Test Suite', () => {
         try {
             fs.rmSync(tempDir, { recursive: true, force: true });
         } catch (e) {
-            console.error('Failed to cleanup temp dir:', e);
+            logger.error('Failed to cleanup temp dir', LogCategory.TEST, e);
         }
     });
 
     test('should include untracked allowed files', async () => {
         fs.writeFileSync(path.join(tempDir, 'Main.java'), 'public class Main {}');
-        
+
         const mockFolder: vscode.WorkspaceFolder = {
             uri: vscode.Uri.file(tempDir),
             name: 'test',
@@ -47,7 +48,7 @@ suite('Workspace File Checker Test Suite', () => {
         const nodeModules = path.join(tempDir, 'node_modules');
         fs.mkdirSync(nodeModules);
         fs.writeFileSync(path.join(nodeModules, 'lib.js'), 'console.log("lib")');
-        
+
         const mockFolder: vscode.WorkspaceFolder = {
             uri: vscode.Uri.file(tempDir),
             name: 'test',
@@ -65,7 +66,7 @@ suite('Workspace File Checker Test Suite', () => {
 
     test('should exclude disallowed extensions', async () => {
         fs.writeFileSync(path.join(tempDir, 'image.png'), 'binary data');
-        
+
         const mockFolder: vscode.WorkspaceFolder = {
             uri: vscode.Uri.file(tempDir),
             name: 'test',
@@ -79,7 +80,7 @@ suite('Workspace File Checker Test Suite', () => {
         assert.strictEqual(result.excludedCount, 1);
         assert.strictEqual(result.files[0].reason, 'File type not allowed (.png)');
     });
-    
+
     test('should include content if requested', async () => {
         const content = 'public class Test {}';
         fs.writeFileSync(path.join(tempDir, 'Test.java'), content);
@@ -163,9 +164,9 @@ suite('Workspace File Checker Test Suite', () => {
             index: 0
         };
 
-        const result = await checkWorkspaceFiles(mockFolder, { 
-            applyFilters: true, 
-            includeDirty: true, 
+        const result = await checkWorkspaceFiles(mockFolder, {
+            applyFilters: true,
+            includeDirty: true,
             includeStatus: true,
             dirtyFilesOverride: ['Dirty.java']
         });

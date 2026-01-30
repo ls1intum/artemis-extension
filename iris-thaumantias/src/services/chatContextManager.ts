@@ -3,6 +3,7 @@ import { ContextStore } from './contextStore';
 import { ChatSessionService } from './chatSessionService';
 import { IrisSessionManager } from './irisSessionManager';
 import { ChatContextType, TrackedExercise } from '../types';
+import { logger, LogCategory } from './loggingService';
 
 export class ChatContextManager {
     constructor(
@@ -55,7 +56,7 @@ export class ChatContextManager {
 
         // Load all sessions for the new context
         this._chatSessionService.loadAllSessionsForContext().catch((err: any) => {
-            console.error('Error loading Iris sessions:', err);
+            logger.error('Error loading Iris sessions:', LogCategory.IRIS_CHAT, err);
         });
     }
 
@@ -81,7 +82,7 @@ export class ChatContextManager {
 
         // Load all sessions for the new context
         this._chatSessionService.loadAllSessionsForContext().catch((err: any) => {
-            console.error('Error loading Iris sessions:', err);
+            logger.error('Error loading Iris sessions:', LogCategory.IRIS_CHAT, err);
         });
     }
 
@@ -112,7 +113,7 @@ export class ChatContextManager {
 
         // Load all sessions for the new context
         this._chatSessionService.loadAllSessionsForContext().catch((err: any) => {
-            console.error('Error loading Iris sessions:', err);
+            logger.error('Error loading Iris sessions:', LogCategory.IRIS_CHAT, err);
         });
     }
 

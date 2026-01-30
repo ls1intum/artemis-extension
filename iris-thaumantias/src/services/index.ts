@@ -12,6 +12,7 @@ export { ContextStore } from './contextStore';
 export { ProviderRegistry } from './ProviderRegistry';
 export { ExerciseRegistry, type ExerciseRegistryEntry } from './exerciseRegistry';
 export { WebSocketStatusBarService } from './websocketStatusBar';
+export { logger, LogLevel, LogCategory, LoggingService } from './loggingService';
 export {
     detectWorkspaceExercise,
     findExerciseByRepositoryUrl,

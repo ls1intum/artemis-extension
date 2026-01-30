@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import { logger, LogLevel, LogCategory } from '../../services/loggingService';
 import { AppStateManager } from './appStateManager';
 
 /**
@@ -20,7 +21,7 @@ export class ViewActionService {
                 viewColumn: vscode.ViewColumn.One
             });
         } catch (error) {
-            console.error('Error opening JSON in editor:', error);
+            logger.error('Error opening JSON in editor:', LogCategory.VIEW, error);
             vscode.window.showErrorMessage('Failed to open JSON in editor');
         }
     }
@@ -33,7 +34,7 @@ export class ViewActionService {
             await this._appStateManager.showExerciseDetail(exerciseId);
             return true;
         } catch (error) {
-            console.error('Error fetching exercise details:', error);
+            logger.error('Error fetching exercise details:', LogCategory.VIEW, error);
             vscode.window.showErrorMessage('Failed to fetch exercise details');
             return false;
         }
@@ -53,7 +54,7 @@ export class ViewActionService {
             this._appStateManager.showExamExerciseDetail(exercise, exerciseIndex, courseId, examId);
             return true;
         } catch (error) {
-            console.error('Error showing exam exercise details:', error);
+            logger.error('Error showing exam exercise details:', LogCategory.VIEW, error);
             vscode.window.showErrorMessage('Failed to show exam exercise details');
             return false;
         }

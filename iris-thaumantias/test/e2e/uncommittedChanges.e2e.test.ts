@@ -11,6 +11,7 @@
  */
 
 import * as assert from 'assert';
+import { logger, LogCategory } from '../../src/services/loggingService';
 
 // =============================================================================
 // CONFIGURATION
@@ -135,7 +136,7 @@ class ArtemisTestClient {
     }
 
     async login(username: string, password: string): Promise<boolean> {
-        console.log(`[E2E] Logging in as ${username}...`);
+        logger.info(`[E2E] Logging in as ${username}...`, LogCategory.TEST);
 
         const response = await fetch(`${this.baseUrl}/api/core/public/authenticate`, {
             method: 'POST',
@@ -155,10 +156,10 @@ class ArtemisTestClient {
             if (setCookieHeader) {
                 this.cookies = setCookieHeader.split(',').map(c => c.split(';')[0].trim());
             }
-            console.log('[E2E] Login successful!');
+            logger.info('[E2E] Login successful!', LogCategory.TEST);
             return true;
         } else {
-            console.error(`[E2E] Login failed: ${response.status}`);
+            logger.error(`[E2E] Login failed: ${response.status}`, LogCategory.TEST);
             return false;
         }
     }
@@ -174,7 +175,7 @@ class ArtemisTestClient {
     }
 
     async getOrCreateSession(exerciseId: number): Promise<number | null> {
-        console.log(`[E2E] Getting/creating Iris session for exercise ${exerciseId}...`);
+        logger.info(`[E2E] Getting/creating Iris session for exercise ${exerciseId}...`, LogCategory.TEST);
 
         // Try to get current session
         let response = await fetch(
@@ -184,7 +185,7 @@ class ArtemisTestClient {
 
         if (response.ok) {
             const data = await response.json() as { id: number };
-            console.log(`[E2E] Found existing session: ${data.id}`);
+            logger.info(`[E2E] Found existing session: ${data.id}`, LogCategory.TEST);
             return data.id;
         }
 
@@ -199,11 +200,11 @@ class ArtemisTestClient {
 
         if (response.ok) {
             const data = await response.json() as { id: number };
-            console.log(`[E2E] Created new session: ${data.id}`);
+            logger.info(`[E2E] Created new session: ${data.id}`, LogCategory.TEST);
             return data.id;
         }
 
-        console.error(`[E2E] Failed to create session: ${response.status}`);
+        logger.error(`[E2E] Failed to create session: ${response.status}`, LogCategory.TEST);
         return null;
     }
 
@@ -212,9 +213,9 @@ class ArtemisTestClient {
         message: string,
         uncommittedFiles: Map<string, string>
     ): Promise<{ success: boolean; response?: any; error?: string }> {
-        console.log(`[E2E] Sending message to session ${sessionId}...`);
-        console.log(`[E2E]   Message: ${message.substring(0, 50)}...`);
-        console.log(`[E2E]   Uncommitted files: ${Array.from(uncommittedFiles.keys()).join(', ')}`);
+        logger.info(`[E2E] Sending message to session ${sessionId}...`, LogCategory.TEST);
+        logger.info(`[E2E]   Message: ${message.substring(0, 50)}...`, LogCategory.TEST);
+        logger.info(`[E2E]   Uncommitted files: ${Array.from(uncommittedFiles.keys()).join(', ')}`, LogCategory.TEST);
 
         const payload = {
             sentAt: new Date().toISOString(),
@@ -238,11 +239,11 @@ class ArtemisTestClient {
 
         if (response.ok) {
             const data = await response.json();
-            console.log('[E2E] Message sent successfully!');
+            logger.info('[E2E] Message sent successfully!', LogCategory.TEST);
             return { success: true, response: data };
         } else {
             const errorText = await response.text();
-            console.error(`[E2E] Failed to send message: ${response.status} - ${errorText}`);
+            logger.error(`[E2E] Failed to send message: ${response.status} - ${errorText}`, LogCategory.TEST);
             return { success: false, error: errorText };
         }
     }
@@ -251,7 +252,7 @@ class ArtemisTestClient {
         sessionId: number,
         message: string
     ): Promise<{ success: boolean; response?: any; error?: string }> {
-        console.log(`[E2E] Sending message WITHOUT uncommitted files to session ${sessionId}...`);
+        logger.info(`[E2E] Sending message WITHOUT uncommitted files to session ${sessionId}...`, LogCategory.TEST);
 
         const payload = {
             sentAt: new Date().toISOString(),
@@ -294,15 +295,15 @@ suite('E2E: Uncommitted Changes Flow', function () {
     let sessionId: number;
 
     suiteSetup(async function () {
-        console.log('\n========================================');
-        console.log('E2E Test: Uncommitted Changes Flow');
-        console.log('========================================\n');
+        logger.info('\n========================================', LogCategory.TEST);
+        logger.info('E2E Test: Uncommitted Changes Flow', LogCategory.TEST);
+        logger.info('========================================\n', LogCategory.TEST);
 
-        console.log('Configuration:');
-        console.log(`  Artemis URL: ${CONFIG.artemisUrl}`);
-        console.log(`  Username: ${CONFIG.username}`);
-        console.log(`  Exercise ID: ${CONFIG.exerciseId}`);
-        console.log('');
+        logger.info('Configuration:', LogCategory.TEST);
+        logger.info(`  Artemis URL: ${CONFIG.artemisUrl}`, LogCategory.TEST);
+        logger.info(`  Username: ${CONFIG.username}`, LogCategory.TEST);
+        logger.info(`  Exercise ID: ${CONFIG.exerciseId}`, LogCategory.TEST);
+        logger.info('', LogCategory.TEST);
 
         // Check if Artemis is running
         try {
@@ -311,19 +312,19 @@ suite('E2E: Uncommitted Changes Flow', function () {
                 throw new Error(`Artemis returned ${healthCheck.status}`);
             }
         } catch (error) {
-            console.error('❌ Artemis is not running!');
-            console.error('   Please start Artemis on localhost:8080 before running E2E tests.');
+            logger.error('❌ Artemis is not running!', LogCategory.TEST);
+            logger.error('   Please start Artemis on localhost:8080 before running E2E tests.', LogCategory.TEST);
             this.skip();
             return;
         }
 
-        console.log('✅ Artemis is running\n');
+        logger.info('✅ Artemis is running\n', LogCategory.TEST);
 
         // Login
         client = new ArtemisTestClient(CONFIG.artemisUrl);
         const loggedIn = await client.login(CONFIG.username, CONFIG.password);
         if (!loggedIn) {
-            console.error('❌ Login failed!');
+            logger.error('❌ Login failed!', LogCategory.TEST);
             this.skip();
             return;
         }
@@ -331,13 +332,13 @@ suite('E2E: Uncommitted Changes Flow', function () {
         // Get or create session
         const session = await client.getOrCreateSession(CONFIG.exerciseId);
         if (!session) {
-            console.error('❌ Could not create Iris session!');
+            logger.error('❌ Could not create Iris session!', LogCategory.TEST);
             this.skip();
             return;
         }
         sessionId = session;
 
-        console.log('\n✅ Setup complete\n');
+        logger.info('\n✅ Setup complete\n', LogCategory.TEST);
     });
 
     test('should send message with uncommitted BubbleSort.java', async function () {
@@ -357,7 +358,7 @@ suite('E2E: Uncommitted Changes Flow', function () {
         assert.ok(result.response, 'Response should not be null');
         assert.ok(result.response.id, 'Response should have an ID');
 
-        console.log(`✅ Message sent with uncommitted BubbleSort.java (response ID: ${result.response.id})`);
+        logger.info(`✅ Message sent with uncommitted BubbleSort.java (response ID: ${result.response.id})`, LogCategory.TEST);
     });
 
     test('should send message with NEW QuickSort.java file', async function () {
@@ -376,7 +377,7 @@ suite('E2E: Uncommitted Changes Flow', function () {
         assert.strictEqual(result.success, true, `Message should be sent successfully. Error: ${result.error}`);
         assert.ok(result.response, 'Response should not be null');
 
-        console.log(`✅ Message sent with NEW QuickSort.java (response ID: ${result.response.id})`);
+        logger.info(`✅ Message sent with NEW QuickSort.java (response ID: ${result.response.id})`, LogCategory.TEST);
     });
 
     test('should send message with multiple uncommitted files', async function () {
@@ -398,7 +399,7 @@ suite('E2E: Uncommitted Changes Flow', function () {
 
         assert.strictEqual(result.success, true, `Message should be sent successfully. Error: ${result.error}`);
 
-        console.log(`✅ Message sent with 2 uncommitted files`);
+        logger.info(`✅ Message sent with 2 uncommitted files`, LogCategory.TEST);
     });
 
     test('should send message without uncommitted files (backward compatibility)', async function () {
@@ -409,7 +410,7 @@ suite('E2E: Uncommitted Changes Flow', function () {
 
         assert.strictEqual(result.success, true, `Message should be sent successfully. Error: ${result.error}`);
 
-        console.log(`✅ Message sent without uncommitted files (backward compatible)`);
+        logger.info(`✅ Message sent without uncommitted files (backward compatible)`, LogCategory.TEST);
     });
 
     test('should handle empty uncommitted files map', async function () {
@@ -423,12 +424,12 @@ suite('E2E: Uncommitted Changes Flow', function () {
 
         assert.strictEqual(result.success, true, `Message should be sent successfully. Error: ${result.error}`);
 
-        console.log(`✅ Message sent with empty uncommitted files map`);
+        logger.info(`✅ Message sent with empty uncommitted files map`, LogCategory.TEST);
     });
 
     suiteTeardown(function () {
-        console.log('\n========================================');
-        console.log('E2E Tests Complete');
-        console.log('========================================\n');
+        logger.info('\n========================================', LogCategory.TEST);
+        logger.info('E2E Tests Complete', LogCategory.TEST);
+        logger.info('========================================\n', LogCategory.TEST);
     });
 });

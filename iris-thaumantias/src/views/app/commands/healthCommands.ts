@@ -1,4 +1,5 @@
 import type { CommandContext, CommandMap } from './types';
+import { logger } from '../../../services/loggingService';
 
 export class HealthCommandModule {
     constructor(private readonly context: CommandContext) { }
@@ -101,13 +102,13 @@ export class HealthCommandModule {
                         const infoData = await infoResponse.json() as { activeProfiles?: string[] };
                         const profiles = infoData.activeProfiles || [];
                         const isIrisActive = profiles.includes('iris');
-                        
+
                         results.irisService = {
                             status: isIrisActive ? 'online' : 'offline',
                             message: isIrisActive ? 'Active' : 'Not enabled',
                             endpoint: `${serverUrl}/management/info`,
                             httpStatus: infoResponse.status,
-                            response: isIrisActive 
+                            response: isIrisActive
                                 ? `Iris profile active (${profiles.length} profiles loaded)`
                                 : `Iris profile not in activeProfiles`
                         };
@@ -139,7 +140,7 @@ export class HealthCommandModule {
                 };
             }
         } catch (error) {
-            console.error('Error performing health checks:', error);
+            logger.apiError('Error performing health checks:', error);
         }
 
         this.context.sendMessage({

@@ -3,6 +3,7 @@ import { ExerciseRegistry } from '../../../services';
 import { ProviderRegistry } from '../../../services/ProviderRegistry';
 import { ExamErrorHandler } from '../../../services/examErrorHandler';
 import type { CommandContext, CommandMap } from './types';
+import { logger } from '../../../services/loggingService';
 
 interface CourseQuickPickItem extends vscode.QuickPickItem {
     courseData: any;
@@ -54,7 +55,7 @@ export class NavigationCommandModule {
             });
             await vscode.window.showTextDocument(document);
         } catch (error) {
-            console.error('Error opening rules in editor:', error);
+            logger.viewError('Error opening rules in editor:', error);
             vscode.window.showErrorMessage('Failed to open rules in editor.');
         }
     };
@@ -70,7 +71,7 @@ export class NavigationCommandModule {
                 vscode.window.showErrorMessage('Could not determine Artemis server URL.');
             }
         } catch (error) {
-            console.error('[EXAMMODE] Error opening exam in browser:', error);
+            logger.viewError('[EXAMMODE] Error opening exam in browser:', error);
             vscode.window.showErrorMessage('Failed to open exam in browser.');
         }
     };
@@ -78,23 +79,23 @@ export class NavigationCommandModule {
     private handleOpenExam = async (message: any): Promise<void> => {
         try {
             const { courseId, examId } = message;
-            console.log(`[EXAMMODE] Handling openExam for course ${courseId}, exam ${examId}`);
+            logger.view(`[EXAMMODE] Handling openExam for course ${courseId}, exam ${examId}`);
             const studentExam = await this.context.artemisApi.getOwnStudentExam(courseId, examId);
-            console.log(`[EXAMMODE] Fetched student exam:`, studentExam);
+            logger.view(`[EXAMMODE] Fetched student exam:`, studentExam);
 
             if (studentExam.started) {
-                console.log(`[EXAMMODE] Exam already started, proceeding to conduction`);
+                logger.view(`[EXAMMODE] Exam already started, proceeding to conduction`);
                 // If already started, go directly to conduction (to be implemented)
                 // For now, we can reuse the start exam logic which will fetch conduction details
                 await this.handleStartExam({ courseId, examId, studentExamId: studentExam.id });
             } else {
-                console.log(`[EXAMMODE] Exam not started, showing start view`);
+                logger.view(`[EXAMMODE] Exam not started, showing start view`);
                 // Show start exam view
                 this.context.appStateManager.showExamStart({ studentExam, courseId, examId });
                 this.context.actionHandler.render();
             }
         } catch (error: any) {
-            console.error('[EXAMMODE] Error opening exam:', error);
+            logger.viewError('[EXAMMODE] Error opening exam:', error);
             const userMessage = ExamErrorHandler.getExamErrorMessage(error);
             vscode.window.showErrorMessage(userMessage);
         }
@@ -104,17 +105,17 @@ export class NavigationCommandModule {
     private handleStartExam = async (message: any): Promise<void> => {
         try {
             const { courseId, examId, studentExamId } = message;
-            console.log(`[EXAMMODE] Starting exam ${examId} for student exam ${studentExamId}`);
+            logger.view(`[EXAMMODE] Starting exam ${examId} for student exam ${studentExamId}`);
             const conductionDetails = await this.context.artemisApi.startStudentExam(courseId, examId, studentExamId);
 
-            console.log('[EXAMMODE] Exam started, conduction details:', conductionDetails);
+            logger.view('[EXAMMODE] Exam started, conduction details:', conductionDetails);
 
             // Show conduction view
             this.context.appStateManager.showExamConduction({ studentExam: conductionDetails, courseId, examId });
             this.context.actionHandler.render();
 
         } catch (error) {
-            console.error('[EXAMMODE] Error starting exam:', error);
+            logger.viewError('[EXAMMODE] Error starting exam:', error);
             vscode.window.showErrorMessage('Failed to start exam.');
         }
     };
@@ -152,7 +153,7 @@ export class NavigationCommandModule {
                 vscode.window.showWarningMessage('No courses found or you don\'t have access to any courses.');
             }
         } catch (error) {
-            console.error('Browse courses error:', error);
+            logger.viewError('Browse courses error:', error);
             vscode.window.showErrorMessage('Error loading courses');
         }
     };
@@ -161,7 +162,7 @@ export class NavigationCommandModule {
         try {
             vscode.window.showInformationMessage('This feature will show exercises in a future update.');
         } catch (error) {
-            console.error('View exercises error:', error);
+            logger.viewError('View exercises error:', error);
             vscode.window.showErrorMessage('Error accessing exercises');
         }
     };
@@ -170,7 +171,7 @@ export class NavigationCommandModule {
         try {
             vscode.window.showInformationMessage('This feature will show grades in a future update.');
         } catch (error) {
-            console.error('Check grades error:', error);
+            logger.viewError('Check grades error:', error);
             vscode.window.showErrorMessage('Error accessing grades');
         }
     };
@@ -193,7 +194,7 @@ export class NavigationCommandModule {
                     const exams = await this.context.artemisApi.getExamsForCourse(course.id);
                     course.exams = exams;
                 } catch (error) {
-                    console.error('Error fetching exams:', error);
+                    logger.apiError('Error fetching exams:', error);
                     // Continue without exams if fetch fails
                 }
             }
@@ -211,7 +212,7 @@ export class NavigationCommandModule {
 
                 if (chatProvider && typeof chatProvider.updateDetectedCourse === 'function') {
                     chatProvider.updateDetectedCourse(courseTitle, courseId, shortName);
-                    console.log('📚 [Course Detection] Notified chat about course:', courseTitle);
+                    logger.view('📚 [Course Detection] Notified chat about course:', courseTitle);
                 }
 
                 if (course.exercises && Array.isArray(course.exercises) && chatProvider && typeof chatProvider.updateDetectedExercise === 'function') {
@@ -224,7 +225,7 @@ export class NavigationCommandModule {
                             const shortName = exercise.shortName;
 
                             chatProvider.updateDetectedExercise(exerciseTitle, exerciseId, releaseDate, dueDate, shortName, courseId);
-                            console.log(`📚 [Course Exercises] Updated exercise from course: ${exerciseTitle} (ID: ${exerciseId})`);
+                            logger.view(`📚 [Course Exercises] Updated exercise from course: ${exerciseTitle} (ID: ${exerciseId})`);
                         }
                     });
                 }
@@ -232,7 +233,7 @@ export class NavigationCommandModule {
 
             this.context.actionHandler.render();
         } catch (error) {
-            console.error('View course details error:', error);
+            logger.viewError('View course details error:', error);
             vscode.window.showErrorMessage('Error viewing course details');
         }
     }
@@ -297,7 +298,7 @@ export class NavigationCommandModule {
                 vscode.window.showInformationMessage('No archived courses found');
             }
         } catch (error) {
-            console.error('Load archived courses error:', error);
+            logger.viewError('Load archived courses error:', error);
             vscode.window.showErrorMessage('Error loading archived courses');
         }
     };
@@ -307,7 +308,7 @@ export class NavigationCommandModule {
             this.context.appStateManager.clearCoursesData();
             await this.context.actionHandler.showCourseList();
         } catch (error) {
-            console.error('Reload courses error:', error);
+            logger.viewError('Reload courses error:', error);
             vscode.window.showErrorMessage('Error reloading courses');
         }
     };
@@ -320,7 +321,7 @@ export class NavigationCommandModule {
                 await this.context.actionHandler.showDashboard(userInfo);
             }
         } catch (error) {
-            console.error('Reload dashboard error:', error);
+            logger.viewError('Reload dashboard error:', error);
             vscode.window.showErrorMessage('Error reloading dashboard');
         }
     };
@@ -344,7 +345,7 @@ export class NavigationCommandModule {
                     const exams = await this.context.artemisApi.getExamsForCourse(courseId);
                     courseData.course.exams = exams;
                 } catch (error) {
-                    console.error('Error fetching exams during reload:', error);
+                    logger.apiError('Error fetching exams during reload:', error);
                     // Continue without exams if fetch fails
                 }
 
@@ -352,7 +353,7 @@ export class NavigationCommandModule {
                 this.context.actionHandler.render();
             }
         } catch (error) {
-            console.error('Reload course detail error:', error);
+            logger.viewError('Reload course detail error:', error);
             vscode.window.showErrorMessage('Error reloading course details');
         }
     };
@@ -365,7 +366,7 @@ export class NavigationCommandModule {
                 await this.context.actionHandler.openExerciseDetails(exerciseId);
             }
         } catch (error) {
-            console.error('Reload exercise detail error:', error);
+            logger.viewError('Reload exercise detail error:', error);
             vscode.window.showErrorMessage('Error reloading exercise details');
         }
     };
@@ -378,7 +379,7 @@ export class NavigationCommandModule {
             await this.context.appStateManager.showArchivedCourseDetail(courseId);
             this.context.actionHandler.render();
         } catch (error) {
-            console.error('View archived course error:', error);
+            logger.viewError('View archived course error:', error);
             vscode.window.showErrorMessage('Error viewing archived course details');
         }
     };
@@ -397,7 +398,7 @@ export class NavigationCommandModule {
 
                     if (foundExercise) {
                         parentCourseData = courseData;
-                        console.log(`[Navigation] 📚 Found parent course for exercise ${exerciseId}: ${courseData.course?.title}`);
+                        logger.view(`[Navigation] 📚 Found parent course for exercise ${exerciseId}: ${courseData.course?.title}`);
                         break;
                     }
                 }
@@ -406,12 +407,12 @@ export class NavigationCommandModule {
             if (parentCourseData) {
                 this.context.appStateManager.showCourseDetail(parentCourseData);
             } else {
-                console.warn(`⚠️  Could not find parent course for exercise ${exerciseId}`);
+                logger.viewWarn(`⚠️  Could not find parent course for exercise ${exerciseId}`);
             }
 
             await this.context.actionHandler.openExerciseDetails(exerciseId);
         } catch (error) {
-            console.error('Open exercise error:', error);
+            logger.viewError('Open exercise error:', error);
             vscode.window.showErrorMessage('Failed to open exercise details.');
         }
     };
@@ -426,7 +427,7 @@ export class NavigationCommandModule {
 
             await this.context.actionHandler.openExerciseFullscreen(exerciseData);
         } catch (error) {
-            console.error('Error opening exercise in fullscreen:', error);
+            logger.viewError('Error opening exercise in fullscreen:', error);
             vscode.window.showErrorMessage('Failed to open exercise in fullscreen mode');
         }
     };
@@ -441,7 +442,7 @@ export class NavigationCommandModule {
 
             await this.context.actionHandler.openCourseFullscreen(courseData);
         } catch (error) {
-            console.error('Error opening course in fullscreen:', error);
+            logger.viewError('Error opening course in fullscreen:', error);
             vscode.window.showErrorMessage('Failed to open course in fullscreen mode');
         }
     };
@@ -449,19 +450,19 @@ export class NavigationCommandModule {
     private handleRefreshExam = async (message: any): Promise<void> => {
         try {
             const { courseId, examId, studentExamId } = message;
-            console.log(`[EXAMMODE] Refreshing exam status for course ${courseId}, exam ${examId}`);
+            logger.view(`[EXAMMODE] Refreshing exam status for course ${courseId}, exam ${examId}`);
 
             const studentExam = await this.context.artemisApi.getOwnStudentExam(courseId, examId);
 
             if (studentExam.started) {
-                console.log(`[EXAMMODE] Exam started in browser, proceeding to conduction`);
+                logger.view(`[EXAMMODE] Exam started in browser, proceeding to conduction`);
                 // Proceed to conduction by fetching details
                 await this.handleStartExam({ courseId, examId, studentExamId });
             } else {
                 vscode.window.showInformationMessage('Exam has not been started yet. Please start it in the browser.');
             }
         } catch (error) {
-            console.error('[EXAMMODE] Error refreshing exam:', error);
+            logger.viewError('[EXAMMODE] Error refreshing exam:', error);
             vscode.window.showErrorMessage('Failed to refresh exam status.');
         }
     };

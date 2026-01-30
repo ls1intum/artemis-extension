@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import { ProviderRegistry } from '../../../services/ProviderRegistry';
+import { logger, LogCategory } from '../../../services/loggingService';
 import type { CommandContext, CommandMap } from './types';
 
 export class IrisCommandModule {
@@ -20,7 +21,7 @@ export class IrisCommandModule {
         const dueDate: string | undefined = message.dueDate;
         const courseId: number | undefined = message.courseId;
 
-        console.log('🎯 [ASK IRIS] Button clicked with data:', {
+        logger.debug('Button clicked with data:', LogCategory.IRIS_CHAT, {
             exerciseId,
             exerciseTitle,
             exerciseShortName,
@@ -30,19 +31,19 @@ export class IrisCommandModule {
         });
 
         if (!exerciseId) {
-            console.error('🎯 [ASK IRIS] ERROR: Missing exercise ID');
+            logger.irisChatError('ERROR: Missing exercise ID');
             vscode.window.showWarningMessage('Unable to open Iris chat: missing exercise information.');
             return;
         }
 
-        console.log('🎯 [ASK IRIS] Focusing Iris chat view...');
+        logger.irisChat('Focusing Iris chat view...');
         await vscode.commands.executeCommand('iris.chatView.focus');
 
         const chatProvider = ProviderRegistry.getInstance().getChatWebviewProvider();
         const title = exerciseTitle || `Exercise ${exerciseId}`;
 
-        console.log('🎯 [ASK IRIS] Chat provider available:', !!chatProvider);
-        console.log('🎯 [ASK IRIS] Calling setExerciseContext with:', {
+        logger.debug(`Chat provider available: ${!!chatProvider}`, LogCategory.IRIS_CHAT);
+        logger.debug('Calling setExerciseContext with:', LogCategory.IRIS_CHAT, {
             exerciseId,
             title,
             reason: 'user-selected',
@@ -58,10 +59,9 @@ export class IrisCommandModule {
 
         if (chatProvider && typeof chatProvider.setExerciseContext === 'function') {
             chatProvider.setExerciseContext(exerciseId, title, 'user-selected', exerciseShortName, releaseDate, dueDate, courseId);
-            console.log('🎯 [ASK IRIS] setExerciseContext called successfully');
+            logger.irisChat('setExerciseContext called successfully');
         } else {
-            console.warn('🎯 [ASK IRIS] WARNING: Chat provider is unavailable or does not support exercise context selection');
-            console.warn('Iris chat provider is unavailable or does not support exercise context selection.');
+            logger.irisChatWarn('WARNING: Chat provider is unavailable or does not support exercise context selection');
         }
     };
 
@@ -81,7 +81,7 @@ export class IrisCommandModule {
         if (chatProvider && typeof chatProvider.setCourseContext === 'function') {
             chatProvider.setCourseContext(courseId, courseTitle || `Course ${courseId}`, 'user-selected', courseShortName);
         } else {
-            console.warn('Iris chat provider is unavailable or does not support course context selection.');
+            logger.irisChatWarn('Iris chat provider is unavailable or does not support course context selection.');
         }
     };
 }

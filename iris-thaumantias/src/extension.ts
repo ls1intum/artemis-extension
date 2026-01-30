@@ -7,14 +7,17 @@ import { ArtemisApiService } from './api';
 import { ArtemisWebsocketService, TelemetryManager, WebSocketStatusBarService } from './services';
 import { ProviderRegistry } from './services/ProviderRegistry';
 import { VSCODE_CONFIG, processPlantUml, normalizeRelativePath } from './utils';
+import { logger, LogLevel, LogCategory } from './services/loggingService';
 
 // This method is called when your extension is activated
 // Your extension is activated the very first time the command is executed
 export async function activate(context: vscode.ExtensionContext) {
 
-	// Use the console to output diagnostic information (console.log) and errors (console.error)
+	// Initialize the centralized logging service
+	logger.initialize();
+
 	// This line of code will only be executed once when your extension is activated
-	console.log('[Extension] Congratulations, your extension "iris-thaumantias" is now active!');
+	logger.info('Congratulations, your extension "iris-thaumantias" is now active!', LogCategory.GENERAL);
 
 	// Initialize the auth manager and API service
 	const authManager = new AuthManager(context);
@@ -49,7 +52,7 @@ export async function activate(context: vscode.ExtensionContext) {
 				try {
 					await artemisWebsocketService.connect();
 				} catch (error) {
-					console.error('Failed to connect to Artemis WebSocket:', error);
+					logger.error('Failed to connect to Artemis WebSocket', LogCategory.WEBSOCKET, error);
 					// Don't block login if WebSocket fails
 				}
 			}, 500); // 500ms delay to ensure auth is complete
@@ -77,14 +80,14 @@ export async function activate(context: vscode.ExtensionContext) {
 						try {
 							await artemisWebsocketService.connect();
 						} catch (error) {
-							console.error('Failed to connect to Artemis WebSocket on startup:', error);
+							logger.error('Failed to connect to Artemis WebSocket on startup', LogCategory.WEBSOCKET, error);
 							// Don't block - user can still use the extension
 						}
 					}, 1000); // 1 second delay for startup connection
 				}
 			}
 		} catch (error) {
-			console.error('Error checking initial auth state:', error);
+			logger.error('Error checking initial auth state', LogCategory.AUTH, error);
 			await vscode.commands.executeCommand('setContext', 'iris:authenticated', false);
 		}
 	};
@@ -188,7 +191,7 @@ export async function activate(context: vscode.ExtensionContext) {
 			// Switch back to login state
 			artemisWebviewProvider.showLogin();
 		} catch (error) {
-			console.error('Logout error:', error);
+			logger.error('Logout error', LogCategory.AUTH, error);
 			vscode.window.showErrorMessage('Error during logout');
 		}
 	});
@@ -270,7 +273,7 @@ export async function activate(context: vscode.ExtensionContext) {
 						vscode.window.showWarningMessage('⚠️ Iris is currently inactive or unavailable.');
 					}
 				} catch (error) {
-					console.error('Iris health check failed:', error);
+					logger.error('Iris health check failed', LogCategory.API, error);
 					let errorMessage = '❌ Failed to check Iris health status.';
 
 					if (error instanceof Error) {
@@ -287,7 +290,7 @@ export async function activate(context: vscode.ExtensionContext) {
 				}
 			});
 		} catch (error) {
-			console.error('Error executing Iris health check command:', error);
+			logger.error('Error executing Iris health check command', LogCategory.API, error);
 			vscode.window.showErrorMessage('Failed to execute Iris health check command.');
 		}
 	});
@@ -391,7 +394,7 @@ export async function activate(context: vscode.ExtensionContext) {
 				vscode.window.showInformationMessage('WebSocket status copied to clipboard');
 			}
 		} catch (error) {
-			console.error('Error checking WebSocket status:', error);
+			logger.error('Error checking WebSocket status', LogCategory.WEBSOCKET, error);
 			vscode.window.showErrorMessage(`Failed to check WebSocket status: ${error instanceof Error ? error.message : 'Unknown error'}`);
 		}
 	});
@@ -436,7 +439,7 @@ export async function activate(context: vscode.ExtensionContext) {
 				}
 			});
 		} catch (error) {
-			console.error('Error in connect WebSocket command:', error);
+			logger.error('Error in connect WebSocket command', LogCategory.WEBSOCKET, error);
 			vscode.window.showErrorMessage('Failed to execute connect command');
 		}
 	});
@@ -446,14 +449,12 @@ export async function activate(context: vscode.ExtensionContext) {
 		'artemis.renderPlantUmlFromWebview',
 		async (plantUmlText: string, exerciseTitle?: string) => {
 			try {
-				console.log('[PlantUML] 🎨 Rendering PlantUML from webview');
-				console.log('[PlantUML] 📊 PlantUML content:', plantUmlText);
+				logger.plantUml('Rendering PlantUML from webview');
+				logger.debug('PlantUML content: ' + plantUmlText, LogCategory.PLANTUML);
 
 				// Process the PlantUML text to replace testsColor(...) with "green"
 				const processedPlantUml = processPlantUml(plantUmlText);
-				console.log('[PlantUML] ✅ Processed PlantUML:', processedPlantUml);
-
-				// Determine if we should use dark theme
+				logger.debug('Processed PlantUML: ' + processedPlantUml, LogCategory.PLANTUML);
 				const isDarkTheme = vscode.window.activeColorTheme.kind === vscode.ColorThemeKind.Dark;
 
 				// Render the PlantUML diagram
@@ -518,7 +519,7 @@ export async function activate(context: vscode.ExtensionContext) {
 			} catch (error) {
 				const errorMsg = error instanceof Error ? error.message : 'Unknown error';
 				vscode.window.showErrorMessage(`❌ Failed to render PlantUML: ${errorMsg}`);
-				console.error('PlantUML rendering error:', error);
+				logger.error('PlantUML rendering error', LogCategory.PLANTUML, error);
 			}
 		}
 	);
@@ -526,7 +527,7 @@ export async function activate(context: vscode.ExtensionContext) {
 	// Listen for configuration changes
 	const configChangeListener = vscode.workspace.onDidChangeConfiguration(event => {
 		if (event.affectsConfiguration(`${VSCODE_CONFIG.ARTEMIS_SECTION}.${VSCODE_CONFIG.SERVER_URL_KEY}`)) {
-			console.log('[Config] Artemis server URL configuration changed');
+			logger.configLog('Artemis server URL configuration changed');
 
 			// Optionally show a message to the user about the server URL change
 			const config = vscode.workspace.getConfiguration(VSCODE_CONFIG.ARTEMIS_SECTION);
@@ -550,7 +551,7 @@ export async function activate(context: vscode.ExtensionContext) {
 		}
 
 		if (event.affectsConfiguration(`${VSCODE_CONFIG.ARTEMIS_SECTION}.${VSCODE_CONFIG.SHOW_IRIS_EXPLANATION_KEY}`)) {
-			console.log('[Config] Artemis showIrisExplanation configuration changed');
+			logger.configLog('Artemis showIrisExplanation configuration changed');
 
 			// Refresh the main webview to show/hide the Iris explanation
 			artemisWebviewProvider.refreshTheme();

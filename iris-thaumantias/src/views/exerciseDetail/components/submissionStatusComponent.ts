@@ -38,7 +38,7 @@ export class SubmissionStatusComponent {
     // Check if there's a pending submission (build in progress)
     // This takes priority over showing old results
     if (pendingSubmission && isProgrammingExercise) {
-      console.log('[Build Status] 🔨 Showing building state for pending submission');
+      // Log to extension host via webview messaging
       return this._generateBuildingStatus(pendingSubmission, participationId);
     }
 
@@ -447,7 +447,7 @@ export class SubmissionStatusComponent {
 
       // Auto-fetch build logs to enable "Go to Source" button
       window.fetchBuildLogsForError = function(participationId, resultId) {
-        console.log('[Build Log] 🔍 Auto-fetching build logs to parse errors...');
+        vscode.postMessage({ command: 'webviewLog', level: 'info', message: '[Build Log] 🔍 Auto-fetching build logs to parse errors...' });
         
         vscode.postMessage({
           command: 'fetchBuildLogsForError',
@@ -482,7 +482,7 @@ export class SubmissionStatusComponent {
               '<button onclick="fetchTestResults()" style="margin-top: 12px; padding: 8px 16px; cursor: pointer;">Retry</button>' +
               '</div>';
             container.dataset.loaded = 'true';
-            console.warn('Test results fetch timed out after 10 seconds');
+            vscode.postMessage({ command: 'webviewLog', level: 'warn', message: 'Test results fetch timed out after 10 seconds' });
           }
         }, 10000);
 
@@ -538,7 +538,7 @@ export class SubmissionStatusComponent {
 
           container.dataset.loaded = 'true';
         } catch (error) {
-          console.error('Error fetching test results:', error);
+          vscode.postMessage({ command: 'webviewLog', level: 'error', message: 'Error fetching test results: ' + error });
           container.innerHTML = '<div class="test-results-error">Error loading test results. Please try again.</div>';
           container.dataset.loaded = 'true';
         }

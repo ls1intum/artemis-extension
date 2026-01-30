@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import type { CommandContext, CommandMap } from './types';
 import { BuildLogParser, normalizeRelativePath } from '../../../utils';
+import { logger, LogLevel, LogCategory } from '../../../services/loggingService';
 
 export class UtilityCommandModule {
     constructor(private readonly context: CommandContext) { }
@@ -21,6 +22,7 @@ export class UtilityCommandModule {
             goToSourceError: this.handleGoToSourceError,
             fetchBuildLogsForError: this.handleFetchBuildLogsForError,
             clearBuildErrors: this.handleClearBuildErrors,
+            webviewLog: this.handleWebviewLog,
         };
     }
 
@@ -81,7 +83,7 @@ export class UtilityCommandModule {
                 vscode.window.showErrorMessage('No submission details found');
             }
         } catch (error) {
-            console.error('Show submission details error:', error);
+            logger.submissionError('Show submission details error:', error);
             vscode.window.showErrorMessage(`Failed to fetch submission details: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
     };
@@ -102,7 +104,7 @@ export class UtilityCommandModule {
 
             const resultDetails = await this.context.artemisApi.getResultDetails(participationId, resultId);
 
-            console.log('[Test Results] Result details received:', JSON.stringify(resultDetails, null, 2));
+            logger.submission('[Test Results] Result details received:', JSON.stringify(resultDetails, null, 2));
 
             let feedbacks: any[] = [];
 
@@ -112,7 +114,7 @@ export class UtilityCommandModule {
                 feedbacks = resultDetails.feedbacks;
             }
 
-            console.log('[Test Results] Feedbacks array:', feedbacks.length, 'items');
+            logger.submission('[Test Results] Feedbacks array:', feedbacks.length, 'items');
 
             if (feedbacks.length > 0) {
                 const testCases = feedbacks
@@ -126,21 +128,21 @@ export class UtilityCommandModule {
                         visibility: feedback.testCase?.visibility
                     }));
 
-                console.log('[Test Results] Mapped test cases:', testCases.length, 'items');
+                logger.submission('[Test Results] Mapped test cases:', testCases.length, 'items');
 
                 this.context.sendMessage({
                     command: 'testResultsData',
                     testCases: testCases
                 });
             } else {
-                console.log('[Test Results] No feedbacks found in result details');
+                logger.submission('[Test Results] No feedbacks found in result details');
                 this.context.sendMessage({
                     command: 'testResultsData',
                     testCases: []
                 });
             }
         } catch (error) {
-            console.error('Fetch test results error:', error);
+            logger.submissionError('Fetch test results error:', error);
             this.context.sendMessage({
                 command: 'testResultsData',
                 testCases: [],
@@ -176,7 +178,7 @@ export class UtilityCommandModule {
             // Open in external browser
             await vscode.env.openExternal(vscode.Uri.parse(exerciseUrl));
         } catch (error) {
-            console.error('Open exercise in browser error:', error);
+            logger.viewError('Open exercise in browser error:', error);
             vscode.window.showErrorMessage(`Failed to open exercise in browser: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
     };
@@ -245,7 +247,7 @@ export class UtilityCommandModule {
 
             vscode.window.showInformationMessage('Build log opened in editor');
         } catch (error) {
-            console.error('View build log error:', error);
+            logger.error('View build log error:', LogCategory.BUILD, error);
             vscode.window.showErrorMessage(`Failed to fetch build log: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
     };
@@ -298,7 +300,7 @@ export class UtilityCommandModule {
 
             vscode.window.showInformationMessage(`Navigated to ${filePath}:${line}`);
         } catch (error) {
-            console.error('Go to source error:', error);
+            logger.viewError('Go to source error:', error);
             vscode.window.showErrorMessage(`Failed to navigate to source: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
     };
@@ -309,16 +311,16 @@ export class UtilityCommandModule {
 
         try {
             if (!participationId) {
-                console.error('Cannot fetch build logs for error: missing participation ID.');
+                logger.error('Cannot fetch build logs for error: missing participation ID.', LogCategory.BUILD);
                 return;
             }
 
-            console.log('[Build Log] 🔍 Fetching build logs in background to parse errors...');
+            logger.info('[Build Log] 🔍 Fetching build logs in background to parse errors...', LogCategory.BUILD);
 
             const buildLogs = await this.context.artemisApi.getBuildLogs(participationId, resultId);
 
             if (!buildLogs || buildLogs.length === 0) {
-                console.log('[Build Log] No build logs available for error parsing');
+                logger.info('[Build Log] No build logs available for error parsing', LogCategory.BUILD);
                 return;
             }
 
@@ -327,7 +329,7 @@ export class UtilityCommandModule {
 
             // Send parsed error back to webview so it can show "Go to Source" button
             if (firstError) {
-                console.log('[Build Log] ✅ Parsed error from build logs:', firstError);
+                logger.info('[Build Log] ✅ Parsed error from build logs:', LogCategory.BUILD, firstError);
 
                 // Show CodeLens above the error line
                 if (this.context.buildCodeLens) {
@@ -341,26 +343,50 @@ export class UtilityCommandModule {
                     resultId: resultId
                 });
             } else {
-                console.log('[Build Log] No parseable errors found in build logs');
+                logger.info('No parseable errors found in build logs', LogCategory.BUILD);
             }
         } catch (error) {
-            console.error('Fetch build logs for error:', error);
+            logger.error('Fetch build logs for error:', LogCategory.BUILD, error);
             // Silently fail - this is a background operation
         }
     };
 
     private handleClearBuildErrors = async (): Promise<void> => {
         try {
-            console.log('[Build Log] 🧹 Clearing CodeLens build errors...');
+            logger.info('🧹 Clearing CodeLens build errors...', LogCategory.BUILD);
 
             // Clear all build errors from CodeLens
             if (this.context.buildCodeLens) {
                 this.context.buildCodeLens.clearErrors();
-                console.log('[Build Log] ✅ CodeLens errors cleared');
+                logger.info('✅ CodeLens errors cleared', LogCategory.BUILD);
             }
         } catch (error) {
-            console.error('Error clearing build errors:', error);
+            logger.error('Error clearing build errors:', LogCategory.BUILD, error);
             // Silently fail - this is a background operation
+        }
+    };
+
+    /**
+     * Handles log messages from webview scripts
+     */
+    private handleWebviewLog = async (message: any): Promise<void> => {
+        const { level, text, category } = message;
+        const logCategory = LogCategory.VIEW;
+
+        switch (level) {
+            case 'error':
+                logger.error(text, logCategory, message.error);
+                break;
+            case 'warn':
+                logger.warn(text, logCategory);
+                break;
+            case 'debug':
+                logger.debug(text, logCategory);
+                break;
+            case 'info':
+            default:
+                logger.info(text, logCategory);
+                break;
         }
     };
 }

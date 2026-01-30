@@ -3,6 +3,7 @@ import WebSocket from 'ws';
 import * as vscode from 'vscode';
 import { AuthManager } from '../auth';
 import { CONFIG, VSCODE_CONFIG, WEBSOCKET_TOPICS } from '../utils';
+import { logger, LogCategory } from './loggingService';
 import {
     ResultDTO,
     ProgrammingSubmission,
@@ -540,7 +541,7 @@ export class ArtemisWebsocketService {
                 this._log(`✅ onMessage callback completed for session ${sessionId}`);
             } catch (error) {
                 this._log(`❌ Error processing Iris message: ${error}`);
-                console.error('[WebsocketLog] Full error:', error);
+                logger.error('Full error processing Iris message', LogCategory.WEBSOCKET, error as Error);
             }
         });
 
@@ -783,7 +784,7 @@ export class ArtemisWebsocketService {
 
     private _onError(message: string): void {
         this._log(`❌ ${message}`);
-        console.error(`[WebsocketLog] ERROR: ${message}`);
+        logger.error(message, LogCategory.WEBSOCKET);
     }
 
     private _getServerUrl(): string {
@@ -812,6 +813,6 @@ export class ArtemisWebsocketService {
     }
 
     private _log(message: string): void {
-        console.log(`[WebsocketLog] ${message}`);
+        logger.websocket(message);
     }
 }

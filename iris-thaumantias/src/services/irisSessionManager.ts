@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import { ArtemisApiService } from '../api';
 import { ArtemisWebsocketService } from './artemisWebsocketService';
 import { ActiveContext } from '../types';
+import { logger, LogLevel } from './loggingService';
 
 /**
  * Minimum interval between resubscription attempts (milliseconds).
@@ -38,7 +39,7 @@ export class IrisSessionManager implements vscode.Disposable {
     }
 
     public dispose(): void {
-        console.log('[IrisSessionManager] Disposing...');
+        logger.session('Disposing...');
 
         // Unsubscribe from connection state changes FIRST
         if (this._connectionStateUnsubscribe) {
@@ -57,11 +58,11 @@ export class IrisSessionManager implements vscode.Disposable {
 
     public unsubscribe(): void {
         if (this._irisUnsubscribe) {
-            console.log('[IrisSessionManager] Unsubscribing from Iris session');
+            logger.session('Unsubscribing from Iris session');
             try {
                 this._irisUnsubscribe();
             } catch (e) {
-                console.error('[IrisSessionManager] Error during unsubscribe:', e);
+                logger.sessionError('Error during unsubscribe:', e);
             }
             this._irisUnsubscribe = undefined;
         }
@@ -69,15 +70,15 @@ export class IrisSessionManager implements vscode.Disposable {
     }
 
     public async initializeSession(context: ActiveContext, storedSessionId?: number): Promise<number> {
-        console.log('[IrisSessionManager] Initializing session for', context.type, context.id);
+        logger.session(`Initializing session for ${context.type} ${context.id}`);
 
         let sessionId: number;
 
         if (storedSessionId) {
-            console.log('[IrisSessionManager] Using stored Artemis session ID:', storedSessionId);
+            logger.session(`Using stored Artemis session ID: ${storedSessionId}`);
             sessionId = storedSessionId;
         } else {
-            console.log('[IrisSessionManager] Fetching current session from Artemis');
+            logger.session('Fetching current session from Artemis');
             let session;
             if (context.type === 'course') {
                 session = await this._artemisApiService.getCurrentCourseChat(context.id);
@@ -95,7 +96,7 @@ export class IrisSessionManager implements vscode.Disposable {
     }
 
     public async createNewSession(context: ActiveContext): Promise<number> {
-        console.log('[IrisSessionManager] Creating NEW Iris session for', context.type, context.id);
+        logger.session(`Creating NEW Iris session for ${context.type} ${context.id}`);
 
         let newSession;
         if (context.type === 'course') {
@@ -122,7 +123,7 @@ export class IrisSessionManager implements vscode.Disposable {
         const now = Date.now();
         const timeSinceLastAttempt = now - this._lastResubscribeAttempt;
         if (timeSinceLastAttempt < MIN_RESUBSCRIBE_INTERVAL_MS) {
-            console.log(`[IrisSessionManager] Rate limited: ${MIN_RESUBSCRIBE_INTERVAL_MS - timeSinceLastAttempt}ms until next subscribe`);
+            logger.session(`Rate limited: ${MIN_RESUBSCRIBE_INTERVAL_MS - timeSinceLastAttempt}ms until next subscribe`);
             return;
         }
         this._lastResubscribeAttempt = now;
@@ -131,21 +132,21 @@ export class IrisSessionManager implements vscode.Disposable {
         this.unsubscribe();
 
         if (!this._websocketService.isConnected()) {
-            console.log('[IrisSessionManager] WebSocket not connected, will subscribe when connected');
+            logger.session('WebSocket not connected, will subscribe when connected');
             // NOTE: We do NOT call connect() here! The connection state callback will handle this.
             return;
         }
 
-        console.log('[IrisSessionManager] Subscribing to Iris WebSocket session:', sessionId);
+        logger.session(`Subscribing to Iris WebSocket session: ${sessionId}`);
         try {
             this._irisUnsubscribe = this._websocketService.subscribeToIrisSession(
                 sessionId,
                 (data: any) => this._handleWebSocketMessage(data)
             );
             this._isSubscribed = true;
-            console.log('[IrisSessionManager] Successfully subscribed to session:', sessionId);
+            logger.session(`Successfully subscribed to session: ${sessionId}`);
         } catch (error) {
-            console.error('[IrisSessionManager] Failed to subscribe:', error);
+            logger.sessionError('Failed to subscribe:', error);
             this._isSubscribed = false;
         }
     }
@@ -173,7 +174,7 @@ export class IrisSessionManager implements vscode.Disposable {
     private _startWebSocketMonitoring(): void {
         // Store unsubscribe function for cleanup in dispose()
         this._connectionStateUnsubscribe = this._websocketService.onConnectionStateChange((isConnected: boolean) => {
-            console.log('[IrisSessionManager] WebSocket connection state changed:', isConnected);
+            logger.session(`WebSocket connection state changed: ${isConnected}`);
             this._onDidConnectionStateChange.fire(isConnected);
 
             // Only resubscribe if:
@@ -181,7 +182,7 @@ export class IrisSessionManager implements vscode.Disposable {
             // 2. We have a session to subscribe to
             // 3. We're not already subscribed
             if (isConnected && this._currentArtemisSessionId && !this._isSubscribed) {
-                console.log('[IrisSessionManager] Reconnected, resubscribing to session:', this._currentArtemisSessionId);
+                logger.session(`Reconnected, resubscribing to session: ${this._currentArtemisSessionId}`);
                 // NOTE: _subscribeIfConnected does NOT call connect() - it's safe!
                 this._subscribeIfConnected(this._currentArtemisSessionId);
             }

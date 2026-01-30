@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import { processPlantUml } from '../../../utils';
+import { logger, LogCategory } from '../../../services/loggingService';
 import type { CommandContext, CommandMap } from './types';
 
 export class PlantUmlCommandModule {
@@ -23,8 +24,8 @@ export class PlantUmlCommandModule {
         }
 
         try {
-            console.log('[PlantUML] 🎨 Rendering PlantUML diagrams from exercise:', exerciseTitle);
-            console.log('[PlantUML] 📊 PlantUML content:', plantUmlDiagrams);
+            logger.plantUml(`Rendering PlantUML diagrams from exercise: ${exerciseTitle}`);
+            logger.debug('📊 PlantUML content:', LogCategory.PLANTUML, plantUmlDiagrams);
 
             const combinedPlantUml = plantUmlDiagrams.join('\n\n');
 
@@ -36,7 +37,7 @@ export class PlantUmlCommandModule {
                 await vscode.commands.executeCommand('artemis.renderPlantUmlFromWebview', combinedPlantUml, exerciseTitle);
             });
         } catch (error) {
-            console.error('Render PlantUML error:', error);
+            logger.plantUmlError('Render PlantUML error:', error);
             const errorMsg = error instanceof Error ? error.message : 'Unknown error';
             vscode.window.showErrorMessage(`Failed to render PlantUML: ${errorMsg}`);
         }
@@ -56,7 +57,7 @@ export class PlantUmlCommandModule {
         }
 
         try {
-            console.log(`[PlantUML] 🎨 Rendering inline PlantUML diagram ${index + 1}`);
+            logger.plantUml(`Rendering inline PlantUML diagram ${index + 1}`);
 
             const processedPlantUml = processPlantUml(plantUml);
             const isDarkTheme = vscode.window.activeColorTheme.kind === vscode.ColorThemeKind.Dark;
@@ -68,9 +69,9 @@ export class PlantUmlCommandModule {
                 svg: svg
             });
 
-            console.log(`[PlantUML] ✅ Inline PlantUML diagram ${index + 1} rendered successfully`);
+            logger.plantUml(`✅ Inline PlantUML diagram ${index + 1} rendered successfully`);
         } catch (error) {
-            console.error(`Render inline PlantUML error for diagram ${index + 1}:`, error);
+            logger.plantUmlError(`Render inline PlantUML error for diagram ${index + 1}:`, error);
             const errorMsg = error instanceof Error ? error.message : 'Unknown error';
             this.context.sendMessage({
                 command: 'plantUmlError',
@@ -90,12 +91,12 @@ export class PlantUmlCommandModule {
         }
 
         try {
-            console.log(`[PlantUML] 🎨 Opening PlantUML diagram ${index + 1} in new tab`);
+            logger.plantUml(`Opening PlantUML diagram ${index + 1} in new tab`);
 
             const processedPlantUml = processPlantUml(plantUml);
             await vscode.commands.executeCommand('artemis.renderPlantUmlFromWebview', processedPlantUml, `Diagram ${index + 1}`);
         } catch (error) {
-            console.error(`Open PlantUML in new tab error for diagram ${index + 1}:`, error);
+            logger.plantUmlError(`Open PlantUML in new tab error for diagram ${index + 1}:`, error);
             const errorMsg = error instanceof Error ? error.message : 'Unknown error';
             vscode.window.showErrorMessage(`Failed to open PlantUML diagram: ${errorMsg}`);
         }

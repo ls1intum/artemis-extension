@@ -18,7 +18,7 @@ export function getChatMessageRendererScript(): string {
             const feedbackContainer = parentMessage.querySelector('.message-feedback');
             const allButtons = parentMessage.querySelectorAll('.feedback-button');
 
-            console.log('[Iris Chat] Feedback clicked:', feedbackType, 'for message:', message);
+            vscode.postMessage({ command: 'webviewLog', level: 'info', message: '[Iris Chat] Feedback clicked: ' + feedbackType + ' for message: ' + JSON.stringify(message) });
 
             // Don't allow clicking the same button again (no undo, only change)
             if (button.classList.contains('selected')) {
@@ -28,12 +28,12 @@ export function getChatMessageRendererScript(): string {
             // Check if we have the required IDs
             const activeSession = irisState.sessions.find(session => session.id === irisState.activeSessionId);
             if (!activeSession || !activeSession.artemisSessionId) {
-                console.warn('No active Artemis session found');
+                vscode.postMessage({ command: 'webviewLog', level: 'warn', message: 'No active Artemis session found' });
                 return;
             }
 
             if (!message.id) {
-                console.warn('Message has no ID, cannot submit feedback');
+                vscode.postMessage({ command: 'webviewLog', level: 'warn', message: 'Message has no ID, cannot submit feedback' });
                 return;
             }
 
@@ -77,13 +77,13 @@ export function getChatMessageRendererScript(): string {
         }
 
         function addMessageToChat(message) {
-            console.log('[WebsocketLog] 📩 addMessageToChat called:', { role: message.role, contentLength: message.content?.length, timestamp: message.timestamp });
+            vscode.postMessage({ command: 'webviewLog', level: 'info', message: '[WebsocketLog] 📩 addMessageToChat called: ' + JSON.stringify({ role: message.role, contentLength: message.content?.length, timestamp: message.timestamp }) });
             const chatMessages = document.getElementById('chatMessages');
 
             // Remove welcome message if present
             const welcomeMsg = chatMessages.querySelector('.welcome-message');
             if (welcomeMsg) {
-                console.log('[WebsocketLog] 🗑️ Removing welcome message');
+                vscode.postMessage({ command: 'webviewLog', level: 'info', message: '[WebsocketLog] 🗑️ Removing welcome message' });
                 welcomeMsg.remove();
             }
 
@@ -140,10 +140,10 @@ export function getChatMessageRendererScript(): string {
 
             // Show thinking indicator after user message, hide after assistant message
             if (message.role === 'user') {
-                console.log('[WebsocketLog] 👤 User message - showing thinking indicator');
+                vscode.postMessage({ command: 'webviewLog', level: 'info', message: '[WebsocketLog] 👤 User message - showing thinking indicator' });
                 showThinkingIndicator();
             } else {
-                console.log('[WebsocketLog] 🤖 Assistant message - hiding thinking indicator');
+                vscode.postMessage({ command: 'webviewLog', level: 'info', message: '[WebsocketLog] 🤖 Assistant message - hiding thinking indicator' });
                 hideThinkingIndicator();
             }
 
@@ -152,28 +152,28 @@ export function getChatMessageRendererScript(): string {
         }
 
         function loadMessages(messages) {
-            console.log('[Iris Chat] Loading messages:', messages);
+            vscode.postMessage({ command: 'webviewLog', level: 'info', message: '[Iris Chat] Loading messages: ' + JSON.stringify(messages) });
             const chatMessages = document.getElementById('chatMessages');
             chatMessages.innerHTML = '';
             
             if (!messages || messages.length === 0) {
-                console.log('[Iris Chat] No messages to load');
+                vscode.postMessage({ command: 'webviewLog', level: 'info', message: '[Iris Chat] No messages to load' });
                 updateNewSessionButtonState();
                 return;
             }
             
             messages.forEach(msg => addMessageToChat(msg));
-            console.log(\`Loaded \${messages.length} messages\`);
+            vscode.postMessage({ command: 'webviewLog', level: 'info', message: 'Loaded ' + messages.length + ' messages' });
         }
 
         function showThinkingIndicator() {
-            console.log('[WebsocketLog] 🔄 showThinkingIndicator called');
+            vscode.postMessage({ command: 'webviewLog', level: 'info', message: '[WebsocketLog] 🔄 showThinkingIndicator called' });
             const chatMessages = document.getElementById('chatMessages');
 
             // Remove any existing thinking indicator
             const existing = chatMessages.querySelector('.thinking-indicator');
             if (existing) {
-                console.log('[WebsocketLog] 🗑️ Removing existing thinking indicator');
+                vscode.postMessage({ command: 'webviewLog', level: 'info', message: '[WebsocketLog] 🗑️ Removing existing thinking indicator' });
                 existing.remove();
             }
 
@@ -190,18 +190,18 @@ export function getChatMessageRendererScript(): string {
 
             chatMessages.appendChild(thinkingDiv);
             chatMessages.scrollTop = chatMessages.scrollHeight;
-            console.log('[WebsocketLog] ✅ Thinking indicator added to chat');
+            vscode.postMessage({ command: 'webviewLog', level: 'info', message: '[WebsocketLog] ✅ Thinking indicator added to chat' });
         }
 
         function hideThinkingIndicator() {
-            console.log('[WebsocketLog] 🚫 hideThinkingIndicator called');
+            vscode.postMessage({ command: 'webviewLog', level: 'info', message: '[WebsocketLog] 🚫 hideThinkingIndicator called' });
             const chatMessages = document.getElementById('chatMessages');
             const existing = chatMessages.querySelector('.thinking-indicator');
             if (existing) {
-                console.log('[WebsocketLog] 🗑️ Removing thinking indicator');
+                vscode.postMessage({ command: 'webviewLog', level: 'info', message: '[WebsocketLog] 🗑️ Removing thinking indicator' });
                 existing.remove();
             } else {
-                console.log('[WebsocketLog] ℹ️ No thinking indicator to remove');
+                vscode.postMessage({ command: 'webviewLog', level: 'info', message: '[WebsocketLog] ℹ️ No thinking indicator to remove' });
             }
         }
     `;

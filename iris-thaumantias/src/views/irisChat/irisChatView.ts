@@ -290,9 +290,9 @@ export class IrisChatView {
             })()}
 
     <script>
-        console.log('[WebsocketLog] 🚀 Iris Chat webview script initializing...');
         const vscode = acquireVsCodeApi();
-        console.log('[WebsocketLog] ✅ VS Code API acquired');
+        vscode.postMessage({ command: 'webviewLog', level: 'info', message: '[WebsocketLog] 🚀 Iris Chat webview script initializing...' });
+        vscode.postMessage({ command: 'webviewLog', level: 'info', message: '[WebsocketLog] ✅ VS Code API acquired' });
 
         window.openFile = function(filePath) {
             vscode.postMessage({ command: 'openFile', filePath });
@@ -719,22 +719,22 @@ export class IrisChatView {
         ${getMessageFormatterScript()}
 
         function sendMessage() {
-            console.log('[WebsocketLog] 📤 sendMessage called');
+            vscode.postMessage({ command: 'webviewLog', level: 'info', message: '[WebsocketLog] 📤 sendMessage called' });
             const input = document.getElementById('chatInput');
             const text = input.value.trim();
 
             if (!text || !irisState.context) {
-                console.log('[WebsocketLog] ⚠️ Cannot send: no text or no context', { hasText: !!text, hasContext: !!irisState.context });
+                vscode.postMessage({ command: 'webviewLog', level: 'info', message: '[WebsocketLog] ⚠️ Cannot send: no text or no context, hasText: ' + !!text + ', hasContext: ' + !!irisState.context });
                 return;
             }
 
-            console.log('[WebsocketLog] 🚀 Posting sendMessage command to extension', { textLength: text.length });
+            vscode.postMessage({ command: 'webviewLog', level: 'info', message: '[WebsocketLog] 🚀 Posting sendMessage command to extension, textLength: ' + text.length });
             // Send to extension
             vscode.postMessage({
                 command: 'sendMessage',
                 text: text
             });
-            console.log('[WebsocketLog] ✅ Message posted to extension');
+            vscode.postMessage({ command: 'webviewLog', level: 'info', message: '[WebsocketLog] ✅ Message posted to extension' });
 
             // Clear input
             input.value = '';
@@ -808,20 +808,17 @@ export class IrisChatView {
         }
 
         // Setup chat input handlers
-        console.log('[WebsocketLog] 🔧 Setting up chat input handlers...');
+        vscode.postMessage({ command: 'webviewLog', level: 'info', message: '[WebsocketLog] 🔧 Setting up chat input handlers...' });
         const chatInput = document.getElementById('chatInput');
         const sendButton = document.getElementById('sendButton');
-        console.log('[WebsocketLog] 📋 Elements found:', { 
-            chatInput: !!chatInput, 
-            sendButton: !!sendButton 
-        });
+        vscode.postMessage({ command: 'webviewLog', level: 'info', message: '[WebsocketLog] 📋 Elements found: chatInput=' + !!chatInput + ', sendButton=' + !!sendButton });
 
         if (chatInput) {
-            console.log('[WebsocketLog] ⌨️ Setting up chat input event listeners');
+            vscode.postMessage({ command: 'webviewLog', level: 'info', message: '[WebsocketLog] ⌨️ Setting up chat input event listeners' });
             chatInput.addEventListener('keydown', (e) => {
                 if (e.key === 'Enter' && !e.shiftKey) {
                     e.preventDefault();
-                    console.log('[WebsocketLog] ⏎ Enter key pressed, sending message');
+                    vscode.postMessage({ command: 'webviewLog', level: 'info', message: '[WebsocketLog] ⏎ Enter key pressed, sending message' });
                     sendMessage();
                 }
             });
@@ -833,17 +830,13 @@ export class IrisChatView {
         }
 
         if (sendButton) {
-            console.log('[WebsocketLog] 🎯 Setting up send button click handler');
+            vscode.postMessage({ command: 'webviewLog', level: 'info', message: '[WebsocketLog] 🎯 Setting up send button click handler' });
             sendButton.addEventListener('click', (event) => {
-                console.log('[WebsocketLog] 🖱️ Send button clicked!', { 
-                    disabled: sendButton.disabled, 
-                    hasText: !!document.getElementById('chatInput')?.value,
-                    hasContext: !!irisState.context 
-                });
+                vscode.postMessage({ command: 'webviewLog', level: 'info', message: '[WebsocketLog] 🖱️ Send button clicked! disabled=' + sendButton.disabled + ', hasText=' + !!document.getElementById('chatInput')?.value + ', hasContext=' + !!irisState.context });
                 sendMessage();
             });
         } else {
-            console.warn('[WebsocketLog] ⚠️ Send button not found in DOM!');
+            vscode.postMessage({ command: 'webviewLog', level: 'warn', message: '[WebsocketLog] ⚠️ Send button not found in DOM!' });
         }
 
         window.reconnectWebSocket = function() {
@@ -865,7 +858,7 @@ export class IrisChatView {
         const closeIconSvg = \`${closeIcon}\`;
 
         function updateReferencedFiles(data) {
-            console.log('[Referenced Files] Update called with:', data);
+            vscode.postMessage({ command: 'webviewLog', level: 'info', message: '[Referenced Files] Update called with: ' + JSON.stringify(data) });
             const banner = document.getElementById('referencedFilesBanner');
             const text = document.getElementById('referencedFilesText');
             const list = document.getElementById('referencedFilesList');
@@ -874,16 +867,16 @@ export class IrisChatView {
             const excludedFiles = data.excludedFiles || [];
             const totalCount = data.totalCount || (includedFiles.length + excludedFiles.length);
 
-            console.log('[Referenced Files] Counts:', { includedFiles: includedFiles.length, excludedFiles: excludedFiles.length, totalCount });
+            vscode.postMessage({ command: 'webviewLog', level: 'info', message: '[Referenced Files] Counts: includedFiles=' + includedFiles.length + ', excludedFiles=' + excludedFiles.length + ', totalCount=' + totalCount });
 
             if (totalCount === 0) {
-                console.log('[Referenced Files] No files, hiding banner');
+                vscode.postMessage({ command: 'webviewLog', level: 'info', message: '[Referenced Files] No files, hiding banner' });
                 if (banner) banner.style.display = 'none';
                 return;
             }
 
             // Show banner and update count with x/y format
-            console.log('[Referenced Files] Showing banner');
+            vscode.postMessage({ command: 'webviewLog', level: 'info', message: '[Referenced Files] Showing banner' });
             if (banner) banner.style.display = 'flex';
             if (text) {
                 text.textContent = \`\${includedFiles.length}/\${totalCount} file\${totalCount !== 1 ? 's' : ''} referenced\`;
@@ -997,20 +990,20 @@ export class IrisChatView {
 
         window.addEventListener('message', event => {
             const message = event.data;
-            console.log('[WebsocketLog] 📬 Received message from extension:', message.command, message);
+            vscode.postMessage({ command: 'webviewLog', level: 'info', message: '[WebsocketLog] 📬 Received message from extension: ' + message.command });
 
             switch (message.command) {
                 case 'showDisabledState':
-                    console.log('[WebsocketLog] 🚫 Showing disabled state');
+                    vscode.postMessage({ command: 'webviewLog', level: 'info', message: '[WebsocketLog] 🚫 Showing disabled state' });
                     showDisabledBanner(message.message);
                     break;
                 case 'hideDisabledState':
-                    console.log('[WebsocketLog] ✅ Hiding disabled state');
+                    vscode.postMessage({ command: 'webviewLog', level: 'info', message: '[WebsocketLog] ✅ Hiding disabled state' });
                     hideDisabledBanner();
                     updateChatInputState();
                     break;
                 case 'updateIrisState':
-                    console.log('[WebsocketLog] 🔄 Updating Iris state');
+                    vscode.postMessage({ command: 'webviewLog', level: 'info', message: '[WebsocketLog] 🔄 Updating Iris state' });
                     if (message.state) {
                         irisState = message.state;
                         updateContextBean();
@@ -1020,7 +1013,7 @@ export class IrisChatView {
                     }
                     break;
                 case 'showContextPicker':
-                    console.log('[WebsocketLog] 🔍 Showing context picker');
+                    vscode.postMessage({ command: 'webviewLog', level: 'info', message: '[WebsocketLog] 🔍 Showing context picker' });
                     if (message.state) {
                         irisState = message.state;
                         forceContextPicker = true;
@@ -1042,7 +1035,7 @@ export class IrisChatView {
                     }
                     break;
                 case 'clearChatMessages':
-                    console.log('[WebsocketLog] 🗑️ Clearing chat messages');
+                    vscode.postMessage({ command: 'webviewLog', level: 'info', message: '[WebsocketLog] 🗑️ Clearing chat messages' });
                     const chatMessages = document.getElementById('chatMessages');
                     chatMessages.innerHTML = \`
                         <div class="welcome-message">
@@ -1052,7 +1045,7 @@ export class IrisChatView {
                     updateNewSessionButtonState();
                     break;
                 case 'updateReferencedFiles':
-                    console.log('[WebsocketLog] 📁 Updating referenced files');
+                    vscode.postMessage({ command: 'webviewLog', level: 'info', message: '[WebsocketLog] 📁 Updating referenced files' });
                     if (message.includedFiles !== undefined) {
                         updateReferencedFiles({
                             includedFiles: message.includedFiles,
@@ -1062,7 +1055,7 @@ export class IrisChatView {
                     }
                     break;
                 case 'addMessage':
-                    console.log('[WebsocketLog] ➕ Adding message to chat');
+                    vscode.postMessage({ command: 'webviewLog', level: 'info', message: '[WebsocketLog] ➕ Adding message to chat' });
                     if (message.message) {
                         addMessageToChat(message.message);
                     }

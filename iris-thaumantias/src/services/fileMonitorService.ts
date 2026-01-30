@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import { checkWorkspaceFiles } from '../utils';
+import { logger, LogLevel } from './loggingService';
 
 export interface FileMonitorUpdate {
     includedFiles: string[];
@@ -29,16 +30,16 @@ export class FileMonitorService implements vscode.Disposable {
             const disposable = this._disposables.pop();
             disposable?.dispose();
         }
-        
+
         this._onDidUpdateFiles.dispose();
     }
 
     private _startFileMonitoring(): void {
-        console.log('[File Monitor] Starting file monitoring...');
-        
+        logger.fileMonitor('Starting file monitoring...');
+
         // Listen to document save events
         const saveListener = vscode.workspace.onDidSaveTextDocument(() => {
-            console.log('[File Monitor] Document saved, updating...');
+            logger.fileMonitor('Document saved, updating...');
             void this._updateReferencedFilesDisplay();
         });
         this._disposables.push(saveListener);
@@ -53,32 +54,32 @@ export class FileMonitorService implements vscode.Disposable {
         const gitExtension = vscode.extensions.getExtension('vscode.git');
         if (gitExtension) {
             Promise.resolve(gitExtension.activate()).then(() => {
-                console.log('[File Monitor] Git extension activated');
+                logger.fileMonitor('Git extension activated');
                 const git = gitExtension.exports.getAPI(1);
                 if (git) {
-                    console.log('[File Monitor] Git API available, watching', git.repositories.length, 'repositories');
+                    logger.fileMonitor(`Git API available, watching ${git.repositories.length} repositories`);
                     // Listen to repository state changes
                     git.repositories.forEach((repo: any) => {
                         const repoListener = repo.state.onDidChange(() => {
-                            console.log('[File Monitor] Git state changed, updating...');
+                            logger.fileMonitor('Git state changed, updating...');
                             void this._updateReferencedFilesDisplay();
                         });
                         this._disposables.push(repoListener);
                     });
                 }
             }).catch(() => {
-                console.log('[File Monitor] Git extension not available');
+                logger.fileMonitor('Git extension not available');
             });
         }
 
         // Periodic update (every 5 seconds) as a fallback
         this._fileUpdateTimer = setInterval(() => {
-            console.log('[File Monitor] Periodic update...');
+            logger.fileMonitor('Periodic update...');
             void this._updateReferencedFilesDisplay();
         }, 5000);
 
         // Initial update
-        console.log('[File Monitor] Running initial update...');
+        logger.fileMonitor('Running initial update...');
         void this._updateReferencedFilesDisplay();
     }
 
@@ -100,7 +101,7 @@ export class FileMonitorService implements vscode.Disposable {
         // Check if feature is enabled
         const sendUncommittedChanges = vscode.workspace.getConfiguration('artemis.iris').get<boolean>('sendUncommittedChanges', true);
         if (!sendUncommittedChanges) {
-            console.log('[File Monitor] Feature disabled, clearing display');
+            logger.fileMonitor('Feature disabled, clearing display');
             this._onDidUpdateFiles.fire({
                 includedFiles: [],
                 excludedFiles: [],
@@ -112,23 +113,23 @@ export class FileMonitorService implements vscode.Disposable {
         try {
             const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
             if (!workspaceFolder) {
-                console.log('[File Monitor] No workspace folder');
+                logger.fileMonitor('No workspace folder');
                 return;
             }
 
-            console.log('[File Monitor] Checking git status in:', workspaceFolder.uri.fsPath);
-            
+            logger.fileMonitor(`Checking git status in: ${workspaceFolder.uri.fsPath}`);
+
             // Use unified workspace file checker with filters and status
             const result = await checkWorkspaceFiles(workspaceFolder, {
                 includeContent: false,
                 applyFilters: true,      // Apply filters to show only what will be sent
                 includeStatus: true      // Include status/reason for all files
             });
-            
-            console.log('[File Monitor] Changed files from git:', JSON.stringify(result.files.map(f => f.path)));
-            
+
+            logger.fileMonitor(`Changed files from git: ${JSON.stringify(result.files.map(f => f.path))}`);
+
             if (!result.hasChanges) {
-                console.log('[File Monitor] No changes detected');
+                logger.fileMonitor('No changes detected');
                 this._onDidUpdateFiles.fire({
                     includedFiles: [],
                     excludedFiles: [],
@@ -137,17 +138,17 @@ export class FileMonitorService implements vscode.Disposable {
                 return;
             }
 
-            console.log(`[File Monitor] Found ${result.totalCount} changed files (${result.includedCount} will be sent, ${result.excludedCount} excluded)`);
-            
+            logger.fileMonitor(`Found ${result.totalCount} changed files (${result.includedCount} will be sent, ${result.excludedCount} excluded)`);
+
             // Separate included and excluded files with reasons
             const includedFiles = result.files
                 .filter(f => f.status === 'included')
                 .map(f => f.path);
-            
+
             const excludedFiles = result.files
                 .filter(f => f.status === 'excluded')
                 .map(f => ({ path: f.path, reason: f.reason || 'Excluded' }));
-            
+
             this._onDidUpdateFiles.fire({
                 includedFiles: includedFiles,
                 excludedFiles: excludedFiles,
@@ -155,7 +156,7 @@ export class FileMonitorService implements vscode.Disposable {
             });
         } catch (error) {
             // Silently fail for live updates - don't show errors to user
-            console.error('[File Monitor] Error updating referenced files display:', error);
+            logger.fileMonitorError('Error updating referenced files display:', error);
         }
     }
 }

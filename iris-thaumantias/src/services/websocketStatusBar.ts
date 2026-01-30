@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { ArtemisWebsocketService } from './artemisWebsocketService';
 import { VSCODE_CONFIG } from '../utils';
+import { logger, LogCategory } from './loggingService';
 
 /**
  * WebSocket connection status enumeration
@@ -559,7 +560,7 @@ export class WebSocketStatusBarService implements vscode.Disposable {
      * Log helper
      */
     private _log(message: string): void {
-        console.log(`[WebSocketStatusBar] ${message}`);
+        logger.websocket(`[StatusBar] ${message}`);
     }
 
     /**

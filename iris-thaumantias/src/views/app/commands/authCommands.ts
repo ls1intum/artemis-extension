@@ -1,8 +1,9 @@
 import * as vscode from 'vscode';
 import type { CommandContext, CommandMap } from './types';
+import { logger } from '../../../services/loggingService';
 
 export class AuthCommandModule {
-    constructor(private readonly context: CommandContext) {}
+    constructor(private readonly context: CommandContext) { }
 
     public getHandlers(): CommandMap {
         return {
@@ -33,7 +34,7 @@ export class AuthCommandModule {
                 user: user
             });
         } catch (error) {
-            console.error('Login error:', error);
+            logger.authError('Login error:', error);
             const friendlyError = this.formatLoginError(error);
             vscode.window.showErrorMessage(friendlyError);
 
@@ -54,7 +55,7 @@ export class AuthCommandModule {
             this.context.appStateManager.showLogin();
             this.context.actionHandler.render();
         } catch (error) {
-            console.error('Logout error:', error);
+            logger.authError('Logout error:', error);
             vscode.window.showErrorMessage('Error during logout');
         }
     };

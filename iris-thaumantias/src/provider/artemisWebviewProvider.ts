@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import { AuthManager } from '../auth';
 import { ArtemisApiService } from '../api';
 import { ArtemisWebsocketService } from '../services';
+import { logger, LogLevel, LogCategory } from '../services/loggingService';
 import { ProviderRegistry } from '../services/ProviderRegistry';
 import { CONFIG, VSCODE_CONFIG } from '../utils';
 import { AI_EXTENSIONS_BLOCKLIST } from '../utils/aiExtensionsBlocklist';
@@ -120,11 +121,11 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
 
             // Ensure WebSocket is connected for real-time updates
             if (this._websocketService && !this._websocketService.isConnected()) {
-                console.log('[WebsocketLog] 🔌 Exercise opened - ensuring WebSocket connection for real-time updates...');
+                logger.websocket('Exercise opened - ensuring WebSocket connection for real-time updates...');
                 try {
                     await this._websocketService.connect();
                 } catch (error) {
-                    console.warn('[WebsocketLog] Failed to connect WebSocket:', error);
+                    logger.websocketWarn('Failed to connect WebSocket', error);
                 }
             }
 
@@ -146,7 +147,7 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
                         exercise.shortName,
                         exercise.course?.id
                     );
-                    console.log('📚 [Exercise Registry] Registered individual exercise:', exerciseTitle);
+                    logger.exercise(`Registered individual exercise: ${exerciseTitle}`);
                 }
 
                 const chatProvider = ProviderRegistry.getInstance().getChatWebviewProvider();
@@ -269,7 +270,7 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
                 this.render();
             }
         } catch (error) {
-            console.error('Error loading courses:', error);
+            logger.error('Error loading courses', LogCategory.VIEW, error);
             vscode.window.showErrorMessage('Failed to load courses');
         }
     }
@@ -359,18 +360,18 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
         // Populate exercise registry with repository URLs for workspace matching
         const registry = ExerciseRegistry.getInstance();
         const courseName = courseData?.course?.title || 'Unknown Course';
-        console.log(`📚 [Course Detail] Loading course: ${courseName}`);
+        logger.info(`Loading course: ${courseName}`, LogCategory.VIEW);
 
         registry.registerFromCourseData(courseData);
 
         // Log what was registered
         const allExercises = registry.getAllExercises();
-        console.log(`📚 [Course Detail] Registry now contains ${allExercises.length} exercises total`);
+        logger.info(`Registry now contains ${allExercises.length} exercises total`, LogCategory.VIEW);
         if (allExercises.length > 0) {
-            console.log('📚 [Course Detail] Exercises in registry:');
+            logger.debug('Exercises in registry:', LogCategory.VIEW);
             allExercises.forEach(ex => {
-                console.log(`   - ${ex.id}: ${ex.title}`);
-                console.log(`     Repository: ${ex.repositoryUri}`);
+                logger.debug(`   - ${ex.id}: ${ex.title}`, LogCategory.VIEW);
+                logger.debug(`     Repository: ${ex.repositoryUri}`, LogCategory.VIEW);
             });
         }
 
@@ -400,7 +401,7 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
                 }
             }
         } catch (error) {
-            console.error('Error checking server URL change:', error);
+            logger.error('Error checking server URL change', LogCategory.AUTH, error);
         }
     }
 
@@ -423,7 +424,7 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
                 try {
                     const user = await this._artemisApi.getCurrentUser();
                     await this.withServerUrl(async serverUrl => {
-                        console.log(`[Auth] Auto-authenticated user: ${user.login}`);
+                        logger.auth(`Auto-authenticated user: ${user.login}`);
                         await this.showDashboard({
                             username: user.login || 'User',
                             serverUrl: serverUrl,
@@ -432,7 +433,7 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
                     });
                 } catch (userError) {
                     // If getCurrentUser fails, stored credentials are invalid
-                    console.log('[Auth] Stored credentials are invalid, clearing...');
+                    logger.auth('Stored credentials are invalid, clearing...');
                     await this._authManager.clear();
 
                     // Update authentication context
@@ -448,7 +449,7 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
                 this.hideLoadingAndSendServerUrl();
             }
         } catch (error) {
-            console.error('Error checking existing authentication:', error);
+            logger.error('Error checking existing authentication', LogCategory.AUTH, error);
             // If there's an error, clear potentially corrupted credentials and hide loading
             await this._authManager.clear();
 
@@ -660,7 +661,7 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
                 []
             );
         } catch (error) {
-            console.error(`Error opening ${options.viewId}:`, error);
+            logger.error(`Error opening ${options.viewId}`, LogCategory.VIEW, error);
             vscode.window.showErrorMessage(`Failed to open ${options.title} in fullscreen mode`);
         }
     }

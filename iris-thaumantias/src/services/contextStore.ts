@@ -8,6 +8,7 @@ import {
     TrackedCourse,
     TrackedExercise,
 } from '../types';
+import { logger } from './loggingService';
 
 interface StoredState {
     version: number;
@@ -183,7 +184,7 @@ export class ContextStore {
                 this.state.activeContext.source !== 'user-selected';
 
             if (shouldOverride) {
-                console.log('🔧 [CONTEXT STORE] Source is workspace-detected, setting active context to workspace exercise');
+                logger.context('Source is workspace-detected, setting active context to workspace exercise');
                 this.setActiveContext({
                     type: 'exercise',
                     id: entry.id,
@@ -195,14 +196,14 @@ export class ContextStore {
                     selectedAt: now(),
                 });
             } else {
-                console.log('🔧 [CONTEXT STORE] Workspace exercise detected, but user has explicitly selected another context - NOT overriding');
+                logger.context('Workspace exercise detected, but user has explicitly selected another context - NOT overriding');
             }
         } else if (!this.state.activeContext) {
-            console.log('🔧 [CONTEXT STORE] No active context exists, calling autoSelectContext()');
+            logger.context('No active context exists, calling autoSelectContext()');
             this.autoSelectContext();
-            console.log('🔧 [CONTEXT STORE] After autoSelectContext, active context is:', this.state.activeContext);
+            logger.context('After autoSelectContext, active context is:', this.state.activeContext);
         } else {
-            console.log('🔧 [CONTEXT STORE] Active context already exists, not changing it:', this.state.activeContext);
+            logger.context('Active context already exists, not changing it:', this.state.activeContext);
         }
 
         this.saveState();
@@ -251,16 +252,16 @@ export class ContextStore {
     }
 
     public setActiveContext(context: ActiveContext, ensureSession: boolean = true): ContextSnapshot {
-        console.log('🔧 [CONTEXT STORE] setActiveContext called with:', context);
-        console.log('🔧 [CONTEXT STORE] ensureSession:', ensureSession);
-        console.log('🔧 [CONTEXT STORE] Previous active context:', this.state.activeContext);
+        logger.context('setActiveContext called with:', context);
+        logger.context('ensureSession:', ensureSession);
+        logger.context('Previous active context:', this.state.activeContext);
 
         this.state.activeContext = {
             ...context,
             selectedAt: now(),
         };
 
-        console.log('🔧 [CONTEXT STORE] New active context set to:', this.state.activeContext);
+        logger.context('New active context set to:', this.state.activeContext);
 
         if (ensureSession) {
             this.ensureSessionForActive();

@@ -1,4 +1,5 @@
 import { ArtemisApiService } from '../../api';
+import { logger, LogLevel, LogCategory } from '../../services/loggingService';
 import { getRecommendedExtensionsByCategory, type RecommendedExtensionCategory } from '../../utils/recommendedExtensions';
 
 export type AppState = 'login' | 'dashboard' | 'course-list' | 'course-detail' | 'exercise-detail' | 'exam-exercise-detail' | 'ai-config' | 'service-status' | 'struggle-detection' | 'recommended-extensions' | 'git-credentials' | 'exam-start' | 'exam-conduction';
@@ -85,7 +86,7 @@ export class AppStateManager {
             // The registry is populated lazily when needed (e.g., when viewing course details, for Iris chat)
             // For workspace detection, we search coursesData directly (see _handleDetectWorkspaceExercise)
         } catch (error) {
-            console.error('Error loading courses for dashboard:', error);
+            logger.error('Error loading courses for dashboard:', LogCategory.VIEW, error);
             // Continue anyway, dashboard will show "Loading courses..."
         }
     }
@@ -107,7 +108,7 @@ export class AppStateManager {
 
             this._currentState = 'course-list';
         } catch (error) {
-            console.error('Error loading courses:', error);
+            logger.error('Error loading courses:', LogCategory.VIEW, error);
             throw error;
         }
     }
@@ -135,7 +136,7 @@ export class AppStateManager {
             this._currentCourseData = archivedCourseData;
             this._currentState = 'course-detail';
         } catch (error) {
-            console.error('Error loading archived course details:', error);
+            logger.error('Error loading archived course details:', LogCategory.VIEW, error);
             throw error;
         }
     }
@@ -145,28 +146,28 @@ export class AppStateManager {
             // ALWAYS fetch fresh data to ensure we have the latest results
             // Exercise data changes frequently (new submissions, build results)
             // and stale data can occur when WebSocket fails or disconnects
-            console.log(`[App State] 🔄 Fetching fresh exercise data for exercise ${exerciseId}`);
+            logger.view(`🔄 Fetching fresh exercise data for exercise ${exerciseId}`);
             const exerciseDetails = await this._artemisApi.getExerciseDetails(exerciseId);
             this._currentExerciseData = exerciseDetails;
 
             // Check for pending submissions (builds in progress)
             const participation = exerciseDetails.exercise?.studentParticipations?.[0];
             if (participation?.id) {
-                console.log(`[App State] 🔍 Checking for pending submission for participation ${participation.id}`);
+                logger.view(`🔍 Checking for pending submission for participation ${participation.id}`);
                 const pendingSubmission = await this._artemisApi.getLatestPendingSubmission(participation.id);
 
                 if (pendingSubmission) {
-                    console.log(`[App State] ⏳ Found pending submission - build in progress!`);
+                    logger.view(`⏳ Found pending submission - build in progress!`);
                     // Store pending submission info for the view to use
                     this._currentExerciseData.pendingSubmission = pendingSubmission;
                 } else {
-                    console.log(`[App State] ✅ No pending submission - latest result is final`);
+                    logger.view(`✅ No pending submission - latest result is final`);
                 }
             }
 
             this._currentState = 'exercise-detail';
         } catch (error) {
-            console.error('Error loading exercise details:', error);
+            logger.error('Error loading exercise details:', LogCategory.VIEW, error);
             throw error;
         }
     }
@@ -182,7 +183,7 @@ export class AppStateManager {
         if (this._currentState === 'exercise-detail' && this._currentExerciseData) {
             const exerciseId = this._currentExerciseData?.exercise?.id || this._currentExerciseData?.id;
             if (exerciseId) {
-                console.log(`[App State] 🔄 Refreshing exercise ${exerciseId}`);
+                logger.view(`🔄 Refreshing exercise ${exerciseId}`);
                 await this.showExerciseDetail(exerciseId);
             }
         }
@@ -213,7 +214,7 @@ export class AppStateManager {
         try {
             this._archivedCoursesData = await this._artemisApi.getArchivedCourses();
         } catch (error) {
-            console.error('Error loading archived courses:', error);
+            logger.error('Error loading archived courses:', LogCategory.VIEW, error);
             throw error;
         }
     }

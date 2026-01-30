@@ -3,6 +3,7 @@ import { ContextStore } from './contextStore';
 import { IrisSessionManager } from './irisSessionManager';
 import { ArtemisApiService } from '../api';
 import { ActiveContext } from '../types';
+import { logger, LogCategory } from './loggingService';
 
 export class SessionManagementService {
     constructor(
@@ -15,7 +16,7 @@ export class SessionManagementService {
     ) { }
 
     public createNewSession(): void {
-        console.log('[Iris Chat] Creating new session');
+        logger.irisChat('Creating new session');
 
         const irisSessionManager = this._getIrisSessionManager();
         if (irisSessionManager) {
@@ -36,14 +37,14 @@ export class SessionManagementService {
                     vscode.window.showInformationMessage('New conversation started!');
                 })
                 .catch(err => {
-                    console.error('Error creating new Iris session:', err);
+                    logger.error('Error creating new Iris session:', LogCategory.IRIS_CHAT, err);
                     vscode.window.showErrorMessage(`Failed to create new conversation: ${err.message}`);
                 });
         }
     }
 
     public switchToSession(sessionId: string): void {
-        console.log('[Iris Chat] Switching to session:', sessionId);
+        logger.irisChat('Switching to session:', sessionId);
 
         const irisSessionManager = this._getIrisSessionManager();
         if (irisSessionManager) {
@@ -57,7 +58,7 @@ export class SessionManagementService {
 
         // Load messages for the switched session
         this._loadIrisMessages().catch(err => {
-            console.error('Error loading messages for switched session:', err);
+            logger.error('Error loading messages for switched session:', LogCategory.IRIS_CHAT, err);
         });
     }
 
@@ -81,7 +82,7 @@ export class SessionManagementService {
         }
 
         try {
-            console.log('[Iris Chat] Fetching all Iris sessions from Artemis for context:', activeContext.title);
+            logger.irisChat('Fetching all Iris sessions from Artemis for context:', activeContext.title);
 
             // Step 1: Fetch session metadata
             let artemisSessionsMetadata: any[] = [];
@@ -91,7 +92,7 @@ export class SessionManagementService {
                 artemisSessionsMetadata = await this._artemisApiService.getExerciseChatSessions(activeContext.id);
             }
 
-            console.log(`[Iris Chat] Fetched ${artemisSessionsMetadata.length} session(s) metadata from Artemis`);
+            logger.irisChat(`Fetched ${artemisSessionsMetadata.length} session(s) metadata from Artemis`);
 
             // Step 2: Fetch messages for all sessions
             const artemisSessionsListFromServer: any[] = await Promise.all(
@@ -103,7 +104,7 @@ export class SessionManagementService {
                             messages: messages
                         };
                     } catch (error) {
-                        console.warn(`Failed to fetch messages for session ${session.id}:`, error);
+                        logger.warn(`Failed to fetch messages for session ${session.id}:`, LogCategory.IRIS_CHAT, error);
                         return {
                             ...session,
                             messages: []
@@ -112,7 +113,7 @@ export class SessionManagementService {
                 })
             );
 
-            console.log(`Fetched messages for all ${artemisSessionsListFromServer.length} sessions`);
+            logger.irisChat(`Fetched messages for all ${artemisSessionsListFromServer.length} sessions`);
 
             // Import all sessions from Artemis
             if (artemisSessionsListFromServer.length > 0) {
@@ -149,7 +150,7 @@ export class SessionManagementService {
                         this._contextStore.switchSession(snapshot.activeSession.id);
                     }
 
-                    console.log(`[Iris Chat] Imported session ${artemisSession.id} (${messageCount} messages) with local ID: ${snapshot.activeSession?.id}`);
+                    logger.irisChat(`Imported session ${artemisSession.id} (${messageCount} messages) with local ID: ${snapshot.activeSession?.id}`);
                 }
 
                 this._postSnapshot();
@@ -162,7 +163,7 @@ export class SessionManagementService {
                 vscode.window.showInformationMessage('No sessions found on Artemis for this context');
             }
         } catch (error: any) {
-            console.error('Error resetting sessions from Artemis:', error);
+            logger.error('Error resetting sessions from Artemis:', LogCategory.IRIS_CHAT, error);
             vscode.window.showErrorMessage(`Failed to reload sessions: ${error.message}`);
         }
     }
@@ -174,7 +175,7 @@ export class SessionManagementService {
     }
 
     private _clearAllSessions(): void {
-        console.log('[Iris Chat] Clearing all local sessions');
+        logger.irisChat('Clearing all local sessions');
         this._contextStore.clearAllSessions();
         this._postSnapshot();
         this._postMessage({ command: 'clearChatMessages' });
