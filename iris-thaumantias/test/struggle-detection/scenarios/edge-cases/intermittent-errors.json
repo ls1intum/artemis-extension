@@ -1,0 +1,138 @@
+{
+    "id": "intermittent-errors",
+    "name": "Intermittent Errors - Normal Development",
+    "description": "Errors come and go during development as student experiments. This is normal coding behavior, should NOT be detected as struggle.",
+    "difficulty": "edge-case",
+    "tags": ["no-struggle", "normal", "intermittent", "experimenting"],
+    
+    "expectedOutcome": {
+        "shouldDetectStruggle": false,
+        "expectedScore": { "min": 0, "max": 34 },
+        "expectedAction": "none"
+    },
+    
+    "events": [
+        {
+            "type": "edit",
+            "timestamp": 0,
+            "file": "StringUtils.java",
+            "content": "public class StringUtils {\n    public String reverse(String s) {\n        return \"\";\n    }\n}"
+        },
+        {
+            "type": "wait",
+            "duration": 5000
+        },
+        {
+            "type": "edit",
+            "timestamp": 5100,
+            "file": "StringUtils.java",
+            "content": "public class StringUtils {\n    public String reverse(String s) {\n        StringBuilder sb = new StringBuilder();\n        for (int i = s.length() - 1; i >= 0; i--\n        return sb.toString();\n    }\n}"
+        },
+        {
+            "type": "diagnostic",
+            "timestamp": 5200,
+            "action": "add",
+            "diagnostics": [{
+                "file": "StringUtils.java",
+                "line": 4,
+                "severity": "error",
+                "code": "compiler.err.expected",
+                "message": "')' expected"
+            }]
+        },
+        {
+            "type": "wait",
+            "duration": 3000
+        },
+        {
+            "type": "edit",
+            "timestamp": 8100,
+            "file": "StringUtils.java",
+            "content": "public class StringUtils {\n    public String reverse(String s) {\n        StringBuilder sb = new StringBuilder();\n        for (int i = s.length() - 1; i >= 0; i--) {\n            sb.append(s.charAt(i));\n        }\n        return sb.toString();\n    }\n}"
+        },
+        {
+            "type": "diagnostic",
+            "timestamp": 8200,
+            "action": "clear"
+        },
+        {
+            "type": "wait",
+            "duration": 15000
+        },
+        {
+            "type": "edit",
+            "timestamp": 23100,
+            "file": "StringUtils.java",
+            "content": "public class StringUtils {\n    public String reverse(String s) {\n        StringBuilder sb = new StringBuilder();\n        for (int i = s.length() - 1; i >= 0; i--) {\n            sb.append(s.charAt(i));\n        }\n        return sb.toString();\n    }\n    \n    public boolean isPalindrome(String s) {\n        return s.equals(reverse(s)\n    }\n}"
+        },
+        {
+            "type": "diagnostic",
+            "timestamp": 23200,
+            "action": "add",
+            "diagnostics": [{
+                "file": "StringUtils.java",
+                "line": 11,
+                "severity": "error",
+                "code": "compiler.err.expected",
+                "message": "')' expected"
+            }]
+        },
+        {
+            "type": "wait",
+            "duration": 2000
+        },
+        {
+            "type": "edit",
+            "timestamp": 25100,
+            "file": "StringUtils.java",
+            "content": "public class StringUtils {\n    public String reverse(String s) {\n        StringBuilder sb = new StringBuilder();\n        for (int i = s.length() - 1; i >= 0; i--) {\n            sb.append(s.charAt(i));\n        }\n        return sb.toString();\n    }\n    \n    public boolean isPalindrome(String s) {\n        return s.equals(reverse(s));\n    }\n}"
+        },
+        {
+            "type": "diagnostic",
+            "timestamp": 25200,
+            "action": "clear"
+        },
+        {
+            "type": "wait",
+            "duration": 20000
+        },
+        {
+            "type": "edit",
+            "timestamp": 45100,
+            "file": "StringUtils.java",
+            "content": "public class StringUtils {\n    public String reverse(String s) {\n        StringBuilder sb = new StringBuilder();\n        for (int i = s.length() - 1; i >= 0; i--) {\n            sb.append(s.charAt(i));\n        }\n        return sb.toString();\n    }\n    \n    public boolean isPalindrome(String s) {\n        return s.equals(reverse(s));\n    }\n    \n    public int countVowels(String s) {\n        int count = 0;\n        for (char c : s.toCharArray()\n        return count;\n    }\n}"
+        },
+        {
+            "type": "diagnostic",
+            "timestamp": 45200,
+            "action": "add",
+            "diagnostics": [{
+                "file": "StringUtils.java",
+                "line": 16,
+                "severity": "error",
+                "code": "compiler.err.expected",
+                "message": "')' expected"
+            }]
+        },
+        {
+            "type": "wait",
+            "duration": 4000
+        },
+        {
+            "type": "edit",
+            "timestamp": 49100,
+            "file": "StringUtils.java",
+            "content": "public class StringUtils {\n    public String reverse(String s) {\n        StringBuilder sb = new StringBuilder();\n        for (int i = s.length() - 1; i >= 0; i--) {\n            sb.append(s.charAt(i));\n        }\n        return sb.toString();\n    }\n    \n    public boolean isPalindrome(String s) {\n        return s.equals(reverse(s));\n    }\n    \n    public int countVowels(String s) {\n        int count = 0;\n        for (char c : s.toCharArray()) {\n            if (\"aeiouAEIOU\".indexOf(c) >= 0) count++;\n        }\n        return count;\n    }\n}"
+        },
+        {
+            "type": "diagnostic",
+            "timestamp": 49200,
+            "action": "clear"
+        },
+        {
+            "type": "build",
+            "timestamp": 55000,
+            "success": true
+        }
+    ]
+}

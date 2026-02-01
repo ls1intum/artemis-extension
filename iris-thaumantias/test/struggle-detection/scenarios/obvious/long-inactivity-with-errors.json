@@ -1,0 +1,54 @@
+{
+    "id": "long-inactivity-with-errors",
+    "name": "Long Inactivity With Errors",
+    "description": "Student stops coding while errors are present. Sign of confusion or giving up.",
+    "difficulty": "obvious",
+    "tags": ["inactivity", "confusion", "giving-up"],
+    
+    "expectedOutcome": {
+        "shouldDetectStruggle": true,
+        "expectedScore": { "min": 50, "max": 85 },
+        "expectedAction": "notification"
+    },
+    
+    "events": [
+        {
+            "type": "edit",
+            "timestamp": 0,
+            "file": "Main.java",
+            "content": "public class Main {\n    // broken code\n}"
+        },
+        {
+            "type": "diagnostic",
+            "timestamp": 100,
+            "action": "add",
+            "diagnostics": [{
+                "file": "Main.java",
+                "line": 2,
+                "severity": "error",
+                "code": "compiler.err.missing.method",
+                "message": "missing main method"
+            }]
+        },
+        {
+            "type": "wait",
+            "duration": 60000
+        },
+        {
+            "type": "wait",
+            "duration": 60000
+        },
+        {
+            "type": "wait",
+            "duration": 60000
+        },
+        {
+            "type": "wait",
+            "duration": 60000
+        },
+        {
+            "type": "wait",
+            "duration": 60000
+        }
+    ]
+}

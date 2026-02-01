@@ -1,0 +1,123 @@
+{
+    "id": "warning-only",
+    "name": "Warnings Only - No Errors",
+    "description": "Code has only warnings (unused variables, deprecated methods) but no errors. Should have a lower struggle score since warnings don't block compilation.",
+    "difficulty": "edge-case",
+    "tags": ["warnings", "low-severity", "compiles", "code-quality"],
+    
+    "expectedOutcome": {
+        "shouldDetectStruggle": false,
+        "expectedScore": { "min": 0, "max": 30 },
+        "expectedAction": "none"
+    },
+    
+    "events": [
+        {
+            "type": "edit",
+            "timestamp": 0,
+            "file": "DataProcessor.java",
+            "content": "public class DataProcessor {\n    public void process() {\n        int unusedVar = 42;\n        String result = \"done\";\n        System.out.println(result);\n    }\n}"
+        },
+        {
+            "type": "diagnostic",
+            "timestamp": 100,
+            "action": "add",
+            "diagnostics": [{
+                "file": "DataProcessor.java",
+                "line": 3,
+                "severity": "warning",
+                "code": "compiler.warn.unused",
+                "message": "local variable 'unusedVar' is never used"
+            }]
+        },
+        {
+            "type": "wait",
+            "duration": 30000
+        },
+        {
+            "type": "edit",
+            "timestamp": 30100,
+            "file": "DataProcessor.java",
+            "content": "import java.util.Date;\n\npublic class DataProcessor {\n    public void process() {\n        int unusedVar = 42;\n        String result = \"done\";\n        Date date = new Date();\n        System.out.println(result + \" at \" + date);\n    }\n}"
+        },
+        {
+            "type": "diagnostic",
+            "timestamp": 30200,
+            "action": "add",
+            "diagnostics": [
+                {
+                    "file": "DataProcessor.java",
+                    "line": 5,
+                    "severity": "warning",
+                    "code": "compiler.warn.unused",
+                    "message": "local variable 'unusedVar' is never used"
+                },
+                {
+                    "file": "DataProcessor.java",
+                    "line": 7,
+                    "severity": "warning",
+                    "code": "compiler.warn.deprecated",
+                    "message": "Date() is deprecated"
+                }
+            ]
+        },
+        {
+            "type": "wait",
+            "duration": 45000
+        },
+        {
+            "type": "edit",
+            "timestamp": 75100,
+            "file": "DataProcessor.java",
+            "content": "import java.util.Date;\n\npublic class DataProcessor {\n    private String unused = \"never read\";\n    \n    public void process() {\n        int unusedVar = 42;\n        String result = \"done\";\n        Date date = new Date();\n        System.out.println(result + \" at \" + date);\n    }\n    \n    public void anotherMethod() {\n        int x = 10;\n        System.out.println(\"hello\");\n    }\n}"
+        },
+        {
+            "type": "diagnostic",
+            "timestamp": 75200,
+            "action": "add",
+            "diagnostics": [
+                {
+                    "file": "DataProcessor.java",
+                    "line": 4,
+                    "severity": "warning",
+                    "code": "compiler.warn.unused",
+                    "message": "private field 'unused' is never used"
+                },
+                {
+                    "file": "DataProcessor.java",
+                    "line": 7,
+                    "severity": "warning",
+                    "code": "compiler.warn.unused",
+                    "message": "local variable 'unusedVar' is never used"
+                },
+                {
+                    "file": "DataProcessor.java",
+                    "line": 9,
+                    "severity": "warning",
+                    "code": "compiler.warn.deprecated",
+                    "message": "Date() is deprecated"
+                },
+                {
+                    "file": "DataProcessor.java",
+                    "line": 14,
+                    "severity": "warning",
+                    "code": "compiler.warn.unused",
+                    "message": "local variable 'x' is never used"
+                }
+            ]
+        },
+        {
+            "type": "wait",
+            "duration": 60000
+        },
+        {
+            "type": "build",
+            "timestamp": 135000,
+            "success": true
+        },
+        {
+            "type": "wait",
+            "duration": 30000
+        }
+    ]
+}

@@ -1,0 +1,150 @@
+{
+    "id": "slow-progress",
+    "name": "Slow Progress With Many Errors",
+    "description": "Student is making progress but very slowly, with many errors along the way. Subtle struggle - they're moving forward but inefficiently.",
+    "difficulty": "subtle",
+    "tags": ["slow-progress", "many-errors", "inefficient", "beginner"],
+    
+    "expectedOutcome": {
+        "shouldDetectStruggle": true,
+        "expectedScore": { "min": 35, "max": 65 },
+        "expectedAction": "notification",
+        "expectedTimeToDetection": 300000
+    },
+    
+    "events": [
+        {
+            "type": "edit",
+            "timestamp": 0,
+            "file": "Calculator.java",
+            "content": "public class Calculator {\n    public int add(int a, int b) {\n        return a + b\n    }\n}"
+        },
+        {
+            "type": "diagnostic",
+            "timestamp": 100,
+            "action": "add",
+            "diagnostics": [{
+                "file": "Calculator.java",
+                "line": 3,
+                "severity": "error",
+                "code": "compiler.err.expected",
+                "message": "';' expected"
+            }]
+        },
+        {
+            "type": "wait",
+            "duration": 45000
+        },
+        {
+            "type": "edit",
+            "timestamp": 45100,
+            "file": "Calculator.java",
+            "content": "public class Calculator {\n    public int add(int a, int b) {\n        return a + b;\n    }\n}"
+        },
+        {
+            "type": "diagnostic",
+            "timestamp": 45200,
+            "action": "clear"
+        },
+        {
+            "type": "wait",
+            "duration": 60000
+        },
+        {
+            "type": "edit",
+            "timestamp": 105100,
+            "file": "Calculator.java",
+            "content": "public class Calculator {\n    public int add(int a, int b) {\n        return a + b;\n    }\n    \n    public int subtract(int a int b) {\n        return a - b;\n    }\n}"
+        },
+        {
+            "type": "diagnostic",
+            "timestamp": 105200,
+            "action": "add",
+            "diagnostics": [{
+                "file": "Calculator.java",
+                "line": 6,
+                "severity": "error",
+                "code": "compiler.err.expected",
+                "message": "',' expected"
+            }]
+        },
+        {
+            "type": "wait",
+            "duration": 90000
+        },
+        {
+            "type": "edit",
+            "timestamp": 195100,
+            "file": "Calculator.java",
+            "content": "public class Calculator {\n    public int add(int a, int b) {\n        return a + b;\n    }\n    \n    public int subtract(int a, int b) {\n        return a - b;\n    }\n}"
+        },
+        {
+            "type": "diagnostic",
+            "timestamp": 195200,
+            "action": "clear"
+        },
+        {
+            "type": "wait",
+            "duration": 75000
+        },
+        {
+            "type": "edit",
+            "timestamp": 270100,
+            "file": "Calculator.java",
+            "content": "public class Calculator {\n    public int add(int a, int b) {\n        return a + b;\n    }\n    \n    public int subtract(int a, int b) {\n        return a - b;\n    }\n    \n    public int multiply(int a, int b) {\n        return a * b\n    }\n}"
+        },
+        {
+            "type": "diagnostic",
+            "timestamp": 270200,
+            "action": "add",
+            "diagnostics": [{
+                "file": "Calculator.java",
+                "line": 11,
+                "severity": "error",
+                "code": "compiler.err.expected",
+                "message": "';' expected"
+            }]
+        },
+        {
+            "type": "wait",
+            "duration": 60000
+        },
+        {
+            "type": "edit",
+            "timestamp": 330100,
+            "file": "Calculator.java",
+            "content": "public class Calculator {\n    public int add(int a, int b) {\n        return a + b;\n    }\n    \n    public int subtract(int a, int b) {\n        return a - b;\n    }\n    \n    public int multiply(int a, int b) {\n        return a * b;\n    }\n}"
+        },
+        {
+            "type": "diagnostic",
+            "timestamp": 330200,
+            "action": "clear"
+        },
+        {
+            "type": "wait",
+            "duration": 90000
+        },
+        {
+            "type": "edit",
+            "timestamp": 420100,
+            "file": "Calculator.java",
+            "content": "public class Calculator {\n    public int add(int a, int b) {\n        return a + b;\n    }\n    \n    public int subtract(int a, int b) {\n        return a - b;\n    }\n    \n    public int multiply(int a, int b) {\n        return a * b;\n    }\n    \n    public int divide(int a, int b) {\n        return a / b\n    }\n}"
+        },
+        {
+            "type": "diagnostic",
+            "timestamp": 420200,
+            "action": "add",
+            "diagnostics": [{
+                "file": "Calculator.java",
+                "line": 15,
+                "severity": "error",
+                "code": "compiler.err.expected",
+                "message": "';' expected"
+            }]
+        },
+        {
+            "type": "wait",
+            "duration": 45000
+        }
+    ]
+}

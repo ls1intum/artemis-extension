@@ -1,0 +1,85 @@
+{
+    "id": "repeated-build-failures",
+    "name": "Repeated Build Failures",
+    "description": "Student submits code multiple times but build keeps failing. Classic struggle with server-side compilation.",
+    "difficulty": "obvious",
+    "tags": ["build-failure", "submissions", "server-side"],
+    
+    "expectedOutcome": {
+        "shouldDetectStruggle": true,
+        "expectedScore": { "min": 55, "max": 95 },
+        "expectedAction": "notification"
+    },
+    
+    "events": [
+        {
+            "type": "edit",
+            "timestamp": 0,
+            "file": "Main.java",
+            "content": "public class Main {\n    public static void main(String[] args) {\n        // Initial code\n    }\n}"
+        },
+        {
+            "type": "build",
+            "timestamp": 10000,
+            "success": false,
+            "errors": ["compilation failed"],
+            "failedTests": ["testMain"]
+        },
+        {
+            "type": "wait",
+            "duration": 30000
+        },
+        {
+            "type": "edit",
+            "timestamp": 40100,
+            "file": "Main.java",
+            "content": "public class Main {\n    public static void main(String[] args) {\n        // Attempt 2\n    }\n}"
+        },
+        {
+            "type": "build",
+            "timestamp": 50000,
+            "success": false,
+            "errors": ["compilation failed"],
+            "failedTests": ["testMain"]
+        },
+        {
+            "type": "wait",
+            "duration": 30000
+        },
+        {
+            "type": "edit",
+            "timestamp": 80100,
+            "file": "Main.java",
+            "content": "public class Main {\n    public static void main(String[] args) {\n        // Attempt 3\n    }\n}"
+        },
+        {
+            "type": "build",
+            "timestamp": 90000,
+            "success": false,
+            "errors": ["compilation failed"],
+            "failedTests": ["testMain"]
+        },
+        {
+            "type": "wait",
+            "duration": 30000
+        },
+        {
+            "type": "build",
+            "timestamp": 120000,
+            "success": false,
+            "errors": ["compilation failed"],
+            "failedTests": ["testMain"]
+        },
+        {
+            "type": "wait",
+            "duration": 30000
+        },
+        {
+            "type": "build",
+            "timestamp": 150000,
+            "success": false,
+            "errors": ["compilation failed"],
+            "failedTests": ["testMain"]
+        }
+    ]
+}

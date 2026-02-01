@@ -1,0 +1,83 @@
+{
+    "id": "persistent-syntax-error",
+    "name": "Persistent Syntax Error - Basic",
+    "description": "Student has a syntax error and cannot fix it for 5 minutes. Classic struggle case for beginners.",
+    "difficulty": "obvious",
+    "tags": ["syntax-error", "beginner", "persistent-error"],
+    
+    "expectedOutcome": {
+        "shouldDetectStruggle": true,
+        "expectedScore": { "min": 60, "max": 95 },
+        "expectedAction": "notification",
+        "expectedTimeToDetection": 120000
+    },
+    
+    "events": [
+        {
+            "type": "edit",
+            "timestamp": 0,
+            "file": "Main.java",
+            "content": "public class Main {\n    public static void main(String[] args) {\n        System.out.println(\"Hello);\n    }\n}"
+        },
+        {
+            "type": "diagnostic",
+            "timestamp": 100,
+            "action": "add",
+            "diagnostics": [{
+                "file": "Main.java",
+                "line": 3,
+                "severity": "error",
+                "code": "compiler.err.unclosed.str.lit",
+                "message": "unclosed string literal"
+            }]
+        },
+        {
+            "type": "wait",
+            "duration": 30000
+        },
+        {
+            "type": "edit",
+            "timestamp": 30100,
+            "file": "Main.java",
+            "content": "public class Main {\n    public static void main(String[] args) {\n        System.out.println(Hello\");\n    }\n}"
+        },
+        {
+            "type": "diagnostic",
+            "timestamp": 30200,
+            "action": "add",
+            "diagnostics": [{
+                "file": "Main.java",
+                "line": 3,
+                "severity": "error",
+                "code": "compiler.err.unclosed.str.lit",
+                "message": "unclosed string literal"
+            }]
+        },
+        {
+            "type": "wait",
+            "duration": 150000
+        },
+        {
+            "type": "edit",
+            "timestamp": 180100,
+            "file": "Main.java",
+            "content": "public class Main {\n    public static void main(String[] args) {\n        System.out.println(Hello);\n    }\n}"
+        },
+        {
+            "type": "diagnostic",
+            "timestamp": 180200,
+            "action": "add",
+            "diagnostics": [{
+                "file": "Main.java",
+                "line": 3,
+                "severity": "error",
+                "code": "compiler.err.cant.resolve",
+                "message": "cannot find symbol: Hello"
+            }]
+        },
+        {
+            "type": "wait",
+            "duration": 180000
+        }
+    ]
+}

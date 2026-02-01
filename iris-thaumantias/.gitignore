@@ -17,6 +17,9 @@ out/
 coverage/
 *.vsix
 
+# Test reports (generated per run)
+test/struggle-detection/reports/
+
 # IDE
 .vscode-test/
 *.swp

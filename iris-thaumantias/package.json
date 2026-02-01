@@ -171,6 +171,7 @@
     "lint": "eslint src test",
     "test": "vscode-test --label unit",
     "test:coverage": "vscode-test --label unit --coverage",
+    "test:struggle": "npm run compile-tests && vscode-test --label unit --grep \"Struggle Detection\"",
     "test:e2e": "npm run compile-tests && vscode-test --label e2e",
     "test:all": "npm run compile-tests && npm run compile && npm run lint && vscode-test",
     "coverage:all": "npm run compile-tests && npm run compile && npm run lint && vscode-test --coverage",

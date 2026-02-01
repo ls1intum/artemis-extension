@@ -1,0 +1,84 @@
+{
+    "id": "normal-development",
+    "name": "Normal Development Flow",
+    "description": "Student coding normally with occasional errors that get fixed quickly. Should NOT trigger struggle detection.",
+    "difficulty": "obvious",
+    "tags": ["no-struggle", "normal", "quick-fixes"],
+    
+    "expectedOutcome": {
+        "shouldDetectStruggle": false,
+        "expectedScore": { "min": 0, "max": 34 },
+        "expectedAction": "none"
+    },
+    
+    "events": [
+        {
+            "type": "edit",
+            "timestamp": 0,
+            "file": "Main.java",
+            "content": "public class Main {\n}"
+        },
+        {
+            "type": "wait",
+            "duration": 5000
+        },
+        {
+            "type": "edit",
+            "timestamp": 5100,
+            "file": "Main.java",
+            "content": "public class Main {\n    public static void main(String[] args) {\n    }\n}"
+        },
+        {
+            "type": "diagnostic",
+            "timestamp": 5200,
+            "action": "add",
+            "diagnostics": [{
+                "file": "Main.java",
+                "line": 2,
+                "severity": "error",
+                "code": "compiler.err.expected",
+                "message": "expected ;"
+            }]
+        },
+        {
+            "type": "wait",
+            "duration": 3000
+        },
+        {
+            "type": "edit",
+            "timestamp": 8100,
+            "file": "Main.java",
+            "content": "public class Main {\n    public static void main(String[] args) {\n        System.out.println(\"Hello\");\n    }\n}"
+        },
+        {
+            "type": "diagnostic",
+            "timestamp": 8200,
+            "action": "clear"
+        },
+        {
+            "type": "wait",
+            "duration": 10000
+        },
+        {
+            "type": "edit",
+            "timestamp": 18100,
+            "file": "Main.java",
+            "content": "public class Main {\n    public static void main(String[] args) {\n        System.out.println(\"Hello World\");\n    }\n}"
+        },
+        {
+            "type": "build",
+            "timestamp": 20000,
+            "success": true
+        },
+        {
+            "type": "wait",
+            "duration": 15000
+        },
+        {
+            "type": "edit",
+            "timestamp": 35100,
+            "file": "Main.java",
+            "content": "public class Main {\n    public static void main(String[] args) {\n        greet();\n    }\n    \n    static void greet() {\n        System.out.println(\"Hello World\");\n    }\n}"
+        }
+    ]
+}
