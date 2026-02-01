@@ -36,29 +36,29 @@ const STRUGGLE_THRESHOLD = 35;
 export class StruggleTestRunner implements vscode.Disposable {
     private clock: sinon.SinonFakeTimers | undefined;
     private diagnosticCollection: vscode.DiagnosticCollection;
-    
+
     // Real services - instantiated fresh for each scenario
     private diagnosticService: DiagnosticPersistenceService | undefined;
     private inactivityService: InactivityService | undefined;
     private thrashingDetector: ThrashingDetector | undefined;
     private buildTracker: BuildResultTracker | undefined;
     private scoreService: StruggleScoreService | undefined;
-    
+
     // Test file tracking
     private testFileUri: vscode.Uri | undefined;
     private testDocument: vscode.TextDocument | undefined;
-    
+
     constructor() {
         this.diagnosticCollection = vscode.languages.createDiagnosticCollection('struggle-test');
     }
-    
+
     /**
      * Run a single scenario and return the result
      */
     async runScenario(scenario: StruggleScenario): Promise<ScenarioResult> {
         const errors: string[] = [];
         const scoreSnapshots: ScoreSnapshot[] = [];
-        
+
         try {
             // 1. Setup: Install fake timers BEFORE creating services
             this.clock = sinon.useFakeTimers({
@@ -66,13 +66,13 @@ export class StruggleTestRunner implements vscode.Disposable {
                 toFake: ['Date', 'setTimeout', 'setInterval', 'clearTimeout', 'clearInterval'],
                 shouldClearNativeTimers: true,
             });
-            
+
             // 2. Initialize real services (they'll use faked time)
             this.initializeServices();
-            
+
             // 3. Create test file
             await this.setupTestFile(scenario);
-            
+
             // 4. Execute events and record scores
             let currentTime = 0;
             for (const event of scenario.events) {
@@ -88,11 +88,11 @@ export class StruggleTestRunner implements vscode.Disposable {
                             this.clock.tick(eventTimestamp - currentTime);
                             currentTime = eventTimestamp;
                         }
-                        
+
                         // Apply the event
                         await this.applyEvent(event);
                     }
-                    
+
                     // Record score snapshot
                     const score = this.scoreService!.calculateScore();
                     scoreSnapshots.push({
@@ -104,36 +104,36 @@ export class StruggleTestRunner implements vscode.Disposable {
                     errors.push(`Event ${event.type} failed: ${err}`);
                 }
             }
-            
+
         } catch (err) {
             errors.push(`Scenario setup failed: ${err}`);
         } finally {
             // 5. Cleanup
             await this.cleanup();
         }
-        
+
         // 6. Evaluate result
         return this.evaluateScenario(scenario, scoreSnapshots, errors);
     }
-    
+
     /**
      * Run multiple scenarios and return aggregated report
      */
     async runScenarios(scenarios: StruggleScenario[]): Promise<ScenarioResult[]> {
         const results: ScenarioResult[] = [];
-        
+
         for (const scenario of scenarios) {
             console.log(`Running scenario: ${scenario.id}`);
             const result = await this.runScenario(scenario);
             results.push(result);
-            
+
             // Small delay between scenarios to ensure clean state
             await new Promise(resolve => setTimeout(resolve, 100));
         }
-        
+
         return results;
     }
-    
+
     /**
      * Initialize fresh instances of all telemetry services
      */
@@ -142,7 +142,7 @@ export class StruggleTestRunner implements vscode.Disposable {
         this.inactivityService = new InactivityService();
         this.thrashingDetector = new ThrashingDetector();
         this.buildTracker = new BuildResultTracker();
-        
+
         this.scoreService = new StruggleScoreService(
             this.diagnosticService,
             this.inactivityService,
@@ -150,7 +150,7 @@ export class StruggleTestRunner implements vscode.Disposable {
             this.buildTracker,
         );
     }
-    
+
     /**
      * Setup a test file for the scenario
      */
@@ -158,14 +158,14 @@ export class StruggleTestRunner implements vscode.Disposable {
         // Find first edit event to determine file name
         const firstEdit = scenario.events.find((e): e is EditEvent => e.type === 'edit');
         const fileName = firstEdit?.file ?? 'TestFile.java';
-        
+
         // Create a URI for the test file (in-memory)
         this.testFileUri = vscode.Uri.parse(`untitled:${fileName}`);
-        
+
         // Create the document
         this.testDocument = await vscode.workspace.openTextDocument(this.testFileUri);
     }
-    
+
     /**
      * Apply an event to the real services
      */
@@ -185,7 +185,7 @@ export class StruggleTestRunner implements vscode.Disposable {
                 break;
         }
     }
-    
+
     /**
      * Apply a diagnostic event - add/remove diagnostics
      */
@@ -195,19 +195,19 @@ export class StruggleTestRunner implements vscode.Disposable {
             this.diagnosticCollection.clear();
             return;
         }
-        
+
         if (event.action === 'add' && event.diagnostics) {
             // Group by file
             const byFile = new Map<string, vscode.Diagnostic[]>();
-            
+
             for (const diag of event.diagnostics) {
                 const uri = vscode.Uri.file(`/test/${diag.file}`);
                 const uriString = uri.toString();
-                
+
                 if (!byFile.has(uriString)) {
                     byFile.set(uriString, []);
                 }
-                
+
                 const vsDiag = new vscode.Diagnostic(
                     new vscode.Range(diag.line, 0, diag.line, 100),
                     diag.message,
@@ -216,9 +216,9 @@ export class StruggleTestRunner implements vscode.Disposable {
                         : vscode.DiagnosticSeverity.Warning
                 );
                 vsDiag.code = diag.code;
-                
+
                 byFile.get(uriString)!.push(vsDiag);
-                
+
                 // Also inject into the DiagnosticPersistenceService for testing
                 const id = `test-${uriString}-${diag.line}-${diag.code ?? 'unknown'}`;
                 this.diagnosticService?._testInjectDiagnostic({
@@ -241,20 +241,20 @@ export class StruggleTestRunner implements vscode.Disposable {
                     resolved: false,
                 });
             }
-            
+
             // Set diagnostics per file
             for (const [uriString, diagnostics] of byFile) {
                 const uri = vscode.Uri.parse(uriString);
                 this.diagnosticCollection.set(uri, diagnostics);
             }
         }
-        
+
         if (event.action === 'remove') {
             this.diagnosticService?._testClearAllDiagnostics();
             this.diagnosticCollection.clear();
         }
     }
-    
+
     /**
      * Apply an edit event - simulates typing
      */
@@ -265,7 +265,7 @@ export class StruggleTestRunner implements vscode.Disposable {
             `/test/${event.file}`,
             event.content
         );
-        
+
         // Try to also update the actual document for visual feedback
         if (this.testDocument) {
             try {
@@ -273,7 +273,7 @@ export class StruggleTestRunner implements vscode.Disposable {
                     preview: false,
                     preserveFocus: true,
                 });
-                
+
                 await editor.edit(editBuilder => {
                     const fullRange = new vscode.Range(
                         0, 0,
@@ -287,7 +287,7 @@ export class StruggleTestRunner implements vscode.Disposable {
             }
         }
     }
-    
+
     /**
      * Apply a build result event
      */
@@ -301,7 +301,7 @@ export class StruggleTestRunner implements vscode.Disposable {
             submissionId: undefined,
         });
     }
-    
+
     /**
      * Evaluate scenario result against expected outcome
      */
@@ -311,12 +311,12 @@ export class StruggleTestRunner implements vscode.Disposable {
         errors: string[]
     ): ScenarioResult {
         const metrics = this.calculateMetrics(scenario, snapshots);
-        
+
         const passed = errors.length === 0 &&
             metrics.finalScoreInRange &&
             metrics.detectedStruggle === scenario.expectedOutcome.shouldDetectStruggle &&
             metrics.correctAction;
-        
+
         return {
             scenario,
             passed,
@@ -325,7 +325,7 @@ export class StruggleTestRunner implements vscode.Disposable {
             errors,
         };
     }
-    
+
     /**
      * Calculate detailed metrics from score timeline
      */
@@ -346,12 +346,12 @@ export class StruggleTestRunner implements vscode.Disposable {
                 finalScore: 0,
             };
         }
-        
+
         const scores = snapshots.map(s => s.score.combined);
         const finalSnapshot = snapshots[snapshots.length - 1];
         const finalScore = finalSnapshot.score.combined;
         const expected = scenario.expectedOutcome;
-        
+
         // Find time to detection (first time score >= threshold)
         let timeToDetection: number | null = null;
         for (const snapshot of snapshots) {
@@ -360,7 +360,7 @@ export class StruggleTestRunner implements vscode.Disposable {
                 break;
             }
         }
-        
+
         // Calculate false positive time (time with score >= threshold when no struggle expected)
         let falsePositiveTime = 0;
         if (!expected.shouldDetectStruggle) {
@@ -372,10 +372,10 @@ export class StruggleTestRunner implements vscode.Disposable {
                 lastTimestamp = snapshot.timestamp;
             }
         }
-        
+
         return {
             finalScoreInRange: finalScore >= expected.expectedScore.min &&
-                              finalScore <= expected.expectedScore.max,
+                finalScore <= expected.expectedScore.max,
             detectedStruggle: finalScore >= STRUGGLE_THRESHOLD,
             correctAction: finalSnapshot.score.recommendedAction === expected.expectedAction,
             timeToDetection,
@@ -386,7 +386,7 @@ export class StruggleTestRunner implements vscode.Disposable {
             finalScore,
         };
     }
-    
+
     /**
      * Cleanup after scenario
      */
@@ -397,20 +397,20 @@ export class StruggleTestRunner implements vscode.Disposable {
         this.thrashingDetector?.dispose();
         this.buildTracker?.dispose();
         this.scoreService?.dispose();
-        
+
         this.diagnosticService = undefined;
         this.inactivityService = undefined;
         this.thrashingDetector = undefined;
         this.buildTracker = undefined;
         this.scoreService = undefined;
-        
+
         // Restore real timers
         this.clock?.restore();
         this.clock = undefined;
-        
+
         // Clear test diagnostics
         this.diagnosticCollection.clear();
-        
+
         // Close test document
         if (this.testDocument) {
             // Try to close the document
@@ -423,7 +423,7 @@ export class StruggleTestRunner implements vscode.Disposable {
         this.testDocument = undefined;
         this.testFileUri = undefined;
     }
-    
+
     /**
      * Dispose the test runner
      */
