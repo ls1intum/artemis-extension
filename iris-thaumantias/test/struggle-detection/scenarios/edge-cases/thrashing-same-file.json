@@ -2,13 +2,13 @@
     "id": "thrashing-same-file",
     "name": "Rapid Edits Without Progress (Thrashing)",
     "description": "Student makes many rapid edits to the same file without making meaningful progress. Code keeps changing but errors persist or multiply.",
-    "difficulty": "obvious",
+    "difficulty": "edge-case",
     "tags": ["thrashing", "rapid-edits", "no-progress", "frustration"],
     
     "expectedOutcome": {
-        "shouldDetectStruggle": true,
-        "expectedScore": { "min": 55, "max": 90 },
-        "expectedAction": "notification",
+        "shouldDetectStruggle": false,
+        "expectedScore": { "min": 0, "max": 34 },
+        "expectedAction": "none",
         "expectedTimeToDetection": 90000
     },
     

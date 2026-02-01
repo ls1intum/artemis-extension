@@ -13,6 +13,7 @@ import { InactivityService } from '../../src/services/telemetry/inactivityServic
 import { ThrashingDetector } from '../../src/services/telemetry/thrashingDetector';
 import { BuildResultTracker } from '../../src/services/telemetry/buildResultTracker';
 import { StruggleScoreService } from '../../src/services/telemetry/struggleScoreService';
+import { TrackedDiagnostic } from '../../src/services/telemetry/types';
 
 import {
     StruggleScenario,
@@ -73,13 +74,23 @@ export class StruggleTestRunner implements vscode.Disposable {
             await this.setupTestFile(scenario);
             
             // 4. Execute events and record scores
+            let currentTime = 0;
             for (const event of scenario.events) {
                 try {
-                    await this.applyEvent(event);
-                    
-                    // Advance time for wait events
+                    // For wait events, advance time by the duration
                     if (event.type === 'wait') {
                         this.clock.tick(event.duration);
+                        currentTime += event.duration;
+                    } else {
+                        // For other events, advance time to the event's timestamp
+                        const eventTimestamp = (event as { timestamp?: number }).timestamp ?? currentTime;
+                        if (eventTimestamp > currentTime) {
+                            this.clock.tick(eventTimestamp - currentTime);
+                            currentTime = eventTimestamp;
+                        }
+                        
+                        // Apply the event
+                        await this.applyEvent(event);
                     }
                     
                     // Record score snapshot
@@ -180,6 +191,7 @@ export class StruggleTestRunner implements vscode.Disposable {
      */
     private async applyDiagnosticEvent(event: DiagnosticEvent): Promise<void> {
         if (event.action === 'clear') {
+            this.diagnosticService?._testClearAllDiagnostics();
             this.diagnosticCollection.clear();
             return;
         }
@@ -206,6 +218,28 @@ export class StruggleTestRunner implements vscode.Disposable {
                 vsDiag.code = diag.code;
                 
                 byFile.get(uriString)!.push(vsDiag);
+                
+                // Also inject into the DiagnosticPersistenceService for testing
+                const id = `test-${uriString}-${diag.line}-${diag.code ?? 'unknown'}`;
+                this.diagnosticService?._testInjectDiagnostic({
+                    id,
+                    uri: uriString,
+                    range: {
+                        startLine: diag.line,
+                        startCharacter: 0,
+                        endLine: diag.line,
+                        endCharacter: 100,
+                    },
+                    code: diag.code,
+                    message: diag.message,
+                    severity: diag.severity === 'error'
+                        ? vscode.DiagnosticSeverity.Error
+                        : vscode.DiagnosticSeverity.Warning,
+                    firstSeen: Date.now(),
+                    lastSeen: Date.now(),
+                    occurrences: 1,
+                    resolved: false,
+                });
             }
             
             // Set diagnostics per file
@@ -216,7 +250,7 @@ export class StruggleTestRunner implements vscode.Disposable {
         }
         
         if (event.action === 'remove') {
-            // For now, clear all - could be refined to remove specific diagnostics
+            this.diagnosticService?._testClearAllDiagnostics();
             this.diagnosticCollection.clear();
         }
     }
@@ -225,33 +259,32 @@ export class StruggleTestRunner implements vscode.Disposable {
      * Apply an edit event - simulates typing
      */
     private async applyEditEvent(event: EditEvent): Promise<void> {
-        // The ThrashingDetector listens to onDidChangeTextDocument
-        // We need to trigger that event by actually editing a document
+        // Always record the edit directly to the thrashing detector for testing
+        // This ensures thrashing detection works even when document editing fails
+        this.thrashingDetector?.recordEdit(
+            `/test/${event.file}`,
+            event.content
+        );
         
-        if (!this.testDocument) {
-            return;
-        }
-        
-        try {
-            const editor = await vscode.window.showTextDocument(this.testDocument, {
-                preview: false,
-                preserveFocus: true,
-            });
-            
-            await editor.edit(editBuilder => {
-                const fullRange = new vscode.Range(
-                    0, 0,
-                    this.testDocument!.lineCount, 0
-                );
-                editBuilder.replace(fullRange, event.content);
-            });
-        } catch {
-            // If document editing fails (common in test environments),
-            // directly trigger the thrashing detector
-            this.thrashingDetector?.recordEdit(
-                `/test/${event.file}`,
-                event.content
-            );
+        // Try to also update the actual document for visual feedback
+        if (this.testDocument) {
+            try {
+                const editor = await vscode.window.showTextDocument(this.testDocument, {
+                    preview: false,
+                    preserveFocus: true,
+                });
+                
+                await editor.edit(editBuilder => {
+                    const fullRange = new vscode.Range(
+                        0, 0,
+                        this.testDocument!.lineCount, 0
+                    );
+                    editBuilder.replace(fullRange, event.content);
+                });
+            } catch {
+                // Document editing failed (common in test environments)
+                // The thrashing detector has already been updated above
+            }
         }
     }
     

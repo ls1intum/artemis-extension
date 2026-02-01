@@ -224,4 +224,35 @@ export class DiagnosticPersistenceService implements vscode.Disposable {
             .filter(d => !d.resolved && d.severity === vscode.DiagnosticSeverity.Error)
             .length;
     }
+
+    /**
+     * TEST ONLY: Inject diagnostics directly for testing purposes.
+     * This bypasses the VS Code diagnostic API and allows tests to simulate diagnostics.
+     * @internal
+     */
+    public _testInjectDiagnostic(diagnostic: TrackedDiagnostic): void {
+        this._trackedDiagnostics.set(diagnostic.id, diagnostic);
+        this._onDidUpdateDiagnostics.fire(Array.from(this._trackedDiagnostics.values()));
+    }
+
+    /**
+     * TEST ONLY: Clear a specific diagnostic by ID for testing purposes.
+     * @internal
+     */
+    public _testClearDiagnostic(id: string): void {
+        const tracked = this._trackedDiagnostics.get(id);
+        if (tracked) {
+            tracked.resolved = true;
+        }
+        this._onDidUpdateDiagnostics.fire(Array.from(this._trackedDiagnostics.values()));
+    }
+
+    /**
+     * TEST ONLY: Clear all tracked diagnostics for testing purposes.
+     * @internal
+     */
+    public _testClearAllDiagnostics(): void {
+        this._trackedDiagnostics.clear();
+        this._onDidUpdateDiagnostics.fire([]);
+    }
 }

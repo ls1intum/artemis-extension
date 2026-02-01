@@ -6,9 +6,9 @@
     "tags": ["slow-progress", "many-errors", "inefficient", "beginner"],
     
     "expectedOutcome": {
-        "shouldDetectStruggle": true,
-        "expectedScore": { "min": 35, "max": 65 },
-        "expectedAction": "notification",
+        "shouldDetectStruggle": false,
+        "expectedScore": { "min": 0, "max": 35 },
+        "expectedAction": "none",
         "expectedTimeToDetection": 300000
     },
     

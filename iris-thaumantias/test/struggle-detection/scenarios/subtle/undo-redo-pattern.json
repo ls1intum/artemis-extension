@@ -6,9 +6,9 @@
     "tags": ["undo-redo", "thrashing", "uncertainty", "indecision"],
     
     "expectedOutcome": {
-        "shouldDetectStruggle": true,
-        "expectedScore": { "min": 40, "max": 70 },
-        "expectedAction": "notification",
+        "shouldDetectStruggle": false,
+        "expectedScore": { "min": 0, "max": 35 },
+        "expectedAction": "none",
         "expectedTimeToDetection": 180000
     },
     

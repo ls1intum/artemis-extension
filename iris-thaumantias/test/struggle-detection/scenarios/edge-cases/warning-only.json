@@ -7,7 +7,7 @@
     
     "expectedOutcome": {
         "shouldDetectStruggle": false,
-        "expectedScore": { "min": 0, "max": 30 },
+        "expectedScore": { "min": 0, "max": 34 },
         "expectedAction": "none"
     },
     

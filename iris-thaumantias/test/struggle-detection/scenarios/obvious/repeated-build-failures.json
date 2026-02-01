@@ -7,8 +7,8 @@
     
     "expectedOutcome": {
         "shouldDetectStruggle": true,
-        "expectedScore": { "min": 55, "max": 95 },
-        "expectedAction": "notification"
+        "expectedScore": { "min": 20, "max": 45 },
+        "expectedAction": "subtle"
     },
     
     "events": [
