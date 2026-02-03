@@ -13,6 +13,7 @@ export { ProviderRegistry } from './ProviderRegistry';
 export { ExerciseRegistry, type ExerciseRegistryEntry } from './exerciseRegistry';
 export { WebSocketStatusBarService } from './websocketStatusBar';
 export { logger, LogLevel, LogCategory, LoggingService } from './loggingService';
+export { NoAiDetectionService } from './noAiDetectionService';
 export {
     detectWorkspaceExercise,
     findExerciseByRepositoryUrl,

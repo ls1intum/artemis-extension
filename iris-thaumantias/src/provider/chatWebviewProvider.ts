@@ -22,7 +22,8 @@ import {
     ExerciseRegistry,
     detectWorkspaceExercise,
     TelemetryManager,
-    StruggleContext
+    StruggleContext,
+    NoAiDetectionService
 } from '../services';
 
 type ChatContextReason =
@@ -49,6 +50,7 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
     private _sessionManagementService: SessionManagementService;
     private _websocketMessageHandler: WebSocketMessageHandler;
     private _telemetryManager?: TelemetryManager;
+    private _noAiDetectionService: NoAiDetectionService;
 
     constructor(
         private readonly _extensionUri: vscode.Uri,
@@ -113,6 +115,12 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
                 });
             }
         });
+
+        // Initialize .noai detection service
+        this._noAiDetectionService = NoAiDetectionService.getInstance();
+        this._noAiDetectionService.onNoAiStatusChanged(isNoAiDetected => {
+            this._postNoAiStatus(isNoAiDetected);
+        });
     }
 
     /**
@@ -130,6 +138,27 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
      */
     public getStruggleContext(): StruggleContext | undefined {
         return this._telemetryManager?.getStruggleContext();
+    }
+
+    /**
+     * Check if AI assistance is disabled due to .noai file
+     */
+    public isNoAiEnabled(): boolean {
+        return this._noAiDetectionService.isNoAiEnabled;
+    }
+
+    /**
+     * Post .noai status to the webview
+     */
+    private _postNoAiStatus(isNoAiDetected: boolean): void {
+        if (!this._view) {
+            return;
+        }
+        this._view.webview.postMessage({
+            command: 'updateNoAiStatus',
+            isNoAiDetected,
+            noAiFilePath: this._noAiDetectionService.noAiFilePath
+        });
     }
 
     public dispose(): void {
@@ -181,6 +210,8 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
                 void this._loadIrisMessagesIfNeeded();
                 // Update referenced files display
                 void this._fileMonitorService.triggerUpdate();
+                // Update .noai status
+                this._postNoAiStatus(this._noAiDetectionService.isNoAiEnabled);
             } else {
                 logger.websocket('Iris Chat view became hidden');
             }
@@ -213,6 +244,9 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
 
         // Trigger initial file update
         void this._fileMonitorService.triggerUpdate();
+
+        // Post initial .noai status
+        this._postNoAiStatus(this._noAiDetectionService.isNoAiEnabled);
     }
 
     // private _startWebSocketMonitoring(): void { ... } // Removed
@@ -405,6 +439,8 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
                 break;
             case 'chatViewReady':
                 this._postSnapshot();
+                // Post .noai status when webview is ready
+                this._postNoAiStatus(this._noAiDetectionService.isNoAiEnabled);
                 break;
             case 'messageFeedback':
                 // Proper error handling for async feedback handler
@@ -523,6 +559,13 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
 
 
     private async _handleChatMessage(message: any): Promise<void> {
+        // Check if .noai file is detected first
+        if (this._noAiDetectionService.isNoAiEnabled) {
+            logger.websocketWarn('Chat blocked: .noai file detected');
+            this._postNoAiStatus(true);
+            return;
+        }
+
         const activeContext = this._contextStore.getActiveContext();
         if (!activeContext) {
             logger.websocketWarn('No active context');

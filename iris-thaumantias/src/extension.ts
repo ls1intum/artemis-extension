@@ -4,7 +4,7 @@ import * as vscode from 'vscode';
 import { ArtemisWebviewProvider, ChatWebviewProvider, BuildErrorCodeLensProvider } from './provider';
 import { AuthManager } from './auth';
 import { ArtemisApiService } from './api';
-import { ArtemisWebsocketService, TelemetryManager, WebSocketStatusBarService } from './services';
+import { ArtemisWebsocketService, TelemetryManager, WebSocketStatusBarService, NoAiDetectionService } from './services';
 import { ProviderRegistry } from './services/ProviderRegistry';
 import { VSCODE_CONFIG, processPlantUml, normalizeRelativePath } from './utils';
 import { logger, LogLevel, LogCategory } from './services/loggingService';
@@ -94,6 +94,24 @@ export async function activate(context: vscode.ExtensionContext) {
 
 	// Initialize authentication context
 	await initializeAuthContext();
+
+	// Initialize .noai file detection service
+	const noAiDetectionService = NoAiDetectionService.getInstance();
+	context.subscriptions.push(noAiDetectionService);
+
+	// Listen for .noai status changes
+	noAiDetectionService.onNoAiStatusChanged(isNoAiDetected => {
+		if (isNoAiDetected) {
+			vscode.window.showWarningMessage(
+				'Iris AI assistance is disabled because a .noai file was detected in your workspace.',
+				'Learn More'
+			).then(selection => {
+				if (selection === 'Learn More') {
+					vscode.env.openExternal(vscode.Uri.parse('https://docs.artemis.cit.tum.de'));
+				}
+			});
+		}
+	});
 
 	// Register the Artemis login view provider with dependencies
 	const artemisWebviewProvider = new ArtemisWebviewProvider(context.extensionUri, context, authManager, artemisApiService);
