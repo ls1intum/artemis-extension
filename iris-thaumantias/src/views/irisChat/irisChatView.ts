@@ -1070,6 +1070,15 @@ export class IrisChatView {
                         updateWebSocketStatus(message.isConnected);
                     }
                     break;
+                case 'updateNoAiStatus':
+                    vscode.postMessage({ command: 'webviewLog', level: 'info', message: '[WebsocketLog] 🚫 Updating .noai status: ' + message.isNoAiDetected });
+                    if (message.isNoAiDetected) {
+                        showDisabledBanner('🚫 AI assistance is disabled because a .noai file was detected in your workspace.');
+                    } else {
+                        hideDisabledBanner();
+                        updateChatInputState();
+                    }
+                    break;
             }
         });
 

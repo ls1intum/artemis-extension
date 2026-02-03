@@ -557,6 +557,13 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
 
 
     private async _handleChatMessage(message: any): Promise<void> {
+        // Check if .noai file is detected first
+        if (this._noAiDetectionService.isNoAiEnabled) {
+            logger.websocketWarn('Chat blocked: .noai file detected');
+            this._postNoAiStatus(true);
+            return;
+        }
+
         const activeContext = this._contextStore.getActiveContext();
         if (!activeContext) {
             logger.websocketWarn('No active context');
