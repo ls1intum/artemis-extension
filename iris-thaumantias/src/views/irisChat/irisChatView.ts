@@ -1096,6 +1096,9 @@ export class IrisChatView {
         updateContextBean();
         updateDropdownContent();
         updateChatInputState();
+
+        // Notify extension that webview is ready and request initial state
+        vscode.postMessage({ command: 'chatViewReady' });
     </script>
 </body>
 </html>`;
