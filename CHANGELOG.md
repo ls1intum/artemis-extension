@@ -6,7 +6,7 @@ All notable changes to the Artemis VS Code extension will be documented in this 
 
 ### Added
 
-- **`.noai` File Detection**: Automatically detects `.noai` files in the workspace or git repository root and disables Iris AI assistance when found. Useful for exams, honor code compliance, or organizational policies that prohibit AI code generation. The detection is real-time with file system watchers and supports multi-workspace scenarios.
+- **`.noai` File Detection**: Automatically detects `.noai` files in the workspace or git repository root and disables Iris AI assistance when found.
 - **Struggle Detection**: Real-time monitoring system that tracks student coding activity to detect when they're experiencing difficulties. The system analyzes error patterns, inactivity periods, and build failures to identify struggle signals, enabling proactive assistance through Iris. Includes a developer debug panel for monitoring detection metrics in real-time.
 - **Struggle Detection Testing Framework**: Comprehensive test suite for validating struggle detection algorithms using simulated scenarios. Features scenario-based testing with timeline-based events.
 - **WebSocket Debug StatusBar**: New optional debug tool (enable via `artemis.developerMode` setting) showing real-time connection status with subscription count, detailed hover info, and quick actions menu.
