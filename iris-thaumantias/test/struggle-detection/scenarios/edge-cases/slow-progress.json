@@ -2,7 +2,7 @@
     "id": "slow-progress",
     "name": "Slow Progress With Many Errors",
     "description": "Student is making progress but very slowly, with many errors along the way. Subtle struggle - they're moving forward but inefficiently.",
-    "difficulty": "subtle",
+    "difficulty": "edge-case",
     "tags": ["slow-progress", "many-errors", "inefficient", "beginner"],
     
     "expectedOutcome": {

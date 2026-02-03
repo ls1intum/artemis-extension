@@ -2,7 +2,7 @@
     "id": "normal-development",
     "name": "Normal Development Flow",
     "description": "Student coding normally with occasional errors that get fixed quickly. Should NOT trigger struggle detection.",
-    "difficulty": "obvious",
+    "difficulty": "no-struggle",
     "tags": ["no-struggle", "normal", "quick-fixes"],
     
     "expectedOutcome": {

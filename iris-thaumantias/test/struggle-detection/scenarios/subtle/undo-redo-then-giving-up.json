@@ -1,0 +1,83 @@
+{
+    "id": "undo-redo-then-giving-up",
+    "name": "Undo/Redo Cycles Then Giving Up",
+    "description": "Student repeatedly reverts code changes while trying different approaches, then eventually stops with errors still present. Classic indecision leading to giving up.",
+    "difficulty": "subtle",
+    "tags": ["undo-redo", "thrashing", "persistent-error", "giving-up"],
+    
+    "expectedOutcome": {
+        "shouldDetectStruggle": true,
+        "expectedScore": { "min": 35, "max": 55 },
+        "expectedAction": "subtle",
+        "expectedTimeToDetection": 300000
+    },
+    
+    "events": [
+        {
+            "type": "edit",
+            "timestamp": 0,
+            "file": "Calculator.java",
+            "content": "public class Calculator {\n    public int divide(int a, int b) {\n        return a / b;\n    }\n}"
+        },
+        {
+            "type": "diagnostic",
+            "timestamp": 100,
+            "action": "add",
+            "diagnostics": [{
+                "file": "Calculator.java",
+                "line": 3,
+                "severity": "error",
+                "code": "java:S3518",
+                "message": "Division by zero will throw ArithmeticException"
+            }]
+        },
+        {
+            "type": "wait",
+            "duration": 30000
+        },
+        {
+            "type": "edit",
+            "timestamp": 30100,
+            "file": "Calculator.java",
+            "content": "public class Calculator {\n    public int divide(int a, int b) {\n        if (b == 0) {\n            throw new Exception(\"Cannot divide\");\n        }\n        return a / b;\n    }\n}"
+        },
+        {
+            "type": "diagnostic",
+            "timestamp": 30200,
+            "action": "add",
+            "diagnostics": [{
+                "file": "Calculator.java",
+                "line": 4,
+                "severity": "error",
+                "code": "compiler.err.unreported.exception",
+                "message": "unreported exception Exception"
+            }]
+        },
+        {
+            "type": "wait",
+            "duration": 25000
+        },
+        {
+            "type": "edit",
+            "timestamp": 55100,
+            "file": "Calculator.java",
+            "content": "public class Calculator {\n    public int divide(int a, int b) {\n        return a / b;\n    }\n}"
+        },
+        {
+            "type": "diagnostic",
+            "timestamp": 55200,
+            "action": "add",
+            "diagnostics": [{
+                "file": "Calculator.java",
+                "line": 3,
+                "severity": "error",
+                "code": "java:S3518",
+                "message": "Division by zero will throw ArithmeticException"
+            }]
+        },
+        {
+            "type": "wait",
+            "duration": 300000
+        }
+    ]
+}

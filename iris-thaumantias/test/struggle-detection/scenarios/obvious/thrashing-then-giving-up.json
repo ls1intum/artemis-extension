@@ -1,0 +1,76 @@
+{
+    "id": "thrashing-then-giving-up",
+    "name": "Thrashing Then Giving Up",
+    "description": "Student makes several attempts to fix errors but eventually stops trying. Classic pattern of frustration leading to giving up.",
+    "difficulty": "obvious",
+    "tags": ["thrashing", "persistent-error", "giving-up", "frustration"],
+    
+    "expectedOutcome": {
+        "shouldDetectStruggle": true,
+        "expectedScore": { "min": 35, "max": 60 },
+        "expectedAction": "subtle",
+        "expectedTimeToDetection": 300000
+    },
+    
+    "events": [
+        {
+            "type": "edit",
+            "timestamp": 0,
+            "file": "BinaryTree.java",
+            "content": "public class BinaryTree {\n    private Node root;\n    \n    public void insert(int value) {\n        root = insertRec(root, value);\n    }\n}"
+        },
+        {
+            "type": "diagnostic",
+            "timestamp": 100,
+            "action": "add",
+            "diagnostics": [{
+                "file": "BinaryTree.java",
+                "line": 2,
+                "severity": "error",
+                "code": "compiler.err.cant.resolve",
+                "message": "cannot find symbol: class Node"
+            }]
+        },
+        {
+            "type": "wait",
+            "duration": 25000
+        },
+        {
+            "type": "edit",
+            "timestamp": 25100,
+            "file": "BinaryTree.java",
+            "content": "public class BinaryTree {\n    private Object root;\n    \n    public void insert(int value) {\n        // I don't know how to do this\n    }\n}"
+        },
+        {
+            "type": "diagnostic",
+            "timestamp": 25200,
+            "action": "clear"
+        },
+        {
+            "type": "wait",
+            "duration": 20000
+        },
+        {
+            "type": "edit",
+            "timestamp": 45100,
+            "file": "BinaryTree.java",
+            "content": "public class BinaryTree {\n    private Node root;\n    \n    class Node {\n        int val;\n    }\n    \n    public void insert(int value) {\n        Node n = new Node();\n        n.val = value\n    }\n}"
+        },
+        {
+            "type": "diagnostic",
+            "timestamp": 45200,
+            "action": "add",
+            "diagnostics": [{
+                "file": "BinaryTree.java",
+                "line": 10,
+                "severity": "error",
+                "code": "compiler.err.expected",
+                "message": "';' expected"
+            }]
+        },
+        {
+            "type": "wait",
+            "duration": 300000
+        }
+    ]
+}

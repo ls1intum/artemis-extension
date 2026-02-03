@@ -2,7 +2,7 @@
     "id": "undo-redo-pattern",
     "name": "Frequent Undo/Redo Cycles (Thrashing)",
     "description": "Student repeatedly adds and removes code, going back and forth between approaches. Classic sign of uncertainty and lack of direction.",
-    "difficulty": "subtle",
+    "difficulty": "edge-case",
     "tags": ["undo-redo", "thrashing", "uncertainty", "indecision"],
     
     "expectedOutcome": {
