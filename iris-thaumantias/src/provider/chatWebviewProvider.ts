@@ -439,6 +439,8 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
                 break;
             case 'chatViewReady':
                 this._postSnapshot();
+                // Post .noai status when webview is ready
+                this._postNoAiStatus(this._noAiDetectionService.isNoAiEnabled);
                 break;
             case 'messageFeedback':
                 // Proper error handling for async feedback handler
