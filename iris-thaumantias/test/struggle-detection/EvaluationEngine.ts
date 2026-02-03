@@ -15,43 +15,43 @@ import {
  * Aggregates individual scenario results into a test suite report
  */
 export class EvaluationEngine {
-    
+
     /**
      * Generate a full test suite report from scenario results
      */
     generateReport(results: ScenarioResult[], startTime: Date): TestSuiteReport {
         const endTime = new Date();
-        
+
         // Calculate confusion matrix
         const confusionMatrix = this.calculateConfusionMatrix(results);
-        
+
         // Calculate ML metrics
         const metrics = this.calculateMLMetrics(confusionMatrix);
-        
+
         // Group by difficulty
         const byDifficulty = this.groupByDifficulty(results);
-        
+
         return {
             timestamp: startTime,
             duration: endTime.getTime() - startTime.getTime(),
-            
+
             totalScenarios: results.length,
             passed: results.filter(r => r.passed).length,
             failed: results.filter(r => !r.passed).length,
-            
+
             confusionMatrix,
-            
+
             precision: metrics.precision,
             recall: metrics.recall,
             f1Score: metrics.f1Score,
             accuracy: metrics.accuracy,
-            
+
             byDifficulty,
-            
+
             results,
         };
     }
-    
+
     /**
      * Calculate confusion matrix from results
      */
@@ -62,11 +62,11 @@ export class EvaluationEngine {
         falseNegative: number;
     } {
         let tp = 0, tn = 0, fp = 0, fn = 0;
-        
+
         for (const result of results) {
             const expected = result.scenario.expectedOutcome.shouldDetectStruggle;
             const detected = result.metrics.detectedStruggle;
-            
+
             if (expected && detected) {
                 tp++;
             } else if (!expected && !detected) {
@@ -77,10 +77,10 @@ export class EvaluationEngine {
                 fn++;
             }
         }
-        
+
         return { truePositive: tp, trueNegative: tn, falsePositive: fp, falseNegative: fn };
     }
-    
+
     /**
      * Calculate precision, recall, F1 score, and accuracy
      */
@@ -96,31 +96,31 @@ export class EvaluationEngine {
         accuracy: number;
     } {
         const { truePositive, trueNegative, falsePositive, falseNegative } = cm;
-        
+
         // Precision = TP / (TP + FP)
         const precision = truePositive + falsePositive > 0
             ? truePositive / (truePositive + falsePositive)
             : 0;
-        
+
         // Recall = TP / (TP + FN)
         const recall = truePositive + falseNegative > 0
             ? truePositive / (truePositive + falseNegative)
             : 0;
-        
+
         // F1 = 2 * (precision * recall) / (precision + recall)
         const f1Score = precision + recall > 0
             ? 2 * (precision * recall) / (precision + recall)
             : 0;
-        
+
         // Accuracy = (TP + TN) / total
         const total = truePositive + trueNegative + falsePositive + falseNegative;
         const accuracy = total > 0
             ? (truePositive + trueNegative) / total
             : 0;
-        
+
         return { precision, recall, f1Score, accuracy };
     }
-    
+
     /**
      * Group results by difficulty category
      */
@@ -136,7 +136,7 @@ export class EvaluationEngine {
             'edge-case': [],
             'no-struggle': [],
         };
-        
+
         for (const result of results) {
             const difficulty = result.scenario.difficulty;
             if (categories[difficulty]) {
@@ -145,7 +145,7 @@ export class EvaluationEngine {
                 categories['obvious'].push(result);
             }
         }
-        
+
         return {
             obvious: this.calculateCategoryResult(categories['obvious']),
             subtle: this.calculateCategoryResult(categories['subtle']),
@@ -153,7 +153,7 @@ export class EvaluationEngine {
             'no-struggle': this.calculateCategoryResult(categories['no-struggle']),
         };
     }
-    
+
     /**
      * Calculate stats for a category
      */
@@ -161,10 +161,10 @@ export class EvaluationEngine {
         if (results.length === 0) {
             return { total: 0, passed: 0, failed: 0, avgScore: 0 };
         }
-        
+
         const passed = results.filter(r => r.passed).length;
         const avgScore = results.reduce((sum, r) => sum + r.metrics.finalScore, 0) / results.length;
-        
+
         return {
             total: results.length,
             passed,
@@ -172,13 +172,13 @@ export class EvaluationEngine {
             avgScore,
         };
     }
-    
+
     /**
      * Format report as console output
      */
     formatConsoleReport(report: TestSuiteReport): string {
         const lines: string[] = [];
-        
+
         lines.push('');
         lines.push('╔══════════════════════════════════════════════════════════════╗');
         lines.push('║           STRUGGLE DETECTION TEST REPORT                     ║');
@@ -209,7 +209,7 @@ export class EvaluationEngine {
         lines.push(`║ Edge-case:   ${report.byDifficulty['edge-case'].passed}/${report.byDifficulty['edge-case'].total} passed (avg score: ${report.byDifficulty['edge-case'].avgScore.toFixed(1)})`.padEnd(63) + '║');
         lines.push(`║ No-struggle: ${report.byDifficulty['no-struggle'].passed}/${report.byDifficulty['no-struggle'].total} passed (avg score: ${report.byDifficulty['no-struggle'].avgScore.toFixed(1)})`.padEnd(63) + '║');
         lines.push('╚══════════════════════════════════════════════════════════════╝');
-        
+
         // Failed scenarios
         const failed = report.results.filter(r => !r.passed);
         if (failed.length > 0) {
@@ -225,24 +225,24 @@ export class EvaluationEngine {
                 }
             }
         }
-        
+
         lines.push('');
-        
+
         return lines.join('\n');
     }
-    
+
     /**
      * Format report as Markdown
      */
     formatMarkdownReport(report: TestSuiteReport): string {
         const lines: string[] = [];
-        
+
         lines.push('# Struggle Detection Test Report');
         lines.push('');
         lines.push(`**Date:** ${report.timestamp.toISOString()}`);
         lines.push(`**Duration:** ${(report.duration / 1000).toFixed(2)}s`);
         lines.push('');
-        
+
         lines.push('## Summary');
         lines.push('');
         lines.push(`| Metric | Value |`);
@@ -252,7 +252,7 @@ export class EvaluationEngine {
         lines.push(`| Failed | ${report.failed} |`);
         lines.push(`| Pass Rate | ${((report.passed / report.totalScenarios) * 100).toFixed(1)}% |`);
         lines.push('');
-        
+
         lines.push('## Confusion Matrix');
         lines.push('');
         lines.push('|  | Predicted Struggle | Predicted OK |');
@@ -260,7 +260,7 @@ export class EvaluationEngine {
         lines.push(`| **Actual Struggle** | TP: ${report.confusionMatrix.truePositive} | FN: ${report.confusionMatrix.falseNegative} |`);
         lines.push(`| **Actual OK** | FP: ${report.confusionMatrix.falsePositive} | TN: ${report.confusionMatrix.trueNegative} |`);
         lines.push('');
-        
+
         lines.push('## ML Metrics');
         lines.push('');
         lines.push(`| Metric | Value |`);
@@ -270,7 +270,7 @@ export class EvaluationEngine {
         lines.push(`| F1 Score | ${(report.f1Score * 100).toFixed(1)}% |`);
         lines.push(`| Accuracy | ${(report.accuracy * 100).toFixed(1)}% |`);
         lines.push('');
-        
+
         lines.push('## Results by Difficulty');
         lines.push('');
         lines.push(`| Difficulty | Passed | Failed | Avg Score |`);
@@ -279,7 +279,7 @@ export class EvaluationEngine {
         lines.push(`| Subtle | ${report.byDifficulty.subtle.passed}/${report.byDifficulty.subtle.total} | ${report.byDifficulty.subtle.failed} | ${report.byDifficulty.subtle.avgScore.toFixed(1)} |`);
         lines.push(`| Edge-case | ${report.byDifficulty['edge-case'].passed}/${report.byDifficulty['edge-case'].total} | ${report.byDifficulty['edge-case'].failed} | ${report.byDifficulty['edge-case'].avgScore.toFixed(1)} |`);
         lines.push('');
-        
+
         // Failed scenarios
         const failed = report.results.filter(r => !r.passed);
         if (failed.length > 0) {
@@ -296,7 +296,7 @@ export class EvaluationEngine {
                 lines.push('');
             }
         }
-        
+
         return lines.join('\n');
     }
 }

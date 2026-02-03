@@ -81,7 +81,7 @@ export class InactivityService implements vscode.Disposable {
     private _recordActivity(): void {
         this._lastEditTimestamp = Date.now();
         const newPattern = this._classifyPattern();
-        
+
         if (newPattern !== this._currentPattern) {
             this._currentPattern = newPattern;
             this._onDidChangePattern.fire(this._currentPattern);
@@ -94,7 +94,7 @@ export class InactivityService implements vscode.Disposable {
     private _startPatternCheck(): void {
         this._patternCheckTimer = setInterval(() => {
             const newPattern = this._classifyPattern();
-            
+
             if (newPattern !== this._currentPattern) {
                 this._currentPattern = newPattern;
                 this._onDidChangePattern.fire(this._currentPattern);

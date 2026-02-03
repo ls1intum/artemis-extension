@@ -317,12 +317,12 @@ export class StruggleTestRunner implements vscode.Disposable {
 
         // Check time-to-detection if specified (with 20% tolerance)
         let timeToDetectionValid = true;
-        if (scenario.expectedOutcome.expectedTimeToDetection !== undefined && 
+        if (scenario.expectedOutcome.expectedTimeToDetection !== undefined &&
             scenario.expectedOutcome.shouldDetectStruggle) {
             const expected = scenario.expectedOutcome.expectedTimeToDetection;
             const actual = metrics.timeToDetection;
             const tolerance = expected * 0.2; // 20% tolerance
-            
+
             if (actual === null) {
                 // Struggle was expected to be detected but wasn't
                 timeToDetectionValid = false;

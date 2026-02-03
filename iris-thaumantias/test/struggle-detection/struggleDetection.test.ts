@@ -20,7 +20,7 @@ suite('Struggle Detection Test Suite', () => {
     let evaluator: EvaluationEngine;
     let reportGenerator: ReportGenerator;
     let projectRoot: string;
-    
+
     suiteSetup(() => {
         runner = new StruggleTestRunner();
         // __dirname is out/test/struggle-detection, but scenarios are in test/struggle-detection/scenarios
@@ -30,93 +30,93 @@ suite('Struggle Detection Test Suite', () => {
         loader = new ScenarioLoader(scenariosPath);
         evaluator = new EvaluationEngine();
         reportGenerator = new ReportGenerator();
-        
+
         // Ensure reports directory exists
         const reportsDir = path.join(projectRoot, 'test', 'struggle-detection', 'reports');
         if (!fs.existsSync(reportsDir)) {
             fs.mkdirSync(reportsDir, { recursive: true });
         }
     });
-    
+
     suiteTeardown(() => {
         runner.dispose();
     });
-    
+
     // =========================================================================
     // Full Suite Test (runs all scenarios)
     // =========================================================================
-    
-    test('Full Suite - All Scenarios', async function() {
+
+    test('Full Suite - All Scenarios', async function () {
         this.timeout(120000); // 2 minutes for full suite
-        
+
         const startTime = new Date();
         const scenarios = await loader.loadAllScenarios();
-        
+
         if (scenarios.length === 0) {
             // Fail explicitly when no scenarios are found - this is a configuration error
             assert.fail('No scenarios found in test/struggle-detection/scenarios/. This is a configuration error.');
         }
-        
+
         console.log(`\nLoaded ${scenarios.length} scenarios`);
-        
+
         const results = await runner.runScenarios(scenarios);
         const report = evaluator.generateReport(results, startTime);
-        
+
         // Print short console report
         console.log(evaluator.formatConsoleReport(report));
-        
+
         // Generate comprehensive report file
         const timestamp = startTime.toISOString().replace(/[:.]/g, '-').substring(0, 19);
         const reportPath = path.join(projectRoot, 'test', 'struggle-detection', 'reports', `report-${timestamp}.md`);
         const latestReportPath = path.join(projectRoot, 'test', 'struggle-detection', 'reports', 'LATEST-REPORT.md');
-        
+
         reportGenerator.generateAndSave(report, reportPath);
         reportGenerator.generateAndSave(report, latestReportPath);
-        
+
         // CRITICAL: Actually assert on failures so CI catches regressions
         const passRate = report.passed / report.totalScenarios;
         console.log(`\nℹ️  Pass rate: ${(passRate * 100).toFixed(1)}%`);
         console.log(`   Full report: test/struggle-detection/reports/LATEST-REPORT.md`);
-        
+
         // Assert that all scenarios passed
         assert.strictEqual(
-            report.failed, 
-            0, 
+            report.failed,
+            0,
             `${report.failed} scenario(s) failed. Check LATEST-REPORT.md for details. ` +
             `Failed: ${results.filter(r => !r.passed).map(r => r.scenario.id).join(', ')}`
         );
     });
-    
+
     // =========================================================================
     // Category Tests
     // =========================================================================
-    
+
     suite('Obvious Struggle Scenarios', () => {
-        test('should detect obvious struggle', async function() {
+        test('should detect obvious struggle', async function () {
             this.timeout(60000);
-            
+
             const scenarios = await loader.loadByCategory('obvious');
             if (scenarios.length === 0) {
                 this.skip();
                 return;
             }
-            
+
             const results = await runner.runScenarios(scenarios);
-            
+
             for (const result of results) {
                 // Check detection
                 assert.ok(
                     result.metrics.detectedStruggle,
                     `Scenario ${result.scenario.id} should detect struggle but got score ${result.metrics.finalScore}`
                 );
-                
+
                 // Check score range
                 assert.ok(
                     result.metrics.finalScoreInRange,
                     `Scenario ${result.scenario.id} score ${result.metrics.finalScore} outside expected range ` +
                     `${result.scenario.expectedOutcome.expectedScore.min}-${result.scenario.expectedOutcome.expectedScore.max}`
                 );
-                
+
                 // Check action
                 assert.ok(
                     result.metrics.correctAction,
@@ -126,33 +126,33 @@ suite('Struggle Detection Test Suite', () => {
             }
         });
     });
-    
+
     suite('No-Struggle Scenarios (False Positive Prevention)', () => {
-        test('should NOT detect struggle in normal development', async function() {
+        test('should NOT detect struggle in normal development', async function () {
             this.timeout(60000);
-            
+
             const scenarios = await loader.loadByCategory('no-struggle');
             if (scenarios.length === 0) {
                 this.skip();
                 return;
             }
-            
+
             const results = await runner.runScenarios(scenarios);
-            
+
             for (const result of results) {
                 // Check no detection
                 assert.ok(
                     !result.metrics.detectedStruggle,
                     `Scenario ${result.scenario.id} should NOT detect struggle but got score ${result.metrics.finalScore}`
                 );
-                
+
                 // Check score range
                 assert.ok(
                     result.metrics.finalScoreInRange,
                     `Scenario ${result.scenario.id} score ${result.metrics.finalScore} outside expected range ` +
                     `${result.scenario.expectedOutcome.expectedScore.min}-${result.scenario.expectedOutcome.expectedScore.max}`
                 );
-                
+
                 // Check action is 'none'
                 assert.ok(
                     result.metrics.correctAction,
@@ -162,18 +162,18 @@ suite('Struggle Detection Test Suite', () => {
             }
         });
     });
-    
+
     // =========================================================================
     // Inline Scenarios (for quick testing without files)
     // =========================================================================
-    
+
     /** Struggle detection threshold - scores >= this indicate struggle */
     const STRUGGLE_THRESHOLD = 35;
-    
+
     suite('Inline Scenarios', () => {
-        test('Basic persistent error detection', async function() {
+        test('Basic persistent error detection', async function () {
             this.timeout(30000);
-            
+
             const scenario: StruggleScenario = createScenario({
                 id: 'inline-persistent-error',
                 name: 'Inline: Persistent Error',
@@ -203,31 +203,31 @@ suite('Struggle Detection Test Suite', () => {
                     expectedAction: 'subtle',
                 },
             });
-            
+
             const result = await runner.runScenario(scenario);
-            
+
             console.log(`\nInline test result:`);
             console.log(`  Final score: ${result.metrics.finalScore}`);
             console.log(`  Detected struggle: ${result.metrics.detectedStruggle}`);
             console.log(`  Passed: ${result.passed}`);
-            
+
             // Check that detection matches expectation
             assert.strictEqual(
                 result.metrics.detectedStruggle,
                 scenario.expectedOutcome.shouldDetectStruggle,
                 `Expected struggle detection to be ${scenario.expectedOutcome.shouldDetectStruggle} but got ${result.metrics.detectedStruggle} (score: ${result.metrics.finalScore})`
             );
-            
+
             // Check score is in expected range
             assert.ok(
                 result.metrics.finalScoreInRange,
                 `Score ${result.metrics.finalScore} outside expected range ${scenario.expectedOutcome.expectedScore.min}-${scenario.expectedOutcome.expectedScore.max}`
             );
         });
-        
-        test('Basic inactivity detection', async function() {
+
+        test('Basic inactivity detection', async function () {
             this.timeout(30000);
-            
+
             const scenario: StruggleScenario = createScenario({
                 id: 'inline-inactivity',
                 name: 'Inline: Inactivity',
@@ -251,26 +251,26 @@ suite('Struggle Detection Test Suite', () => {
                     expectedAction: 'none',
                 },
             });
-            
+
             const result = await runner.runScenario(scenario);
-            
+
             console.log(`\nInactivity test result:`);
             console.log(`  Final score: ${result.metrics.finalScore}`);
             console.log(`  Score timeline:`);
             for (const snapshot of result.scoreTimeline) {
                 console.log(`    ${snapshot.timestamp / 1000}s: score=${snapshot.score.combined}, pattern=${snapshot.score.local.inactivityPattern}`);
             }
-            
+
             // After 6 minutes of inactivity without errors, score should be elevated but not struggle
             assert.ok(
                 result.metrics.finalScore >= 15 && result.metrics.finalScore < STRUGGLE_THRESHOLD,
                 `Expected inactivity to increase score to 15-34, got ${result.metrics.finalScore}`
             );
         });
-        
-        test('Build failure tracking', async function() {
+
+        test('Build failure tracking', async function () {
             this.timeout(30000);
-            
+
             const scenario: StruggleScenario = createScenario({
                 id: 'inline-build-failures',
                 name: 'Inline: Build Failures',
@@ -291,19 +291,19 @@ suite('Struggle Detection Test Suite', () => {
                     expectedAction: 'none',
                 },
             });
-            
+
             const result = await runner.runScenario(scenario);
-            
+
             console.log(`\nBuild failure test result:`);
             console.log(`  Final score: ${result.metrics.finalScore}`);
             console.log(`  Consecutive failures: ${result.scoreTimeline[result.scoreTimeline.length - 1]?.score.server.consecutiveBuildFailures}`);
-            
+
             // Build failures should increase score but not necessarily trigger struggle alone
             assert.ok(
                 result.metrics.finalScore >= 15,
                 `Expected build failures to increase score to at least 15, got ${result.metrics.finalScore}`
             );
-            
+
             // Check consecutive failures are tracked
             const lastSnapshot = result.scoreTimeline[result.scoreTimeline.length - 1];
             assert.ok(
@@ -311,10 +311,10 @@ suite('Struggle Detection Test Suite', () => {
                 `Expected at least 4 consecutive failures tracked, got ${lastSnapshot?.score.server.consecutiveBuildFailures}`
             );
         });
-        
-        test('Build success resets consecutive failures', async function() {
+
+        test('Build success resets consecutive failures', async function () {
             this.timeout(30000);
-            
+
             const scenario: StruggleScenario = createScenario({
                 id: 'inline-build-success-reset',
                 name: 'Inline: Build Success Reset',
@@ -335,12 +335,12 @@ suite('Struggle Detection Test Suite', () => {
                     expectedAction: 'none',
                 },
             });
-            
+
             const result = await runner.runScenario(scenario);
-            
+
             console.log(`\nBuild success reset test:`);
             console.log(`  Final score: ${result.metrics.finalScore}`);
-            
+
             // After success, consecutive failures should be 0
             const lastSnapshot = result.scoreTimeline[result.scoreTimeline.length - 1];
             assert.strictEqual(
