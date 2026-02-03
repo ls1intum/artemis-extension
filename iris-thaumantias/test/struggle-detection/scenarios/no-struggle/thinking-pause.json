@@ -2,7 +2,7 @@
     "id": "thinking-pause",
     "name": "Thinking Pause",
     "description": "Student pauses for 30-60 seconds to think. Should NOT be detected as struggle.",
-    "difficulty": "edge-case",
+    "difficulty": "no-struggle",
     "tags": ["no-struggle", "thinking", "short-pause"],
     
     "expectedOutcome": {

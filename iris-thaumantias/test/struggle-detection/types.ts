@@ -30,7 +30,7 @@ export interface StruggleScenario {
     /** Tags for categorization */
     tags: string[];
     /** Difficulty classification */
-    difficulty: 'obvious' | 'subtle' | 'edge-case';
+    difficulty: 'obvious' | 'subtle' | 'edge-case' | 'no-struggle';
 }
 
 /**
@@ -205,6 +205,7 @@ export interface TestSuiteReport {
         obvious: CategoryResult;
         subtle: CategoryResult;
         'edge-case': CategoryResult;
+        'no-struggle': CategoryResult;
     };
     
     // Individual results

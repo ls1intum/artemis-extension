@@ -259,6 +259,9 @@ export class StruggleTestRunner implements vscode.Disposable {
      * Apply an edit event - simulates typing
      */
     private async applyEditEvent(event: EditEvent): Promise<void> {
+        // Record activity in inactivity service (bypasses document scheme check for tests)
+        this.inactivityService?._testRecordActivity();
+
         // Always record the edit directly to the thrashing detector for testing
         // This ensures thrashing detection works even when document editing fails
         this.thrashingDetector?.recordEdit(
@@ -312,10 +315,30 @@ export class StruggleTestRunner implements vscode.Disposable {
     ): ScenarioResult {
         const metrics = this.calculateMetrics(scenario, snapshots);
 
+        // Check time-to-detection if specified (with 20% tolerance)
+        let timeToDetectionValid = true;
+        if (scenario.expectedOutcome.expectedTimeToDetection !== undefined && 
+            scenario.expectedOutcome.shouldDetectStruggle) {
+            const expected = scenario.expectedOutcome.expectedTimeToDetection;
+            const actual = metrics.timeToDetection;
+            const tolerance = expected * 0.2; // 20% tolerance
+            
+            if (actual === null) {
+                // Struggle was expected to be detected but wasn't
+                timeToDetectionValid = false;
+                errors.push(`Expected time-to-detection around ${expected}ms but struggle was never detected`);
+            } else if (Math.abs(actual - expected) > tolerance) {
+                // Detection time is outside acceptable range
+                timeToDetectionValid = false;
+                errors.push(`Expected time-to-detection around ${expected}ms (±${tolerance.toFixed(0)}ms) but got ${actual}ms`);
+            }
+        }
+
         const passed = errors.length === 0 &&
             metrics.finalScoreInRange &&
             metrics.detectedStruggle === scenario.expectedOutcome.shouldDetectStruggle &&
-            metrics.correctAction;
+            metrics.correctAction &&
+            timeToDetectionValid;
 
         return {
             scenario,

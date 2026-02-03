@@ -1,0 +1,82 @@
+{
+    "id": "severe-struggle-notification",
+    "name": "Severe Struggle - Notification Level",
+    "description": "Student has persistent errors for extended time with multiple failed builds. Should trigger notification threshold (score 55-74).",
+    "difficulty": "obvious",
+    "tags": ["notification-threshold", "severe-struggle", "combined-signals"],
+    
+    "expectedOutcome": {
+        "shouldDetectStruggle": true,
+        "expectedScore": { "min": 55, "max": 74 },
+        "expectedAction": "notification"
+    },
+    
+    "events": [
+        {
+            "type": "edit",
+            "timestamp": 0,
+            "file": "Main.java",
+            "content": "public class Main {\n    public void test() {\n        int x = \"wrong\";\n    }\n}"
+        },
+        {
+            "type": "diagnostic",
+            "timestamp": 100,
+            "action": "add",
+            "diagnostics": [{
+                "file": "Main.java",
+                "line": 3,
+                "severity": "error",
+                "code": "compiler.err.incompatible.types",
+                "message": "incompatible types: String cannot be converted to int"
+            }]
+        },
+        {
+            "type": "wait",
+            "duration": 60000
+        },
+        {
+            "type": "build",
+            "timestamp": 60100,
+            "success": false,
+            "errors": ["incompatible types"],
+            "failedTests": []
+        },
+        {
+            "type": "wait",
+            "duration": 60000
+        },
+        {
+            "type": "build",
+            "timestamp": 120100,
+            "success": false,
+            "errors": ["incompatible types"],
+            "failedTests": []
+        },
+        {
+            "type": "wait",
+            "duration": 60000
+        },
+        {
+            "type": "build",
+            "timestamp": 180100,
+            "success": false,
+            "errors": ["incompatible types"],
+            "failedTests": []
+        },
+        {
+            "type": "wait",
+            "duration": 120000
+        },
+        {
+            "type": "build",
+            "timestamp": 300100,
+            "success": false,
+            "errors": ["incompatible types"],
+            "failedTests": []
+        },
+        {
+            "type": "wait",
+            "duration": 60000
+        }
+    ]
+}

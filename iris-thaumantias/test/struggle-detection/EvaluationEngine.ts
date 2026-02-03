@@ -128,11 +128,13 @@ export class EvaluationEngine {
         obvious: CategoryResult;
         subtle: CategoryResult;
         'edge-case': CategoryResult;
+        'no-struggle': CategoryResult;
     } {
         const categories: Record<string, ScenarioResult[]> = {
             obvious: [],
             subtle: [],
             'edge-case': [],
+            'no-struggle': [],
         };
         
         for (const result of results) {
@@ -148,6 +150,7 @@ export class EvaluationEngine {
             obvious: this.calculateCategoryResult(categories['obvious']),
             subtle: this.calculateCategoryResult(categories['subtle']),
             'edge-case': this.calculateCategoryResult(categories['edge-case']),
+            'no-struggle': this.calculateCategoryResult(categories['no-struggle']),
         };
     }
     
@@ -201,9 +204,10 @@ export class EvaluationEngine {
         lines.push('╠══════════════════════════════════════════════════════════════╣');
         lines.push('║ BY DIFFICULTY                                                ║');
         lines.push('╠══════════════════════════════════════════════════════════════╣');
-        lines.push(`║ Obvious:   ${report.byDifficulty.obvious.passed}/${report.byDifficulty.obvious.total} passed (avg score: ${report.byDifficulty.obvious.avgScore.toFixed(1)})`.padEnd(63) + '║');
-        lines.push(`║ Subtle:    ${report.byDifficulty.subtle.passed}/${report.byDifficulty.subtle.total} passed (avg score: ${report.byDifficulty.subtle.avgScore.toFixed(1)})`.padEnd(63) + '║');
-        lines.push(`║ Edge-case: ${report.byDifficulty['edge-case'].passed}/${report.byDifficulty['edge-case'].total} passed (avg score: ${report.byDifficulty['edge-case'].avgScore.toFixed(1)})`.padEnd(63) + '║');
+        lines.push(`║ Obvious:     ${report.byDifficulty.obvious.passed}/${report.byDifficulty.obvious.total} passed (avg score: ${report.byDifficulty.obvious.avgScore.toFixed(1)})`.padEnd(63) + '║');
+        lines.push(`║ Subtle:      ${report.byDifficulty.subtle.passed}/${report.byDifficulty.subtle.total} passed (avg score: ${report.byDifficulty.subtle.avgScore.toFixed(1)})`.padEnd(63) + '║');
+        lines.push(`║ Edge-case:   ${report.byDifficulty['edge-case'].passed}/${report.byDifficulty['edge-case'].total} passed (avg score: ${report.byDifficulty['edge-case'].avgScore.toFixed(1)})`.padEnd(63) + '║');
+        lines.push(`║ No-struggle: ${report.byDifficulty['no-struggle'].passed}/${report.byDifficulty['no-struggle'].total} passed (avg score: ${report.byDifficulty['no-struggle'].avgScore.toFixed(1)})`.padEnd(63) + '║');
         lines.push('╚══════════════════════════════════════════════════════════════╝');
         
         // Failed scenarios

@@ -238,9 +238,9 @@ export class ScenarioLoader {
         return 'none';
     }
     
-    private parseDifficulty(raw: unknown): 'obvious' | 'subtle' | 'edge-case' {
+    private parseDifficulty(raw: unknown): 'obvious' | 'subtle' | 'edge-case' | 'no-struggle' {
         const difficulty = String(raw ?? 'obvious');
-        if (difficulty === 'subtle' || difficulty === 'edge-case') {
+        if (difficulty === 'subtle' || difficulty === 'edge-case' || difficulty === 'no-struggle') {
             return difficulty;
         }
         return 'obvious';

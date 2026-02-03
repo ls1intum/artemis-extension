@@ -142,4 +142,12 @@ export class InactivityService implements vscode.Disposable {
         this._lastEditTimestamp = Date.now();
         this._currentPattern = 'active';
     }
+
+    /**
+     * TEST ONLY: Record activity manually (bypasses document scheme check)
+     * Used by test runner to simulate edits on untitled documents.
+     */
+    public _testRecordActivity(): void {
+        this._recordActivity();
+    }
 }
