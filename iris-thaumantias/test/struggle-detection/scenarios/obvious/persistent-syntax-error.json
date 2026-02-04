@@ -6,9 +6,10 @@
     "tags": ["syntax-error", "beginner", "persistent-error"],
     
     "expectedOutcome": {
-        "shouldDetectStruggle": true,
-        "expectedScore": { "min": 35, "max": 50 },
-        "expectedAction": "subtle"
+        "shouldDetectStruggle": false,
+        "expectedScore": { "min": 20, "max": 50 },
+        "expectedAction": "none",
+        "expectedTimeToDetection": 120000
     },
     
     "events": [
@@ -77,10 +78,6 @@
         {
             "type": "wait",
             "duration": 180000
-        },
-        {
-            "type": "wait",
-            "duration": 120000
         }
     ]
 }

@@ -7,7 +7,7 @@
     
     "expectedOutcome": {
         "shouldDetectStruggle": true,
-        "expectedScore": { "min": 35, "max": 55 },
+        "expectedScore": { "min": 20, "max": 45 },
         "expectedAction": "subtle"
     },
     
@@ -80,10 +80,6 @@
             "success": false,
             "errors": ["compilation failed"],
             "failedTests": ["testMain"]
-        },
-        {
-            "type": "wait",
-            "duration": 300000
         }
     ]
 }

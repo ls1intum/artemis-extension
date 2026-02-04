@@ -6,6 +6,11 @@ import { promisify } from 'util';
 const execFileAsync = promisify(execFile);
 
 /**
+ * Type for the file exists checker function (used for dependency injection in tests)
+ */
+export type FileExistsChecker = (uri: vscode.Uri) => Promise<boolean>;
+
+/**
  * Service that detects the presence of a .noai file in the workspace or git repository.
  * When a .noai file is detected, Iris AI assistance should be disabled.
  */
@@ -18,6 +23,19 @@ export class NoAiDetectionService implements vscode.Disposable {
 
     private readonly _onNoAiStatusChanged = new vscode.EventEmitter<boolean>();
     public readonly onNoAiStatusChanged = this._onNoAiStatusChanged.event;
+
+    /**
+     * Customizable file exists checker for testing.
+     * Default implementation uses vscode.workspace.fs.stat
+     */
+    private _fileExistsChecker: FileExistsChecker = async (uri: vscode.Uri) => {
+        try {
+            await vscode.workspace.fs.stat(uri);
+            return true;
+        } catch {
+            return false;
+        }
+    };
 
     private constructor() {
         this._initialize();
@@ -38,6 +56,13 @@ export class NoAiDetectionService implements vscode.Disposable {
             NoAiDetectionService._instance.dispose();
             NoAiDetectionService._instance = undefined;
         }
+    }
+
+    /**
+     * Set a custom file exists checker (for testing purposes)
+     */
+    public setFileExistsChecker(checker: FileExistsChecker): void {
+        this._fileExistsChecker = checker;
     }
 
     public dispose(): void {
@@ -154,12 +179,7 @@ export class NoAiDetectionService implements vscode.Disposable {
     }
 
     private async _fileExists(uri: vscode.Uri): Promise<boolean> {
-        try {
-            await vscode.workspace.fs.stat(uri);
-            return true;
-        } catch {
-            return false;
-        }
+        return this._fileExistsChecker(uri);
     }
 
     private async _getGitRoot(workspaceFolder: vscode.WorkspaceFolder): Promise<string | null> {

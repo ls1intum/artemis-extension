@@ -1,15 +1,19 @@
 import * as assert from 'assert';
 import * as vscode from 'vscode';
 import * as sinon from 'sinon';
-import { NoAiDetectionService } from '../../src/services/noAiDetectionService';
+import { NoAiDetectionService, FileExistsChecker } from '../../src/services/noAiDetectionService';
 
 suite('NoAiDetectionService', () => {
     let sandbox: sinon.SinonSandbox;
     let mockWorkspaceFolders: vscode.WorkspaceFolder[];
+    let fileExistsChecker: FileExistsChecker;
 
     setup(() => {
         sandbox = sinon.createSandbox();
         mockWorkspaceFolders = [];
+        
+        // Default file exists checker (returns false for all files)
+        fileExistsChecker = async () => false;
         
         // Reset the singleton instance before each test
         NoAiDetectionService.resetInstance();
@@ -87,15 +91,6 @@ suite('NoAiDetectionService', () => {
                 index: 0
             }];
 
-            // Mock file exists check
-            const fsStatStub = sandbox.stub(vscode.workspace.fs, 'stat');
-            fsStatStub.callsFake((uri: vscode.Uri) => {
-                if (uri.fsPath === '/test/workspace/.noai') {
-                    return Promise.resolve({ type: vscode.FileType.File } as vscode.FileStat);
-                }
-                return Promise.reject(new Error('File not found'));
-            });
-
             // Mock createFileSystemWatcher
             sandbox.stub(vscode.workspace, 'createFileSystemWatcher').returns({
                 onDidCreate: () => ({ dispose: () => {} }),
@@ -105,6 +100,11 @@ suite('NoAiDetectionService', () => {
             } as any);
 
             const service = NoAiDetectionService.getInstance();
+
+            // Set custom file exists checker
+            service.setFileExistsChecker(async (uri: vscode.Uri) => {
+                return uri.fsPath === '/test/workspace/.noai';
+            });
             
             // Wait for async initialization
             await new Promise(resolve => setTimeout(resolve, 100));
@@ -123,9 +123,6 @@ suite('NoAiDetectionService', () => {
                 index: 0
             }];
 
-            // Mock file exists check - always reject
-            sandbox.stub(vscode.workspace.fs, 'stat').rejects(new Error('File not found'));
-
             // Mock createFileSystemWatcher
             sandbox.stub(vscode.workspace, 'createFileSystemWatcher').returns({
                 onDidCreate: () => ({ dispose: () => {} }),
@@ -135,6 +132,9 @@ suite('NoAiDetectionService', () => {
             } as any);
 
             const service = NoAiDetectionService.getInstance();
+
+            // Set custom file exists checker that always returns false
+            service.setFileExistsChecker(async () => false);
             
             // Wait for async initialization
             await new Promise(resolve => setTimeout(resolve, 100));
@@ -162,14 +162,6 @@ suite('NoAiDetectionService', () => {
                 }
             ];
 
-            // Mock file exists check - only second workspace has .noai
-            sandbox.stub(vscode.workspace.fs, 'stat').callsFake((uri: vscode.Uri) => {
-                if (uri.fsPath === '/test/workspace2/.noai') {
-                    return Promise.resolve({ type: vscode.FileType.File } as vscode.FileStat);
-                }
-                return Promise.reject(new Error('File not found'));
-            });
-
             // Mock createFileSystemWatcher
             sandbox.stub(vscode.workspace, 'createFileSystemWatcher').returns({
                 onDidCreate: () => ({ dispose: () => {} }),
@@ -179,6 +171,11 @@ suite('NoAiDetectionService', () => {
             } as any);
 
             const service = NoAiDetectionService.getInstance();
+
+            // Set custom file exists checker - only second workspace has .noai
+            service.setFileExistsChecker(async (uri: vscode.Uri) => {
+                return uri.fsPath === '/test/workspace2/.noai';
+            });
             
             // Wait for async initialization
             await new Promise(resolve => setTimeout(resolve, 100));
@@ -204,14 +201,6 @@ suite('NoAiDetectionService', () => {
                 }
             ];
 
-            // Mock file exists check - both have .noai
-            sandbox.stub(vscode.workspace.fs, 'stat').callsFake((uri: vscode.Uri) => {
-                if (uri.fsPath === '/test/workspace1/.noai' || uri.fsPath === '/test/workspace2/.noai') {
-                    return Promise.resolve({ type: vscode.FileType.File } as vscode.FileStat);
-                }
-                return Promise.reject(new Error('File not found'));
-            });
-
             // Mock createFileSystemWatcher
             sandbox.stub(vscode.workspace, 'createFileSystemWatcher').returns({
                 onDidCreate: () => ({ dispose: () => {} }),
@@ -221,6 +210,11 @@ suite('NoAiDetectionService', () => {
             } as any);
 
             const service = NoAiDetectionService.getInstance();
+
+            // Set custom file exists checker - both have .noai
+            service.setFileExistsChecker(async (uri: vscode.Uri) => {
+                return uri.fsPath === '/test/workspace1/.noai' || uri.fsPath === '/test/workspace2/.noai';
+            });
             
             // Wait for async initialization
             await new Promise(resolve => setTimeout(resolve, 100));
@@ -240,14 +234,6 @@ suite('NoAiDetectionService', () => {
                 index: 0
             }];
 
-            let fileExists = false;
-            sandbox.stub(vscode.workspace.fs, 'stat').callsFake((uri: vscode.Uri) => {
-                if (uri.fsPath === '/test/workspace/.noai' && fileExists) {
-                    return Promise.resolve({ type: vscode.FileType.File } as vscode.FileStat);
-                }
-                return Promise.reject(new Error('File not found'));
-            });
-
             // Mock createFileSystemWatcher
             sandbox.stub(vscode.workspace, 'createFileSystemWatcher').returns({
                 onDidCreate: () => ({ dispose: () => {} }),
@@ -258,6 +244,14 @@ suite('NoAiDetectionService', () => {
 
             const service = NoAiDetectionService.getInstance();
             
+            let fileExists = false;
+            service.setFileExistsChecker(async (uri: vscode.Uri) => {
+                return uri.fsPath === '/test/workspace/.noai' && fileExists;
+            });
+
+            // Wait for initial check
+            await new Promise(resolve => setTimeout(resolve, 100));
+
             let eventFired = false;
             let eventValue: boolean | undefined;
             service.onNoAiStatusChanged(value => {
@@ -280,14 +274,6 @@ suite('NoAiDetectionService', () => {
                 index: 0
             }];
 
-            let fileExists = true;
-            sandbox.stub(vscode.workspace.fs, 'stat').callsFake((uri: vscode.Uri) => {
-                if (uri.fsPath === '/test/workspace/.noai' && fileExists) {
-                    return Promise.resolve({ type: vscode.FileType.File } as vscode.FileStat);
-                }
-                return Promise.reject(new Error('File not found'));
-            });
-
             // Mock createFileSystemWatcher
             sandbox.stub(vscode.workspace, 'createFileSystemWatcher').returns({
                 onDidCreate: () => ({ dispose: () => {} }),
@@ -298,6 +284,11 @@ suite('NoAiDetectionService', () => {
 
             const service = NoAiDetectionService.getInstance();
             
+            let fileExists = true;
+            service.setFileExistsChecker(async (uri: vscode.Uri) => {
+                return uri.fsPath === '/test/workspace/.noai' && fileExists;
+            });
+
             // First check - should find .noai
             await service.checkForNoAiFile();
             assert.strictEqual(service.isNoAiEnabled, true);
@@ -324,8 +315,6 @@ suite('NoAiDetectionService', () => {
                 index: 0
             }];
 
-            sandbox.stub(vscode.workspace.fs, 'stat').rejects(new Error('File not found'));
-
             // Mock createFileSystemWatcher
             sandbox.stub(vscode.workspace, 'createFileSystemWatcher').returns({
                 onDidCreate: () => ({ dispose: () => {} }),
@@ -335,6 +324,9 @@ suite('NoAiDetectionService', () => {
             } as any);
 
             const service = NoAiDetectionService.getInstance();
+            
+            // Set file exists checker that always returns false
+            service.setFileExistsChecker(async () => false);
             
             // Wait for initial check
             await new Promise(resolve => setTimeout(resolve, 100));
@@ -361,13 +353,6 @@ suite('NoAiDetectionService', () => {
                 index: 0
             }];
 
-            sandbox.stub(vscode.workspace.fs, 'stat').callsFake((uri: vscode.Uri) => {
-                if (uri.fsPath === '/test/workspace/.noai') {
-                    return Promise.resolve({ type: vscode.FileType.File } as vscode.FileStat);
-                }
-                return Promise.reject(new Error('File not found'));
-            });
-
             // Mock createFileSystemWatcher
             sandbox.stub(vscode.workspace, 'createFileSystemWatcher').returns({
                 onDidCreate: () => ({ dispose: () => {} }),
@@ -379,6 +364,12 @@ suite('NoAiDetectionService', () => {
             const executeCommandStub = vscode.commands.executeCommand as sinon.SinonStub;
             
             const service = NoAiDetectionService.getInstance();
+
+            // Set custom file exists checker
+            service.setFileExistsChecker(async (uri: vscode.Uri) => {
+                return uri.fsPath === '/test/workspace/.noai';
+            });
+
             await service.checkForNoAiFile();
 
             // Verify setContext was called with correct values

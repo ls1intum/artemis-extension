@@ -24,30 +24,30 @@ import {
  */
 export class ScenarioLoader {
     private scenariosDir: string;
-
+    
     constructor(scenariosDir: string) {
         this.scenariosDir = scenariosDir;
     }
-
+    
     /**
      * Load all scenarios from the scenarios directory
      */
     async loadAllScenarios(): Promise<StruggleScenario[]> {
         const scenarios: StruggleScenario[] = [];
-
+        
         // Get all subdirectories (obvious, subtle, no-struggle, edge-cases)
         const categories = ['obvious', 'subtle', 'no-struggle', 'edge-cases'];
-
+        
         for (const category of categories) {
             const categoryPath = path.join(this.scenariosDir, category);
-
+            
             if (!fs.existsSync(categoryPath)) {
                 continue;
             }
-
+            
             const files = fs.readdirSync(categoryPath)
                 .filter(f => f.endsWith('.json'));
-
+            
             for (const file of files) {
                 const filePath = path.join(categoryPath, file);
                 const scenario = await this.loadScenario(filePath);
@@ -56,25 +56,25 @@ export class ScenarioLoader {
                 }
             }
         }
-
+        
         return scenarios;
     }
-
+    
     /**
      * Load scenarios by category
      */
     async loadByCategory(category: 'obvious' | 'subtle' | 'no-struggle' | 'edge-cases'): Promise<StruggleScenario[]> {
         const categoryPath = path.join(this.scenariosDir, category);
-
+        
         if (!fs.existsSync(categoryPath)) {
             return [];
         }
-
+        
         const files = fs.readdirSync(categoryPath)
             .filter(f => f.endsWith('.json'));
-
+        
         const scenarios: StruggleScenario[] = [];
-
+        
         for (const file of files) {
             const filePath = path.join(categoryPath, file);
             const scenario = await this.loadScenario(filePath);
@@ -82,10 +82,10 @@ export class ScenarioLoader {
                 scenarios.push(scenario);
             }
         }
-
+        
         return scenarios;
     }
-
+    
     /**
      * Load a single scenario from a JSON file
      */
@@ -93,23 +93,23 @@ export class ScenarioLoader {
         try {
             const content = fs.readFileSync(filePath, 'utf-8');
             const raw = JSON.parse(content);
-
+            
             const scenario = this.parseScenario(raw);
             this.validateScenario(scenario);
-
+            
             return scenario;
         } catch (err) {
             console.error(`Failed to load scenario from ${filePath}:`, err);
             return null;
         }
     }
-
+    
     /**
      * Parse raw JSON into typed scenario
      */
     private parseScenario(raw: unknown): StruggleScenario {
         const obj = raw as Record<string, unknown>;
-
+        
         return {
             id: String(obj.id ?? ''),
             name: String(obj.name ?? ''),
@@ -120,14 +120,14 @@ export class ScenarioLoader {
             difficulty: this.parseDifficulty(obj.difficulty),
         };
     }
-
+    
     /**
      * Parse expected outcome
      */
     private parseExpectedOutcome(raw: unknown): ExpectedOutcome {
         const obj = raw as Record<string, unknown> ?? {};
         const scoreObj = obj.expectedScore as Record<string, number> ?? {};
-
+        
         return {
             shouldDetectStruggle: Boolean(obj.shouldDetectStruggle),
             expectedScore: {
@@ -135,12 +135,12 @@ export class ScenarioLoader {
                 max: Number(scoreObj.max ?? 100),
             },
             expectedAction: this.parseAction(obj.expectedAction),
-            expectedTimeToDetection: obj.expectedTimeToDetection
-                ? Number(obj.expectedTimeToDetection)
+            expectedTimeToDetection: obj.expectedTimeToDetection 
+                ? Number(obj.expectedTimeToDetection) 
                 : undefined,
         };
     }
-
+    
     /**
      * Parse events array
      */
@@ -148,17 +148,17 @@ export class ScenarioLoader {
         if (!Array.isArray(raw)) {
             return [];
         }
-
+        
         return raw.map(e => this.parseEvent(e)).filter((e): e is ScenarioEvent => e !== null);
     }
-
+    
     /**
      * Parse a single event
      */
     private parseEvent(raw: unknown): ScenarioEvent | null {
         const obj = raw as Record<string, unknown>;
         const type = String(obj.type ?? '');
-
+        
         switch (type) {
             case 'diagnostic':
                 return this.parseDiagnosticEvent(obj);
@@ -173,10 +173,10 @@ export class ScenarioLoader {
                 return null;
         }
     }
-
+    
     private parseDiagnosticEvent(obj: Record<string, unknown>): DiagnosticEvent {
         const diagnosticsRaw = obj.diagnostics as unknown[];
-
+        
         return {
             type: 'diagnostic',
             timestamp: Number(obj.timestamp ?? 0),
@@ -195,7 +195,7 @@ export class ScenarioLoader {
                 : undefined,
         };
     }
-
+    
     private parseEditEvent(obj: Record<string, unknown>): EditEvent {
         return {
             type: 'edit',
@@ -204,7 +204,7 @@ export class ScenarioLoader {
             content: String(obj.content ?? ''),
         };
     }
-
+    
     private parseBuildEvent(obj: Record<string, unknown>): BuildResultEvent {
         return {
             type: 'build',
@@ -214,14 +214,14 @@ export class ScenarioLoader {
             failedTests: Array.isArray(obj.failedTests) ? obj.failedTests.map(String) : undefined,
         };
     }
-
+    
     private parseWaitEvent(obj: Record<string, unknown>): WaitEvent {
         return {
             type: 'wait',
             duration: Number(obj.duration ?? 0),
         };
     }
-
+    
     private parseDiagnosticAction(raw: unknown): 'add' | 'remove' | 'clear' {
         const action = String(raw ?? 'add');
         if (action === 'remove' || action === 'clear') {
@@ -229,7 +229,7 @@ export class ScenarioLoader {
         }
         return 'add';
     }
-
+    
     private parseAction(raw: unknown): 'none' | 'subtle' | 'notification' | 'proactive' {
         const action = String(raw ?? 'none');
         if (action === 'subtle' || action === 'notification' || action === 'proactive') {
@@ -237,15 +237,15 @@ export class ScenarioLoader {
         }
         return 'none';
     }
-
-    private parseDifficulty(raw: unknown): 'obvious' | 'subtle' | 'edge-case' | 'no-struggle' {
+    
+    private parseDifficulty(raw: unknown): 'obvious' | 'subtle' | 'edge-case' {
         const difficulty = String(raw ?? 'obvious');
-        if (difficulty === 'subtle' || difficulty === 'edge-case' || difficulty === 'no-struggle') {
+        if (difficulty === 'subtle' || difficulty === 'edge-case') {
             return difficulty;
         }
         return 'obvious';
     }
-
+    
     /**
      * Validate scenario structure
      */

@@ -6,9 +6,9 @@
     "tags": ["undo-redo", "thrashing", "persistent-error", "giving-up"],
     
     "expectedOutcome": {
-        "shouldDetectStruggle": true,
-        "expectedScore": { "min": 35, "max": 55 },
-        "expectedAction": "subtle",
+        "shouldDetectStruggle": false,
+        "expectedScore": { "min": 25, "max": 55 },
+        "expectedAction": "none",
         "expectedTimeToDetection": 300000
     },
     

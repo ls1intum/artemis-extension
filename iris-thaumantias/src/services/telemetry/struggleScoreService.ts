@@ -33,8 +33,19 @@ export class StruggleScoreService implements vscode.Disposable {
         PROACTIVE: 75,
     };
 
-    /** Minimum duration for errors to be considered persistent (2 minutes) */
-    private static readonly PERSISTENT_ERROR_THRESHOLD_MS = 2 * 60 * 1000;
+    /**
+     * Persistence levels for graduated error weighting.
+     * Based on research showing that error persistence duration correlates
+     * with struggle severity (Jadud 2006, Watson et al. 2013).
+     */
+    private static readonly PERSISTENCE_LEVELS = {
+        MINOR: 30 * 1000,      // 30s - weight 0.3 (likely typos or quick fixes)
+        MODERATE: 90 * 1000,   // 90s - weight 0.7 (needs more thought)
+        SEVERE: 180 * 1000,    // 3min - weight 1.0 (persistent struggle)
+    };
+
+    /** Minimum threshold for any error to be considered (uses MINOR level) */
+    private static readonly PERSISTENT_ERROR_THRESHOLD_MS = 30 * 1000;
 
     constructor(
         private readonly _diagnosticService: DiagnosticPersistenceService,
@@ -118,17 +129,59 @@ export class StruggleScoreService implements vscode.Disposable {
     }
 
     /**
-     * Calculate score component from persistent errors
+     * Calculate score component from persistent errors using graduated weighting.
+     * 
+     * Based on Jadud's Error Quotient (EQ) principle (Jadud 2006):
+     * - Errors are weighted by their persistence duration
+     * - Repeated same error types receive a bonus (indicating deeper confusion)
+     * 
+     * Linear scaling: 20 points per weighted error + 10 bonus for repeated types.
      */
     private _calculatePersistentErrorScore(local: LocalStruggleContext): number {
-        const errorCount = local.persistentErrors.length;
+        const persistentDiagnostics = this._diagnosticService.getPersistentDiagnostics(
+            StruggleScoreService.PERSISTENT_ERROR_THRESHOLD_MS
+        );
         
-        if (errorCount === 0) {
+        if (persistentDiagnostics.length === 0) {
             return 0;
         }
 
-        // Scale: 1 error = 30, 2 = 50, 3 = 70, 4+ = 85+
-        return Math.min(100, 30 + (errorCount - 1) * 20);
+        // Calculate weighted error score based on persistence level
+        let weightedScore = 0;
+        const errorCodeCounts = new Map<string | number | undefined, number>();
+
+        for (const diagnostic of persistentDiagnostics) {
+            const persistenceDuration = Date.now() - diagnostic.firstSeen;
+            
+            // Determine weight based on persistence level
+            let weight: number;
+            if (persistenceDuration >= StruggleScoreService.PERSISTENCE_LEVELS.SEVERE) {
+                weight = 1.0;
+            } else if (persistenceDuration >= StruggleScoreService.PERSISTENCE_LEVELS.MODERATE) {
+                weight = 0.7;
+            } else {
+                weight = 0.3;
+            }
+
+            // Base: 20 points per error, weighted by persistence
+            weightedScore += 20 * weight;
+
+            // Track error codes for repetition bonus (Jadud's EQ principle)
+            const code = diagnostic.code;
+            errorCodeCounts.set(code, (errorCodeCounts.get(code) ?? 0) + 1);
+        }
+
+        // Repetition bonus: +10 for each repeated error type (same diagnostic code)
+        // This aligns with Jadud's finding that repeated same errors indicate deeper struggle
+        let repetitionBonus = 0;
+        for (const count of errorCodeCounts.values()) {
+            if (count > 1) {
+                // Each repetition beyond the first adds 10 points
+                repetitionBonus += (count - 1) * 10;
+            }
+        }
+
+        return Math.min(100, Math.round(weightedScore + repetitionBonus));
     }
 
     /**

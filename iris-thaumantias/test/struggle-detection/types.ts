@@ -20,17 +20,17 @@ export interface StruggleScenario {
     name: string;
     /** Description of what this scenario tests */
     description: string;
-
+    
     /** Expected outcome (ground truth) */
     expectedOutcome: ExpectedOutcome;
-
+    
     /** Timeline of events to simulate */
     events: ScenarioEvent[];
-
+    
     /** Tags for categorization */
     tags: string[];
     /** Difficulty classification */
-    difficulty: 'obvious' | 'subtle' | 'edge-case' | 'no-struggle';
+    difficulty: 'obvious' | 'subtle' | 'edge-case';
 }
 
 /**
@@ -51,7 +51,7 @@ export interface ExpectedOutcome {
 // Event Types
 // ============================================================================
 
-export type ScenarioEvent =
+export type ScenarioEvent = 
     | DiagnosticEvent
     | EditEvent
     | BuildResultEvent
@@ -139,13 +139,13 @@ export interface ScenarioResult {
     scenario: StruggleScenario;
     /** Whether the scenario passed all checks */
     passed: boolean;
-
+    
     /** Detailed metrics */
     metrics: ScenarioMetrics;
-
+    
     /** Full score timeline for debugging */
     scoreTimeline: ScoreSnapshot[];
-
+    
     /** Any errors that occurred */
     errors: string[];
 }
@@ -158,13 +158,13 @@ export interface ScenarioMetrics {
     detectedStruggle: boolean;
     /** Was the recommended action correct? */
     correctAction: boolean;
-
+    
     // Timing
     /** Time until score first exceeded threshold (ms) */
     timeToDetection: number | null;
     /** Time spent with score >= threshold when no struggle expected */
     falsePositiveTime: number;
-
+    
     // Score stats
     maxScore: number;
     minScore: number;
@@ -180,12 +180,12 @@ export interface TestSuiteReport {
     timestamp: Date;
     /** Duration in ms */
     duration: number;
-
+    
     // Summary
     totalScenarios: number;
     passed: number;
     failed: number;
-
+    
     // Confusion Matrix for binary classification
     confusionMatrix: {
         truePositive: number;   // Struggle detected, was struggle
@@ -193,21 +193,20 @@ export interface TestSuiteReport {
         falsePositive: number;  // Struggle detected, was no struggle
         falseNegative: number;  // No struggle detected, was struggle
     };
-
+    
     // ML Metrics
     precision: number;
     recall: number;
     f1Score: number;
     accuracy: number;
-
+    
     // By category
     byDifficulty: {
         obvious: CategoryResult;
         subtle: CategoryResult;
         'edge-case': CategoryResult;
-        'no-struggle': CategoryResult;
     };
-
+    
     // Individual results
     results: ScenarioResult[];
 }

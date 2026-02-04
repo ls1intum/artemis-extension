@@ -23,6 +23,10 @@ suite('ChatSessionService Test Suite', () => {
         // Create stubbed API service
         mockApiService = sinon.createStubInstance(ArtemisApiService);
 
+        // Mock Iris profile check (required for all Iris settings checks)
+        mockApiService.getProfileInfo.resolves({ activeProfiles: ['iris'] });
+        mockApiService.isIrisProfileActive.returns(true);
+
         // Create spies for callbacks
         postMessageSpy = sinon.spy();
         onSessionLoadedSpy = sinon.stub().resolves();

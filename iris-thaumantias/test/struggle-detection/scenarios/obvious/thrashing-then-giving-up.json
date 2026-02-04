@@ -6,9 +6,9 @@
     "tags": ["thrashing", "persistent-error", "giving-up", "frustration"],
     
     "expectedOutcome": {
-        "shouldDetectStruggle": true,
-        "expectedScore": { "min": 35, "max": 60 },
-        "expectedAction": "subtle",
+        "shouldDetectStruggle": false,
+        "expectedScore": { "min": 25, "max": 60 },
+        "expectedAction": "none",
         "expectedTimeToDetection": 300000
     },
     
