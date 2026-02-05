@@ -1,28 +1,28 @@
 import * as assert from 'assert';
 import * as vscode from 'vscode';
-import * as fs from 'fs';
+import * as fs from 'fs/promises';
 import * as path from 'path';
 import { hasNoAiFile } from '../../src/utils/noaiChecker';
 
 suite('NoAI Checker Test Suite', () => {
     let testWorkspacePath: string;
 
-    setup(() => {
+    setup(async () => {
         // Create a test workspace path
         testWorkspacePath = path.join(__dirname, '../../../test-workspace');
-        if (!fs.existsSync(testWorkspacePath)) {
-            fs.mkdirSync(testWorkspacePath, { recursive: true });
+        try {
+            await fs.mkdir(testWorkspacePath, { recursive: true });
+        } catch (error) {
+            // Directory might already exist
         }
     });
 
-    teardown(() => {
-        // Clean up test files and directory
-        const noaiPath = path.join(testWorkspacePath, '.noai');
-        if (fs.existsSync(noaiPath)) {
-            fs.unlinkSync(noaiPath);
-        }
-        if (fs.existsSync(testWorkspacePath)) {
-            fs.rmdirSync(testWorkspacePath, { recursive: true });
+    teardown(async () => {
+        // Clean up test workspace directory
+        try {
+            await fs.rm(testWorkspacePath, { recursive: true, force: true });
+        } catch (error) {
+            // Directory might not exist
         }
     });
 
@@ -39,7 +39,7 @@ suite('NoAI Checker Test Suite', () => {
 
     test('hasNoAiFile should return true when .noai file exists', async () => {
         const noaiPath = path.join(testWorkspacePath, '.noai');
-        fs.writeFileSync(noaiPath, '');
+        await fs.writeFile(noaiPath, '');
 
         const workspaceFolder: vscode.WorkspaceFolder = {
             uri: vscode.Uri.file(testWorkspacePath),
