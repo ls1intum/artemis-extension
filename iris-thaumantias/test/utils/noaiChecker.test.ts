@@ -16,10 +16,13 @@ suite('NoAI Checker Test Suite', () => {
     });
 
     teardown(() => {
-        // Clean up test files
+        // Clean up test files and directory
         const noaiPath = path.join(testWorkspacePath, '.noai');
         if (fs.existsSync(noaiPath)) {
             fs.unlinkSync(noaiPath);
+        }
+        if (fs.existsSync(testWorkspacePath)) {
+            fs.rmdirSync(testWorkspacePath, { recursive: true });
         }
     });
 

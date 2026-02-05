@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import * as fs from 'fs';
+import * as fs from 'fs/promises';
 import * as path from 'path';
 
 /**
@@ -17,9 +17,10 @@ export async function hasNoAiFile(workspaceFolder?: vscode.WorkspaceFolder): Pro
 
     try {
         const noaiPath = path.join(folder.uri.fsPath, '.noai');
-        return fs.existsSync(noaiPath);
+        await fs.access(noaiPath);
+        return true;
     } catch (error) {
-        console.error('[NoAI Checker] Error checking for .noai file:', error);
+        // File doesn't exist or can't be accessed
         return false;
     }
 }
