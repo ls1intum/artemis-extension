@@ -152,6 +152,23 @@
           "type": "boolean",
           "default": true,
           "description": "Enable struggle detection to receive helpful hints when you might be stuck on a problem"
+        },
+        "artemis.dataCollectionConsent": {
+          "type": "string",
+          "enum": [
+            "pending",
+            "declined",
+            "basic",
+            "extended"
+          ],
+          "default": "pending",
+          "enumDescriptions": [
+            "No decision made yet",
+            "Data collection declined",
+            "Basic data collection (anonymized)",
+            "Extended data collection (detailed recordings)"
+          ],
+          "markdownDescription": "Controls your consent level for data collection used to improve Iris. **Extended** enables detailed telemetry for research purposes. You can change this at any time."
         }
       }
     }

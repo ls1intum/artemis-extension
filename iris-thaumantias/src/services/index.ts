@@ -14,6 +14,7 @@ export { ExerciseRegistry, type ExerciseRegistryEntry } from './exerciseRegistry
 export { WebSocketStatusBarService } from './websocketStatusBar';
 export { logger, LogLevel, LogCategory, LoggingService } from './loggingService';
 export { NoAiDetectionService } from './noAiDetectionService';
+export { ConsentService, ConsentLevel } from './consentService';
 export {
     detectWorkspaceExercise,
     findExerciseByRepositoryUrl,

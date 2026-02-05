@@ -4,7 +4,7 @@ import * as vscode from 'vscode';
 import { ArtemisWebviewProvider, ChatWebviewProvider, BuildErrorCodeLensProvider } from './provider';
 import { AuthManager } from './auth';
 import { ArtemisApiService } from './api';
-import { ArtemisWebsocketService, TelemetryManager, WebSocketStatusBarService, NoAiDetectionService } from './services';
+import { ArtemisWebsocketService, TelemetryManager, WebSocketStatusBarService, NoAiDetectionService, ConsentService } from './services';
 import { ProviderRegistry } from './services/ProviderRegistry';
 import { VSCODE_CONFIG, processPlantUml, normalizeRelativePath } from './utils';
 import { logger, LogLevel, LogCategory } from './services/loggingService';
@@ -98,6 +98,11 @@ export async function activate(context: vscode.ExtensionContext) {
 	// Initialize .noai file detection service
 	const noAiDetectionService = NoAiDetectionService.getInstance();
 	context.subscriptions.push(noAiDetectionService);
+
+	// Initialize data collection consent service and prompt if pending
+	const consentService = ConsentService.getInstance();
+	context.subscriptions.push(consentService);
+	consentService.promptIfPending();
 
 	// Listen for .noai status changes
 	noAiDetectionService.onNoAiStatusChanged(isNoAiDetected => {
