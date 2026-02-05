@@ -42,6 +42,21 @@ Seamlessly integrate **Artemis: Interactive Learning with Individual Feedback** 
 - **Pro-Active Support**: Receive motivational messages and learning suggestions
 - **Rate Limit Monitoring**: View your API usage and Iris availability status
 
+#### Disabling Iris for Specific Projects
+
+To disable Iris AI assistance for a specific project (e.g., exams, honor code compliance), create a `.noai` file in the root of your workspace:
+
+```bash
+touch .noai
+```
+
+When this file is present, Iris will be automatically disabled for that workspace. This is useful for:
+- **Exams**: Instructors can include a `.noai` file in exam repositories
+- **Honor Code**: Projects requiring independent work without AI assistance
+- **Team Policies**: Organizations can opt-out of AI features per project
+
+To re-enable Iris, simply delete the `.noai` file.
+
 ### 📊 Service Monitoring
 
 - **Health Status Dashboard**: Monitor Artemis and Iris service availability

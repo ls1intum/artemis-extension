@@ -52,6 +52,19 @@ The extension integrates **Iris**, Artemis's intelligent virtual tutor, directly
 - **Pro-Active Support**: Iris can proactively suggest next steps and motivate continued learning
 - **Health Status Monitoring**: Check Iris availability and rate limits to ensure optimal assistance
 
+#### Disabling Iris with `.noai` File
+
+Iris can be automatically disabled for specific projects by placing a `.noai` file in the workspace root. When detected:
+- Iris AI assistance is completely disabled for that workspace
+- The Iris chat view becomes unavailable
+- WebSocket connections for Iris are not established
+- The extension watches for changes to the `.noai` file and dynamically enables/disables Iris
+
+This feature is useful for:
+- **Exam Repositories**: Instructors can disable AI assistance for exam exercises
+- **Honor Code Compliance**: Projects requiring independent work without AI help
+- **Organizational Policies**: Per-project opt-out of AI features
+
 ### Service Monitoring
 
 - **Real-Time Status**: Monitor the health and availability of Artemis services
