@@ -5,3 +5,4 @@ export * from './plantUmlProcessor';
 export * from './workspaceFileChecker';
 export * from './buildLogParser';
 export * from './pathUtils';
+export * from './noaiChecker';

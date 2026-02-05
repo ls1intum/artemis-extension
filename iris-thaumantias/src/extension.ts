@@ -6,7 +6,7 @@ import { AuthManager } from './auth';
 import { ArtemisApiService } from './api';
 import { ArtemisWebsocketService, WebSocketStatusBarService } from './services';
 import { ProviderRegistry } from './services/ProviderRegistry';
-import { VSCODE_CONFIG, processPlantUml, normalizeRelativePath } from './utils';
+import { VSCODE_CONFIG, processPlantUml, normalizeRelativePath, hasNoAiFile, watchNoAiFile } from './utils';
 
 // This method is called when your extension is activated
 // Your extension is activated the very first time the command is executed
@@ -36,10 +36,14 @@ export async function activate(context: vscode.ExtensionContext) {
 
 	// Helper function to update authentication context
 	const updateAuthContext = async (isAuthenticated: boolean) => {
-		await vscode.commands.executeCommand('setContext', 'iris:authenticated', isAuthenticated);
+		// Check if Iris is disabled by .noai file
+		const hasNoAi = await hasNoAiFile();
+		const irisEnabled = isAuthenticated && !hasNoAi;
+		
+		await vscode.commands.executeCommand('setContext', 'iris:authenticated', irisEnabled);
 
-		// Connect/disconnect WebSocket based on authentication status
-		if (isAuthenticated) {
+		// Connect/disconnect WebSocket based on authentication status and .noai file
+		if (irisEnabled) {
 			// Wait a bit to ensure auth cookie is stored before connecting
 			setTimeout(async () => {
 				try {
@@ -51,6 +55,11 @@ export async function activate(context: vscode.ExtensionContext) {
 			}, 500); // 500ms delay to ensure auth is complete
 		} else {
 			await artemisWebsocketService.disconnect();
+			
+			// Show info message if disabled by .noai file
+			if (isAuthenticated && hasNoAi) {
+				console.log('[Extension] Iris disabled by .noai file in workspace');
+			}
 		}
 	};
 
@@ -58,14 +67,16 @@ export async function activate(context: vscode.ExtensionContext) {
 	const initializeAuthContext = async () => {
 		try {
 			const isAuthenticated = await authManager.hasArtemisToken();
+			const hasNoAi = await hasNoAiFile();
+			const irisEnabled = isAuthenticated && !hasNoAi;
 
 			// Only set the context, don't try to connect WebSocket yet
 			// WebSocket will connect after user explicitly logs in
-			await vscode.commands.executeCommand('setContext', 'iris:authenticated', isAuthenticated);
+			await vscode.commands.executeCommand('setContext', 'iris:authenticated', irisEnabled);
 
 			// If already authenticated (from previous session), try to connect WebSocket
-			// but only if we can actually get the cookie
-			if (isAuthenticated) {
+			// but only if we can actually get the cookie and .noai file doesn't exist
+			if (irisEnabled) {
 				const cookie = await authManager.getCookieHeader();
 				if (cookie) {
 					// Wait a bit before connecting to ensure everything is ready
@@ -78,6 +89,8 @@ export async function activate(context: vscode.ExtensionContext) {
 						}
 					}, 1000); // 1 second delay for startup connection
 				}
+			} else if (isAuthenticated && hasNoAi) {
+				console.log('[Extension] Iris disabled by .noai file in workspace');
 			}
 		} catch (error) {
 			console.error('Error checking initial auth state:', error);
@@ -87,6 +100,14 @@ export async function activate(context: vscode.ExtensionContext) {
 
 	// Initialize authentication context
 	await initializeAuthContext();
+
+	// Watch for .noai file changes to dynamically enable/disable Iris
+	const noaiWatcher = watchNoAiFile(vscode.workspace.workspaceFolders?.[0], async (hasNoAi) => {
+		console.log(`[Extension] .noai file ${hasNoAi ? 'detected' : 'removed'}`);
+		const isAuthenticated = await authManager.hasArtemisToken();
+		await updateAuthContext(isAuthenticated);
+	});
+	context.subscriptions.push(noaiWatcher);
 
 	// Register the Artemis login view provider with dependencies
 	const artemisWebviewProvider = new ArtemisWebviewProvider(context.extensionUri, context, authManager, artemisApiService);
