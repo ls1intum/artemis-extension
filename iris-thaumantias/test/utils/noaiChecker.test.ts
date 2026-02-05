@@ -10,20 +10,12 @@ suite('NoAI Checker Test Suite', () => {
     setup(async () => {
         // Create a test workspace path
         testWorkspacePath = path.join(__dirname, '../../../test-workspace');
-        try {
-            await fs.mkdir(testWorkspacePath, { recursive: true });
-        } catch (error) {
-            // Directory might already exist
-        }
+        await fs.mkdir(testWorkspacePath, { recursive: true });
     });
 
     teardown(async () => {
         // Clean up test workspace directory
-        try {
-            await fs.rm(testWorkspacePath, { recursive: true, force: true });
-        } catch (error) {
-            // Directory might not exist
-        }
+        await fs.rm(testWorkspacePath, { recursive: true, force: true });
     });
 
     test('hasNoAiFile should return false when .noai file does not exist', async () => {
