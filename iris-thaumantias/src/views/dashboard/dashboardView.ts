@@ -187,27 +187,36 @@ export class DashboardView {
             `
         });
 
-        const quickActionsBody = `
-            <div id="workspaceExerciseBtn" class="workspace-exercise-container" style="display: none;">
-                ${ListItemComponent.generate(
-            {
-                className: 'workspace-exercise-item',
-                clickable: true,
-                command: 'goToWorkspaceExercise()',
-                id: 'workspaceExerciseItemBtn'
+        // Workspace Exercise Container - separate from Tools & Settings
+        const workspaceExerciseContainer = ContainerComponent.generate({
+            className: 'workspace-exercise-section hidden',
+            id: 'workspaceExerciseContainer',
+            header: {
+                title: 'Current Workspace Exercise',
+                divider: true
             },
-            `
+            bodyHtml: `
+                ${ListItemComponent.generate(
+                {
+                    className: 'workspace-exercise-item',
+                    clickable: true,
+                    command: 'goToWorkspaceExercise()',
+                    id: 'workspaceExerciseItemBtn'
+                },
+                `
                         <div class="workspace-exercise-content">
                             <div class="workspace-exercise-icon">${icons.exercise}</div>
                             <div class="workspace-exercise-text">
-                                <div class="workspace-exercise-title">Current Workspace Exercise</div>
                                 <div class="workspace-exercise-name" id="workspaceExerciseName">Loading...</div>
                             </div>
                             <div class="workspace-exercise-arrow">→</div>
                         </div>
                     `
-        )}
-            </div>
+            )}
+            `
+        });
+
+        const quickActionsBody = `
             <div class="action-buttons">
                 ${ButtonComponent.generate({
             label: 'Browse Courses',
@@ -333,6 +342,8 @@ export class DashboardView {
         ${showIrisExplanation ? irisContainer : ''}
         
         ${recentCoursesContainer}
+        
+        ${workspaceExerciseContainer}
         
         ${quickActionsContainer}
     </div>
@@ -576,7 +587,7 @@ export class DashboardView {
         window.addEventListener('message', event => {
             const message = event.data;
             if (message.command === 'workspaceExerciseDetected') {
-                const workspaceBtn = document.getElementById('workspaceExerciseBtn');
+                const workspaceContainer = document.getElementById('workspaceExerciseContainer');
                 const workspaceNameEl = document.getElementById('workspaceExerciseName');
                 
                 if (message.exerciseId && message.exerciseTitle) {
@@ -586,12 +597,12 @@ export class DashboardView {
                     if (workspaceNameEl) {
                         workspaceNameEl.textContent = message.exerciseTitle;
                     }
-                    if (workspaceBtn) {
-                        workspaceBtn.style.display = 'block';
+                    if (workspaceContainer) {
+                        workspaceContainer.classList.remove('hidden');
                     }
                 } else {
-                    if (workspaceBtn) {
-                        workspaceBtn.style.display = 'none';
+                    if (workspaceContainer) {
+                        workspaceContainer.classList.add('hidden');
                     }
                 }
             }
