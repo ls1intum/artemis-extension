@@ -107,11 +107,6 @@
           "pattern": "^https?://.*",
           "patternErrorMessage": "Server URL must be a valid HTTP or HTTPS URL"
         },
-        "artemis.showIrisExplanation": {
-          "type": "boolean",
-          "default": true,
-          "description": "Show the 'How to use Iris' explanation on the dashboard"
-        },
         "artemis.iris.sendUncommittedChanges": {
           "type": "boolean",
           "default": true,

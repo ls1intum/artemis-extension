@@ -64,87 +64,6 @@ body {
   font-size: 14px;
   margin: 0;
 }
-.iris-info-cell {
-  background: var(--theme-card-background);
-  border: 1px solid var(--theme-border);
-  border-radius: var(--theme-container-radius);
-  padding: var(--theme-container-padding);
-  box-shadow: var(--theme-box-shadow);
-  backdrop-filter: var(--theme-backdrop);
-  overflow: hidden;
-  transition: var(--theme-transition);
-}
-.iris-header {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-bottom: 12px;
-}
-.iris-icon {
-  width: 40px;
-  height: 40px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: bold;
-  font-size: 18px;
-  flex-shrink: 0;
-  position: relative;
-}
-.iris-icon img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.4));
-  position: relative;
-  z-index: 1;
-}
-.iris-info {
-  flex: 1;
-}
-.iris-title {
-  color: var(--theme-foreground);
-  font-size: 18px;
-  font-weight: 600;
-  margin: 0 0 4px 0;
-}
-.iris-subtitle {
-  color: var(--theme-foreground);
-  opacity: 0.7;
-  font-size: 13px;
-  margin: 0;
-}
-.iris-usage-explanation {
-  margin-top: 16px;
-}
-.iris-usage-explanation h4 {
-  color: var(--theme-foreground);
-  font-size: 16px;
-  margin: 0 0 12px 0;
-  font-weight: 600;
-}
-.iris-usage-explanation ol {
-  color: var(--theme-foreground);
-  opacity: 0.9;
-  font-size: 14px;
-  margin: 0 0 16px 0;
-  padding-left: 20px;
-  line-height: 1.6;
-}
-.iris-usage-explanation li {
-  margin-bottom: 8px;
-}
-.iris-note {
-  color: var(--theme-foreground);
-  font-size: 13px;
-  margin: 12px 0 0 0;
-  padding: 4px 0;
-  opacity: 0.8;
-  line-height: 1.5;
-}
-.iris-note:first-of-type {
-  margin-top: 20px;
-}
 .btn-icon {
   font-size: 16px;
 }
@@ -197,19 +116,28 @@ body {
   background: var(--theme-card-background);
   border: 1px solid var(--theme-border);
   border-radius: var(--theme-container-radius);
-  padding: var(--theme-container-padding);
+  padding: 10px 12px;
   box-shadow: var(--theme-box-shadow);
   backdrop-filter: var(--theme-backdrop);
   overflow: hidden;
 }
+.workspace-exercise-section .ui-container__header {
+  margin-bottom: 8px;
+}
+.workspace-exercise-section .ui-container__title {
+  font-size: 14px;
+}
 .workspace-exercise-item .workspace-exercise-content {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
+}
+.workspace-exercise-item {
+  padding: 8px 10px;
 }
 .workspace-exercise-item .workspace-exercise-icon {
-  width: 20px;
-  height: 20px;
+  width: 16px;
+  height: 16px;
   flex-shrink: 0;
   opacity: 0.8;
   display: flex;
@@ -235,14 +163,14 @@ body {
   letter-spacing: 0.5px;
 }
 .workspace-exercise-item .workspace-exercise-name {
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 600;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 .workspace-exercise-item .workspace-exercise-arrow {
-  font-size: 18px;
+  font-size: 16px;
   opacity: 0.5;
   flex-shrink: 0;
 }
@@ -256,14 +184,56 @@ body {
   display: flex;
   align-items: center;
   gap: 12px;
+  flex-wrap: wrap;
 }
-.recent-courses-list {
+.recent-courses-tree {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.recent-tree-course-node {
   display: flex;
   flex-direction: column;
   gap: 8px;
 }
-/* Recent course item content styles (ListItemComponent handles the container) */
-.recent-course-item .course-title {
+.recent-tree-course-row {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+}
+.recent-tree-toggle {
+  border: 1px solid var(--theme-border);
+  border-radius: var(--theme-container-radius);
+  background: var(--theme-card-background);
+  color: var(--theme-foreground);
+  width: 2rem;
+  min-width: 2rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: var(--theme-transition);
+}
+.recent-tree-toggle:hover {
+  border-color: var(--theme-primary-color);
+}
+.recent-tree-toggle:focus-visible {
+  outline: 2px solid var(--theme-primary-color);
+  outline-offset: 2px;
+}
+.recent-tree-toggle svg {
+  width: 14px;
+  height: 14px;
+  transition: transform 0.2s ease;
+}
+.recent-tree-course-node.is-expanded .recent-tree-toggle svg {
+  transform: rotate(90deg);
+}
+.recent-tree-course-item {
+  flex: 1;
+  margin-bottom: 0;
+}
+.recent-tree-course-item .course-title {
   font-weight: 600;
   color: var(--theme-foreground);
   font-size: 14px;
@@ -272,10 +242,53 @@ body {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.recent-course-item .course-info {
+.recent-tree-course-item .course-info {
   font-size: 12px;
   color: var(--theme-foreground);
   opacity: 0.9;
+}
+.recent-tree-children {
+  display: none;
+  flex-direction: column;
+  gap: 6px;
+  margin-left: 2.5rem;
+}
+.recent-tree-course-node.is-expanded .recent-tree-children {
+  display: flex;
+}
+.recent-tree-exercise-item {
+  margin-bottom: 0;
+  padding: 8px 10px;
+}
+.recent-tree-exercise-content {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.recent-tree-exercise-icon {
+  width: 14px;
+  height: 14px;
+  opacity: 0.85;
+  flex-shrink: 0;
+  display: flex;
+}
+.recent-tree-exercise-icon svg {
+  width: 100%;
+  height: 100%;
+}
+.recent-tree-exercise-title {
+  font-size: 13px;
+  color: var(--theme-foreground);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.recent-tree-empty {
+  font-size: 12px;
+  color: var(--theme-foreground);
+  opacity: 0.65;
+  padding: 2px 4px;
 }
 .no-courses {
   text-align: center;
@@ -283,6 +296,14 @@ body {
   opacity: 0.6;
   font-style: italic;
   padding: 16px 0;
+}
+@media (max-width: 640px) {
+  .recent-tree-children {
+    margin-left: 1.5rem;
+  }
+  .recent-courses-controls {
+    gap: 8px;
+  }
 }
 
 /* Utility classes */

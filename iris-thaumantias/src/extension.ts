@@ -114,7 +114,7 @@ export async function activate(context: vscode.ExtensionContext) {
 				if (selection === 'Learn More') {
 					vscode.env.openExternal(vscode.Uri.parse('https://docs.artemis.cit.tum.de'));
 				}
-			});
+	});
 		}
 	});
 
@@ -573,13 +573,7 @@ export async function activate(context: vscode.ExtensionContext) {
 			}
 		}
 
-		if (event.affectsConfiguration(`${VSCODE_CONFIG.ARTEMIS_SECTION}.${VSCODE_CONFIG.SHOW_IRIS_EXPLANATION_KEY}`)) {
-			logger.configLog('Artemis showIrisExplanation configuration changed');
-
-			// Refresh the main webview to show/hide the Iris explanation
-			artemisWebviewProvider.refreshTheme();
-		}
-	});
+		});
 
 	context.subscriptions.push(loginCommand);
 	context.subscriptions.push(logoutCommand);

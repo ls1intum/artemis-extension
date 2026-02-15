@@ -1,11 +1,9 @@
 import * as vscode from 'vscode';
-import { VSCODE_CONFIG } from '../../utils';
 import { IconDefinitions } from '../../utils/iconDefinitions';
 import { readCssFiles } from '../utils';
 import { ButtonComponent } from '../components/button/buttonComponent';
 import { ReloadButton } from '../components/button/iconButtons';
 import { ListItemComponent } from '../components/listItem/listItemComponent';
-import { DropdownComponent } from '../components/dropdown/dropdownComponent';
 import { ContainerComponent } from '../components/container/containerComponent';
 
 interface DashboardIcons {
@@ -39,11 +37,23 @@ interface CourseData {
 }
 
 interface Exercise {
+    id?: number;
+    title?: string;
+    type?: string;
     releaseDate?: string;
     startDate?: string;
+    dueDate?: string;
+}
+
+interface RecentCourseNode {
+    courseData: CourseData;
+    exercises: Exercise[];
 }
 
 export class DashboardView {
+    private static readonly RECENT_COURSE_LIMIT = 3;
+    private static readonly RECENT_EXERCISE_LIMIT = 4;
+
     private readonly _extensionContext: vscode.ExtensionContext;
 
     constructor(extensionContext: vscode.ExtensionContext) {
@@ -51,7 +61,7 @@ export class DashboardView {
     }
 
     public generateHtml(
-        userInfo: UserInfo,
+        _userInfo: UserInfo,
         coursesData: { courses?: CourseData[] } | undefined,
         webview?: vscode.Webview
     ): string {
@@ -60,18 +70,12 @@ export class DashboardView {
             'components/button/button.css',
             'components/button/iconButtons/iconButtons.css',
             'components/listItem/list-item.css',
-            'components/dropdown/dropdown.css',
             'components/container/container.css'
         );
 
-        const config = vscode.workspace.getConfiguration(VSCODE_CONFIG.ARTEMIS_SECTION);
-        const showIrisExplanation = config.get<boolean>(VSCODE_CONFIG.SHOW_IRIS_EXPLANATION_KEY, true);
-
         return this._buildDashboardHtml({
-            userInfo,
             coursesData,
             webview,
-            showIrisExplanation,
             styles
         });
     }
@@ -93,19 +97,16 @@ export class DashboardView {
     }
 
     private _buildDashboardHtml(options: {
-        userInfo: UserInfo;
         coursesData: { courses?: CourseData[] } | undefined;
         webview: vscode.Webview | undefined;
-        showIrisExplanation: boolean;
         styles: string;
     }): string {
-        const { userInfo, coursesData, webview, showIrisExplanation, styles } = options;
+        const { coursesData, webview, styles } = options;
         const icons = this._loadIcons();
 
-        const irisLogoSrc = this._getWebviewImageUri(webview, 'media/iris-logo-big-left.png');
         const artemisLogoSrc = this._getWebviewImageUri(webview, 'media/artemis-blue.png');
 
-        const { recentCoursesHtml, coursesDataJson, sortedCoursesJson } = this._buildRecentCoursesData(coursesData?.courses);
+        const { recentCoursesHtml, recentCoursesJson } = this._buildRecentCoursesTreeData(coursesData?.courses);
 
         const recentCoursesContainer = ContainerComponent.generate({
             className: 'recent-courses',
@@ -114,18 +115,6 @@ export class DashboardView {
                 title: 'Recent Courses',
                 actionsHtml: `
                     <div class="recent-courses-controls">
-                        ${DropdownComponent.generate({
-                    id: 'recentCoursesSort',
-                    size: 'small',
-                    onChange: 'handleRecentCoursesSort(this.value)',
-                    options: [
-                        { value: 'latest-exercise', label: 'Latest Exercise', selected: true },
-                        { value: 'newest-course', label: 'Newest Course' },
-                        { value: 'most-exercises', label: 'Most Exercises' },
-                        { value: 'title-asc', label: 'Title (A-Z)' },
-                        { value: 'title-desc', label: 'Title (Z-A)' }
-                    ]
-                })}
                         ${ButtonComponent.generate({
                     label: 'Show All',
                     variant: 'link',
@@ -143,7 +132,7 @@ export class DashboardView {
                 divider: true
             },
             bodyHtml: `
-                <div class="recent-courses-list" id="recentCoursesList">
+                <div class="recent-courses-tree" id="recentCoursesTree">
                     ${recentCoursesHtml}
                 </div>
             `
@@ -160,40 +149,14 @@ export class DashboardView {
             `
         });
 
-        const irisContainer = ContainerComponent.generate({
-            className: 'iris-info-cell',
-            header: {
-                title: 'Chat with Iris',
-                subtitle: 'Your AI programming assistant is ready!',
-                icon: irisLogoSrc ? `<img src="${irisLogoSrc}" alt="Iris Logo" />` : 'I',
-                divider: true
-            },
-            bodyHtml: `
-                <div class="iris-usage-explanation">
-                    <h4>Using Iris in VS Code:</h4>
-                    <ol>
-                        <li><strong>Open Iris Chat:</strong> Click the Iris icon in the Activity Bar (left sidebar) or use the chat buttons in exercise and course views</li>
-                        <li><strong>Select your context:</strong> Choose an exercise or course to get context-aware assistance tailored to your current work</li>
-                        <li><strong>Start chatting:</strong> Ask questions about your code, exercises, or course material - Iris will help guide you with hints and explanations</li>
-                        <li><strong>Multiple conversations:</strong> Create separate chat sessions for different topics and switch between them anytime</li>
-                    </ol>
-                    <p class="iris-note">
-                        <strong>Note:</strong> Iris can make mistakes. Always verify important information. Iris only has access to your submitted code.
-                    </p>
-                    <p class="iris-note">
-                        <strong>Tip:</strong> You can hide this explanation by disabling "Show Iris Explanation" in the Artemis extension settings.
-                    </p>
-                </div>
-            `
-        });
-
         // Workspace Exercise Container - separate from Tools & Settings
         const workspaceExerciseContainer = ContainerComponent.generate({
             className: 'workspace-exercise-section hidden',
             id: 'workspaceExerciseContainer',
+            padding: 'tight',
             header: {
                 title: 'Current Workspace Exercise',
-                divider: true
+                divider: false
             },
             bodyHtml: `
                 ${ListItemComponent.generate(
@@ -338,18 +301,17 @@ export class DashboardView {
 <body>
     <div class="dashboard">
         ${welcomeContainer}
-        
-        ${showIrisExplanation ? irisContainer : ''}
-        
-        ${recentCoursesContainer}
-        
+
         ${workspaceExerciseContainer}
-        
+
+        ${recentCoursesContainer}
+
         ${quickActionsContainer}
     </div>
 
     <script>
         const vscode = acquireVsCodeApi();
+        const recentCoursesData = ${recentCoursesJson};
 
         // Open Artemis website
         window.openArtemisWebsite = function() {
@@ -360,7 +322,7 @@ export class DashboardView {
         window.reloadDashboard = function() {
             vscode.postMessage({ command: 'reloadDashboard' });
         };
-        
+
         // Dashboard action buttons
         const browseCoursesBtn = document.getElementById('browseCoursesBtn');
         const checkAiConfigBtn = document.getElementById('checkAiConfigBtn');
@@ -372,31 +334,30 @@ export class DashboardView {
         const bugReportBtn = document.getElementById('bugReportBtn');
         const openSettingsBtn = document.getElementById('openSettingsBtn');
         const logoutBtn = document.getElementById('logoutBtn');
-        
+
         // Workspace exercise detection
         let workspaceExerciseId = null;
-        let workspaceExerciseTitle = null;
-        
+
         window.goToWorkspaceExercise = function() {
             if (workspaceExerciseId) {
-                vscode.postMessage({ 
+                vscode.postMessage({
                     command: 'openExercise',
                     exerciseId: workspaceExerciseId,
                     courseId: null // Will be looked up from the exercise
                 });
             }
         };
-        
+
         // Request workspace exercise detection
         vscode.postMessage({ command: 'detectWorkspaceExercise' });
-        
+
         // Event listeners
         if (browseCoursesBtn) {
             browseCoursesBtn.addEventListener('click', () => {
                 vscode.postMessage({ command: 'showAllCourses' });
             });
         }
-        
+
         if (checkAiConfigBtn) {
             checkAiConfigBtn.addEventListener('click', () => {
                 vscode.postMessage({ command: 'showAiConfig' });
@@ -408,7 +369,7 @@ export class DashboardView {
                 vscode.postMessage({ command: 'showRecommendedExtensions' });
             });
         }
-        
+
         if (openWebsiteBtn) {
             openWebsiteBtn.addEventListener('click', () => {
                 vscode.postMessage({ command: 'openWebsite' });
@@ -438,13 +399,13 @@ export class DashboardView {
                 vscode.postMessage({ command: 'openBugReport' });
             });
         }
-        
+
         if (openSettingsBtn) {
             openSettingsBtn.addEventListener('click', () => {
                 vscode.postMessage({ command: 'openSettings' });
             });
         }
-        
+
         if (logoutBtn) {
             logoutBtn.addEventListener('click', () => {
                 vscode.postMessage({ command: 'logout' });
@@ -468,23 +429,50 @@ export class DashboardView {
             vscode.postMessage({ command: 'showAllCourses' });
         };
 
-        window.viewCourseDetails = function(courseIndex) {
-            const coursesData = ${coursesDataJson};
-            if (coursesData && coursesData[courseIndex]) {
-                vscode.postMessage({ 
-                    command: 'viewCourseDetails',
-                    courseData: coursesData[courseIndex]
-                });
+        window.openRecentCourse = function(courseIndex) {
+            const recentCourseNode = recentCoursesData && recentCoursesData[courseIndex];
+            if (!recentCourseNode || !recentCourseNode.courseData) {
+                return;
             }
+
+            vscode.postMessage({
+                command: 'viewCourseDetails',
+                courseData: recentCourseNode.courseData
+            });
         };
 
-        window.viewRecentCourseDetails = function(courseIndex) {
-            const sortedCourses = ${sortedCoursesJson};
-            if (sortedCourses && sortedCourses[courseIndex]) {
-                vscode.postMessage({
-                    command: 'viewCourseDetails',
-                    courseData: sortedCourses[courseIndex]
-                });
+        window.openRecentExercise = function(courseIndex, exerciseIndex) {
+            const recentCourseNode = recentCoursesData && recentCoursesData[courseIndex];
+            if (!recentCourseNode || !recentCourseNode.exercises) {
+                return;
+            }
+
+            const exercise = recentCourseNode.exercises[exerciseIndex];
+            if (!exercise || !exercise.id) {
+                return;
+            }
+
+            vscode.postMessage({
+                command: 'openExercise',
+                exerciseId: exercise.id
+            });
+        };
+
+        window.toggleRecentCourseChildren = function(courseIndex, event) {
+            if (event) {
+                event.preventDefault();
+                event.stopPropagation();
+            }
+
+            const courseNode = document.querySelector('.recent-tree-course-node[data-tree-course-index="' + courseIndex + '"]');
+            if (!courseNode) {
+                return;
+            }
+
+            const isExpanded = courseNode.classList.toggle('is-expanded');
+            const toggleButton = courseNode.querySelector('.recent-tree-toggle');
+            if (toggleButton) {
+                toggleButton.setAttribute('aria-expanded', isExpanded ? 'true' : 'false');
             }
         };
 
@@ -492,108 +480,16 @@ export class DashboardView {
         ${ListItemComponent.generateScript()}
         ${ContainerComponent.generateScript()}
 
-        // Sort recent courses functionality
-        window.handleRecentCoursesSort = function(sortOption) {
-            const coursesData = ${coursesDataJson};
-            if (!coursesData) return;
-
-            // Store preference in localStorage
-            try {
-                localStorage.setItem('recentCoursesSortPreference', sortOption);
-            } catch (e) {
-                vscode.postMessage({ command: 'webviewLog', level: 'warn', text: '[Dashboard] Could not save sort preference: ' + e });
-            }
-
-            // Helper function to get latest release date
-            const getLatestReleaseDate = (courseData) => {
-                const course = courseData.course;
-                if (!course.exercises || course.exercises.length === 0) {
-                    return 0;
-                }
-
-                const latestDate = course.exercises.reduce((latest, exercise) => {
-                    const releaseDate = exercise.releaseDate || exercise.startDate;
-                    if (releaseDate) {
-                        const timestamp = new Date(releaseDate).getTime();
-                        return timestamp > latest ? timestamp : latest;
-                    }
-                    return latest;
-                }, 0);
-
-                return latestDate;
-            };
-
-            // Helper function to get course start date
-            const getCourseStartDate = (courseData) => {
-                const course = courseData.course;
-                const startDate = course.startDate || course.creationDate;
-                return startDate ? new Date(startDate).getTime() : 0;
-            };
-
-            // Helper function to get exercise count
-            const getExerciseCount = (courseData) => {
-                const course = courseData.course;
-                return course.exercises ? course.exercises.length : 0;
-            };
-
-            // Sort courses based on selected option
-            let sorted = [...coursesData];
-            switch (sortOption) {
-                case 'latest-exercise':
-                    sorted.sort((a, b) => getLatestReleaseDate(b) - getLatestReleaseDate(a));
-                    break;
-                case 'newest-course':
-                    sorted.sort((a, b) => getCourseStartDate(b) - getCourseStartDate(a));
-                    break;
-                case 'most-exercises':
-                    sorted.sort((a, b) => getExerciseCount(b) - getExerciseCount(a));
-                    break;
-                case 'title-asc':
-                    sorted.sort((a, b) => a.course.title.localeCompare(b.course.title));
-                    break;
-                case 'title-desc':
-                    sorted.sort((a, b) => b.course.title.localeCompare(a.course.title));
-                    break;
-            }
-
-            // Take top 3 and render
-            const recentCourses = sorted.slice(0, 3);
-            const listContainer = document.getElementById('recentCoursesList');
-            if (listContainer) {
-                listContainer.innerHTML = recentCourses.map((courseData, index) => {
-                    const course = courseData.course;
-                    const exerciseCount = course.exercises ? course.exercises.length : 0;
-                    const originalIndex = coursesData.indexOf(courseData);
-                    
-                    // Create a temporary container to generate the list item
-                    const tempDiv = document.createElement('div');
-                    tempDiv.innerHTML = \`
-                        <div class="list-item list-item--clickable list-item--hover recent-course-item" 
-                             onclick="viewCourseDetails(\${originalIndex})"
-                             role="button"
-                             tabindex="0"
-                             data-course-index="\${originalIndex}"
-                             data-course-id="\${course.id || ''}">
-                            <div class="course-title">\${course.title}</div>
-                            <div class="course-info">\${exerciseCount} exercises</div>
-                        </div>
-                    \`;
-                    return tempDiv.innerHTML.trim();
-                }).join('');
-            }
-        };
-        
         // Listen for workspace exercise detection results
         window.addEventListener('message', event => {
             const message = event.data;
             if (message.command === 'workspaceExerciseDetected') {
                 const workspaceContainer = document.getElementById('workspaceExerciseContainer');
                 const workspaceNameEl = document.getElementById('workspaceExerciseName');
-                
+
                 if (message.exerciseId && message.exerciseTitle) {
                     workspaceExerciseId = message.exerciseId;
-                    workspaceExerciseTitle = message.exerciseTitle;
-                    
+
                     if (workspaceNameEl) {
                         workspaceNameEl.textContent = message.exerciseTitle;
                     }
@@ -605,20 +501,6 @@ export class DashboardView {
                         workspaceContainer.classList.add('hidden');
                     }
                 }
-            }
-        });
-
-        // Initialize sort dropdown with saved preference
-        document.addEventListener('DOMContentLoaded', function() {
-            try {
-                const savedSort = localStorage.getItem('recentCoursesSortPreference');
-                const sortDropdown = document.getElementById('recentCoursesSort');
-                if (savedSort && sortDropdown) {
-                    sortDropdown.value = savedSort;
-                    handleRecentCoursesSort(savedSort);
-                }
-            } catch (e) {
-                vscode.postMessage({ command: 'webviewLog', level: 'warn', text: '[Dashboard] Could not load sort preference: ' + e });
             }
         });
     </script>
@@ -634,71 +516,162 @@ export class DashboardView {
         return webview.asWebviewUri(uri).toString();
     }
 
-    private _getLatestReleaseDate(courseData: CourseData): number {
-        const course = courseData.course;
-        if (!course.exercises || course.exercises.length === 0) {
+    private _getExerciseTimestamp(exercise: Exercise): number {
+        const date = exercise.releaseDate || exercise.startDate || exercise.dueDate;
+        if (!date) {
             return 0;
         }
 
-        return course.exercises.reduce((latest: number, exercise: Exercise) => {
-            const releaseDate = exercise.releaseDate || exercise.startDate;
-            if (releaseDate) {
-                const timestamp = new Date(releaseDate).getTime();
-                return timestamp > latest ? timestamp : latest;
-            }
-            return latest;
+        const timestamp = new Date(date).getTime();
+        return Number.isNaN(timestamp) ? 0 : timestamp;
+    }
+
+    private _getLatestExerciseTimestamp(courseData: CourseData): number {
+        const exercises = courseData.course.exercises || [];
+        if (exercises.length === 0) {
+            return 0;
+        }
+
+        return exercises.reduce((latest: number, exercise: Exercise) => {
+            const timestamp = this._getExerciseTimestamp(exercise);
+            return timestamp > latest ? timestamp : latest;
         }, 0);
+    }
+
+    private _sortExercisesByLatest(exercises: Exercise[]): Exercise[] {
+        return [...exercises].sort((a, b) => {
+            const dateDiff = this._getExerciseTimestamp(b) - this._getExerciseTimestamp(a);
+            if (dateDiff !== 0) {
+                return dateDiff;
+            }
+
+            return (b.id || 0) - (a.id || 0);
+        });
     }
 
     private _sortCoursesByLatestExercise(courses: CourseData[]): CourseData[] {
         return [...courses].sort((a, b) => {
-            const aLatest = this._getLatestReleaseDate(a);
-            const bLatest = this._getLatestReleaseDate(b);
-            return bLatest - aLatest;
+            const dateDiff = this._getLatestExerciseTimestamp(b) - this._getLatestExerciseTimestamp(a);
+            if (dateDiff !== 0) {
+                return dateDiff;
+            }
+
+            const aTitle = a.course.title || '';
+            const bTitle = b.course.title || '';
+            return aTitle.localeCompare(bTitle);
         });
     }
 
-    private _buildRecentCoursesData(courses: CourseData[] | undefined): {
+    private _buildRecentCourseNodes(courses: CourseData[]): RecentCourseNode[] {
+        return this._sortCoursesByLatestExercise(courses)
+            .slice(0, DashboardView.RECENT_COURSE_LIMIT)
+            .map((courseData) => ({
+                courseData,
+                exercises: this._sortExercisesByLatest(courseData.course.exercises || []).slice(0, DashboardView.RECENT_EXERCISE_LIMIT)
+            }));
+    }
+
+    private _buildRecentCoursesTreeData(courses: CourseData[] | undefined): {
         recentCoursesHtml: string;
-        coursesDataJson: string;
-        sortedCoursesJson: string;
+        recentCoursesJson: string;
     } {
         if (!courses) {
             return {
                 recentCoursesHtml: '<div class="no-courses">Loading courses...</div>',
-                coursesDataJson: 'null',
-                sortedCoursesJson: 'null'
+                recentCoursesJson: 'null'
             };
         }
 
-        const sortedCourses = this._sortCoursesByLatestExercise(courses);
-        const recentCourses = sortedCourses.slice(0, 3);
+        const chevronRightIcon = IconDefinitions.getIcon('chevron-right');
+        const recentCourseNodes = this._buildRecentCourseNodes(courses);
 
-        const recentCoursesHtml = recentCourses.map((courseData, index) => {
+        if (recentCourseNodes.length === 0) {
+            return {
+                recentCoursesHtml: '<div class="no-courses">No recent courses available</div>',
+                recentCoursesJson: '[]'
+            };
+        }
+
+        const recentCoursesHtml = recentCourseNodes.map((node, courseIndex) => {
+            const { courseData, exercises } = node;
             const course = courseData.course;
-            const exerciseCount = course.exercises?.length ?? 0;
+            const isExpanded = courseIndex === 0;
+            const exerciseCount = course.exercises?.length || 0;
 
-            return ListItemComponent.generate(
+            const courseItemHtml = ListItemComponent.generate(
                 {
-                    className: 'recent-course-item',
+                    className: 'recent-tree-course-item',
                     clickable: true,
-                    command: `viewRecentCourseDetails(${index})`,
+                    command: `openRecentCourse(${courseIndex})`,
                     dataAttributes: {
-                        'course-index': index.toString(),
+                        'course-index': courseIndex.toString(),
                         'course-id': course.id?.toString() || ''
                     }
                 },
                 `
-                    <div class="course-title">${course.title}</div>
-                    <div class="course-info">${exerciseCount} exercises</div>
+                    <div class="course-title">${this._escapeHtml(course.title)}</div>
+                    <div class="course-info">${exerciseCount} ${exerciseCount === 1 ? 'exercise' : 'exercises'}</div>
                 `
             );
+
+            const exercisesHtml = exercises.length > 0
+                ? exercises.map((exercise, exerciseIndex) => {
+                    const exerciseIcon = IconDefinitions.getIcon(exercise.type || 'exercise');
+                    const exerciseTitle = this._escapeHtml(exercise.title || 'Untitled exercise');
+
+                    return ListItemComponent.generate(
+                        {
+                            className: 'recent-tree-exercise-item',
+                            clickable: true,
+                            command: `openRecentExercise(${courseIndex}, ${exerciseIndex})`,
+                            dataAttributes: {
+                                'exercise-id': exercise.id?.toString() || ''
+                            }
+                        },
+                        `
+                            <div class="recent-tree-exercise-content">
+                                <span class="recent-tree-exercise-icon">${exerciseIcon}</span>
+                                <span class="recent-tree-exercise-title">${exerciseTitle}</span>
+                            </div>
+                        `
+                    );
+                }).join('')
+                : '<div class="recent-tree-empty">No exercises available</div>';
+
+            return `
+                <div class="recent-tree-course-node ${isExpanded ? 'is-expanded' : ''}" data-tree-course-index="${courseIndex}">
+                    <div class="recent-tree-course-row">
+                        <button
+                            type="button"
+                            class="recent-tree-toggle"
+                            aria-label="Toggle exercises"
+                            aria-expanded="${isExpanded ? 'true' : 'false'}"
+                            aria-controls="recentTreeChildren-${courseIndex}"
+                            onclick="toggleRecentCourseChildren(${courseIndex}, event)"
+                        >
+                            ${chevronRightIcon}
+                        </button>
+                        ${courseItemHtml}
+                    </div>
+                    <div class="recent-tree-children" id="recentTreeChildren-${courseIndex}">
+                        ${exercisesHtml}
+                    </div>
+                </div>
+            `;
         }).join('');
 
         return {
             recentCoursesHtml,
-            coursesDataJson: JSON.stringify(courses),
-            sortedCoursesJson: JSON.stringify(sortedCourses)
+            recentCoursesJson: JSON.stringify(recentCourseNodes)
         };
+    }
+
+    private _escapeHtml(value: string): string {
+        return value
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/\"/g, '&quot;')
+            .replace(/'/g, '&#039;');
     }
 }
