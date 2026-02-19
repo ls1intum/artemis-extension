@@ -10,8 +10,15 @@ import { isLikelyManualPaste } from './compileEquivalentEmitter';
  * Triggers:
  *   1. Execution Error — 0% disruption rate, 66.7% effective [P11, Fig. 4]
  *   2. Multi-line Paste — 73.1% effective (highest!) [P11, Fig. 4]
- *   3. Idle — 30s adaptive threshold [P11, Section 4]
+ *   3. Idle — 30s adaptive threshold, one-shot state machine [P11, Section 4]
  *   4. Selection Maintained — 15s adaptive threshold [P11, Section 4]
+ *
+ * Idle trigger uses a one-shot state machine (paper model: "User has been idle" → intervene once):
+ *   [Activity] → _armIdleTimer(threshold)
+ *       ↓ threshold elapses without activity
+ *   [Timer fires] → fire 'idle' once, timer = undefined
+ *       ↓ user resumes activity
+ *   [onDidResumeActivity] → _armIdleTimer(threshold)  ← re-arm
  */
 export class BoundaryTriggerEmitter implements vscode.Disposable {
     private readonly _disposables: vscode.Disposable[] = [];
@@ -26,7 +33,8 @@ export class BoundaryTriggerEmitter implements vscode.Disposable {
         'selection-maintained': 0,
     };
 
-    private _idleCheckTimer: NodeJS.Timeout | undefined;
+    /** One-shot idle timer (fires once, then waits for activity resume to re-arm) */
+    private _idleTimer: NodeJS.Timeout | undefined;
     private _selectionTimer: NodeJS.Timeout | undefined;
     private _selectionStartTime: number = 0;
 
@@ -42,13 +50,20 @@ export class BoundaryTriggerEmitter implements vscode.Disposable {
         this._adaptiveCadence = adaptiveCadence;
         this._config = config;
 
-        this._startIdleCheck();
+        // Arm the idle timer initially
+        this._armIdleTimer();
+
+        // Re-arm when user resumes activity after being idle
+        const resumeListener = this._inactivityService.onDidResumeActivity(() => {
+            this._armIdleTimer();
+        });
+        this._disposables.push(resumeListener);
     }
 
     public dispose(): void {
-        if (this._idleCheckTimer) {
-            clearInterval(this._idleCheckTimer);
-            this._idleCheckTimer = undefined;
+        if (this._idleTimer) {
+            clearTimeout(this._idleTimer);
+            this._idleTimer = undefined;
         }
         if (this._selectionTimer) {
             clearTimeout(this._selectionTimer);
@@ -131,6 +146,10 @@ export class BoundaryTriggerEmitter implements vscode.Disposable {
      * Full reset for exercise switch.
      */
     public reset(): void {
+        if (this._idleTimer) {
+            clearTimeout(this._idleTimer);
+            this._idleTimer = undefined;
+        }
         if (this._selectionTimer) {
             clearTimeout(this._selectionTimer);
             this._selectionTimer = undefined;
@@ -142,29 +161,48 @@ export class BoundaryTriggerEmitter implements vscode.Disposable {
             'idle': 0,
             'selection-maintained': 0,
         };
+
+        // Re-arm idle timer for the new exercise
+        this._armIdleTimer();
     }
 
     /**
-     * Start periodic idle check using InactivityService.
+     * Arm the one-shot idle timer.
+     * Accounts for time already spent idle (e.g., when re-arming after resume).
+     * On fire: verifies user is actually still idle. If activity happened in between,
+     * re-arms with remaining time instead of firing.
+     * Fires 'idle' exactly once, then waits for onDidResumeActivity to re-arm.
      */
-    private _startIdleCheck(): void {
-        // Check every 5 seconds whether idle threshold has been exceeded
-        this._idleCheckTimer = setInterval(() => {
-            const timeSinceEdit = this._inactivityService.getTimeSinceLastActivity();
-            const threshold = this._adaptiveCadence.getIdleThreshold();
+    private _armIdleTimer(): void {
+        // Clear any existing timer
+        if (this._idleTimer) {
+            clearTimeout(this._idleTimer);
+            this._idleTimer = undefined;
+        }
 
-            if (timeSinceEdit >= threshold) {
-                if (!this._checkCooldown('idle')) {
-                    return;
-                }
-                this._lastTriggerTimestamps['idle'] = Date.now();
-                this._onDidFireTrigger.fire('idle');
+        const threshold = this._adaptiveCadence.getIdleThreshold();
+        const alreadyIdle = this._inactivityService.getTimeSinceLastActivity();
+        const delay = Math.max(0, threshold - alreadyIdle);
+
+        this._idleTimer = setTimeout(() => {
+            this._idleTimer = undefined;
+            // Verify user is actually idle — activity during the timer resets idle clock
+            const currentIdle = this._inactivityService.getTimeSinceLastActivity();
+            const currentThreshold = this._adaptiveCadence.getIdleThreshold();
+            if (currentIdle < currentThreshold) {
+                // Activity happened since arming — re-arm with remaining time
+                this._armIdleTimer();
+                return;
             }
-        }, 5000);
+            this._lastTriggerTimestamps['idle'] = Date.now();
+            this._onDidFireTrigger.fire('idle');
+            // One-shot: do NOT re-arm. Wait for onDidResumeActivity.
+        }, delay);
     }
 
     /**
      * Check cooldown for a trigger type.
+     * Note: idle uses one-shot state machine and does not need cooldown.
      */
     private _checkCooldown(type: TriggerType): boolean {
         const lastTime = this._lastTriggerTimestamps[type];

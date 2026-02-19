@@ -180,7 +180,7 @@ EQ = mean(pair_scores) / 11</pre>
                             <li>On multiline paste detection.</li>
                             <li>When idle threshold exceeded (adaptive: 30s + 30s per ignore).</li>
                             <li>When selection maintained past threshold (adaptive: 15s + 15s per ignore).</li>
-                            <li>60-second cooldown between trigger evaluations.</li>
+                            <li>60-second cooldown between execution-error, paste, and selection triggers (idle is one-shot).</li>
                         </ul>
                     </div>
                     <div class="guardrail-card">

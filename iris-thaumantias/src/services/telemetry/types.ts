@@ -249,7 +249,9 @@ export interface TriggerConfig {
     readonly IDLE_MAX_THRESHOLD_MS: number;
     /** Selection threshold cap [Engineering choice] */
     readonly SELECTION_MAX_THRESHOLD_MS: number;
-    /** Cooldown between trigger evaluations [Engineering choice] */
+    /** Cooldown between trigger evaluations [Engineering choice].
+     *  Applies to execution-error, multiline-paste, selection-maintained.
+     *  Idle uses a one-shot state machine and does not use cooldown. */
     readonly TRIGGER_COOLDOWN_MS: number;
 }
 

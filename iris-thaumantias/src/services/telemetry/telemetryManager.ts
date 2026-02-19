@@ -206,11 +206,11 @@ export class TelemetryManager implements vscode.Disposable, WebSocketMessageHand
         this._eqEngine.resetSession();
         this._compileEmitter.reset();
         this._compileEmitter.setExerciseRoot(exerciseRoot);
+        this._inactivityService.reset();
         this._triggerEmitter.reset();
         this._adaptiveCadence.resetAll();
         this._interventionFilter.setExerciseStartTime();
         this._interventionService.reset();
-        this._inactivityService.reset();
         this._thrashingDetector.reset();
         this._buildTracker.reset();
 

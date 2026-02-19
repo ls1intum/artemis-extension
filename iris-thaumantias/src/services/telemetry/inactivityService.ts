@@ -37,6 +37,13 @@ export class InactivityService implements vscode.Disposable {
     private readonly _onDidChangePattern = new vscode.EventEmitter<InactivityPattern>();
     public readonly onDidChangePattern = this._onDidChangePattern.event;
 
+    /**
+     * Fires once when the user resumes activity after being idle (>= ACTIVE threshold).
+     * Used by BoundaryTriggerEmitter to re-arm the one-shot idle timer.
+     */
+    private readonly _onDidResumeActivity = new vscode.EventEmitter<void>();
+    public readonly onDidResumeActivity = this._onDidResumeActivity.event;
+
     constructor() {
         this._startTracking();
         this._startPatternCheck();
@@ -54,6 +61,7 @@ export class InactivityService implements vscode.Disposable {
         }
 
         this._onDidChangePattern.dispose();
+        this._onDidResumeActivity.dispose();
     }
 
     /**
@@ -94,6 +102,7 @@ export class InactivityService implements vscode.Disposable {
      * This fully resets all inactivity timers.
      */
     private _recordActivity(): void {
+        const wasIdle = this.getTimeSinceLastActivity() >= InactivityService.THRESHOLDS.ACTIVE;
         const now = Date.now();
         this._lastEditTimestamp = now;
         this._lastWeakActivityTimestamp = now;
@@ -102,6 +111,10 @@ export class InactivityService implements vscode.Disposable {
         if (newPattern !== this._currentPattern) {
             this._currentPattern = newPattern;
             this._onDidChangePattern.fire(this._currentPattern);
+        }
+
+        if (wasIdle) {
+            this._onDidResumeActivity.fire();
         }
     }
 
@@ -114,12 +127,17 @@ export class InactivityService implements vscode.Disposable {
      * the student is reading/scrolling without making progress, not productive work.
      */
     private _recordWeakActivity(): void {
+        const wasIdle = this.getTimeSinceLastActivity() >= InactivityService.THRESHOLDS.ACTIVE;
         this._lastWeakActivityTimestamp = Date.now();
         const newPattern = this._classifyPattern();
 
         if (newPattern !== this._currentPattern) {
             this._currentPattern = newPattern;
             this._onDidChangePattern.fire(this._currentPattern);
+        }
+
+        if (wasIdle) {
+            this._onDidResumeActivity.fire();
         }
     }
 
@@ -213,5 +231,13 @@ export class InactivityService implements vscode.Disposable {
      */
     public _testRecordActivity(): void {
         this._recordActivity();
+    }
+
+    /**
+     * TEST ONLY: Record weak activity manually (bypasses selection scheme check).
+     * Used by tests to simulate cursor movement.
+     */
+    public _testRecordWeakActivity(): void {
+        this._recordWeakActivity();
     }
 }
