@@ -54,6 +54,15 @@ function makeSelectionEvent(selections: Array<{ isEmpty: boolean }>): any {
     };
 }
 
+/** Create a mock TextDocumentChangeEvent for handleTextDocumentChange tests */
+function makeDocChangeEvent(changes: any[], scheme: string = 'file'): any {
+    return {
+        document: { uri: { scheme } },
+        contentChanges: changes,
+        reason: undefined,
+    };
+}
+
 suite('Boundary Trigger & Cadence Fixes', () => {
 
     let clock: sinon.SinonFakeTimers;
@@ -728,6 +737,406 @@ suite('Boundary Trigger & Cadence Fixes', () => {
                 'Selection threshold must not be affected by idle ignores');
             assert.strictEqual(cadence.getIdleThreshold(), 180_000,
                 'Idle should be capped');
+        });
+    });
+
+    // =========================================================================
+    // fireExecutionErrorTrigger()
+    // =========================================================================
+
+    suite('fireExecutionErrorTrigger()', () => {
+
+        let inactivityService: InactivityService;
+        let adaptiveCadence: AdaptiveCadence;
+        let emitter: BoundaryTriggerEmitter;
+        let firedTriggers: TriggerType[];
+
+        setup(() => {
+            inactivityService = new InactivityService();
+            adaptiveCadence = new AdaptiveCadence();
+            emitter = new BoundaryTriggerEmitter(inactivityService, adaptiveCadence);
+            firedTriggers = [];
+            emitter.onDidFireTrigger(t => firedTriggers.push(t));
+        });
+
+        teardown(() => {
+            emitter.dispose();
+            inactivityService.dispose();
+        });
+
+        test('fires execution-error trigger', () => {
+            emitter.fireExecutionErrorTrigger();
+            const errors = firedTriggers.filter(t => t === 'execution-error');
+            assert.strictEqual(errors.length, 1);
+        });
+
+        test('cooldown blocks within 60s', () => {
+            emitter.fireExecutionErrorTrigger();
+            clock.tick(30_000);
+            emitter.fireExecutionErrorTrigger();
+            const errors = firedTriggers.filter(t => t === 'execution-error');
+            assert.strictEqual(errors.length, 1, 'Second fire within cooldown should be blocked');
+        });
+
+        test('cooldown allows after 60s', () => {
+            emitter.fireExecutionErrorTrigger();
+            clock.tick(60_000);
+            emitter.fireExecutionErrorTrigger();
+            const errors = firedTriggers.filter(t => t === 'execution-error');
+            assert.strictEqual(errors.length, 2, 'Second fire after cooldown should succeed');
+        });
+    });
+
+    // =========================================================================
+    // handleTextDocumentChange() integration
+    // =========================================================================
+
+    suite('handleTextDocumentChange() integration', () => {
+
+        let inactivityService: InactivityService;
+        let adaptiveCadence: AdaptiveCadence;
+        let emitter: BoundaryTriggerEmitter;
+        let firedTriggers: TriggerType[];
+
+        setup(() => {
+            inactivityService = new InactivityService();
+            adaptiveCadence = new AdaptiveCadence();
+            emitter = new BoundaryTriggerEmitter(inactivityService, adaptiveCadence);
+            firedTriggers = [];
+            emitter.onDidFireTrigger(t => firedTriggers.push(t));
+        });
+
+        teardown(() => {
+            emitter.dispose();
+            inactivityService.dispose();
+        });
+
+        test('multi-line paste fires multiline-paste trigger', () => {
+            const pasteChange = makeChangeEvent({
+                text: 'line1\nline2\n',
+                rangeLength: 0,
+                rangeIsEmpty: true,
+                rangeIsSingleLine: true,
+            });
+            emitter.handleTextDocumentChange(makeDocChangeEvent([pasteChange]));
+            const pastes = firedTriggers.filter(t => t === 'multiline-paste');
+            assert.strictEqual(pastes.length, 1);
+        });
+
+        test('non-file scheme is ignored', () => {
+            const pasteChange = makeChangeEvent({
+                text: 'line1\nline2\n',
+                rangeLength: 0,
+                rangeIsEmpty: true,
+                rangeIsSingleLine: true,
+            });
+            emitter.handleTextDocumentChange(makeDocChangeEvent([pasteChange], 'git'));
+            const pastes = firedTriggers.filter(t => t === 'multiline-paste');
+            assert.strictEqual(pastes.length, 0, 'Non-file scheme should be ignored');
+        });
+
+        test('single-line change does not fire', () => {
+            const singleChange = makeChangeEvent({
+                text: 'just one line',
+                rangeLength: 0,
+                rangeIsEmpty: true,
+                rangeIsSingleLine: true,
+            });
+            emitter.handleTextDocumentChange(makeDocChangeEvent([singleChange]));
+            const pastes = firedTriggers.filter(t => t === 'multiline-paste');
+            assert.strictEqual(pastes.length, 0, 'Single-line change should not fire');
+        });
+
+        test('cooldown blocks second paste within 60s', () => {
+            const pasteChange = makeChangeEvent({
+                text: 'line1\nline2\n',
+                rangeLength: 0,
+                rangeIsEmpty: true,
+                rangeIsSingleLine: true,
+            });
+
+            emitter.handleTextDocumentChange(makeDocChangeEvent([pasteChange]));
+            clock.tick(30_000);
+            emitter.handleTextDocumentChange(makeDocChangeEvent([pasteChange]));
+            const pastes = firedTriggers.filter(t => t === 'multiline-paste');
+            assert.strictEqual(pastes.length, 1, 'Second paste within cooldown should be blocked');
+        });
+
+        test('cooldown allows after 60s', () => {
+            const pasteChange = makeChangeEvent({
+                text: 'line1\nline2\n',
+                rangeLength: 0,
+                rangeIsEmpty: true,
+                rangeIsSingleLine: true,
+            });
+
+            emitter.handleTextDocumentChange(makeDocChangeEvent([pasteChange]));
+            clock.tick(60_000);
+            emitter.handleTextDocumentChange(makeDocChangeEvent([pasteChange]));
+            const pastes = firedTriggers.filter(t => t === 'multiline-paste');
+            assert.strictEqual(pastes.length, 2, 'Second paste after cooldown should succeed');
+        });
+
+        test('only first matching change fires per event', () => {
+            const pasteChange1 = makeChangeEvent({
+                text: 'line1\nline2\n',
+                rangeLength: 0,
+                rangeIsEmpty: true,
+                rangeIsSingleLine: true,
+            });
+            const pasteChange2 = makeChangeEvent({
+                text: 'line3\nline4\n',
+                rangeLength: 0,
+                rangeIsEmpty: true,
+                rangeIsSingleLine: true,
+            });
+            emitter.handleTextDocumentChange(makeDocChangeEvent([pasteChange1, pasteChange2]));
+            const pastes = firedTriggers.filter(t => t === 'multiline-paste');
+            assert.strictEqual(pastes.length, 1, 'Only one trigger per event');
+        });
+    });
+
+    // =========================================================================
+    // Fresh threshold in idle callback (Fix 1 dedicated test)
+    // =========================================================================
+
+    suite('Fresh threshold in idle callback (Fix 1)', () => {
+
+        let inactivityService: InactivityService;
+        let adaptiveCadence: AdaptiveCadence;
+        let emitter: BoundaryTriggerEmitter;
+        let firedTriggers: TriggerType[];
+
+        setup(() => {
+            inactivityService = new InactivityService();
+            adaptiveCadence = new AdaptiveCadence();
+            emitter = new BoundaryTriggerEmitter(inactivityService, adaptiveCadence);
+            firedTriggers = [];
+            emitter.onDidFireTrigger(t => firedTriggers.push(t));
+        });
+
+        teardown(() => {
+            emitter.dispose();
+            inactivityService.dispose();
+        });
+
+        test('threshold increase between arm and fire is respected', () => {
+            // Timer armed at construction with 30s threshold (delay=30s).
+            // Activity baseline is construction time (IS constructor sets Date.now).
+            inactivityService._testRecordActivity();
+
+            // Tick 15s — timer still pending (armed for 30s)
+            clock.tick(15_000);
+
+            // Increase threshold to 60s
+            adaptiveCadence.incrementIgnoreCount('idle');
+            assert.strictEqual(adaptiveCadence.getIdleThreshold(), 60_000);
+
+            // Tick 15s more → timer fires at 30s mark.
+            // Callback reads FRESH threshold: currentIdle=30s < currentThreshold=60s → re-arms.
+            clock.tick(15_000);
+            assert.strictEqual(
+                firedTriggers.filter(t => t === 'idle').length, 0,
+                'Idle must NOT fire — threshold increased to 60s but only 30s idle',
+            );
+
+            // Tick 30s more → re-armed timer fires at 60s total idle.
+            // Callback: currentIdle=60s >= currentThreshold=60s → fires.
+            clock.tick(30_001);
+            assert.strictEqual(
+                firedTriggers.filter(t => t === 'idle').length, 1,
+                'Idle should fire after 60s of actual idle matching increased threshold',
+            );
+        });
+
+        test('threshold decrease between arm and fire: re-arm uses new threshold', () => {
+            // Set up 60s threshold, then arm via reset
+            adaptiveCadence.incrementIgnoreCount('idle'); // threshold = 60s
+            inactivityService._testRecordActivity();
+            emitter.reset(); // clears old timer, re-arms with 60s threshold (delay=60s)
+
+            clock.tick(15_000);
+
+            // Drop threshold back to 30s
+            adaptiveCadence.resetAll();
+            assert.strictEqual(adaptiveCadence.getIdleThreshold(), 30_000);
+
+            // Tick 15s more (30s total idle) — triggers resume on next activity
+            clock.tick(15_000);
+
+            // Resume activity after 30s idle → onDidResumeActivity → re-arm
+            // Re-arm reads current 30s threshold, alreadyIdle=0 → delay=30s
+            inactivityService._testRecordActivity();
+
+            // Tick 30s+1 → new timer fires using 30s threshold
+            clock.tick(30_001);
+            assert.strictEqual(
+                firedTriggers.filter(t => t === 'idle').length, 1,
+                'Re-arm after threshold decrease should use new 30s threshold',
+            );
+        });
+    });
+
+    // =========================================================================
+    // handleSelectionChange() cooldown
+    // =========================================================================
+
+    suite('handleSelectionChange() cooldown', () => {
+
+        let inactivityService: InactivityService;
+        let adaptiveCadence: AdaptiveCadence;
+        let emitter: BoundaryTriggerEmitter;
+        let firedTriggers: TriggerType[];
+
+        setup(() => {
+            inactivityService = new InactivityService();
+            adaptiveCadence = new AdaptiveCadence();
+            emitter = new BoundaryTriggerEmitter(inactivityService, adaptiveCadence);
+            firedTriggers = [];
+            emitter.onDidFireTrigger(t => firedTriggers.push(t));
+        });
+
+        teardown(() => {
+            emitter.dispose();
+            inactivityService.dispose();
+        });
+
+        test('second selection-maintained blocked within 60s cooldown', () => {
+            const selections = () => firedTriggers.filter(t => t === 'selection-maintained');
+
+            emitter.handleSelectionChange(makeSelectionEvent([{ isEmpty: false }]));
+            clock.tick(DEFAULT_TRIGGER_CONFIG.SELECTION_INITIAL_MS + 1000); // fires
+            assert.strictEqual(selections().length, 1, 'First selection should fire');
+
+            emitter.handleSelectionChange(makeSelectionEvent([{ isEmpty: false }]));
+            clock.tick(DEFAULT_TRIGGER_CONFIG.SELECTION_INITIAL_MS + 1000);
+            assert.strictEqual(selections().length, 1, 'Second within cooldown should be blocked');
+        });
+
+        test('second selection-maintained allowed after 60s cooldown', () => {
+            const selections = () => firedTriggers.filter(t => t === 'selection-maintained');
+
+            emitter.handleSelectionChange(makeSelectionEvent([{ isEmpty: false }]));
+            clock.tick(DEFAULT_TRIGGER_CONFIG.SELECTION_INITIAL_MS + 1000);
+            assert.strictEqual(selections().length, 1);
+
+            clock.tick(60_000); // wait for cooldown
+
+            emitter.handleSelectionChange(makeSelectionEvent([{ isEmpty: false }]));
+            clock.tick(DEFAULT_TRIGGER_CONFIG.SELECTION_INITIAL_MS + 1000);
+            assert.strictEqual(selections().length, 2, 'Second after cooldown should fire');
+        });
+    });
+
+    // =========================================================================
+    // reset() — selection timer and cooldown clearing
+    // =========================================================================
+
+    suite('reset() — selection timer and cooldown clearing', () => {
+
+        let inactivityService: InactivityService;
+        let adaptiveCadence: AdaptiveCadence;
+        let emitter: BoundaryTriggerEmitter;
+        let firedTriggers: TriggerType[];
+
+        setup(() => {
+            inactivityService = new InactivityService();
+            adaptiveCadence = new AdaptiveCadence();
+            emitter = new BoundaryTriggerEmitter(inactivityService, adaptiveCadence);
+            firedTriggers = [];
+            emitter.onDidFireTrigger(t => firedTriggers.push(t));
+        });
+
+        teardown(() => {
+            emitter.dispose();
+            inactivityService.dispose();
+        });
+
+        test('reset() cancels running selection timer', () => {
+            emitter.handleSelectionChange(makeSelectionEvent([{ isEmpty: false }]));
+
+            clock.tick(DEFAULT_TRIGGER_CONFIG.SELECTION_INITIAL_MS / 2);
+            emitter.reset();
+
+            // Tick well past original threshold — idle may fire from re-arm, but selection must not
+            clock.tick(DEFAULT_TRIGGER_CONFIG.SELECTION_INITIAL_MS * 2);
+
+            const selections = firedTriggers.filter(t => t === 'selection-maintained');
+            assert.strictEqual(selections.length, 0, 'reset() should cancel selection timer');
+        });
+
+        test('reset() clears cooldown timestamps', () => {
+            emitter.fireExecutionErrorTrigger();
+            const errors = () => firedTriggers.filter(t => t === 'execution-error');
+            assert.strictEqual(errors().length, 1);
+
+            emitter.reset();
+
+            // Fire immediately — should succeed because cooldown was cleared
+            emitter.fireExecutionErrorTrigger();
+            assert.strictEqual(errors().length, 2, 'After reset, cooldown should be cleared');
+        });
+    });
+
+    // =========================================================================
+    // AdaptiveCadence.resetIgnoreCount() (single type)
+    // =========================================================================
+
+    suite('AdaptiveCadence.resetIgnoreCount() (single type)', () => {
+
+        test('resetIgnoreCount resets only specified type', () => {
+            const cadence = new AdaptiveCadence();
+
+            for (let i = 0; i < 3; i++) {
+                cadence.incrementIgnoreCount('idle');
+            }
+            for (let i = 0; i < 2; i++) {
+                cadence.incrementIgnoreCount('selection-maintained');
+            }
+
+            assert.strictEqual(cadence.getIdleThreshold(), 120_000); // 30 + 3*30 = 120s
+            assert.strictEqual(cadence.getSelectionThreshold(), 45_000); // 15 + 2*15 = 45s
+
+            cadence.resetIgnoreCount('idle');
+
+            assert.strictEqual(cadence.getIdleThreshold(), 30_000, 'Idle should reset to initial');
+            assert.strictEqual(cadence.getSelectionThreshold(), 45_000, 'Selection should be unchanged');
+        });
+    });
+
+    // =========================================================================
+    // dispose() stops idle timer from firing
+    // =========================================================================
+
+    suite('dispose() stops idle timer from firing', () => {
+
+        let inactivityService: InactivityService;
+        let adaptiveCadence: AdaptiveCadence;
+        let emitter: BoundaryTriggerEmitter;
+        let firedTriggers: TriggerType[];
+
+        setup(() => {
+            inactivityService = new InactivityService();
+            adaptiveCadence = new AdaptiveCadence();
+            emitter = new BoundaryTriggerEmitter(inactivityService, adaptiveCadence);
+            firedTriggers = [];
+            emitter.onDidFireTrigger(t => firedTriggers.push(t));
+        });
+
+        teardown(() => {
+            // emitter already disposed in the test
+            inactivityService.dispose();
+        });
+
+        test('dispose prevents pending idle timer from firing', () => {
+            inactivityService._testRecordActivity();
+
+            clock.tick(DEFAULT_TRIGGER_CONFIG.IDLE_INITIAL_MS / 2);
+            emitter.dispose();
+
+            clock.tick(DEFAULT_TRIGGER_CONFIG.IDLE_INITIAL_MS * 2);
+            const idles = firedTriggers.filter(t => t === 'idle');
+            assert.strictEqual(idles.length, 0, 'dispose() should prevent idle timer from firing');
         });
     });
 });
