@@ -376,7 +376,7 @@ export class TelemetryManager implements vscode.Disposable, WebSocketMessageHand
         const level = this._getRecommendedAction(eq, confidence);
 
         return {
-            isStruggling: confidence !== 'none' && confidence !== 'low' && eq >= 0.15,
+            isStruggling: confidence !== 'insufficient' && eq >= 0.15,
             eq,
             eqConfidence: confidence,
             triggerType: this._lastTriggerType,
@@ -424,7 +424,7 @@ export class TelemetryManager implements vscode.Disposable, WebSocketMessageHand
     }
 
     private _getRecommendedAction(eq: number, confidence: EQConfidence): RecommendedAction {
-        if (confidence === 'none' || confidence === 'low') {
+        if (confidence === 'insufficient') {
             return 'none';
         }
         if (eq >= 0.60) {
@@ -475,7 +475,7 @@ export class TelemetryManager implements vscode.Disposable, WebSocketMessageHand
     }
 
     private _getEQEmoji(eq: number, confidence: EQConfidence): string {
-        if (confidence === 'none' || confidence === 'low') {
+        if (confidence === 'insufficient') {
             return '$(circle-outline)';
         }
         if (eq < 0.15) {
@@ -503,7 +503,7 @@ export class TelemetryManager implements vscode.Disposable, WebSocketMessageHand
     }
 
     private _getEQBackground(eq: number, confidence: EQConfidence): vscode.ThemeColor | undefined {
-        if (confidence === 'none' || confidence === 'low') {
+        if (confidence === 'insufficient') {
             return undefined;
         }
         if (eq < 0.35) {

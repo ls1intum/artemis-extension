@@ -42,17 +42,17 @@ suite('ErrorQuotientEngine', () => {
 
     suite('Basic EQ Calculation', () => {
 
-        test('empty engine returns EQ=0, confidence=none', () => {
+        test('empty engine returns EQ=0, confidence=insufficient', () => {
             const { eq, confidence } = engine.getCurrentEQ();
             assert.strictEqual(eq, 0);
-            assert.strictEqual(confidence, 'none');
+            assert.strictEqual(confidence, 'insufficient');
         });
 
-        test('single snapshot returns EQ=0, confidence=none', () => {
+        test('single snapshot returns EQ=0, confidence=insufficient', () => {
             engine.addSnapshot(makeSnapshot(1000, true, ['ts:2304']));
             const { eq, confidence } = engine.getCurrentEQ();
             assert.strictEqual(eq, 0);
-            assert.strictEqual(confidence, 'none');
+            assert.strictEqual(confidence, 'insufficient');
         });
 
         test('two clean snapshots → EQ=0', () => {
@@ -157,41 +157,44 @@ suite('ErrorQuotientEngine', () => {
     // Confidence Levels
     // =========================================================================
 
-    suite('Confidence Levels', () => {
+    suite('Confidence Levels (binary gate)', () => {
 
-        test('0-1 snapshots → none', () => {
-            assert.strictEqual(engine.getCurrentEQ().confidence, 'none');
-            engine.addSnapshot(makeSnapshot(1000, true, ['ts:2304']));
-            assert.strictEqual(engine.getCurrentEQ().confidence, 'none');
+        test('0 snapshots → insufficient', () => {
+            assert.strictEqual(engine.getCurrentEQ().confidence, 'insufficient');
         });
 
-        test('2-3 snapshots (1-2 pairs) → none', () => {
+        test('1 snapshot → insufficient', () => {
+            engine.addSnapshot(makeSnapshot(1000, true, ['ts:2304']));
+            assert.strictEqual(engine.getCurrentEQ().confidence, 'insufficient');
+        });
+
+        test('2-3 snapshots (1-2 pairs) → insufficient', () => {
             engine.addSnapshot(makeSnapshot(1000, true, ['ts:2304']));
             engine.addSnapshot(makeSnapshot(7000, true, ['ts:2304']));
-            assert.strictEqual(engine.getCurrentEQ().confidence, 'none');
+            assert.strictEqual(engine.getCurrentEQ().confidence, 'insufficient');
             engine.addSnapshot(makeSnapshot(13000, true, ['ts:2304']));
-            assert.strictEqual(engine.getCurrentEQ().confidence, 'none');
+            assert.strictEqual(engine.getCurrentEQ().confidence, 'insufficient');
         });
 
-        test('4-6 snapshots (3-5 pairs) → low', () => {
-            for (let i = 0; i < 4; i++) {
+        test('4-6 snapshots (3-5 pairs) → insufficient', () => {
+            for (let i = 0; i < 6; i++) {
                 engine.addSnapshot(makeSnapshot(1000 + i * 6000, true, ['ts:2304']));
             }
-            assert.strictEqual(engine.getCurrentEQ().confidence, 'low');
+            assert.strictEqual(engine.getCurrentEQ().confidence, 'insufficient');
         });
 
-        test('7-15 snapshots (6-14 pairs) → medium', () => {
+        test('7 snapshots (6 pairs) → sufficient [P3, Section 4]', () => {
             for (let i = 0; i < 7; i++) {
                 engine.addSnapshot(makeSnapshot(1000 + i * 6000, true, ['ts:2304']));
             }
-            assert.strictEqual(engine.getCurrentEQ().confidence, 'medium');
+            assert.strictEqual(engine.getCurrentEQ().confidence, 'sufficient');
         });
 
-        test('16+ snapshots (15+ pairs) → high', () => {
+        test('16+ snapshots (15+ pairs) → sufficient', () => {
             for (let i = 0; i < 16; i++) {
                 engine.addSnapshot(makeSnapshot(1000 + i * 6000, true, ['ts:2304']));
             }
-            assert.strictEqual(engine.getCurrentEQ().confidence, 'high');
+            assert.strictEqual(engine.getCurrentEQ().confidence, 'sufficient');
         });
     });
 
@@ -273,7 +276,7 @@ suite('ErrorQuotientEngine', () => {
 
             engine.resetSession();
             assert.strictEqual(engine.getCurrentEQ().eq, 0);
-            assert.strictEqual(engine.getCurrentEQ().confidence, 'none');
+            assert.strictEqual(engine.getCurrentEQ().confidence, 'insufficient');
             assert.strictEqual(engine.getState().snapshots.length, 0);
         });
     });
@@ -321,7 +324,7 @@ suite('ErrorQuotientEngine', () => {
                 engine.addSnapshot(makeSnapshot(1000 + i * 6000, true, ['ts:2304']));
             }
             assert.strictEqual(engine.getCurrentEQ().eq, 1.0);
-            assert.strictEqual(engine.getCurrentEQ().confidence, 'medium');
+            assert.strictEqual(engine.getCurrentEQ().confidence, 'sufficient');
         });
     });
 
@@ -364,7 +367,7 @@ suite('ErrorQuotientEngine', () => {
             assert.strictEqual(state.snapshots.length, 3);
             assert.strictEqual(state.pairCount, 2);
             assert.strictEqual(state.currentEQ, 1.0);
-            assert.strictEqual(state.confidence, 'none'); // 2 pairs < 3
+            assert.strictEqual(state.confidence, 'insufficient'); // 2 pairs < 6
         });
     });
 });
@@ -398,71 +401,65 @@ suite('EQ Threshold Boundary Tests (InterventionDecisionEngine)', () => {
     // --- 0.15 boundary (none → subtle) ---
 
     test('EQ = 0.1499 → level = none', () => {
-        const result = decisionEngine.evaluate(0.1499, 'medium', 'idle', defaultState);
+        const result = decisionEngine.evaluate(0.1499, 'sufficient', 'idle', defaultState);
         assert.strictEqual(result.level, 'none');
         assert.strictEqual(result.shouldIntervene, false);
     });
 
     test('EQ = 0.15 → level = subtle', () => {
-        const result = decisionEngine.evaluate(0.15, 'medium', 'idle', defaultState);
+        const result = decisionEngine.evaluate(0.15, 'sufficient', 'idle', defaultState);
         assert.strictEqual(result.level, 'subtle');
     });
 
     test('EQ = 0.1501 → level = subtle', () => {
-        const result = decisionEngine.evaluate(0.1501, 'medium', 'idle', defaultState);
+        const result = decisionEngine.evaluate(0.1501, 'sufficient', 'idle', defaultState);
         assert.strictEqual(result.level, 'subtle');
     });
 
     // --- 0.35 boundary (subtle → notification) ---
 
     test('EQ = 0.3499 → level = subtle', () => {
-        const result = decisionEngine.evaluate(0.3499, 'medium', 'idle', defaultState);
+        const result = decisionEngine.evaluate(0.3499, 'sufficient', 'idle', defaultState);
         assert.strictEqual(result.level, 'subtle');
     });
 
     test('EQ = 0.35 → level = notification', () => {
-        const result = decisionEngine.evaluate(0.35, 'medium', 'idle', defaultState);
+        const result = decisionEngine.evaluate(0.35, 'sufficient', 'idle', defaultState);
         assert.strictEqual(result.level, 'notification');
     });
 
     test('EQ = 0.3501 → level = notification', () => {
-        const result = decisionEngine.evaluate(0.3501, 'medium', 'idle', defaultState);
+        const result = decisionEngine.evaluate(0.3501, 'sufficient', 'idle', defaultState);
         assert.strictEqual(result.level, 'notification');
     });
 
     // --- 0.60 boundary (notification → proactive) ---
 
     test('EQ = 0.5999 → level = notification', () => {
-        const result = decisionEngine.evaluate(0.5999, 'medium', 'idle', defaultState);
+        const result = decisionEngine.evaluate(0.5999, 'sufficient', 'idle', defaultState);
         assert.strictEqual(result.level, 'notification');
     });
 
     test('EQ = 0.60 → level = proactive', () => {
-        const result = decisionEngine.evaluate(0.60, 'medium', 'idle', defaultState);
+        const result = decisionEngine.evaluate(0.60, 'sufficient', 'idle', defaultState);
         assert.strictEqual(result.level, 'proactive');
     });
 
     test('EQ = 0.6001 → level = proactive', () => {
-        const result = decisionEngine.evaluate(0.6001, 'medium', 'idle', defaultState);
+        const result = decisionEngine.evaluate(0.6001, 'sufficient', 'idle', defaultState);
         assert.strictEqual(result.level, 'proactive');
     });
 
     // --- Confidence gate overrides EQ ---
 
-    test('EQ = 1.0 but confidence = none → no intervention', () => {
-        const result = decisionEngine.evaluate(1.0, 'none', 'idle', defaultState);
+    test('EQ = 1.0 but confidence = insufficient → no intervention', () => {
+        const result = decisionEngine.evaluate(1.0, 'insufficient', 'idle', defaultState);
         assert.strictEqual(result.shouldIntervene, false);
         assert.strictEqual(result.level, 'none');
     });
 
-    test('EQ = 1.0 but confidence = low → no intervention', () => {
-        const result = decisionEngine.evaluate(1.0, 'low', 'idle', defaultState);
-        assert.strictEqual(result.shouldIntervene, false);
-        assert.strictEqual(result.level, 'none');
-    });
-
-    test('EQ = 0.15 with confidence = medium → subtle intervention', () => {
-        const result = decisionEngine.evaluate(0.15, 'medium', 'idle', defaultState);
+    test('EQ = 0.15 with confidence = sufficient → subtle intervention', () => {
+        const result = decisionEngine.evaluate(0.15, 'sufficient', 'idle', defaultState);
         assert.strictEqual(result.level, 'subtle');
     });
 
@@ -478,7 +475,7 @@ suite('EQ Threshold Boundary Tests (InterventionDecisionEngine)', () => {
         }
         const { eq, confidence } = engine.getCurrentEQ();
         assertApprox(eq, 1 / 6); // ≈ 0.1667
-        assert.strictEqual(confidence, 'medium');
+        assert.strictEqual(confidence, 'sufficient');
         const result = decisionEngine.evaluate(eq, confidence, 'idle', defaultState);
         assert.strictEqual(result.level, 'subtle');
     });
@@ -492,7 +489,7 @@ suite('EQ Threshold Boundary Tests (InterventionDecisionEngine)', () => {
         }
         const { eq, confidence } = engine.getCurrentEQ();
         assertApprox(eq, 8 / 66); // ≈ 0.1212
-        assert.strictEqual(confidence, 'medium');
+        assert.strictEqual(confidence, 'sufficient');
         const result = decisionEngine.evaluate(eq, confidence, 'idle', defaultState);
         assert.strictEqual(result.level, 'none');
     });
@@ -508,7 +505,7 @@ suite('EQ Threshold Boundary Tests (InterventionDecisionEngine)', () => {
         }
         const { eq } = engine.getCurrentEQ();
         assertApprox(eq, 2 / 6); // ≈ 0.3333
-        const result = decisionEngine.evaluate(eq, 'medium', 'idle', defaultState);
+        const result = decisionEngine.evaluate(eq, 'sufficient', 'idle', defaultState);
         assert.strictEqual(result.level, 'subtle');
     });
 
@@ -523,7 +520,7 @@ suite('EQ Threshold Boundary Tests (InterventionDecisionEngine)', () => {
         engine.addSnapshot(makeSnapshot(37000, false));
         const { eq } = engine.getCurrentEQ();
         assertApprox(eq, 4 / 6); // ≈ 0.6667
-        const result = decisionEngine.evaluate(eq, 'medium', 'idle', defaultState);
+        const result = decisionEngine.evaluate(eq, 'sufficient', 'idle', defaultState);
         assert.strictEqual(result.level, 'proactive');
     });
 });

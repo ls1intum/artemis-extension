@@ -37,7 +37,7 @@ const EQ_STRUGGLE_THRESHOLD = 0.15;
  * EQ thresholds for recommended action — matches InterventionDecisionEngine.
  */
 function getRecommendedAction(eq: number, confidence: EQConfidence): RecommendedAction {
-    if (confidence === 'none' || confidence === 'low') {
+    if (confidence === 'insufficient') {
         return 'none';
     }
     if (eq >= 0.60) { return 'proactive'; }
@@ -47,7 +47,7 @@ function getRecommendedAction(eq: number, confidence: EQConfidence): Recommended
 }
 
 function isStruggling(eq: number, confidence: EQConfidence): boolean {
-    return confidence !== 'none' && confidence !== 'low' && eq >= EQ_STRUGGLE_THRESHOLD;
+    return confidence !== 'insufficient' && eq >= EQ_STRUGGLE_THRESHOLD;
 }
 
 /**

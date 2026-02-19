@@ -53,7 +53,7 @@ export class ErrorQuotientEngine {
      */
     public getCurrentEQ(): { eq: number; confidence: EQConfidence } {
         if (this._snapshots.length < 2) {
-            return { eq: 0, confidence: 'none' };
+            return { eq: 0, confidence: 'insufficient' };
         }
 
         let totalNormalizedScore = 0;
@@ -133,19 +133,10 @@ export class ErrorQuotientEngine {
 
     /**
      * Determine confidence from pair count.
-     * Paper minimum: >=7 events = >=6 pairs [P3, Section 4]
+     * ✅ Paper minimum: >=7 events = >=6 pairs [P3, Section 4]
      */
     private _calculateConfidence(pairCount: number): EQConfidence {
-        if (pairCount < 3) {
-            return 'none';
-        }
-        if (pairCount < 6) {
-            return 'low';
-        }
-        if (pairCount < 15) {
-            return 'medium';
-        }
-        return 'high';
+        return pairCount >= 6 ? 'sufficient' : 'insufficient';
     }
 
     /**

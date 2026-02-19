@@ -186,10 +186,10 @@ export interface EQState {
 }
 
 /**
- * EQ confidence level based on number of compile-equivalent events.
- * Paper minimum: >=7 events = >=6 pairs [P3, Section 4]
+ * EQ confidence — binary gate based on Jadud's minimum.
+ * ✅ Paper-validated: >=7 events = >=6 pairs [P3, Section 4]
  */
-export type EQConfidence = 'none' | 'low' | 'medium' | 'high';
+export type EQConfidence = 'insufficient' | 'sufficient';
 
 /**
  * EQ configuration — paper-validated weights and thresholds.

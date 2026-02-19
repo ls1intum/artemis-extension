@@ -34,7 +34,7 @@ const DEFAULT_THRESHOLDS: DecisionThresholds = {
  * Maps EQ scores + trigger events to intervention decisions.
  *
  * Flow:
- *   1. Confidence gate: none/low → no intervention
+ *   1. Confidence gate: insufficient → no intervention
  *   2. EQ thresholds → level (none/subtle/notification/proactive)
  *   3. Pass through InterventionFilter guardrails
  */
@@ -56,9 +56,9 @@ export class InterventionDecisionEngine {
         triggerType: TriggerType | undefined,
         interventionState: InterventionState,
     ): InterventionDecision {
-        // 1. Confidence gate: none/low → no intervention
-        //    Paper minimum: >=7 events = >=6 pairs [P3, Section 4]
-        if (confidence === 'none' || confidence === 'low') {
+        // 1. Confidence gate: insufficient → no intervention
+        //    ✅ Paper minimum: >=7 events = >=6 pairs [P3, Section 4]
+        if (confidence === 'insufficient') {
             return {
                 shouldIntervene: false,
                 level: 'none',
