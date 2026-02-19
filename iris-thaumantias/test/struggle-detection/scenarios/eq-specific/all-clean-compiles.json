@@ -1,0 +1,29 @@
+{
+    "id": "eq-all-clean-compiles",
+    "name": "All Clean Compiles",
+    "description": "8 saves with no errors. All pairs score 0. EQ=0.0.",
+    "difficulty": "obvious",
+    "tags": ["eq-specific", "clean", "baseline"],
+    "expectedOutcome": {
+        "shouldDetectStruggle": false,
+        "expectedEQ": { "min": 0.0, "max": 0.0 },
+        "expectedAction": "none"
+    },
+    "events": [
+        { "type": "save", "timestamp": 0, "file": "Main.java" },
+        { "type": "wait", "duration": 6000 },
+        { "type": "save", "timestamp": 6000, "file": "Main.java" },
+        { "type": "wait", "duration": 6000 },
+        { "type": "save", "timestamp": 12000, "file": "Main.java" },
+        { "type": "wait", "duration": 6000 },
+        { "type": "save", "timestamp": 18000, "file": "Main.java" },
+        { "type": "wait", "duration": 6000 },
+        { "type": "save", "timestamp": 24000, "file": "Main.java" },
+        { "type": "wait", "duration": 6000 },
+        { "type": "save", "timestamp": 30000, "file": "Main.java" },
+        { "type": "wait", "duration": 6000 },
+        { "type": "save", "timestamp": 36000, "file": "Main.java" },
+        { "type": "wait", "duration": 6000 },
+        { "type": "save", "timestamp": 42000, "file": "Main.java" }
+    ]
+}

@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { CombinedStruggleScore, InterventionState, RecommendedAction } from './types';
+import { CombinedStruggleScore, InterventionDecision, InterventionState, RecommendedAction } from './types';
 
 /**
  * Service that handles UI interventions based on struggle detection.
@@ -15,6 +15,12 @@ export class InterventionService implements vscode.Disposable {
 
     private readonly _onDidRequestHelp = new vscode.EventEmitter<CombinedStruggleScore>();
     public readonly onDidRequestHelp = this._onDidRequestHelp.event;
+
+    private readonly _onDidDismissIntervention = new vscode.EventEmitter<void>();
+    public readonly onDidDismissIntervention = this._onDidDismissIntervention.event;
+
+    private readonly _onDidAcceptIntervention = new vscode.EventEmitter<void>();
+    public readonly onDidAcceptIntervention = this._onDidAcceptIntervention.event;
 
     constructor() {
         this._statusBarItem = vscode.window.createStatusBarItem(
@@ -42,6 +48,8 @@ export class InterventionService implements vscode.Disposable {
         }
 
         this._onDidRequestHelp.dispose();
+        this._onDidDismissIntervention.dispose();
+        this._onDidAcceptIntervention.dispose();
     }
 
     /**
@@ -122,6 +130,88 @@ export class InterventionService implements vscode.Disposable {
     }
 
     /**
+     * Show subtle hint with EQ context
+     */
+    public showSubtleHintEQ(decision: InterventionDecision): void {
+        const eqPercent = Math.round(decision.eq * 100);
+        this._statusBarItem.text = '$(lightbulb) Need help?';
+        this._statusBarItem.tooltip = `EQ: ${eqPercent}% — Click to open Iris Chat for assistance`;
+        this._statusBarItem.backgroundColor = undefined;
+        this._statusBarItem.show();
+    }
+
+    /**
+     * Show notification-level intervention with EQ context
+     */
+    public async showNotificationEQ(decision: InterventionDecision): Promise<void> {
+        if (!this._canIntervene()) {
+            return;
+        }
+
+        this._recordIntervention();
+
+        const eqPercent = Math.round(decision.eq * 100);
+        this._statusBarItem.text = '$(lightbulb) Stuck? Let me help!';
+        this._statusBarItem.tooltip = `EQ: ${eqPercent}% — Click to get help from Iris`;
+        this._statusBarItem.backgroundColor = new vscode.ThemeColor('statusBarItem.warningBackground');
+        this._statusBarItem.show();
+
+        const message = this._buildNotificationMessageEQ(decision);
+        const result = await vscode.window.showInformationMessage(
+            message,
+            'Open Iris Chat',
+            'Not now'
+        );
+
+        if (result === 'Open Iris Chat') {
+            this._state.lastAccepted = true;
+            this._state.lastDismissed = false;
+            this._onDidAcceptIntervention.fire();
+            await vscode.commands.executeCommand('iris.chatView.focus');
+        } else {
+            this._state.lastDismissed = true;
+            this._state.lastAccepted = false;
+            this._onDidDismissIntervention.fire();
+        }
+    }
+
+    /**
+     * Show proactive help with EQ context
+     */
+    public async showProactiveHelpEQ(decision: InterventionDecision): Promise<void> {
+        if (!this._canIntervene()) {
+            return;
+        }
+
+        this._recordIntervention();
+
+        const eqPercent = Math.round(decision.eq * 100);
+        this._statusBarItem.text = '$(warning) Help available!';
+        this._statusBarItem.tooltip = `EQ: ${eqPercent}% — Iris detected you might be struggling`;
+        this._statusBarItem.backgroundColor = new vscode.ThemeColor('statusBarItem.errorBackground');
+        this._statusBarItem.show();
+
+        const message = this._buildProactiveMessageEQ(decision);
+        const result = await vscode.window.showWarningMessage(
+            message,
+            { modal: false },
+            'Get Help Now',
+            'Later'
+        );
+
+        if (result === 'Get Help Now') {
+            this._state.lastAccepted = true;
+            this._state.lastDismissed = false;
+            this._onDidAcceptIntervention.fire();
+            await vscode.commands.executeCommand('iris.chatView.focus');
+        } else {
+            this._state.lastDismissed = true;
+            this._state.lastAccepted = false;
+            this._onDidDismissIntervention.fire();
+        }
+    }
+
+    /**
      * Hide the status bar hint
      */
     public hideHint(): void {
@@ -181,6 +271,26 @@ export class InterventionService implements vscode.Disposable {
             return "You've been working on some persistent errors. Would you like Iris to explain what might be wrong?";
         }
 
+        return 'Iris noticed you might be having some difficulty. Want some guidance?';
+    }
+
+    /**
+     * Build notification message for EQ-based intervention
+     */
+    private _buildNotificationMessageEQ(decision: InterventionDecision): string {
+        if (decision.eq >= 0.45) {
+            return 'You seem to be running into repeated errors. Would you like help from Iris?';
+        }
+        return 'It looks like you might be stuck. Would you like help from Iris?';
+    }
+
+    /**
+     * Build proactive message for EQ-based intervention
+     */
+    private _buildProactiveMessageEQ(decision: InterventionDecision): string {
+        if (decision.eq >= 0.8) {
+            return "You've been encountering the same errors repeatedly. Let Iris help you work through this!";
+        }
         return 'Iris noticed you might be having some difficulty. Want some guidance?';
     }
 

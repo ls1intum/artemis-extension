@@ -1,10 +1,11 @@
 /**
  * Struggle Detection Test Framework - Type Definitions
- * 
- * These types define the scenario format and evaluation results.
+ *
+ * EQ-based types (Jadud 2006). Scenarios generate ErrorSnapshots
+ * from save/build events and verify the resulting EQ value.
  */
 
-import { CombinedStruggleScore, RecommendedAction } from '../../src/services/telemetry/types';
+import { EQConfidence, RecommendedAction } from '../../src/services/telemetry/types';
 
 // ============================================================================
 // Scenario Definition Types
@@ -20,13 +21,13 @@ export interface StruggleScenario {
     name: string;
     /** Description of what this scenario tests */
     description: string;
-    
+
     /** Expected outcome (ground truth) */
     expectedOutcome: ExpectedOutcome;
-    
+
     /** Timeline of events to simulate */
     events: ScenarioEvent[];
-    
+
     /** Tags for categorization */
     tags: string[];
     /** Difficulty classification */
@@ -34,15 +35,18 @@ export interface StruggleScenario {
 }
 
 /**
- * Ground truth: what we expect the detection to produce
+ * Ground truth: what we expect the detection to produce.
+ * EQ-based — expectedEQ is on a 0.0–1.0 scale.
  */
 export interface ExpectedOutcome {
-    /** Should struggle be detected? (score >= 35) */
+    /** Should struggle be detected? (EQ >= 0.15 with medium+ confidence) */
     shouldDetectStruggle: boolean;
-    /** Expected final score range (tolerant) */
-    expectedScore: { min: number; max: number };
+    /** Expected final EQ range (0.0–1.0) */
+    expectedEQ: { min: number; max: number };
     /** Expected recommended action */
     expectedAction: RecommendedAction;
+    /** Minimum expected confidence level */
+    expectedMinConfidence?: EQConfidence;
     /** Optional: expected time until detection (ms) */
     expectedTimeToDetection?: number;
 }
@@ -51,9 +55,10 @@ export interface ExpectedOutcome {
 // Event Types
 // ============================================================================
 
-export type ScenarioEvent = 
+export type ScenarioEvent =
     | DiagnosticEvent
     | EditEvent
+    | SaveEvent
     | BuildResultEvent
     | WaitEvent;
 
@@ -76,6 +81,8 @@ export interface DiagnosticDefinition {
     severity: 'error' | 'warning';
     code: string;
     message: string;
+    /** Diagnostic source (e.g. 'ts', 'java'). Defaults to 'compiler'. */
+    source?: string;
 }
 
 /**
@@ -92,7 +99,20 @@ export interface EditEvent {
 }
 
 /**
- * Build result event - simulate Artemis build result
+ * Save event - triggers a compile-equivalent event.
+ * The test runner creates an ErrorSnapshot from current diagnostics.
+ */
+export interface SaveEvent {
+    type: 'save';
+    /** Relative timestamp in ms */
+    timestamp: number;
+    /** File being saved */
+    file: string;
+}
+
+/**
+ * Build result event - simulate Artemis build result.
+ * For EQ: buildFailed=true → hasErrors=true; test-failure/success → hasErrors=false.
  */
 export interface BuildResultEvent {
     type: 'build';
@@ -100,6 +120,8 @@ export interface BuildResultEvent {
     timestamp: number;
     /** Whether build succeeded */
     success: boolean;
+    /** Whether the build itself failed (compiler error). Defaults to !success if not specified. */
+    buildFailed?: boolean;
     /** Error messages (if failed) */
     errors?: string[];
     /** Failed test names */
@@ -120,13 +142,17 @@ export interface WaitEvent {
 // ============================================================================
 
 /**
- * Score snapshot at a point in time
+ * EQ snapshot at a point in time
  */
 export interface ScoreSnapshot {
-    /** Timestamp when score was taken */
+    /** Timestamp when snapshot was taken */
     timestamp: number;
-    /** The calculated score */
-    score: CombinedStruggleScore;
+    /** Current EQ value (0.0–1.0) */
+    eq: number;
+    /** EQ confidence level */
+    confidence: EQConfidence;
+    /** Recommended action based on EQ and confidence */
+    recommendedAction: RecommendedAction;
     /** Event type that preceded this snapshot */
     eventType: string;
 }
@@ -139,33 +165,33 @@ export interface ScenarioResult {
     scenario: StruggleScenario;
     /** Whether the scenario passed all checks */
     passed: boolean;
-    
+
     /** Detailed metrics */
     metrics: ScenarioMetrics;
-    
-    /** Full score timeline for debugging */
+
+    /** Full EQ timeline for debugging */
     scoreTimeline: ScoreSnapshot[];
-    
+
     /** Any errors that occurred */
     errors: string[];
 }
 
 export interface ScenarioMetrics {
     // Accuracy
-    /** Was the final score within expected range? */
+    /** Was the final EQ within expected range? */
     finalScoreInRange: boolean;
     /** Was struggle detected correctly? (TP/TN check) */
     detectedStruggle: boolean;
     /** Was the recommended action correct? */
     correctAction: boolean;
-    
+
     // Timing
-    /** Time until score first exceeded threshold (ms) */
+    /** Time until EQ first exceeded struggle threshold (ms) */
     timeToDetection: number | null;
-    /** Time spent with score >= threshold when no struggle expected */
+    /** Time spent with EQ >= threshold when no struggle expected */
     falsePositiveTime: number;
-    
-    // Score stats
+
+    // EQ stats (0.0–1.0 scale)
     maxScore: number;
     minScore: number;
     avgScore: number;
@@ -180,12 +206,12 @@ export interface TestSuiteReport {
     timestamp: Date;
     /** Duration in ms */
     duration: number;
-    
+
     // Summary
     totalScenarios: number;
     passed: number;
     failed: number;
-    
+
     // Confusion Matrix for binary classification
     confusionMatrix: {
         truePositive: number;   // Struggle detected, was struggle
@@ -193,20 +219,20 @@ export interface TestSuiteReport {
         falsePositive: number;  // Struggle detected, was no struggle
         falseNegative: number;  // No struggle detected, was struggle
     };
-    
+
     // ML Metrics
     precision: number;
     recall: number;
     f1Score: number;
     accuracy: number;
-    
+
     // By category
     byDifficulty: {
         obvious: CategoryResult;
         subtle: CategoryResult;
         'edge-case': CategoryResult;
     };
-    
+
     // Individual results
     results: ScenarioResult[];
 }

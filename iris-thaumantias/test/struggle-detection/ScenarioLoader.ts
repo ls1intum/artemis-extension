@@ -12,6 +12,7 @@ import {
     ExpectedOutcome,
     DiagnosticEvent,
     EditEvent,
+    SaveEvent,
     BuildResultEvent,
     WaitEvent,
 } from './types';
@@ -35,8 +36,8 @@ export class ScenarioLoader {
     async loadAllScenarios(): Promise<StruggleScenario[]> {
         const scenarios: StruggleScenario[] = [];
         
-        // Get all subdirectories (obvious, subtle, no-struggle, edge-cases)
-        const categories = ['obvious', 'subtle', 'no-struggle', 'edge-cases'];
+        // Get all subdirectories
+        const categories = ['obvious', 'subtle', 'no-struggle', 'edge-cases', 'eq-specific'];
         
         for (const category of categories) {
             const categoryPath = path.join(this.scenariosDir, category);
@@ -63,7 +64,7 @@ export class ScenarioLoader {
     /**
      * Load scenarios by category
      */
-    async loadByCategory(category: 'obvious' | 'subtle' | 'no-struggle' | 'edge-cases'): Promise<StruggleScenario[]> {
+    async loadByCategory(category: 'obvious' | 'subtle' | 'no-struggle' | 'edge-cases' | 'eq-specific'): Promise<StruggleScenario[]> {
         const categoryPath = path.join(this.scenariosDir, category);
         
         if (!fs.existsSync(categoryPath)) {
@@ -126,17 +127,20 @@ export class ScenarioLoader {
      */
     private parseExpectedOutcome(raw: unknown): ExpectedOutcome {
         const obj = raw as Record<string, unknown> ?? {};
-        const scoreObj = obj.expectedScore as Record<string, number> ?? {};
-        
+        const eqObj = obj.expectedEQ as Record<string, number> ?? {};
+
         return {
             shouldDetectStruggle: Boolean(obj.shouldDetectStruggle),
-            expectedScore: {
-                min: Number(scoreObj.min ?? 0),
-                max: Number(scoreObj.max ?? 100),
+            expectedEQ: {
+                min: Number(eqObj.min ?? 0),
+                max: Number(eqObj.max ?? 1.0),
             },
             expectedAction: this.parseAction(obj.expectedAction),
-            expectedTimeToDetection: obj.expectedTimeToDetection 
-                ? Number(obj.expectedTimeToDetection) 
+            expectedMinConfidence: obj.expectedMinConfidence
+                ? String(obj.expectedMinConfidence) as any
+                : undefined,
+            expectedTimeToDetection: obj.expectedTimeToDetection
+                ? Number(obj.expectedTimeToDetection)
                 : undefined,
         };
     }
@@ -164,6 +168,8 @@ export class ScenarioLoader {
                 return this.parseDiagnosticEvent(obj);
             case 'edit':
                 return this.parseEditEvent(obj);
+            case 'save':
+                return this.parseSaveEvent(obj);
             case 'build':
                 return this.parseBuildEvent(obj);
             case 'wait':
@@ -204,12 +210,21 @@ export class ScenarioLoader {
             content: String(obj.content ?? ''),
         };
     }
+
+    private parseSaveEvent(obj: Record<string, unknown>): SaveEvent {
+        return {
+            type: 'save',
+            timestamp: Number(obj.timestamp ?? 0),
+            file: String(obj.file ?? 'test.java'),
+        };
+    }
     
     private parseBuildEvent(obj: Record<string, unknown>): BuildResultEvent {
         return {
             type: 'build',
             timestamp: Number(obj.timestamp ?? 0),
             success: Boolean(obj.success),
+            buildFailed: obj.buildFailed !== undefined ? Boolean(obj.buildFailed) : undefined,
             errors: Array.isArray(obj.errors) ? obj.errors.map(String) : undefined,
             failedTests: Array.isArray(obj.failedTests) ? obj.failedTests.map(String) : undefined,
         };

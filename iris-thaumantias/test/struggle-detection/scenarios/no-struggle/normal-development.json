@@ -1,84 +1,37 @@
 {
     "id": "normal-development",
     "name": "Normal Development Flow",
-    "description": "Student coding normally with occasional errors that get fixed quickly. Should NOT trigger struggle detection.",
+    "description": "Student coding normally, errors fixed quickly. Alternating error/clean saves → all pairs score 0 → EQ=0.0.",
     "difficulty": "obvious",
-    "tags": ["no-struggle", "normal", "quick-fixes"],
-    
+    "tags": ["no-struggle", "normal"],
     "expectedOutcome": {
         "shouldDetectStruggle": false,
-        "expectedScore": { "min": 0, "max": 34 },
+        "expectedEQ": { "min": 0.0, "max": 0.0 },
         "expectedAction": "none"
     },
-    
     "events": [
-        {
-            "type": "edit",
-            "timestamp": 0,
-            "file": "Main.java",
-            "content": "public class Main {\n}"
-        },
-        {
-            "type": "wait",
-            "duration": 5000
-        },
-        {
-            "type": "edit",
-            "timestamp": 5100,
-            "file": "Main.java",
-            "content": "public class Main {\n    public static void main(String[] args) {\n    }\n}"
-        },
-        {
-            "type": "diagnostic",
-            "timestamp": 5200,
-            "action": "add",
-            "diagnostics": [{
-                "file": "Main.java",
-                "line": 2,
-                "severity": "error",
-                "code": "compiler.err.expected",
-                "message": "expected ;"
-            }]
-        },
-        {
-            "type": "wait",
-            "duration": 3000
-        },
-        {
-            "type": "edit",
-            "timestamp": 8100,
-            "file": "Main.java",
-            "content": "public class Main {\n    public static void main(String[] args) {\n        System.out.println(\"Hello\");\n    }\n}"
-        },
-        {
-            "type": "diagnostic",
-            "timestamp": 8200,
-            "action": "clear"
-        },
-        {
-            "type": "wait",
-            "duration": 10000
-        },
-        {
-            "type": "edit",
-            "timestamp": 18100,
-            "file": "Main.java",
-            "content": "public class Main {\n    public static void main(String[] args) {\n        System.out.println(\"Hello World\");\n    }\n}"
-        },
-        {
-            "type": "build",
-            "timestamp": 20000,
-            "success": true
-        },
-        {
-            "type": "wait",
-            "duration": 15000
-        },
-        {
-            "type": "edit",
-            "timestamp": 35100,
-            "file": "Main.java",
-            "content": "public class Main {\n    public static void main(String[] args) {\n        greet();\n    }\n    \n    static void greet() {\n        System.out.println(\"Hello World\");\n    }\n}"
-        }
+        { "type": "diagnostic", "timestamp": 0, "action": "add", "diagnostics": [{ "file": "Main.java", "line": 2, "severity": "error", "code": "compiler.err.expected", "message": "expected ;" }] },
+        { "type": "save", "timestamp": 100, "file": "Main.java" },
+        { "type": "wait", "duration": 6000 },
+        { "type": "diagnostic", "timestamp": 6100, "action": "clear" },
+        { "type": "save", "timestamp": 6200, "file": "Main.java" },
+        { "type": "wait", "duration": 6000 },
+        { "type": "diagnostic", "timestamp": 12200, "action": "add", "diagnostics": [{ "file": "Main.java", "line": 5, "severity": "error", "code": "compiler.err.cant.resolve", "message": "cannot find symbol" }] },
+        { "type": "save", "timestamp": 12300, "file": "Main.java" },
+        { "type": "wait", "duration": 6000 },
+        { "type": "diagnostic", "timestamp": 18300, "action": "clear" },
+        { "type": "save", "timestamp": 18400, "file": "Main.java" },
+        { "type": "wait", "duration": 6000 },
+        { "type": "diagnostic", "timestamp": 24400, "action": "add", "diagnostics": [{ "file": "Main.java", "line": 8, "severity": "error", "code": "compiler.err.expected", "message": "expected }" }] },
+        { "type": "save", "timestamp": 24500, "file": "Main.java" },
+        { "type": "wait", "duration": 6000 },
+        { "type": "diagnostic", "timestamp": 30500, "action": "clear" },
+        { "type": "save", "timestamp": 30600, "file": "Main.java" },
+        { "type": "wait", "duration": 6000 },
+        { "type": "diagnostic", "timestamp": 36600, "action": "add", "diagnostics": [{ "file": "Main.java", "line": 3, "severity": "error", "code": "compiler.err.incompatible.types", "message": "incompatible types" }] },
+        { "type": "save", "timestamp": 36700, "file": "Main.java" },
+        { "type": "wait", "duration": 6000 },
+        { "type": "diagnostic", "timestamp": 42700, "action": "clear" },
+        { "type": "save", "timestamp": 42800, "file": "Main.java" }
     ]
 }

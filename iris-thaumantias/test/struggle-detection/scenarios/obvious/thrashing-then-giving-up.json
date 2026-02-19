@@ -1,76 +1,44 @@
 {
     "id": "thrashing-then-giving-up",
     "name": "Thrashing Then Giving Up",
-    "description": "Student makes several attempts to fix errors but eventually stops trying. Classic pattern of frustration leading to giving up.",
+    "description": "Rapid saves with different errors as student tries various fixes. 8 snapshots: [err-A, err-B, err-A, err-C, err-A, err-B, err-A, err-B]. All pairs have both errors (score 8/11). EQ=8/11≈0.727.",
     "difficulty": "obvious",
-    "tags": ["thrashing", "persistent-error", "giving-up", "frustration"],
-    
+    "tags": ["thrashing", "different-errors", "eq-high", "frustration"],
     "expectedOutcome": {
-        "shouldDetectStruggle": false,
-        "expectedScore": { "min": 25, "max": 60 },
-        "expectedAction": "none",
-        "expectedTimeToDetection": 300000
+        "shouldDetectStruggle": true,
+        "expectedEQ": { "min": 0.65, "max": 0.80 },
+        "expectedAction": "proactive"
     },
-    
     "events": [
-        {
-            "type": "edit",
-            "timestamp": 0,
-            "file": "BinaryTree.java",
-            "content": "public class BinaryTree {\n    private Node root;\n    \n    public void insert(int value) {\n        root = insertRec(root, value);\n    }\n}"
-        },
-        {
-            "type": "diagnostic",
-            "timestamp": 100,
-            "action": "add",
-            "diagnostics": [{
-                "file": "BinaryTree.java",
-                "line": 2,
-                "severity": "error",
-                "code": "compiler.err.cant.resolve",
-                "message": "cannot find symbol: class Node"
-            }]
-        },
-        {
-            "type": "wait",
-            "duration": 25000
-        },
-        {
-            "type": "edit",
-            "timestamp": 25100,
-            "file": "BinaryTree.java",
-            "content": "public class BinaryTree {\n    private Object root;\n    \n    public void insert(int value) {\n        // I don't know how to do this\n    }\n}"
-        },
-        {
-            "type": "diagnostic",
-            "timestamp": 25200,
-            "action": "clear"
-        },
-        {
-            "type": "wait",
-            "duration": 20000
-        },
-        {
-            "type": "edit",
-            "timestamp": 45100,
-            "file": "BinaryTree.java",
-            "content": "public class BinaryTree {\n    private Node root;\n    \n    class Node {\n        int val;\n    }\n    \n    public void insert(int value) {\n        Node n = new Node();\n        n.val = value\n    }\n}"
-        },
-        {
-            "type": "diagnostic",
-            "timestamp": 45200,
-            "action": "add",
-            "diagnostics": [{
-                "file": "BinaryTree.java",
-                "line": 10,
-                "severity": "error",
-                "code": "compiler.err.expected",
-                "message": "';' expected"
-            }]
-        },
-        {
-            "type": "wait",
-            "duration": 300000
-        }
+        { "type": "diagnostic", "timestamp": 0, "action": "add", "diagnostics": [{ "file": "BinaryTree.java", "line": 2, "severity": "error", "code": "compiler.err.cant.resolve", "message": "cannot find symbol: class Node" }] },
+        { "type": "save", "timestamp": 100, "file": "BinaryTree.java" },
+        { "type": "wait", "duration": 6000 },
+        { "type": "diagnostic", "timestamp": 6000, "action": "clear" },
+        { "type": "diagnostic", "timestamp": 6010, "action": "add", "diagnostics": [{ "file": "BinaryTree.java", "line": 10, "severity": "error", "code": "compiler.err.expected", "message": "';' expected" }] },
+        { "type": "save", "timestamp": 6100, "file": "BinaryTree.java" },
+        { "type": "wait", "duration": 6000 },
+        { "type": "diagnostic", "timestamp": 12000, "action": "clear" },
+        { "type": "diagnostic", "timestamp": 12010, "action": "add", "diagnostics": [{ "file": "BinaryTree.java", "line": 2, "severity": "error", "code": "compiler.err.cant.resolve", "message": "cannot find symbol: class Node" }] },
+        { "type": "save", "timestamp": 12100, "file": "BinaryTree.java" },
+        { "type": "wait", "duration": 6000 },
+        { "type": "diagnostic", "timestamp": 18000, "action": "clear" },
+        { "type": "diagnostic", "timestamp": 18010, "action": "add", "diagnostics": [{ "file": "BinaryTree.java", "line": 5, "severity": "error", "code": "compiler.err.incompatible.types", "message": "incompatible types" }] },
+        { "type": "save", "timestamp": 18100, "file": "BinaryTree.java" },
+        { "type": "wait", "duration": 6000 },
+        { "type": "diagnostic", "timestamp": 24000, "action": "clear" },
+        { "type": "diagnostic", "timestamp": 24010, "action": "add", "diagnostics": [{ "file": "BinaryTree.java", "line": 2, "severity": "error", "code": "compiler.err.cant.resolve", "message": "cannot find symbol: class Node" }] },
+        { "type": "save", "timestamp": 24100, "file": "BinaryTree.java" },
+        { "type": "wait", "duration": 6000 },
+        { "type": "diagnostic", "timestamp": 30000, "action": "clear" },
+        { "type": "diagnostic", "timestamp": 30010, "action": "add", "diagnostics": [{ "file": "BinaryTree.java", "line": 10, "severity": "error", "code": "compiler.err.expected", "message": "';' expected" }] },
+        { "type": "save", "timestamp": 30100, "file": "BinaryTree.java" },
+        { "type": "wait", "duration": 6000 },
+        { "type": "diagnostic", "timestamp": 36000, "action": "clear" },
+        { "type": "diagnostic", "timestamp": 36010, "action": "add", "diagnostics": [{ "file": "BinaryTree.java", "line": 2, "severity": "error", "code": "compiler.err.cant.resolve", "message": "cannot find symbol: class Node" }] },
+        { "type": "save", "timestamp": 36100, "file": "BinaryTree.java" },
+        { "type": "wait", "duration": 6000 },
+        { "type": "diagnostic", "timestamp": 42000, "action": "clear" },
+        { "type": "diagnostic", "timestamp": 42010, "action": "add", "diagnostics": [{ "file": "BinaryTree.java", "line": 10, "severity": "error", "code": "compiler.err.expected", "message": "';' expected" }] },
+        { "type": "save", "timestamp": 42100, "file": "BinaryTree.java" }
     ]
 }

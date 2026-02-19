@@ -1,19 +1,16 @@
 /**
- * Struggle Detection Test Runner
- * 
- * Runs scenarios against the REAL telemetry services in VS Code Extension Host.
- * Uses Sinon.js for time simulation - no code changes to services needed.
+ * Struggle Detection Test Runner — EQ-based
+ *
+ * Runs scenarios against the ErrorQuotientEngine.
+ * Save events create ErrorSnapshots from active diagnostics.
+ * Build events create ErrorSnapshots from build classification.
+ * Uses Sinon.js for time simulation.
  */
 
-import * as vscode from 'vscode';
 import * as sinon from 'sinon';
 
-import { DiagnosticPersistenceService } from '../../src/services/telemetry/diagnosticPersistenceService';
-import { InactivityService } from '../../src/services/telemetry/inactivityService';
-import { ThrashingDetector } from '../../src/services/telemetry/thrashingDetector';
-import { BuildResultTracker } from '../../src/services/telemetry/buildResultTracker';
-import { StruggleScoreService } from '../../src/services/telemetry/struggleScoreService';
-import { TrackedDiagnostic } from '../../src/services/telemetry/types';
+import { ErrorQuotientEngine } from '../../src/services/telemetry/metrics/errorQuotientEngine';
+import { ErrorSnapshot, EQConfidence, RecommendedAction } from '../../src/services/telemetry/types';
 
 import {
     StruggleScenario,
@@ -22,35 +19,49 @@ import {
     ScoreSnapshot,
     ScenarioMetrics,
     DiagnosticEvent,
+    DiagnosticDefinition,
     EditEvent,
+    SaveEvent,
     BuildResultEvent,
 } from './types';
 
-/** Threshold for "struggle detected" */
-const STRUGGLE_THRESHOLD = 35;
+/** LINT_SOURCE_DENYLIST — matches the production code */
+const LINT_SOURCE_DENYLIST = new Set([
+    'eslint', 'tslint', 'stylelint', 'checkstyle', 'pmd', 'spotbugs', 'sonarlint',
+]);
+
+/** EQ struggle threshold — matches TelemetryManager */
+const EQ_STRUGGLE_THRESHOLD = 0.15;
 
 /**
- * Test runner that executes scenarios against real services.
+ * EQ thresholds for recommended action — matches InterventionDecisionEngine.
+ */
+function getRecommendedAction(eq: number, confidence: EQConfidence): RecommendedAction {
+    if (confidence === 'none' || confidence === 'low') {
+        return 'none';
+    }
+    if (eq >= 0.60) { return 'proactive'; }
+    if (eq >= 0.35) { return 'notification'; }
+    if (eq >= 0.15) { return 'subtle'; }
+    return 'none';
+}
+
+function isStruggling(eq: number, confidence: EQConfidence): boolean {
+    return confidence !== 'none' && confidence !== 'low' && eq >= EQ_STRUGGLE_THRESHOLD;
+}
+
+/**
+ * Test runner that executes scenarios against the ErrorQuotientEngine.
  * Time is controlled via Sinon.js fake timers.
  */
-export class StruggleTestRunner implements vscode.Disposable {
+export class StruggleTestRunner {
     private clock: sinon.SinonFakeTimers | undefined;
-    private diagnosticCollection: vscode.DiagnosticCollection;
 
-    // Real services - instantiated fresh for each scenario
-    private diagnosticService: DiagnosticPersistenceService | undefined;
-    private inactivityService: InactivityService | undefined;
-    private thrashingDetector: ThrashingDetector | undefined;
-    private buildTracker: BuildResultTracker | undefined;
-    private scoreService: StruggleScoreService | undefined;
+    // Real EQ engine — instantiated fresh for each scenario
+    private eqEngine: ErrorQuotientEngine | undefined;
 
-    // Test file tracking
-    private testFileUri: vscode.Uri | undefined;
-    private testDocument: vscode.TextDocument | undefined;
-
-    constructor() {
-        this.diagnosticCollection = vscode.languages.createDiagnosticCollection('struggle-test');
-    }
+    // Active diagnostics state (simulated)
+    private activeDiagnostics: Map<string, DiagnosticDefinition[]> = new Map();
 
     /**
      * Run a single scenario and return the result
@@ -67,13 +78,11 @@ export class StruggleTestRunner implements vscode.Disposable {
                 shouldClearNativeTimers: true,
             });
 
-            // 2. Initialize real services (they'll use faked time)
-            this.initializeServices();
+            // 2. Initialize EQ engine
+            this.eqEngine = new ErrorQuotientEngine();
+            this.activeDiagnostics.clear();
 
-            // 3. Create test file
-            await this.setupTestFile(scenario);
-
-            // 4. Execute events and record scores
+            // 3. Execute events and record EQ
             let currentTime = 0;
             for (const event of scenario.events) {
                 try {
@@ -90,14 +99,17 @@ export class StruggleTestRunner implements vscode.Disposable {
                         }
 
                         // Apply the event
-                        await this.applyEvent(event);
+                        this.applyEvent(event);
                     }
 
-                    // Record score snapshot
-                    const score = this.scoreService!.calculateScore();
+                    // Record EQ snapshot
+                    const { eq, confidence } = this.eqEngine.getCurrentEQ();
+                    const action = getRecommendedAction(eq, confidence);
                     scoreSnapshots.push({
                         timestamp: Date.now(),
-                        score,
+                        eq,
+                        confidence,
+                        recommendedAction: action,
                         eventType: event.type,
                     });
                 } catch (err) {
@@ -108,11 +120,15 @@ export class StruggleTestRunner implements vscode.Disposable {
         } catch (err) {
             errors.push(`Scenario setup failed: ${err}`);
         } finally {
-            // 5. Cleanup
-            await this.cleanup();
+            // Cleanup
+            this.eqEngine?.dispose();
+            this.eqEngine = undefined;
+            this.activeDiagnostics.clear();
+            this.clock?.restore();
+            this.clock = undefined;
         }
 
-        // 6. Evaluate result
+        // Evaluate result
         return this.evaluateScenario(scenario, scoreSnapshots, errors);
     }
 
@@ -126,56 +142,25 @@ export class StruggleTestRunner implements vscode.Disposable {
             console.log(`Running scenario: ${scenario.id}`);
             const result = await this.runScenario(scenario);
             results.push(result);
-
-            // Small delay between scenarios to ensure clean state
-            await new Promise(resolve => setTimeout(resolve, 100));
         }
 
         return results;
     }
 
     /**
-     * Initialize fresh instances of all telemetry services
+     * Apply an event to the EQ engine
      */
-    private initializeServices(): void {
-        this.diagnosticService = new DiagnosticPersistenceService();
-        this.inactivityService = new InactivityService();
-        this.thrashingDetector = new ThrashingDetector();
-        this.buildTracker = new BuildResultTracker();
-
-        this.scoreService = new StruggleScoreService(
-            this.diagnosticService,
-            this.inactivityService,
-            this.thrashingDetector,
-            this.buildTracker,
-        );
-    }
-
-    /**
-     * Setup a test file for the scenario
-     */
-    private async setupTestFile(scenario: StruggleScenario): Promise<void> {
-        // Find first edit event to determine file name
-        const firstEdit = scenario.events.find((e): e is EditEvent => e.type === 'edit');
-        const fileName = firstEdit?.file ?? 'TestFile.java';
-
-        // Create a URI for the test file (in-memory)
-        this.testFileUri = vscode.Uri.parse(`untitled:${fileName}`);
-
-        // Create the document
-        this.testDocument = await vscode.workspace.openTextDocument(this.testFileUri);
-    }
-
-    /**
-     * Apply an event to the real services
-     */
-    private async applyEvent(event: ScenarioEvent): Promise<void> {
+    private applyEvent(event: ScenarioEvent): void {
         switch (event.type) {
             case 'diagnostic':
-                await this.applyDiagnosticEvent(event);
+                this.applyDiagnosticEvent(event);
                 break;
             case 'edit':
-                await this.applyEditEvent(event);
+                // Edits don't directly affect EQ — they just change file state.
+                // Kept for backward compatibility with existing scenarios.
+                break;
+            case 'save':
+                this.applySaveEvent(event);
                 break;
             case 'build':
                 this.applyBuildEvent(event);
@@ -187,119 +172,99 @@ export class StruggleTestRunner implements vscode.Disposable {
     }
 
     /**
-     * Apply a diagnostic event - add/remove diagnostics
+     * Apply a diagnostic event — updates the active diagnostics state.
+     * Does NOT create an EQ snapshot; only a save or build event does.
      */
-    private async applyDiagnosticEvent(event: DiagnosticEvent): Promise<void> {
+    private applyDiagnosticEvent(event: DiagnosticEvent): void {
         if (event.action === 'clear') {
-            this.diagnosticService?._testClearAllDiagnostics();
-            this.diagnosticCollection.clear();
+            this.activeDiagnostics.clear();
             return;
         }
 
         if (event.action === 'add' && event.diagnostics) {
-            // Group by file
-            const byFile = new Map<string, vscode.Diagnostic[]>();
-
             for (const diag of event.diagnostics) {
-                const uri = vscode.Uri.file(`/test/${diag.file}`);
-                const uriString = uri.toString();
-
-                if (!byFile.has(uriString)) {
-                    byFile.set(uriString, []);
-                }
-
-                const vsDiag = new vscode.Diagnostic(
-                    new vscode.Range(diag.line, 0, diag.line, 100),
-                    diag.message,
-                    diag.severity === 'error'
-                        ? vscode.DiagnosticSeverity.Error
-                        : vscode.DiagnosticSeverity.Warning
-                );
-                vsDiag.code = diag.code;
-
-                byFile.get(uriString)!.push(vsDiag);
-
-                // Also inject into the DiagnosticPersistenceService for testing
-                const id = `test-${uriString}-${diag.line}-${diag.code ?? 'unknown'}`;
-                this.diagnosticService?._testInjectDiagnostic({
-                    id,
-                    uri: uriString,
-                    range: {
-                        startLine: diag.line,
-                        startCharacter: 0,
-                        endLine: diag.line,
-                        endCharacter: 100,
-                    },
-                    code: diag.code,
-                    message: diag.message,
-                    severity: diag.severity === 'error'
-                        ? vscode.DiagnosticSeverity.Error
-                        : vscode.DiagnosticSeverity.Warning,
-                    firstSeen: Date.now(),
-                    lastSeen: Date.now(),
-                    occurrences: 1,
-                    resolved: false,
-                });
-            }
-
-            // Set diagnostics per file
-            for (const [uriString, diagnostics] of byFile) {
-                const uri = vscode.Uri.parse(uriString);
-                this.diagnosticCollection.set(uri, diagnostics);
+                const key = diag.file;
+                const existing = this.activeDiagnostics.get(key) ?? [];
+                existing.push(diag);
+                this.activeDiagnostics.set(key, existing);
             }
         }
 
         if (event.action === 'remove') {
-            this.diagnosticService?._testClearAllDiagnostics();
-            this.diagnosticCollection.clear();
+            this.activeDiagnostics.clear();
         }
     }
 
     /**
-     * Apply an edit event - simulates typing
+     * Apply a save event — create ErrorSnapshot from active diagnostics and feed to EQ engine.
+     * This is the primary compile-equivalent event.
      */
-    private async applyEditEvent(event: EditEvent): Promise<void> {
-        // Always record the edit directly to the thrashing detector for testing
-        // This ensures thrashing detection works even when document editing fails
-        this.thrashingDetector?.recordEdit(
-            `/test/${event.file}`,
-            event.content
-        );
-
-        // Try to also update the actual document for visual feedback
-        if (this.testDocument) {
-            try {
-                const editor = await vscode.window.showTextDocument(this.testDocument, {
-                    preview: false,
-                    preserveFocus: true,
-                });
-
-                await editor.edit(editBuilder => {
-                    const fullRange = new vscode.Range(
-                        0, 0,
-                        this.testDocument!.lineCount, 0
-                    );
-                    editBuilder.replace(fullRange, event.content);
-                });
-            } catch {
-                // Document editing failed (common in test environments)
-                // The thrashing detector has already been updated above
-            }
-        }
+    private applySaveEvent(_event: SaveEvent): void {
+        const snapshot = this.createSnapshotFromDiagnostics();
+        this.eqEngine!.addSnapshot(snapshot);
     }
 
     /**
-     * Apply a build result event
+     * Apply a build event — create ErrorSnapshot from build classification.
+     * buildFailed → hasErrors=true (compiler error).
+     * test-failure or success → hasErrors=false.
      */
     private applyBuildEvent(event: BuildResultEvent): void {
-        this.buildTracker?.recordBuildResult({
+        const buildFailed = event.buildFailed ?? !event.success;
+        const hasTestFailure = !event.success && !buildFailed && (event.failedTests?.length ?? 0) > 0;
+
+        // Only compiler errors count as "errors" for EQ
+        const hasErrors = buildFailed;
+
+        const errorFamilies = new Set<string>();
+        if (buildFailed && event.errors) {
+            for (const err of event.errors) {
+                errorFamilies.add(`build:${err}`);
+            }
+        }
+        // If buildFailed but no specific errors listed, add a generic one
+        if (buildFailed && errorFamilies.size === 0) {
+            errorFamilies.add('build:compiler-error');
+        }
+
+        const snapshot: ErrorSnapshot = {
             timestamp: Date.now(),
-            success: event.success,
-            errorCount: event.errors?.length ?? 0,
-            failedTests: event.failedTests ?? [],
-            buildLog: undefined,
-            submissionId: undefined,
-        });
+            hasErrors,
+            errorFamilies,
+            errorCount: hasErrors ? Math.max(1, event.errors?.length ?? 1) : 0,
+        };
+
+        this.eqEngine!.addSnapshot(snapshot);
+    }
+
+    /**
+     * Create an ErrorSnapshot from the current active diagnostics.
+     * Filters: severity=error, not in lint denylist.
+     */
+    private createSnapshotFromDiagnostics(): ErrorSnapshot {
+        const errorFamilies = new Set<string>();
+        let errorCount = 0;
+
+        for (const [_file, diagnostics] of this.activeDiagnostics) {
+            for (const diag of diagnostics) {
+                if (diag.severity !== 'error') {
+                    continue;
+                }
+                const source = diag.source ?? 'compiler';
+                if (LINT_SOURCE_DENYLIST.has(source.toLowerCase())) {
+                    continue;
+                }
+                errorFamilies.add(`${source}:${diag.code}`);
+                errorCount++;
+            }
+        }
+
+        return {
+            timestamp: Date.now(),
+            hasErrors: errorFamilies.size > 0,
+            errorFamilies,
+            errorCount,
+        };
     }
 
     /**
@@ -327,7 +292,7 @@ export class StruggleTestRunner implements vscode.Disposable {
     }
 
     /**
-     * Calculate detailed metrics from score timeline
+     * Calculate detailed metrics from EQ timeline
      */
     private calculateMetrics(
         scenario: StruggleScenario,
@@ -347,26 +312,27 @@ export class StruggleTestRunner implements vscode.Disposable {
             };
         }
 
-        const scores = snapshots.map(s => s.score.combined);
+        const eqs = snapshots.map(s => s.eq);
         const finalSnapshot = snapshots[snapshots.length - 1];
-        const finalScore = finalSnapshot.score.combined;
+        const finalEQ = finalSnapshot.eq;
+        const finalConfidence = finalSnapshot.confidence;
         const expected = scenario.expectedOutcome;
 
-        // Find time to detection (first time score >= threshold)
+        // Find time to detection
         let timeToDetection: number | null = null;
         for (const snapshot of snapshots) {
-            if (snapshot.score.combined >= STRUGGLE_THRESHOLD) {
+            if (isStruggling(snapshot.eq, snapshot.confidence)) {
                 timeToDetection = snapshot.timestamp;
                 break;
             }
         }
 
-        // Calculate false positive time (time with score >= threshold when no struggle expected)
+        // Calculate false positive time
         let falsePositiveTime = 0;
         if (!expected.shouldDetectStruggle) {
             let lastTimestamp = 0;
             for (const snapshot of snapshots) {
-                if (snapshot.score.combined >= STRUGGLE_THRESHOLD) {
+                if (isStruggling(snapshot.eq, snapshot.confidence)) {
                     falsePositiveTime += snapshot.timestamp - lastTimestamp;
                 }
                 lastTimestamp = snapshot.timestamp;
@@ -374,60 +340,20 @@ export class StruggleTestRunner implements vscode.Disposable {
         }
 
         return {
-            finalScoreInRange: finalScore >= expected.expectedScore.min &&
-                finalScore <= expected.expectedScore.max,
-            detectedStruggle: finalScore >= STRUGGLE_THRESHOLD,
-            correctAction: finalSnapshot.score.recommendedAction === expected.expectedAction,
+            finalScoreInRange: finalEQ >= expected.expectedEQ.min &&
+                finalEQ <= expected.expectedEQ.max,
+            detectedStruggle: isStruggling(finalEQ, finalConfidence),
+            correctAction: finalSnapshot.recommendedAction === expected.expectedAction,
             timeToDetection,
             falsePositiveTime,
-            maxScore: Math.max(...scores),
-            minScore: Math.min(...scores),
-            avgScore: scores.reduce((a, b) => a + b, 0) / scores.length,
-            finalScore,
+            maxScore: Math.max(...eqs),
+            minScore: Math.min(...eqs),
+            avgScore: eqs.reduce((a, b) => a + b, 0) / eqs.length,
+            finalScore: finalEQ,
         };
     }
 
-    /**
-     * Cleanup after scenario
-     */
-    private async cleanup(): Promise<void> {
-        // Dispose services
-        this.diagnosticService?.dispose();
-        this.inactivityService?.dispose();
-        this.thrashingDetector?.dispose();
-        this.buildTracker?.dispose();
-        this.scoreService?.dispose();
-
-        this.diagnosticService = undefined;
-        this.inactivityService = undefined;
-        this.thrashingDetector = undefined;
-        this.buildTracker = undefined;
-        this.scoreService = undefined;
-
-        // Restore real timers
-        this.clock?.restore();
-        this.clock = undefined;
-
-        // Clear test diagnostics
-        this.diagnosticCollection.clear();
-
-        // Close test document
-        if (this.testDocument) {
-            // Try to close the document
-            try {
-                await vscode.commands.executeCommand('workbench.action.closeActiveEditor');
-            } catch {
-                // Ignore errors when closing
-            }
-        }
-        this.testDocument = undefined;
-        this.testFileUri = undefined;
-    }
-
-    /**
-     * Dispose the test runner
-     */
     dispose(): void {
-        this.diagnosticCollection.dispose();
+        // Nothing to dispose
     }
 }

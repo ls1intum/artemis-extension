@@ -1,54 +1,30 @@
 {
     "id": "long-inactivity-with-errors",
     "name": "Long Inactivity With Errors",
-    "description": "Student stops coding while errors are present. Sign of confusion or giving up.",
+    "description": "Student has errors and long waits (30s) between saves. Same error persists across 8 saves. All 7 pairs score 11/11 → EQ=1.0.",
     "difficulty": "obvious",
-    "tags": ["inactivity", "confusion", "giving-up"],
-    
+    "tags": ["inactivity", "persistent-error", "eq-max"],
     "expectedOutcome": {
-        "shouldDetectStruggle": false,
-        "expectedScore": { "min": 25, "max": 50 },
-        "expectedAction": "none"
+        "shouldDetectStruggle": true,
+        "expectedEQ": { "min": 1.0, "max": 1.0 },
+        "expectedAction": "proactive"
     },
-    
     "events": [
-        {
-            "type": "edit",
-            "timestamp": 0,
-            "file": "Main.java",
-            "content": "public class Main {\n    // broken code\n}"
-        },
-        {
-            "type": "diagnostic",
-            "timestamp": 100,
-            "action": "add",
-            "diagnostics": [{
-                "file": "Main.java",
-                "line": 2,
-                "severity": "error",
-                "code": "compiler.err.missing.method",
-                "message": "missing main method"
-            }]
-        },
-        {
-            "type": "wait",
-            "duration": 60000
-        },
-        {
-            "type": "wait",
-            "duration": 60000
-        },
-        {
-            "type": "wait",
-            "duration": 60000
-        },
-        {
-            "type": "wait",
-            "duration": 60000
-        },
-        {
-            "type": "wait",
-            "duration": 60000
-        }
+        { "type": "diagnostic", "timestamp": 0, "action": "add", "diagnostics": [{ "file": "Main.java", "line": 2, "severity": "error", "code": "compiler.err.missing.method", "message": "missing main method" }] },
+        { "type": "save", "timestamp": 100, "file": "Main.java" },
+        { "type": "wait", "duration": 30000 },
+        { "type": "save", "timestamp": 30100, "file": "Main.java" },
+        { "type": "wait", "duration": 30000 },
+        { "type": "save", "timestamp": 60100, "file": "Main.java" },
+        { "type": "wait", "duration": 30000 },
+        { "type": "save", "timestamp": 90100, "file": "Main.java" },
+        { "type": "wait", "duration": 30000 },
+        { "type": "save", "timestamp": 120100, "file": "Main.java" },
+        { "type": "wait", "duration": 30000 },
+        { "type": "save", "timestamp": 150100, "file": "Main.java" },
+        { "type": "wait", "duration": 30000 },
+        { "type": "save", "timestamp": 180100, "file": "Main.java" },
+        { "type": "wait", "duration": 30000 },
+        { "type": "save", "timestamp": 210100, "file": "Main.java" }
     ]
 }

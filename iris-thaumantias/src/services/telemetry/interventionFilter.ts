@@ -1,4 +1,4 @@
-import { CombinedStruggleScore, InterventionState } from './types';
+import { CombinedStruggleScore, InterventionState, RecommendedAction } from './types';
 
 /**
  * Pedagogical guards for intervention decisions.
@@ -106,6 +106,42 @@ export class InterventionFilter {
         const elapsed = Date.now() - this._exerciseStartTime;
         const remaining = InterventionFilter.MIN_EXERCISE_TIME_MS - elapsed;
         return Math.max(0, remaining);
+    }
+
+    /**
+     * EQ-based intervention check — applies same guardrails as shouldIntervene
+     * but accepts EQ decision instead of CombinedStruggleScore.
+     */
+    public shouldInterveneEQ(
+        decision: { level: RecommendedAction; eq: number },
+        state: InterventionState,
+    ): boolean {
+        if (decision.level === 'none') {
+            return false;
+        }
+
+        if (!this._hasEnoughExerciseTime()) {
+            return false;
+        }
+
+        if (this._hasRecentProgress()) {
+            return false;
+        }
+
+        // Session intervention limit
+        if (state.sessionInterventionCount >= InterventionFilter.MAX_INTERVENTIONS_PER_SESSION) {
+            // Allow proactive even after limit for severe EQ (>= 0.85)
+            if (decision.level !== 'proactive' || decision.eq < 0.85) {
+                return false;
+            }
+        }
+
+        // Dismissed → only proactive allowed
+        if (state.lastDismissed && decision.level !== 'proactive') {
+            return false;
+        }
+
+        return true;
     }
 
     /**

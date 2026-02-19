@@ -32,9 +32,9 @@ export class ChatMessageService {
         if (struggleContext) {
             logger.websocket(`📊 Struggle context: ${JSON.stringify({
                 isStruggling: struggleContext.isStruggling,
-                score: struggleContext.score,
-                persistentErrors: struggleContext.persistentErrors.length,
-                buildFailures: struggleContext.buildFailures
+                eq: struggleContext.eq,
+                eqConfidence: struggleContext.eqConfidence,
+                recommendedAction: struggleContext.recommendedAction
             })}`);
         }
 

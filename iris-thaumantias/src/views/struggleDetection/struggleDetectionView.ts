@@ -36,8 +36,8 @@ export class StruggleDetectionView {
             },
             bodyHtml: `
                 <p class="struggle-intro">
-                    We combine local VS Code signals with Artemis build results into a 0–100 score,
-                    then map it to subtle hints, notifications, or proactive help.
+                    We use the Error Quotient (EQ) from compile-equivalent events to measure struggle severity,
+                    then subtask-boundary triggers decide <em>when</em> to intervene.
                 </p>
             `
         });
@@ -51,9 +51,10 @@ export class StruggleDetectionView {
             },
             bodyHtml: `
                 <ol class="steps-list">
-                    <li>Track signals from diagnostics, activity gaps, edit thrashing, and build results.</li>
-                    <li>Score each signal (0–100), apply weights, clamp the combined score to 0–100.</li>
-                    <li>Map score → action (subtle, notification, proactive), then apply guardrails.</li>
+                    <li>Track compile-equivalent events (file saves and Artemis build results).</li>
+                    <li>Score consecutive event pairs using the Jadud EQ formula (0.0–1.0).</li>
+                    <li>Subtask-boundary triggers (error, paste, idle, selection) decide <em>when</em> to evaluate.</li>
+                    <li>Map EQ → action level (subtle, notification, proactive), then apply guardrails.</li>
                 </ol>
             `
         });
@@ -61,55 +62,57 @@ export class StruggleDetectionView {
         const signalsContainer = ContainerComponent.generate({
             className: 'struggle-card',
             header: {
-                title: 'Signals & scoring',
-                subtitle: 'Each signal is scored independently before being weighted into the combined score.',
+                title: 'Error Quotient (EQ)',
+                subtitle: 'Based on Jadud 2006 — pairs of consecutive compile events are scored and averaged.',
                 icon: eyeIcon,
                 divider: true
             },
             bodyHtml: `
                 <div class="signal-grid">
                     <article class="signal-card">
-                        <h3>Persistent errors</h3>
+                        <h3>Pair scoring</h3>
                         <div class="signal-meta">
-                            <span>Local</span>
-                            <span>Weight 35%</span>
+                            <span>Jadud 2006</span>
+                            <span>Max 11 per pair</span>
                         </div>
                         <p class="signal-details">
-                            Errors/warnings persisting &ge; <strong>2 min</strong>. Score: 0 none; 1=30, 2=50, 3=70,
-                            4=90, 5+=100.
+                            Both events have errors: <strong>+8</strong>.
+                            Same error family: <strong>+3</strong>.
+                            Otherwise: <strong>0</strong>.
+                            EQ = mean of (pair scores / 11).
                         </p>
                     </article>
                     <article class="signal-card">
-                        <h3>Inactivity pattern</h3>
+                        <h3>Compile-equivalent events</h3>
                         <div class="signal-meta">
-                            <span>Local</span>
-                            <span>Weight 25%</span>
+                            <span>Local + Server</span>
                         </div>
                         <p class="signal-details">
-                            Time since last edit: <strong>active</strong> &lt;30s (0), <strong>thinking</strong> 30s–2m (20),
-                            <strong>confusion</strong> 2–5m (60), <strong>giving-up</strong> &gt;5m (100).
+                            File saves (with 500ms delay for language server) and Artemis build results.
+                            Compiler errors count as errors; test failures do not.
                         </p>
                     </article>
                     <article class="signal-card">
-                        <h3>Edit thrashing</h3>
+                        <h3>Confidence levels</h3>
                         <div class="signal-meta">
-                            <span>Local</span>
-                            <span>Weight 20%</span>
+                            <span>Pair count</span>
                         </div>
                         <p class="signal-details">
-                            Repeated edits in last <strong>2 min</strong> (history 20, min 3 repeats). Score 0–100
-                            from repetition/cycles. Thrashing &gt; 60 triggers a check.
+                            <strong>None</strong>: &lt;3 pairs.
+                            <strong>Low</strong>: 3–5 pairs.
+                            <strong>Medium</strong>: 6–14 pairs.
+                            <strong>High</strong>: &ge;15 pairs.
+                            Interventions require medium+ confidence.
                         </p>
                     </article>
                     <article class="signal-card">
-                        <h3>Build failures</h3>
+                        <h3>Session management</h3>
                         <div class="signal-meta">
-                            <span>Server</span>
-                            <span>Weight 20%</span>
+                            <span>Lifecycle</span>
                         </div>
                         <p class="signal-details">
-                            Consecutive Artemis build failures. Score: 0 none; 1=25, 2=50, 3=75, 4+=100.
-                            Success resets failures.
+                            Exercise switch resets all state. 30-minute inactivity splits a sub-session
+                            (clears snapshots). 5-second dedup window prevents duplicate events.
                         </p>
                     </article>
                 </div>
@@ -119,45 +122,43 @@ export class StruggleDetectionView {
         const scoringContainer = ContainerComponent.generate({
             className: 'struggle-card',
             header: {
-                title: 'Combined score & actions',
-                subtitle: 'How the system converts signals into interventions.',
+                title: 'EQ thresholds & actions',
+                subtitle: 'How the system converts EQ into interventions.',
                 divider: true
             },
             bodyHtml: `
                 <div class="score-grid">
                     <div class="score-card">
-                        <div class="score-title">Weighted formula</div>
-                        <pre class="score-code">combined = clamp(0..100,
-  0.35 * persistentErrors +
-  0.25 * inactivity +
-  0.20 * thrashing +
-  0.20 * buildFailures
-)</pre>
-                        <p class="score-note">Scores update on timers and trigger events.</p>
+                        <div class="score-title">EQ formula</div>
+                        <pre class="score-code">pair_score =
+  both_error ? 8 : 0
+  + same_family ? 3 : 0
+
+EQ = mean(pair_scores) / 11</pre>
+                        <p class="score-note">EQ ranges from 0.0 (no struggle) to 1.0 (maximum struggle).</p>
                     </div>
                     <div class="score-card">
-                        <div class="score-title">Confidence</div>
+                        <div class="score-title">Subtask-boundary triggers</div>
                         <ul class="score-list">
-                            <li>Base confidence starts at 0.5.</li>
-                            <li>+0.2 if diagnostics exist or active errors are present.</li>
-                            <li>+0.2 if build data is available.</li>
-                            <li>+0.1 if the user is not in “giving-up”.</li>
-                            <li>Capped at 1.0.</li>
+                            <li><strong>Execution error</strong>: Build failure from Artemis (0% disruption).</li>
+                            <li><strong>Multiline paste</strong>: Student pastes &gt;1 line of code.</li>
+                            <li><strong>Idle</strong>: No edits for 30s (adaptive, +30s per ignore, cap 3min).</li>
+                            <li><strong>Selection maintained</strong>: Selection held for 15s (adaptive, +15s per ignore, cap 2min).</li>
                         </ul>
                     </div>
                 </div>
                 <div class="threshold-list">
                     <div class="threshold-row" data-level="subtle">
                         <span>Subtle hint</span>
-                        <div>Score ≥ 35 (shows a status bar lightbulb)</div>
+                        <div>EQ &ge; 0.15 (shows a status bar lightbulb)</div>
                     </div>
                     <div class="threshold-row" data-level="notification">
                         <span>Notification</span>
-                        <div>Score ≥ 55 (info message + highlighted status bar)</div>
+                        <div>EQ &ge; 0.35 (info message + highlighted status bar)</div>
                     </div>
                     <div class="threshold-row" data-level="proactive">
                         <span>Proactive help</span>
-                        <div>Score ≥ 75 (warning prompt to open Iris)</div>
+                        <div>EQ &ge; 0.60 (warning prompt to open Iris)</div>
                     </div>
                 </div>
             `
@@ -167,18 +168,19 @@ export class StruggleDetectionView {
             className: 'struggle-card',
             header: {
                 title: 'When checks happen & guardrails',
-                subtitle: 'The system only intervenes when timing rules allow it.',
+                subtitle: 'The system only intervenes when timing and cadence rules allow it.',
                 divider: true
             },
             bodyHtml: `
                 <div class="guardrail-grid">
                     <div class="guardrail-card">
-                        <h3>Score check triggers</h3>
+                        <h3>Trigger evaluation</h3>
                         <ul class="guardrail-list">
-                            <li>Every 30s while enabled.</li>
-                            <li>On inactivity entering <strong>confusion</strong> or <strong>giving-up</strong>.</li>
-                            <li>When thrashing &gt; 60.</li>
-                            <li>~5s after a build failure arrives.</li>
+                            <li>On build failure (execution-error trigger).</li>
+                            <li>On multiline paste detection.</li>
+                            <li>When idle threshold exceeded (adaptive: 30s + 30s per ignore).</li>
+                            <li>When selection maintained past threshold (adaptive: 15s + 15s per ignore).</li>
+                            <li>60-second cooldown between trigger evaluations.</li>
                         </ul>
                     </div>
                     <div class="guardrail-card">
@@ -187,7 +189,7 @@ export class StruggleDetectionView {
                             <li>&ge; 5 min into an exercise.</li>
                             <li>2 min grace after progress (e.g., errors fixed).</li>
                             <li>5 min cooldown between interventions.</li>
-                            <li>Max 3 per session (unless score ≥ 85 and proactive).</li>
+                            <li>Max 3 per session (unless EQ &ge; 0.85 and proactive).</li>
                             <li>If last prompt was dismissed, only proactive can appear.</li>
                             <li>Subtle hints can still show even if prompts are blocked.</li>
                         </ul>

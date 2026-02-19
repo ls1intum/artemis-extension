@@ -175,10 +175,10 @@ export class EvaluationEngine {
      */
     formatConsoleReport(report: TestSuiteReport): string {
         const lines: string[] = [];
-        
+
         lines.push('');
         lines.push('╔══════════════════════════════════════════════════════════════╗');
-        lines.push('║           STRUGGLE DETECTION TEST REPORT                     ║');
+        lines.push('║        STRUGGLE DETECTION TEST REPORT (EQ)                   ║');
         lines.push('╠══════════════════════════════════════════════════════════════╣');
         lines.push(`║ Timestamp: ${report.timestamp.toISOString().padEnd(47)}║`);
         lines.push(`║ Duration:  ${(report.duration / 1000).toFixed(2)}s${' '.repeat(45)}║`);
@@ -201,11 +201,11 @@ export class EvaluationEngine {
         lines.push('╠══════════════════════════════════════════════════════════════╣');
         lines.push('║ BY DIFFICULTY                                                ║');
         lines.push('╠══════════════════════════════════════════════════════════════╣');
-        lines.push(`║ Obvious:   ${report.byDifficulty.obvious.passed}/${report.byDifficulty.obvious.total} passed (avg score: ${report.byDifficulty.obvious.avgScore.toFixed(1)})`.padEnd(63) + '║');
-        lines.push(`║ Subtle:    ${report.byDifficulty.subtle.passed}/${report.byDifficulty.subtle.total} passed (avg score: ${report.byDifficulty.subtle.avgScore.toFixed(1)})`.padEnd(63) + '║');
-        lines.push(`║ Edge-case: ${report.byDifficulty['edge-case'].passed}/${report.byDifficulty['edge-case'].total} passed (avg score: ${report.byDifficulty['edge-case'].avgScore.toFixed(1)})`.padEnd(63) + '║');
+        lines.push(`║ Obvious:   ${report.byDifficulty.obvious.passed}/${report.byDifficulty.obvious.total} passed (avg EQ: ${report.byDifficulty.obvious.avgScore.toFixed(3)})`.padEnd(63) + '║');
+        lines.push(`║ Subtle:    ${report.byDifficulty.subtle.passed}/${report.byDifficulty.subtle.total} passed (avg EQ: ${report.byDifficulty.subtle.avgScore.toFixed(3)})`.padEnd(63) + '║');
+        lines.push(`║ Edge-case: ${report.byDifficulty['edge-case'].passed}/${report.byDifficulty['edge-case'].total} passed (avg EQ: ${report.byDifficulty['edge-case'].avgScore.toFixed(3)})`.padEnd(63) + '║');
         lines.push('╚══════════════════════════════════════════════════════════════╝');
-        
+
         // Failed scenarios
         const failed = report.results.filter(r => !r.passed);
         if (failed.length > 0) {
@@ -213,32 +213,33 @@ export class EvaluationEngine {
             lines.push('FAILED SCENARIOS:');
             lines.push('─'.repeat(64));
             for (const result of failed) {
+                const lastSnapshot = result.scoreTimeline[result.scoreTimeline.length - 1];
                 lines.push(`  ✗ ${result.scenario.id}`);
-                lines.push(`    Expected: score ${result.scenario.expectedOutcome.expectedScore.min}-${result.scenario.expectedOutcome.expectedScore.max}, action: ${result.scenario.expectedOutcome.expectedAction}`);
-                lines.push(`    Got:      score ${result.metrics.finalScore.toFixed(1)}, action: ${result.scoreTimeline[result.scoreTimeline.length - 1]?.score.recommendedAction ?? 'unknown'}`);
+                lines.push(`    Expected: EQ ${result.scenario.expectedOutcome.expectedEQ.min}-${result.scenario.expectedOutcome.expectedEQ.max}, action: ${result.scenario.expectedOutcome.expectedAction}`);
+                lines.push(`    Got:      EQ ${result.metrics.finalScore.toFixed(3)}, action: ${lastSnapshot?.recommendedAction ?? 'unknown'}`);
                 if (result.errors.length > 0) {
                     lines.push(`    Errors:   ${result.errors.join(', ')}`);
                 }
             }
         }
-        
+
         lines.push('');
-        
+
         return lines.join('\n');
     }
-    
+
     /**
      * Format report as Markdown
      */
     formatMarkdownReport(report: TestSuiteReport): string {
         const lines: string[] = [];
-        
-        lines.push('# Struggle Detection Test Report');
+
+        lines.push('# Struggle Detection Test Report (EQ)');
         lines.push('');
         lines.push(`**Date:** ${report.timestamp.toISOString()}`);
         lines.push(`**Duration:** ${(report.duration / 1000).toFixed(2)}s`);
         lines.push('');
-        
+
         lines.push('## Summary');
         lines.push('');
         lines.push(`| Metric | Value |`);
@@ -248,7 +249,7 @@ export class EvaluationEngine {
         lines.push(`| Failed | ${report.failed} |`);
         lines.push(`| Pass Rate | ${((report.passed / report.totalScenarios) * 100).toFixed(1)}% |`);
         lines.push('');
-        
+
         lines.push('## Confusion Matrix');
         lines.push('');
         lines.push('|  | Predicted Struggle | Predicted OK |');
@@ -256,7 +257,7 @@ export class EvaluationEngine {
         lines.push(`| **Actual Struggle** | TP: ${report.confusionMatrix.truePositive} | FN: ${report.confusionMatrix.falseNegative} |`);
         lines.push(`| **Actual OK** | FP: ${report.confusionMatrix.falsePositive} | TN: ${report.confusionMatrix.trueNegative} |`);
         lines.push('');
-        
+
         lines.push('## ML Metrics');
         lines.push('');
         lines.push(`| Metric | Value |`);
@@ -266,16 +267,16 @@ export class EvaluationEngine {
         lines.push(`| F1 Score | ${(report.f1Score * 100).toFixed(1)}% |`);
         lines.push(`| Accuracy | ${(report.accuracy * 100).toFixed(1)}% |`);
         lines.push('');
-        
+
         lines.push('## Results by Difficulty');
         lines.push('');
-        lines.push(`| Difficulty | Passed | Failed | Avg Score |`);
-        lines.push(`|------------|--------|--------|-----------|`);
-        lines.push(`| Obvious | ${report.byDifficulty.obvious.passed}/${report.byDifficulty.obvious.total} | ${report.byDifficulty.obvious.failed} | ${report.byDifficulty.obvious.avgScore.toFixed(1)} |`);
-        lines.push(`| Subtle | ${report.byDifficulty.subtle.passed}/${report.byDifficulty.subtle.total} | ${report.byDifficulty.subtle.failed} | ${report.byDifficulty.subtle.avgScore.toFixed(1)} |`);
-        lines.push(`| Edge-case | ${report.byDifficulty['edge-case'].passed}/${report.byDifficulty['edge-case'].total} | ${report.byDifficulty['edge-case'].failed} | ${report.byDifficulty['edge-case'].avgScore.toFixed(1)} |`);
+        lines.push(`| Difficulty | Passed | Failed | Avg EQ |`);
+        lines.push(`|------------|--------|--------|--------|`);
+        lines.push(`| Obvious | ${report.byDifficulty.obvious.passed}/${report.byDifficulty.obvious.total} | ${report.byDifficulty.obvious.failed} | ${report.byDifficulty.obvious.avgScore.toFixed(3)} |`);
+        lines.push(`| Subtle | ${report.byDifficulty.subtle.passed}/${report.byDifficulty.subtle.total} | ${report.byDifficulty.subtle.failed} | ${report.byDifficulty.subtle.avgScore.toFixed(3)} |`);
+        lines.push(`| Edge-case | ${report.byDifficulty['edge-case'].passed}/${report.byDifficulty['edge-case'].total} | ${report.byDifficulty['edge-case'].failed} | ${report.byDifficulty['edge-case'].avgScore.toFixed(3)} |`);
         lines.push('');
-        
+
         // Failed scenarios
         const failed = report.results.filter(r => !r.passed);
         if (failed.length > 0) {
@@ -284,15 +285,15 @@ export class EvaluationEngine {
             for (const result of failed) {
                 lines.push(`### ✗ ${result.scenario.id}`);
                 lines.push('');
-                lines.push(`- **Expected:** score ${result.scenario.expectedOutcome.expectedScore.min}-${result.scenario.expectedOutcome.expectedScore.max}, action: ${result.scenario.expectedOutcome.expectedAction}`);
-                lines.push(`- **Got:** score ${result.metrics.finalScore.toFixed(1)}`);
+                lines.push(`- **Expected:** EQ ${result.scenario.expectedOutcome.expectedEQ.min}-${result.scenario.expectedOutcome.expectedEQ.max}, action: ${result.scenario.expectedOutcome.expectedAction}`);
+                lines.push(`- **Got:** EQ ${result.metrics.finalScore.toFixed(3)}`);
                 if (result.errors.length > 0) {
                     lines.push(`- **Errors:** ${result.errors.join(', ')}`);
                 }
                 lines.push('');
             }
         }
-        
+
         return lines.join('\n');
     }
 }

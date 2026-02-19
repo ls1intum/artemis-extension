@@ -248,11 +248,19 @@ export class DiagnosticPersistenceService implements vscode.Disposable {
     }
 
     /**
+     * Reset tracked diagnostics for a new exercise session.
+     * Clears all state so stale diagnostics from the previous exercise don't leak.
+     */
+    public reset(): void {
+        this._trackedDiagnostics.clear();
+        this._onDidUpdateDiagnostics.fire([]);
+    }
+
+    /**
      * TEST ONLY: Clear all tracked diagnostics for testing purposes.
      * @internal
      */
     public _testClearAllDiagnostics(): void {
-        this._trackedDiagnostics.clear();
-        this._onDidUpdateDiagnostics.fire([]);
+        this.reset();
     }
 }

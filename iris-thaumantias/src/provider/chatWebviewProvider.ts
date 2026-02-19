@@ -34,6 +34,12 @@ type ChatContextReason =
     | 'default'
     | 'workspace-detected';
 
+export interface ExerciseContextChangeEvent {
+    exerciseId: number;
+    previousExerciseId?: number;
+    exerciseRoot?: vscode.Uri;
+}
+
 export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.Disposable {
     public static readonly viewType = 'iris.chatView';
 
@@ -51,6 +57,10 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
     private _websocketMessageHandler: WebSocketMessageHandler;
     private _telemetryManager?: TelemetryManager;
     private _noAiDetectionService: NoAiDetectionService;
+    private _currentExerciseId?: number;
+
+    private readonly _onDidChangeExerciseContext = new vscode.EventEmitter<ExerciseContextChangeEvent>();
+    public readonly onDidChangeExerciseContext = this._onDidChangeExerciseContext.event;
 
     constructor(
         private readonly _extensionUri: vscode.Uri,
@@ -166,6 +176,7 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
             const disposable = this._disposables.pop();
             disposable?.dispose();
         }
+        this._onDidChangeExerciseContext.dispose();
     }
 
     private _handleIrisWebSocketMessage(data: any): void {
@@ -969,6 +980,15 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
         }
 
         vscode.window.showInformationMessage(`Exercise context set to: ${exerciseTitle}`);
+
+        // Fire exercise context change event for TelemetryManager
+        const previousExerciseId = this._currentExerciseId;
+        this._currentExerciseId = exerciseId;
+        this._onDidChangeExerciseContext.fire({
+            exerciseId,
+            previousExerciseId,
+            exerciseRoot: vscode.workspace.workspaceFolders?.[0]?.uri,
+        });
 
         logger.context('SET EXERCISE CONTEXT Starting to load sessions for context...', LogLevel.DEBUG);
 

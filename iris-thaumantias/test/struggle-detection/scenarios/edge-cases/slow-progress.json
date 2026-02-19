@@ -1,150 +1,33 @@
 {
     "id": "slow-progress",
-    "name": "Slow Progress With Many Errors",
-    "description": "Student is making progress but very slowly, with many errors along the way. Subtle struggle - they're moving forward but inefficiently.",
+    "name": "Slow Progress - Errors Then Different Error Then Clean",
+    "description": "Student starts with error A (3 saves), changes to error B (1 save), then fixes (4 clean saves). Pairs: (A,A)same=1.0, (A,A)same=1.0, (A,B)diff=8/11≈0.727, (B,c)=0, (c,c)=0, (c,c)=0, (c,c)=0. EQ=(1.0+1.0+0.727)/7≈0.390.",
     "difficulty": "edge-case",
-    "tags": ["slow-progress", "many-errors", "inefficient", "beginner"],
-    
+    "tags": ["edge-case", "slow-progress", "error-transition"],
     "expectedOutcome": {
-        "shouldDetectStruggle": false,
-        "expectedScore": { "min": 0, "max": 35 },
-        "expectedAction": "none",
-        "expectedTimeToDetection": 300000
+        "shouldDetectStruggle": true,
+        "expectedEQ": { "min": 0.38, "max": 0.40 },
+        "expectedAction": "notification"
     },
-    
     "events": [
-        {
-            "type": "edit",
-            "timestamp": 0,
-            "file": "Calculator.java",
-            "content": "public class Calculator {\n    public int add(int a, int b) {\n        return a + b\n    }\n}"
-        },
-        {
-            "type": "diagnostic",
-            "timestamp": 100,
-            "action": "add",
-            "diagnostics": [{
-                "file": "Calculator.java",
-                "line": 3,
-                "severity": "error",
-                "code": "compiler.err.expected",
-                "message": "';' expected"
-            }]
-        },
-        {
-            "type": "wait",
-            "duration": 45000
-        },
-        {
-            "type": "edit",
-            "timestamp": 45100,
-            "file": "Calculator.java",
-            "content": "public class Calculator {\n    public int add(int a, int b) {\n        return a + b;\n    }\n}"
-        },
-        {
-            "type": "diagnostic",
-            "timestamp": 45200,
-            "action": "clear"
-        },
-        {
-            "type": "wait",
-            "duration": 60000
-        },
-        {
-            "type": "edit",
-            "timestamp": 105100,
-            "file": "Calculator.java",
-            "content": "public class Calculator {\n    public int add(int a, int b) {\n        return a + b;\n    }\n    \n    public int subtract(int a int b) {\n        return a - b;\n    }\n}"
-        },
-        {
-            "type": "diagnostic",
-            "timestamp": 105200,
-            "action": "add",
-            "diagnostics": [{
-                "file": "Calculator.java",
-                "line": 6,
-                "severity": "error",
-                "code": "compiler.err.expected",
-                "message": "',' expected"
-            }]
-        },
-        {
-            "type": "wait",
-            "duration": 90000
-        },
-        {
-            "type": "edit",
-            "timestamp": 195100,
-            "file": "Calculator.java",
-            "content": "public class Calculator {\n    public int add(int a, int b) {\n        return a + b;\n    }\n    \n    public int subtract(int a, int b) {\n        return a - b;\n    }\n}"
-        },
-        {
-            "type": "diagnostic",
-            "timestamp": 195200,
-            "action": "clear"
-        },
-        {
-            "type": "wait",
-            "duration": 75000
-        },
-        {
-            "type": "edit",
-            "timestamp": 270100,
-            "file": "Calculator.java",
-            "content": "public class Calculator {\n    public int add(int a, int b) {\n        return a + b;\n    }\n    \n    public int subtract(int a, int b) {\n        return a - b;\n    }\n    \n    public int multiply(int a, int b) {\n        return a * b\n    }\n}"
-        },
-        {
-            "type": "diagnostic",
-            "timestamp": 270200,
-            "action": "add",
-            "diagnostics": [{
-                "file": "Calculator.java",
-                "line": 11,
-                "severity": "error",
-                "code": "compiler.err.expected",
-                "message": "';' expected"
-            }]
-        },
-        {
-            "type": "wait",
-            "duration": 60000
-        },
-        {
-            "type": "edit",
-            "timestamp": 330100,
-            "file": "Calculator.java",
-            "content": "public class Calculator {\n    public int add(int a, int b) {\n        return a + b;\n    }\n    \n    public int subtract(int a, int b) {\n        return a - b;\n    }\n    \n    public int multiply(int a, int b) {\n        return a * b;\n    }\n}"
-        },
-        {
-            "type": "diagnostic",
-            "timestamp": 330200,
-            "action": "clear"
-        },
-        {
-            "type": "wait",
-            "duration": 90000
-        },
-        {
-            "type": "edit",
-            "timestamp": 420100,
-            "file": "Calculator.java",
-            "content": "public class Calculator {\n    public int add(int a, int b) {\n        return a + b;\n    }\n    \n    public int subtract(int a, int b) {\n        return a - b;\n    }\n    \n    public int multiply(int a, int b) {\n        return a * b;\n    }\n    \n    public int divide(int a, int b) {\n        return a / b\n    }\n}"
-        },
-        {
-            "type": "diagnostic",
-            "timestamp": 420200,
-            "action": "add",
-            "diagnostics": [{
-                "file": "Calculator.java",
-                "line": 15,
-                "severity": "error",
-                "code": "compiler.err.expected",
-                "message": "';' expected"
-            }]
-        },
-        {
-            "type": "wait",
-            "duration": 45000
-        }
+        { "type": "diagnostic", "timestamp": 0, "action": "add", "diagnostics": [{ "file": "Calculator.java", "line": 3, "severity": "error", "code": "compiler.err.expected", "message": "';' expected" }] },
+        { "type": "save", "timestamp": 100, "file": "Calculator.java" },
+        { "type": "wait", "duration": 6000 },
+        { "type": "save", "timestamp": 6100, "file": "Calculator.java" },
+        { "type": "wait", "duration": 6000 },
+        { "type": "save", "timestamp": 12100, "file": "Calculator.java" },
+        { "type": "wait", "duration": 6000 },
+        { "type": "diagnostic", "timestamp": 18100, "action": "clear" },
+        { "type": "diagnostic", "timestamp": 18100, "action": "add", "diagnostics": [{ "file": "Calculator.java", "line": 6, "severity": "error", "code": "compiler.err.cant.resolve", "message": "cannot find symbol" }] },
+        { "type": "save", "timestamp": 18200, "file": "Calculator.java" },
+        { "type": "wait", "duration": 6000 },
+        { "type": "diagnostic", "timestamp": 24200, "action": "clear" },
+        { "type": "save", "timestamp": 24300, "file": "Calculator.java" },
+        { "type": "wait", "duration": 6000 },
+        { "type": "save", "timestamp": 30300, "file": "Calculator.java" },
+        { "type": "wait", "duration": 6000 },
+        { "type": "save", "timestamp": 36300, "file": "Calculator.java" },
+        { "type": "wait", "duration": 6000 },
+        { "type": "save", "timestamp": 42300, "file": "Calculator.java" }
     ]
 }

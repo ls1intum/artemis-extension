@@ -9,6 +9,9 @@ import { ProviderRegistry } from './services/ProviderRegistry';
 import { VSCODE_CONFIG, processPlantUml, normalizeRelativePath } from './utils';
 import { logger, LogLevel, LogCategory } from './services/loggingService';
 
+// Module-level reference for deactivate() cleanup
+let activeTelemetryManager: TelemetryManager | undefined;
+
 // This method is called when your extension is activated
 // Your extension is activated the very first time the command is executed
 export async function activate(context: vscode.ExtensionContext) {
@@ -25,6 +28,7 @@ export async function activate(context: vscode.ExtensionContext) {
 	const artemisWebsocketService = new ArtemisWebsocketService(authManager);
 	const buildErrorCodeLensProvider = new BuildErrorCodeLensProvider();
 	const telemetryManager = new TelemetryManager();
+	activeTelemetryManager = telemetryManager;
 
 	// Connect telemetry manager to websocket service for build results
 	telemetryManager.setWebsocketService(artemisWebsocketService);
@@ -139,6 +143,11 @@ export async function activate(context: vscode.ExtensionContext) {
 
 	// Pass telemetry manager to chat provider for struggle context integration
 	chatWebviewProvider.setTelemetryManager(telemetryManager);
+
+	// Wire exercise context changes to telemetry manager for EQ session lifecycle
+	chatWebviewProvider.onDidChangeExerciseContext(({ exerciseId, exerciseRoot }) => {
+		telemetryManager.startExerciseSession(exerciseId, exerciseRoot);
+	});
 
 	context.subscriptions.push(
 		vscode.window.registerWebviewViewProvider(ChatWebviewProvider.viewType, chatWebviewProvider)
@@ -588,4 +597,11 @@ export async function activate(context: vscode.ExtensionContext) {
 }
 
 // This method is called when your extension is deactivated
-export function deactivate() { }
+export function deactivate() {
+	// Explicit session cleanup — context.subscriptions.dispose() is an additional guarantee,
+	// but deactivate() ensures ordering and explicit state persistence.
+	if (activeTelemetryManager) {
+		activeTelemetryManager.endCurrentSession();
+		activeTelemetryManager = undefined;
+	}
+}

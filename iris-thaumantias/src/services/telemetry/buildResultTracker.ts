@@ -49,6 +49,7 @@ export class BuildResultTracker implements vscode.Disposable, WebSocketMessageHa
             failedTests: this._extractFailedTests(result),
             buildLog: undefined, // Build log comes separately
             submissionId: result.submission?.id,
+            rawBuildFailed: result.submission?.buildFailed,
         };
 
         this._addBuildResult(buildResult);

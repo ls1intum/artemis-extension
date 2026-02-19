@@ -1,85 +1,29 @@
 {
     "id": "repeated-build-failures",
     "name": "Repeated Build Failures",
-    "description": "Student submits code multiple times but build keeps failing. Classic struggle with server-side compilation.",
+    "description": "8 consecutive build failures with buildFailed=true and same error. All 7 pairs score 11/11 → EQ=1.0.",
     "difficulty": "obvious",
-    "tags": ["build-failure", "submissions", "server-side"],
-    
+    "tags": ["build-failure", "persistent-error", "eq-max"],
     "expectedOutcome": {
         "shouldDetectStruggle": true,
-        "expectedScore": { "min": 20, "max": 45 },
-        "expectedAction": "subtle"
+        "expectedEQ": { "min": 1.0, "max": 1.0 },
+        "expectedAction": "proactive"
     },
-    
     "events": [
-        {
-            "type": "edit",
-            "timestamp": 0,
-            "file": "Main.java",
-            "content": "public class Main {\n    public static void main(String[] args) {\n        // Initial code\n    }\n}"
-        },
-        {
-            "type": "build",
-            "timestamp": 10000,
-            "success": false,
-            "errors": ["compilation failed"],
-            "failedTests": ["testMain"]
-        },
-        {
-            "type": "wait",
-            "duration": 30000
-        },
-        {
-            "type": "edit",
-            "timestamp": 40100,
-            "file": "Main.java",
-            "content": "public class Main {\n    public static void main(String[] args) {\n        // Attempt 2\n    }\n}"
-        },
-        {
-            "type": "build",
-            "timestamp": 50000,
-            "success": false,
-            "errors": ["compilation failed"],
-            "failedTests": ["testMain"]
-        },
-        {
-            "type": "wait",
-            "duration": 30000
-        },
-        {
-            "type": "edit",
-            "timestamp": 80100,
-            "file": "Main.java",
-            "content": "public class Main {\n    public static void main(String[] args) {\n        // Attempt 3\n    }\n}"
-        },
-        {
-            "type": "build",
-            "timestamp": 90000,
-            "success": false,
-            "errors": ["compilation failed"],
-            "failedTests": ["testMain"]
-        },
-        {
-            "type": "wait",
-            "duration": 30000
-        },
-        {
-            "type": "build",
-            "timestamp": 120000,
-            "success": false,
-            "errors": ["compilation failed"],
-            "failedTests": ["testMain"]
-        },
-        {
-            "type": "wait",
-            "duration": 30000
-        },
-        {
-            "type": "build",
-            "timestamp": 150000,
-            "success": false,
-            "errors": ["compilation failed"],
-            "failedTests": ["testMain"]
-        }
+        { "type": "build", "timestamp": 0, "buildFailed": true, "errors": [{ "code": "compiler.err.cant.resolve", "message": "cannot find symbol: class Node" }] },
+        { "type": "wait", "duration": 10000 },
+        { "type": "build", "timestamp": 10000, "buildFailed": true, "errors": [{ "code": "compiler.err.cant.resolve", "message": "cannot find symbol: class Node" }] },
+        { "type": "wait", "duration": 10000 },
+        { "type": "build", "timestamp": 20000, "buildFailed": true, "errors": [{ "code": "compiler.err.cant.resolve", "message": "cannot find symbol: class Node" }] },
+        { "type": "wait", "duration": 10000 },
+        { "type": "build", "timestamp": 30000, "buildFailed": true, "errors": [{ "code": "compiler.err.cant.resolve", "message": "cannot find symbol: class Node" }] },
+        { "type": "wait", "duration": 10000 },
+        { "type": "build", "timestamp": 40000, "buildFailed": true, "errors": [{ "code": "compiler.err.cant.resolve", "message": "cannot find symbol: class Node" }] },
+        { "type": "wait", "duration": 10000 },
+        { "type": "build", "timestamp": 50000, "buildFailed": true, "errors": [{ "code": "compiler.err.cant.resolve", "message": "cannot find symbol: class Node" }] },
+        { "type": "wait", "duration": 10000 },
+        { "type": "build", "timestamp": 60000, "buildFailed": true, "errors": [{ "code": "compiler.err.cant.resolve", "message": "cannot find symbol: class Node" }] },
+        { "type": "wait", "duration": 10000 },
+        { "type": "build", "timestamp": 70000, "buildFailed": true, "errors": [{ "code": "compiler.err.cant.resolve", "message": "cannot find symbol: class Node" }] }
     ]
 }

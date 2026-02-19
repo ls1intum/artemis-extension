@@ -1,83 +1,31 @@
 {
     "id": "undo-redo-then-giving-up",
-    "name": "Undo/Redo Cycles Then Giving Up",
-    "description": "Student repeatedly reverts code changes while trying different approaches, then eventually stops with errors still present. Classic indecision leading to giving up.",
+    "name": "Errors Then Recovery",
+    "description": "Student has 3 consecutive error saves then fixes and has 5 clean saves. Pairs: (e,e),(e,e),(e,c),(c,c),(c,c),(c,c),(c,c). 2 error pairs score 11/11 each, rest score 0. EQ = (2*11/11)/7 = 2/7 ≈ 0.286.",
     "difficulty": "subtle",
-    "tags": ["undo-redo", "thrashing", "persistent-error", "giving-up"],
-    
+    "tags": ["subtle", "recovery", "error-then-fix"],
     "expectedOutcome": {
-        "shouldDetectStruggle": false,
-        "expectedScore": { "min": 25, "max": 55 },
-        "expectedAction": "none",
-        "expectedTimeToDetection": 300000
+        "shouldDetectStruggle": true,
+        "expectedEQ": { "min": 0.28, "max": 0.30 },
+        "expectedAction": "subtle"
     },
-    
     "events": [
-        {
-            "type": "edit",
-            "timestamp": 0,
-            "file": "Calculator.java",
-            "content": "public class Calculator {\n    public int divide(int a, int b) {\n        return a / b;\n    }\n}"
-        },
-        {
-            "type": "diagnostic",
-            "timestamp": 100,
-            "action": "add",
-            "diagnostics": [{
-                "file": "Calculator.java",
-                "line": 3,
-                "severity": "error",
-                "code": "java:S3518",
-                "message": "Division by zero will throw ArithmeticException"
-            }]
-        },
-        {
-            "type": "wait",
-            "duration": 30000
-        },
-        {
-            "type": "edit",
-            "timestamp": 30100,
-            "file": "Calculator.java",
-            "content": "public class Calculator {\n    public int divide(int a, int b) {\n        if (b == 0) {\n            throw new Exception(\"Cannot divide\");\n        }\n        return a / b;\n    }\n}"
-        },
-        {
-            "type": "diagnostic",
-            "timestamp": 30200,
-            "action": "add",
-            "diagnostics": [{
-                "file": "Calculator.java",
-                "line": 4,
-                "severity": "error",
-                "code": "compiler.err.unreported.exception",
-                "message": "unreported exception Exception"
-            }]
-        },
-        {
-            "type": "wait",
-            "duration": 25000
-        },
-        {
-            "type": "edit",
-            "timestamp": 55100,
-            "file": "Calculator.java",
-            "content": "public class Calculator {\n    public int divide(int a, int b) {\n        return a / b;\n    }\n}"
-        },
-        {
-            "type": "diagnostic",
-            "timestamp": 55200,
-            "action": "add",
-            "diagnostics": [{
-                "file": "Calculator.java",
-                "line": 3,
-                "severity": "error",
-                "code": "java:S3518",
-                "message": "Division by zero will throw ArithmeticException"
-            }]
-        },
-        {
-            "type": "wait",
-            "duration": 300000
-        }
+        { "type": "diagnostic", "timestamp": 0, "action": "add", "diagnostics": [{ "file": "Calculator.java", "line": 3, "severity": "error", "code": "compiler.err.expected", "message": "';' expected" }] },
+        { "type": "save", "timestamp": 100, "file": "Calculator.java" },
+        { "type": "wait", "duration": 6000 },
+        { "type": "save", "timestamp": 6100, "file": "Calculator.java" },
+        { "type": "wait", "duration": 6000 },
+        { "type": "save", "timestamp": 12100, "file": "Calculator.java" },
+        { "type": "wait", "duration": 6000 },
+        { "type": "diagnostic", "timestamp": 18100, "action": "clear" },
+        { "type": "save", "timestamp": 18200, "file": "Calculator.java" },
+        { "type": "wait", "duration": 6000 },
+        { "type": "save", "timestamp": 24200, "file": "Calculator.java" },
+        { "type": "wait", "duration": 6000 },
+        { "type": "save", "timestamp": 30200, "file": "Calculator.java" },
+        { "type": "wait", "duration": 6000 },
+        { "type": "save", "timestamp": 36200, "file": "Calculator.java" },
+        { "type": "wait", "duration": 6000 },
+        { "type": "save", "timestamp": 42200, "file": "Calculator.java" }
     ]
 }

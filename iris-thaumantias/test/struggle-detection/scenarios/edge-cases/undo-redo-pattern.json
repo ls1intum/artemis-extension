@@ -1,127 +1,44 @@
 {
     "id": "undo-redo-pattern",
-    "name": "Frequent Undo/Redo Cycles (Thrashing)",
-    "description": "Student repeatedly adds and removes code, going back and forth between approaches. Classic sign of uncertainty and lack of direction.",
+    "name": "Undo/Redo Pattern - Alternating Errors",
+    "description": "Student alternates between error A and error B (undo/redo). Pattern: errA, errB, errA, errB, errA, errB, errA, errB. All 7 pairs: both error, different families → 8/11 ≈ 0.727. EQ = 8/11 ≈ 0.727.",
     "difficulty": "edge-case",
-    "tags": ["undo-redo", "thrashing", "uncertainty", "indecision"],
-    
+    "tags": ["edge-case", "undo-redo", "alternating-errors", "high-eq"],
     "expectedOutcome": {
-        "shouldDetectStruggle": false,
-        "expectedScore": { "min": 0, "max": 35 },
-        "expectedAction": "none",
-        "expectedTimeToDetection": 180000
+        "shouldDetectStruggle": true,
+        "expectedEQ": { "min": 0.72, "max": 0.73 },
+        "expectedAction": "proactive"
     },
-    
     "events": [
-        {
-            "type": "edit",
-            "timestamp": 0,
-            "file": "Sorter.java",
-            "content": "public class Sorter {\n    public void sort(int[] arr) {\n        // bubble sort\n        for (int i = 0; i < arr.length; i++) {\n        }\n    }\n}"
-        },
-        {
-            "type": "wait",
-            "duration": 15000
-        },
-        {
-            "type": "edit",
-            "timestamp": 15100,
-            "file": "Sorter.java",
-            "content": "public class Sorter {\n    public void sort(int[] arr) {\n        // maybe selection sort instead?\n        for (int i = 0; i < arr.length; i++) {\n        }\n    }\n}"
-        },
-        {
-            "type": "wait",
-            "duration": 10000
-        },
-        {
-            "type": "edit",
-            "timestamp": 25100,
-            "file": "Sorter.java",
-            "content": "public class Sorter {\n    public void sort(int[] arr) {\n        // bubble sort\n        for (int i = 0; i < arr.length; i++) {\n        }\n    }\n}"
-        },
-        {
-            "type": "wait",
-            "duration": 20000
-        },
-        {
-            "type": "edit",
-            "timestamp": 45100,
-            "file": "Sorter.java",
-            "content": "public class Sorter {\n    public void sort(int[] arr) {\n        // bubble sort\n        for (int i = 0; i < arr.length; i++) {\n            for (int j = 0; j < arr.length - 1; j++) {\n            }\n        }\n    }\n}"
-        },
-        {
-            "type": "wait",
-            "duration": 8000
-        },
-        {
-            "type": "edit",
-            "timestamp": 53100,
-            "file": "Sorter.java",
-            "content": "public class Sorter {\n    public void sort(int[] arr) {\n        // bubble sort\n        for (int i = 0; i < arr.length; i++) {\n        }\n    }\n}"
-        },
-        {
-            "type": "wait",
-            "duration": 25000
-        },
-        {
-            "type": "edit",
-            "timestamp": 78100,
-            "file": "Sorter.java",
-            "content": "public class Sorter {\n    public void sort(int[] arr) {\n        // insertion sort\n        for (int i = 1; i < arr.length; i++) {\n        }\n    }\n}"
-        },
-        {
-            "type": "wait",
-            "duration": 12000
-        },
-        {
-            "type": "edit",
-            "timestamp": 90100,
-            "file": "Sorter.java",
-            "content": "public class Sorter {\n    public void sort(int[] arr) {\n        // bubble sort\n        for (int i = 0; i < arr.length; i++) {\n        }\n    }\n}"
-        },
-        {
-            "type": "wait",
-            "duration": 30000
-        },
-        {
-            "type": "edit",
-            "timestamp": 120100,
-            "file": "Sorter.java",
-            "content": "public class Sorter {\n    public void sort(int[] arr) {\n        // let me try bubble sort properly\n        for (int i = 0; i < arr.length - 1; i++) {\n            for (int j = 0; j < arr.length - i - 1; j++) {\n                if (arr[j] > arr[j+1]) {\n                    // swap\n                }\n            }\n        }\n    }\n}"
-        },
-        {
-            "type": "wait",
-            "duration": 15000
-        },
-        {
-            "type": "edit",
-            "timestamp": 135100,
-            "file": "Sorter.java",
-            "content": "public class Sorter {\n    public void sort(int[] arr) {\n        // bubble sort\n        for (int i = 0; i < arr.length; i++) {\n        }\n    }\n}"
-        },
-        {
-            "type": "wait",
-            "duration": 45000
-        },
-        {
-            "type": "edit",
-            "timestamp": 180100,
-            "file": "Sorter.java",
-            "content": "public class Sorter {\n    public void sort(int[] arr) {\n        // insertion sort - maybe this is easier\n        for (int i = 1; i < arr.length; i++) {\n            int key = arr[i];\n        }\n    }\n}"
-        },
-        {
-            "type": "wait",
-            "duration": 20000
-        },
-        {
-            "type": "edit",
-            "timestamp": 200100,
-            "file": "Sorter.java",
-            "content": "public class Sorter {\n    public void sort(int[] arr) {\n        // bubble sort\n        for (int i = 0; i < arr.length; i++) {\n        }\n    }\n}"
-        },
-        {
-            "type": "wait",
-            "duration": 60000
-        }
+        { "type": "diagnostic", "timestamp": 0, "action": "add", "diagnostics": [{ "file": "Sorter.java", "line": 3, "severity": "error", "code": "compiler.err.expected", "message": "';' expected" }] },
+        { "type": "save", "timestamp": 100, "file": "Sorter.java" },
+        { "type": "wait", "duration": 6000 },
+        { "type": "diagnostic", "timestamp": 6100, "action": "clear" },
+        { "type": "diagnostic", "timestamp": 6100, "action": "add", "diagnostics": [{ "file": "Sorter.java", "line": 5, "severity": "error", "code": "compiler.err.cant.resolve", "message": "cannot find symbol" }] },
+        { "type": "save", "timestamp": 6200, "file": "Sorter.java" },
+        { "type": "wait", "duration": 6000 },
+        { "type": "diagnostic", "timestamp": 12200, "action": "clear" },
+        { "type": "diagnostic", "timestamp": 12200, "action": "add", "diagnostics": [{ "file": "Sorter.java", "line": 3, "severity": "error", "code": "compiler.err.expected", "message": "';' expected" }] },
+        { "type": "save", "timestamp": 12300, "file": "Sorter.java" },
+        { "type": "wait", "duration": 6000 },
+        { "type": "diagnostic", "timestamp": 18300, "action": "clear" },
+        { "type": "diagnostic", "timestamp": 18300, "action": "add", "diagnostics": [{ "file": "Sorter.java", "line": 5, "severity": "error", "code": "compiler.err.cant.resolve", "message": "cannot find symbol" }] },
+        { "type": "save", "timestamp": 18400, "file": "Sorter.java" },
+        { "type": "wait", "duration": 6000 },
+        { "type": "diagnostic", "timestamp": 24400, "action": "clear" },
+        { "type": "diagnostic", "timestamp": 24400, "action": "add", "diagnostics": [{ "file": "Sorter.java", "line": 3, "severity": "error", "code": "compiler.err.expected", "message": "';' expected" }] },
+        { "type": "save", "timestamp": 24500, "file": "Sorter.java" },
+        { "type": "wait", "duration": 6000 },
+        { "type": "diagnostic", "timestamp": 30500, "action": "clear" },
+        { "type": "diagnostic", "timestamp": 30500, "action": "add", "diagnostics": [{ "file": "Sorter.java", "line": 5, "severity": "error", "code": "compiler.err.cant.resolve", "message": "cannot find symbol" }] },
+        { "type": "save", "timestamp": 30600, "file": "Sorter.java" },
+        { "type": "wait", "duration": 6000 },
+        { "type": "diagnostic", "timestamp": 36600, "action": "clear" },
+        { "type": "diagnostic", "timestamp": 36600, "action": "add", "diagnostics": [{ "file": "Sorter.java", "line": 3, "severity": "error", "code": "compiler.err.expected", "message": "';' expected" }] },
+        { "type": "save", "timestamp": 36700, "file": "Sorter.java" },
+        { "type": "wait", "duration": 6000 },
+        { "type": "diagnostic", "timestamp": 42700, "action": "clear" },
+        { "type": "diagnostic", "timestamp": 42700, "action": "add", "diagnostics": [{ "file": "Sorter.java", "line": 5, "severity": "error", "code": "compiler.err.cant.resolve", "message": "cannot find symbol" }] },
+        { "type": "save", "timestamp": 42800, "file": "Sorter.java" }
     ]
 }

@@ -1,61 +1,29 @@
 {
     "id": "long-thinking-no-struggle",
     "name": "Long Thinking Period - No Errors",
-    "description": "Student takes a long time between edits but code is error-free. They're thinking, not struggling. Should NOT trigger struggle detection.",
+    "description": "Student takes long pauses (60s) between saves but code is error-free. 8 clean saves. All snapshots have hasErrors=false → all pairs score 0 → EQ=0.0.",
     "difficulty": "edge-case",
-    "tags": ["no-struggle", "thinking", "long-pause", "clean-code"],
-    
+    "tags": ["edge-case", "no-struggle", "thinking", "long-pause"],
     "expectedOutcome": {
         "shouldDetectStruggle": false,
-        "expectedScore": { "min": 0, "max": 25 },
+        "expectedEQ": { "min": 0.0, "max": 0.0 },
         "expectedAction": "none"
     },
-    
     "events": [
-        {
-            "type": "edit",
-            "timestamp": 0,
-            "file": "BinarySearch.java",
-            "content": "public class BinarySearch {\n    public int search(int[] arr, int target) {\n        return -1;\n    }\n}"
-        },
-        {
-            "type": "wait",
-            "duration": 120000
-        },
-        {
-            "type": "edit",
-            "timestamp": 120100,
-            "file": "BinarySearch.java",
-            "content": "public class BinarySearch {\n    public int search(int[] arr, int target) {\n        int left = 0;\n        int right = arr.length - 1;\n        return -1;\n    }\n}"
-        },
-        {
-            "type": "wait",
-            "duration": 90000
-        },
-        {
-            "type": "edit",
-            "timestamp": 210100,
-            "file": "BinarySearch.java",
-            "content": "public class BinarySearch {\n    public int search(int[] arr, int target) {\n        int left = 0;\n        int right = arr.length - 1;\n        \n        while (left <= right) {\n            int mid = left + (right - left) / 2;\n            \n            if (arr[mid] == target) {\n                return mid;\n            }\n        }\n        \n        return -1;\n    }\n}"
-        },
-        {
-            "type": "wait",
-            "duration": 60000
-        },
-        {
-            "type": "edit",
-            "timestamp": 270100,
-            "file": "BinarySearch.java",
-            "content": "public class BinarySearch {\n    public int search(int[] arr, int target) {\n        int left = 0;\n        int right = arr.length - 1;\n        \n        while (left <= right) {\n            int mid = left + (right - left) / 2;\n            \n            if (arr[mid] == target) {\n                return mid;\n            } else if (arr[mid] < target) {\n                left = mid + 1;\n            } else {\n                right = mid - 1;\n            }\n        }\n        \n        return -1;\n    }\n}"
-        },
-        {
-            "type": "build",
-            "timestamp": 280000,
-            "success": true
-        },
-        {
-            "type": "wait",
-            "duration": 30000
-        }
+        { "type": "save", "timestamp": 0, "file": "BinarySearch.java" },
+        { "type": "wait", "duration": 60000 },
+        { "type": "save", "timestamp": 60000, "file": "BinarySearch.java" },
+        { "type": "wait", "duration": 60000 },
+        { "type": "save", "timestamp": 120000, "file": "BinarySearch.java" },
+        { "type": "wait", "duration": 60000 },
+        { "type": "save", "timestamp": 180000, "file": "BinarySearch.java" },
+        { "type": "wait", "duration": 60000 },
+        { "type": "save", "timestamp": 240000, "file": "BinarySearch.java" },
+        { "type": "wait", "duration": 60000 },
+        { "type": "save", "timestamp": 300000, "file": "BinarySearch.java" },
+        { "type": "wait", "duration": 60000 },
+        { "type": "save", "timestamp": 360000, "file": "BinarySearch.java" },
+        { "type": "wait", "duration": 60000 },
+        { "type": "save", "timestamp": 420000, "file": "BinarySearch.java" }
     ]
 }
