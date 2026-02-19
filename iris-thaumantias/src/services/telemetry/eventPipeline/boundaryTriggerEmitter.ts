@@ -94,9 +94,22 @@ export class BoundaryTriggerEmitter implements vscode.Disposable {
 
     /**
      * Handle selection change — start a timer to fire selection-maintained trigger.
+     * Paper (P11): "If insignificant selection, no response." — only range selections
+     * start the timer; empty cursor clicks cancel any running timer.
      */
-    public handleSelectionChange(_event: vscode.TextEditorSelectionChangeEvent): void {
-        // Cancel any existing selection timer
+    public handleSelectionChange(event: vscode.TextEditorSelectionChangeEvent): void {
+        const hasNonEmptySelection = event.selections.some(s => !s.isEmpty);
+
+        if (!hasNonEmptySelection) {
+            // Empty selection (cursor click) — cancel any running timer
+            if (this._selectionTimer) {
+                clearTimeout(this._selectionTimer);
+                this._selectionTimer = undefined;
+            }
+            return;
+        }
+
+        // Non-empty (range) selection — restart timer
         if (this._selectionTimer) {
             clearTimeout(this._selectionTimer);
         }
@@ -137,7 +150,7 @@ export class BoundaryTriggerEmitter implements vscode.Disposable {
     private _startIdleCheck(): void {
         // Check every 5 seconds whether idle threshold has been exceeded
         this._idleCheckTimer = setInterval(() => {
-            const timeSinceEdit = this._inactivityService.getTimeSinceLastEdit();
+            const timeSinceEdit = this._inactivityService.getTimeSinceLastActivity();
             const threshold = this._adaptiveCadence.getIdleThreshold();
 
             if (timeSinceEdit >= threshold) {

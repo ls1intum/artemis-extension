@@ -181,10 +181,20 @@ export class InactivityService implements vscode.Disposable {
     }
 
     /**
-     * Get time elapsed since last edit in milliseconds
+     * Get time elapsed since last edit in milliseconds.
+     * Only considers strong activity (edits/saves) — used for pattern classification.
      */
     public getTimeSinceLastEdit(): number {
         return Date.now() - this._lastEditTimestamp;
+    }
+
+    /**
+     * Get time elapsed since last activity of any kind (edit, save, cursor, selection).
+     * Paper (P11): Idle = "no code edit, caret movement, or selection change."
+     * Used for idle-trigger detection (all activity resets idle).
+     */
+    public getTimeSinceLastActivity(): number {
+        return Date.now() - Math.max(this._lastEditTimestamp, this._lastWeakActivityTimestamp);
     }
 
     /**

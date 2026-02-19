@@ -53,6 +53,7 @@ export class TelemetryManager implements vscode.Disposable, WebSocketMessageHand
     private _isEnabled: boolean = true;
     private _activeExerciseId: number | undefined;
     private _lastTriggerType: TriggerType | undefined;
+    private _lastInterventionTriggerType: TriggerType | undefined;
 
     // Debug mode
     private _debugMode: boolean = false;
@@ -199,6 +200,7 @@ export class TelemetryManager implements vscode.Disposable, WebSocketMessageHand
 
         this._activeExerciseId = exerciseId;
         this._lastTriggerType = undefined;
+        this._lastInterventionTriggerType = undefined;
 
         // Reset everything
         this._eqEngine.resetSession();
@@ -232,6 +234,7 @@ export class TelemetryManager implements vscode.Disposable, WebSocketMessageHand
 
         this._activeExerciseId = undefined;
         this._lastTriggerType = undefined;
+        this._lastInterventionTriggerType = undefined;
     }
 
     /**
@@ -304,11 +307,11 @@ export class TelemetryManager implements vscode.Disposable, WebSocketMessageHand
             }
         });
 
-        // Intervention dismissed → increment adaptive cadence
+        // Intervention dismissed → increment adaptive cadence for the trigger that caused it
         this._interventionService.onDidDismissIntervention(() => {
-            // The last trigger type isn't directly available here,
-            // so we increment idle as the most conservative choice
-            this._adaptiveCadence.incrementIgnoreCount('idle');
+            const triggerType = this._lastInterventionTriggerType ?? 'idle';
+            this._adaptiveCadence.incrementIgnoreCount(triggerType);
+            this._lastInterventionTriggerType = undefined;
         });
 
         // Intervention accepted → reset adaptive cadence
@@ -351,6 +354,9 @@ export class TelemetryManager implements vscode.Disposable, WebSocketMessageHand
             }
             return;
         }
+
+        // Save trigger type for dismiss handler (see _setupEventHandlers)
+        this._lastInterventionTriggerType = triggerType;
 
         // Dispatch intervention
         switch (decision.level) {
