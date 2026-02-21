@@ -3,13 +3,9 @@ import { BuildLogParser } from '../../src/utils/buildLogParser';
 import { BuildLogEntry } from '../../src/types/artemis';
 
 suite('BuildLogParser Test Suite', () => {
-    
+
     function createLogEntry(log: string): BuildLogEntry {
-        return {
-            id: 1,
-            time: new Date().toISOString(),
-            log
-        };
+        return new BuildLogEntry(1, new Date().toISOString(), log);
     }
 
     test('should parse Gradle error format', () => {

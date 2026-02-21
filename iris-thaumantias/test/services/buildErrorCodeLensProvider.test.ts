@@ -2,6 +2,7 @@ import * as assert from 'assert';
 import * as vscode from 'vscode';
 import { BuildErrorCodeLensProvider } from '../../src/provider/buildErrorCodeLensProvider';
 import { ParsedBuildError } from '../../src/types/artemis';
+
 import { MockTextDocument } from '../mocks/vscodeMocks';
 
 class TestableBuildErrorCodeLensProvider extends BuildErrorCodeLensProvider {
@@ -23,7 +24,7 @@ suite('BuildErrorCodeLensProvider Test Suite', () => {
 
     test('should set and retrieve errors for file', () => {
         const errors: ParsedBuildError[] = [
-            { filePath: 'src/Main.java', line: 10, message: 'Syntax error' }
+            new ParsedBuildError('src/Main.java', 10, 'Syntax error')
         ];
 
         provider.setErrors('src/Main.java', errors);
@@ -38,7 +39,7 @@ suite('BuildErrorCodeLensProvider Test Suite', () => {
 
     test('should clear all errors', () => {
         const errors: ParsedBuildError[] = [
-            { filePath: 'src/Main.java', line: 10, message: 'Error 1' }
+            new ParsedBuildError('src/Main.java', 10, 'Error 1')
         ];
 
         provider.setErrors('src/Main.java', errors);
@@ -51,8 +52,8 @@ suite('BuildErrorCodeLensProvider Test Suite', () => {
     });
 
     test('should clear errors for specific file', () => {
-        provider.setErrors('src/Main.java', [{ filePath: 'src/Main.java', line: 10, message: 'Error' }]);
-        provider.setErrors('src/Test.java', [{ filePath: 'src/Test.java', line: 5, message: 'Error' }]);
+        provider.setErrors('src/Main.java', [new ParsedBuildError('src/Main.java', 10, 'Error')]);
+        provider.setErrors('src/Test.java', [new ParsedBuildError('src/Test.java', 5, 'Error')]);
 
         provider.clearFileErrors('src/Main.java');
 
@@ -67,7 +68,7 @@ suite('BuildErrorCodeLensProvider Test Suite', () => {
 
     test('should normalize file paths', () => {
         const errors: ParsedBuildError[] = [
-            { filePath: 'src\\Main.java', line: 10, message: 'Error' }
+            new ParsedBuildError('src\\Main.java', 10, 'Error')
         ];
 
         // Should normalize backslashes
@@ -81,7 +82,7 @@ suite('BuildErrorCodeLensProvider Test Suite', () => {
     });
 
     test('should handle empty file path gracefully', () => {
-        provider.setErrors('', [{ filePath: '', line: 1, message: 'Error' }]);
+        provider.setErrors('', [new ParsedBuildError('', 1, 'Error')]);
         provider.clearFileErrors('');
         // Should not throw
     });

@@ -394,7 +394,8 @@ suite('Artemis API Service Test Suite', () => {
         };
 
         const status = await apiService.checkIrisHealth(1);
-        assert.deepStrictEqual(status, mockStatus);
+        assert.strictEqual(status.active, true);
+        assert.strictEqual(status.rateLimitInfo, undefined);
     });
 
     test('should render PlantUML', async () => {

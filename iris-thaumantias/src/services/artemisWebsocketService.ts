@@ -416,7 +416,7 @@ export class ArtemisWebsocketService {
 
         const subscription = this._client.subscribe(topic, (message: IMessage) => {
             try {
-                const result: ResultDTO = JSON.parse(message.body);
+                const result = ResultDTO.fromJSON(JSON.parse(message.body));
                 this._log(`Received new result: score=${result.score}, successful=${result.successful}`);
 
                 // Notify all handlers
@@ -451,7 +451,7 @@ export class ArtemisWebsocketService {
 
         const subscription = this._client.subscribe(topic, (message: IMessage) => {
             try {
-                const submission: ProgrammingSubmission = JSON.parse(message.body);
+                const submission = ProgrammingSubmission.fromJSON(JSON.parse(message.body));
                 this._log(`Received new submission: ${submission.id}`);
 
                 // Notify all handlers
@@ -486,7 +486,7 @@ export class ArtemisWebsocketService {
 
         const subscription = this._client.subscribe(topic, (message: IMessage) => {
             try {
-                const processingMsg: SubmissionProcessingMessage = JSON.parse(message.body);
+                const processingMsg = SubmissionProcessingMessage.fromJSON(JSON.parse(message.body));
                 this._log(`Received submission processing update: participationId=${processingMsg.participationId}`);
 
                 // Notify all handlers

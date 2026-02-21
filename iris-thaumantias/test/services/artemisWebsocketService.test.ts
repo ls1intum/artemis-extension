@@ -172,8 +172,8 @@ suite('Artemis WebSocket Service Test Suite', () => {
         const topic = '/user/topic/newResults';
         assert.ok(wsService.mockClient!.subscriptions.has(topic), 'Should be subscribed to results');
 
-        // Simulate message
-        const mockResult: ResultDTO = {
+        // Simulate message — raw JSON data that will be parsed via fromJSON
+        const mockResultData = {
             id: 1,
             score: 100,
             rated: true,
@@ -182,10 +182,13 @@ suite('Artemis WebSocket Service Test Suite', () => {
             submission: { id: 1 }
         };
 
-        wsService.mockClient!.simulateMessage(topic, mockResult);
+        wsService.mockClient!.simulateMessage(topic, mockResultData);
 
-        // Verify handler was called
-        assert.deepStrictEqual(receivedResult, mockResult);
+        // Verify handler was called with a proper ResultDTO instance
+        assert.ok(receivedResult);
+        assert.strictEqual(receivedResult!.id, 1);
+        assert.strictEqual(receivedResult!.score, 100);
+        assert.strictEqual(receivedResult!.successful, true);
     });
 
     test('should handle disconnection', async () => {

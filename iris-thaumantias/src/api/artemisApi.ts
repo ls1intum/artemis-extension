@@ -355,13 +355,13 @@ export class ArtemisApiService {
     // Check Iris health status (course-scoped)
     async checkIrisHealth(courseId: number): Promise<IrisHealthStatus> {
         const response = await this.makeRequest(`/api/iris/courses/${courseId}/status`);
-        return response.json() as Promise<IrisHealthStatus>;
+        return IrisHealthStatus.fromJSON(await response.json());
     }
 
     // Get server profile information (includes activeProfiles to check if Iris is globally enabled)
     async getProfileInfo(): Promise<ProfileInfo> {
         const response = await this.makeRequest('/management/info');
-        return response.json() as Promise<ProfileInfo>;
+        return ProfileInfo.fromJSON(await response.json());
     }
 
     // Check if the Iris profile is active on the server (global Iris enablement)

@@ -1,4 +1,5 @@
-import type { BuildLogEntry, ParsedBuildError } from '../types';
+import { ParsedBuildError } from '../types';
+import type { BuildLogEntry } from '../types';
 import { normalizeRelativePath } from './pathUtils';
 
 /**
@@ -39,33 +40,33 @@ export class BuildLogParser {
         // Try Gradle pattern first (most common)
         let match = logText.match(this.GRADLE_ERROR_REGEX);
         if (match) {
-            return {
-                filePath: normalizeRelativePath(match[1]),
-                line: parseInt(match[2], 10),
-                message: match[3].trim()
-            };
+            return new ParsedBuildError(
+                normalizeRelativePath(match[1]),
+                parseInt(match[2], 10),
+                match[3].trim(),
+            );
         }
 
         // Try Maven pattern
         match = logText.match(this.MAVEN_ERROR_REGEX);
         if (match) {
-            return {
-                filePath: normalizeRelativePath(match[1]),
-                line: parseInt(match[2], 10),
-                column: parseInt(match[3], 10),
-                message: match[4].trim()
-            };
+            return new ParsedBuildError(
+                normalizeRelativePath(match[1]),
+                parseInt(match[2], 10),
+                match[4].trim(),
+                parseInt(match[3], 10),
+            );
         }
 
         // Try Swift pattern
         match = logText.match(this.SWIFT_ERROR_REGEX);
         if (match) {
-            return {
-                filePath: normalizeRelativePath(match[1]),
-                line: parseInt(match[2], 10),
-                column: parseInt(match[3], 10),
-                message: match[4].trim()
-            };
+            return new ParsedBuildError(
+                normalizeRelativePath(match[1]),
+                parseInt(match[2], 10),
+                match[4].trim(),
+                parseInt(match[3], 10),
+            );
         }
 
         return null;
