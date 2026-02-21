@@ -162,7 +162,7 @@ suite('ConsentService', () => {
 
         test('should set consent to basic when Accept is clicked', async () => {
             mockConfig.get.returns('pending');
-            sandbox.stub(vscode.window, 'showInformationMessage').resolves('Accept (Basic)' as any);
+            sandbox.stub(vscode.window, 'showInformationMessage').resolves('Accept' as any);
 
             const service = ConsentService.getInstance();
             await service.promptIfPending();
