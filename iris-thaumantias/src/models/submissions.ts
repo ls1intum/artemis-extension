@@ -1,5 +1,13 @@
 import { ArtemisFeedback, ArtemisParticipation, ArtemisResult } from './core';
-import { ProgrammingSubmissionState } from '../types/artemis';
+
+// --- Submission State ---
+
+export enum ProgrammingSubmissionState {
+    BUILDING = 'BUILDING',
+    QUEUED = 'QUEUED',
+    HAS_FAILED_SUBMISSION = 'HAS_FAILED_SUBMISSION',
+    ILLEGAL = 'ILLEGAL'
+}
 
 // --- WebSocket/STOMP Message Types ---
 

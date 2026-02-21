@@ -1,5 +1,7 @@
 import { ArtemisUser } from './core';
 
+export const PROFILE_IRIS = 'iris';
+
 // --- Server Profile ---
 
 export class ProfileInfo {
