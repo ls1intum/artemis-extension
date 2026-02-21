@@ -24,7 +24,7 @@ import {
     LoginSuccessMessage,
     LoginErrorMessage,
     LogoutSuccessMessage,
-} from '../../src/models/artemis';
+} from '../../src/models';
 
 suite('ProfileInfo', () => {
     test('parses complete valid JSON', () => {
