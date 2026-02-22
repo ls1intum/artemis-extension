@@ -192,7 +192,7 @@ export class ArtemisParticipation {
             Number(d.id),
             String(d.type) as ArtemisParticipation['type'],
             d.student && typeof d.student === 'object' ? ArtemisUser.fromJSON(d.student) : undefined,
-            d.team ?? undefined,
+            d.team && typeof d.team === 'object' ? d.team as Record<string, unknown> : undefined,
             d.exercise && typeof d.exercise === 'object' ? ArtemisExercise.fromJSON(d.exercise) : undefined,
             typeof d.repositoryUri === 'string' ? d.repositoryUri : undefined,
             typeof d.buildPlanId === 'string' ? d.buildPlanId : undefined,
