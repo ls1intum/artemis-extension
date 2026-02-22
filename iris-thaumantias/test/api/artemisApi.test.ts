@@ -2,6 +2,7 @@ import * as assert from 'assert';
 import { ArtemisApiService } from '../../src/api/artemisApi';
 import { AuthManager } from '../../src/auth/auth';
 import { MockExtensionContext } from '../mocks/vscodeMocks';
+import { ApiError, ArtemisUser, ArtemisParticipation, ArtemisResult, BuildLogEntry, AuthenticationResult, ProgrammingSubmission } from '../../src/types';
 
 // Mock fetch
 const originalFetch = global.fetch;
@@ -56,7 +57,9 @@ suite('Artemis API Service Test Suite', () => {
         };
 
         const user = await apiService.getCurrentUser();
-        assert.deepStrictEqual(user, mockUser);
+        assert.ok(user instanceof ArtemisUser);
+        assert.strictEqual(user.id, 1);
+        assert.strictEqual(user.login, 'test');
     });
 
     test('should get courses', async () => {
@@ -84,7 +87,9 @@ suite('Artemis API Service Test Suite', () => {
         try {
             await apiService.getCurrentUser();
             assert.fail('Should have thrown error');
-        } catch (error: any) {
+        } catch (error: unknown) {
+            assert.ok(error instanceof ApiError);
+            assert.strictEqual(error.status, 401);
             assert.ok(error.message.includes('Authentication failed'));
         }
     });
@@ -99,7 +104,9 @@ suite('Artemis API Service Test Suite', () => {
         try {
             await apiService.getCurrentUser();
             assert.fail('Should have thrown error');
-        } catch (error: any) {
+        } catch (error: unknown) {
+            assert.ok(error instanceof ApiError);
+            assert.strictEqual(error.status, 500);
             assert.ok(error.message.includes('API request failed'));
         }
     });
@@ -194,7 +201,10 @@ suite('Artemis API Service Test Suite', () => {
         };
 
         const participations = await apiService.getParticipations();
-        assert.deepStrictEqual(participations, mockParticipations);
+        assert.strictEqual(participations.length, 1);
+        assert.ok(participations[0] instanceof ArtemisParticipation);
+        assert.strictEqual(participations[0].id, 1);
+        assert.strictEqual(participations[0].type, 'student');
     });
 
     test('should get results for participation', async () => {
@@ -210,7 +220,10 @@ suite('Artemis API Service Test Suite', () => {
         };
 
         const results = await apiService.getResults(participationId);
-        assert.deepStrictEqual(results, mockResults);
+        assert.strictEqual(results.length, 1);
+        assert.ok(results[0] instanceof ArtemisResult);
+        assert.strictEqual(results[0].id, 1);
+        assert.strictEqual(results[0].score, 100);
     });
 
     test('should get result details', async () => {
@@ -227,12 +240,13 @@ suite('Artemis API Service Test Suite', () => {
         };
 
         const details = await apiService.getResultDetails(participationId, resultId);
-        assert.deepStrictEqual(details, mockDetails);
+        assert.ok(details instanceof ArtemisResult);
+        assert.strictEqual(details.id, 10);
     });
 
     test('should get build logs', async () => {
         const participationId = 1;
-        const mockLogs = [{ time: '2023-01-01', log: 'Build started' }];
+        const mockLogs = [{ id: 1, time: '2023-01-01', log: 'Build started' }];
         global.fetch = async (url: any) => {
             assert.ok(url.includes(`/api/programming/participations/${participationId}/buildlogs`));
             return {
@@ -243,7 +257,10 @@ suite('Artemis API Service Test Suite', () => {
         };
 
         const logs = await apiService.getBuildLogs(participationId);
-        assert.deepStrictEqual(logs, mockLogs);
+        assert.strictEqual(logs.length, 1);
+        assert.ok(logs[0] instanceof BuildLogEntry);
+        assert.strictEqual(logs[0].time, '2023-01-01');
+        assert.strictEqual(logs[0].log, 'Build started');
     });
 
     test('should get build logs for specific result', async () => {
@@ -327,11 +344,12 @@ suite('Artemis API Service Test Suite', () => {
             return {
                 ok: true,
                 status: 200,
-                json: async () => ({ id: 100 }),
+                json: async () => ({ id: 100, type: 'student' }),
             } as any;
         };
 
         const participation = await apiService.startExerciseParticipation(exerciseId);
+        assert.ok(participation instanceof ArtemisParticipation);
         assert.strictEqual(participation.id, 100);
     });
 
@@ -343,11 +361,12 @@ suite('Artemis API Service Test Suite', () => {
             return {
                 ok: true,
                 status: 200,
-                json: async () => ({ id: 101 }),
+                json: async () => ({ id: 101, type: 'student' }),
             } as any;
         };
 
         const participation = await apiService.startPracticeParticipation(exerciseId);
+        assert.ok(participation instanceof ArtemisParticipation);
         assert.strictEqual(participation.id, 101);
     });
 
@@ -375,11 +394,12 @@ suite('Artemis API Service Test Suite', () => {
         };
 
         const result = await apiService.authenticate('user', 'pass');
+        assert.ok(result instanceof AuthenticationResult);
         assert.strictEqual(result.success, true);
         assert.strictEqual(result.token, mockToken);
         // The cookie might be processed/cleaned by AuthManager or ArtemisApiService
         // Just check if it contains the token
-        assert.ok(result.cookie.includes('jwt-token'));
+        assert.ok(result.cookie!.includes('jwt-token'));
     });
 
     test('should check Iris health', async () => {
@@ -394,7 +414,8 @@ suite('Artemis API Service Test Suite', () => {
         };
 
         const status = await apiService.checkIrisHealth(1);
-        assert.deepStrictEqual(status, mockStatus);
+        assert.strictEqual(status.active, true);
+        assert.strictEqual(status.rateLimitInfo, undefined);
     });
 
     test('should render PlantUML', async () => {
@@ -543,7 +564,9 @@ suite('Artemis API Service Test Suite', () => {
         };
 
         const submission = await apiService.getLatestPendingSubmission(participationId);
-        assert.deepStrictEqual(submission, mockSubmission);
+        assert.ok(submission instanceof ProgrammingSubmission);
+        assert.strictEqual(submission.id, 100);
+        assert.strictEqual(submission.submissionDate, '2023-01-01');
     });
 
     test('should return null if no pending submission', async () => {
@@ -812,7 +835,8 @@ suite('Artemis API Service Test Suite', () => {
         try {
             await apiService.authenticate('user', 'pass');
             assert.fail('Expected authenticate to throw when cookie missing');
-        } catch (error: any) {
+        } catch (error: unknown) {
+            assert.ok(error instanceof Error);
             assert.ok(error.message.includes('no JWT token received'));
             assert.strictEqual(storeCalled, false, 'credentials should not be stored');
         }

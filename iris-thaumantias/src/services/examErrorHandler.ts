@@ -1,3 +1,5 @@
+import { ApiError } from '../types';
+
 /**
  * Service for handling and mapping Artemis exam errors to user-friendly messages.
  * Error keys are defined in Artemis backend (ExamAccessService, ExamResource, StudentExamResource).
@@ -6,9 +8,11 @@ export class ExamErrorHandler {
     /**
      * Maps Artemis exam error keys and messages to user-friendly error messages.
      */
-    static getExamErrorMessage(error: any): string {
-        const detail = (error.detail || error.message || '').toLowerCase();
-        const errorKey = this.extractErrorKey(error.detail || error.message || '');
+    static getExamErrorMessage(error: unknown): string {
+        const detail = (error instanceof ApiError ? (error.detail || error.message) : error instanceof Error ? error.message : '').toLowerCase();
+        const status = error instanceof ApiError ? error.status : undefined;
+        const rawDetail = error instanceof ApiError ? (error.detail || error.message) : error instanceof Error ? error.message : '';
+        const errorKey = this.extractErrorKey(rawDetail);
 
         // Map of Artemis error keys to user-friendly messages
         const errorKeyMessages: Record<string, string> = {
@@ -82,27 +86,28 @@ export class ExamErrorHandler {
         }
 
         // Fallback based on HTTP status
-        if (error.status === 403) {
-            return error.detail 
-                ? `Access denied: ${error.detail}`
+        const errorDetail = error instanceof ApiError ? error.detail : undefined;
+        if (status === 403) {
+            return errorDetail
+                ? `Access denied: ${errorDetail}`
                 : 'Access denied. You may not have permission to access this exam.';
         }
-        if (error.status === 400) {
-            return error.detail 
-                ? `Invalid request: ${error.detail}`
+        if (status === 400) {
+            return errorDetail
+                ? `Invalid request: ${errorDetail}`
                 : 'Invalid request. Please try again.';
         }
-        if (error.status === 404) {
+        if (status === 404) {
             return 'Exam not found. Please check if the exam still exists.';
         }
-        if (error.status === 409) {
-            return error.detail 
-                ? `Conflict: ${error.detail}`
+        if (status === 409) {
+            return errorDetail
+                ? `Conflict: ${errorDetail}`
                 : 'There was a conflict with your request.';
         }
 
-        return error.detail 
-            ? `Failed to open exam: ${error.detail}`
+        return errorDetail
+            ? `Failed to open exam: ${errorDetail}`
             : 'Failed to open exam. Please try again.';
     }
 

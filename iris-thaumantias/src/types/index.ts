@@ -1,4 +1,5 @@
 export * from './artemis';
+export * from './apiResponses';
 export type {
     ActiveContext,
     StoredSession,
@@ -8,4 +9,3 @@ export type {
     TrackedCourse,
     TrackedExercise
 } from './context';
-export { PROFILE_IRIS } from './artemis';

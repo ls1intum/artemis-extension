@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import { ContextStore } from './contextStore';
 import { ArtemisApiService } from '../api';
-import { ActiveContext } from '../types';
+import { ActiveContext, ApiError, type IrisChatSession, type IrisChatMessage, type IrisSettingsResponse } from '../types';
 import { logger, LogCategory } from './loggingService';
 
 export class ChatSessionService {
@@ -49,7 +49,7 @@ export class ChatSessionService {
             }
 
             // Step 2: Fetch course-level settings based on context type
-            let settings: any;
+            let settings: IrisSettingsResponse;
             if (context.type === 'course') {
                 settings = await this._artemisApiService.getIrisCourseChatSettings(context.id);
             } else if (context.type === 'exercise') {
@@ -79,17 +79,17 @@ export class ChatSessionService {
             });
 
             return true;
-        } catch (error: any) {
+        } catch (error: unknown) {
             logger.error('Error checking Iris settings:', LogCategory.IRIS_CHAT, error);
 
             // If it's a 403, Iris is probably disabled - return false to show disabled overlay
-            if (error.status === 403 || error.message?.includes('403')) {
+            if ((error instanceof ApiError && error.status === 403) || (error instanceof Error && error.message?.includes('403'))) {
                 logger.irisChat('Iris is not available (403 error)');
                 return false;
             }
 
             // For other errors, log but still return false to show disabled state
-            logger.irisChat(`Could not load Iris settings: ${error.message}`);
+            logger.irisChat(`Could not load Iris settings: ${error instanceof Error ? error.message : String(error)}`);
             return false;
         }
     }
@@ -173,7 +173,7 @@ export class ChatSessionService {
             });
 
             // Step 1: Fetch session metadata (fast, lightweight)
-            let artemisSessionsMetadata: any[] = [];
+            let artemisSessionsMetadata: IrisChatSession[] = [];
             if (activeContext.type === 'course') {
                 artemisSessionsMetadata = await this._artemisApiService.getCourseChatSessions(activeContext.id);
             } else if (activeContext.type === 'exercise') {
@@ -186,7 +186,7 @@ export class ChatSessionService {
             logger.irisChat(`Fetched ${artemisSessionsMetadata.length} session(s) metadata from Artemis`);
 
             // Step 2: Fetch messages for each session (to display in list)
-            const artemisSessionsListFromServer: any[] = await Promise.all(
+            const artemisSessionsListFromServer: IrisChatSession[] = await Promise.all(
                 artemisSessionsMetadata.map(async (session) => {
                     if (!this._artemisApiService) {
                         return { ...session, messages: [] };
@@ -248,7 +248,7 @@ export class ChatSessionService {
                     // Create preview from first user message or use default
                     let preview = 'New conversation';
                     if (artemisSession.messages && artemisSession.messages.length > 0) {
-                        const firstUserMsg = artemisSession.messages.find((m: any) => m.sender === 'USER');
+                        const firstUserMsg = artemisSession.messages.find((m: IrisChatMessage) => m.sender === 'USER');
                         if (firstUserMsg?.content?.[0]?.textContent) {
                             preview = firstUserMsg.content[0].textContent.substring(0, 50);
                         }
@@ -308,9 +308,9 @@ export class ChatSessionService {
 
             this._onPostSnapshot();
 
-        } catch (error: any) {
+        } catch (error: unknown) {
             logger.error('Error loading sessions for context:', LogCategory.SESSION, error);
-            vscode.window.showWarningMessage(`Could not load sessions: ${error.message}`);
+            vscode.window.showWarningMessage(`Could not load sessions: ${error instanceof Error ? error.message : String(error)}`);
 
             if (!this.isCurrentContext(targetContext, loadToken)) {
                 logger.irisChat('Context changed during error handling, skipping fallback session creation');

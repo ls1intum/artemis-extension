@@ -1,7 +1,15 @@
 import * as vscode from 'vscode';
 import { AuthManager } from '../auth';
 import { CONFIG, VSCODE_CONFIG } from '../utils';
-import { IrisHealthStatus, ProfileInfo, PROFILE_IRIS } from '../types';
+import {
+    ApiError, ArtemisUser, ArtemisResult, ArtemisParticipation, AuthenticationResult,
+    IrisHealthStatus, ProfileInfo, PROFILE_IRIS, ProgrammingSubmission, BuildLogEntry,
+} from '../types';
+import type {
+    CourseDashboardResponse, CourseDashboardEntry, CourseDashboardCourse,
+    ExerciseDetailsResponse, IrisChatSession, IrisChatMessage, IrisSettingsResponse,
+    ExamSummary, StudentExam,
+} from '../types';
 import { logger, LogLevel, LogCategory } from '../services/loggingService';
 
 export class ArtemisApiService {
@@ -46,9 +54,7 @@ export class ArtemisApiService {
                     }
                 });
 
-                const error = new Error('Authentication failed. Please log in again.');
-                (error as any).status = 401;
-                throw error;
+                throw new ApiError('Authentication failed. Please log in again.', 401);
             }
 
             // Try to extract detailed error message from response body
@@ -76,67 +82,64 @@ export class ArtemisApiService {
                 errorMessage = `${errorMessage}: ${errorDetail}`;
             }
 
-            const error = new Error(errorMessage);
-            (error as any).status = response.status;
-            (error as any).detail = errorDetail;
-            throw error;
+            throw new ApiError(errorMessage, response.status, errorDetail);
         }
 
         return response;
     }
 
     // Get current user information
-    async getCurrentUser(): Promise<any> {
+    async getCurrentUser(): Promise<ArtemisUser> {
         const response = await this.makeRequest('/api/core/public/account');
-        return response.json();
+        return ArtemisUser.fromJSON(await response.json());
     }
 
     // Get all courses for the current user
-    async getCourses(): Promise<any[]> {
+    async getCourses(): Promise<CourseDashboardCourse[]> {
         const response = await this.makeRequest('/api/core/courses');
-        return response.json() as Promise<any[]>;
+        return response.json() as Promise<CourseDashboardCourse[]>;
     }
 
     // Get archived courses (inactive courses from previous semesters)
-    async getArchivedCourses(): Promise<any[]> {
+    async getArchivedCourses(): Promise<CourseDashboardCourse[]> {
         const response = await this.makeRequest('/api/core/courses/for-archive');
-        return response.json() as Promise<any[]>;
+        return response.json() as Promise<CourseDashboardCourse[]>;
     }
 
     // Get courses with comprehensive dashboard data (exercises, participations, scores)
-    async getCoursesForDashboard(): Promise<any> {
+    async getCoursesForDashboard(): Promise<CourseDashboardResponse> {
         const response = await this.makeRequest('/api/core/courses/for-dashboard');
-        return response.json();
+        return response.json() as Promise<CourseDashboardResponse>;
     }
 
     // Get a single course with exercises and participations for dashboard
-    async getCourseForDashboard(courseId: number): Promise<any> {
+    async getCourseForDashboard(courseId: number): Promise<CourseDashboardEntry> {
         const response = await this.makeRequest(`/api/core/courses/${courseId}/for-dashboard`);
-        return response.json();
+        return response.json() as Promise<CourseDashboardEntry>;
     }
 
     // Get detailed course information for a specific course
-    async getCourseDetails(courseId: number): Promise<any> {
+    async getCourseDetails(courseId: number): Promise<CourseDashboardCourse> {
         const response = await this.makeRequest(`/api/core/courses/${courseId}`);
-        return response.json();
+        return response.json() as Promise<CourseDashboardCourse>;
     }
 
     // Get exercise details for a specific exercise
     // According to Artemis client code, this endpoint already includes:
     // - studentParticipations with ALL submissions and results
     // No query parameters or additional enrichment needed
-    async getExerciseDetails(exerciseId: number): Promise<any> {
+    async getExerciseDetails(exerciseId: number): Promise<ExerciseDetailsResponse> {
         // Request exercise details with all submissions and their latest results
         // withSubmissions=true ensures we get submission data
         // withLatestResult=true ensures each submission includes its most recent result
         const response = await this.makeRequest(
             `/api/exercise/exercises/${exerciseId}/details?withSubmissions=true&withLatestResult=true`
         );
-        const exerciseData: any = await response.json();
+        const exerciseData = await response.json() as ExerciseDetailsResponse;
 
         // Debug: Log what we actually received
-        if (exerciseData.exercise?.studentParticipations?.length > 0) {
-            for (const participation of exerciseData.exercise.studentParticipations) {
+        if ((exerciseData.exercise?.studentParticipations?.length ?? 0) > 0) {
+            for (const participation of exerciseData.exercise!.studentParticipations!) {
                 const submissionCount = participation.submissions?.length || 0;
                 const resultCount = participation.results?.length || 0;
                 logger.api(`📊 Participation ${participation.id}: ${submissionCount} submissions, ${resultCount} results`);
@@ -156,7 +159,7 @@ export class ArtemisApiService {
     // Get latest pending submission for a participation
     // A pending submission is one that has NO result yet (build in progress)
     // Returns null if no pending submission exists
-    async getLatestPendingSubmission(participationId: number): Promise<any> {
+    async getLatestPendingSubmission(participationId: number): Promise<ProgrammingSubmission | null> {
         try {
             const response = await this.makeRequest(
                 `/api/programming/programming-exercise-participations/${participationId}/latest-pending-submission`
@@ -170,8 +173,7 @@ export class ArtemisApiService {
             }
 
             // Parse JSON
-            const data = JSON.parse(text);
-            return data;
+            return ProgrammingSubmission.fromJSON(JSON.parse(text));
         } catch (error) {
             // If no pending submission exists, API may return 404 or empty response
             logger.api(`No pending submission for participation ${participationId}: ${error}`);
@@ -180,31 +182,32 @@ export class ArtemisApiService {
     }
 
     // Get participations for the current user
-    async getParticipations(): Promise<any[]> {
-        const response = await this.makeRequest('/api/core/participations');
-        return response.json() as Promise<any[]>;
+    async getParticipations(): Promise<ArtemisParticipation[]> {
+        const data = await (await this.makeRequest('/api/core/participations')).json();
+        return (data as unknown[]).map(p => ArtemisParticipation.fromJSON(p));
     }
 
     // Get results for a participation
-    async getResults(participationId: number): Promise<any[]> {
-        const response = await this.makeRequest(`/api/core/participations/${participationId}/results`);
-        return response.json() as Promise<any[]>;
+    async getResults(participationId: number): Promise<ArtemisResult[]> {
+        const data = await (await this.makeRequest(`/api/core/participations/${participationId}/results`)).json();
+        return (data as unknown[]).map(r => ArtemisResult.fromJSON(r));
     }
 
     // Get detailed result information including test cases and feedback
-    async getResultDetails(participationId: number, resultId: number): Promise<any> {
+    async getResultDetails(participationId: number, resultId: number): Promise<ArtemisResult> {
         const response = await this.makeRequest(`/api/assessment/participations/${participationId}/results/${resultId}/details`);
-        return response.json();
+        return ArtemisResult.fromJSON(await response.json());
     }
 
     // Get build logs for a participation (optionally for a specific result)
-    async getBuildLogs(participationId: number, resultId?: number): Promise<any[]> {
+    async getBuildLogs(participationId: number, resultId?: number): Promise<BuildLogEntry[]> {
         let endpoint = `/api/programming/participations/${participationId}/buildlogs`;
         if (resultId !== undefined) {
             endpoint += `?resultId=${resultId}`;
         }
         const response = await this.makeRequest(endpoint);
-        return response.json() as Promise<any[]>;
+        const data = await response.json();
+        return (data as unknown[]).map(e => BuildLogEntry.fromJSON(e));
     }
 
     // Check if user is authenticated
@@ -246,25 +249,25 @@ export class ArtemisApiService {
     }
 
     // Start participation in an exercise (create a new participation)
-    async startExerciseParticipation(exerciseId: number): Promise<any> {
+    async startExerciseParticipation(exerciseId: number): Promise<ArtemisParticipation> {
         const response = await this.makeRequest(
             `/api/exercise/exercises/${exerciseId}/participations`,
             { method: 'POST' }
         );
-        return response.json();
+        return ArtemisParticipation.fromJSON(await response.json());
     }
 
     // Start practice participation in an exercise
-    async startPracticeParticipation(exerciseId: number): Promise<any> {
+    async startPracticeParticipation(exerciseId: number): Promise<ArtemisParticipation> {
         const response = await this.makeRequest(
             `/api/exercise/exercises/${exerciseId}/participations/practice`,
             { method: 'POST' }
         );
-        return response.json();
+        return ArtemisParticipation.fromJSON(await response.json());
     }
 
     // Authenticate user with username and password
-    async authenticate(username: string, password: string, rememberMe: boolean = false): Promise<any> {
+    async authenticate(username: string, password: string, rememberMe: boolean = false): Promise<AuthenticationResult> {
         const url = `${this.getServerUrl()}${CONFIG.API.ENDPOINTS.AUTHENTICATE}`;
 
         const response = await fetch(url, {
@@ -307,7 +310,7 @@ export class ArtemisApiService {
             }
         }
 
-        const data = await response.json() as any;
+        const data = await response.json() as { access_token?: string };
 
         // Extract JWT cookie from Set-Cookie header
         const setCookieHeader = response.headers.get('set-cookie');
@@ -327,11 +330,7 @@ export class ArtemisApiService {
         // Store the credentials
         await this.authManager.storeArtemisCredentials(jwtCookie, this.getServerUrl(), rememberMe);
 
-        return {
-            success: true,
-            token: data.access_token,
-            cookie: jwtCookie
-        };
+        return new AuthenticationResult(true, data.access_token, jwtCookie);
     }
 
     // Validate the current authentication by calling the user endpoint
@@ -355,13 +354,13 @@ export class ArtemisApiService {
     // Check Iris health status (course-scoped)
     async checkIrisHealth(courseId: number): Promise<IrisHealthStatus> {
         const response = await this.makeRequest(`/api/iris/courses/${courseId}/status`);
-        return response.json() as Promise<IrisHealthStatus>;
+        return IrisHealthStatus.fromJSON(await response.json());
     }
 
     // Get server profile information (includes activeProfiles to check if Iris is globally enabled)
     async getProfileInfo(): Promise<ProfileInfo> {
         const response = await this.makeRequest('/management/info');
-        return response.json() as Promise<ProfileInfo>;
+        return ProfileInfo.fromJSON(await response.json());
     }
 
     // Check if the Iris profile is active on the server (global Iris enablement)
@@ -380,13 +379,13 @@ export class ArtemisApiService {
     // ============ IRIS CHAT API ============
 
     // Get Iris settings for a course
-    async getIrisCourseChatSettings(courseId: number): Promise<any> {
+    async getIrisCourseChatSettings(courseId: number): Promise<IrisSettingsResponse> {
         const response = await this.makeRequest(`/api/iris/courses/${courseId}/iris-settings`);
-        return response.json();
+        return response.json() as Promise<IrisSettingsResponse>;
     }
 
     // Get Iris settings for an exercise (resolved via course settings)
-    async getIrisExerciseChatSettings(exerciseId: number): Promise<any> {
+    async getIrisExerciseChatSettings(exerciseId: number): Promise<IrisSettingsResponse> {
         const exerciseDetails = await this.getExerciseDetails(exerciseId);
         const courseId = exerciseDetails?.exercise?.course?.id ?? exerciseDetails?.course?.id;
         if (!courseId) {
@@ -396,45 +395,45 @@ export class ArtemisApiService {
     }
 
     // Get or create current chat session for a course
-    async getCurrentCourseChat(courseId: number): Promise<any> {
+    async getCurrentCourseChat(courseId: number): Promise<IrisChatSession> {
         const response = await this.makeRequest(
             `/api/iris/course-chat/${courseId}/sessions/current`,
             { method: 'POST' }
         );
-        return response.json();
+        return response.json() as Promise<IrisChatSession>;
     }
 
     // Get or create current chat session for an exercise
-    async getCurrentExerciseChat(exerciseId: number): Promise<any> {
+    async getCurrentExerciseChat(exerciseId: number): Promise<IrisChatSession> {
         const response = await this.makeRequest(
             `/api/iris/programming-exercise-chat/${exerciseId}/sessions/current`,
             { method: 'POST' }
         );
-        return response.json();
+        return response.json() as Promise<IrisChatSession>;
     }
 
     // Get all chat sessions for a course (metadata only, lightweight)
-    async getCourseChatSessions(courseId: number): Promise<any[]> {
+    async getCourseChatSessions(courseId: number): Promise<IrisChatSession[]> {
         const response = await this.makeRequest(`/api/iris/course-chat/${courseId}/sessions`);
-        return response.json() as Promise<any[]>;
+        return response.json() as Promise<IrisChatSession[]>;
     }
 
     // Get all chat sessions for an exercise (metadata only, lightweight)
-    async getExerciseChatSessions(exerciseId: number): Promise<any[]> {
+    async getExerciseChatSessions(exerciseId: number): Promise<IrisChatSession[]> {
         const response = await this.makeRequest(`/api/iris/programming-exercise-chat/${exerciseId}/sessions`);
-        return response.json() as Promise<any[]>;
+        return response.json() as Promise<IrisChatSession[]>;
     }
 
     // Get all chat sessions for a course WITH messages (heavy operation)
     // Uses the chat-history endpoint which returns full session data
-    async getCourseChatSessionsWithMessages(courseId: number): Promise<any[]> {
+    async getCourseChatSessionsWithMessages(courseId: number): Promise<IrisChatSession[]> {
         const response = await this.makeRequest(`/api/iris/chat-history/${courseId}/sessions`);
-        return response.json() as Promise<any[]>;
+        return response.json() as Promise<IrisChatSession[]>;
     }
 
     // Get all chat sessions for an exercise WITH messages (heavy operation)
     // This fetches session list first, then fetches messages for each session
-    async getExerciseChatSessionsWithMessages(exerciseId: number): Promise<any[]> {
+    async getExerciseChatSessionsWithMessages(exerciseId: number): Promise<IrisChatSession[]> {
         // First get the session list (metadata only)
         const sessions = await this.getExerciseChatSessions(exerciseId);
 
@@ -461,9 +460,9 @@ export class ArtemisApiService {
     }
 
     // Get messages for a chat session
-    async getChatMessages(sessionId: number): Promise<any[]> {
+    async getChatMessages(sessionId: number): Promise<IrisChatMessage[]> {
         const response = await this.makeRequest(`/api/iris/sessions/${sessionId}/messages`);
-        return response.json() as Promise<any[]>;
+        return response.json() as Promise<IrisChatMessage[]>;
     }
 
     // Send a message to Iris
@@ -471,8 +470,8 @@ export class ArtemisApiService {
         sessionId: number,
         content: string,
         uncommittedFiles?: Map<string, string>
-    ): Promise<any> {
-        const messagePayload: any = {
+    ): Promise<IrisChatMessage> {
+        const messagePayload: Record<string, unknown> = {
             sentAt: new Date().toISOString(),
             content: [
                 {
@@ -498,11 +497,11 @@ export class ArtemisApiService {
                     body: JSON.stringify(messagePayload)
                 }
             );
-            return response.json();
-        } catch (error: any) {
+            return response.json() as Promise<IrisChatMessage>;
+        } catch (error: unknown) {
             // If sending with uncommittedFiles fails, retry without them
             // This handles the case where the server doesn't support the feature yet
-            if (uncommittedFiles && uncommittedFiles.size > 0 && error.status === 400) {
+            if (uncommittedFiles && uncommittedFiles.size > 0 && error instanceof ApiError && error.status === 400) {
                 logger.apiWarn('Failed to send uncommitted files, retrying without them (server might not support this feature yet)');
                 const fallbackPayload = {
                     sentAt: new Date().toISOString(),
@@ -520,28 +519,28 @@ export class ArtemisApiService {
                         body: JSON.stringify(fallbackPayload)
                     }
                 );
-                return fallbackResponse.json();
+                return fallbackResponse.json() as Promise<IrisChatMessage>;
             }
             throw error;
         }
     }
 
     // Create a new chat session for a course
-    async createCourseChatSession(courseId: number): Promise<any> {
+    async createCourseChatSession(courseId: number): Promise<IrisChatSession> {
         const response = await this.makeRequest(
             `/api/iris/course-chat/${courseId}/sessions`,
             { method: 'POST' }
         );
-        return response.json();
+        return response.json() as Promise<IrisChatSession>;
     }
 
     // Create a new chat session for an exercise
-    async createExerciseChatSession(exerciseId: number): Promise<any> {
+    async createExerciseChatSession(exerciseId: number): Promise<IrisChatSession> {
         const response = await this.makeRequest(
             `/api/iris/programming-exercise-chat/${exerciseId}/sessions`,
             { method: 'POST' }
         );
-        return response.json();
+        return response.json() as Promise<IrisChatSession>;
     }
 
     // Mark a message as helpful
@@ -556,34 +555,34 @@ export class ArtemisApiService {
     }
 
     // Resend a message
-    async resendChatMessage(sessionId: number, messageId: number): Promise<any> {
+    async resendChatMessage(sessionId: number, messageId: number): Promise<IrisChatMessage> {
         const response = await this.makeRequest(
             `/api/iris/sessions/${sessionId}/messages/${messageId}/resend`,
             { method: 'POST' }
         );
-        return response.json();
+        return response.json() as Promise<IrisChatMessage>;
     }
 
     // Get exams for a specific course
-    async getExamsForCourse(courseId: number): Promise<any[]> {
+    async getExamsForCourse(courseId: number): Promise<ExamSummary[]> {
         const response = await this.makeRequest(`/api/exam/courses/${courseId}/exams`);
-        return response.json() as Promise<any[]>;
+        return response.json() as Promise<ExamSummary[]>;
     }
 
     // Get the student's own exam for a specific exam (to check status)
-    async getOwnStudentExam(courseId: number, examId: number): Promise<any> {
+    async getOwnStudentExam(courseId: number, examId: number): Promise<StudentExam> {
         const response = await this.makeRequest(`/api/exam/courses/${courseId}/exams/${examId}/own-student-exam`);
-        return response.json();
+        return response.json() as Promise<StudentExam>;
     }
 
     // Start the exam and get conduction details
-    async startStudentExam(courseId: number, examId: number, studentExamId: number): Promise<any> {
+    async startStudentExam(courseId: number, examId: number, studentExamId: number): Promise<StudentExam> {
         const response = await this.makeRequest(`/api/exam/courses/${courseId}/exams/${examId}/student-exams/${studentExamId}/conduction`);
-        return response.json();
+        return response.json() as Promise<StudentExam>;
     }
 
     // Submit the exam
-    async submitStudentExam(courseId: number, examId: number, studentExam: any): Promise<any> {
+    async submitStudentExam(courseId: number, examId: number, studentExam: StudentExam): Promise<StudentExam> {
         const response = await this.makeRequest(
             `/api/exam/courses/${courseId}/exams/${examId}/student-exams/submit`,
             {
@@ -591,6 +590,6 @@ export class ArtemisApiService {
                 body: JSON.stringify(studentExam)
             }
         );
-        return response.json();
+        return response.json() as Promise<StudentExam>;
     }
 }
