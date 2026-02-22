@@ -176,7 +176,7 @@ export class ArtemisParticipation {
         public readonly id: number,
         public readonly type: 'student' | 'template' | 'solution',
         public readonly student?: ArtemisUser,
-        public readonly team?: any,
+        public readonly team?: Record<string, unknown>,
         public readonly exercise?: ArtemisExercise,
         public readonly repositoryUri?: string,
         public readonly buildPlanId?: string,
