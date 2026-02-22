@@ -15,7 +15,7 @@ import { ViewRouter } from '../views/app/viewRouter';
 import { ExerciseDetailView } from '../views/exerciseDetail/exerciseDetailView';
 import { CourseDetailView } from '../views/courseDetail/courseDetailView';
 import { ExerciseRegistry } from '../services';
-import { WebSocketMessageHandler, ResultDTO, ProgrammingSubmission, SubmissionProcessingMessage } from '../types';
+import { WebSocketMessageHandler, ResultDTO, ProgrammingSubmission, ProgrammingSubmissionState, SubmissionProcessingMessage } from '../types';
 
 export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebViewActionHandler {
     public static readonly viewType = CONFIG.WEBVIEW.VIEW_TYPE;
@@ -562,7 +562,7 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
         let state = message.submissionState;
         if (!state && (message.buildStartDate || message.estimatedCompletionDate)) {
             // If we have build timing info, the build is likely in progress
-            state = 'BUILDING' as any;
+            state = ProgrammingSubmissionState.BUILDING;
         }
 
         // Create build timing info from the message

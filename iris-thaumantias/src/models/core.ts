@@ -1,3 +1,16 @@
+// --- API Error ---
+
+export class ApiError extends Error {
+    constructor(
+        message: string,
+        public readonly status: number,
+        public readonly detail?: string,
+    ) {
+        super(message);
+        this.name = 'ApiError';
+    }
+}
+
 // --- Core API Models ---
 
 export class ArtemisFeedback {

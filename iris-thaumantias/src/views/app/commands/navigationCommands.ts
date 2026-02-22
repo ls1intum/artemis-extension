@@ -343,7 +343,9 @@ export class NavigationCommandModule {
                 // Fetch exams separately (not included in dashboard endpoint)
                 try {
                     const exams = await this.context.artemisApi.getExamsForCourse(courseId);
-                    courseData.course.exams = exams;
+                    if (courseData.course) {
+                        courseData.course.exams = exams;
+                    }
                 } catch (error) {
                     logger.apiError('Error fetching exams during reload:', error);
                     // Continue without exams if fetch fails

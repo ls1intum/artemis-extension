@@ -1,5 +1,6 @@
 import * as assert from 'assert';
 import {
+    ApiError,
     ProfileInfo,
     LoginCredentials,
     ArtemisFeedback,
@@ -25,6 +26,33 @@ import {
     LoginErrorMessage,
     LogoutSuccessMessage,
 } from '../../src/models';
+
+suite('ApiError', () => {
+    test('extends Error with status and detail', () => {
+        const err = new ApiError('Not found', 404, 'Resource missing');
+        assert.ok(err instanceof Error);
+        assert.ok(err instanceof ApiError);
+        assert.strictEqual(err.name, 'ApiError');
+        assert.strictEqual(err.message, 'Not found');
+        assert.strictEqual(err.status, 404);
+        assert.strictEqual(err.detail, 'Resource missing');
+    });
+
+    test('works without detail', () => {
+        const err = new ApiError('Unauthorized', 401);
+        assert.strictEqual(err.status, 401);
+        assert.strictEqual(err.detail, undefined);
+    });
+
+    test('is catchable as Error', () => {
+        try {
+            throw new ApiError('fail', 500);
+        } catch (e) {
+            assert.ok(e instanceof Error);
+            assert.ok(e instanceof ApiError);
+        }
+    });
+});
 
 suite('ProfileInfo', () => {
     test('parses complete valid JSON', () => {
