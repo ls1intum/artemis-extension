@@ -469,11 +469,7 @@ export class DashboardView {
                 return;
             }
 
-            const isExpanded = courseNode.classList.toggle('is-expanded');
-            const toggleButton = courseNode.querySelector('.recent-tree-toggle');
-            if (toggleButton) {
-                toggleButton.setAttribute('aria-expanded', isExpanded ? 'true' : 'false');
-            }
+            courseNode.classList.toggle('is-expanded');
         };
 
         // Enable keyboard navigation for list items
@@ -602,15 +598,23 @@ export class DashboardView {
                 {
                     className: 'recent-tree-course-item',
                     clickable: true,
-                    command: `openRecentCourse(${courseIndex})`,
+                    command: `toggleRecentCourseChildren(${courseIndex}, event)`,
                     dataAttributes: {
                         'course-index': courseIndex.toString(),
                         'course-id': course.id?.toString() || ''
                     }
                 },
                 `
-                    <div class="course-title">${this._escapeHtml(course.title)}</div>
-                    <div class="course-info">${exerciseCount} ${exerciseCount === 1 ? 'exercise' : 'exercises'}</div>
+                    <span class="course-expand-icon">
+                        ${chevronRightIcon}
+                    </span>
+                    <div class="course-content">
+                        <div class="course-title">${this._escapeHtml(course.title)}</div>
+                        <div class="course-info">${exerciseCount} ${exerciseCount === 1 ? 'exercise' : 'exercises'}</div>
+                    </div>
+                    <span class="course-arrow" onclick="openRecentCourse(${courseIndex}); event.stopPropagation();">
+                        &#8594;
+                    </span>
                 `
             );
 
@@ -640,19 +644,7 @@ export class DashboardView {
 
             return `
                 <div class="recent-tree-course-node ${isExpanded ? 'is-expanded' : ''}" data-tree-course-index="${courseIndex}">
-                    <div class="recent-tree-course-row">
-                        <button
-                            type="button"
-                            class="recent-tree-toggle"
-                            aria-label="Toggle exercises"
-                            aria-expanded="${isExpanded ? 'true' : 'false'}"
-                            aria-controls="recentTreeChildren-${courseIndex}"
-                            onclick="toggleRecentCourseChildren(${courseIndex}, event)"
-                        >
-                            ${chevronRightIcon}
-                        </button>
-                        ${courseItemHtml}
-                    </div>
+                    ${courseItemHtml}
                     <div class="recent-tree-children" id="recentTreeChildren-${courseIndex}">
                         ${exercisesHtml}
                     </div>
