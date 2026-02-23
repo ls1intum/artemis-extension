@@ -1,0 +1,67 @@
+/* Breadcrumbs navigation component */
+.breadcrumbs {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background: var(--vscode-editor-background);
+    border-bottom: 1px solid var(--vscode-widget-border);
+    padding: 8px 16px;
+}
+
+.breadcrumbsContainer {
+    display: flex;
+    align-items: center;
+    overflow-x: auto;
+    white-space: nowrap;
+    scrollbar-width: thin;
+    scrollbar-color: var(--vscode-scrollbarSlider-background) transparent;
+}
+
+.breadcrumbsContainer::-webkit-scrollbar {
+    height: 6px;
+}
+
+.breadcrumbsContainer::-webkit-scrollbar-thumb {
+    background: var(--vscode-scrollbarSlider-background);
+    border-radius: 3px;
+}
+
+.breadcrumbsContainer::-webkit-scrollbar-thumb:hover {
+    background: var(--vscode-scrollbarSlider-hoverBackground);
+}
+
+.breadcrumbSegment {
+    display: inline-flex;
+    align-items: center;
+}
+
+.breadcrumbLink {
+    background: none;
+    border: none;
+    color: var(--vscode-textLink-foreground);
+    cursor: pointer;
+    font-size: 13px;
+    padding: 4px 0;
+    text-decoration: none;
+}
+
+.breadcrumbLink:hover {
+    color: var(--vscode-textLink-activeForeground);
+    text-decoration: underline;
+}
+
+.breadcrumbLink:focus {
+    outline: 1px solid var(--vscode-focusBorder);
+    outline-offset: 2px;
+}
+
+.breadcrumbCurrent {
+    color: var(--vscode-foreground);
+    font-size: 13px;
+    font-weight: 500;
+}
+
+.breadcrumbSeparator {
+    color: var(--vscode-descriptionForeground);
+    padding: 0 4px;
+}

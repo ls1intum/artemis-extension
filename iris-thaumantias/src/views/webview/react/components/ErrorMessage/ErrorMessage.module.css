@@ -1,0 +1,34 @@
+/* Error message component with retry link */
+.errorContainer {
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.errorMessage {
+    color: var(--vscode-errorForeground);
+    margin: 0;
+    font-size: 13px;
+}
+
+.retryLink {
+    background: none;
+    border: none;
+    color: var(--vscode-textLink-foreground);
+    cursor: pointer;
+    font-size: 13px;
+    padding: 0;
+    text-decoration: underline;
+    text-align: left;
+    width: fit-content;
+}
+
+.retryLink:hover {
+    color: var(--vscode-textLink-activeForeground);
+}
+
+.retryLink:focus {
+    outline: 1px solid var(--vscode-focusBorder);
+    outline-offset: 2px;
+}

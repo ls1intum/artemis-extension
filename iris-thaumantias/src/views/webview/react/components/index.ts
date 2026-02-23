@@ -68,3 +68,18 @@ export type {
   BuildState,
   LogEntry,
 } from './exercise';
+
+// UI primitives for Phase 4
+export { Skeleton, SkeletonList } from './Skeleton';
+export type { SkeletonProps, SkeletonListProps } from './Skeleton';
+
+export { Breadcrumbs } from './Breadcrumbs';
+export type { BreadcrumbsProps, BreadcrumbSegment } from './Breadcrumbs';
+
+export { ReconnectBanner } from './ReconnectBanner';
+
+export { ErrorMessage } from './ErrorMessage';
+export type { ErrorMessageProps } from './ErrorMessage';
+
+export { EmptyState } from './EmptyState';
+export type { EmptyStateProps } from './EmptyState';
