@@ -5,6 +5,7 @@ import { RecommendedExtensionsView } from './views/RecommendedExtensions';
 import { LoginView } from './views/Login';
 import { DashboardView } from './views/Dashboard';
 import { CourseListView } from './views/CourseList';
+import { CourseDetailView } from './views/CourseDetail';
 
 interface AppProps {
 	vscodeApi: VsCodeApi;
@@ -28,6 +29,8 @@ export function App({ vscodeApi }: AppProps) {
 			return <DashboardView vscodeApi={vscodeApi} />;
 		case 'courseList':
 			return <CourseListView vscodeApi={vscodeApi} />;
+		case 'courseDetail':
+			return <CourseDetailView vscodeApi={vscodeApi} />;
 		default:
 			return (
 				<div style={{ color: 'var(--vscode-foreground)', padding: '20px' }}>

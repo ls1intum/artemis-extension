@@ -303,6 +303,32 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
                                 archivedCourses: archivedCourses
                             }
                         });
+                    } else if (currentState === 'course-detail') {
+                        // Send course detail data with exercises and exams
+                        const courseData = this._appStateManager.currentCourseData;
+
+                        // Detect workspace exercise ID asynchronously
+                        const { detectWorkspaceExercise } = require('../services');
+                        const exercises = courseData?.course?.exercises || [];
+
+                        // Use non-blocking async call
+                        detectWorkspaceExercise(exercises).then((detectedExercise: any) => {
+                            const workspaceExerciseId = detectedExercise?.id ?? null;
+
+                            // Read developer mode setting
+                            const config = vscode.workspace.getConfiguration('artemis');
+                            const developerMode = config.get<boolean>('developerMode', false);
+                            const hideDeveloperTools = !developerMode;
+
+                            this._postMessageSafe({
+                                type: 'courseDetailInit',
+                                payload: {
+                                    courseData: courseData,
+                                    workspaceExerciseId: workspaceExerciseId,
+                                    hideDeveloperTools: hideDeveloperTools
+                                }
+                            });
+                        });
                     }
                     return;
                 }

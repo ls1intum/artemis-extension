@@ -1,0 +1,219 @@
+/* Course Detail Container */
+.courseDetailContainer {
+    max-width: 900px;
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    padding: 0 16px 16px 16px;
+}
+
+/* Back Link and Controls */
+.backLinkContainer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+}
+
+.controls {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+/* Course Header */
+.courseHeaderContainer {
+    position: relative;
+}
+
+.courseColorIndicator {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 4px;
+    height: 100%;
+    border-radius: 4px 0 0 4px;
+}
+
+.courseHeader {
+    padding-left: 12px;
+}
+
+.courseTitleRow {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-bottom: 8px;
+}
+
+.courseTitle {
+    font-size: 24px;
+    font-weight: 600;
+    color: var(--vscode-foreground);
+    margin: 0;
+}
+
+.courseDescription {
+    color: var(--vscode-descriptionForeground);
+    font-size: 14px;
+    line-height: 1.5;
+    margin: 0 0 12px 0;
+}
+
+.courseStats {
+    display: flex;
+    gap: 16px;
+    flex-wrap: wrap;
+}
+
+.statItem {
+    font-size: 13px;
+    color: var(--vscode-foreground);
+    opacity: 0.8;
+}
+
+/* Ask Iris Section */
+.irisSection {
+    display: flex;
+    justify-content: flex-start;
+}
+
+/* Section Headers */
+.sectionHeader {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.sectionTitle {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--vscode-foreground);
+    margin: 0;
+}
+
+/* Exam List */
+.examList {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.examItem {
+    cursor: pointer;
+}
+
+.examItem:hover {
+    background: var(--vscode-list-hoverBackground);
+}
+
+.examHeader {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    justify-content: space-between;
+}
+
+.examTitle {
+    font-weight: 600;
+    color: var(--vscode-foreground);
+    flex: 1;
+}
+
+.examInfo {
+    display: flex;
+    gap: 16px;
+    font-size: 12px;
+    color: var(--vscode-foreground);
+    opacity: 0.8;
+    margin-top: 4px;
+}
+
+/* Exercise Search and List */
+.exerciseSearch {
+    margin-bottom: 12px;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.searchInputWrapper {
+    flex: 1;
+}
+
+.exercisesList {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.exerciseItem {
+    cursor: pointer;
+}
+
+.exerciseItem:hover {
+    background: var(--vscode-list-hoverBackground);
+}
+
+.exerciseHeader {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.exerciseTypeIcon {
+    color: var(--vscode-foreground);
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    height: 18px;
+    opacity: 0.8;
+    font-size: 16px;
+}
+
+.exerciseTitle {
+    font-weight: 600;
+    color: var(--vscode-foreground);
+    flex: 1;
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.exerciseInfo {
+    display: flex;
+    gap: 16px;
+    font-size: 12px;
+    color: var(--vscode-foreground);
+    opacity: 0.8;
+    flex-wrap: wrap;
+    margin-top: 4px;
+}
+
+.noExercisesFound {
+    text-align: center;
+    color: var(--vscode-foreground);
+    opacity: 0.6;
+    font-style: italic;
+    padding: 24px 16px;
+}
+
+.noExercises {
+    text-align: center;
+    color: var(--vscode-foreground);
+    opacity: 0.6;
+    font-style: italic;
+    padding: 16px 0;
+}
+
+/* Developer Tools */
+.actionButtons {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}

@@ -20,3 +20,6 @@ export type { DashboardViewProps, DashboardPersistedState } from './Dashboard';
 
 export { CourseListView } from './CourseList';
 export type { CourseListViewProps, CourseListPersistedState, CourseData, ArchivedCourse } from './CourseList';
+
+export { CourseDetailView } from './CourseDetail';
+export type { CourseDetailViewProps, CourseDetailPersistedState } from './CourseDetail';
