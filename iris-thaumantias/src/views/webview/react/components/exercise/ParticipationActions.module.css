@@ -1,0 +1,298 @@
+/* Participation info section */
+.participationInfo {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+}
+
+.participationStatus {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--vscode-foreground);
+}
+
+.participationMessage {
+  font-size: 14px;
+  color: var(--vscode-foreground);
+  opacity: 0.8;
+}
+
+/* Participation actions container */
+.participationActions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: stretch;
+  width: 100%;
+}
+
+.notParticipated {
+  flex-direction: column;
+}
+
+.actionButtonRow {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+}
+
+/* Practice mode indicator */
+.practiceModeIndicator {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background-color: var(--vscode-editorInfo-background, rgba(117, 190, 255, 0.1));
+  color: var(--vscode-editorInfo-foreground, #75beff);
+  border-radius: 4px;
+  margin-bottom: 12px;
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.practiceModeIcon {
+  font-size: 16px;
+}
+
+/* Workspace status indicator */
+.changesStatus {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+  font-size: 13px;
+  color: var(--vscode-foreground);
+  opacity: 0.85;
+}
+
+.changesStatusIndicator {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--vscode-panel-border, #e0e0e0);
+  transition: background 0.15s ease-in-out, transform 0.15s ease-in-out;
+  flex-shrink: 0;
+}
+
+.changesStatus[data-state='dirty'] {
+  color: var(--vscode-editorWarning-foreground, #cca700);
+}
+
+.changesStatus[data-state='dirty'] .changesStatusIndicator {
+  background: var(--vscode-editorWarning-foreground, #cca700);
+  transform: scale(1.1);
+}
+
+.changesStatus[data-state='clean'] {
+  color: var(--vscode-testing-iconPassed, #73c991);
+}
+
+.changesStatus[data-state='clean'] .changesStatusIndicator {
+  background: var(--vscode-testing-iconPassed, #73c991);
+}
+
+.changesStatus[data-state='disconnected'] {
+  color: var(--vscode-errorForeground, #f48771);
+}
+
+.changesStatus[data-state='disconnected'] .changesStatusIndicator {
+  background: var(--vscode-errorForeground, #f48771);
+}
+
+.changesStatus[data-state='wrong-repo'] {
+  color: var(--vscode-editorWarning-foreground, #cca700);
+  font-weight: 600;
+}
+
+.changesStatus[data-state='wrong-repo'] .changesStatusIndicator {
+  background: var(--vscode-editorWarning-foreground, #cca700);
+}
+
+.changesStatus[data-state='checking'] {
+  color: var(--vscode-foreground);
+  opacity: 0.7;
+}
+
+.changesStatus[data-state='checking'] .changesStatusIndicator {
+  background: var(--vscode-panel-border, #e0e0e0);
+  animation: changesPulse 1.2s ease-in-out infinite;
+}
+
+@keyframes changesPulse {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 0.6;
+  }
+  50% {
+    transform: scale(1.15);
+    opacity: 1;
+  }
+}
+
+/* Cloned repository notice */
+.clonedRepoNotice {
+  font-size: 13px;
+  color: var(--vscode-foreground);
+  opacity: 0.85;
+  margin-bottom: 8px;
+  padding: 8px 12px;
+  background: var(--vscode-inputValidation-infoBackground, rgba(0, 0, 0, 0.03));
+  border-radius: 4px;
+  text-align: center;
+}
+
+/* Unsaved changes banner */
+.unsavedChangesBanner {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-bottom: 8px;
+  padding: 10px 12px;
+  background: var(--vscode-inputValidation-warningBackground, rgba(255, 165, 0, 0.1));
+  border-radius: 4px;
+  font-size: 13px;
+}
+
+.unsavedChangesIcon {
+  font-size: 16px;
+  line-height: 1;
+  margin-top: 1px;
+}
+
+.unsavedChangesText {
+  flex: 1;
+  color: var(--vscode-foreground);
+  line-height: 1.4;
+}
+
+.unsavedChangesText strong {
+  font-weight: 600;
+}
+
+/* Submit button group */
+.submitButtonGroup {
+  display: flex;
+  gap: 4px;
+  flex: 1;
+}
+
+.submitButtonGroup button:first-child {
+  flex: 1;
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+  border-right: 1px solid var(--vscode-panel-border, #e0e0e0);
+}
+
+.uploadMessageBtn {
+  background: var(--vscode-button-background, #007acc);
+  color: var(--vscode-button-foreground, #ffffff);
+  border: 1px solid var(--vscode-button-background, #007acc);
+  padding: 10px 12px;
+  cursor: pointer;
+  transition: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+  border-top-right-radius: 2px;
+  border-bottom-right-radius: 2px;
+  min-width: 44px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.uploadMessageBtn:hover {
+  background: var(--vscode-button-hoverBackground, #005a9e);
+  border-color: var(--vscode-button-hoverBackground, #005a9e);
+}
+
+/* Commit message input */
+.commitMessageInputContainer {
+  width: 100%;
+}
+
+.commitMessageInput {
+  width: 100%;
+  padding: 10px 12px;
+  font-size: 13px;
+  font-family: var(--vscode-font-family);
+  background: var(--vscode-input-background);
+  color: var(--vscode-input-foreground);
+  border: 1px solid var(--vscode-input-border, #e0e0e0);
+  border-radius: 2px;
+  outline: none;
+  transition: border-color 0.15s ease;
+  box-sizing: border-box;
+}
+
+.commitMessageInput:focus {
+  border-color: var(--vscode-focusBorder);
+  box-shadow: 0 0 0 1px var(--vscode-focusBorder);
+}
+
+.commitMessageInput::placeholder {
+  color: var(--vscode-input-placeholderForeground);
+  opacity: 0.5;
+}
+
+/* More menu */
+.moreMenu {
+  position: relative;
+  flex: 1;
+}
+
+.moreDropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background: var(--vscode-editor-background);
+  border: 1px solid var(--vscode-panel-border, #e0e0e0);
+  border-radius: 4px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  margin-top: 4px;
+  z-index: 100;
+  display: none;
+  overflow: hidden;
+}
+
+.moreMenu:hover .moreDropdown,
+.moreMenu:focus-within .moreDropdown {
+  display: block;
+}
+
+.dropdownItem {
+  background: transparent;
+  color: var(--vscode-foreground);
+  border: none;
+  padding: 12px 16px;
+  font-size: 14px;
+  cursor: pointer;
+  width: 100%;
+  text-align: left;
+  transition: background-color 0.15s ease;
+}
+
+.dropdownItem:hover {
+  background: var(--vscode-list-hoverBackground);
+}
+
+.dropdownItem:not(:last-child) {
+  border-bottom: 1px solid var(--vscode-panel-border, #e0e0e0);
+}
+
+/* Responsive design */
+@media (max-width: 500px) {
+  .participationActions {
+    flex-direction: column;
+  }
+}
+
+@media (max-width: 400px) {
+  .actionButtonRow {
+    flex-direction: column;
+  }
+}
