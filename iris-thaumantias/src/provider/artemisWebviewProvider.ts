@@ -235,8 +235,16 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
                         }
                     });
                     this._pendingMessages = [];
-                    // Send initialization data for the current view if needed
-                    // (specific init messages will be handled by view-specific logic)
+
+                    // Send initialization data for the current view
+                    const currentState = this._appStateManager.currentState;
+                    if (currentState === 'service-status') {
+                        const serverUrl = this._appStateManager.userInfo?.serverUrl;
+                        this._postMessageSafe({
+                            type: 'serviceStatusInit',
+                            payload: { serverUrl }
+                        });
+                    }
                     return;
                 }
 

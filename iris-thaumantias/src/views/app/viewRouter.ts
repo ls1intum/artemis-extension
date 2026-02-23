@@ -39,6 +39,7 @@ export class ViewRouter {
      */
     private readonly _reactViews = new Map<string, boolean>([
         ['git-credentials', true],  // Phase 3: migrated
+        ['service-status', true],   // Phase 3: migrated
         // Other views will be added as they're migrated
     ]);
 

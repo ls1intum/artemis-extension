@@ -5,3 +5,6 @@
 
 export { GitCredentialsView } from './GitCredentials';
 export type { GitCredentialsViewProps, GitCredentialsPersistedState } from './GitCredentials';
+
+export { ServiceStatusView } from './ServiceStatus';
+export type { ServiceStatusViewProps } from './ServiceStatus';
