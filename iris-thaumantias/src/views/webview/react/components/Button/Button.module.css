@@ -1,0 +1,278 @@
+/* Button Component - VS Code Styled */
+
+.btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 8px 16px;
+    border: 1px solid transparent;
+    border-radius: 4px;
+    font-family: var(--vscode-font-family);
+    font-size: var(--vscode-font-size);
+    font-weight: 400;
+    line-height: 18px;
+    text-align: center;
+    cursor: pointer;
+    transition: background-color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+    white-space: normal;
+    word-wrap: break-word;
+    user-select: none;
+    outline: none;
+    width: auto;
+    max-width: 100%;
+}
+
+/* Wrapped text buttons should be left-aligned */
+.btn[style*="width"],
+.btnFullWidth,
+.btnFixedSize {
+    text-align: left;
+    justify-content: flex-start;
+}
+
+/* Text alignment overrides */
+.btnAlignLeft {
+    text-align: left !important;
+    justify-content: flex-start !important;
+}
+
+.btnAlignCenter {
+    text-align: center !important;
+    justify-content: center !important;
+}
+
+.btnAlignRight {
+    text-align: right !important;
+    justify-content: flex-end !important;
+}
+
+.btn:focus-visible {
+    outline: 2px solid var(--vscode-focusBorder);
+    outline-offset: 2px;
+}
+
+/* Ensure ALL icons inside buttons never animate */
+.btn * {
+    transition: none !important;
+}
+
+.btn svg,
+.btn .btnIconSlot,
+.btn .btnIconSlot svg {
+    transition: none !important;
+    transform: none !important;
+}
+
+/* Icon color inheritance - use fill by default for solid icons */
+.btn svg {
+    fill: currentColor;
+    stroke: none;
+}
+
+.btn svg path,
+.btn svg circle,
+.btn svg rect,
+.btn svg polygon {
+    fill: currentColor;
+    stroke: none;
+}
+
+/* For icons that explicitly need stroke (outlined icons), use stroke attribute */
+.btn svg[stroke]:not([stroke="none"]),
+.btn svg path[stroke]:not([stroke="none"]),
+.btn svg circle[stroke]:not([stroke="none"]),
+.btn svg rect[stroke]:not([stroke="none"]),
+.btn svg polygon[stroke]:not([stroke="none"]) {
+    stroke: currentColor;
+    fill: none;
+}
+
+/* Primary Button - Blue solid background */
+.btnPrimary {
+    background-color: var(--vscode-button-background, #007acc);
+    color: var(--vscode-button-foreground, #ffffff);
+    border-color: var(--vscode-button-background, #007acc);
+}
+
+.btnPrimary:hover:not(.btnDisabled) {
+    background-color: var(--vscode-button-hoverBackground, #005a9e);
+    border-color: var(--vscode-button-hoverBackground, #005a9e);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+}
+
+.btnPrimary:active:not(.btnDisabled) {
+    background-color: var(--vscode-button-hoverBackground, #004578);
+    box-shadow: none;
+}
+
+.btnPrimary .btnIconSlot,
+.btnPrimary .btnIconSlot svg,
+.btnPrimary svg {
+    color: inherit;
+}
+
+/* Secondary Button - White background with blue border */
+.btnSecondary {
+    background-color: var(--vscode-editor-background, #ffffff);
+    color: var(--vscode-textLink-foreground, #007acc);
+    border: 1px solid var(--vscode-textLink-foreground, #007acc);
+}
+
+.btnSecondary:hover:not(.btnDisabled) {
+    background-color: rgba(0, 122, 204, 0.05);
+    border-color: var(--vscode-textLink-activeForeground, #005a9e);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+.btnSecondary:active:not(.btnDisabled) {
+    background-color: rgba(0, 122, 204, 0.1);
+    box-shadow: none;
+}
+
+.btnSecondary .btnIconSlot,
+.btnSecondary .btnIconSlot svg,
+.btnSecondary svg {
+    color: inherit;
+}
+
+/* Icon Button (minimal style for toolbar-like buttons) */
+.btnIcon {
+    padding: 4px;
+    background-color: transparent;
+    color: var(--vscode-icon-foreground);
+    border: none;
+    min-width: 28px;
+    min-height: 28px;
+}
+
+.btnIcon:hover:not(.btnDisabled) {
+    background-color: var(--vscode-toolbar-hoverBackground, rgba(90, 93, 94, 0.31));
+}
+
+.btnIcon:active:not(.btnDisabled) {
+    background-color: var(--vscode-toolbar-activeBackground, rgba(99, 102, 103, 0.4));
+}
+
+/* Icon within button - ensure proper sizing */
+.btnIconSlot {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+    height: 16px;
+    flex-shrink: 0;
+}
+
+.btnIconSlot svg {
+    width: 16px;
+    height: 16px;
+    fill: currentColor;
+}
+
+/* Label within button */
+.btnLabel {
+    display: inline-block;
+    flex: 1;
+    min-width: 0;
+}
+
+/* Full width button */
+.btnFullWidth {
+    width: 100%;
+    display: flex;
+}
+
+/* Link Button - styled like a text link */
+.btnLink {
+    background-color: transparent;
+    color: var(--vscode-textLink-foreground, #007acc);
+    border: none;
+    padding: 0;
+    text-decoration: none;
+    cursor: pointer;
+    font-weight: 400;
+    font-size: var(--vscode-font-size, 13px);
+    font-family: inherit;
+    text-align: left;
+    justify-content: flex-start;
+    white-space: nowrap;
+}
+
+.btnLink:hover:not(.btnDisabled) {
+    text-decoration: underline;
+    background-color: transparent;
+}
+
+.btnLink:active:not(.btnDisabled) {
+    color: var(--vscode-textLink-activeForeground, #005a9e);
+}
+
+.btnLink .btnIconSlot,
+.btnLink .btnIconSlot svg {
+    color: inherit;
+}
+
+/* Ghost Button - transparent background with hover effect */
+.btnGhost {
+    background-color: transparent;
+    color: var(--vscode-foreground, currentColor);
+    border: none;
+    padding: 8px 12px;
+    text-align: left;
+    justify-content: flex-start;
+    border-radius: 4px;
+}
+
+.btnGhost:hover:not(.btnDisabled) {
+    background-color: var(--vscode-button-background, #007acc);
+    color: var(--vscode-button-foreground, #ffffff);
+}
+
+.btnGhost:active:not(.btnDisabled) {
+    background-color: var(--vscode-button-hoverBackground, #005a9e);
+    color: var(--vscode-button-foreground, #ffffff);
+}
+
+.btnGhost .btnIconSlot,
+.btnGhost .btnIconSlot svg {
+    color: inherit;
+}
+
+/* Disabled state */
+.btnDisabled,
+.btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+    pointer-events: none;
+}
+
+/* Button with icon and label - reduce left padding */
+.btnWithIcon {
+    padding-left: 8px;
+}
+
+/* Fixed size button - reduces padding */
+.btnFixedSize {
+    padding: 4px 12px;
+    box-sizing: border-box;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Fixed size button with icon - even less left padding */
+.btnFixedSize.btnWithIcon {
+    padding-left: 4px;
+}
+
+/* Fixed size icon-only button - minimal padding */
+.btnFixedSize:empty,
+.btnFixedSize:has(svg):not(:has(.btnLabel)):not(:has(text)) {
+    padding: 4px;
+}
+
+/* Button with only icon (no label) - adjusted spacing */
+.btn:empty,
+.btn:has(svg):not(:has(.btnLabel)):not(:has(text)) {
+    padding: 6px;
+}

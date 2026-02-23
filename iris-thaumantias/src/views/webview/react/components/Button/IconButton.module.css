@@ -1,0 +1,191 @@
+/* Icon Button Components - Compact action buttons with icons */
+
+.iconBtn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    background-color: transparent;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background-color 0.15s ease, color 0.15s ease;
+    outline: none;
+    flex-shrink: 0;
+}
+
+.iconBtn svg {
+    width: 16px;
+    height: 16px;
+    pointer-events: none;
+}
+
+.iconBtn:focus-visible {
+    outline: 2px solid var(--vscode-focusBorder);
+    outline-offset: 2px;
+}
+
+/* Checkmark button (confirm/accept) - Green accent */
+.iconBtnCheckmark {
+    color: var(--vscode-icon-foreground, #c5c5c5);
+}
+
+.iconBtnCheckmark:hover:not(.iconBtnDisabled) {
+    background-color: var(--vscode-button-background, #007acc);
+    color: var(--vscode-button-foreground, #ffffff);
+}
+
+.iconBtnCheckmark:active:not(.iconBtnDisabled) {
+    background-color: var(--vscode-button-hoverBackground, #005a9e);
+}
+
+/* Close button (cancel/close) - Red accent on hover */
+.iconBtnClose {
+    color: var(--vscode-icon-foreground, #c5c5c5);
+}
+
+.iconBtnClose:hover:not(.iconBtnDisabled) {
+    background-color: var(--vscode-inputValidation-errorBackground, rgba(244, 71, 71, 0.2));
+    color: var(--vscode-errorForeground, #f48771);
+}
+
+.iconBtnClose:active:not(.iconBtnDisabled) {
+    background-color: var(--vscode-inputValidation-errorBackground, rgba(244, 71, 71, 0.3));
+}
+
+/* Fullscreen button */
+.iconBtnFullscreen {
+    color: var(--vscode-icon-foreground, #c5c5c5);
+}
+
+.iconBtnFullscreen:hover:not(.iconBtnDisabled) {
+    background-color: var(--vscode-toolbar-hoverBackground, rgba(90, 93, 94, 0.31));
+    color: var(--vscode-foreground, #cccccc);
+}
+
+.iconBtnFullscreen:active:not(.iconBtnDisabled) {
+    background-color: var(--vscode-toolbar-activeBackground, rgba(99, 102, 103, 0.4));
+}
+
+/* Disabled state */
+.iconBtnDisabled,
+.iconBtn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+    pointer-events: none;
+}
+
+/* Collapse/expand toggle button */
+.iconBtnCollapse {
+    color: var(--vscode-icon-foreground, #c5c5c5);
+}
+
+.iconBtnCollapse:hover:not(.iconBtnDisabled) {
+    background-color: var(--vscode-toolbar-hoverBackground, rgba(90, 93, 94, 0.31));
+    color: var(--vscode-foreground, #cccccc);
+}
+
+.iconBtnCollapse:active:not(.iconBtnDisabled) {
+    background-color: var(--vscode-toolbar-activeBackground, rgba(99, 102, 103, 0.4));
+}
+
+.collapseChevron {
+    transition: transform 0.2s ease;
+}
+
+/* Direction variants - defines the "expanded" rotation */
+.iconBtnCollapseDown .collapseChevron {
+    transform: rotate(0deg);
+}
+
+.iconBtnCollapseUp .collapseChevron {
+    transform: rotate(180deg);
+}
+
+.iconBtnCollapseLeft .collapseChevron {
+    transform: rotate(90deg);
+}
+
+.iconBtnCollapseRight .collapseChevron {
+    transform: rotate(-90deg);
+}
+
+/* Collapsed state - rotate chevron 180deg from expanded */
+.iconBtnCollapse.isCollapsed.iconBtnCollapseDown .collapseChevron {
+    transform: rotate(-180deg);
+}
+
+.iconBtnCollapse.isCollapsed.iconBtnCollapseUp .collapseChevron {
+    transform: rotate(0deg);
+}
+
+.iconBtnCollapse.isCollapsed.iconBtnCollapseLeft .collapseChevron {
+    transform: rotate(-90deg);
+}
+
+.iconBtnCollapse.isCollapsed.iconBtnCollapseRight .collapseChevron {
+    transform: rotate(90deg);
+}
+
+/* Burger menu button */
+.iconBtnBurgerMenu {
+    color: var(--vscode-icon-foreground, #c5c5c5);
+}
+
+.iconBtnBurgerMenu:hover:not(.iconBtnDisabled) {
+    background-color: var(--vscode-toolbar-hoverBackground, rgba(90, 93, 94, 0.31));
+    color: var(--vscode-foreground, #cccccc);
+}
+
+.iconBtnBurgerMenu:active:not(.iconBtnDisabled) {
+    background-color: var(--vscode-toolbar-activeBackground, rgba(99, 102, 103, 0.4));
+}
+
+/* Open state - subtle highlight to indicate menu is open */
+.iconBtnBurgerMenuOpen {
+    background-color: var(--vscode-toolbar-activeBackground, rgba(99, 102, 103, 0.4));
+}
+
+/* Settings button */
+.iconBtnSettings {
+    color: var(--vscode-icon-foreground, #c5c5c5);
+}
+
+.iconBtnSettings:hover:not(.iconBtnDisabled) {
+    background-color: var(--vscode-toolbar-hoverBackground, rgba(90, 93, 94, 0.31));
+    color: var(--vscode-foreground, #cccccc);
+}
+
+.iconBtnSettings:active:not(.iconBtnDisabled) {
+    background-color: var(--vscode-toolbar-activeBackground, rgba(99, 102, 103, 0.4));
+}
+
+/* Reload button */
+.iconBtnReload {
+    color: var(--vscode-icon-foreground, #c5c5c5);
+}
+
+.iconBtnReload:hover:not(.iconBtnDisabled) {
+    background-color: var(--vscode-toolbar-hoverBackground, rgba(90, 93, 94, 0.31));
+    color: var(--vscode-foreground, #cccccc);
+}
+
+.iconBtnReload:active:not(.iconBtnDisabled) {
+    background-color: var(--vscode-toolbar-activeBackground, rgba(99, 102, 103, 0.4));
+}
+
+/* Loading state - spinning animation */
+.iconBtnLoading svg {
+    animation: iconBtnSpin 1s linear infinite;
+}
+
+@keyframes iconBtnSpin {
+    from {
+        transform: rotate(0deg);
+    }
+    to {
+        transform: rotate(360deg);
+    }
+}
