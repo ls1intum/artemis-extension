@@ -10,7 +10,7 @@ Requirements for v1.0 React Webview Migration. Each maps to roadmap phases.
 ### Build Infrastructure
 
 - [ ] **BUILD-01**: Extension builds React webview bundles alongside extension host with dual-target configuration (Node.js CJS + browser IIFE)
-- [ ] **BUILD-02**: Webviews enforce nonce-based Content Security Policy with no inline scripts or styles
+- [x] **BUILD-02**: Webviews enforce nonce-based Content Security Policy with no inline scripts or styles
 - [ ] **BUILD-03**: React error boundaries wrap all view components to catch rendering errors gracefully
 
 ### Messaging & State Management
@@ -77,7 +77,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | Requirement | Phase | Status |
 |-------------|-------|--------|
 | BUILD-01 | Phase 1 | Pending |
-| BUILD-02 | Phase 1 | Pending |
+| BUILD-02 | Phase 1 | Complete |
 | BUILD-03 | Phase 1 | Pending |
 | MSG-01 | Phase 3 | Pending |
 | MSG-02 | Phase 3 | Pending |
