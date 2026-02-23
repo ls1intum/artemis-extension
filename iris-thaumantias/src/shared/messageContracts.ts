@@ -249,6 +249,18 @@ export interface ArchivedCoursesLoadedMessage {
 }
 
 /**
+ * CourseDetail view initialization message.
+ */
+export interface CourseDetailInitMessage {
+    type: 'courseDetailInit';
+    payload: {
+        courseData: CourseDetailData;
+        workspaceExerciseId?: number | null;
+        hideDeveloperTools?: boolean;
+    };
+}
+
+/**
  * CourseData structure for active courses.
  */
 export interface CourseData {
@@ -287,6 +299,35 @@ export interface ArchivedCourse {
 }
 
 /**
+ * Exam structure within a course.
+ */
+export interface Exam {
+    id: number;
+    title?: string;
+    startDate?: string;
+    endDate?: string;
+}
+
+/**
+ * CourseDetail data structure (full course with exams and exercises).
+ */
+export interface CourseDetailData {
+    course: {
+        id: number;
+        title: string;
+        description?: string;
+        semester?: string;
+        color?: string;
+        exercises?: Exercise[];
+        exams?: Exam[];
+        numberOfStudents?: number;
+        instructorGroupName?: string;
+        isArchived?: boolean;
+        shortName?: string;
+    };
+}
+
+/**
  * All messages that can be sent FROM extension host TO webview.
  * Discriminated by 'type' property.
  */
@@ -309,6 +350,7 @@ export type ExtensionToWebviewMessage =
     | WorkspaceExerciseDetectedMessage
     | CourseListInitMessage
     | ArchivedCoursesLoadedMessage
+    | CourseDetailInitMessage
     | { type: 'error'; payload: { message: string } };
 
 // ============================================================================
@@ -559,6 +601,72 @@ export interface ViewArchivedCourseCommand {
 }
 
 /**
+ * Reload course detail command.
+ */
+export interface ReloadCourseDetailCommand {
+    type: 'command';
+    command: 'reloadCourseDetail';
+    payload: {
+        courseId: number;
+    };
+}
+
+/**
+ * Open exercise details command.
+ */
+export interface OpenExerciseDetailsCommand {
+    type: 'command';
+    command: 'openExerciseDetails';
+    payload: {
+        exerciseId: number;
+    };
+}
+
+/**
+ * Open exam command.
+ */
+export interface OpenExamCommand {
+    type: 'command';
+    command: 'openExam';
+    payload: {
+        examId: number;
+        courseId: number;
+    };
+}
+
+/**
+ * Ask Iris about course command.
+ */
+export interface AskIrisAboutCourseCommand {
+    type: 'command';
+    command: 'askIrisAboutCourse';
+    payload: {
+        courseId: number;
+        courseTitle: string;
+        courseShortName?: string;
+    };
+}
+
+/**
+ * Toggle course fullscreen command.
+ */
+export interface ToggleCourseFullscreenCommand {
+    type: 'command';
+    command: 'toggleCourseFullscreen';
+}
+
+/**
+ * Open in editor command (developer tools).
+ */
+export interface OpenInEditorCommand {
+    type: 'command';
+    command: 'openInEditor';
+    payload: {
+        data: unknown;
+    };
+}
+
+/**
  * Error message from webview to extension.
  */
 export interface ErrorMessage {
@@ -602,6 +710,12 @@ export type WebviewToExtensionMessage =
     | ReloadCoursesCommand
     | LoadArchivedCoursesCommand
     | ViewArchivedCourseCommand
+    | ReloadCourseDetailCommand
+    | OpenExerciseDetailsCommand
+    | OpenExamCommand
+    | AskIrisAboutCourseCommand
+    | ToggleCourseFullscreenCommand
+    | OpenInEditorCommand
     | ErrorMessage;
 
 // ============================================================================
@@ -615,7 +729,7 @@ export type WebviewToExtensionMessage =
 export function isExtensionMessage(msg: unknown): msg is ExtensionToWebviewMessage {
     return typeof msg === 'object' && msg !== null && 'type' in msg
         && typeof (msg as { type: unknown }).type === 'string'
-        && ['init', 'gitCredentialsInit', 'gitCredentialsResult', 'serviceStatusInit', 'healthCheckResults', 'recommendedExtensionsInit', 'showLoading', 'hideLoading', 'updateLoading', 'loginSuccess', 'loginError', 'logoutSuccess', 'showLoggedIn', 'setServerUrl', 'dashboardInit', 'workspaceExerciseDetected', 'courseListInit', 'archivedCoursesLoaded', 'error'].includes((msg as { type: string }).type);
+        && ['init', 'gitCredentialsInit', 'gitCredentialsResult', 'serviceStatusInit', 'healthCheckResults', 'recommendedExtensionsInit', 'showLoading', 'hideLoading', 'updateLoading', 'loginSuccess', 'loginError', 'logoutSuccess', 'showLoggedIn', 'setServerUrl', 'dashboardInit', 'workspaceExerciseDetected', 'courseListInit', 'archivedCoursesLoaded', 'courseDetailInit', 'error'].includes((msg as { type: string }).type);
 }
 
 /**
