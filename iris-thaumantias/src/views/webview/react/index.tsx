@@ -2,12 +2,7 @@ import './styles/base.css';
 import { createRoot } from 'react-dom/client';
 import { App } from './App';
 import { ErrorBoundary } from './ErrorBoundary';
-
-interface VsCodeApi {
-	postMessage(message: unknown): void;
-	getState(): unknown;
-	setState(state: unknown): void;
-}
+import type { VsCodeApi } from '../../../shared/messageContracts';
 
 declare global {
 	interface Window {

@@ -30,6 +30,10 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
     private _websocketHandler?: WebSocketMessageHandler;
     private _buildCodeLens?: any; // BuildErrorCodeLensProvider
 
+    // Ready-signal handshake state
+    private _webviewReady = false;
+    private _pendingMessages: any[] = [];
+
     constructor(
         private readonly _extensionUri: vscode.Uri,
         private readonly _extensionContext: vscode.ExtensionContext,
@@ -104,6 +108,8 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
      */
     public async render(): Promise<void> {
         if (this._view) {
+            // Reset ready state since re-render reloads the webview
+            this._webviewReady = false;
             this._view.webview.html = await this._viewRouter.getHtml();
         }
     }
@@ -190,6 +196,10 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
         // Initialize the ViewRouter now that we have the webview
         this._viewRouter = new ViewRouter(this._appStateManager, this._extensionContext, webviewView.webview);
 
+        // Reset ready state for new webview
+        this._webviewReady = false;
+        this._pendingMessages = [];
+
         webviewView.webview.options = {
             // Allow scripts in the webview
             enableScripts: true,
@@ -201,11 +211,9 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
 
         webviewView.webview.html = await this._viewRouter.getHtml();
 
-        // Set up message sender for the message handler
+        // Set up message sender for the message handler (using safe posting)
         this._messageHandler.setMessageSender((message: any) => {
-            if (this._view) {
-                this._view.webview.postMessage(message);
-            }
+            this._postMessageSafe(message);
         });
 
         // Check if server URL has changed and clear credentials if needed
@@ -217,6 +225,39 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
         // Handle messages from the webview using the message handler
         webviewView.webview.onDidReceiveMessage(
             message => {
+                // Handle ready signal from React webview
+                if (message.type === 'ready') {
+                    this._webviewReady = true;
+                    // Flush any messages that were queued before ready
+                    this._pendingMessages.forEach(msg => {
+                        if (this._view) {
+                            this._view.webview.postMessage(msg);
+                        }
+                    });
+                    this._pendingMessages = [];
+                    // Send initialization data for the current view if needed
+                    // (specific init messages will be handled by view-specific logic)
+                    return;
+                }
+
+                // Bridge new typed message format to legacy command handler
+                if (message.type === 'command' && message.command) {
+                    // Extract command and payload, delegate to existing handler
+                    const legacyMessage = {
+                        command: message.command,
+                        ...(message.payload || {})
+                    };
+                    this._messageHandler.handleMessage(legacyMessage);
+                    return;
+                }
+
+                // Handle legacy format messages (for non-React views)
+                if (message.command) {
+                    this._messageHandler.handleMessage(message);
+                    return;
+                }
+
+                // Handle other typed messages
                 this._messageHandler.handleMessage(message);
             },
             undefined,
@@ -669,5 +710,17 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
     private _getServerUrl(): string {
         const config = vscode.workspace.getConfiguration(VSCODE_CONFIG.ARTEMIS_SECTION);
         return config.get<string>(VSCODE_CONFIG.SERVER_URL_KEY, CONFIG.ARTEMIS_SERVER_URL_DEFAULT);
+    }
+
+    /**
+     * Safely post a message to the webview, queuing it if the webview is not ready yet.
+     * This prevents race conditions where messages are sent before React hydration completes.
+     */
+    private _postMessageSafe(message: any): void {
+        if (this._webviewReady && this._view) {
+            this._view.webview.postMessage(message);
+        } else {
+            this._pendingMessages.push(message);
+        }
     }
 }

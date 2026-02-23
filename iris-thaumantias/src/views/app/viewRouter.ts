@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { AppStateManager } from './appStateManager';
+import { AppStateManager, type AppState } from './appStateManager';
 import { AiCheckerView } from '../aiChecker/aiCheckerView';
 import { CourseDetailView } from '../courseDetail/courseDetailView';
 import { CourseListView } from '../courseList/courseListView';
@@ -13,6 +13,7 @@ import { RecommendedExtensionsView } from '../recommendedExtensions/recommendedE
 import { GitCredentialsView } from '../gitCredentials/gitCredentialsView';
 import { ExamStartView } from '../examStart/examStartView';
 import { ExamConductionView } from '../examConduction/examConductionView';
+import { getReactWebviewHtml } from '../../utils/webviewHelpers';
 
 /**
  * Maps application state to the appropriate webview HTML.
@@ -31,6 +32,15 @@ export class ViewRouter {
     private readonly _gitCredentialsView: GitCredentialsView;
     private readonly _examStartView: ExamStartView;
     private readonly _examConductionView: ExamConductionView;
+
+    /**
+     * Map of app states to React view availability.
+     * If true, the view has been migrated to React; if false/undefined, fall back to legacy HTML.
+     */
+    private readonly _reactViews = new Map<string, boolean>([
+        ['git-credentials', true],  // Phase 3: migrated
+        // Other views will be added as they're migrated
+    ]);
 
     constructor(
         private readonly _appStateManager: AppStateManager,
@@ -60,6 +70,14 @@ export class ViewRouter {
         }
 
         const state = this._appStateManager.currentState;
+
+        // Check if React component exists for this view (coexistence pattern)
+        if (this._reactViews.get(state)) {
+            const viewName = this._stateToViewName(state);
+            return getReactWebviewHtml(webview, this._extensionContext.extensionUri, viewName);
+        }
+
+        // Fall back to legacy HTML generation for non-React views
 
         // Read developer tools setting (inverted: developerMode=true means hideDeveloperTools=false)
         const config = vscode.workspace.getConfiguration('artemis');
@@ -128,5 +146,43 @@ export class ViewRouter {
         }
 
         return this._loginView.generateHtml();
+    }
+
+    /**
+     * Map AppState values to React view names.
+     * Used by the coexistence router to determine which React component to render.
+     */
+    private _stateToViewName(state: AppState): string {
+        // Map kebab-case state names to camelCase view names
+        switch (state) {
+            case 'git-credentials':
+                return 'gitCredentials';
+            case 'service-status':
+                return 'serviceStatus';
+            case 'recommended-extensions':
+                return 'recommendedExtensions';
+            case 'login':
+                return 'login';
+            case 'dashboard':
+                return 'dashboard';
+            case 'course-list':
+                return 'courseList';
+            case 'course-detail':
+                return 'courseDetail';
+            case 'exercise-detail':
+                return 'exerciseDetail';
+            case 'exam-exercise-detail':
+                return 'examExerciseDetail';
+            case 'ai-config':
+                return 'aiConfig';
+            case 'struggle-detection':
+                return 'struggleDetection';
+            case 'exam-start':
+                return 'examStart';
+            case 'exam-conduction':
+                return 'examConduction';
+            default:
+                return state;
+        }
     }
 }

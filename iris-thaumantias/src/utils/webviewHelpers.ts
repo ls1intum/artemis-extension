@@ -27,9 +27,10 @@ export function getNonce(): string {
  *
  * @param webview - The VS Code webview instance (provides cspSource and asWebviewUri)
  * @param extensionUri - The extension's base URI for resolving bundle paths
+ * @param viewName - Optional view name to set as data-view attribute on root element
  * @returns HTML string ready to be assigned to webview.html
  */
-export function getReactWebviewHtml(webview: vscode.Webview, extensionUri: vscode.Uri): string {
+export function getReactWebviewHtml(webview: vscode.Webview, extensionUri: vscode.Uri, viewName?: string): string {
     const nonce = getNonce();
 
     // Build URIs for React bundle and base CSS
@@ -39,6 +40,8 @@ export function getReactWebviewHtml(webview: vscode.Webview, extensionUri: vscod
     const styleUri = webview.asWebviewUri(
         vscode.Uri.joinPath(extensionUri, 'dist', 'base.css')
     );
+
+    const dataViewAttr = viewName ? ` data-view="${viewName}"` : '';
 
     return `<!DOCTYPE html>
 <html lang="en">
@@ -50,7 +53,7 @@ export function getReactWebviewHtml(webview: vscode.Webview, extensionUri: vscod
     <link rel="stylesheet" type="text/css" href="${styleUri}" nonce="${nonce}">
 </head>
 <body>
-    <div id="root"></div>
+    <div id="root"${dataViewAttr}></div>
     <script nonce="${nonce}" src="${scriptUri}"></script>
 </body>
 </html>`;
