@@ -63,10 +63,13 @@ Plans:
   2. Views persist their state across tab hide/show cycles using getState/setState
   3. Webviews implement ready-signal handshake to prevent postMessage race conditions during hydration
   4. Message event listeners are cleaned up when webview is disposed (no memory leaks detectable)
-**Plans**: TBD
+**Plans**: 4 plans
 
 Plans:
-- TBD (will be created during planning)
+- [ ] 03-01-PLAN.md — Messaging infrastructure, coexistence router, ready-signal handshake + GitCredentials view (VIEW-01, VIEW-02, VIEW-03, MSG-01, MSG-02, MSG-03)
+- [ ] 03-02-PLAN.md — ServiceStatus view with health check messaging (VIEW-01)
+- [ ] 03-03-PLAN.md — RecommendedExtensions view with category filtering and state persistence (VIEW-01, MSG-02)
+- [ ] 03-04-PLAN.md — Login view with dual-state UI, form persistence, and embedded health checks (VIEW-01)
 
 ### Phase 4: Main UI Views
 **Goal**: Core application flow (Dashboard → CourseList → CourseDetail → ExerciseDetail) renders through React with real-time updates
