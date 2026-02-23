@@ -46,12 +46,13 @@ Plans:
   2. All components use VS Code CSS variables (var(--vscode-*)) and adapt to theme changes
   3. ExerciseDetail and ExamExerciseDetail can share components via React composition (no code duplication)
   4. Component props are fully typed with TypeScript interfaces
-**Plans**: 3 plans
+**Plans**: 4 plans
 
 Plans:
 - [ ] 02-01-PLAN.md — CSS Modules infrastructure + core atomic components (Button, IconButton, Badge, BackLink)
 - [ ] 02-02-PLAN.md — Form components (TextInput, Dropdown) + layout components (Container, ListItem, List)
-- [ ] 02-03-PLAN.md — Composite components (HelpPopup, SideMenu, AskIris, ServiceHealth) + shared exercise components (COMP-03)
+- [ ] 02-03-PLAN.md — Composite UI components (HelpPopup, SideMenu, AskIris, ServiceHealth)
+- [ ] 02-04-PLAN.md — Shared exercise components (SubmissionStatus, ParticipationActions, BuildProgress) + barrel index (COMP-03)
 
 ### Phase 3: Simple Views Migration
 **Goal**: 4 standalone views successfully migrated with validated state persistence and message passing patterns
