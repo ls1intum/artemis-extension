@@ -101,6 +101,83 @@ export interface RecommendedExtensionsInitMessage {
 }
 
 /**
+ * Show loading indicator message.
+ */
+export interface ShowLoadingMessage {
+    type: 'showLoading';
+    payload: {
+        message: string;
+    };
+}
+
+/**
+ * Hide loading indicator message.
+ */
+export interface HideLoadingMessage {
+    type: 'hideLoading';
+}
+
+/**
+ * Update loading message text.
+ */
+export interface UpdateLoadingMessage {
+    type: 'updateLoading';
+    payload: {
+        message: string;
+    };
+}
+
+/**
+ * Login success message.
+ */
+export interface LoginSuccessMessage {
+    type: 'loginSuccess';
+    payload: {
+        username: string;
+    };
+}
+
+/**
+ * Login error message.
+ */
+export interface LoginErrorMessage {
+    type: 'loginError';
+    payload: {
+        error: string;
+    };
+}
+
+/**
+ * Logout success message.
+ */
+export interface LogoutSuccessMessage {
+    type: 'logoutSuccess';
+}
+
+/**
+ * Show logged-in state message.
+ */
+export interface ShowLoggedInMessage {
+    type: 'showLoggedIn';
+    payload: {
+        userInfo: {
+            username: string;
+            serverUrl: string;
+        };
+    };
+}
+
+/**
+ * Set server URL message.
+ */
+export interface SetServerUrlMessage {
+    type: 'setServerUrl';
+    payload: {
+        serverUrl: string;
+    };
+}
+
+/**
  * All messages that can be sent FROM extension host TO webview.
  * Discriminated by 'type' property.
  */
@@ -111,6 +188,14 @@ export type ExtensionToWebviewMessage =
     | ServiceStatusInitMessage
     | HealthCheckResultsMessage
     | RecommendedExtensionsInitMessage
+    | ShowLoadingMessage
+    | HideLoadingMessage
+    | UpdateLoadingMessage
+    | LoginSuccessMessage
+    | LoginErrorMessage
+    | LogoutSuccessMessage
+    | ShowLoggedInMessage
+    | SetServerUrlMessage
     | { type: 'error'; payload: { message: string } };
 
 // ============================================================================
@@ -194,6 +279,51 @@ export interface SearchMarketplaceCommand {
 }
 
 /**
+ * Login command with credentials.
+ */
+export interface LoginCommand {
+    type: 'command';
+    command: 'login';
+    payload: {
+        username: string;
+        password: string;
+        rememberMe: boolean;
+    };
+}
+
+/**
+ * Logout command.
+ */
+export interface LogoutCommand {
+    type: 'command';
+    command: 'logout';
+}
+
+/**
+ * Open Artemis website command.
+ */
+export interface OpenWebsiteCommand {
+    type: 'command';
+    command: 'openWebsite';
+}
+
+/**
+ * Open Artemis settings command.
+ */
+export interface OpenSettingsCommand {
+    type: 'command';
+    command: 'openSettings';
+}
+
+/**
+ * Browse courses (dashboard) command.
+ */
+export interface BrowseCoursesCommand {
+    type: 'command';
+    command: 'browseCourses';
+}
+
+/**
  * Error message from webview to extension.
  */
 export interface ErrorMessage {
@@ -218,6 +348,11 @@ export type WebviewToExtensionMessage =
     | PerformHealthChecksCommand
     | RequestRecommendedExtensionsCommand
     | SearchMarketplaceCommand
+    | LoginCommand
+    | LogoutCommand
+    | OpenWebsiteCommand
+    | OpenSettingsCommand
+    | BrowseCoursesCommand
     | ErrorMessage;
 
 // ============================================================================
@@ -231,7 +366,7 @@ export type WebviewToExtensionMessage =
 export function isExtensionMessage(msg: unknown): msg is ExtensionToWebviewMessage {
     return typeof msg === 'object' && msg !== null && 'type' in msg
         && typeof (msg as { type: unknown }).type === 'string'
-        && ['init', 'gitCredentialsInit', 'gitCredentialsResult', 'serviceStatusInit', 'healthCheckResults', 'recommendedExtensionsInit', 'error'].includes((msg as { type: string }).type);
+        && ['init', 'gitCredentialsInit', 'gitCredentialsResult', 'serviceStatusInit', 'healthCheckResults', 'recommendedExtensionsInit', 'showLoading', 'hideLoading', 'updateLoading', 'loginSuccess', 'loginError', 'logoutSuccess', 'showLoggedIn', 'setServerUrl', 'error'].includes((msg as { type: string }).type);
 }
 
 /**
