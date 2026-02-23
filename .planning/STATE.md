@@ -10,18 +10,18 @@ See: .planning/PROJECT.md (updated 2026-02-23)
 ## Current Position
 
 Phase: 4 of 7 (Main UI Views)
-Plan: 1 of 4
+Plan: 2 of 4
 Status: In Progress
-Last activity: 2026-02-23 — Completed plan 04-01 (Foundation for Main UI Views)
+Last activity: 2026-02-23 — Completed plan 04-02 (CourseList Migration)
 
 Progress: [████████▒▒] 75%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 10
-- Average duration: 4.6 minutes
-- Total execution time: 0.77 hours
+- Total plans completed: 11
+- Average duration: 4.9 minutes
+- Total execution time: 0.90 hours
 
 **By Phase:**
 
@@ -30,11 +30,11 @@ Progress: [████████▒▒] 75%
 | 01 | 2 | 6 min | 3 min |
 | 02 | 3 | 14 min | 4.7 min |
 | 03 | 4 | 17.8 min | 4.5 min |
-| 04 | 1 | 8 min | 8 min |
+| 04 | 2 | 15.4 min | 7.7 min |
 
 **Recent Trend:**
-- Last 5 plans: 03-02 (3.5 min), 03-03 (3.8 min), 03-04 (4.5 min), 04-01 (8 min)
-- Trend: Increasing (latest plan 8 min, above phase average)
+- Last 5 plans: 03-03 (3.8 min), 03-04 (4.5 min), 04-01 (8 min), 04-02 (7.4 min)
+- Trend: Stable (latest plan 7.4 min, near phase average)
 
 **Detailed Metrics:**
 
@@ -50,7 +50,7 @@ Progress: [████████▒▒] 75%
 | Phase 03 P03 | 3.8 min | 2 tasks | 8 files |
 | Phase 03 P04 | 4.5 | 2 tasks | 8 files |
 | Phase 04 P01 | 8 min | 2 tasks | 31 files |
-| Phase 04 P01 | 8 | 2 tasks | 31 files |
+| Phase 04 P02 | 7.4 min | 2 tasks | 11 files |
 
 ## Accumulated Context
 
@@ -101,6 +101,9 @@ Recent decisions affecting current work:
 - [Phase 04]: Dashboard data always re-fetched (no persisted state) per user decision
 - [Phase 04]: Container header prop used instead of title prop for flexibility
 - [Phase 04]: IconButton.Reload named method used instead of preset prop pattern
+- [Phase 04]: Client-side filtering for CourseList (no server request on filter change)
+- [Phase 04]: Persist CourseList filter state across tab cycles using getState/setState
+- [Phase 04]: Dropdown and TextInput onChange receive value directly (string), not event object
 
 ### Pending Todos
 
@@ -113,5 +116,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-23 (plan execution)
-Stopped at: Completed 04-01-PLAN.md - Foundation for Main UI Views
+Stopped at: Completed 04-02-PLAN.md - CourseList Migration
 Resume file: None
