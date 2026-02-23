@@ -14,3 +14,6 @@ export type { RecommendedExtensionsViewProps, RecommendedExtensionsPersistedStat
 
 export { LoginView } from './Login';
 export type { LoginViewProps, LoginPersistedState } from './Login';
+
+export { DashboardView } from './Dashboard';
+export type { DashboardViewProps, DashboardPersistedState } from './Dashboard';

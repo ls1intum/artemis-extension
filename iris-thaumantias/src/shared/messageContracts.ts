@@ -178,6 +178,56 @@ export interface SetServerUrlMessage {
 }
 
 /**
+ * Dashboard initialization message.
+ */
+export interface DashboardInitMessage {
+    type: 'dashboardInit';
+    payload: {
+        courses: Array<{
+            courseData: {
+                course: {
+                    id?: number;
+                    title: string;
+                    exercises?: Array<{
+                        id?: number;
+                        title?: string;
+                        type?: string;
+                        releaseDate?: string;
+                        startDate?: string;
+                        dueDate?: string;
+                    }>;
+                    startDate?: string;
+                    creationDate?: string;
+                };
+            };
+            exercises: Array<{
+                id?: number;
+                title?: string;
+                type?: string;
+                releaseDate?: string;
+                startDate?: string;
+                dueDate?: string;
+            }>;
+        }>;
+        workspaceExercise?: {
+            id: number;
+            title: string;
+        };
+    };
+}
+
+/**
+ * Workspace exercise detected message.
+ */
+export interface WorkspaceExerciseDetectedMessage {
+    type: 'workspaceExerciseDetected';
+    payload: {
+        exerciseId: number;
+        exerciseTitle: string;
+    } | null;
+}
+
+/**
  * All messages that can be sent FROM extension host TO webview.
  * Discriminated by 'type' property.
  */
@@ -196,6 +246,8 @@ export type ExtensionToWebviewMessage =
     | LogoutSuccessMessage
     | ShowLoggedInMessage
     | SetServerUrlMessage
+    | DashboardInitMessage
+    | WorkspaceExerciseDetectedMessage
     | { type: 'error'; payload: { message: string } };
 
 // ============================================================================
@@ -324,6 +376,101 @@ export interface BrowseCoursesCommand {
 }
 
 /**
+ * Reload dashboard command.
+ */
+export interface ReloadDashboardCommand {
+    type: 'command';
+    command: 'reloadDashboard';
+}
+
+/**
+ * Show all courses command.
+ */
+export interface ShowAllCoursesCommand {
+    type: 'command';
+    command: 'showAllCourses';
+}
+
+/**
+ * View course details command.
+ */
+export interface ViewCourseDetailsCommand {
+    type: 'command';
+    command: 'viewCourseDetails';
+    payload: {
+        courseData: unknown;
+    };
+}
+
+/**
+ * Open exercise command.
+ */
+export interface OpenExerciseCommand {
+    type: 'command';
+    command: 'openExercise';
+    payload: {
+        exerciseId: number;
+        courseId?: number | null;
+    };
+}
+
+/**
+ * Detect workspace exercise command.
+ */
+export interface DetectWorkspaceExerciseCommand {
+    type: 'command';
+    command: 'detectWorkspaceExercise';
+}
+
+/**
+ * Show AI config command.
+ */
+export interface ShowAiConfigCommand {
+    type: 'command';
+    command: 'showAiConfig';
+}
+
+/**
+ * Show recommended extensions command.
+ */
+export interface ShowRecommendedExtensionsCommand {
+    type: 'command';
+    command: 'showRecommendedExtensions';
+}
+
+/**
+ * Show service status command.
+ */
+export interface ShowServiceStatusCommand {
+    type: 'command';
+    command: 'showServiceStatus';
+}
+
+/**
+ * Show Git credentials command.
+ */
+export interface ShowGitCredentialsCommand {
+    type: 'command';
+    command: 'showGitCredentials';
+}
+
+/**
+ * Show struggle detection command.
+ */
+export interface ShowStruggleDetectionCommand {
+    type: 'command';
+    command: 'showStruggleDetection';
+}
+
+/**
+ * Open bug report command.
+ */
+export interface OpenBugReportCommand {
+    type: 'command';
+    command: 'openBugReport';
+}
+
+/**
  * Error message from webview to extension.
  */
 export interface ErrorMessage {
@@ -353,6 +500,17 @@ export type WebviewToExtensionMessage =
     | OpenWebsiteCommand
     | OpenSettingsCommand
     | BrowseCoursesCommand
+    | ReloadDashboardCommand
+    | ShowAllCoursesCommand
+    | ViewCourseDetailsCommand
+    | OpenExerciseCommand
+    | DetectWorkspaceExerciseCommand
+    | ShowAiConfigCommand
+    | ShowRecommendedExtensionsCommand
+    | ShowServiceStatusCommand
+    | ShowGitCredentialsCommand
+    | ShowStruggleDetectionCommand
+    | OpenBugReportCommand
     | ErrorMessage;
 
 // ============================================================================
@@ -366,7 +524,7 @@ export type WebviewToExtensionMessage =
 export function isExtensionMessage(msg: unknown): msg is ExtensionToWebviewMessage {
     return typeof msg === 'object' && msg !== null && 'type' in msg
         && typeof (msg as { type: unknown }).type === 'string'
-        && ['init', 'gitCredentialsInit', 'gitCredentialsResult', 'serviceStatusInit', 'healthCheckResults', 'recommendedExtensionsInit', 'showLoading', 'hideLoading', 'updateLoading', 'loginSuccess', 'loginError', 'logoutSuccess', 'showLoggedIn', 'setServerUrl', 'error'].includes((msg as { type: string }).type);
+        && ['init', 'gitCredentialsInit', 'gitCredentialsResult', 'serviceStatusInit', 'healthCheckResults', 'recommendedExtensionsInit', 'showLoading', 'hideLoading', 'updateLoading', 'loginSuccess', 'loginError', 'logoutSuccess', 'showLoggedIn', 'setServerUrl', 'dashboardInit', 'workspaceExerciseDetected', 'error'].includes((msg as { type: string }).type);
 }
 
 /**

@@ -3,6 +3,7 @@ import { GitCredentialsView } from './views/GitCredentials';
 import { ServiceStatusView } from './views/ServiceStatus';
 import { RecommendedExtensionsView } from './views/RecommendedExtensions';
 import { LoginView } from './views/Login';
+import { DashboardView } from './views/Dashboard';
 
 interface AppProps {
 	vscodeApi: VsCodeApi;
@@ -22,6 +23,8 @@ export function App({ vscodeApi }: AppProps) {
 			return <RecommendedExtensionsView vscodeApi={vscodeApi} />;
 		case 'login':
 			return <LoginView vscodeApi={vscodeApi} />;
+		case 'dashboard':
+			return <DashboardView vscodeApi={vscodeApi} />;
 		default:
 			return (
 				<div style={{ color: 'var(--vscode-foreground)', padding: '20px' }}>

@@ -42,6 +42,7 @@ export class ViewRouter {
         ['service-status', true],   // Phase 3: migrated
         ['recommended-extensions', true],  // Phase 3: migrated
         ['login', true],  // Phase 3: migrated
+        ['dashboard', true],  // Phase 4: migrated
         // Other views will be added as they're migrated
     ]);
 

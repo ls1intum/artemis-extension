@@ -256,6 +256,40 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
                             type: 'setServerUrl',
                             payload: { serverUrl: this._getServerUrl() }
                         });
+                    } else if (currentState === 'dashboard') {
+                        // Send dashboard data with recent courses
+                        const coursesData = this._appStateManager.coursesData;
+                        const courses = coursesData?.courses || [];
+
+                        // Build recent course nodes (same structure as legacy dashboard)
+                        const recentCourseNodes = courses.map((courseItem: any) => {
+                            const course = courseItem.course || courseItem;
+                            const exercises = course.exercises || [];
+
+                            // Get recent exercises (sorted by date)
+                            const recentExercises = exercises
+                                .filter((ex: any) => ex.releaseDate || ex.startDate || ex.dueDate)
+                                .sort((a: any, b: any) => {
+                                    const aDate = a.releaseDate || a.startDate || a.dueDate || '';
+                                    const bDate = b.releaseDate || b.startDate || b.dueDate || '';
+                                    return bDate.localeCompare(aDate);
+                                });
+
+                            return {
+                                courseData: {
+                                    course: course
+                                },
+                                exercises: recentExercises
+                            };
+                        });
+
+                        this._postMessageSafe({
+                            type: 'dashboardInit',
+                            payload: {
+                                courses: recentCourseNodes,
+                                workspaceExercise: undefined  // Will be set by workspace detection
+                            }
+                        });
                     }
                     return;
                 }
