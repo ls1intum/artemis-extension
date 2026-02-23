@@ -1,5 +1,6 @@
 import { readCssFiles } from '../utils';
 import { BackLinkComponent } from '../components/backLink/backLinkComponent';
+import { ReloadButton, SettingsButton } from '../components/button/iconButtons';
 import { ButtonComponent } from '../components/button/buttonComponent';
 import { IconDefinitions } from '../../utils/iconDefinitions';
 import { TextInputComponent } from '../components/input/textInputComponent';
@@ -13,6 +14,7 @@ export class CourseListView {
         const styles = readCssFiles(
             'components/backLink/back-link.css',
             'components/button/button.css',
+            'components/button/iconButtons/iconButtons.css',
             'components/container/container.css',
             'components/listItem/list-item.css',
             'components/badge/badge.css',
@@ -146,14 +148,7 @@ export class CourseListView {
             header: {
                 title: 'All Courses',
                 subtitle: 'Browse and manage your enrolled courses',
-                titleSize: 'xlarge',
-                actionsHtml: ButtonComponent.generate({
-                    label: 'Reload',
-                    icon: IconDefinitions.getIcon('refresh'),
-                    variant: 'primary',
-                    command: 'reloadCourses()',
-                    height: '2rem'
-                })
+                titleSize: 'xlarge'
             },
             bodyHtml: `
                 <div class="search-container">
@@ -242,7 +237,15 @@ export class CourseListView {
     </style>
 </head>
 <body>
-    ${BackLinkComponent.generateHtml()}
+    <div class="back-link-container">
+        ${BackLinkComponent.generateHtml({ wrap: false })}
+        ${ReloadButton.generate({
+            id: 'reloadCoursesBtn',
+            command: 'reloadCourses()',
+            title: 'Reload Courses'
+        })}
+        ${SettingsButton.generate()}
+    </div>
     <div class="course-list-container">
         ${headerContainer}
         <div id="searchResults" class="search-results-info" style="display: none;"></div>

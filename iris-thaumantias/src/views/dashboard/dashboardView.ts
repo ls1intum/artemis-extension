@@ -180,11 +180,11 @@ export class DashboardView {
         });
 
         const quickActionsBody = `
-            <div class="action-buttons">
+            <div class="action-menu">
                 ${ButtonComponent.generate({
             label: 'Browse Courses',
             icon: icons.course,
-            variant: 'primary',
+            variant: 'ghost',
             id: 'browseCoursesBtn',
             command: 'document.getElementById("browseCoursesBtn").click()',
             fullWidth: true
@@ -192,7 +192,7 @@ export class DashboardView {
                 ${ButtonComponent.generate({
             label: 'Open Settings',
             icon: icons.gear,
-            variant: 'primary',
+            variant: 'ghost',
             id: 'openSettingsBtn',
             command: 'document.getElementById("openSettingsBtn").click()',
             fullWidth: true
@@ -200,7 +200,7 @@ export class DashboardView {
                 ${ButtonComponent.generate({
             label: 'AI Checker',
             icon: icons.star4,
-            variant: 'secondary',
+            variant: 'ghost',
             id: 'checkAiConfigBtn',
             command: 'document.getElementById("checkAiConfigBtn").click()',
             fullWidth: true
@@ -208,7 +208,7 @@ export class DashboardView {
                 ${ButtonComponent.generate({
             label: 'Recommended Extensions',
             icon: icons.puzzle,
-            variant: 'secondary',
+            variant: 'ghost',
             id: 'recommendedExtensionsBtn',
             command: 'document.getElementById("recommendedExtensionsBtn").click()',
             fullWidth: true
@@ -216,66 +216,53 @@ export class DashboardView {
                 ${ButtonComponent.generate({
             label: 'Open Artemis in browser',
             icon: icons.artemisLogo,
-            variant: 'secondary',
+            variant: 'ghost',
             id: 'openWebsiteBtn',
             command: 'document.getElementById("openWebsiteBtn").click()',
             fullWidth: true
         })}
                 ${ButtonComponent.generate({
-            label: 'Logout from Artemis',
-            icon: icons.logout,
-            variant: 'secondary',
-            className: 'btn-danger',
-            id: 'logoutBtn',
-            command: 'document.getElementById("logoutBtn").click()',
-            fullWidth: true
-        })}
-            </div>
-            <div class="toggle-more-container">
-                ${ButtonComponent.generate({
-            label: 'Show more',
-            variant: 'link',
-            id: 'toggleMoreActionsBtn',
-            command: 'toggleMoreActions()',
-            className: 'toggle-more-btn',
-            height: '1.5rem'
-        })}
-            </div>
-            <div class="hidden-actions" id="hiddenActionsContainer" style="display: none;">
-                <div class="action-buttons">
-                    ${ButtonComponent.generate({
             label: 'Struggle Detection',
             icon: icons.target,
-            variant: 'secondary',
+            variant: 'ghost',
             id: 'struggleDetectionBtn',
             command: 'document.getElementById("struggleDetectionBtn").click()',
             fullWidth: true
         })}
-                    ${ButtonComponent.generate({
+                ${ButtonComponent.generate({
             label: 'Service Status',
             icon: icons.stethoscope,
-            variant: 'secondary',
+            variant: 'ghost',
             id: 'serviceStatusBtn',
             command: 'document.getElementById("serviceStatusBtn").click()',
             fullWidth: true
         })}
-                    ${ButtonComponent.generate({
+                ${ButtonComponent.generate({
             label: 'Git Credentials',
             icon: icons.git,
-            variant: 'secondary',
+            variant: 'ghost',
             id: 'gitCredentialsBtn',
             command: 'document.getElementById("gitCredentialsBtn").click()',
             fullWidth: true
         })}
-                    ${ButtonComponent.generate({
+                ${ButtonComponent.generate({
             label: 'Bug Report',
             icon: icons.bug,
-            variant: 'secondary',
+            variant: 'ghost',
             id: 'bugReportBtn',
             command: 'document.getElementById("bugReportBtn").click()',
             fullWidth: true
         })}
-                </div>
+                <div class="action-menu-divider"></div>
+                ${ButtonComponent.generate({
+            label: 'Logout from Artemis',
+            icon: icons.logout,
+            variant: 'ghost',
+            className: 'btn-danger-ghost',
+            id: 'logoutBtn',
+            command: 'document.getElementById("logoutBtn").click()',
+            fullWidth: true
+        })}
             </div>
         `;
 
@@ -411,18 +398,6 @@ export class DashboardView {
                 vscode.postMessage({ command: 'logout' });
             });
         }
-
-        // Toggle more actions functionality
-        window.toggleMoreActions = function() {
-            const hiddenContainer = document.getElementById('hiddenActionsContainer');
-            const toggleBtn = document.getElementById('toggleMoreActionsBtn');
-
-            if (hiddenContainer && toggleBtn) {
-                const isHidden = hiddenContainer.style.display === 'none';
-                hiddenContainer.style.display = isHidden ? 'block' : 'none';
-                toggleBtn.textContent = isHidden ? 'Show less' : 'Show more';
-            }
-        };
 
         // Recent courses functionality
         window.showAllCourses = function() {

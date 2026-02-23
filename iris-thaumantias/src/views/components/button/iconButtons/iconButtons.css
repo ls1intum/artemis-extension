@@ -155,6 +155,20 @@
     background-color: var(--vscode-toolbar-activeBackground, rgba(99, 102, 103, 0.4));
 }
 
+/* Settings button */
+.icon-btn-settings {
+    color: var(--vscode-icon-foreground, #c5c5c5);
+}
+
+.icon-btn-settings:hover:not(.icon-btn-disabled) {
+    background-color: var(--vscode-toolbar-hoverBackground, rgba(90, 93, 94, 0.31));
+    color: var(--vscode-foreground, #cccccc);
+}
+
+.icon-btn-settings:active:not(.icon-btn-disabled) {
+    background-color: var(--vscode-toolbar-activeBackground, rgba(99, 102, 103, 0.4));
+}
+
 /* Reload button */
 .icon-btn-reload {
     color: var(--vscode-icon-foreground, #c5c5c5);

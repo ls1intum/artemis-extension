@@ -1,3 +1,5 @@
+import { SettingsButton } from '../button/iconButtons/settingsButton';
+
 export interface BackLinkOptions {
     label?: string;
     containerClass?: string | null;
@@ -7,6 +9,8 @@ export interface BackLinkOptions {
     wrap?: boolean;
     asButton?: boolean;
     command?: string;
+    /** Show settings gear icon button (default: true, only when wrap is true) */
+    showSettings?: boolean;
 }
 
 export class BackLinkComponent {
@@ -22,6 +26,7 @@ export class BackLinkComponent {
             wrap = true,
             asButton = false,
             command = BackLinkComponent.DEFAULT_COMMAND,
+            showSettings = true,
         } = options;
 
         const tagName = asButton ? 'button' : 'div';
@@ -35,8 +40,9 @@ export class BackLinkComponent {
             return element;
         }
 
+        const settingsBtn = showSettings ? SettingsButton.generate() : '';
         const containerAttr = containerClass ? ` class="${containerClass}"` : '';
-        return `<div${containerAttr}>${element}</div>`;
+        return `<div${containerAttr}>${element}${settingsBtn}</div>`;
     }
 
     public static generateScript(): string {

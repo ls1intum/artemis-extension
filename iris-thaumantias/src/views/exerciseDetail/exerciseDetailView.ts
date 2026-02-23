@@ -3,7 +3,7 @@ import { IconDefinitions } from "../../utils";
 import { readCssFiles, processMarkdown, transformExerciseData } from "../utils";
 import { BackLinkComponent } from "../components/backLink/backLinkComponent";
 import { ButtonComponent } from "../components/button/buttonComponent";
-import { FullscreenButton, CloseButton, ReloadButton } from "../components/button/iconButtons";
+import { FullscreenButton, CloseButton, ReloadButton, SettingsButton } from "../components/button/iconButtons";
 import { BadgeComponent } from "../components/badge/badgeComponent";
 import { ContainerComponent } from "../components/container/containerComponent";
 import { AskIrisComponent } from "../components/askIris/askIrisComponent";
@@ -162,8 +162,9 @@ export class ExerciseDetailView {
             command: 'toggleFullscreen()',
             title: 'Open exercise in new editor tab'
         })}
+        ${SettingsButton.generate()}
     </div>
-    
+
     <details class="exercise-card">
         <summary>
             <div class="summary-content">

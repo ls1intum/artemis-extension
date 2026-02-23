@@ -10,7 +10,7 @@ import { BadgeComponent } from '../components/badge/badgeComponent';
 import { AskIrisComponent } from '../components/askIris/askIrisComponent';
 import { ContainerComponent } from '../components/container/containerComponent';
 import { FullscreenButton } from '../components/button/iconButtons/fullscreenButton';
-import { ReloadButton } from '../components/button/iconButtons';
+import { ReloadButton, SettingsButton } from '../components/button/iconButtons';
 import { detectWorkspaceExercise } from '../../services';
 
 export class CourseDetailView {
@@ -358,6 +358,7 @@ export class CourseDetailView {
             command: 'toggleFullscreen()',
             title: 'Open in new tab'
         })}
+        ${SettingsButton.generate()}
     </div>
     <div class="course-detail-container">
         ${courseHeaderContainer}

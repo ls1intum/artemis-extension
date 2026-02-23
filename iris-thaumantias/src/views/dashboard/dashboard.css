@@ -84,31 +84,29 @@ body {
   border-bottom: 1px solid var(--theme-border);
   padding-bottom: 8px;
 }
-.action-buttons {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-  gap: 12px;
-}
-
-/* Toggle More Actions Button */
-.toggle-more-container {
+/* Action menu - compact list layout */
+.action-menu {
   display: flex;
-  justify-content: center;
+  flex-direction: column;
+  gap: 2px;
 }
-
-/* Hidden Actions Container */
-.hidden-actions {
-  animation: fadeIn 0.2s ease;
+.action-menu .btn-ghost {
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-size: 13px;
 }
-@keyframes fadeIn {
-  from {
-    opacity: 0;
-    transform: translateY(-8px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+.action-menu-divider {
+  height: 1px;
+  background: var(--theme-border);
+  margin: 4px 0;
+}
+/* Danger ghost variant for logout */
+.btn-danger-ghost {
+  color: var(--vscode-errorForeground, #f14c4c) !important;
+}
+.btn-danger-ghost:hover:not(.btn-disabled) {
+  background-color: rgba(241, 76, 76, 0.1) !important;
+  color: var(--vscode-errorForeground, #f14c4c) !important;
 }
 
 /* Workspace Exercise Container */
