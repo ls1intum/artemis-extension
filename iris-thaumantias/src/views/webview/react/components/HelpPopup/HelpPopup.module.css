@@ -1,0 +1,126 @@
+.helpPopupContainer {
+  position: relative;
+  display: inline-block;
+}
+
+.helpOverlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.4);
+  z-index: 999;
+  backdrop-filter: blur(2px);
+}
+
+.helpPopup {
+  position: fixed;
+  background: var(--theme-card-background);
+  border: 1px solid var(--theme-border);
+  border-radius: var(--theme-container-radius, 8px);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+  z-index: 1000;
+  max-width: 600px;
+  max-height: 80vh;
+  overflow: auto;
+  opacity: 0;
+  transform: scale(0.95);
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.helpPopupOpen {
+  opacity: 1;
+  transform: scale(1);
+}
+
+/* Position variants */
+.helpPopupTop {
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%) scale(0.95);
+  margin-bottom: 8px;
+}
+
+.helpPopupTop.helpPopupOpen {
+  transform: translateX(-50%) scale(1);
+}
+
+.helpPopupBottom {
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%) scale(0.95);
+}
+
+.helpPopupBottom.helpPopupOpen {
+  transform: translate(-50%, -50%) scale(1);
+}
+
+.helpPopupLeft {
+  right: 100%;
+  top: 50%;
+  transform: translateY(-50%) scale(0.95);
+  margin-right: 8px;
+}
+
+.helpPopupLeft.helpPopupOpen {
+  transform: translateY(-50%) scale(1);
+}
+
+.helpPopupRight {
+  left: 100%;
+  top: 50%;
+  transform: translateY(-50%) scale(0.95);
+  margin-left: 8px;
+}
+
+.helpPopupRight.helpPopupOpen {
+  transform: translateY(-50%) scale(1);
+}
+
+.helpPopupHeader {
+  display: flex;
+  justify-content: flex-end;
+  padding: 12px 12px 0 12px;
+  border-bottom: 1px solid var(--theme-border);
+}
+
+.closeBtn {
+  margin-left: auto;
+}
+
+.helpPopupContent {
+  padding: 16px;
+  color: var(--theme-foreground);
+}
+
+.helpPopupContent h2 {
+  margin: 0 0 12px 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--theme-foreground);
+}
+
+.helpPopupContent h3 {
+  margin: 16px 0 8px 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--theme-foreground);
+}
+
+.helpPopupContent p {
+  margin: 8px 0;
+  line-height: 1.5;
+  color: var(--theme-foreground);
+}
+
+.helpPopupContent ul {
+  margin: 8px 0;
+  padding-left: 24px;
+}
+
+.helpPopupContent li {
+  margin: 4px 0;
+  line-height: 1.5;
+  color: var(--theme-foreground);
+}

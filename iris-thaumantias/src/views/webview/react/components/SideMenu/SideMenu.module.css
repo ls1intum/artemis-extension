@@ -1,0 +1,88 @@
+.menuOverlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.4);
+  z-index: 999;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.3s ease, visibility 0.3s ease;
+  backdrop-filter: blur(2px);
+}
+
+.menuOverlayOpen {
+  opacity: 1;
+  visibility: visible;
+}
+
+.sideMenu {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 320px;
+  max-width: 90vw;
+  background: var(--theme-card-background);
+  border-left: 1px solid var(--theme-border);
+  box-shadow: -4px 0 16px rgba(0, 0, 0, 0.3);
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  transform: translateX(100%);
+  transition: transform 0.3s ease;
+  overflow: hidden;
+}
+
+.sideMenuOpen {
+  transform: translateX(0);
+}
+
+.sideMenuHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px;
+  border-bottom: 1px solid var(--theme-border);
+  background: var(--theme-card-background);
+  flex-shrink: 0;
+}
+
+.sideMenuTitle {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--theme-foreground);
+}
+
+.closeBtn {
+  margin-left: auto;
+}
+
+.sideMenuContent {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px;
+  color: var(--theme-foreground);
+}
+
+/* Menu section styles */
+.sideMenuContent h4 {
+  margin: 16px 0 8px 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--theme-foreground);
+  opacity: 0.7;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.sideMenuContent h4:first-child {
+  margin-top: 0;
+}
+
+/* Smooth scrolling for keyboard navigation */
+.sideMenuContent {
+  scroll-behavior: smooth;
+}
