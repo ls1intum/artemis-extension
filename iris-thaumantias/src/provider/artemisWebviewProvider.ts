@@ -329,6 +329,22 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
                                 }
                             });
                         });
+                    } else if (currentState === 'exercise-detail') {
+                        // Send exercise detail data
+                        const exerciseData = this._appStateManager.currentExerciseData;
+
+                        // Read developer mode setting
+                        const config = vscode.workspace.getConfiguration('artemis');
+                        const developerMode = config.get<boolean>('developerMode', false);
+                        const hideDeveloperTools = !developerMode;
+
+                        this._postMessageSafe({
+                            type: 'exerciseDetailInit',
+                            payload: {
+                                exerciseData: exerciseData,
+                                hideDeveloperTools: hideDeveloperTools
+                            }
+                        });
                     }
                     return;
                 }
@@ -674,6 +690,16 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
     private _handleNewResult(result: ResultDTO): void {
         // Forward to webview if it exists
         if (this._view) {
+            // Send typed message for React views
+            this._view.webview.postMessage({
+                type: 'websocketUpdate',
+                payload: {
+                    updateType: 'newResult',
+                    data: result
+                }
+            });
+
+            // Also send legacy message for backward compatibility
             this._view.webview.postMessage({
                 command: 'newResult',
                 result: result
@@ -684,6 +710,16 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
     private _handleNewSubmission(submission: ProgrammingSubmission): void {
         // Forward to webview if it exists
         if (this._view) {
+            // Send typed message for React views
+            this._view.webview.postMessage({
+                type: 'websocketUpdate',
+                payload: {
+                    updateType: 'newSubmission',
+                    data: submission
+                }
+            });
+
+            // Also send legacy message for backward compatibility
             this._view.webview.postMessage({
                 command: 'newSubmission',
                 submission: submission
@@ -708,6 +744,20 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
 
         // Forward to webview if it exists
         if (this._view) {
+            // Send typed message for React views
+            this._view.webview.postMessage({
+                type: 'websocketUpdate',
+                payload: {
+                    updateType: 'submissionProcessing',
+                    data: {
+                        state: state || 'BUILDING',
+                        participationId: message.participationId,
+                        buildTimingInfo: buildTimingInfo
+                    }
+                }
+            });
+
+            // Also send legacy message for backward compatibility
             this._view.webview.postMessage({
                 command: 'submissionProcessing',
                 state: state || 'BUILDING',

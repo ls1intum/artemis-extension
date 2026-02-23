@@ -1,0 +1,144 @@
+.exerciseDetailView {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 16px;
+  color: var(--vscode-foreground);
+}
+
+.backLinkContainer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.controlButtons {
+  display: flex;
+  gap: 8px;
+}
+
+/* Exercise Card (collapsible details element) */
+.exerciseCard {
+  background: var(--vscode-editor-background);
+  border: 1px solid var(--vscode-widget-border);
+  border-radius: 6px;
+  padding: 0;
+  margin: 0;
+}
+
+.exerciseSummary {
+  cursor: pointer;
+  list-style: none;
+  padding: 16px;
+  user-select: none;
+}
+
+.exerciseSummary::-webkit-details-marker {
+  display: none;
+}
+
+.summaryContent {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.summaryText {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.exerciseTitle {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--vscode-editor-foreground);
+}
+
+.exerciseMeta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.exerciseIconBadge {
+  font-size: 20px;
+  line-height: 1;
+}
+
+.toggleIcon {
+  flex-shrink: 0;
+  font-size: 12px;
+  color: var(--vscode-descriptionForeground);
+  transition: transform 0.2s;
+}
+
+.exerciseCard[open] .toggleIcon {
+  transform: rotate(180deg);
+}
+
+.repoStatusIcon {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--vscode-button-secondaryBackground);
+  color: var(--vscode-button-secondaryForeground);
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 600;
+  transition: all 0.2s;
+}
+
+.repoStatusIcon:hover {
+  background: var(--vscode-button-secondaryHoverBackground);
+}
+
+/* Expanded content */
+.expandedContent {
+  padding: 0 16px 16px 16px;
+  border-top: 1px solid var(--vscode-widget-border);
+}
+
+.infoGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+  padding-top: 16px;
+}
+
+.infoItem {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.infoLabel {
+  font-size: 12px;
+  color: var(--vscode-descriptionForeground);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.infoValue {
+  font-size: 14px;
+  color: var(--vscode-editor-foreground);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Developer tools */
+.devTools {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}

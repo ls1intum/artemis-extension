@@ -23,3 +23,6 @@ export type { CourseListViewProps, CourseListPersistedState, CourseData, Archive
 
 export { CourseDetailView } from './CourseDetail';
 export type { CourseDetailViewProps, CourseDetailPersistedState } from './CourseDetail';
+
+export { ExerciseDetailView } from './ExerciseDetail';
+export type { ExerciseDetailViewProps } from './ExerciseDetail';

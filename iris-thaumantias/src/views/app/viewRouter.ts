@@ -45,6 +45,7 @@ export class ViewRouter {
         ['dashboard', true],  // Phase 4: migrated
         ['course-list', true],  // Phase 4: migrated
         ['course-detail', true],  // Phase 4: migrated
+        ['exercise-detail', true],  // Phase 4: migrated
         // Other views will be added as they're migrated
     ]);
 
