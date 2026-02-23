@@ -22,8 +22,8 @@ Requirements for v1.0 React Webview Migration. Each maps to roadmap phases.
 
 ### Component Library
 
-- [ ] **COMP-01**: All 20+ existing UI components (Button, ListItem, Container, Badge, BackLink, etc.) are ported to React with identical visual design
-- [ ] **COMP-02**: All components use VS Code CSS variables (`var(--vscode-*)`) for theme compliance
+- [x] **COMP-01**: All 20+ existing UI components (Button, ListItem, Container, Badge, BackLink, etc.) are ported to React with identical visual design
+- [x] **COMP-02**: All components use VS Code CSS variables (`var(--vscode-*)`) for theme compliance
 - [ ] **COMP-03**: ExerciseDetail and ExamExerciseDetail share components via React composition (formalizing existing ~70% code reuse)
 
 ### View Migration
@@ -83,8 +83,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 | MSG-02 | Phase 3 | Pending |
 | MSG-03 | Phase 3 | Pending |
 | MSG-04 | Phase 4 | Pending |
-| COMP-01 | Phase 2 | Pending |
-| COMP-02 | Phase 2 | Pending |
+| COMP-01 | Phase 2 | Complete |
+| COMP-02 | Phase 2 | Complete |
 | COMP-03 | Phase 2 | Pending |
 | VIEW-01 | Phases 3-6 | Pending |
 | VIEW-02 | Phase 3 | Pending |
