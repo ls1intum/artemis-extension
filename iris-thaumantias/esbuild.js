@@ -1,6 +1,7 @@
 const esbuild = require("esbuild");
 const fs = require("fs");
 const path = require("path");
+const cssModulesPlugin = require('esbuild-css-modules-plugin');
 
 const production = process.argv.includes('--production');
 const watch = process.argv.includes('--watch');
@@ -133,13 +134,15 @@ async function main() {
 		outfile: 'dist/webview-react.js',
 		loader: {
 			'.tsx': 'tsx',
-			'.ts': 'ts'
+			'.ts': 'ts',
+			'.css': 'css'
 		},
 		define: {
 			'process.env.NODE_ENV': production ? '"production"' : '"development"'
 		},
 		logLevel: 'silent',
 		plugins: [
+			cssModulesPlugin(),
 			esbuildProblemMatcherPlugin,
 		],
 	});

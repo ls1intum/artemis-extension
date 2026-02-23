@@ -202,11 +202,14 @@
     "@typescript-eslint/parser": "8.54.0",
     "@vscode/test-cli": "0.0.12",
     "@vscode/test-electron": "2.5.2",
+    "clsx": "^2.1.1",
     "esbuild": "0.27.2",
+    "esbuild-css-modules-plugin": "^3.1.5",
     "eslint": "9.39.2",
     "npm-run-all2": "8.0.4",
     "sinon": "^21.0.1",
-    "typescript": "5.9.3"
+    "typescript": "5.9.3",
+    "typescript-plugin-css-modules": "^5.2.0"
   },
   "dependencies": {
     "@stomp/stompjs": "^7.2.1",
