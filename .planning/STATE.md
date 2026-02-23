@@ -4,8 +4,23 @@
 
 Phase: Not started (defining requirements)
 Plan: —
-Status: Defining requirements
-Last activity: 2026-02-23 — Milestone v1.0 started
+Status: Defining requirements — PAUSED mid-workflow (context exhausted)
+Last activity: 2026-02-23 — Research complete, requirements scoping in progress
+
+## Resume Point
+
+**Workflow:** /gsd:new-milestone "React Webview Migration"
+**Completed steps:** 1-8 (Load Context, Questioning, PROJECT.md, STATE.md, MILESTONES.md, Commit, Init, Research)
+**Current step:** Step 9 — Define Requirements (in progress)
+**Where exactly:** Just started category scoping. Build Infrastructure scoped (all 3 items included). Remaining categories to scope:
+- Messaging & State Management (typed contracts, Zustand, state persistence)
+- Component Library (port 20+ existing components to React)
+- View Migration (all 14+ views)
+- Critical Views (exam timers via Web Workers, chat streaming with React.memo)
+- Cleanup (remove legacy HTML templates, ViewRouter, old components)
+**After requirements:** Step 10 (Create Roadmap via gsd-roadmapper), Step 11 (Done)
+**Research findings committed:** ba84809
+**Phase numbering starts at:** 1 (first milestone)
 
 ## Project Reference
 
