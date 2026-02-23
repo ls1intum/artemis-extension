@@ -228,6 +228,65 @@ export interface WorkspaceExerciseDetectedMessage {
 }
 
 /**
+ * CourseList view initialization message.
+ */
+export interface CourseListInitMessage {
+    type: 'courseListInit';
+    payload: {
+        courses: CourseData[];
+        archivedCourses?: ArchivedCourse[];
+    };
+}
+
+/**
+ * Archived courses loaded message.
+ */
+export interface ArchivedCoursesLoadedMessage {
+    type: 'archivedCoursesLoaded';
+    payload: {
+        archivedCourses: ArchivedCourse[];
+    };
+}
+
+/**
+ * CourseData structure for active courses.
+ */
+export interface CourseData {
+    course: {
+        id: number;
+        title: string;
+        description?: string;
+        semester?: string;
+        color?: string;
+        exercises?: Exercise[];
+        numberOfStudents?: number;
+        instructorGroupName?: string;
+    };
+}
+
+/**
+ * Exercise structure within a course.
+ */
+export interface Exercise {
+    id?: number;
+    title?: string;
+    type?: string;
+    releaseDate?: string;
+    startDate?: string;
+    dueDate?: string;
+}
+
+/**
+ * ArchivedCourse structure for archived courses.
+ */
+export interface ArchivedCourse {
+    id: number;
+    title: string;
+    semester?: string;
+    color?: string;
+}
+
+/**
  * All messages that can be sent FROM extension host TO webview.
  * Discriminated by 'type' property.
  */
@@ -248,6 +307,8 @@ export type ExtensionToWebviewMessage =
     | SetServerUrlMessage
     | DashboardInitMessage
     | WorkspaceExerciseDetectedMessage
+    | CourseListInitMessage
+    | ArchivedCoursesLoadedMessage
     | { type: 'error'; payload: { message: string } };
 
 // ============================================================================
@@ -471,6 +532,33 @@ export interface OpenBugReportCommand {
 }
 
 /**
+ * Reload courses command.
+ */
+export interface ReloadCoursesCommand {
+    type: 'command';
+    command: 'reloadCourses';
+}
+
+/**
+ * Load archived courses command.
+ */
+export interface LoadArchivedCoursesCommand {
+    type: 'command';
+    command: 'loadArchivedCourses';
+}
+
+/**
+ * View archived course command.
+ */
+export interface ViewArchivedCourseCommand {
+    type: 'command';
+    command: 'viewArchivedCourse';
+    payload: {
+        courseId: number;
+    };
+}
+
+/**
  * Error message from webview to extension.
  */
 export interface ErrorMessage {
@@ -511,6 +599,9 @@ export type WebviewToExtensionMessage =
     | ShowGitCredentialsCommand
     | ShowStruggleDetectionCommand
     | OpenBugReportCommand
+    | ReloadCoursesCommand
+    | LoadArchivedCoursesCommand
+    | ViewArchivedCourseCommand
     | ErrorMessage;
 
 // ============================================================================
@@ -524,7 +615,7 @@ export type WebviewToExtensionMessage =
 export function isExtensionMessage(msg: unknown): msg is ExtensionToWebviewMessage {
     return typeof msg === 'object' && msg !== null && 'type' in msg
         && typeof (msg as { type: unknown }).type === 'string'
-        && ['init', 'gitCredentialsInit', 'gitCredentialsResult', 'serviceStatusInit', 'healthCheckResults', 'recommendedExtensionsInit', 'showLoading', 'hideLoading', 'updateLoading', 'loginSuccess', 'loginError', 'logoutSuccess', 'showLoggedIn', 'setServerUrl', 'dashboardInit', 'workspaceExerciseDetected', 'error'].includes((msg as { type: string }).type);
+        && ['init', 'gitCredentialsInit', 'gitCredentialsResult', 'serviceStatusInit', 'healthCheckResults', 'recommendedExtensionsInit', 'showLoading', 'hideLoading', 'updateLoading', 'loginSuccess', 'loginError', 'logoutSuccess', 'showLoggedIn', 'setServerUrl', 'dashboardInit', 'workspaceExerciseDetected', 'courseListInit', 'archivedCoursesLoaded', 'error'].includes((msg as { type: string }).type);
 }
 
 /**
