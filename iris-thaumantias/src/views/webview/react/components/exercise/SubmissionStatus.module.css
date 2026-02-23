@@ -1,0 +1,320 @@
+/* Build status section */
+.buildStatus {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--vscode-panel-border, #e0e0e0);
+  opacity: 0.9;
+  width: 100%;
+}
+
+.buildStatusTitle {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--vscode-foreground);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 6px;
+}
+
+.buildStatusInfo {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.buildStatusMessage {
+  font-size: 13px;
+  color: var(--vscode-foreground);
+}
+
+/* Empty state */
+.buildStatusEmpty .buildStatusInfo {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  opacity: 0.8;
+}
+
+.buildStatusPlaceholder {
+  font-size: 13px;
+  color: var(--vscode-foreground);
+}
+
+/* Build progress bar */
+.buildProgressTrack {
+  position: relative;
+  width: 100%;
+  height: 6px;
+  background-color: rgba(100, 100, 100, 0.25);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.buildProgressBar {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 0%;
+  background-color: var(--vscode-button-background, #007acc);
+  transition: width 0.3s ease-out;
+}
+
+.buildProgressBarIndeterminate {
+  animation: buildProgressIndeterminate 1.2s ease-in-out infinite;
+}
+
+@keyframes buildProgressIndeterminate {
+  0% {
+    left: -40%;
+    width: 30%;
+  }
+  50% {
+    left: 20%;
+    width: 60%;
+  }
+  100% {
+    left: 100%;
+    width: 30%;
+  }
+}
+
+/* Status badges for non-programming exercises */
+.statusBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.statusBadgeSuccess {
+  background: #28a745;
+  color: white;
+}
+
+.statusBadgePartial {
+  background: #ff9800;
+  color: white;
+}
+
+.statusBadgeFailed {
+  background: var(--vscode-errorForeground, #f48771);
+  color: white;
+}
+
+.statusBadgeBuilding {
+  background: var(--vscode-editorWarning-foreground, #cca700);
+  color: white;
+}
+
+/* Score display */
+.scoreInfo {
+  font-size: 13px;
+  color: var(--vscode-foreground);
+  font-weight: 500;
+}
+
+.scorePoints {
+  font-weight: 600;
+}
+
+.scoreSuccess {
+  color: var(--vscode-testing-iconPassed, #73c991);
+}
+
+.scoreWarning {
+  color: var(--vscode-editorWarning-foreground, #cca700);
+}
+
+.scoreError {
+  color: var(--vscode-errorForeground, #f48771);
+}
+
+/* Test results section */
+.testResultsToggleContainer {
+  margin-top: 12px;
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+/* Test results modal */
+.testResultsModal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.35);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 2147483647;
+  padding: 20px;
+}
+
+.testResultsModalOpen {
+  display: flex;
+}
+
+.testResultsModalContent {
+  background: var(--vscode-editor-background);
+  border: 1px solid var(--vscode-panel-border, #e0e0e0);
+  border-radius: 4px;
+  width: 100%;
+  max-width: 800px;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+  position: relative;
+}
+
+.testResultsModalHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--vscode-panel-border, #e0e0e0);
+}
+
+.testResultsModalTitle {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--vscode-foreground);
+}
+
+.testResultsModalBody {
+  padding: 20px;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.testResultsLoading {
+  font-size: 13px;
+  color: var(--vscode-foreground);
+  opacity: 0.7;
+  text-align: center;
+  padding: 12px;
+}
+
+.testResultsEmpty {
+  font-size: 13px;
+  color: var(--vscode-foreground);
+  opacity: 0.7;
+  text-align: center;
+  padding: 12px;
+}
+
+.testResultsList {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.testResultsCount {
+  font-size: 12px;
+  color: var(--vscode-foreground);
+  opacity: 0.7;
+  margin-bottom: 8px;
+}
+
+.testResultItem {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 6px;
+  border: 1px solid var(--vscode-panel-border, #e0e0e0);
+  background: var(--vscode-editor-background);
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.testResultItemPassed {
+  background: var(--vscode-editor-background);
+  border-color: rgba(40, 167, 69, 0.35);
+}
+
+.testResultItemFailed {
+  background: var(--vscode-editor-background);
+  border-color: rgba(220, 53, 69, 0.35);
+}
+
+.testResultIcon {
+  font-size: 16px;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.testResultIconPassed {
+  color: #28a745;
+}
+
+.testResultIconFailed {
+  color: var(--vscode-errorForeground, #f48771);
+}
+
+.testResultContent {
+  flex: 1;
+  min-width: 0;
+}
+
+.testResultHeader {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+  flex-wrap: wrap;
+}
+
+.testResultName {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--vscode-foreground);
+  word-wrap: break-word;
+  flex: 1;
+  min-width: 0;
+}
+
+.testTypeBadge {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  padding: 2px 6px;
+  border-radius: 3px;
+  letter-spacing: 0.5px;
+  flex-shrink: 0;
+}
+
+.testTypeBadgeStructural {
+  background: rgba(100, 149, 237, 0.2);
+  color: #6495ed;
+  border: 1px solid rgba(100, 149, 237, 0.4);
+}
+
+.testTypeBadgeBehavioral {
+  background: rgba(255, 165, 0, 0.2);
+  color: #ff8c00;
+  border: 1px solid rgba(255, 165, 0, 0.4);
+}
+
+.testResultMessage {
+  font-size: 12px;
+  color: var(--vscode-foreground);
+  opacity: 0.8;
+  word-wrap: break-word;
+  white-space: pre-wrap;
+}
+
+.testResultDetails {
+  font-size: 11px;
+  color: var(--vscode-foreground);
+  opacity: 0.6;
+  margin-top: 4px;
+}
