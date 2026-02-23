@@ -1,0 +1,106 @@
+.container {
+  background: var(--theme-card-background);
+  border: 1px solid var(--theme-border);
+  border-radius: var(--theme-container-radius);
+  padding: var(--theme-container-padding);
+  box-shadow: var(--theme-box-shadow);
+  color: var(--theme-foreground);
+  position: relative;
+  overflow: visible;
+  transition: var(--theme-transition);
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+}
+
+/* Padding variants */
+.containerTight {
+  padding: 12px;
+}
+
+.containerCozy {
+  padding: 24px;
+}
+
+.containerSpaciou {
+  padding: 32px;
+}
+
+.containerNoPadding {
+  padding: 0;
+}
+
+/* Variant styles */
+.containerDefault {
+  /* Inherits base styles */
+}
+
+.containerMuted {
+  background: var(--theme-background);
+}
+
+.containerHighlight {
+  border-color: var(--theme-primary-color);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
+}
+
+.containerWarning {
+  background: var(--theme-warning-background);
+  border-color: var(--theme-warning-border);
+  color: var(--theme-warning-foreground);
+}
+
+/* Accent color support */
+.container::before {
+  content: "";
+  position: absolute;
+  background: var(--container-accent-color, transparent);
+}
+
+.container[style*="--container-accent-color"]::before {
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 4px;
+}
+
+/* Header */
+.containerHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+/* Toolbar */
+.containerToolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
+/* Body */
+.containerBody {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.containerList .containerBody > * + * {
+  margin-top: 8px;
+}
+
+/* Footer */
+.containerFooter {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--theme-border);
+  color: var(--theme-foreground);
+  opacity: 0.9;
+  display: flex;
+  justify-content: flex-start;
+  gap: 10px;
+  flex-wrap: wrap;
+}

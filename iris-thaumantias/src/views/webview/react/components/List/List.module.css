@@ -1,0 +1,16 @@
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  outline: none;
+}
+
+.list:focus {
+  outline: 2px solid var(--vscode-focusBorder, #007acc);
+  outline-offset: 2px;
+  border-radius: var(--theme-container-radius, 4px);
+}
+
+.list:focus:not(:focus-visible) {
+  outline: none;
+}
