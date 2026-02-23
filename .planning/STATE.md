@@ -10,18 +10,18 @@ See: .planning/PROJECT.md (updated 2026-02-23)
 ## Current Position
 
 Phase: 4 of 7 (Main UI Views)
-Plan: 2 of 4
+Plan: 3 of 4
 Status: In Progress
-Last activity: 2026-02-23 — Completed plan 04-02 (CourseList Migration)
+Last activity: 2026-02-23 — Completed plan 04-03 (CourseDetail Migration)
 
 Progress: [████████▒▒] 75%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 11
-- Average duration: 4.9 minutes
-- Total execution time: 0.90 hours
+- Total plans completed: 12
+- Average duration: 5.0 minutes
+- Total execution time: 1.00 hours
 
 **By Phase:**
 
@@ -30,11 +30,11 @@ Progress: [████████▒▒] 75%
 | 01 | 2 | 6 min | 3 min |
 | 02 | 3 | 14 min | 4.7 min |
 | 03 | 4 | 17.8 min | 4.5 min |
-| 04 | 2 | 15.4 min | 7.7 min |
+| 04 | 3 | 21.4 min | 7.1 min |
 
 **Recent Trend:**
-- Last 5 plans: 03-03 (3.8 min), 03-04 (4.5 min), 04-01 (8 min), 04-02 (7.4 min)
-- Trend: Stable (latest plan 7.4 min, near phase average)
+- Last 5 plans: 03-04 (4.5 min), 04-01 (8 min), 04-02 (7.4 min), 04-03 (6 min)
+- Trend: Stable (latest plan 6 min, below phase average)
 
 **Detailed Metrics:**
 
@@ -51,6 +51,8 @@ Progress: [████████▒▒] 75%
 | Phase 03 P04 | 4.5 | 2 tasks | 8 files |
 | Phase 04 P01 | 8 min | 2 tasks | 31 files |
 | Phase 04 P02 | 7.4 min | 2 tasks | 11 files |
+| Phase 04 P03 | 6 min | 2 tasks | 10 files |
+| Phase 04 P03 | 6 | 2 tasks | 10 files |
 
 ## Accumulated Context
 
@@ -104,6 +106,8 @@ Recent decisions affecting current work:
 - [Phase 04]: Client-side filtering for CourseList (no server request on filter change)
 - [Phase 04]: Persist CourseList filter state across tab cycles using getState/setState
 - [Phase 04]: Dropdown and TextInput onChange receive value directly (string), not event object
+- [Phase 04]: Exercise categories always expanded (no collapse UI) per user decision
+- [Phase 04]: Workspace exercise highlighted with 'Open' badge using selected prop
 
 ### Pending Todos
 
@@ -116,5 +120,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-23 (plan execution)
-Stopped at: Completed 04-02-PLAN.md - CourseList Migration
+Stopped at: Completed 04-03-PLAN.md - CourseDetail Migration
 Resume file: None
