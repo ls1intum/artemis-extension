@@ -17,3 +17,6 @@ export type { LoginViewProps, LoginPersistedState } from './Login';
 
 export { DashboardView } from './Dashboard';
 export type { DashboardViewProps, DashboardPersistedState } from './Dashboard';
+
+export { CourseListView } from './CourseList';
+export type { CourseListViewProps, CourseListPersistedState, CourseData, ArchivedCourse } from './CourseList';

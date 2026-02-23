@@ -290,6 +290,19 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
                                 workspaceExercise: undefined  // Will be set by workspace detection
                             }
                         });
+                    } else if (currentState === 'course-list') {
+                        // Send course list data with active and archived courses
+                        const coursesData = this._appStateManager.coursesData;
+                        const courses = coursesData?.courses || [];
+                        const archivedCourses = this._appStateManager.archivedCoursesData || undefined;
+
+                        this._postMessageSafe({
+                            type: 'courseListInit',
+                            payload: {
+                                courses: courses,
+                                archivedCourses: archivedCourses
+                            }
+                        });
                     }
                     return;
                 }

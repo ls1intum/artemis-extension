@@ -289,9 +289,17 @@ export class NavigationCommandModule {
             vscode.window.showInformationMessage('Loading archived courses...');
 
             await this.context.appStateManager.loadArchivedCourses();
+
+            // Send typed message for React views
+            const archivedCourses = this.context.appStateManager.archivedCoursesData || [];
+            this.context.sendMessage({
+                type: 'archivedCoursesLoaded',
+                payload: { archivedCourses }
+            });
+
             this.context.actionHandler.render();
 
-            const archivedCount = this.context.appStateManager.archivedCoursesData?.length || 0;
+            const archivedCount = archivedCourses.length;
             if (archivedCount > 0) {
                 vscode.window.showInformationMessage(`Loaded ${archivedCount} archived course${archivedCount === 1 ? '' : 's'}`);
             } else {
