@@ -5,23 +5,23 @@
 See: .planning/PROJECT.md (updated 2026-02-23)
 
 **Core value:** Students can interact with Artemis courses, exercises, and the Iris AI tutor without leaving VS Code.
-**Current focus:** Phase 3 - Simple Views Migration
+**Current focus:** Phase 4 - Main UI Views
 
 ## Current Position
 
-Phase: 3 of 7 (Simple Views Migration)
-Plan: 4 of 4
-Status: Complete
-Last activity: 2026-02-23 — Completed plan 03-04 (Login Migration) - Phase 3 complete
+Phase: 4 of 7 (Main UI Views)
+Plan: 1 of 4
+Status: In Progress
+Last activity: 2026-02-23 — Completed plan 04-01 (Foundation for Main UI Views)
 
-Progress: [███████▒▒▒] 70%
+Progress: [████████▒▒] 75%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 9
-- Average duration: 4.2 minutes
-- Total execution time: 0.63 hours
+- Total plans completed: 10
+- Average duration: 4.6 minutes
+- Total execution time: 0.77 hours
 
 **By Phase:**
 
@@ -30,10 +30,11 @@ Progress: [███████▒▒▒] 70%
 | 01 | 2 | 6 min | 3 min |
 | 02 | 3 | 14 min | 4.7 min |
 | 03 | 4 | 17.8 min | 4.5 min |
+| 04 | 1 | 8 min | 8 min |
 
 **Recent Trend:**
-- Last 5 plans: 03-01 (6 min), 03-02 (3.5 min), 03-03 (3.8 min), 03-04 (4.5 min)
-- Trend: Steady (recent plans consistent with phase average)
+- Last 5 plans: 03-02 (3.5 min), 03-03 (3.8 min), 03-04 (4.5 min), 04-01 (8 min)
+- Trend: Increasing (latest plan 8 min, above phase average)
 
 **Detailed Metrics:**
 
@@ -48,6 +49,8 @@ Progress: [███████▒▒▒] 70%
 | Phase 03 P02 | 3.5 min | 2 tasks | 8 files |
 | Phase 03 P03 | 3.8 min | 2 tasks | 8 files |
 | Phase 03 P04 | 4.5 | 2 tasks | 8 files |
+| Phase 04 P01 | 8 min | 2 tasks | 31 files |
+| Phase 04 P01 | 8 | 2 tasks | 31 files |
 
 ## Accumulated Context
 
@@ -93,6 +96,11 @@ Recent decisions affecting current work:
 - [Phase 03]: Login persists all form values including password per user decision
 - [Phase 03]: Simplified loading spinner replaces complex CSS animation (single @keyframes rule)
 - [Phase 03]: LoginView handles both typed and legacy message formats for backward compatibility
+- [Phase 04]: Zustand chosen for lightweight state management without Redux boilerplate
+- [Phase 04]: Fixed skeleton count (5 items) for SkeletonList per research recommendation
+- [Phase 04]: Dashboard data always re-fetched (no persisted state) per user decision
+- [Phase 04]: Container header prop used instead of title prop for flexibility
+- [Phase 04]: IconButton.Reload named method used instead of preset prop pattern
 
 ### Pending Todos
 
@@ -105,5 +113,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-23 (plan execution)
-Stopped at: Completed 03-04-PLAN.md - Login Migration - Phase 3 complete
+Stopped at: Completed 04-01-PLAN.md - Foundation for Main UI Views
 Resume file: None
