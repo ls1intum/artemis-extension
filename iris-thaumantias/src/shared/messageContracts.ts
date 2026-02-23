@@ -261,6 +261,42 @@ export interface CourseDetailInitMessage {
 }
 
 /**
+ * ExerciseDetail view initialization message.
+ */
+export interface ExerciseDetailInitMessage {
+    type: 'exerciseDetailInit';
+    payload: {
+        exerciseData: unknown;
+        hideDeveloperTools: boolean;
+    };
+}
+
+/**
+ * WebSocket update message (forwarded from extension's WebSocket handler).
+ */
+export interface WebSocketUpdateMessage {
+    type: 'websocketUpdate';
+    payload: {
+        updateType: 'newResult' | 'newSubmission' | 'submissionProcessing';
+        data: unknown;
+    };
+}
+
+/**
+ * WebSocket disconnected message.
+ */
+export interface WebSocketDisconnectedMessage {
+    type: 'websocketDisconnected';
+}
+
+/**
+ * WebSocket connected message.
+ */
+export interface WebSocketConnectedMessage {
+    type: 'websocketConnected';
+}
+
+/**
  * CourseData structure for active courses.
  */
 export interface CourseData {
@@ -351,6 +387,10 @@ export type ExtensionToWebviewMessage =
     | CourseListInitMessage
     | ArchivedCoursesLoadedMessage
     | CourseDetailInitMessage
+    | ExerciseDetailInitMessage
+    | WebSocketUpdateMessage
+    | WebSocketDisconnectedMessage
+    | WebSocketConnectedMessage
     | { type: 'error'; payload: { message: string } };
 
 // ============================================================================
@@ -667,6 +707,151 @@ export interface OpenInEditorCommand {
 }
 
 /**
+ * Reload exercise detail command.
+ */
+export interface ReloadExerciseDetailCommand {
+    type: 'command';
+    command: 'reloadExerciseDetail';
+    payload: {
+        exerciseId: number;
+    };
+}
+
+/**
+ * Back to course details command.
+ */
+export interface BackToCourseDetailsCommand {
+    type: 'command';
+    command: 'backToCourseDetails';
+}
+
+/**
+ * Clone repository command.
+ */
+export interface CloneRepositoryCommand {
+    type: 'command';
+    command: 'cloneRepository';
+    payload: {
+        participationId: number;
+        repositoryUri: string;
+        exerciseTitle: string;
+    };
+}
+
+/**
+ * Open repository command.
+ */
+export interface OpenRepositoryCommand {
+    type: 'command';
+    command: 'openRepository';
+    payload: {
+        repositoryUri?: string;
+    };
+}
+
+/**
+ * Submit exercise command.
+ */
+export interface SubmitExerciseCommand {
+    type: 'command';
+    command: 'submitExercise';
+    payload: {
+        participationId: number;
+    };
+}
+
+/**
+ * Trigger build command.
+ */
+export interface TriggerBuildCommand {
+    type: 'command';
+    command: 'triggerBuild';
+    payload: {
+        participationId: number;
+    };
+}
+
+/**
+ * Upload submission command.
+ */
+export interface UploadSubmissionCommand {
+    type: 'command';
+    command: 'uploadSubmission';
+    payload: {
+        exerciseId: number;
+    };
+}
+
+/**
+ * Start exercise command.
+ */
+export interface StartExerciseCommand {
+    type: 'command';
+    command: 'startExercise';
+    payload: {
+        exerciseId: number;
+    };
+}
+
+/**
+ * Start practice command.
+ */
+export interface StartPracticeCommand {
+    type: 'command';
+    command: 'startPractice';
+    payload: {
+        exerciseId: number;
+    };
+}
+
+/**
+ * Ask Iris about exercise command.
+ */
+export interface AskIrisAboutExerciseCommand {
+    type: 'command';
+    command: 'askIrisAboutExercise';
+    payload: {
+        exerciseId: number;
+        exerciseTitle: string;
+        exerciseShortName?: string;
+        courseId?: number;
+        courseTitle?: string;
+        courseShortName?: string;
+    };
+}
+
+/**
+ * Toggle exercise fullscreen command.
+ */
+export interface ToggleExerciseFullscreenCommand {
+    type: 'command';
+    command: 'toggleExerciseFullscreen';
+}
+
+/**
+ * Download file command.
+ */
+export interface DownloadFileCommand {
+    type: 'command';
+    command: 'downloadFile';
+    payload: {
+        url: string;
+        filename: string;
+    };
+}
+
+/**
+ * Check repository status command.
+ */
+export interface CheckRepositoryStatusCommand {
+    type: 'command';
+    command: 'checkRepositoryStatus';
+    payload: {
+        showNotification?: boolean;
+    };
+}
+
+/**
  * Error message from webview to extension.
  */
 export interface ErrorMessage {
@@ -716,6 +901,19 @@ export type WebviewToExtensionMessage =
     | AskIrisAboutCourseCommand
     | ToggleCourseFullscreenCommand
     | OpenInEditorCommand
+    | ReloadExerciseDetailCommand
+    | BackToCourseDetailsCommand
+    | CloneRepositoryCommand
+    | OpenRepositoryCommand
+    | SubmitExerciseCommand
+    | TriggerBuildCommand
+    | UploadSubmissionCommand
+    | StartExerciseCommand
+    | StartPracticeCommand
+    | AskIrisAboutExerciseCommand
+    | ToggleExerciseFullscreenCommand
+    | DownloadFileCommand
+    | CheckRepositoryStatusCommand
     | ErrorMessage;
 
 // ============================================================================
@@ -729,7 +927,7 @@ export type WebviewToExtensionMessage =
 export function isExtensionMessage(msg: unknown): msg is ExtensionToWebviewMessage {
     return typeof msg === 'object' && msg !== null && 'type' in msg
         && typeof (msg as { type: unknown }).type === 'string'
-        && ['init', 'gitCredentialsInit', 'gitCredentialsResult', 'serviceStatusInit', 'healthCheckResults', 'recommendedExtensionsInit', 'showLoading', 'hideLoading', 'updateLoading', 'loginSuccess', 'loginError', 'logoutSuccess', 'showLoggedIn', 'setServerUrl', 'dashboardInit', 'workspaceExerciseDetected', 'courseListInit', 'archivedCoursesLoaded', 'courseDetailInit', 'error'].includes((msg as { type: string }).type);
+        && ['init', 'gitCredentialsInit', 'gitCredentialsResult', 'serviceStatusInit', 'healthCheckResults', 'recommendedExtensionsInit', 'showLoading', 'hideLoading', 'updateLoading', 'loginSuccess', 'loginError', 'logoutSuccess', 'showLoggedIn', 'setServerUrl', 'dashboardInit', 'workspaceExerciseDetected', 'courseListInit', 'archivedCoursesLoaded', 'courseDetailInit', 'exerciseDetailInit', 'websocketUpdate', 'websocketDisconnected', 'websocketConnected', 'error'].includes((msg as { type: string }).type);
 }
 
 /**
