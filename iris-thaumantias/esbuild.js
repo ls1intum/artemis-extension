@@ -119,14 +119,42 @@ async function main() {
 		],
 	});
 
+	// Build React webview (Browser)
+	const webviewReactCtx = await esbuild.context({
+		entryPoints: [
+			'src/views/webview/react/index.tsx'
+		],
+		bundle: true,
+		format: 'iife',
+		minify: production,
+		sourcemap: !production,
+		sourcesContent: false,
+		platform: 'browser',
+		outfile: 'dist/webview-react.js',
+		loader: {
+			'.tsx': 'tsx',
+			'.ts': 'ts'
+		},
+		define: {
+			'process.env.NODE_ENV': production ? '"production"' : '"development"'
+		},
+		logLevel: 'silent',
+		plugins: [
+			esbuildProblemMatcherPlugin,
+		],
+	});
+
 	if (watch) {
 		await extensionCtx.watch();
 		await webviewCtx.watch();
+		await webviewReactCtx.watch();
 	} else {
 		await extensionCtx.rebuild();
 		await webviewCtx.rebuild();
+		await webviewReactCtx.rebuild();
 		await extensionCtx.dispose();
 		await webviewCtx.dispose();
+		await webviewReactCtx.dispose();
 	}
 }
 
