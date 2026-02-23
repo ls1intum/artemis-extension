@@ -77,6 +77,30 @@ export interface HealthCheckResultsMessage {
 }
 
 /**
+ * RecommendedExtensions view initialization message.
+ */
+export interface RecommendedExtensionsInitMessage {
+    type: 'recommendedExtensionsInit';
+    payload: {
+        categories: Array<{
+            id: string;
+            name: string;
+            description: string;
+            extensions: Array<{
+                id: string;
+                name: string;
+                publisher: string;
+                version?: string;
+                description: string;
+                reason: string;
+                optional?: boolean;
+                isInstalled: boolean;
+            }>;
+        }>;
+    };
+}
+
+/**
  * All messages that can be sent FROM extension host TO webview.
  * Discriminated by 'type' property.
  */
@@ -86,6 +110,7 @@ export type ExtensionToWebviewMessage =
     | GitCredentialsResultMessage
     | ServiceStatusInitMessage
     | HealthCheckResultsMessage
+    | RecommendedExtensionsInitMessage
     | { type: 'error'; payload: { message: string } };
 
 // ============================================================================
@@ -150,6 +175,25 @@ export interface PerformHealthChecksCommand {
 }
 
 /**
+ * Request recommended extensions data command.
+ */
+export interface RequestRecommendedExtensionsCommand {
+    type: 'command';
+    command: 'requestRecommendedExtensions';
+}
+
+/**
+ * Search VS Code marketplace for extension command.
+ */
+export interface SearchMarketplaceCommand {
+    type: 'command';
+    command: 'searchMarketplace';
+    payload: {
+        extensionId: string;
+    };
+}
+
+/**
  * Error message from webview to extension.
  */
 export interface ErrorMessage {
@@ -172,6 +216,8 @@ export type WebviewToExtensionMessage =
     | CopyToClipboardCommand
     | BackToDashboardCommand
     | PerformHealthChecksCommand
+    | RequestRecommendedExtensionsCommand
+    | SearchMarketplaceCommand
     | ErrorMessage;
 
 // ============================================================================
@@ -185,7 +231,7 @@ export type WebviewToExtensionMessage =
 export function isExtensionMessage(msg: unknown): msg is ExtensionToWebviewMessage {
     return typeof msg === 'object' && msg !== null && 'type' in msg
         && typeof (msg as { type: unknown }).type === 'string'
-        && ['init', 'gitCredentialsInit', 'gitCredentialsResult', 'serviceStatusInit', 'healthCheckResults', 'error'].includes((msg as { type: string }).type);
+        && ['init', 'gitCredentialsInit', 'gitCredentialsResult', 'serviceStatusInit', 'healthCheckResults', 'recommendedExtensionsInit', 'error'].includes((msg as { type: string }).type);
 }
 
 /**
