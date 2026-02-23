@@ -11,3 +11,6 @@ export type { ServiceStatusViewProps } from './ServiceStatus';
 
 export { RecommendedExtensionsView } from './RecommendedExtensions';
 export type { RecommendedExtensionsViewProps, RecommendedExtensionsPersistedState } from './RecommendedExtensions';
+
+export { LoginView } from './Login';
+export type { LoginViewProps, LoginPersistedState } from './Login';

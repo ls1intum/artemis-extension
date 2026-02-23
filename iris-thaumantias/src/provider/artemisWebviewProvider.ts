@@ -250,6 +250,12 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
                             type: 'recommendedExtensionsInit',
                             payload: { categories }
                         });
+                    } else if (currentState === 'login') {
+                        // Send server URL to login view for health checks
+                        this._postMessageSafe({
+                            type: 'setServerUrl',
+                            payload: { serverUrl: this._getServerUrl() }
+                        });
                     }
                     return;
                 }

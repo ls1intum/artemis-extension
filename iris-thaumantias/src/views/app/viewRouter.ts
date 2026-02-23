@@ -41,6 +41,7 @@ export class ViewRouter {
         ['git-credentials', true],  // Phase 3: migrated
         ['service-status', true],   // Phase 3: migrated
         ['recommended-extensions', true],  // Phase 3: migrated
+        ['login', true],  // Phase 3: migrated
         // Other views will be added as they're migrated
     ]);
 
