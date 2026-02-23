@@ -1,6 +1,7 @@
 import type { VsCodeApi } from '../../../shared/messageContracts';
 import { GitCredentialsView } from './views/GitCredentials';
 import { ServiceStatusView } from './views/ServiceStatus';
+import { RecommendedExtensionsView } from './views/RecommendedExtensions';
 
 interface AppProps {
 	vscodeApi: VsCodeApi;
@@ -16,6 +17,8 @@ export function App({ vscodeApi }: AppProps) {
 			return <GitCredentialsView vscodeApi={vscodeApi} />;
 		case 'serviceStatus':
 			return <ServiceStatusView vscodeApi={vscodeApi} />;
+		case 'recommendedExtensions':
+			return <RecommendedExtensionsView vscodeApi={vscodeApi} />;
 		default:
 			return (
 				<div style={{ color: 'var(--vscode-foreground)', padding: '20px' }}>

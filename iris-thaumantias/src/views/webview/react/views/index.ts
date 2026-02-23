@@ -8,3 +8,6 @@ export type { GitCredentialsViewProps, GitCredentialsPersistedState } from './Gi
 
 export { ServiceStatusView } from './ServiceStatus';
 export type { ServiceStatusViewProps } from './ServiceStatus';
+
+export { RecommendedExtensionsView } from './RecommendedExtensions';
+export type { RecommendedExtensionsViewProps, RecommendedExtensionsPersistedState } from './RecommendedExtensions';

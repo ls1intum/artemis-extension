@@ -244,6 +244,12 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
                             type: 'serviceStatusInit',
                             payload: { serverUrl }
                         });
+                    } else if (currentState === 'recommended-extensions') {
+                        const categories = this._appStateManager.recommendedExtensions || [];
+                        this._postMessageSafe({
+                            type: 'recommendedExtensionsInit',
+                            payload: { categories }
+                        });
                     }
                     return;
                 }
