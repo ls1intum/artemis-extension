@@ -51,6 +51,32 @@ export interface GitCredentialsResultMessage {
 }
 
 /**
+ * ServiceStatus view initialization message.
+ */
+export interface ServiceStatusInitMessage {
+    type: 'serviceStatusInit';
+    payload: {
+        serverUrl?: string;
+    };
+}
+
+/**
+ * Health check results message.
+ */
+export interface HealthCheckResultsMessage {
+    type: 'healthCheckResults';
+    payload: {
+        results: Record<string, {
+            status: string;
+            message: string;
+            endpoint: string;
+            httpStatus: number | null;
+            response: string | null;
+        }>;
+    };
+}
+
+/**
  * All messages that can be sent FROM extension host TO webview.
  * Discriminated by 'type' property.
  */
@@ -58,6 +84,8 @@ export type ExtensionToWebviewMessage =
     | GenericInitMessage
     | GitCredentialsInitMessage
     | GitCredentialsResultMessage
+    | ServiceStatusInitMessage
+    | HealthCheckResultsMessage
     | { type: 'error'; payload: { message: string } };
 
 // ============================================================================
@@ -111,6 +139,17 @@ export interface BackToDashboardCommand {
 }
 
 /**
+ * Perform health checks command.
+ */
+export interface PerformHealthChecksCommand {
+    type: 'command';
+    command: 'performHealthChecks';
+    payload: {
+        serverUrl: string;
+    };
+}
+
+/**
  * Error message from webview to extension.
  */
 export interface ErrorMessage {
@@ -132,6 +171,7 @@ export type WebviewToExtensionMessage =
     | RequestGitIdentityCommand
     | CopyToClipboardCommand
     | BackToDashboardCommand
+    | PerformHealthChecksCommand
     | ErrorMessage;
 
 // ============================================================================
@@ -145,7 +185,7 @@ export type WebviewToExtensionMessage =
 export function isExtensionMessage(msg: unknown): msg is ExtensionToWebviewMessage {
     return typeof msg === 'object' && msg !== null && 'type' in msg
         && typeof (msg as { type: unknown }).type === 'string'
-        && ['init', 'gitCredentialsInit', 'gitCredentialsResult', 'error'].includes((msg as { type: string }).type);
+        && ['init', 'gitCredentialsInit', 'gitCredentialsResult', 'serviceStatusInit', 'healthCheckResults', 'error'].includes((msg as { type: string }).type);
 }
 
 /**
