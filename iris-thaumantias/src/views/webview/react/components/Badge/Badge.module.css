@@ -1,0 +1,58 @@
+/* Badge Component - Pills for status, points, categories */
+
+.badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 500;
+    line-height: 1.2;
+    white-space: nowrap;
+    border: 1px solid transparent;
+    height: 32px;
+    box-sizing: border-box;
+}
+
+/* Default badge - Blue (similar to primary button) */
+.badgeDefault {
+    background-color: var(--theme-button-background, #007acc);
+    color: var(--theme-button-foreground, #ffffff);
+    border-color: var(--theme-button-background, #007acc);
+}
+
+/* Success badge - Green with solid background */
+.badgeSuccess {
+    background-color: var(--theme-success-background, rgba(38, 166, 91, 0.12));
+    color: var(--theme-success-foreground, #26a65b);
+    border-color: var(--theme-success-border, rgba(38, 166, 91, 0.4));
+}
+
+/* Warning badge - Orange with solid background */
+.badgeWarning {
+    background-color: var(--theme-warning-background, rgba(255, 179, 71, 0.12));
+    color: var(--theme-warning-foreground, #ffb347);
+    border-color: var(--theme-warning-border, rgba(255, 179, 71, 0.4));
+}
+
+/* Error badge - Red with solid background */
+.badgeError {
+    background-color: var(--theme-error-background, rgba(229, 83, 83, 0.12));
+    color: var(--theme-error-foreground, #e55353);
+    border-color: var(--theme-error-border, rgba(229, 83, 83, 0.4));
+}
+
+/* Info badge - Blue with solid background */
+.badgeInfo {
+    background-color: var(--theme-info-background, rgba(71, 155, 255, 0.12));
+    color: var(--theme-info-foreground, #479bff);
+    border-color: var(--theme-info-border, rgba(71, 155, 255, 0.4));
+}
+
+/* Muted badge - Gray with muted colors */
+.badgeMuted {
+    background-color: var(--theme-background-secondary, rgba(128, 128, 128, 0.12));
+    color: var(--theme-muted-foreground, #808080);
+    border-color: rgba(128, 128, 128, 0.4);
+}
