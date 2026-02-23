@@ -35,7 +35,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 Plans:
 - [x] 01-01-PLAN.md — React build pipeline + error boundary (BUILD-01, BUILD-03) [2/2 tasks, 198s]
-- [ ] 01-02-PLAN.md — CSP enforcement + typed message contracts (BUILD-02)
+- [x] 01-02-PLAN.md — CSP enforcement + typed message contracts (BUILD-02)
 
 ### Phase 2: Shared Component Library
 **Goal**: Reusable React components exist matching existing visual design for composition in views
@@ -49,10 +49,10 @@ Plans:
 **Plans**: 4 plans
 
 Plans:
-- [ ] 02-01-PLAN.md — CSS Modules infrastructure + core atomic components (Button, IconButton, Badge, BackLink)
+- [x] 02-01-PLAN.md — CSS Modules infrastructure + core atomic components (Button, IconButton, Badge, BackLink)
 - [ ] 02-02-PLAN.md — Form components (TextInput, Dropdown) + layout components (Container, ListItem, List)
-- [ ] 02-03-PLAN.md — Composite UI components (HelpPopup, SideMenu, AskIris, ServiceHealth)
-- [ ] 02-04-PLAN.md — Shared exercise components (SubmissionStatus, ParticipationActions, BuildProgress) + barrel index (COMP-03)
+- [x] 02-03-PLAN.md — Composite UI components (HelpPopup, SideMenu, AskIris, ServiceHealth)
+- [x] 02-04-PLAN.md — Shared exercise components (SubmissionStatus, ParticipationActions, BuildProgress) + barrel index (COMP-03)
 
 ### Phase 3: Simple Views Migration
 **Goal**: 4 standalone views successfully migrated with validated state persistence and message passing patterns
@@ -66,9 +66,9 @@ Plans:
 **Plans**: 4 plans
 
 Plans:
-- [ ] 03-01-PLAN.md — Messaging infrastructure, coexistence router, ready-signal handshake + GitCredentials view (VIEW-01, VIEW-02, VIEW-03, MSG-01, MSG-02, MSG-03)
-- [ ] 03-02-PLAN.md — ServiceStatus view with health check messaging (VIEW-01)
-- [ ] 03-03-PLAN.md — RecommendedExtensions view with category filtering and state persistence (VIEW-01, MSG-02)
+- [x] 03-01-PLAN.md — Messaging infrastructure, coexistence router, ready-signal handshake + GitCredentials view (VIEW-01, VIEW-02, VIEW-03, MSG-01, MSG-02, MSG-03)
+- [x] 03-02-PLAN.md — ServiceStatus view with health check messaging (VIEW-01)
+- [x] 03-03-PLAN.md — RecommendedExtensions view with category filtering and state persistence (VIEW-01, MSG-02)
 - [ ] 03-04-PLAN.md — Login view with dual-state UI, form persistence, and embedded health checks (VIEW-01)
 
 ### Phase 4: Main UI Views
@@ -135,8 +135,8 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Foundation & Build Pipeline | 2/2 | Complete | 2026-02-23 |
-| 2. Shared Component Library | 0/TBD | Not started | - |
-| 3. Simple Views Migration | 0/TBD | Not started | - |
+| 2. Shared Component Library | 3/4 | In Progress | - |
+| 3. Simple Views Migration | 3/4 | In Progress | - |
 | 4. Main UI Views | 0/TBD | Not started | - |
 | 5. Exam Views with Timer Accuracy | 0/TBD | Not started | - |
 | 6. Iris Chat with Streaming | 0/TBD | Not started | - |
