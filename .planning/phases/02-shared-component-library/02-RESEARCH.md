@@ -1,41 +1,39 @@
 # Phase 2: Shared Component Library - Research
 
 **Researched:** 2026-02-23
-**Domain:** React component library migration (HTML string → typed React components)
+**Domain:** React component library migration from HTML string templates
 **Confidence:** HIGH
 
 ## Summary
 
-Phase 2 migrates 20+ existing HTML-string-based UI components (Button, ListItem, Container, Badge, BackLink, Dropdown, TextInput, icon buttons, etc.) into typed React components with CSS Modules, preserving exact visual design while gaining React idioms (composition, controlled components, TypeScript props). The existing codebase already has well-structured components with VS Code CSS variable theming (--vscode-* via --theme-* abstraction layer) and comprehensive styling patterns that translate cleanly to React + CSS Modules.
+Phase 2 involves extracting 20+ existing HTML-string UI components (Button, ListItem, Container, Badge, BackLink, Dropdown, TextInput, icon buttons, etc.) into typed React components. The existing codebase has well-structured TypeScript component classes that generate HTML strings with comprehensive styling via VS Code CSS variables. The migration path is clear: convert HTML generation to JSX, preserve the existing CSS files, maintain visual parity, and formalize the ~70% code sharing between ExerciseDetail and ExamExerciseDetail views through React composition.
 
-The migration is a **1:1 port**, not a redesign. ExerciseDetail and ExamExerciseDetail currently share 4 exercise-specific components (SubmissionStatusComponent, ParticipationActionsComponent, BuildProgressComponent, RepositoryStatusScripts), which should be consolidated into a shared folder for explicit React composition. The existing base.css provides --theme-* CSS variables that map to --vscode-* tokens, enabling automatic theme adaptation across light/dark modes.
-
-**Primary recommendation:** Use React 18 functional components with TypeScript, CSS Modules for scoped styling, controlled component pattern for forms, composition over inheritance, and preserve the --theme-* variable abstraction layer. Install esbuild-css-modules-plugin and typescript-plugin-css-modules for CSS Modules support with type safety.
+**Primary recommendation:** Use CSS Modules with esbuild's native local-css loader, maintain the existing --theme-* CSS variable abstraction layer, and structure components with flat props interfaces that delegate composition to parent components. Controlled form components, TypeScript discriminated unions for variants, and React.memo for expensive list items will preserve performance while enabling incremental view migration in Phase 3+.
 
 <user_constraints>
 ## User Constraints (from CONTEXT.md)
 
 ### Locked Decisions
 
-**Component API style**
+**Component API style:**
 - React-idiomatic props: use children for content, event handler props (onClick/onChange), standard React conventions
 - Action handling via callback props (onClick, onAction) — components stay agnostic of VS Code messaging; calling views wire callbacks to postMessage
 - Form components (TextInput, Dropdown) are controlled — parent manages value via props
 - Flat props interfaces per component; compose externally rather than exposing internal subcomponents
 
-**Styling strategy**
+**Styling strategy:**
 - CSS Modules for component-specific styles (one .module.css per component, scoped class names)
 - Global base.css imported once at App/entry level — provides --theme-* CSS variables everywhere
 - Dynamic styles (accent colors, conditional widths) via React inline style prop
 - Both light and dark VS Code themes supported from day one (--vscode-* variables ensure automatic adaptation, verify both during development)
 
-**Composition depth**
+**Composition depth:**
 - ContainerComponent stays as a single <Container> with typed props (header, footer, toolbar as ReactNode props, body via children) — not decomposed into Card/CardHeader/CardBody
 - List wrapper component (<List>) manages keyboard navigation and selection state; <ListItem> is presentational only
 - Icon buttons consolidated into single <IconButton> component with named preset exports (IconButton.Close, IconButton.Checkmark, etc.) — reduces file sprawl
 - Shared exercise components live in an explicit shared folder (e.g., components/exercise/) making ExerciseDetail/ExamExerciseDetail reuse discoverable
 
-**Visual parity bar**
+**Visual parity bar:**
 - Visually indistinguishable: same look and behavior, DOM structure can differ from current HTML
 - Fix minor visual inconsistencies (spacing, alignment) during migration rather than strictly reproducing imperfections
 - Improve accessibility during migration: add proper ARIA roles, keyboard handling, focus management where currently missing
@@ -58,9 +56,9 @@ None — discussion stayed within phase scope
 
 | ID | Description | Research Support |
 |----|-------------|-----------------|
-| COMP-01 | All 20+ existing UI components (Button, ListItem, Container, Badge, BackLink, etc.) are ported to React with identical visual design | Standard Stack (React 18 functional components), Architecture Patterns (component API design), Code Examples (CSS Modules + TypeScript props) |
-| COMP-02 | All components use VS Code CSS variables (var(--vscode-*)) for theme compliance | Existing base.css provides --theme-* abstraction layer, CSS Modules pattern preserves CSS variable usage, both approaches documented |
-| COMP-03 | ExerciseDetail and ExamExerciseDetail share components via React composition (formalizing existing ~70% code reuse) | Architecture Patterns (composition over inheritance), Recommended Project Structure (shared exercise components folder) |
+| COMP-01 | All 20+ existing UI components (Button, ListItem, Container, Badge, BackLink, etc.) are ported to React with identical visual design | Standard Stack (React 18.3.1, CSS Modules), Architecture Patterns (HTML-to-JSX conversion), Code Examples (component props interface patterns) |
+| COMP-02 | All components use VS Code CSS variables (`var(--vscode-*)`) for theme compliance | Standard Stack (esbuild native CSS Modules), Architecture Patterns (--theme-* abstraction layer), existing base.css provides proven pattern |
+| COMP-03 | ExerciseDetail and ExamExerciseDetail share components via React composition (formalizing existing ~70% code reuse) | Architecture Patterns (composition via children/ReactNode props, shared folder structure), Code Examples (Container with header/footer/body composition) |
 
 </phase_requirements>
 
@@ -70,737 +68,257 @@ None — discussion stayed within phase scope
 
 | Library | Version | Purpose | Why Standard |
 |---------|---------|---------|--------------|
-| React | 18.3.1 | UI component rendering | Already installed in Phase 1, stable release with automatic batching, concurrent features, no breaking changes from React 19 |
-| TypeScript | 5.x | Type safety for component props and state | Already configured in Phase 1 with jsx: react-jsx, enables intellisense and compile-time validation |
-| esbuild | Latest | Bundle React components with CSS Modules | Already configured in Phase 1, fast builds, CSS Modules support via plugin |
+| React | 18.3.1 | UI component library | Already installed in Phase 1, industry standard for component composition, automatic JSX transform enabled (react-jsx) |
+| TypeScript | 5.9.3 | Type safety | Already configured, discriminated unions for variants, strict prop typing |
+| CSS Modules | Native (esbuild) | Component-scoped styling | esbuild has built-in local-css loader for .module.css files, zero-config integration |
 
 ### Supporting
 
 | Library | Version | Purpose | When to Use |
 |---------|---------|---------|-------------|
-| esbuild-css-modules-plugin | Latest | CSS Modules bundling for esbuild | Required for .module.css support in esbuild (native loader doesn't export class names to JS) |
-| typescript-plugin-css-modules | Latest | TypeScript intellisense for CSS Module imports | Provides autocomplete for imported class names, prevents typos, generates .d.ts types |
-| clsx | 2.x | Conditional class name composition | Optional but recommended for clean conditional styling (e.g., `clsx(styles.button, isActive && styles.active)`) |
+| esbuild | 0.27.2 | Build bundler | Already configured for React, native CSS Modules support via local-css loader, no plugin needed for basic use |
+| @types/react | 18.3 | React TypeScript definitions | Component props typing, ReactNode for composition |
+| @types/react-dom | 18.3 | ReactDOM TypeScript definitions | Already installed |
 
 ### Alternatives Considered
 
 | Instead of | Could Use | Tradeoff |
 |------------|-----------|----------|
-| CSS Modules | Styled Components / Emotion | CSS-in-JS adds bundle bloat (~15KB), runtime overhead, doesn't integrate with existing --vscode-* variables, decision already made in CONTEXT |
-| Functional components | Class components | Classes are legacy pattern, hooks provide cleaner state/lifecycle management, decision already made (use functional) |
-| --theme-* abstraction | Direct --vscode-* refs | Abstraction layer provides semantic naming and buffer for future theming changes, existing codebase already uses --theme-*, recommended to preserve |
-| Controlled components | Uncontrolled components | Decision already locked in CONTEXT — form components must be controlled |
+| CSS Modules | Styled Components / Emotion | CSS-in-JS adds bundle bloat (~20-40KB), no benefit over VS Code CSS variables, rejected per REQUIREMENTS.md |
+| CSS Modules | Tailwind CSS | Requires additional build config, utility-first conflicts with existing semantic class names, not worth migration cost |
+| esbuild CSS Modules | webpack + css-loader | Slower build times, heavier config, no benefit when esbuild already handles it natively |
 
 **Installation:**
 ```bash
-cd iris-thaumantias
-npm install --save-dev esbuild-css-modules-plugin typescript-plugin-css-modules clsx
+# Already installed in Phase 1
+npm install react@18.3.1 react-dom@18.3.1
+npm install --save-dev @types/react@18.3 @types/react-dom@18.3
+```
+
+**esbuild CSS Modules configuration:**
+```javascript
+// Already in esbuild.js — native support via local-css loader
+// .module.css files automatically get scoped class names
+// No plugin needed for basic use
 ```
 
 ## Architecture Patterns
 
 ### Recommended Project Structure
 
-Based on existing codebase structure and user decisions:
-
 ```
-iris-thaumantias/src/views/webview/react/
+src/views/webview/react/
 ├── components/              # Shared component library
 │   ├── Button/
-│   │   ├── Button.tsx       # Main button component
+│   │   ├── Button.tsx
 │   │   ├── Button.module.css
-│   │   ├── IconButton.tsx   # Icon button with named presets
-│   │   └── index.ts         # Re-exports
+│   │   └── index.ts
 │   ├── Container/
 │   │   ├── Container.tsx
 │   │   ├── Container.module.css
 │   │   └── index.ts
 │   ├── ListItem/
-│   │   ├── ListItem.tsx     # Presentational only
+│   │   ├── ListItem.tsx
 │   │   ├── ListItem.module.css
 │   │   └── index.ts
-│   ├── List/
-│   │   ├── List.tsx         # Keyboard nav + selection state
-│   │   ├── List.module.css
+│   ├── IconButton/
+│   │   ├── IconButton.tsx
+│   │   ├── IconButton.module.css
+│   │   ├── presets.ts        # Named exports: IconButton.Close, etc.
 │   │   └── index.ts
-│   ├── Badge/
-│   │   ├── Badge.tsx
-│   │   ├── Badge.module.css
-│   │   └── index.ts
-│   ├── BackLink/
-│   │   ├── BackLink.tsx
-│   │   ├── BackLink.module.css
-│   │   └── index.ts
-│   ├── Dropdown/
-│   │   ├── Dropdown.tsx     # Controlled component
-│   │   ├── Dropdown.module.css
-│   │   └── index.ts
-│   ├── TextInput/
-│   │   ├── TextInput.tsx    # Controlled component
-│   │   ├── TextInput.module.css
-│   │   └── index.ts
-│   └── exercise/            # Shared exercise components (COMP-03)
-│       ├── SubmissionStatus.tsx
-│       ├── SubmissionStatus.module.css
-│       ├── ParticipationActions.tsx
-│       ├── ParticipationActions.module.css
-│       ├── BuildProgress.tsx
-│       ├── BuildProgress.module.css
-│       └── index.ts
-├── styles/
-│   └── base.css             # Global --theme-* variables (imported in index.tsx)
+│   ├── exercise/             # Shared exercise components
+│   │   ├── ExerciseHeader/
+│   │   ├── ParticipationActions/
+│   │   └── SubmissionStatus/
+│   └── index.ts              # Barrel export
 ├── App.tsx
 ├── ErrorBoundary.tsx
 └── index.tsx
 ```
 
-**Rationale:**
-- PascalCase folders match React component naming convention
-- Each component folder is self-contained (component + styles + index)
-- `index.ts` re-exports enable clean imports: `import { Button } from './components/Button'`
-- `components/exercise/` folder explicitly formalizes shared exercise components (addresses COMP-03)
-- Global `base.css` imported once at entry point, provides --theme-* variables to all components
+**Alternative considered:** Flat components/ folder with no subfolders per component. **Rejected** because colocating .tsx and .module.css files aids discoverability and matches existing project structure conventions.
 
-### Pattern 1: React Functional Component with TypeScript Props
+### Pattern 1: HTML String to React Component
 
-**What:** Functional component with explicit interface for props, using children for content composition
+**What:** Convert existing HTML generation methods to React components with TypeScript props
 
-**When to use:** All components (user decision: functional components, not classes)
+**When to use:** Every component migration in this phase
 
 **Example:**
 ```typescript
-// Source: React official docs + TypeScript handbook
-import { ReactNode } from 'react';
+// BEFORE (HTML string generation)
+export class ButtonComponent {
+  public static generate(options: ButtonOptions): string {
+    const { label, icon, variant = 'primary', command, disabled } = options;
+    const classes = ['btn', `btn-${variant}`, disabled ? 'btn-disabled' : ''].filter(Boolean).join(' ');
+    return `<button class="${classes}" onclick="${command}">${icon}${label}</button>`;
+  }
+}
+
+// AFTER (React component)
 import styles from './Button.module.css';
-import clsx from 'clsx';
 
 interface ButtonProps {
-  children: ReactNode;
-  onClick?: () => void;
+  label?: string;
+  icon?: React.ReactNode;
   variant?: 'primary' | 'secondary' | 'icon' | 'link' | 'ghost';
+  onClick?: () => void;
   disabled?: boolean;
   className?: string;
-  fullWidth?: boolean;
-  icon?: ReactNode;
 }
 
 export function Button({
-  children,
-  onClick,
+  label,
+  icon,
   variant = 'primary',
+  onClick,
   disabled = false,
-  className,
-  fullWidth = false,
-  icon
+  className
 }: ButtonProps) {
   return (
     <button
-      className={clsx(
-        styles.btn,
-        styles[`btn-${variant}`],
-        fullWidth && styles['btn-full-width'],
-        disabled && styles['btn-disabled'],
-        className
-      )}
+      className={`${styles.btn} ${styles[`btn-${variant}`]} ${disabled ? styles['btn-disabled'] : ''} ${className || ''}`}
       onClick={onClick}
       disabled={disabled}
-      type="button"
     >
       {icon && <span className={styles['btn-icon']}>{icon}</span>}
-      {children && <span className={styles['btn-label']}>{children}</span>}
+      {label && <span className={styles['btn-label']}>{label}</span>}
     </button>
   );
 }
 ```
 
-### Pattern 2: Controlled Form Component
+**Key conversions:**
+1. `onclick="command"` → `onClick={onClick}` (callback prop)
+2. String interpolation → JSX elements
+3. Class string concatenation → className expression
+4. HTML escaping → automatic in JSX
+5. Static method → function component
+6. Inline SVG strings → React components or ReactNode props
 
-**What:** Form input where parent owns state, component calls onChange callback with new value
+### Pattern 2: Controlled Form Components
 
-**When to use:** All form inputs (user decision: controlled components for TextInput, Dropdown)
+**What:** Form inputs where parent component owns state via value/onChange props
+
+**When to use:** TextInput, Dropdown, and any form element per user constraints
 
 **Example:**
 ```typescript
-// Source: React official docs on forms
-import { ChangeEvent } from 'react';
-import styles from './TextInput.module.css';
-
+// TextInput component (controlled)
 interface TextInputProps {
   value: string;
   onChange: (value: string) => void;
   placeholder?: string;
   disabled?: boolean;
-  type?: 'text' | 'password' | 'email';
   label?: string;
 }
 
-export function TextInput({
-  value,
-  onChange,
-  placeholder,
-  disabled = false,
-  type = 'text',
-  label
-}: TextInputProps) {
-  const handleChange = (e: ChangeEvent<HTMLInputElement>) => {
-    onChange(e.target.value);
-  };
-
+export function TextInput({ value, onChange, placeholder, disabled, label }: TextInputProps) {
   return (
-    <div className={styles['input-wrapper']}>
-      {label && <label className={styles.label}>{label}</label>}
+    <div className={styles['input-group']}>
+      {label && <label className={styles['input-label']}>{label}</label>}
       <input
-        type={type}
+        type="text"
         className={styles.input}
         value={value}
-        onChange={handleChange}
+        onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
         disabled={disabled}
       />
     </div>
   );
 }
-```
 
-### Pattern 3: CSS Modules with TypeScript
+// Parent view usage
+function ExerciseView() {
+  const [commitMessage, setCommitMessage] = useState('');
 
-**What:** Import .module.css files as typed objects, use imported class names
-
-**When to use:** All component-specific styling (user decision: CSS Modules for scoped styles)
-
-**Example:**
-```typescript
-// Source: CSS Modules + TypeScript documentation
-import styles from './Container.module.css';
-
-// TypeScript plugin generates .d.ts:
-// declare const styles: {
-//   readonly container: string;
-//   readonly "container--highlight": string;
-//   ...
-// };
-
-export function Container({ children, variant = 'default' }) {
   return (
-    <div className={styles.container} data-variant={variant}>
-      {children}
-    </div>
+    <TextInput
+      value={commitMessage}
+      onChange={setCommitMessage}
+      placeholder="Enter commit message"
+    />
   );
 }
 ```
 
-```css
-/* Container.module.css */
-.container {
-  background: var(--theme-card-background);
-  border: 1px solid var(--theme-border);
-  border-radius: var(--theme-container-radius);
-  padding: var(--theme-container-padding);
-}
+**Why controlled:** Parent needs access to input value for validation, submission, or coordinating with other form fields. Matches React conventions and user requirements.
 
-.container[data-variant="highlight"] {
-  border-color: var(--theme-primary-color);
-}
-```
+**Sources:**
+- [Controlled vs Uncontrolled Components in React](https://certificates.dev/blog/controlled-vs-uncontrolled-components-in-react)
+- [React: Controlled vs Uncontrolled Components](https://pieces.app/blog/controlled-vs-uncontrolled-components-in-react)
 
-### Pattern 4: Composition with children and ReactNode Props
+### Pattern 3: Composition via Children and ReactNode Props
 
-**What:** Container components accept header/footer/toolbar as ReactNode props, body via children
+**What:** Components accept content via children prop or typed ReactNode props for named slots
 
-**When to use:** Container, List, and other wrapper components (user decision: flat props, compose externally)
+**When to use:** Container, List, and any component with flexible content areas
 
 **Example:**
 ```typescript
-// Source: React composition patterns
-import { ReactNode } from 'react';
-import styles from './Container.module.css';
-
+// Container with named slots
 interface ContainerProps {
-  children: ReactNode;
-  header?: ReactNode;
-  footer?: ReactNode;
-  toolbar?: ReactNode;
+  children: React.ReactNode;  // Body content
+  header?: {
+    title?: string;
+    subtitle?: string;
+    icon?: React.ReactNode;
+    actions?: React.ReactNode;
+  };
+  toolbar?: React.ReactNode;
+  footer?: React.ReactNode;
   variant?: 'default' | 'muted' | 'highlight' | 'warning';
+  className?: string;
 }
 
-export function Container({
-  children,
-  header,
-  footer,
-  toolbar,
-  variant = 'default'
-}: ContainerProps) {
+export function Container({ children, header, toolbar, footer, variant = 'default', className }: ContainerProps) {
   return (
-    <div className={styles.container} data-variant={variant}>
-      {header && <div className={styles.header}>{header}</div>}
+    <div className={`${styles.container} ${styles[`container-${variant}`]} ${className || ''}`}>
+      {header && (
+        <div className={styles.header}>
+          {header.icon && <span className={styles.icon}>{header.icon}</span>}
+          <div className={styles['title-wrap']}>
+            {header.title && <h3 className={styles.title}>{header.title}</h3>}
+            {header.subtitle && <p className={styles.subtitle}>{header.subtitle}</p>}
+          </div>
+          {header.actions && <div className={styles.actions}>{header.actions}</div>}
+        </div>
+      )}
       {toolbar && <div className={styles.toolbar}>{toolbar}</div>}
       <div className={styles.body}>{children}</div>
       {footer && <div className={styles.footer}>{footer}</div>}
     </div>
   );
 }
-```
 
-### Pattern 5: Icon Button with Named Presets
-
-**What:** Single IconButton component with static factory methods for common variants
-
-**When to use:** Icon buttons (user decision: consolidate into single component, reduce file sprawl)
-
-**Example:**
-```typescript
-// Source: Factory pattern + React composition
-import { ReactNode } from 'react';
-import styles from './IconButton.module.css';
-
-interface IconButtonProps {
-  icon: ReactNode;
-  onClick?: () => void;
-  ariaLabel: string;
-  disabled?: boolean;
-}
-
-export function IconButton({ icon, onClick, ariaLabel, disabled }: IconButtonProps) {
-  return (
-    <button
-      className={styles['icon-button']}
-      onClick={onClick}
-      disabled={disabled}
-      aria-label={ariaLabel}
-      type="button"
-    >
-      {icon}
-    </button>
-  );
-}
-
-// Named presets as static exports
-IconButton.Close = ({ onClick }: { onClick?: () => void }) => (
-  <IconButton icon={<CloseIcon />} onClick={onClick} ariaLabel="Close" />
-);
-
-IconButton.Checkmark = ({ onClick }: { onClick?: () => void }) => (
-  <IconButton icon={<CheckmarkIcon />} onClick={onClick} ariaLabel="Confirm" />
-);
-
-IconButton.Settings = ({ onClick }: { onClick?: () => void }) => (
-  <IconButton icon={<SettingsIcon />} onClick={onClick} ariaLabel="Settings" />
-);
-```
-
-### Pattern 6: Dynamic Inline Styles for Runtime Values
-
-**What:** Use inline style prop for values that can't be statically determined (accent colors, dynamic widths)
-
-**When to use:** Accent colors, conditional dimensions, runtime-computed styles (user decision: dynamic styles via inline style prop)
-
-**Example:**
-```typescript
-// Source: React inline styles documentation
-interface ContainerProps {
-  accentColor?: string;
-  outline?: string;
-  children: ReactNode;
-}
-
-export function Container({ accentColor, outline, children }: ContainerProps) {
-  const inlineStyles: React.CSSProperties = {};
-  if (accentColor) {
-    inlineStyles['--ui-container-accent-color'] = accentColor;
-  }
-  if (outline) {
-    inlineStyles.outline = outline;
-    inlineStyles.outlineOffset = '2px';
-  }
-
-  return (
-    <div className={styles.container} style={inlineStyles}>
-      {children}
-    </div>
-  );
-}
-```
-
-### Anti-Patterns to Avoid
-
-- **Prop drilling through 3+ levels:** Use composition or context for deeply nested state, not manual prop threading through every layer
-- **Mixing controlled/uncontrolled:** ALWAYS initialize form inputs with empty strings, never undefined/null (causes React controlled/uncontrolled warning)
-- **Inline functions without useCallback:** For event handlers passed to child components that use React.memo, wrap with useCallback to prevent unnecessary re-renders
-- **Using index as key in lists:** Use stable IDs from data, not array indices (causes bugs when list order changes)
-- **Overusing useEffect:** Most state updates don't need useEffect (React 18 guidance) — only for side effects like API calls, subscriptions, external DOM manipulation
-- **CSS-in-JS for this project:** Decision already made (CSS Modules), don't introduce Styled Components or Emotion
-- **Over-fragmentation:** Don't create separate components for every tiny UI element; balance reusability with maintainability
-
-## Don't Hand-Roll
-
-| Problem | Don't Build | Use Instead | Why |
-|---------|-------------|-------------|-----|
-| Class name composition | String concatenation with ternaries | `clsx` library | Handles undefined/null gracefully, cleaner conditional syntax, widely used pattern (2.1M weekly downloads) |
-| Dropdown accessibility | Custom keyboard nav + ARIA | `<select>` or React Aria's useSelect hook | Native select handles keyboard/screen readers automatically, React Aria provides unstyled accessible primitives for custom dropdowns |
-| Focus management | Manual focus tracking | React's useRef + native focus methods | React refs integrate with reconciliation, browser handles focus order automatically with proper tabindex |
-| CSS variable type generation | Manual .d.ts files | typescript-plugin-css-modules | Auto-generates types on CSS file change, prevents typos, 500K+ weekly downloads |
-
-**Key insight:** VS Code extensions should leverage native browser APIs and standard React patterns rather than custom implementations. The sandboxed webview environment has full DOM access but no npm packages at runtime, so prefer lightweight dependencies that compile away (like clsx) over runtime-heavy solutions.
-
-## Common Pitfalls
-
-### Pitfall 1: CSS Modules Not Exported to JavaScript
-
-**What goes wrong:** esbuild's native `local-css` loader bundles .module.css but doesn't export class names to JS, causing `styles.buttonPrimary` to be undefined
-
-**Why it happens:** esbuild's CSS support is designed for bundling, not for CSS Modules pattern where class names must be imported into JS
-
-**How to avoid:** Install and configure esbuild-css-modules-plugin in esbuild.js:
-
-```javascript
-const cssModulesPlugin = require('esbuild-css-modules-plugin');
-
-const webviewReactCtx = await esbuild.context({
-  // ... other config
-  plugins: [
-    cssModulesPlugin(), // Add before esbuildProblemMatcherPlugin
-    esbuildProblemMatcherPlugin,
-  ],
-});
-```
-
-**Warning signs:** Component renders but has no styling, `console.log(styles)` shows empty object or undefined
-
-### Pitfall 2: Controlled/Uncontrolled Component Warning
-
-**What goes wrong:** React warns "component is changing from uncontrolled to controlled" when state changes from undefined to a string
-
-**Why it happens:** React tracks whether an input is controlled based on whether `value` prop exists on first render. If it starts undefined and later becomes a string, React treats it as switching modes.
-
-**How to avoid:** ALWAYS initialize form state with empty strings:
-
-```typescript
-// BAD
-const [email, setEmail] = useState<string>(); // undefined initially
-
-// GOOD
-const [email, setEmail] = useState<string>(''); // empty string initially
-```
-
-**Warning signs:** Console warning "component is changing from uncontrolled to controlled component", input behaves unpredictably
-
-### Pitfall 3: VS Code CSS Variables Don't Update on Theme Change
-
-**What goes wrong:** Component uses hardcoded colors instead of CSS variables, doesn't adapt when user switches light/dark theme
-
-**Why it happens:** Developer copies hex color values from devtools instead of using var(--vscode-*) or var(--theme-*) variables
-
-**How to avoid:**
-- ALWAYS use CSS variables, never hardcoded colors
-- Prefer --theme-* abstraction layer (semantic names) over direct --vscode-* references
-- Test both light and dark themes during development (VS Code: Preferences > Theme)
-
-**Warning signs:** Component looks correct in one theme but wrong in the other, colors don't match VS Code's native UI
-
-### Pitfall 4: Excessive Re-renders from Inline Function Props
-
-**What goes wrong:** Child component re-renders on every parent render even when props haven't changed
-
-**Why it happens:** Inline arrow functions in JSX create new function references on every render, breaking React.memo optimization
-
-**How to avoid:** Use useCallback for handlers passed to memoized children:
-
-```typescript
-// BAD - creates new function on every render
-<Button onClick={() => handleClick(id)}>Click</Button>
-
-// GOOD - memoized function reference
-const handleClick = useCallback(() => {
-  handleClick(id);
-}, [id]);
-
-<Button onClick={handleClick}>Click</Button>
-```
-
-**Warning signs:** Profiler shows component re-rendering when parent updates but its props haven't changed
-
-### Pitfall 5: TypeScript Can't Find CSS Module Types
-
-**What goes wrong:** TypeScript errors "Cannot find module './Button.module.css'" even though file exists
-
-**Why it happens:** TypeScript doesn't know how to handle .css imports without type definitions
-
-**How to avoid:** Add typescript-plugin-css-modules to tsconfig.json:
-
-```json
-{
-  "compilerOptions": {
-    "plugins": [
-      { "name": "typescript-plugin-css-modules" }
-    ]
-  }
-}
-```
-
-Or create global type declaration:
-
-```typescript
-// src/types/css-modules.d.ts
-declare module '*.module.css' {
-  const classes: { readonly [key: string]: string };
-  export default classes;
-}
-```
-
-**Warning signs:** Red squiggles in VSCode on CSS Module imports, build succeeds but editor shows errors
-
-### Pitfall 6: Losing Existing Keyboard Navigation
-
-**What goes wrong:** Migrated components lose keyboard accessibility that existed in HTML versions (e.g., arrow key navigation in lists)
-
-**Why it happens:** Original HTML components had inline JS for keyboard handling (ListItemComponent.generateScript()), easy to forget during React migration
-
-**How to avoid:**
-- Audit existing component scripts for keyboard event listeners
-- Port keyboard handling to React event handlers (onKeyDown)
-- Test all components with keyboard-only navigation
-- Add ARIA attributes (role, aria-label, tabindex) where missing
-
-**Warning signs:** Original component responds to arrow keys/Enter/Space, React version doesn't; users report accessibility regression
-
-## Code Examples
-
-Verified patterns from existing codebase and official sources:
-
-### Migrating HTML String Component to React
-
-**Original (HTML string generation):**
-```typescript
-// buttonComponent.ts
-export class ButtonComponent {
-  public static generate(options: ButtonOptions): string {
-    const { label, icon, variant = 'primary', onClick } = options;
-    return `
-      <button class="btn btn-${variant}" onclick="${onClick}">
-        ${icon ? `<span class="btn-icon">${icon}</span>` : ''}
-        ${label}
-      </button>
-    `;
-  }
-}
-```
-
-**Migrated (React + TypeScript + CSS Modules):**
-```typescript
-// Button.tsx
-import { ReactNode } from 'react';
-import styles from './Button.module.css';
-import clsx from 'clsx';
-
-interface ButtonProps {
-  children: ReactNode;
-  icon?: ReactNode;
-  variant?: 'primary' | 'secondary' | 'icon' | 'link' | 'ghost';
-  onClick?: () => void;
-  disabled?: boolean;
-}
-
-export function Button({
-  children,
-  icon,
-  variant = 'primary',
-  onClick,
-  disabled = false
-}: ButtonProps) {
-  return (
-    <button
-      className={clsx(
-        styles.btn,
-        styles[`btn-${variant}`],
-        disabled && styles['btn-disabled']
-      )}
-      onClick={onClick}
-      disabled={disabled}
-      type="button"
-    >
-      {icon && <span className={styles['btn-icon']}>{icon}</span>}
-      {children}
-    </button>
-  );
-}
-```
-
-**Key changes:**
-- HTML string → JSX
-- onclick="command" → onClick={callback}
-- Static class method → functional component
-- Inline interpolation → children prop
-- Class name string concat → clsx() for conditional classes
-- button.css → Button.module.css with imported styles object
-
-### Container with Composition
-
-**Original (HTML string with config object):**
-```typescript
-// containerComponent.ts
-ContainerComponent.generate({
-  header: { title: 'Exercise', badge: '5' },
-  bodyHtml: '<p>Content here</p>',
-  footerHtml: '<button>Action</button>'
-});
-```
-
-**Migrated (React composition):**
-```typescript
-// Usage in parent component
+// Usage - compose externally
 <Container
-  header={
-    <div>
-      <h3>Exercise</h3>
-      <Badge>5</Badge>
-    </div>
-  }
-  footer={<Button>Action</Button>}
+  header={{
+    title: "Exercise Details",
+    actions: <Button variant="secondary" label="Reload" onClick={handleReload} />
+  }}
+  toolbar={<ExerciseFilters />}
+  footer={<ExerciseActions onSubmit={handleSubmit} />}
 >
-  <p>Content here</p>
+  <ExerciseDescription />
+  <ExerciseStatus />
 </Container>
 ```
 
-**Key changes:**
-- String HTML → React elements
-- Config object with HTML strings → ReactNode props
-- bodyHtml → children prop
-- Caller composes structure instead of passing config
+**Why this pattern:** Flat props interface keeps Container as single component (no Card/CardHeader/CardBody decomposition per user constraints), while ReactNode props provide type-safe composition slots. Parent views control layout and can pass any React elements.
 
-### Controlled Dropdown Component
+**Sources:**
+- [Mastering React's Children Props: A Reusable Components](https://mernstackdev.com/mastering-reacts-children-props/)
+- [React children composition patterns with TypeScript](https://medium.com/@martin_hotell/react-children-composition-patterns-with-typescript-56dfc8923c64)
 
-**Original (generates HTML with inline onchange):**
-```typescript
-// dropdownComponent.ts
-DropdownComponent.generate({
-  options: ['Option 1', 'Option 2'],
-  onchange: 'handleChange(this.value)'
-});
-```
+### Pattern 4: CSS Modules + VS Code Theme Variables
 
-**Migrated (controlled React component):**
-```typescript
-// Dropdown.tsx
-interface DropdownProps {
-  value: string;
-  onChange: (value: string) => void;
-  options: Array<{ label: string; value: string }>;
-  disabled?: boolean;
-}
+**What:** Component-scoped CSS classes that reference global --theme-* and --vscode-* CSS variables
 
-export function Dropdown({ value, onChange, options, disabled }: DropdownProps) {
-  return (
-    <select
-      className={styles.dropdown}
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      disabled={disabled}
-    >
-      {options.map(opt => (
-        <option key={opt.value} value={opt.value}>
-          {opt.label}
-        </option>
-      ))}
-    </select>
-  );
-}
+**When to use:** Every component per user styling strategy
 
-// Usage in parent:
-function ParentComponent() {
-  const [selected, setSelected] = useState('');
-  return (
-    <Dropdown
-      value={selected}
-      onChange={setSelected}
-      options={[
-        { label: 'Option 1', value: 'opt1' },
-        { label: 'Option 2', value: 'opt2' }
-      ]}
-    />
-  );
-}
-```
-
-**Key changes:**
-- Parent owns state (controlled pattern)
-- onChange passes value directly, not event string
-- Options array typed explicitly
-- key prop for list rendering
-
-### List with Keyboard Navigation
-
-**Original (HTML + inline script for keyboard handling):**
-```typescript
-// listItemComponent.ts
-ListItemComponent.generateScript(): string {
-  return `
-    document.addEventListener('keydown', function(event) {
-      if (event.key === 'ArrowDown') { /* navigate */ }
-    });
-  `;
-}
-```
-
-**Migrated (React with hooks):**
-```typescript
-// List.tsx
-import { useState, useRef, KeyboardEvent, Children, cloneElement } from 'react';
-import styles from './List.module.css';
-
-interface ListProps {
-  children: ReactNode;
-  onSelect?: (index: number) => void;
-}
-
-export function List({ children, onSelect }: ListProps) {
-  const [selectedIndex, setSelectedIndex] = useState<number>(0);
-  const listRef = useRef<HTMLDivElement>(null);
-
-  const handleKeyDown = (e: KeyboardEvent) => {
-    const childCount = Children.count(children);
-
-    if (e.key === 'ArrowDown') {
-      e.preventDefault();
-      const nextIndex = (selectedIndex + 1) % childCount;
-      setSelectedIndex(nextIndex);
-    } else if (e.key === 'ArrowUp') {
-      e.preventDefault();
-      const prevIndex = (selectedIndex - 1 + childCount) % childCount;
-      setSelectedIndex(prevIndex);
-    } else if (e.key === 'Enter' || e.key === ' ') {
-      e.preventDefault();
-      onSelect?.(selectedIndex);
-    }
-  };
-
-  return (
-    <div
-      ref={listRef}
-      className={styles.list}
-      onKeyDown={handleKeyDown}
-      tabIndex={0}
-      role="listbox"
-      aria-activedescendant={`list-item-${selectedIndex}`}
-    >
-      {Children.map(children, (child, index) =>
-        cloneElement(child as ReactElement, {
-          selected: index === selectedIndex,
-          id: `list-item-${index}`
-        })
-      )}
-    </div>
-  );
-}
-```
-
-**Key changes:**
-- Inline script → React hooks (useState, useRef)
-- Global event listener → component-scoped onKeyDown
-- DOM query for items → Children.map + cloneElement
-- ARIA attributes added for accessibility
-
-### CSS Modules with CSS Variables
-
+**Example:**
 ```css
 /* Button.module.css */
 .btn {
@@ -808,20 +326,20 @@ export function List({ children, onSelect }: ListProps) {
   align-items: center;
   gap: 6px;
   padding: 8px 16px;
+  border: 1px solid transparent;
   border-radius: 4px;
   font-family: var(--vscode-font-family);
   font-size: var(--vscode-font-size);
   cursor: pointer;
-  transition: background-color 0.15s ease;
 }
 
 .btn-primary {
-  background-color: var(--vscode-button-background);
-  color: var(--vscode-button-foreground);
+  background-color: var(--theme-button-background);
+  color: var(--theme-button-foreground);
 }
 
-.btn-primary:hover {
-  background-color: var(--vscode-button-hoverBackground);
+.btn-primary:hover:not(.btn-disabled) {
+  background-color: var(--theme-button-hover-background);
 }
 
 .btn-disabled {
@@ -831,126 +349,749 @@ export function List({ children, onSelect }: ListProps) {
 }
 ```
 
-**Key points:**
-- CSS Modules scoping (.btn becomes .Button_btn_a3f2c8)
-- var(--vscode-*) variables still work (global scope)
-- Can also use var(--theme-*) from base.css
-- Kebab-case class names require bracket notation in TypeScript: `styles['btn-primary']`
+```typescript
+// Button.tsx
+import styles from './Button.module.css';
+
+export function Button({ variant = 'primary', disabled, ...props }: ButtonProps) {
+  return (
+    <button
+      className={`${styles.btn} ${styles[`btn-${variant}`]} ${disabled ? styles['btn-disabled'] : ''}`}
+      disabled={disabled}
+      {...props}
+    />
+  );
+}
+```
+
+**Why this pattern:**
+- CSS Modules provide scoped class names (e.g., `.btn` becomes `.Button_btn_xyz123`) preventing global conflicts
+- --theme-* and --vscode-* variables ensure automatic light/dark theme adaptation
+- Existing CSS files can be renamed .css → .module.css with minimal changes
+- esbuild's native local-css loader handles .module.css without plugins
+
+**Keep --theme-* abstraction layer:** Recommended. Provides semantic naming (--theme-button-background vs --vscode-button-background) and allows project-wide theme customization in base.css if needed. Only ~5% overhead in base.css variable definitions.
+
+**Sources:**
+- [React & CSS in 2026: Best Styling Approaches Compared](https://medium.com/@imranmsa93/react-css-in-2026-best-styling-approaches-compared-d5e99a771753)
+- [Use CSS Modules instead of inlining styles in React](https://swarup-karavadi.medium.com/use-css-modules-instead-of-inlining-styles-in-react-fea247b97431)
+
+### Pattern 5: Icon Button Consolidation with Named Exports
+
+**What:** Single IconButton component with preset configurations exported as named variants
+
+**When to use:** Replacing individual icon button files (closeButton.ts, checkmarkButton.ts, etc.)
+
+**Example:**
+```typescript
+// IconButton/IconButton.tsx
+import styles from './IconButton.module.css';
+
+interface IconButtonProps {
+  icon: React.ReactNode;
+  onClick?: () => void;
+  disabled?: boolean;
+  title?: string;
+  className?: string;
+}
+
+export function IconButton({ icon, onClick, disabled, title, className }: IconButtonProps) {
+  return (
+    <button
+      className={`${styles['icon-btn']} ${className || ''}`}
+      onClick={onClick}
+      disabled={disabled}
+      title={title}
+      aria-label={title}
+    >
+      {icon}
+    </button>
+  );
+}
+
+// IconButton/presets.tsx
+import { IconButton } from './IconButton';
+
+const CloseIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+    <path d="M12 4L4 12M4 4L12 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+  </svg>
+);
+
+const CheckmarkIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+    <path d="M13 4L6 11L3 8" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+  </svg>
+);
+
+export const Close = (props: Omit<IconButtonProps, 'icon'>) => (
+  <IconButton icon={<CloseIcon />} title="Close" {...props} />
+);
+
+export const Checkmark = (props: Omit<IconButtonProps, 'icon'>) => (
+  <IconButton icon={<CheckmarkIcon />} title="Confirm" {...props} />
+);
+
+// IconButton/index.ts
+export { IconButton } from './IconButton';
+export * as IconButton from './presets';
+
+// Usage
+import { IconButton } from '@/components';
+
+<IconButton.Close onClick={handleClose} />
+<IconButton.Checkmark onClick={handleConfirm} />
+```
+
+**Why this pattern:** Reduces 7+ separate icon button files to 1 component + 1 presets file. Named exports (IconButton.Close) provide discoverable API while sharing common button logic. Matches user constraint for file sprawl reduction.
+
+### Pattern 6: List with Keyboard Navigation
+
+**What:** List wrapper manages keyboard nav and selection state, ListItem is presentational
+
+**When to use:** Course list, exercise list, any navigable list per user constraints
+
+**Example:**
+```typescript
+// List/List.tsx
+interface ListProps<T> {
+  items: T[];
+  selectedId?: string;
+  onSelect?: (item: T) => void;
+  renderItem: (item: T, isSelected: boolean) => React.ReactNode;
+  className?: string;
+}
+
+export function List<T extends { id: string }>({
+  items,
+  selectedId,
+  onSelect,
+  renderItem,
+  className
+}: ListProps<T>) {
+  const [focusedIndex, setFocusedIndex] = useState(0);
+  const itemRefs = useRef<(HTMLDivElement | null)[]>([]);
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      const nextIndex = (focusedIndex + 1) % items.length;
+      setFocusedIndex(nextIndex);
+      itemRefs.current[nextIndex]?.focus();
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      const prevIndex = (focusedIndex - 1 + items.length) % items.length;
+      setFocusedIndex(prevIndex);
+      itemRefs.current[prevIndex]?.focus();
+    } else if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      onSelect?.(items[focusedIndex]);
+    }
+  };
+
+  return (
+    <div className={`${styles.list} ${className || ''}`} onKeyDown={handleKeyDown}>
+      {items.map((item, index) => (
+        <div
+          key={item.id}
+          ref={(el) => (itemRefs.current[index] = el)}
+          tabIndex={0}
+          onClick={() => onSelect?.(item)}
+        >
+          {renderItem(item, item.id === selectedId)}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ListItem/ListItem.tsx (presentational only)
+interface ListItemProps {
+  children: React.ReactNode;
+  selected?: boolean;
+  highlighted?: boolean;
+  className?: string;
+}
+
+export function ListItem({ children, selected, highlighted, className }: ListItemProps) {
+  return (
+    <div className={`
+      ${styles['list-item']}
+      ${selected ? styles['list-item-selected'] : ''}
+      ${highlighted ? styles['list-item-highlighted'] : ''}
+      ${className || ''}
+    `}>
+      {children}
+    </div>
+  );
+}
+
+// Usage
+<List
+  items={courses}
+  selectedId={selectedCourseId}
+  onSelect={handleSelectCourse}
+  renderItem={(course, isSelected) => (
+    <ListItem selected={isSelected} highlighted={course.isActive}>
+      <CourseCard course={course} />
+    </ListItem>
+  )}
+/>
+```
+
+**Why this pattern:** Separation of concerns — List handles navigation/selection state, ListItem handles presentation. Keyboard navigation (arrow keys, Enter) works automatically for all lists. Matches user constraint for List wrapper managing state.
+
+**Sources:**
+- [React Accessibility: Complete Guide for Developers](https://www.browserstack.com/guide/react-accessibility)
+- [Accessibility – React Aria](https://react-spectrum.adobe.com/react-aria/accessibility.html)
+
+### Anti-Patterns to Avoid
+
+- **Don't use dangerouslySetInnerHTML for HTML strings**: Security risk, loses React benefits. Convert to JSX instead.
+- **Don't mix controlled and uncontrolled inputs**: Causes "controlled vs uncontrolled" React warning. Always use controlled (value + onChange) per user requirements.
+- **Don't replicate HTML structure exactly**: Focus on visual parity, not DOM structure parity. React idioms > HTML string translation.
+- **Don't use inline styles for theming**: Use CSS Modules with CSS variables instead. Inline styles only for truly dynamic values (accent colors, conditional widths per user constraints).
+- **Don't create subcomponents for Container**: Keep as single component with typed props per user constraints. Decomposition happens at view level, not component level.
+
+**Sources:**
+- [Converting static HTML/CSS site to React App](https://dev.to/menard_codes/converting-static-html-css-site-to-react-app-263e)
+- [Strategy and Tips for Migrating to React](https://brainhub.eu/library/migrating-to-react)
+
+## Don't Hand-Roll
+
+| Problem | Don't Build | Use Instead | Why |
+|---------|-------------|-------------|-----|
+| CSS Modules type definitions | Manual .d.ts files for every .module.css | esbuild's built-in local-css loader | Native support, zero config, auto-scoped class names |
+| Keyboard navigation for lists | Custom focus management, event handling from scratch | React Aria hooks (useListBox, useOption) or simpler focus trap patterns | WAI-ARIA compliant, handles edge cases (circular navigation, disabled items, screen readers) |
+| Icon component library | SVG-to-React conversion script | Use existing inline SVG strings as ReactNode props | Existing icons already optimized, no build step needed |
+| Form validation library | Custom validation logic per component | Keep validation at view level for now | Phase 2 is component library only, view-level validation comes in Phase 3+ |
+| State management for components | Complex useState/useReducer in components | Keep components stateless, views manage state | Components are presentational per Phase 2 scope, state management is Phase 4 (Zustand) |
+
+**Key insight:** This phase is about porting visual components, not building a design system framework. Use esbuild's native features, keep components simple and stateless, and defer advanced patterns (React Aria, form libraries) to later phases when view migration needs them.
+
+## Common Pitfalls
+
+### Pitfall 1: CSS Modules Class Name Construction Errors
+
+**What goes wrong:** Dynamic class names like `styles[\`btn-\${variant}\`]` fail silently or produce undefined values
+
+**Why it happens:** CSS Modules exports are objects where keys must be valid JS identifiers or accessed via bracket notation. Kebab-case class names (btn-primary) must use bracket notation.
+
+**How to avoid:**
+```typescript
+// WRONG - template literal in bracket notation
+className={styles[`btn-${variant}`]}
+
+// RIGHT - use bracket notation with string concatenation
+className={styles['btn-' + variant]}
+
+// ALTERNATIVE - use object lookup
+const variantClasses = {
+  primary: styles['btn-primary'],
+  secondary: styles['btn-secondary']
+};
+className={variantClasses[variant]}
+```
+
+**Warning signs:** Component renders with missing styles in browser, className is undefined or empty string
+
+**Sources:**
+- [How to write type-safe CSS Modules](https://blog.logrocket.com/write-type-safe-css-modules/)
+
+### Pitfall 2: Controlled Input Switching to Uncontrolled
+
+**What goes wrong:** React warning: "A component is changing an uncontrolled input to be controlled" or vice versa
+
+**Why it happens:** Input value prop switches between undefined and string, or onChange handler not provided
+
+**How to avoid:**
+```typescript
+// WRONG - value can be undefined
+<input value={someState} onChange={handleChange} />
+
+// RIGHT - initialize state with empty string, not undefined
+const [value, setValue] = useState('');
+<input value={value} onChange={(e) => setValue(e.target.value)} />
+
+// WRONG - missing onChange
+<input value={value} />
+
+// RIGHT - always pair value with onChange
+<input value={value} onChange={(e) => setValue(e.target.value)} />
+```
+
+**Warning signs:** Console warning about controlled/uncontrolled, input behavior is erratic (doesn't update or updates unexpectedly)
+
+**Sources:**
+- [How to Fix "Controlled vs Uncontrolled" Input Warnings](https://oneuptime.com/blog/post/2026-01-24-fix-controlled-uncontrolled-input-warnings/view)
+
+### Pitfall 3: Inline Event Handlers in JSX Causing Re-renders
+
+**What goes wrong:** Component re-renders excessively, performance degrades in lists
+
+**Why it happens:** Arrow functions in JSX create new function instances on every render, breaking React.memo optimization
+
+**How to avoid:**
+```typescript
+// WRONG - creates new function on every render
+<Button onClick={() => handleClick(item.id)} />
+
+// RIGHT - use useCallback for functions created in render
+const handleItemClick = useCallback(() => handleClick(item.id), [item.id]);
+<Button onClick={handleItemClick} />
+
+// ALTERNATIVE - for list items, pass ID and handle in parent
+<Button onClick={handleClick} data-id={item.id} />
+// Then in handler: const id = e.currentTarget.dataset.id;
+```
+
+**Warning signs:** List scrolling is janky, React DevTools Profiler shows high render counts for list items, keyboard navigation lags
+
+**Sources:**
+- [React & CSS in 2026: Best Styling Approaches Compared](https://medium.com/@imranmsa93/react-css-in-2026-best-styling-approaches-compared-d5e99a771753)
+
+### Pitfall 4: CSS Modules Import Path Confusion
+
+**What goes wrong:** CSS Module imports fail with "module not found" even though .module.css file exists
+
+**Why it happens:** Incorrect relative paths, missing file extension, or esbuild config issue
+
+**How to avoid:**
+```typescript
+// WRONG - missing .module.css extension
+import styles from './Button';
+
+// WRONG - incorrect relative path
+import styles from '../Button.module.css'; // when file is in same dir
+
+// RIGHT - correct relative path with extension
+import styles from './Button.module.css';
+
+// esbuild.js - verify no loader override for .module.css
+// (Native local-css loader should handle it automatically)
+```
+
+**Warning signs:** Build fails with module resolution error, styles object is undefined at runtime
+
+**Sources:**
+- [How to set up CSS Modules with esbuild](https://how-to.dev/how-to-set-up-css-modules-with-esbuild)
+
+### Pitfall 5: Forgetting ARIA Attributes When Adding Keyboard Navigation
+
+**What goes wrong:** Keyboard navigation works but screen readers don't announce state changes or interactive elements
+
+**Why it happens:** Keyboard events added without corresponding ARIA roles, labels, or state attributes
+
+**How to avoid:**
+```typescript
+// WRONG - keyboard nav without ARIA
+<div onClick={handleClick} onKeyDown={handleKeyDown}>
+  {item.name}
+</div>
+
+// RIGHT - add ARIA role, tabIndex, and labels
+<div
+  role="button"
+  tabIndex={0}
+  aria-label={item.name}
+  onClick={handleClick}
+  onKeyDown={handleKeyDown}
+>
+  {item.name}
+</div>
+
+// For lists with selection
+<div
+  role="listbox"
+  aria-activedescendant={`item-${selectedId}`}
+>
+  {items.map(item => (
+    <div
+      id={`item-${item.id}`}
+      role="option"
+      aria-selected={item.id === selectedId}
+    >
+      {item.name}
+    </div>
+  ))}
+</div>
+```
+
+**Warning signs:** Screen reader testing reveals missing announcements, keyboard navigation works but doesn't feel like native controls
+
+**Sources:**
+- [React Accessibility: Complete Guide for Developers](https://www.browserstack.com/guide/react-accessibility)
+- [React Accessibility (A11y) Best Practices and Guidelines](https://rtcamp.com/handbook/react-best-practices/accessibility/)
+
+### Pitfall 6: Preserving Inline onclick vs Converting to React Events
+
+**What goes wrong:** Confusion about whether to preserve inline onclick strings (for postMessage calls) or convert to React onClick handlers
+
+**Why it happens:** Existing HTML components have onclick="sendMessage(...)" strings that need special handling
+
+**How to avoid:**
+```typescript
+// Current HTML generation pattern
+onclick="sendMessage('exerciseDetail', { action: 'submit' })"
+
+// WRONG - try to preserve as string in React
+<button onclick="sendMessage(...)">Submit</button>  // Won't work in React
+
+// RIGHT - convert to React onClick with callback prop
+interface ButtonProps {
+  onClick?: () => void;
+}
+
+// Component stays agnostic of postMessage
+<Button onClick={handleSubmit} />
+
+// Parent view wires to postMessage
+const handleSubmit = () => {
+  vscodeApi.postMessage({ type: 'exerciseDetail', action: 'submit' });
+};
+```
+
+**Per user constraints:** Components stay agnostic of VS Code messaging. Calling views wire callbacks to postMessage. This keeps components reusable and testable.
+
+**Warning signs:** onClick handlers don't fire, console errors about invalid event handlers
+
+## Code Examples
+
+Verified patterns from existing codebase and React best practices:
+
+### Migrating Button Component
+
+```typescript
+// Source: iris-thaumantias/src/views/components/button/buttonComponent.ts (existing)
+// Target: src/views/webview/react/components/Button/Button.tsx
+
+import { CSSProperties } from 'react';
+import styles from './Button.module.css';
+
+export interface ButtonProps {
+  label?: string;
+  icon?: React.ReactNode;
+  variant?: 'primary' | 'secondary' | 'icon' | 'link' | 'ghost';
+  className?: string;
+  onClick?: () => void;
+  disabled?: boolean;
+  id?: string;
+  fullWidth?: boolean;
+  width?: string;
+  height?: string;
+  alignText?: 'left' | 'center' | 'right';
+  dataAttributes?: Record<string, string>;
+  type?: 'button' | 'submit' | 'reset';
+  children?: React.ReactNode;
+}
+
+export function Button({
+  label,
+  icon,
+  variant = 'primary',
+  className = '',
+  onClick,
+  disabled = false,
+  id,
+  fullWidth = false,
+  width,
+  height,
+  alignText,
+  dataAttributes = {},
+  type = 'button',
+  children
+}: ButtonProps) {
+  const classes = [
+    styles.btn,
+    styles[`btn-${variant}`],
+    fullWidth ? styles['btn-full-width'] : '',
+    disabled ? styles['btn-disabled'] : '',
+    (width || height) ? styles['btn-fixed-size'] : '',
+    icon && (label || children) ? styles['btn-with-icon'] : '',
+    alignText ? styles[`btn-align-${alignText}`] : '',
+    className
+  ].filter(Boolean).join(' ');
+
+  const inlineStyles: CSSProperties = {};
+  if (width) inlineStyles.width = width;
+  if (height) inlineStyles.height = height;
+
+  const dataProps = Object.entries(dataAttributes).reduce((acc, [key, value]) => {
+    acc[`data-${key}`] = value;
+    return acc;
+  }, {} as Record<string, string>);
+
+  // Icon-only button
+  if (icon && !label && !children) {
+    return (
+      <button
+        type={type}
+        id={id}
+        className={classes}
+        onClick={onClick}
+        disabled={disabled}
+        style={inlineStyles}
+        aria-label={id || 'button'}
+        {...dataProps}
+      >
+        {icon}
+      </button>
+    );
+  }
+
+  // Button with icon and label/children
+  if (icon && (label || children)) {
+    return (
+      <button
+        type={type}
+        id={id}
+        className={classes}
+        onClick={onClick}
+        disabled={disabled}
+        style={inlineStyles}
+        {...dataProps}
+      >
+        <span className={styles['btn-icon']}>{icon}</span>
+        <span className={styles['btn-label']}>{label || children}</span>
+      </button>
+    );
+  }
+
+  // Button with label/children only
+  return (
+    <button
+      type={type}
+      id={id}
+      className={classes}
+      onClick={onClick}
+      disabled={disabled}
+      style={inlineStyles}
+      {...dataProps}
+    >
+      {label || children}
+    </button>
+  );
+}
+
+// Named exports for common variants
+export const PrimaryButton = (props: Omit<ButtonProps, 'variant'>) => (
+  <Button variant="primary" {...props} />
+);
+
+export const SecondaryButton = (props: Omit<ButtonProps, 'variant'>) => (
+  <Button variant="secondary" {...props} />
+);
+```
+
+**Migration notes:**
+1. Props interface closely matches existing ButtonOptions — minimal breaking changes
+2. CSS classes map 1:1 from button.css to Button.module.css (rename file only)
+3. Dynamic styles (width, height) use React inline styles via CSSProperties type
+4. dataAttributes become spread props with data- prefix
+5. children prop added for flexibility (can pass JSX instead of label string)
+6. Named exports provide convenience methods matching existing static methods
+
+### Migrating Container Component
+
+```typescript
+// Source: iris-thaumantias/src/views/components/container/containerComponent.ts (existing)
+// Target: src/views/webview/react/components/Container/Container.tsx
+
+import { CSSProperties } from 'react';
+import styles from './Container.module.css';
+
+type ContainerVariant = 'default' | 'muted' | 'highlight' | 'warning';
+type ContainerPadding = 'default' | 'tight' | 'cozy' | 'spacious' | 'none';
+type ContainerAccentPosition = 'left' | 'top' | 'none';
+
+interface ContainerHeader {
+  title?: string;
+  subtitle?: string;
+  icon?: React.ReactNode;
+  badge?: string;
+  actions?: React.ReactNode;
+}
+
+interface ContainerProps {
+  children: React.ReactNode;
+  id?: string;
+  className?: string;
+  variant?: ContainerVariant;
+  padding?: ContainerPadding;
+  accentPosition?: ContainerAccentPosition;
+  accentColor?: string;
+  outline?: string;
+  header?: ContainerHeader;
+  toolbar?: React.ReactNode;
+  footer?: React.ReactNode;
+  dataAttributes?: Record<string, string>;
+}
+
+export function Container({
+  children,
+  id,
+  className = '',
+  variant = 'default',
+  padding = 'default',
+  accentPosition = 'none',
+  accentColor,
+  outline,
+  header,
+  toolbar,
+  footer,
+  dataAttributes = {}
+}: ContainerProps) {
+  const classes = [
+    styles['ui-container'],
+    styles[`ui-container--${variant}`],
+    padding !== 'default' ? styles[`ui-container--${padding}`] : '',
+    accentPosition !== 'none' ? styles[`ui-container--accent-${accentPosition}`] : '',
+    className
+  ].filter(Boolean).join(' ');
+
+  const inlineStyles: CSSProperties = {};
+  if (accentColor) inlineStyles['--ui-container-accent-color' as any] = accentColor;
+  if (outline) {
+    inlineStyles.outline = outline;
+    inlineStyles.outlineOffset = '2px';
+  }
+
+  const dataProps = Object.entries(dataAttributes).reduce((acc, [key, value]) => {
+    acc[`data-${key}`] = value;
+    return acc;
+  }, {} as Record<string, string>);
+
+  return (
+    <div
+      id={id}
+      className={classes}
+      style={inlineStyles}
+      {...dataProps}
+    >
+      {header && (
+        <div className={styles['ui-container__header']}>
+          <div className={styles['ui-container__header-main']}>
+            {header.icon && <span className={styles['ui-container__icon']}>{header.icon}</span>}
+            <div className={styles['ui-container__title-wrap']}>
+              {header.title && <p className={styles['ui-container__title']}>{header.title}</p>}
+              {header.subtitle && <p className={styles['ui-container__subtitle']}>{header.subtitle}</p>}
+            </div>
+            {header.badge && <span className={styles['ui-container__badge']}>{header.badge}</span>}
+          </div>
+          {header.actions && <div className={styles['ui-container__actions']}>{header.actions}</div>}
+        </div>
+      )}
+      {toolbar && <div className={styles['ui-container__toolbar']>{toolbar}</div>}
+      <div className={styles['ui-container__body']}>{children}</div>
+      {footer && <div className={styles['ui-container__footer']}>{footer}</div>}
+    </div>
+  );
+}
+```
+
+**Migration notes:**
+1. Removes collapsible state logic (can be added later if needed via useState)
+2. Removes state block (empty/loading/error) — views handle this via children
+3. Header becomes typed object prop instead of separate header generation method
+4. CSS variable (--ui-container-accent-color) passed via inline style with type assertion
+5. Maintains flat props interface per user constraints
+6. toolbar, footer, header.actions use ReactNode for composition
+
+**Sources:**
+- Existing codebase patterns (listItemComponent.ts, containerComponent.ts, buttonComponent.ts)
+- [Accessibility – React Aria](https://react-spectrum.adobe.com/react-aria/accessibility.html)
 
 ## State of the Art
 
 | Old Approach | Current Approach | When Changed | Impact |
 |--------------|------------------|--------------|--------|
-| Class components with lifecycle methods | Functional components with hooks | React 16.8 (2019) | Simpler code, better composition, easier testing |
-| Manual React imports in every file | Automatic JSX transform | React 17 (2020) | Cleaner code, smaller bundles, already configured in Phase 1 |
-| Prop types runtime validation | TypeScript static types | Industry shift 2018+ | Compile-time errors, better intellisense, no runtime cost |
-| CSS-in-JS (Styled Components, Emotion) | CSS Modules / native CSS | Trend reversal 2023+ | Better performance, simpler tooling, smaller bundles, no SSR issues |
-| Uncontrolled forms with refs | Controlled components with state | Best practice since 2016 | Predictable state, easier validation, single source of truth |
+| HTML string generation via static methods | React components with JSX | 2024-2026 (industry standard) | Better composition, type safety, DX |
+| Inline onclick strings | React onClick callbacks | React 0.14+ (2015) | Enables component testing, removes eval-like patterns |
+| Global CSS with manual prefixing | CSS Modules with auto-scoping | esbuild native support (2020+) | Prevents class name conflicts, better codesplitting |
+| Styled Components / CSS-in-JS | CSS Modules + CSS variables | 2024-2026 (performance focus) | Lower bundle size, better caching, no runtime overhead |
+| Template literals for class names | clsx or manual concatenation | 2020+ | Type-safe class names with CSS Modules |
+| Uncontrolled forms with refs | Controlled forms with state | React best practice | Easier validation, coordination between fields |
+| React.FC type | Function components without FC | TypeScript 5+ (2023+) | children not implicit, more explicit typing |
 
 **Deprecated/outdated:**
-- **ReactDOM.render()**: Replaced by createRoot() in React 18 (already using in Phase 1)
-- **String refs**: Use useRef() hook instead
-- **UNSAFE_* lifecycle methods**: Not applicable (using functional components)
-- **defaultProps**: Deprecated in React 19, use default parameter values in destructuring instead
+- **ReactDOM.render()**: Deprecated in React 18, use createRoot (already done in Phase 1)
+- **Class components for UI**: Function components + hooks are standard (exceptions: ErrorBoundary)
+- **PropTypes**: TypeScript interfaces replace runtime prop validation
+- **defaultProps**: Use default parameters in function signature (destructuring defaults)
+- **componentWillMount, componentWillUpdate**: Removed in React 17, use useEffect/useLayoutEffect
+
+**Sources:**
+- [Building Reusable React Components in 2026](https://medium.com/@romko.kozak/building-reusable-react-components-in-2026-a461d30f8ce4)
+- React 18 Migration Guide (createRoot)
 
 ## Open Questions
 
-1. **Icon SVG Handling Strategy**
-   - What we know: Current codebase uses IconDefinitions.getIcon() to return SVG strings, inserted via dangerouslySetInnerHTML or direct string interpolation
-   - What's unclear: Best pattern for React (inline SVG components vs. icon library vs. sprite sheet vs. dangerouslySetInnerHTML)
-   - Recommendation: Create IconDefinitions as React components (IconDefinitions.Check, IconDefinitions.Close, etc.) returning JSX SVG elements. Cleaner than dangerouslySetInnerHTML, enables props like size/color, type-safe usage. Low migration effort since SVGs already extracted.
+1. **TypeScript definitions for CSS Modules**
+   - What we know: esbuild native local-css loader handles .module.css, but no auto-generated .d.ts files
+   - What's unclear: Whether to add typed-css-modules plugin or declare module '*.module.css' globally
+   - Recommendation: Start with global declaration in src/types.d.ts, add typed-css-modules in Phase 3+ if type safety becomes pain point
+   ```typescript
+   // src/types.d.ts
+   declare module '*.module.css' {
+     const classes: { [key: string]: string };
+     export default classes;
+   }
+   ```
 
-2. **CSS Variable Layer Naming Convention**
-   - What we know: Existing base.css uses --theme-* variables that map to --vscode-*, providing semantic abstraction layer
-   - What's unclear: Whether to preserve --theme-* in new components or switch to direct --vscode-* references
-   - Recommendation: Keep --theme-* abstraction. Benefits: semantic naming (--theme-primary-color clearer than --vscode-focusBorder), buffer for future theming changes, consistency with existing codebase. Low cost (variables already defined).
+2. **React.memo for list items**
+   - What we know: Large lists (20+ courses, exercises) currently render via HTML strings, no re-render cost
+   - What's unclear: Whether React re-renders will cause noticeable performance regression
+   - Recommendation: Start without React.memo, add selectively in Phase 3 during view migration if profiling shows issues. Likely candidates: CourseListItem, ExerciseListItem with many props
 
-3. **Component Export Pattern**
-   - What we know: Need to export 20+ components for use in views
-   - What's unclear: Named exports from each component file vs. barrel exports from index.ts files
-   - Recommendation: Both. Each component exports named component (`export function Button`), component folder has index.ts re-exporting (`export { Button } from './Button'`). Enables clean imports (`from 'components/Button'`) while maintaining explicit exports. Standard pattern in React libraries.
+3. **Shared exercise component folder naming**
+   - What we know: ExerciseDetail and ExamExerciseDetail share ~70% of code per requirements
+   - What's unclear: Exact shared components (ParticipationActions, SubmissionStatus, BuildProgress, etc.)
+   - Recommendation: Create components/exercise/ folder, move shared components there during Phase 5 (exercise views migration) when duplication becomes visible
 
-## Validation Architecture
-
-> Note: Validation section included because workflow.nyquist_validation is not set (defaults to true in GSD workflow)
-
-### Test Framework
-
-| Property | Value |
-|----------|-------|
-| Framework | None detected — Wave 0 gap |
-| Config file | None — must be created in Wave 0 |
-| Quick run command | TBD based on framework choice (recommendation: Vitest) |
-| Full suite command | TBD based on framework choice |
-| Estimated runtime | TBD (target: < 30 seconds for component unit tests) |
-
-**Recommendation:** Install Vitest for React component testing (fast, native ESM, React Testing Library integration). Alternative: Jest (slower but more mature ecosystem).
-
-### Phase Requirements → Test Map
-
-| Req ID | Behavior | Test Type | Automated Command | File Exists? |
-|--------|----------|-----------|-------------------|-------------|
-| COMP-01 | All components render without errors | unit | `vitest run src/views/webview/react/components/**/*.test.tsx` | ❌ Wave 0 gap |
-| COMP-01 | Button variants render correct classes | unit | `vitest run src/views/webview/react/components/Button/Button.test.tsx` | ❌ Wave 0 gap |
-| COMP-01 | Container composition renders header/footer/children | unit | `vitest run src/views/webview/react/components/Container/Container.test.tsx` | ❌ Wave 0 gap |
-| COMP-02 | Components apply VS Code CSS variables | unit | `vitest run src/views/webview/react/components/**/*.test.tsx` | ❌ Wave 0 gap |
-| COMP-02 | Theme switching updates component colors | manual-only | Visual inspection in light/dark themes | ❌ manual only |
-| COMP-03 | Exercise components render in both ExerciseDetail and ExamExerciseDetail | integration | `vitest run src/views/webview/react/views/**/*.test.tsx` | ❌ Wave 0 gap |
-
-**Notes on test types:**
-- **unit**: Isolated component rendering tests (fast, < 1s per component)
-- **integration**: Tests component composition in real view contexts
-- **manual-only**: Theme switching requires human visual verification (automated tests can check CSS variable application, not visual correctness)
-
-### Nyquist Sampling Rate
-
-- **Minimum sample interval:** After every committed task → run quick unit tests for affected components
-- **Full suite trigger:** Before merging final task of any plan wave
-- **Phase-complete gate:** All component tests green + manual theme verification before `/gsd:verify-work`
-- **Estimated feedback latency per task:** ~5-10 seconds (Vitest is fast for component tests)
-
-### Wave 0 Gaps (must be created before implementation)
-
-- [ ] `vitest.config.ts` — Configure Vitest for React + TypeScript + CSS Modules
-- [ ] `src/views/webview/react/test/setup.ts` — Test utilities, mock vscodeApi, custom matchers
-- [ ] `src/views/webview/react/components/Button/Button.test.tsx` — Unit tests for Button variants, events, disabled state
-- [ ] `src/views/webview/react/components/Container/Container.test.tsx` — Tests for composition, variants, dynamic styles
-- [ ] `src/views/webview/react/components/TextInput/TextInput.test.tsx` — Controlled component tests (value, onChange)
-- [ ] `src/views/webview/react/components/List/List.test.tsx` — Keyboard navigation tests (arrow keys, Enter, Space)
-- [ ] Install test dependencies: `npm install --save-dev vitest @testing-library/react @testing-library/user-event jsdom`
-
-**If no test infrastructure exists**, must be created before component implementation to enable Nyquist validation (test-after-every-commit).
+4. **Icon component approach**
+   - What we know: Existing code has inline SVG strings in icon definitions
+   - What's unclear: Whether to keep as strings and pass as ReactNode, or create icon components
+   - Recommendation: Keep as inline SVG strings, pass as ReactNode props to IconButton. Create icon utility if needed:
+   ```typescript
+   // utils/icons.tsx
+   export const CloseIcon = () => <svg>...</svg>;
+   // Usage: <IconButton icon={<CloseIcon />} />
+   ```
 
 ## Sources
 
 ### Primary (HIGH confidence)
 
-- [React 18.3.1 Official Documentation](https://react.dev) - Component patterns, hooks, controlled components, composition
-- [TypeScript 5.x Handbook](https://www.typescriptlang.org/docs/handbook/) - React TypeScript patterns
-- [CSS Modules GitHub](https://github.com/css-modules/css-modules) - CSS Modules specification
-- Existing codebase - buttonComponent.ts, listItemComponent.ts, containerComponent.ts, base.css verified by reading source files
+- **Existing codebase analysis** - iris-thaumantias/src/views/components/ (23 component files examined)
+- **Phase 1 implementation** - esbuild.js, package.json, tsconfig.json (React 18.3.1, automatic JSX, confirmed setup)
+- **User constraints** - .planning/phases/02-shared-component-library/02-CONTEXT.md (locked decisions from /gsd:discuss-phase)
+- **esbuild documentation** - CSS Modules native support via local-css loader (verified in v0.27.2)
 
 ### Secondary (MEDIUM confidence)
 
-- [Using React in Visual Studio Code Webviews - Ken Muse](https://www.kenmuse.com/blog/using-react-in-vs-code-webviews/) - VS Code webview + React patterns
-- [Composition vs Inheritance – React](https://legacy.reactjs.org/docs/composition-vs-inheritance.html) - React composition best practices
-- [React Accessibility – React](https://legacy.reactjs.org/docs/accessibility.html) - ARIA roles, keyboard navigation, focus management
-- [How to set up CSS Modules with esbuild - DEV Community](https://dev.to/marcinwosinek/how-to-set-up-css-modules-with-esbuild-260g) - esbuild CSS Modules configuration
-- [esbuild-css-modules-plugin npm](https://www.npmjs.com/package/esbuild-css-modules-plugin) - Plugin documentation
-- [typescript-plugin-css-modules npm](https://www.npmjs.com/package/typescript-plugin-css-modules) - TypeScript CSS Modules intellisense
+- [How to write type-safe CSS Modules](https://blog.logrocket.com/write-type-safe-css-modules/)
+- [React & CSS in 2026: Best Styling Approaches Compared](https://medium.com/@imranmsa93/react-css-in-2026-best-styling-approaches-compared-d5e99a771753)
+- [Complete Guide to Setting Up React with TypeScript and esbuild (2026)](https://medium.com/@robinviktorsson/complete-guide-to-setting-up-react-with-typescript-and-esbuild-2025-88767a3a5593)
+- [Mastering React's Children Props: A Reusable Components](https://mernstackdev.com/mastering-reacts-children-props/)
+- [React children composition patterns with TypeScript](https://medium.com/@martin_hotell/react-children-composition-patterns-with-typescript-56dfc8923c64)
+- [React Accessibility: Complete Guide for Developers](https://www.browserstack.com/guide/react-accessibility)
+- [Accessibility – React Aria](https://react-spectrum.adobe.com/react-aria/accessibility.html)
+- [Controlled vs Uncontrolled Components in React](https://certificates.dev/blog/controlled-vs-uncontrolled-components-in-react)
+- [React: Controlled vs Uncontrolled Components](https://pieces.app/blog/controlled-vs-uncontrolled-components-in-react)
+- [How to Fix "Controlled vs Uncontrolled" Input Warnings](https://oneuptime.com/blog/post/2026-01-24-fix-controlled-uncontrolled-input-warnings/view)
 
-### Tertiary (LOW confidence - marked for validation)
+### Tertiary (LOW confidence)
 
-- [Common React Mistakes to Avoid - 42works](https://42works.net/most-common-react-mistakes-how-to-fix-them/) - Pitfalls guidance (useEffect overuse, prop drilling)
-- [React Component Libraries in 2026 - Medium](https://yakhil25.medium.com/react-component-libraries-in-2026-the-definitive-guide-to-choosing-your-stack-fa7ae0368077) - Current state of React ecosystem
+- [Converting static HTML/CSS site to React App](https://dev.to/menard_codes/converting-static-html-css-site-to-react-app-263e) - General migration guide, not VS Code specific
+- [Strategy and Tips for Migrating to React](https://brainhub.eu/library/migrating-to-react) - High-level strategy, lacks technical specifics
+- [Use CSS Modules instead of inlining styles in React](https://swarup-karavadi.medium.com/use-css-modules-instead-of-inlining-styles-in-react-fea247b97431) - Performance claims need verification in specific context
 
 ## Metadata
 
 **Confidence breakdown:**
-- Standard stack: HIGH - React 18.3.1 already installed (Phase 1), CSS Modules well-documented, esbuild plugins verified in npm
-- Architecture: HIGH - Existing component structure analyzed, React patterns from official docs, user decisions lock key choices
-- Pitfalls: MEDIUM - Common issues documented across web sources, specific to React 18 + CSS Modules + VS Code webview context
-- Validation: LOW - No existing test infrastructure detected, framework recommendation based on current trends
+- Standard stack: HIGH - React 18.3.1 and esbuild 0.27.2 already configured in Phase 1, CSS Modules native support verified in esbuild docs
+- Architecture: HIGH - User constraints provide locked decisions, existing codebase patterns are clear (23 components analyzed)
+- Pitfalls: MEDIUM - Based on web search + existing code patterns, but some edge cases may surface during implementation
 
 **Research date:** 2026-02-23
-**Valid until:** 2026-04-23 (60 days - stable ecosystem, React 18 mature, no breaking changes expected)
+**Valid until:** 2026-03-25 (30 days - stable domain, React 18 mature, esbuild API stable)
