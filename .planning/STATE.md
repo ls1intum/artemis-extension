@@ -5,23 +5,23 @@
 See: .planning/PROJECT.md (updated 2026-02-23)
 
 **Core value:** Students can interact with Artemis courses, exercises, and the Iris AI tutor without leaving VS Code.
-**Current focus:** Phase 2 - Shared Component Library
+**Current focus:** Phase 3 - Simple Views Migration
 
 ## Current Position
 
-Phase: 2 of 7 (Shared Component Library)
-Plan: 4 of 4
-Status: Complete
-Last activity: 2026-02-23 — Completed plan 02-04 (Exercise Components & Barrel Exports)
+Phase: 3 of 7 (Simple Views Migration)
+Plan: 2 of 4
+Status: In Progress
+Last activity: 2026-02-23 — Completed plan 03-01 (GitCredentials Migration)
 
-Progress: [████▒▒▒▒▒▒] 40%
+Progress: [█████▒▒▒▒▒] 43%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 5
-- Average duration: 4.2 minutes
-- Total execution time: 0.35 hours
+- Total plans completed: 6
+- Average duration: 4.3 minutes
+- Total execution time: 0.43 hours
 
 **By Phase:**
 
@@ -29,9 +29,10 @@ Progress: [████▒▒▒▒▒▒] 40%
 |-------|-------|-------|----------|
 | 01 | 2 | 6 min | 3 min |
 | 02 | 3 | 14 min | 4.7 min |
+| 03 | 1 | 6 min | 6 min |
 
 **Recent Trend:**
-- Last 5 plans: 01-02 (3 min), 02-01 (5 min), 02-03 (4 min), 02-04 (5 min)
+- Last 5 plans: 02-01 (5 min), 02-03 (4 min), 02-04 (5 min), 03-01 (6 min)
 - Trend: Steady progress
 
 **Detailed Metrics:**
@@ -43,6 +44,7 @@ Progress: [████▒▒▒▒▒▒] 40%
 | 02-01 | 5 min | 3 tasks | 13 files |
 | 02-03 | 4 min | 2 tasks | 13 files |
 | 02-04 | 5 min | 2 tasks | 8 files |
+| Phase 03 P01 | 6 | 2 tasks | 10 files |
 
 ## Accumulated Context
 
@@ -76,6 +78,10 @@ Recent decisions affecting current work:
 - [Phase 02]: ListItem is presentational-only, selected prop injected by parent List component
 - [Phase 02]: List uses Children.map + cloneElement to inject selected and id props into children
 - [Phase 02]: Exercise components use typed props (status, scores, test cases) rather than domain model imports for clean reuse
+- [Phase 03]: Persist only durable state (form values) via setState, not transient status messages
+- [Phase 03]: Bridge new typed message format to legacy command handlers for backward compatibility
+- [Phase 03]: Router checks _reactViews map BEFORE switch statement to implement coexistence pattern
+- [Phase 03]: Ready-signal handshake prevents race conditions (webview sends ready after hydration, extension queues messages)
 
 ### Pending Todos
 
@@ -88,5 +94,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-23 (plan execution)
-Stopped at: Completed 02-04-PLAN.md - Exercise Components & Barrel Exports
+Stopped at: Completed 03-01-PLAN.md - GitCredentials Migration
 Resume file: None

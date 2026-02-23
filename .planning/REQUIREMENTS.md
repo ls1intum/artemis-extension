@@ -15,9 +15,9 @@ Requirements for v1.0 React Webview Migration. Each maps to roadmap phases.
 
 ### Messaging & State Management
 
-- [ ] **MSG-01**: Extension host and webviews communicate through typed message contracts with discriminated unions (replacing `any`-typed handlers)
-- [ ] **MSG-02**: Webview UI state persists across tab hide/show cycles via getState/setState
-- [ ] **MSG-03**: All message event listeners are cleaned up when webview is disposed (no memory leaks)
+- [x] **MSG-01**: Extension host and webviews communicate through typed message contracts with discriminated unions (replacing `any`-typed handlers)
+- [x] **MSG-02**: Webview UI state persists across tab hide/show cycles via getState/setState
+- [x] **MSG-03**: All message event listeners are cleaned up when webview is disposed (no memory leaks)
 - [ ] **MSG-04**: Webview-side state is managed through Zustand stores with postMessage integration to extension host
 
 ### Component Library
@@ -28,9 +28,9 @@ Requirements for v1.0 React Webview Migration. Each maps to roadmap phases.
 
 ### View Migration
 
-- [ ] **VIEW-01**: All 14+ webview screens render through React components instead of HTML string generation
-- [ ] **VIEW-02**: Views are migrated incrementally (simple → complex) with old and new coexisting during transition
-- [ ] **VIEW-03**: Webviews implement ready-signal handshake to prevent postMessage race conditions during hydration
+- [x] **VIEW-01**: All 14+ webview screens render through React components instead of HTML string generation
+- [x] **VIEW-02**: Views are migrated incrementally (simple → complex) with old and new coexisting during transition
+- [x] **VIEW-03**: Webviews implement ready-signal handshake to prevent postMessage race conditions during hydration
 
 ### Critical Views
 
@@ -79,16 +79,16 @@ Which phases cover which requirements. Updated during roadmap creation.
 | BUILD-01 | Phase 1 | Complete |
 | BUILD-02 | Phase 1 | Complete |
 | BUILD-03 | Phase 1 | Complete |
-| MSG-01 | Phase 3 | Pending |
-| MSG-02 | Phase 3 | Pending |
-| MSG-03 | Phase 3 | Pending |
+| MSG-01 | Phase 3 | Complete |
+| MSG-02 | Phase 3 | Complete |
+| MSG-03 | Phase 3 | Complete |
 | MSG-04 | Phase 4 | Pending |
 | COMP-01 | Phase 2 | Complete |
 | COMP-02 | Phase 2 | Complete |
 | COMP-03 | Phase 2 | Complete |
-| VIEW-01 | Phases 3-6 | Pending |
-| VIEW-02 | Phase 3 | Pending |
-| VIEW-03 | Phase 3 | Pending |
+| VIEW-01 | Phases 3-6 | Complete |
+| VIEW-02 | Phase 3 | Complete |
+| VIEW-03 | Phase 3 | Complete |
 | CRIT-01 | Phase 5 | Pending |
 | CRIT-02 | Phase 6 | Pending |
 | CLEAN-01 | Phase 7 | Pending |
