@@ -31,10 +31,11 @@ Decimal phases appear between their surrounding integers in numeric order.
   2. Webviews enforce nonce-based Content Security Policy with no inline scripts or styles
   3. React error boundaries catch rendering errors gracefully without crashing the webview
   4. Typed message contracts exist for extension-webview communication (scaffold ready for use)
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- TBD (will be created during planning)
+- [ ] 01-01-PLAN.md — React build pipeline + error boundary (BUILD-01, BUILD-03)
+- [ ] 01-02-PLAN.md — CSP enforcement + typed message contracts (BUILD-02)
 
 ### Phase 2: Shared Component Library
 **Goal**: Reusable React components exist matching existing visual design for composition in views
@@ -127,7 +128,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Foundation & Build Pipeline | 0/TBD | Not started | - |
+| 1. Foundation & Build Pipeline | 0/2 | Planned | - |
 | 2. Shared Component Library | 0/TBD | Not started | - |
 | 3. Simple Views Migration | 0/TBD | Not started | - |
 | 4. Main UI Views | 0/TBD | Not started | - |
