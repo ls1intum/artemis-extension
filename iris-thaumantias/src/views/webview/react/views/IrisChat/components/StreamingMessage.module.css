@@ -1,0 +1,71 @@
+.streamingMessage {
+    color: var(--vscode-foreground);
+    line-height: 1.6;
+}
+
+.streamingMessage p {
+    margin: 0 0 12px 0;
+}
+
+.streamingMessage p:last-child {
+    margin-bottom: 0;
+}
+
+.streamingMessage ul,
+.streamingMessage ol {
+    margin: 8px 0;
+    padding-left: 24px;
+}
+
+.streamingMessage li {
+    margin: 4px 0;
+}
+
+.streamingMessage code {
+    background: var(--vscode-textCodeBlock-background);
+    color: var(--vscode-textPreformat-foreground);
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-family: var(--vscode-editor-font-family);
+    font-size: 0.9em;
+}
+
+.streamingMessage a {
+    color: var(--vscode-textLink-foreground);
+    text-decoration: none;
+}
+
+.streamingMessage a:hover {
+    text-decoration: underline;
+}
+
+.streamingMessage blockquote {
+    margin: 12px 0;
+    padding-left: 12px;
+    border-left: 3px solid var(--vscode-textBlockQuote-border);
+    color: var(--vscode-textBlockQuote-foreground);
+    background: var(--vscode-textBlockQuote-background);
+}
+
+.streamingMessage h1,
+.streamingMessage h2,
+.streamingMessage h3,
+.streamingMessage h4,
+.streamingMessage h5,
+.streamingMessage h6 {
+    margin: 16px 0 8px 0;
+    font-weight: 600;
+    line-height: 1.3;
+}
+
+.streamingMessage h1 {
+    font-size: 1.5em;
+}
+
+.streamingMessage h2 {
+    font-size: 1.3em;
+}
+
+.streamingMessage h3 {
+    font-size: 1.1em;
+}

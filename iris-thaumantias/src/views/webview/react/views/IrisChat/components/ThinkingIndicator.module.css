@@ -1,0 +1,38 @@
+.container {
+    display: flex;
+    align-items: flex-start;
+    padding: 12px 16px;
+    margin: 8px 0;
+    max-width: 70%;
+    transition: opacity 150ms ease-out;
+}
+
+.dotsContainer {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 8px 12px;
+    background: var(--vscode-editor-background);
+    border-radius: 12px;
+    border: 1px solid var(--vscode-panel-border);
+}
+
+.dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--vscode-foreground);
+    opacity: 0.4;
+    animation: bounce 1.2s infinite ease-in-out;
+}
+
+@keyframes bounce {
+    0%, 80%, 100% {
+        transform: translateY(0);
+        opacity: 0.4;
+    }
+    40% {
+        transform: translateY(-8px);
+        opacity: 1;
+    }
+}

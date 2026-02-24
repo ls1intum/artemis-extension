@@ -1,0 +1,67 @@
+.codeBlock {
+    margin: 12px 0;
+    border-radius: 6px;
+    overflow: hidden;
+    background: var(--vscode-editor-background);
+    border: 1px solid var(--vscode-panel-border);
+}
+
+.header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 12px;
+    background: var(--vscode-editorGroupHeader-tabsBackground);
+    border-bottom: 1px solid var(--vscode-panel-border);
+}
+
+.language {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--vscode-editorLineNumber-foreground);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.copyButton {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 8px;
+    background: transparent;
+    border: 1px solid var(--vscode-button-border);
+    border-radius: 4px;
+    color: var(--vscode-button-foreground);
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.copyButton:hover {
+    background: var(--vscode-button-hoverBackground);
+}
+
+.copyButton:active {
+    transform: scale(0.95);
+}
+
+.copyText {
+    font-size: 12px;
+}
+
+.code {
+    overflow-x: auto;
+    font-family: var(--vscode-editor-font-family);
+    font-size: var(--vscode-editor-font-size);
+}
+
+.code pre {
+    margin: 0;
+    padding: 12px;
+    background: transparent;
+}
+
+.code code {
+    font-family: inherit;
+    color: var(--vscode-editor-foreground);
+}
