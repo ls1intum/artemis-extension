@@ -1,0 +1,69 @@
+graph LR
+    subgraph Stores["Zustand Stores (9 Independent Stores)"]
+        NavStore[useNavigationStore<br/>- currentView<br/>- viewHistory<br/>Persistence: None]
+
+        DashStore[useDashboardStore<br/>- courses<br/>- workspaceExercise<br/>Persistence: None]
+
+        CourseListStore[useCourseListStore<br/>- courses<br/>- filters<br/>- sortBy<br/>Persistence: filters only]
+
+        CourseDetailStore[useCourseDetailStore<br/>- courseData<br/>- workspaceExerciseId<br/>Persistence: None]
+
+        ExerciseStore[useExerciseDetailStore<br/>- exerciseData<br/>- hideDeveloperTools<br/>Persistence: None]
+
+        ExamStartStore[useExamStartStore<br/>- studentExam<br/>- courseId, examId<br/>Persistence: None]
+
+        ExamConductionStore[useExamConductionStore<br/>- studentExam<br/>- timer state<br/>Persistence: None]
+
+        ExamExerciseStore[useExamExerciseDetailStore<br/>- exerciseData<br/>- examContext<br/>Persistence: None]
+
+        ChatStore[useChatStore<br/>- messages<br/>- context<br/>- sessions<br/>Persistence: forceContextPicker]
+    end
+
+    subgraph Views["React Views"]
+        Login[LoginView<br/>No store]
+        Dashboard[DashboardView<br/>→ DashStore]
+        CourseList[CourseListView<br/>→ CourseListStore]
+        CourseDetail[CourseDetailView<br/>→ CourseDetailStore]
+        ExerciseDetail[ExerciseDetailView<br/>→ ExerciseStore]
+        ExamStart[ExamStartView<br/>→ ExamStartStore]
+        ExamConduction[ExamConductionView<br/>→ ExamConductionStore]
+        ExamExercise[ExamExerciseDetailView<br/>→ ExamExerciseStore]
+        IrisChat[IrisChatView<br/>→ ChatStore]
+        ServiceStatus[ServiceStatusView<br/>No store]
+        GitCreds[GitCredentialsView<br/>No store]
+        RecommendedExt[RecommendedExtensionsView<br/>No store]
+    end
+
+    subgraph Middleware["DevTools Middleware"]
+        DevTools[Redux DevTools<br/>- Development only<br/>- Named actions<br/>- State timeline]
+    end
+
+    Dashboard --> DashStore
+    CourseList --> CourseListStore
+    CourseDetail --> CourseDetailStore
+    ExerciseDetail --> ExerciseStore
+    ExamStart --> ExamStartStore
+    ExamConduction --> ExamConductionStore
+    ExamExercise --> ExamExerciseStore
+    IrisChat --> ChatStore
+
+    DashStore -.-> DevTools
+    CourseListStore -.-> DevTools
+    CourseDetailStore -.-> DevTools
+    ExerciseStore -.-> DevTools
+    ExamStartStore -.-> DevTools
+    ExamConductionStore -.-> DevTools
+    ExamExerciseStore -.-> DevTools
+    ChatStore -.-> DevTools
+    NavStore -.-> DevTools
+
+    style NavStore fill:#e3f2fd
+    style DashStore fill:#e8f5e9
+    style CourseListStore fill:#fff3e0
+    style CourseDetailStore fill:#fce4ec
+    style ExerciseStore fill:#f3e5f5
+    style ExamStartStore fill:#e0f2f1
+    style ExamConductionStore fill:#e0f2f1
+    style ExamExerciseStore fill:#e0f2f1
+    style ChatStore fill:#fff9c4
+    style DevTools fill:#ffebee
