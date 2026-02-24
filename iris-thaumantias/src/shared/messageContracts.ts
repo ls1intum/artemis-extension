@@ -921,10 +921,6 @@ export interface OpenExamExerciseDetailsCommand {
 export interface BackToExamCommand {
     type: 'command';
     command: 'backToExam';
-    payload: {
-        courseId: number;
-        examId: number;
-    };
 }
 
 /**
