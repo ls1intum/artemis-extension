@@ -72,7 +72,7 @@ Plans:
 - [ ] 03-04-PLAN.md — Login view with dual-state UI, form persistence, and embedded health checks (VIEW-01)
 
 ### Phase 4: Main UI Views
-**Goal**: Core application flow (Dashboard → CourseList → CourseDetail → ExerciseDetail) renders through React with real-time updates
+**Goal**: Core application flow (Dashboard -> CourseList -> CourseDetail -> ExerciseDetail) renders through React with real-time updates
 **Depends on**: Phase 3
 **Requirements**: VIEW-01 (continued), MSG-04
 **Success Criteria** (what must be TRUE):
@@ -80,13 +80,14 @@ Plans:
   2. Webview-side state is managed through Zustand stores with postMessage integration to extension host
   3. Real-time WebSocket updates (build status, submission results) trigger React re-renders without full webview reload
   4. ExerciseDetail components are extracted for reuse in ExamExerciseDetail (Phase 5)
-**Plans**: 4 plans
+**Plans**: 5 plans
 
 Plans:
-- [ ] 04-01-PLAN.md — Zustand + shared UI primitives (Skeleton, Breadcrumbs, ReconnectBanner, ErrorMessage, EmptyState) + Dashboard view (VIEW-01, MSG-04)
-- [ ] 04-02-PLAN.md — CourseList view with search/sort/filter and breadcrumb navigation (VIEW-01)
-- [ ] 04-03-PLAN.md — CourseDetail view with exercise search/sort, exam listing, Ask Iris (VIEW-01)
-- [ ] 04-04-PLAN.md — ExerciseDetail view with extracted components, WebSocket real-time updates (VIEW-01, MSG-04)
+- [x] 04-01-PLAN.md — Zustand + shared UI primitives (Skeleton, Breadcrumbs, ReconnectBanner, ErrorMessage, EmptyState) + Dashboard view (VIEW-01, MSG-04)
+- [x] 04-02-PLAN.md — CourseList view with search/sort/filter and breadcrumb navigation (VIEW-01)
+- [x] 04-03-PLAN.md — CourseDetail view with exercise search/sort, exam listing, Ask Iris (VIEW-01)
+- [x] 04-04-PLAN.md — ExerciseDetail view with extracted components, WebSocket real-time updates (VIEW-01, MSG-04)
+- [ ] 04-05-PLAN.md — Gap closure: Fix missing CSS stylesheet + infinite render loop (VIEW-01, MSG-04)
 
 ### Phase 5: Exam Views with Timer Accuracy
 **Goal**: Exam-related views render with accurate countdown timers that don't drift in background tabs
@@ -133,14 +134,14 @@ Plans:
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7
+Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Foundation & Build Pipeline | 2/2 | Complete | 2026-02-23 |
 | 2. Shared Component Library | 3/4 | In Progress | - |
 | 3. Simple Views Migration | 3/4 | In Progress | - |
-| 4. Main UI Views | 0/4 | Not started | - |
+| 4. Main UI Views | 4/5 | In Progress | - |
 | 5. Exam Views with Timer Accuracy | 0/TBD | Not started | - |
 | 6. Iris Chat with Streaming | 0/TBD | Not started | - |
 | 7. Cleanup & Optimization | 0/TBD | Not started | - |
