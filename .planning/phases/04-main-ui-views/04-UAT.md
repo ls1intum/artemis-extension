@@ -1,9 +1,9 @@
 ---
-status: diagnosed
+status: resolved
 phase: 04-main-ui-views
 source: [04-01-SUMMARY.md, 04-02-SUMMARY.md, 04-03-SUMMARY.md, 04-04-SUMMARY.md]
 started: 2026-02-24T12:00:00Z
-updated: 2026-02-24T12:15:00Z
+updated: 2026-02-24T13:00:00Z
 ---
 
 ## Current Test
@@ -75,7 +75,7 @@ skipped: 8
 ## Gaps
 
 - truth: "Dashboard renders with proper styling, containers, and interactive components"
-  status: failed
+  status: resolved
   reason: "User reported: alles flackert und nichts ist korrekt geladen!"
   severity: blocker
   test: 1
@@ -94,7 +94,7 @@ skipped: 8
   debug_session: ""
 
 - truth: "CourseList navigable with styled course cards, search, filters, and dropdowns"
-  status: failed
+  status: resolved
   reason: "User reported: ich kann generell nichts anklicken weil irgendwie das styling komplett weg ist"
   severity: blocker
   test: 2
