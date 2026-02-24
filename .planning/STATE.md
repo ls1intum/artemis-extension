@@ -5,23 +5,23 @@
 See: .planning/PROJECT.md (updated 2026-02-23)
 
 **Core value:** Students can interact with Artemis courses, exercises, and the Iris AI tutor without leaving VS Code.
-**Current focus:** Phase 4 - Main UI Views
+**Current focus:** Phase 5 - Exam Views with Timer Accuracy
 
 ## Current Position
 
-Phase: 4 of 7 (Main UI Views)
-Plan: 5 of 5
-Status: Complete
-Last activity: 2026-02-24 — Completed plan 04-05 (CSS + Render Loop Gap Closure)
+Phase: 5 of 7 (Exam Views with Timer Accuracy)
+Plan: 1 of 2
+Status: In Progress
+Last activity: 2026-02-24 — Completed plan 05-01 (Web Worker Timer Infrastructure & ExamConduction View)
 
-Progress: [██████████] 100%
+Progress: [████████████████████████░░░░░░░░░░░░] 50%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 14
-- Average duration: 5.0 minutes
-- Total execution time: 1.18 hours
+- Total plans completed: 15
+- Average duration: 5.3 minutes
+- Total execution time: 1.25 hours
 
 **By Phase:**
 
@@ -31,10 +31,11 @@ Progress: [██████████] 100%
 | 02 | 3 | 14 min | 4.7 min |
 | 03 | 4 | 17.8 min | 4.5 min |
 | 04 | 5 | 32.4 min | 6.5 min |
+| 05 | 1 | 6.5 min | 6.5 min |
 
 **Recent Trend:**
-- Last 5 plans: 04-02 (7.4 min), 04-03 (6 min), 04-04 (8 min), 04-05 (3 min)
-- Trend: Improving (latest plan 3 min, well below phase average)
+- Last 5 plans: 04-03 (6 min), 04-04 (8 min), 04-05 (3 min), 05-01 (6.5 min)
+- Trend: Stable (latest plan 6.5 min, consistent with recent average)
 
 **Detailed Metrics:**
 
@@ -55,6 +56,7 @@ Progress: [██████████] 100%
 | Phase 04 P03 | 6 | 2 tasks | 10 files |
 | Phase 04 P04 | 8 | 2 tasks | 22 files |
 | Phase 04 P05 | 3 | 2 tasks | 5 files |
+| Phase 05 P01 | 388 | 2 tasks | 14 files |
 
 ## Accumulated Context
 
@@ -113,6 +115,12 @@ Recent decisions affecting current work:
 - [Phase 04]: resendViewData() pattern for reload handlers to update React views without re-rendering
 - [Phase 04]: Dashboard unified with other views to use ready signal for initial load (eliminates render loop)
 - [Phase 04]: Reload handlers bypass actionHandler navigation methods to avoid render() calls
+- [Phase 05]: Web Worker timer with absolute timestamps prevents drift from background tab throttling
+- [Phase 05]: Timer state managed locally via useExamTimer hook, not Zustand (high-frequency updates)
+- [Phase 05]: Per-view timer instances, no shared Worker (simpler lifecycle, negligible drift)
+- [Phase 05]: Inline Worker bundling via esbuild-plugin-inline-worker avoids CSP complications
+- [Phase 05]: Artemis-compatible timer format (1h 7min, 15min, 8min 0s, 45s) for consistency
+- [Phase 05]: Badge variant="muted" for exercise types, variant="info" for Open badge
 
 ### Pending Todos
 
@@ -125,5 +133,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-24 (plan execution)
-Stopped at: Completed 04-05-PLAN.md - CSS + Render Loop Gap Closure
+Stopped at: Completed 05-01-PLAN.md - Web Worker Timer Infrastructure & ExamConduction View
 Resume file: None
