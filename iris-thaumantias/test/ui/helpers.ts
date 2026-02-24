@@ -62,6 +62,19 @@ export async function waitForElement(
 }
 
 /**
+ * Read Artemis credentials from environment variables.
+ * Throws if either ARTEMIS_USER or ARTEMIS_PASS is not set.
+ */
+export function getCredentials(): { username: string; password: string } {
+	const username = process.env.ARTEMIS_USER;
+	const password = process.env.ARTEMIS_PASS;
+	if (!username || !password) {
+		throw new Error('Set ARTEMIS_USER and ARTEMIS_PASS environment variables');
+	}
+	return { username, password };
+}
+
+/**
  * Take a PNG screenshot and save it to test/ui/screenshots/.
  * File name format: {name}-{timestamp}.png
  */
