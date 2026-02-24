@@ -1,0 +1,48 @@
+.timerContainer {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 12px 0;
+}
+
+.timer {
+    font-size: 24px;
+    font-weight: 600;
+    color: var(--vscode-foreground);
+    text-align: center;
+    transition: color 0.3s ease;
+}
+
+.timer.warning {
+    color: var(--vscode-errorForeground);
+    animation: pulse 1.5s ease-in-out infinite;
+}
+
+.timer.expired {
+    color: var(--vscode-errorForeground);
+    animation: none;
+}
+
+@keyframes pulse {
+    0%, 100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.6;
+    }
+}
+
+.progressBarContainer {
+    width: 100%;
+    height: 8px;
+    background-color: var(--vscode-editorWidget-background);
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.progressBar {
+    height: 100%;
+    background-color: var(--vscode-progressBar-background);
+    transition: width 0.3s ease;
+    border-radius: 4px;
+}

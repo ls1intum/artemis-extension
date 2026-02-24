@@ -2,6 +2,7 @@ const esbuild = require("esbuild");
 const fs = require("fs");
 const path = require("path");
 const cssModulesPlugin = require('esbuild-css-modules-plugin');
+const inlineWorkerPlugin = require('esbuild-plugin-inline-worker');
 
 const production = process.argv.includes('--production');
 const watch = process.argv.includes('--watch');
@@ -142,6 +143,7 @@ async function main() {
 		},
 		logLevel: 'silent',
 		plugins: [
+			inlineWorkerPlugin(),
 			cssModulesPlugin(),
 			esbuildProblemMatcherPlugin,
 		],
