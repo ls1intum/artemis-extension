@@ -191,7 +191,13 @@
     "test:all": "npm run compile-tests && npm run compile && npm run lint && vscode-test",
     "coverage:all": "npm run compile-tests && npm run compile && npm run lint && vscode-test --coverage",
     "clean": "rm -rf dist out *.vsix",
-    "compile:clean": "npm run clean && npm run compile"
+    "compile:clean": "npm run clean && npm run compile",
+    "prepare": "husky"
+  },
+  "lint-staged": {
+    "*.{ts,tsx}": [
+      "eslint --fix"
+    ]
   },
   "devDependencies": {
     "@types/mocha": "10.0.10",
@@ -210,6 +216,8 @@
     "esbuild-css-modules-plugin": "^3.1.5",
     "esbuild-plugin-inline-worker": "^0.1.1",
     "eslint": "9.39.2",
+    "husky": "^9.1.7",
+    "lint-staged": "^16.2.7",
     "npm-run-all2": "8.0.4",
     "sinon": "^21.0.1",
     "typescript": "5.9.3",

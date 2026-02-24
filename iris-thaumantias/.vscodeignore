@@ -19,3 +19,12 @@ docs/**
 .gitattributes
 .editorconfig
 *.vsix
+.planning/**
+.agents/**
+test/**
+coverage/**
+.husky/**
+.github/**
+CONTRIBUTING.md
+renovate.json
+dist/meta.json
