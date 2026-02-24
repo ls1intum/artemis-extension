@@ -12,8 +12,6 @@ import { WebViewMessageHandler } from '../views/app/webViewMessageHandler';
 import type { WebViewActionHandler } from '../views/app/types';
 import { ViewActionService } from '../views/app/viewActionService';
 import { ViewRouter } from '../views/app/viewRouter';
-import { ExerciseDetailView } from '../views/exerciseDetail/exerciseDetailView';
-import { CourseDetailView } from '../views/courseDetail/courseDetailView';
 import { ExerciseRegistry } from '../services';
 import { WebSocketMessageHandler, ResultDTO, ProgrammingSubmission, ProgrammingSubmissionState, SubmissionProcessingMessage } from '../types';
 
@@ -770,76 +768,17 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
     }
 
     public async openExerciseFullscreen(exerciseData: any): Promise<void> {
-        await this.openFullscreenPanel({
-            viewId: 'exerciseFullscreen',
-            title: `Exercise: ${exerciseData.exercise?.title || exerciseData.title || 'Untitled'}`,
-            detailHtml: () => {
-                const detailView = new ExerciseDetailView(this._extensionContext);
-                return detailView.generateHtml(exerciseData, !this.isDeveloperMode());
-            },
-            cssInjections: [
-                '.back-link, .fullscreen-btn { display: none !important; }'
-            ],
-            onDetect: () => {
-                const exerciseTitle = exerciseData.exercise?.title || exerciseData.title || 'Untitled';
-                const exerciseId = exerciseData.exercise?.id || exerciseData.id || 0;
-                const shortName = exerciseData.exercise?.shortName || exerciseData.shortName;
-                const courseId = exerciseData.exercise?.course?.id || exerciseData.course?.id;
-                const chatProvider = ProviderRegistry.getInstance().getChatWebviewProvider();
-                if (chatProvider && typeof chatProvider.updateDetectedExercise === 'function') {
-                    chatProvider.updateDetectedExercise(exerciseTitle, exerciseId, undefined, undefined, shortName, courseId);
-                }
-                return { exerciseId };
-            },
-            onDispose: (metadata?: { exerciseId?: number }) => {
-                if (!metadata?.exerciseId) {
-                    return;
-                }
-                const chatProvider = ProviderRegistry.getInstance().getChatWebviewProvider();
-                if (chatProvider && typeof chatProvider.removeDetectedExercise === 'function') {
-                    chatProvider.removeDetectedExercise(metadata.exerciseId);
-                }
-            }
-        });
+        // Fullscreen panels are not yet supported with React views
+        // TODO: Implement React-based fullscreen panel support in a future plan
+        vscode.window.showWarningMessage('Fullscreen exercise view is temporarily disabled during migration to React');
+        logger.warn('openExerciseFullscreen called but fullscreen panels not yet supported with React views', LogCategory.VIEW);
     }
 
     public async openCourseFullscreen(courseData: any): Promise<void> {
-        await this.openFullscreenPanel({
-            viewId: 'courseFullscreen',
-            title: `Course: ${courseData.course?.title || courseData.title || 'Untitled'}`,
-            detailHtml: () => {
-                const detailView = new CourseDetailView(this._extensionContext);
-                return detailView.generateHtml(courseData, !this.isDeveloperMode());
-            },
-            cssInjections: [
-                '.back-link, .fullscreen-btn { display: none !important; }',
-                '.course-header { margin-top: 0 !important; }'
-            ],
-            onDetect: () => {
-                const course = courseData?.course || courseData;
-                if (!course) {
-                    return undefined;
-                }
-                const chatProvider = ProviderRegistry.getInstance().getChatWebviewProvider();
-                if (chatProvider && typeof chatProvider.updateDetectedCourse === 'function') {
-                    chatProvider.updateDetectedCourse(
-                        course.title || 'Untitled Course',
-                        course.id || 0,
-                        course.shortName
-                    );
-                }
-                return { courseId: course.id || 0 };
-            },
-            onDispose: (metadata?: { courseId?: number }) => {
-                if (!metadata?.courseId) {
-                    return;
-                }
-                const chatProvider = ProviderRegistry.getInstance().getChatWebviewProvider();
-                if (chatProvider && typeof chatProvider.removeDetectedCourse === 'function') {
-                    chatProvider.removeDetectedCourse(metadata.courseId);
-                }
-            }
-        });
+        // Fullscreen panels are not yet supported with React views
+        // TODO: Implement React-based fullscreen panel support in a future plan
+        vscode.window.showWarningMessage('Fullscreen course view is temporarily disabled during migration to React');
+        logger.warn('openCourseFullscreen called but fullscreen panels not yet supported with React views', LogCategory.VIEW);
     }
 
     // WebSocket message handlers
