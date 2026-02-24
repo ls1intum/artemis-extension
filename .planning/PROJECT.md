@@ -30,7 +30,16 @@ Students can interact with Artemis courses, exercises, and the Iris AI tutor wit
 
 ### Active
 
-- [ ] Fix bugs identified in v1.0 migration (to be defined in v1.1)
+## Current Milestone: v1.1 Production Ready
+
+**Goal:** Make the extension 100% production-ready with full type safety, UI polish, comprehensive testing, dependency cleanup, and architecture improvements.
+
+**Target features:**
+- UI Polish & Icons — Lucide icons throughout, Dashboard grid layout, visual consistency
+- Bug Fixes & Tech Debt — Fix all TypeScript errors, reduce bundle size, restore fullscreen panel
+- Testing & Quality — Expand UI tests, add React component tests, improve coverage
+- Dependency Cleanup — Remove unused deps, consolidate icon system on Lucide, optimize build
+- Architecture & Type Safety — 100% type-safe codebase, no `any` types, strict mode compliance
 
 ### Out of Scope
 
@@ -74,4 +83,4 @@ Students can interact with Artemis courses, exercises, and the Iris AI tutor wit
 | IIFE bundle format | Single file, consistent with webview constraints | ⚠️ Revisit (3.5MB) |
 
 ---
-*Last updated: 2026-02-24 after v1.0 milestone*
+*Last updated: 2026-02-25 after v1.1 milestone start*
