@@ -14,6 +14,7 @@ export interface ContainerProps {
   padding?: 'default' | 'tight' | 'cozy' | 'spacious' | 'none';
   listMode?: boolean;
   id?: string;
+  testId?: string;
 }
 
 export function Container({
@@ -28,6 +29,7 @@ export function Container({
   padding = 'default',
   listMode = false,
   id,
+  testId,
 }: ContainerProps) {
   const containerClasses = clsx(
     styles.container,
@@ -56,6 +58,7 @@ export function Container({
       id={id}
       className={containerClasses}
       style={Object.keys(inlineStyles).length > 0 ? inlineStyles : undefined}
+      data-testid={testId}
     >
       {header && <div className={styles.containerHeader}>{header}</div>}
       {toolbar && <div className={styles.containerToolbar}>{toolbar}</div>}

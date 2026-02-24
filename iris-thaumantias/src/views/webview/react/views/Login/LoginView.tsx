@@ -272,7 +272,7 @@ export function LoginView({ vscodeApi }: LoginViewProps) {
 						</div>
 					}
 				>
-					<form onSubmit={handleSubmit}>
+					<form onSubmit={handleSubmit} data-testid="login-form">
 						<TextInput
 							id="username"
 							label="Username"
@@ -284,6 +284,7 @@ export function LoginView({ vscodeApi }: LoginViewProps) {
 							required
 							autocomplete="username"
 							fullWidth
+							testId="login-username"
 						/>
 
 						<TextInput
@@ -297,6 +298,7 @@ export function LoginView({ vscodeApi }: LoginViewProps) {
 							required
 							autocomplete="current-password"
 							fullWidth
+							testId="login-password"
 						/>
 
 						<div style={{ marginBottom: '16px' }}>
@@ -316,6 +318,7 @@ export function LoginView({ vscodeApi }: LoginViewProps) {
 
 						{statusMessage && (
 							<div
+								data-testid="login-status"
 								style={{
 									marginBottom: '16px',
 									padding: '12px',
@@ -346,6 +349,7 @@ export function LoginView({ vscodeApi }: LoginViewProps) {
 							variant="primary"
 							fullWidth
 							disabled={isSubmitting}
+							testId="login-submit"
 						>
 							{isSubmitting ? 'Logging in...' : 'Login to Artemis'}
 						</Button>

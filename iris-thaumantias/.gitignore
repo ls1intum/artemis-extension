@@ -30,6 +30,10 @@ test/struggle-detection/reports/
 logs
 *.log
 
+# UI test artifacts
+test-resources/
+test/ui/screenshots/
+
 # Environment
 .env
 .env.local

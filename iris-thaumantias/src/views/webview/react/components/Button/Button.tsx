@@ -14,6 +14,7 @@ export interface ButtonProps {
   height?: string;
   alignText?: 'left' | 'center' | 'right';
   type?: 'button' | 'submit' | 'reset';
+  testId?: string;
 }
 
 export function Button({
@@ -28,6 +29,7 @@ export function Button({
   height,
   alignText,
   type = 'button',
+  testId,
 }: ButtonProps) {
   const hasIconAndLabel = Boolean(icon && children);
   const isIconOnly = Boolean(icon && !children);
@@ -60,6 +62,7 @@ export function Button({
         onClick={onClick}
         style={Object.keys(inlineStyles).length > 0 ? inlineStyles : undefined}
         aria-label="button"
+        data-testid={testId}
       >
         {icon}
       </button>
@@ -75,6 +78,7 @@ export function Button({
         disabled={disabled}
         onClick={onClick}
         style={Object.keys(inlineStyles).length > 0 ? inlineStyles : undefined}
+        data-testid={testId}
       >
         <span className={styles.btnIconSlot}>{icon}</span>
         <span className={styles.btnLabel}>{children}</span>
@@ -90,6 +94,7 @@ export function Button({
       disabled={disabled}
       onClick={onClick}
       style={Object.keys(inlineStyles).length > 0 ? inlineStyles : undefined}
+      data-testid={testId}
     >
       {children}
     </button>

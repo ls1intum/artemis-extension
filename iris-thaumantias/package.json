@@ -169,7 +169,6 @@
     }
   },
   "scripts": {
-    "vscode:prepublish": "npm run package",
     "compile": "npm run check-types && npm run lint && node esbuild.js",
     "watch": "npm-run-all -p watch:*",
     "watch:esbuild": "node esbuild.js --watch",
@@ -188,11 +187,13 @@
     "test:coverage": "vscode-test --label unit --coverage",
     "test:struggle": "npm run compile-tests && vscode-test --label unit --grep \"Struggle Detection\"",
     "test:e2e": "npm run compile-tests && vscode-test --label e2e",
+    "test:ui": "bash test/ui/run-tests.sh",
     "test:all": "npm run compile-tests && npm run compile && npm run lint && vscode-test",
     "coverage:all": "npm run compile-tests && npm run compile && npm run lint && vscode-test --coverage",
     "clean": "rm -rf dist out *.vsix",
     "compile:clean": "npm run clean && npm run compile",
-    "prepare": "husky"
+    "prepare": "husky",
+    "vscode:prepublish": "npm run package"
   },
   "lint-staged": {
     "*.{ts,tsx}": [
@@ -221,7 +222,8 @@
     "npm-run-all2": "8.0.4",
     "sinon": "^21.0.1",
     "typescript": "5.9.3",
-    "typescript-plugin-css-modules": "^5.2.0"
+    "typescript-plugin-css-modules": "^5.2.0",
+    "vscode-extension-tester": "^8.22.0"
   },
   "dependencies": {
     "@stomp/stompjs": "^7.2.1",

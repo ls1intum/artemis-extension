@@ -26,6 +26,7 @@ export interface TextInputProps {
   readonly?: boolean;
   autocomplete?: string;
   showPasswordToggle?: boolean;
+  testId?: string;
 }
 
 export function TextInput({
@@ -52,6 +53,7 @@ export function TextInput({
   readonly = false,
   autocomplete = 'off',
   showPasswordToggle = true,
+  testId,
 }: TextInputProps) {
   const [showPassword, setShowPassword] = useState(false);
 
@@ -112,6 +114,7 @@ export function TextInput({
       autoComplete={autocomplete}
       aria-describedby={ariaDescribedBy}
       aria-invalid={Boolean(error)}
+      data-testid={testId}
     />
   );
 
