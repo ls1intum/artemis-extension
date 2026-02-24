@@ -1,153 +1,34 @@
 # Roadmap: Artemis React Webview Migration
 
-## Overview
+## Milestones
 
-This roadmap transforms 14 HTML-string-based webviews into React components through a disciplined, incremental migration. Starting with build infrastructure and shared components, we progress through simple views to validate patterns before tackling complex time-sensitive views (exam timers, chat streaming). The journey culminates in cleanup of legacy code and bundle optimization. Each phase delivers verifiable capabilities while maintaining functionality parity with the existing extension.
+- ✅ **v1.0 React Webview Migration** — Phases 1-7 (shipped 2026-02-24)
 
 ## Phases
 
-**Phase Numbering:**
-- Integer phases (1, 2, 3): Planned milestone work
-- Decimal phases (2.1, 2.2): Urgent insertions (marked with INSERTED)
+<details>
+<summary>✅ v1.0 React Webview Migration (Phases 1-7) — SHIPPED 2026-02-24</summary>
 
-Decimal phases appear between their surrounding integers in numeric order.
+- [x] Phase 1: Foundation & Build Pipeline (2/2 plans) — completed 2026-02-23
+- [x] Phase 2: Shared Component Library (4/4 plans) — completed 2026-02-23
+- [x] Phase 3: Simple Views Migration (4/4 plans) — completed 2026-02-23
+- [x] Phase 4: Main UI Views (5/5 plans) — completed 2026-02-24
+- [x] Phase 5: Exam Views with Timer Accuracy (2/2 plans) — completed 2026-02-24
+- [x] Phase 6: Iris Chat with Streaming (3/3 plans) — completed 2026-02-24
+- [x] Phase 7: Cleanup & Optimization (4/4 plans) — completed 2026-02-24
 
-- [ ] **Phase 1: Foundation & Build Pipeline** - Establish React infrastructure with proper CSP, dual-target builds, and message bridge
-- [ ] **Phase 2: Shared Component Library** - Extract 20+ reusable React components matching existing visual design
-- [ ] **Phase 3: Simple Views Migration** - Migrate 4 standalone views to validate patterns with minimal state
-- [ ] **Phase 4: Main UI Views** - Migrate core application flow with real-time updates and complex state
-- [x] **Phase 5: Exam Views with Timer Accuracy** - Migrate time-sensitive views with Web Worker timers (completed 2026-02-24)
-- [ ] **Phase 6: Iris Chat with Streaming** - Migrate chat provider with optimized message streaming
-- [ ] **Phase 7: Cleanup & Optimization** - Remove legacy code and optimize production bundles
+Full details: milestones/v1.0-ROADMAP.md
 
-## Phase Details
-
-### Phase 1: Foundation & Build Pipeline
-**Goal**: React builds successfully with proper CSP configuration and message bridge scaffold
-**Depends on**: Nothing (first phase)
-**Requirements**: BUILD-01, BUILD-02, BUILD-03
-**Success Criteria** (what must be TRUE):
-  1. Extension builds React webview bundles alongside extension host with dual-target configuration (Node.js CJS + browser IIFE)
-  2. Webviews enforce nonce-based Content Security Policy with no inline scripts or styles
-  3. React error boundaries catch rendering errors gracefully without crashing the webview
-  4. Typed message contracts exist for extension-webview communication (scaffold ready for use)
-**Plans**: 2 plans
-
-Plans:
-- [x] 01-01-PLAN.md — React build pipeline + error boundary (BUILD-01, BUILD-03) [2/2 tasks, 198s]
-- [x] 01-02-PLAN.md — CSP enforcement + typed message contracts (BUILD-02)
-
-### Phase 2: Shared Component Library
-**Goal**: Reusable React components exist matching existing visual design for composition in views
-**Depends on**: Phase 1
-**Requirements**: COMP-01, COMP-02, COMP-03
-**Success Criteria** (what must be TRUE):
-  1. All 20+ existing UI components (Button, ListItem, Container, Badge, BackLink, etc.) render identically to current HTML versions
-  2. All components use VS Code CSS variables (var(--vscode-*)) and adapt to theme changes
-  3. ExerciseDetail and ExamExerciseDetail can share components via React composition (no code duplication)
-  4. Component props are fully typed with TypeScript interfaces
-**Plans**: 4 plans
-
-Plans:
-- [x] 02-01-PLAN.md — CSS Modules infrastructure + core atomic components (Button, IconButton, Badge, BackLink)
-- [ ] 02-02-PLAN.md — Form components (TextInput, Dropdown) + layout components (Container, ListItem, List)
-- [x] 02-03-PLAN.md — Composite UI components (HelpPopup, SideMenu, AskIris, ServiceHealth)
-- [x] 02-04-PLAN.md — Shared exercise components (SubmissionStatus, ParticipationActions, BuildProgress) + barrel index (COMP-03)
-
-### Phase 3: Simple Views Migration
-**Goal**: 4 standalone views successfully migrated with validated state persistence and message passing patterns
-**Depends on**: Phase 2
-**Requirements**: VIEW-01, VIEW-02, VIEW-03, MSG-01, MSG-02, MSG-03
-**Success Criteria** (what must be TRUE):
-  1. LoginView, ServiceStatusView, GitCredentialsView, and RecommendedExtensionsView render through React components
-  2. Views persist their state across tab hide/show cycles using getState/setState
-  3. Webviews implement ready-signal handshake to prevent postMessage race conditions during hydration
-  4. Message event listeners are cleaned up when webview is disposed (no memory leaks detectable)
-**Plans**: 4 plans
-
-Plans:
-- [x] 03-01-PLAN.md — Messaging infrastructure, coexistence router, ready-signal handshake + GitCredentials view (VIEW-01, VIEW-02, VIEW-03, MSG-01, MSG-02, MSG-03)
-- [x] 03-02-PLAN.md — ServiceStatus view with health check messaging (VIEW-01)
-- [x] 03-03-PLAN.md — RecommendedExtensions view with category filtering and state persistence (VIEW-01, MSG-02)
-- [ ] 03-04-PLAN.md — Login view with dual-state UI, form persistence, and embedded health checks (VIEW-01)
-
-### Phase 4: Main UI Views
-**Goal**: Core application flow (Dashboard -> CourseList -> CourseDetail -> ExerciseDetail) renders through React with real-time updates
-**Depends on**: Phase 3
-**Requirements**: VIEW-01 (continued), MSG-04
-**Success Criteria** (what must be TRUE):
-  1. Dashboard, CourseListView, CourseDetailView, ExerciseDetailView, and ExerciseStartedView all render through React
-  2. Webview-side state is managed through Zustand stores with postMessage integration to extension host
-  3. Real-time WebSocket updates (build status, submission results) trigger React re-renders without full webview reload
-  4. ExerciseDetail components are extracted for reuse in ExamExerciseDetail (Phase 5)
-**Plans**: 5 plans
-
-Plans:
-- [x] 04-01-PLAN.md — Zustand + shared UI primitives (Skeleton, Breadcrumbs, ReconnectBanner, ErrorMessage, EmptyState) + Dashboard view (VIEW-01, MSG-04)
-- [x] 04-02-PLAN.md — CourseList view with search/sort/filter and breadcrumb navigation (VIEW-01)
-- [x] 04-03-PLAN.md — CourseDetail view with exercise search/sort, exam listing, Ask Iris (VIEW-01)
-- [x] 04-04-PLAN.md — ExerciseDetail view with extracted components, WebSocket real-time updates (VIEW-01, MSG-04)
-- [ ] 04-05-PLAN.md — Gap closure: Fix missing CSS stylesheet + infinite render loop (VIEW-01, MSG-04)
-
-### Phase 5: Exam Views with Timer Accuracy
-**Goal**: Exam-related views render with accurate countdown timers that don't drift in background tabs
-**Depends on**: Phase 4
-**Requirements**: VIEW-01 (continued), CRIT-01
-**Success Criteria** (what must be TRUE):
-  1. ExamStartView, ExamConductionView, and ExamExerciseDetailView all render through React
-  2. ExamExerciseDetail reuses ExerciseDetail components from Phase 4 via composition
-  3. Exam countdown timers use Web Workers with absolute timestamps and remain accurate when tab is backgrounded
-  4. Timer displays update smoothly without drift or throttling issues
-**Plans**: 2 plans
-
-Plans:
-- [ ] 05-01-PLAN.md — Web Worker timer infrastructure + ExamConduction view (VIEW-01, CRIT-01)
-- [ ] 05-02-PLAN.md — ExamStart + ExamExerciseDetail views + router/provider wiring (VIEW-01, CRIT-01)
-
-### Phase 6: Iris Chat with Streaming
-**Goal**: Chat webview renders with smooth message streaming optimized for token-by-token delivery
-**Depends on**: Phase 5
-**Requirements**: VIEW-01 (continued), CRIT-02
-**Success Criteria** (what must be TRUE):
-  1. IrisChatView renders through React with separate ChatWebviewProvider
-  2. Message streaming uses React.memo and separated streaming state to prevent flicker during token delivery
-  3. Chat sessions support context switching and message history without performance degradation
-  4. Code highlights in messages render correctly with syntax highlighting
-**Plans**: 3 plans
-
-Plans:
-- [x] 06-01-PLAN.md — Install streaming deps, chat store, streaming hooks, message contracts (VIEW-01, CRIT-02) [2/2 tasks, 269s]
-- [ ] 06-02-PLAN.md — Chat UI components: MessageBubble, StreamingMessage, CodeBlock, ChatInput, ContextSelector (VIEW-01, CRIT-02)
-- [ ] 06-03-PLAN.md — IrisChatView assembly + ChatWebviewProvider React wiring (VIEW-01, CRIT-02)
-
-### Phase 7: Cleanup & Optimization
-**Goal**: All legacy HTML generation code removed and production bundles optimized
-**Depends on**: Phase 6
-**Requirements**: CLEAN-01, CLEAN-02, CLEAN-03
-**Success Criteria** (what must be TRUE):
-  1. All legacy generateXxxHtml() functions and inline JS/CSS templates are deleted from codebase
-  2. HTML-string-based ViewRouter is replaced with React conditional rendering
-  3. Production builds use tree-shaking and minification with bundle size under target (verified with analyzer)
-  4. Documentation reflects React architecture with updated developer guides
-**Plans**: 4 plans
-
-Plans:
-- [ ] 07-01-PLAN.md — Remove legacy views, components, coexistence router; dead code cleanup (CLEAN-01, CLEAN-02)
-- [ ] 07-02-PLAN.md — Optimize esbuild config, add bundle analysis, pre-commit hooks (CLEAN-03)
-- [ ] 07-03-PLAN.md — Consolidate Zustand stores with DevTools, standardize ErrorBoundary (CLEAN-01)
-- [ ] 07-04-PLAN.md — Clean up legacy tests, create developer guide with Mermaid diagrams (CLEAN-01, CLEAN-03)
+</details>
 
 ## Progress
 
-**Execution Order:**
-Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7
-
-| Phase | Plans Complete | Status | Completed |
-|-------|----------------|--------|-----------|
-| 1. Foundation & Build Pipeline | 2/2 | Complete | 2026-02-23 |
-| 2. Shared Component Library | 3/4 | In Progress | - |
-| 3. Simple Views Migration | 3/4 | In Progress | - |
-| 4. Main UI Views | 4/5 | In Progress | - |
-| 5. Exam Views with Timer Accuracy | 2/2 | Complete   | 2026-02-24 |
-| 6. Iris Chat with Streaming | 2/3 | In Progress|  |
-| 7. Cleanup & Optimization | 2/4 | In Progress|  |
+| Phase | Milestone | Plans Complete | Status | Completed |
+|-------|-----------|----------------|--------|-----------|
+| 1. Foundation & Build Pipeline | v1.0 | 2/2 | Complete | 2026-02-23 |
+| 2. Shared Component Library | v1.0 | 4/4 | Complete | 2026-02-23 |
+| 3. Simple Views Migration | v1.0 | 4/4 | Complete | 2026-02-23 |
+| 4. Main UI Views | v1.0 | 5/5 | Complete | 2026-02-24 |
+| 5. Exam Views with Timer Accuracy | v1.0 | 2/2 | Complete | 2026-02-24 |
+| 6. Iris Chat with Streaming | v1.0 | 3/3 | Complete | 2026-02-24 |
+| 7. Cleanup & Optimization | v1.0 | 4/4 | Complete | 2026-02-24 |

@@ -2,7 +2,7 @@
 
 ## What This Is
 
-A VS Code extension that integrates with the Artemis learning platform, providing students with course browsing, exercise management, code submission, real-time build feedback, AI tutoring (Iris chat), and exam support — all within their editor. Currently uses server-side HTML string generation for webviews.
+A VS Code extension that integrates with the Artemis learning platform, providing students with course browsing, exercise management, code submission, real-time build feedback, AI tutoring (Iris chat), and exam support — all within their editor. Uses React components with Zustand state management for all webview UI.
 
 ## Core Value
 
@@ -11,8 +11,6 @@ Students can interact with Artemis courses, exercises, and the Iris AI tutor wit
 ## Requirements
 
 ### Validated
-
-<!-- Shipped and confirmed valuable. Inferred from existing codebase. -->
 
 - ✓ Authentication — Login/logout with cookie-based sessions, token persistence
 - ✓ Course browsing — Dashboard, course list, course detail views
@@ -23,64 +21,57 @@ Students can interact with Artemis courses, exercises, and the Iris AI tutor wit
 - ✓ Telemetry — Struggle detection, error quotient, intervention hints
 - ✓ Build feedback — Build error CodeLens, build log parsing
 - ✓ Real-time updates — WebSocket/STOMP for submissions, results, build status
+- ✓ React webview migration — All 12 views render through React components — v1.0
+- ✓ Typed message contracts — Discriminated unions replacing any-typed handlers — v1.0
+- ✓ React component library — 22 components with CSS Modules and VS Code theme compliance — v1.0
+- ✓ React build pipeline — Dual-target esbuild (Node.js CJS + browser IIFE) with nonce-based CSP — v1.0
+- ✓ Exam timer accuracy — Web Worker timers with absolute timestamps, drift-free in background tabs — v1.0
+- ✓ Chat streaming smoothness — RAF-based token buffering with React.memo, no flicker — v1.0
 
 ### Active
 
-<!-- Current scope. Building toward these in v1.0. -->
-
-- [ ] Migrate all webview views from HTML string generation to React components
-- [ ] Modernize webview messaging with typed contracts and clean routing
-- [ ] Port existing UI components (Button, ListItem, Container, etc.) to React with same visual design
-- [ ] Set up React build pipeline for VS Code webviews
-- [ ] Ensure exam timer correctness through migration (no timing regressions)
-- [ ] Ensure Iris chat streaming smoothness (no flicker/lag from React re-renders)
+- [ ] Fix bugs identified in v1.0 migration (to be defined in v1.1)
 
 ### Out of Scope
 
-<!-- Explicit boundaries. -->
-
-- Visual redesign — Migration preserves existing look and feel, not a redesign
-- Test migration — View tests will be updated in a follow-up milestone
-- New features — No new user-facing capabilities, pure infrastructure migration
+- Visual redesign — Migration preserved existing look and feel, not a redesign
+- Hot module replacement — DX improvement deferred (DX-01)
+- VS Code Messenger RPC — Protocol upgrade deferred (DX-02)
+- Stateless webview pattern — Full state refactor deferred (ARCH-01)
+- Virtualized message list — Large chat history optimization deferred (ARCH-02)
 - Backend changes — Extension host services (auth, API, WebSocket, telemetry) stay as-is
-
-## Current Milestone: v1.0 React Webview Migration
-
-**Goal:** Replace all HTML string template webviews with React components, modernize webview messaging, and improve developer experience while preserving existing visual design and functionality.
-
-**Target features:**
-- React component architecture for all 14+ views
-- Typed message contracts between extension host and webviews
-- React-based state management (approach TBD via research)
-- Build pipeline supporting React/JSX in webviews
-- Same visual design, same functionality, better DX
 
 ## Context
 
-- **Codebase:** ~14 view screens, 20+ reusable components, all using `generateHtml()` string templates
-- **Pain points:** View files up to 1487 lines, full webview redraws on every state change, 250+ `any` usages in view layer, inline JS scripts mixed with HTML
-- **Architecture:** Two webview providers (ArtemisWebviewProvider for main UI, ChatWebviewProvider for Iris chat), message handler routing, app state manager
-- **Build:** Currently esbuild with dual output (extension CJS + webview IIFE). Open to switching bundlers.
-- **Critical views:** ExerciseDetail (1475 lines), ExamExerciseDetail (1487 lines), IrisChat (1106 lines) — these share code and have real-time/timing requirements
-- **ExamExerciseDetail reuses ExerciseDetail components** — React composition will formalize this shared code
+- **Codebase:** 39,841 LOC TypeScript/TSX, 12 React views, 22 shared components, 9 Zustand stores
+- **Architecture:** React 18 webviews with CSS Modules, esbuild dual-target build, typed message contracts
+- **Build artifacts:** extension.js (665KB CJS), webview-react.js (3.5MB IIFE), webview-react.css (~74KB)
+- **Known issues:** 10 pre-existing TypeScript errors, 3.5MB bundle size (code splitting candidate), fullscreen panel temporarily disabled
+- **Tech stack:** React 18.3.1, Zustand, esbuild, CSS Modules, Shiki, Streamdown, Web Workers
 
 ## Constraints
 
-- **Functionality parity**: Every existing view must work identically after migration
-- **Exam timing**: Countdown timers and time-sensitive state must not regress
-- **Chat streaming**: Real-time Iris message streaming must remain smooth (no flicker/lag)
-- **VS Code API**: Must work within VS Code webview sandbox constraints (CSP, postMessage bridge)
-- **No backend changes**: Extension host services remain unchanged; only webview rendering changes
+- **Functionality parity**: Every existing view works identically after migration
+- **Exam timing**: Countdown timers use Web Workers with absolute timestamps (drift-free)
+- **Chat streaming**: RAF-based token buffering with React.memo (no flicker)
+- **VS Code API**: Nonce-based CSP, postMessage bridge, getState/setState persistence
+- **No backend changes**: Extension host services remain unchanged
 
 ## Key Decisions
 
 | Decision | Rationale | Outcome |
 |----------|-----------|---------|
-| React for webviews | Industry-standard component model, team familiarity, rich ecosystem | — Pending |
-| Same visual design | Reduce scope and risk — separate concerns of migration vs redesign | — Pending |
-| Tests separate | Keep migration focused; test updates follow in next milestone | — Pending |
-| State management TBD | Let research inform the right approach for VS Code webview context | — Pending |
-| Build tooling open | May switch from esbuild if better React/webview support elsewhere | — Pending |
+| React 18.3.1 for webviews | Safer than React 19 for webviews, includes deprecation warnings | ✓ Good |
+| Same visual design | Reduce scope and risk — separate migration from redesign | ✓ Good |
+| esbuild dual-target | Faster than webpack/Vite, simpler config for CJS + IIFE | ✓ Good |
+| Zustand for state | Lightweight, works with postMessage, 9 independent stores | ✓ Good |
+| CSS Modules | camelCase class names, VS Code CSS variables, no CSS-in-JS bloat | ✓ Good |
+| Incremental migration | View-by-view with coexistence router, not big-bang | ✓ Good |
+| Web Worker timers | Absolute timestamps prevent background tab drift | ✓ Good |
+| RAF token buffering | Sentence boundary detection, no per-token setState | ✓ Good |
+| Shiki syntax highlighting | Singleton highlighter with lazy init for chat code blocks | ✓ Good |
+| Tests separate milestone | Keep v1.0 focused; test updates in v1.1 | ⚠️ Revisit |
+| IIFE bundle format | Single file, consistent with webview constraints | ⚠️ Revisit (3.5MB) |
 
 ---
-*Last updated: 2026-02-23 after milestone v1.0 definition*
+*Last updated: 2026-02-24 after v1.0 milestone*

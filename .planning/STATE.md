@@ -2,155 +2,32 @@
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-02-23)
+See: .planning/PROJECT.md (updated 2026-02-24)
 
 **Core value:** Students can interact with Artemis courses, exercises, and the Iris AI tutor without leaving VS Code.
-**Current focus:** Phase 6 - Iris Chat with Streaming
+**Current focus:** Planning next milestone (v1.1 bug fixes)
 
 ## Current Position
 
-Phase: 7 of 7 (Cleanup and Optimization)
-Plan: 4 of 4
-Status: Complete
-Last activity: 2026-02-24 — Completed plan 07-04 (Documentation and Test Cleanup)
-
-Progress: [███████████████████████████████████████████████████] 100%
+Phase: — (milestone boundary)
+Plan: —
+Status: v1.0 shipped, preparing v1.1
+Last activity: 2026-02-24 — Completed v1.0 React Webview Migration milestone
 
 ## Performance Metrics
 
-**Velocity:**
-- Total plans completed: 19
-- Average duration: 5.7 minutes
+**v1.0 Milestone:**
+- Phases: 7 (24 plans, 31 tasks)
 - Total execution time: 1.88 hours
-
-**By Phase:**
-
-| Phase | Plans | Total | Avg/Plan |
-|-------|-------|-------|----------|
-| 01 | 2 | 6 min | 3 min |
-| 02 | 3 | 14 min | 4.7 min |
-| 03 | 4 | 17.8 min | 4.5 min |
-| 04 | 5 | 32.4 min | 6.5 min |
-| 05 | 2 | 13.9 min | 6.9 min |
-| 06 | 2 | 13.2 min | 6.6 min |
-| 07 | 4 | 20 min | 5 min |
-
-**Recent Trend:**
-- Last 5 plans: 05-01 (6.5 min), 05-02 (7.4 min), 06-01 (4.5 min), 06-02 (8.7 min)
-- Trend: Stable (latest plan 8.7 min, within normal range)
-
-**Detailed Metrics:**
-
-| Plan | Duration | Tasks | Files |
-|------|----------|-------|-------|
-| 01-01 | 3 min | - | - |
-| 01-02 | 3 min | - | - |
-| 02-01 | 5 min | 3 tasks | 13 files |
-| 02-03 | 4 min | 2 tasks | 13 files |
-| 02-04 | 5 min | 2 tasks | 8 files |
-| Phase 03 P01 | 6 min | 2 tasks | 10 files |
-| Phase 03 P02 | 3.5 min | 2 tasks | 8 files |
-| Phase 03 P03 | 3.8 min | 2 tasks | 8 files |
-| Phase 03 P04 | 4.5 | 2 tasks | 8 files |
-| Phase 04 P01 | 8 min | 2 tasks | 31 files |
-| Phase 04 P02 | 7.4 min | 2 tasks | 11 files |
-| Phase 04 P03 | 6 min | 2 tasks | 10 files |
-| Phase 04 P03 | 6 | 2 tasks | 10 files |
-| Phase 04 P04 | 8 | 2 tasks | 22 files |
-| Phase 04 P05 | 3 | 2 tasks | 5 files |
-| Phase 05 P01 | 388 | 2 tasks | 14 files |
-| Phase 05 P02 | 443 | 2 tasks | 17 files |
-| Phase 06 P01 | 269 | 2 tasks | 8 files |
-| Phase 06 P02 | 524 | 2 tasks | 18 files |
-| Phase 06 P03 | 283 | 2 tasks | 5 files |
-| Phase 07 P01 | 4 | 2 tasks | 81 files |
-| Phase 07 P02 | 3 | 2 tasks | 5 files |
-| Phase 07 P03 | 7 | 2 tasks | 10 files |
-| Phase 07 P04 | 6 | 2 tasks | 4 files |
-| Phase 07 P04 | 6 | 2 tasks | 4 files |
+- Average plan duration: 5.7 minutes
+- Files modified: 430
+- Lines of code: 39,841 TypeScript/TSX
 
 ## Accumulated Context
 
 ### Decisions
 
 Decisions are logged in PROJECT.md Key Decisions table.
-Recent decisions affecting current work:
-
-- React 18.3.1 chosen over React 19 (safer for webviews, includes deprecation warnings)
-- esbuild for bundling (faster than webpack/Vite, simpler dual-target config)
-- Zustand for state management (lightweight, works with postMessage)
-- Incremental migration strategy (view-by-view, not big-bang)
-- Same visual design (no redesign during migration)
-- React 18 automatic JSX transform (react-jsx) eliminates manual React imports
-- ErrorBoundary accepts vscodeApi as prop to avoid multiple acquireVsCodeApi calls
-- IIFE bundle format for React webview (consistent with webview-components)
-- NODE_ENV define for production/development (enables React optimizations)
-- Nonce-based CSP without unsafe-inline (prevents XSS, standard VS Code pattern)
-- Discriminated unions with 'type' discriminant (enables exhaustive switch checking)
-- Runtime type guards using 'unknown' not 'any' (maintains strict typing discipline)
-- Used clsx for conditional class composition instead of manual string concatenation
-- Consolidated 7 icon button files into IconButton component with named presets
-- Inline SVG icons in React components instead of dangerouslySetInnerHTML
-- camelCase CSS class names in modules to avoid bracket notation in TypeScript
-- Added .css loader to esbuild for global styles alongside CSS Modules plugin
-- [Phase 02]: HelpPopup supports both controlled and uncontrolled state patterns
-- [Phase 02]: ServiceHealth manages expandable state internally with useState
-- [Phase 02]: TextInput uses password toggle with inline SVG eye icons (show/hide state managed internally)
-- [Phase 02]: Dropdown uses native select element for accessibility (no hand-rolled dropdown)
-- [Phase 02]: Container defers collapsible behavior to future iteration (keep stateless)
-- [Phase 02]: ListItem is presentational-only, selected prop injected by parent List component
-- [Phase 02]: List uses Children.map + cloneElement to inject selected and id props into children
-- [Phase 02]: Exercise components use typed props (status, scores, test cases) rather than domain model imports for clean reuse
-- [Phase 03]: Persist only durable state (form values) via setState, not transient status messages
-- [Phase 03]: Bridge new typed message format to legacy command handlers for backward compatibility
-- [Phase 03]: Router checks _reactViews map BEFORE switch statement to implement coexistence pattern
-- [Phase 03]: Ready-signal handshake prevents race conditions (webview sends ready after hydration, extension queues messages)
-- [Phase 03]: Minimal state persistence for ServiceStatus: only serverUrl persisted, health results transient
-- [Phase 03]: ServiceHealth component from Phase 2 reused without modification in ServiceStatus view
-- [Phase 03]: Client-side filtering only for RecommendedExtensions (no server request on category change)
-- [Phase 03]: Extension cards composed from Phase 2 components (Badge, Button) rather than recreating exact legacy card layout
-- [Phase 03]: Persist only selectedCategory state for RecommendedExtensions, not extension data (install status may change)
-- [Phase 03]: Login persists all form values including password per user decision
-- [Phase 03]: Simplified loading spinner replaces complex CSS animation (single @keyframes rule)
-- [Phase 03]: LoginView handles both typed and legacy message formats for backward compatibility
-- [Phase 04]: Zustand chosen for lightweight state management without Redux boilerplate
-- [Phase 04]: Fixed skeleton count (5 items) for SkeletonList per research recommendation
-- [Phase 04]: Dashboard data always re-fetched (no persisted state) per user decision
-- [Phase 04]: Container header prop used instead of title prop for flexibility
-- [Phase 04]: IconButton.Reload named method used instead of preset prop pattern
-- [Phase 04]: Client-side filtering for CourseList (no server request on filter change)
-- [Phase 04]: Persist CourseList filter state across tab cycles using getState/setState
-- [Phase 04]: Dropdown and TextInput onChange receive value directly (string), not event object
-- [Phase 04]: Exercise categories always expanded (no collapse UI) per user decision
-- [Phase 04]: Workspace exercise highlighted with 'Open' badge using selected prop
-- [Phase 04]: resendViewData() pattern for reload handlers to update React views without re-rendering
-- [Phase 04]: Dashboard unified with other views to use ready signal for initial load (eliminates render loop)
-- [Phase 04]: Reload handlers bypass actionHandler navigation methods to avoid render() calls
-- [Phase 05]: Web Worker timer with absolute timestamps prevents drift from background tab throttling
-- [Phase 05]: Timer state managed locally via useExamTimer hook, not Zustand (high-frequency updates)
-- [Phase 05]: Per-view timer instances, no shared Worker (simpler lifecycle, negligible drift)
-- [Phase 05]: Inline Worker bundling via esbuild-plugin-inline-worker avoids CSP complications
-- [Phase 05]: Artemis-compatible timer format (1h 7min, 15min, 8min 0s, 45s) for consistency
-- [Phase 05]: Badge variant="muted" for exercise types, variant="info" for Open badge
-- [Phase 06]: RAF-based token buffering with sentence boundary detection for streaming (no setState per token)
-- [Phase 06]: use-stick-to-bottom library for smart auto-scroll (handles momentum, touch, user intent)
-- [Phase 06]: OpenSettingsCommand payload made optional to avoid breaking existing code
-- [Phase 06]: @ts-expect-error for use-stick-to-bottom ESM import (esbuild handles at bundle time)
-- [Phase 06]: React.memo with custom comparator for MessageBubble (prevents unnecessary re-renders)
-- [Phase 06]: Streamdown for progressive markdown (purpose-built for AI streaming)
-- [Phase 06]: Shiki singleton highlighter (module-level Promise, lazy initialization)
-- [Phase 06]: ContextSelector dual-mode dropdown (session list vs context picker in one component)
-- [Phase 06]: @ts-expect-error for shiki and streamdown ESM imports (same esbuild handling pattern)
-- [Phase 06]: Context switch animation with fade out/skeleton/fade in on context ID change
-- [Phase 06]: State persistence limited to forceContextPicker flag (matches legacy behavior)
-- [Phase 06]: Side menu as simple dropdown with click-outside-to-close (not full drawer)
-- [Phase 06]: Help popup via VS Code showInformationMessage modal (not custom webview)
-- [Phase 07-01]: Temporarily disabled fullscreen panel support until React implementation
-- [Phase 07-02]: Source maps always enabled (production + dev) for better debugging
-- [Phase 07-02]: Metafile generation only in production builds to avoid overhead in watch mode
-- [Phase 07-02]: Pre-commit hooks run ESLint --fix on staged TypeScript files only
-- [Phase 07-02]: Bundle analysis uses esbuild-visualizer with interactive HTML output
-- [Phase 07]: No store consolidation: All 9 stores have independent responsibilities
 
 ### Pending Todos
 
@@ -162,6 +39,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-02-24 (plan execution)
-Stopped at: Completed 07-03-PLAN.md - Zustand Store DevTools and Error Handling
+Last session: 2026-02-24 (milestone completion)
+Stopped at: v1.0 shipped, next step is /gsd:new-milestone for v1.1
 Resume file: None
