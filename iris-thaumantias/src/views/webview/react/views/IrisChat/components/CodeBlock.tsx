@@ -1,6 +1,8 @@
-import { useState, useEffect, useMemo } from 'react';
-// @ts-expect-error - shiki is ESM but TypeScript Node16 resolution complains. esbuild handles at bundle time.
-import { createHighlighter, BundledLanguage, BundledTheme } from 'shiki';
+import { useState, useEffect } from 'react';
+// @ts-expect-error - shiki ESM imports resolved by esbuild at bundle time
+import { createHighlighterCore } from 'shiki/core';
+// @ts-expect-error - shiki ESM imports resolved by esbuild at bundle time
+import { createJavaScriptRegexEngine } from 'shiki/engine/javascript';
 import styles from './CodeBlock.module.css';
 
 interface CodeBlockProps {
@@ -9,22 +11,35 @@ interface CodeBlockProps {
     code?: string;
 }
 
-// Singleton highlighter instance
-let highlighterPromise: Promise<Awaited<ReturnType<typeof createHighlighter>>> | null = null;
+// Singleton highlighter instance (JS engine — no WASM, CSP-safe)
+let highlighterPromise: ReturnType<typeof createHighlighterCore> | null = null;
 
 const getHighlighter = () => {
     if (!highlighterPromise) {
-        highlighterPromise = createHighlighter({
-            themes: ['github-dark', 'github-light'],
+        highlighterPromise = createHighlighterCore({
+            themes: [
+                // @ts-expect-error - shiki ESM imports resolved by esbuild at bundle time
+                import('shiki/themes/github-dark.mjs'),
+                // @ts-expect-error - shiki ESM imports resolved by esbuild at bundle time
+                import('shiki/themes/github-light.mjs'),
+            ],
             langs: [
-                'java',
-                'python',
-                'c',
-                'javascript',
-                'typescript',
-                'sql',
-                'shellscript',
-            ] as BundledLanguage[],
+                // @ts-expect-error - shiki ESM imports resolved by esbuild at bundle time
+                import('shiki/langs/java.mjs'),
+                // @ts-expect-error - shiki ESM imports resolved by esbuild at bundle time
+                import('shiki/langs/python.mjs'),
+                // @ts-expect-error - shiki ESM imports resolved by esbuild at bundle time
+                import('shiki/langs/c.mjs'),
+                // @ts-expect-error - shiki ESM imports resolved by esbuild at bundle time
+                import('shiki/langs/javascript.mjs'),
+                // @ts-expect-error - shiki ESM imports resolved by esbuild at bundle time
+                import('shiki/langs/typescript.mjs'),
+                // @ts-expect-error - shiki ESM imports resolved by esbuild at bundle time
+                import('shiki/langs/sql.mjs'),
+                // @ts-expect-error - shiki ESM imports resolved by esbuild at bundle time
+                import('shiki/langs/shellscript.mjs'),
+            ],
+            engine: createJavaScriptRegexEngine(),
         });
     }
     return highlighterPromise;
@@ -35,16 +50,14 @@ export function CodeBlock({ language, children, code }: CodeBlockProps) {
     const [copyText, setCopyText] = useState('Copy');
     const codeContent = code || children || '';
 
-    // Determine theme based on VS Code theme (use data attribute or CSS variable)
-    const theme: BundledTheme = 'github-dark'; // Default dark, could detect from body class
+    const theme = 'github-dark';
 
     useEffect(() => {
         const highlight = async () => {
             try {
                 const highlighter = await getHighlighter();
-                const lang = (language || 'text') as BundledLanguage;
+                const lang = language || 'text';
 
-                // Check if the language is supported
                 const loadedLangs = highlighter.getLoadedLanguages();
                 const supportedLang = loadedLangs.includes(lang) ? lang : 'text';
 
@@ -55,7 +68,6 @@ export function CodeBlock({ language, children, code }: CodeBlockProps) {
                 setHighlightedHtml(html);
             } catch (error) {
                 console.error('Shiki highlighting error:', error);
-                // Fallback to plain text
                 setHighlightedHtml(`<pre><code>${escapeHtml(codeContent)}</code></pre>`);
             }
         };
@@ -122,7 +134,6 @@ export function CodeBlock({ language, children, code }: CodeBlockProps) {
     );
 }
 
-// Helper to escape HTML for fallback
 function escapeHtml(text: string): string {
     const div = document.createElement('div');
     div.textContent = text;

@@ -2,7 +2,6 @@ const esbuild = require("esbuild");
 const fs = require("fs");
 const path = require("path");
 const cssModulesPlugin = require('esbuild-css-modules-plugin');
-const inlineWorkerPlugin = require('esbuild-plugin-inline-worker');
 
 const production = process.argv.includes('--production');
 const watch = process.argv.includes('--watch');
@@ -82,6 +81,9 @@ const copyCssPlugin = {
 };
 
 async function main() {
+	// Dynamic import for ESM-only package
+	const { default: inlineWorkerPlugin } = await import('esbuild-plugin-inline-worker');
+
 	// Build extension (Node.js)
 	const extensionCtx = await esbuild.context({
 		entryPoints: [
