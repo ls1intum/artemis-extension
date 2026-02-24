@@ -5,23 +5,23 @@
 See: .planning/PROJECT.md (updated 2026-02-23)
 
 **Core value:** Students can interact with Artemis courses, exercises, and the Iris AI tutor without leaving VS Code.
-**Current focus:** Phase 5 - Exam Views with Timer Accuracy
+**Current focus:** Phase 6 - Iris Chat with Streaming
 
 ## Current Position
 
-Phase: 5 of 7 (Exam Views with Timer Accuracy)
-Plan: 2 of 2
-Status: Complete
-Last activity: 2026-02-24 — Completed plan 05-02 (ExamStart and ExamExerciseDetail React Views)
+Phase: 6 of 7 (Iris Chat with Streaming)
+Plan: 1 of 3
+Status: In Progress
+Last activity: 2026-02-24 — Completed plan 06-01 (Chat State Infrastructure)
 
-Progress: [████████████████████████████████████████████████] 100%
+Progress: [█████████████████████████████████████████████████░] 97%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 16
-- Average duration: 5.8 minutes
-- Total execution time: 1.55 hours
+- Total plans completed: 17
+- Average duration: 5.5 minutes
+- Total execution time: 1.63 hours
 
 **By Phase:**
 
@@ -32,10 +32,11 @@ Progress: [███████████████████████
 | 03 | 4 | 17.8 min | 4.5 min |
 | 04 | 5 | 32.4 min | 6.5 min |
 | 05 | 2 | 13.9 min | 6.9 min |
+| 06 | 1 | 4.5 min | 4.5 min |
 
 **Recent Trend:**
-- Last 5 plans: 04-04 (8 min), 04-05 (3 min), 05-01 (6.5 min), 05-02 (7.4 min)
-- Trend: Stable (latest plan 7.4 min, consistent with recent average)
+- Last 5 plans: 04-05 (3 min), 05-01 (6.5 min), 05-02 (7.4 min), 06-01 (4.5 min)
+- Trend: Stable (latest plan 4.5 min, faster than recent average)
 
 **Detailed Metrics:**
 
@@ -58,6 +59,7 @@ Progress: [███████████████████████
 | Phase 04 P05 | 3 | 2 tasks | 5 files |
 | Phase 05 P01 | 388 | 2 tasks | 14 files |
 | Phase 05 P02 | 443 | 2 tasks | 17 files |
+| Phase 06 P01 | 269 | 2 tasks | 8 files |
 
 ## Accumulated Context
 
@@ -122,6 +124,10 @@ Recent decisions affecting current work:
 - [Phase 05]: Inline Worker bundling via esbuild-plugin-inline-worker avoids CSP complications
 - [Phase 05]: Artemis-compatible timer format (1h 7min, 15min, 8min 0s, 45s) for consistency
 - [Phase 05]: Badge variant="muted" for exercise types, variant="info" for Open badge
+- [Phase 06]: RAF-based token buffering with sentence boundary detection for streaming (no setState per token)
+- [Phase 06]: use-stick-to-bottom library for smart auto-scroll (handles momentum, touch, user intent)
+- [Phase 06]: OpenSettingsCommand payload made optional to avoid breaking existing code
+- [Phase 06]: @ts-expect-error for use-stick-to-bottom ESM import (esbuild handles at bundle time)
 
 ### Pending Todos
 
@@ -134,5 +140,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-24 (plan execution)
-Stopped at: Completed 05-02-PLAN.md - ExamStart and ExamExerciseDetail React Views
+Stopped at: Completed 06-01-PLAN.md - Chat State Infrastructure
 Resume file: None
