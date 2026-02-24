@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { devtools } from 'zustand/middleware';
 
 interface ExamStartState {
     studentExam: any;
@@ -23,21 +24,29 @@ const initialState: ExamStartState = {
     error: null,
 };
 
-export const useExamStartStore = create<ExamStartState & ExamStartActions>((set) => ({
-    ...initialState,
+export const useExamStartStore = create<ExamStartState & ExamStartActions>()(
+    devtools(
+        (set) => ({
+            ...initialState,
 
-    setExamStartData: (payload) =>
-        set({
-            studentExam: payload.studentExam,
-            courseId: payload.courseId,
-            examId: payload.examId,
-            loading: false,
-            error: null,
+            setExamStartData: (payload) =>
+                set({
+                    studentExam: payload.studentExam,
+                    courseId: payload.courseId,
+                    examId: payload.examId,
+                    loading: false,
+                    error: null,
+                }, false, 'setExamStartData'),
+
+            setLoading: (loading) => set({ loading }, false, 'setLoading'),
+
+            setError: (error) => set({ error, loading: false }, false, 'setError'),
+
+            reset: () => set(initialState, false, 'reset'),
         }),
-
-    setLoading: (loading) => set({ loading }),
-
-    setError: (error) => set({ error, loading: false }),
-
-    reset: () => set(initialState),
-}));
+        {
+            name: 'ExamStartStore',
+            enabled: process.env.NODE_ENV === 'development',
+        }
+    )
+);

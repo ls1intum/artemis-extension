@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { devtools } from 'zustand/middleware';
 
 interface ExamContext {
     courseId: number | null;
@@ -31,19 +32,25 @@ const initialState: ExamExerciseDetailState = {
     error: null,
 };
 
-export const useExamExerciseDetailStore = create<ExamExerciseDetailState & ExamExerciseDetailActions>(
-    (set) => ({
-        ...initialState,
+export const useExamExerciseDetailStore = create<ExamExerciseDetailState & ExamExerciseDetailActions>()(
+    devtools(
+        (set) => ({
+            ...initialState,
 
-        setExamExerciseData: (payload) =>
-            set({
-                examContext: payload.examContext,
-                loading: false,
-                error: null,
-            }),
+            setExamExerciseData: (payload) =>
+                set({
+                    examContext: payload.examContext,
+                    loading: false,
+                    error: null,
+                }, false, 'setExamExerciseData'),
 
-        setLoading: (loading) => set({ loading }),
+            setLoading: (loading) => set({ loading }, false, 'setLoading'),
 
-        setError: (error) => set({ error, loading: false }),
-    })
+            setError: (error) => set({ error, loading: false }, false, 'setError'),
+        }),
+        {
+            name: 'ExamExerciseDetailStore',
+            enabled: process.env.NODE_ENV === 'development',
+        }
+    )
 );

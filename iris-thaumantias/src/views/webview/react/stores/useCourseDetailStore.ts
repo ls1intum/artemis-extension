@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { devtools } from 'zustand/middleware';
 import type { VsCodeApi, CourseDetailData, Exercise, Exam } from '../../../../shared/messageContracts';
 
 interface CourseDetailState {
@@ -119,68 +120,76 @@ function sortExams(exams: Exam[]): Exam[] {
     });
 }
 
-export const useCourseDetailStore = create<CourseDetailState>((set, get) => ({
-    courseData: null,
-    workspaceExerciseId: null,
-    isLoading: false,
-    error: null,
-    exerciseSearchTerm: '',
-    exerciseSortBy: 'id-desc',
-
-    setCourseData: (data, workspaceExerciseId) => {
-        set({
-            courseData: data,
-            workspaceExerciseId: workspaceExerciseId ?? null,
+export const useCourseDetailStore = create<CourseDetailState>()(
+    devtools(
+        (set, get) => ({
+            courseData: null,
+            workspaceExerciseId: null,
             isLoading: false,
             error: null,
-        });
-    },
+            exerciseSearchTerm: '',
+            exerciseSortBy: 'id-desc',
 
-    setLoading: (loading) => {
-        set({ isLoading: loading });
-    },
+            setCourseData: (data, workspaceExerciseId) => {
+                set({
+                    courseData: data,
+                    workspaceExerciseId: workspaceExerciseId ?? null,
+                    isLoading: false,
+                    error: null,
+                }, false, 'setCourseData');
+            },
 
-    setError: (error) => {
-        set({ error, isLoading: false });
-    },
+            setLoading: (loading) => {
+                set({ isLoading: loading }, false, 'setLoading');
+            },
 
-    setExerciseSearchTerm: (term) => {
-        set({ exerciseSearchTerm: term });
-    },
+            setError: (error) => {
+                set({ error, isLoading: false }, false, 'setError');
+            },
 
-    setExerciseSortBy: (sort) => {
-        set({ exerciseSortBy: sort });
-    },
+            setExerciseSearchTerm: (term) => {
+                set({ exerciseSearchTerm: term }, false, 'setExerciseSearchTerm');
+            },
 
-    loadCourseDetail: (vscodeApi, courseId) => {
-        set({ isLoading: true, error: null });
-        vscodeApi.postMessage({
-            type: 'command',
-            command: 'reloadCourseDetail',
-            payload: { courseId: courseId || 0 },
-        });
-    },
+            setExerciseSortBy: (sort) => {
+                set({ exerciseSortBy: sort }, false, 'setExerciseSortBy');
+            },
 
-    filteredExercises: () => {
-        const state = get();
-        const { courseData, exerciseSearchTerm, exerciseSortBy } = state;
+            loadCourseDetail: (vscodeApi, courseId) => {
+                set({ isLoading: true, error: null }, false, 'loadCourseDetail');
+                vscodeApi.postMessage({
+                    type: 'command',
+                    command: 'reloadCourseDetail',
+                    payload: { courseId: courseId || 0 },
+                });
+            },
 
-        if (!courseData?.course.exercises) {
-            return [];
+            filteredExercises: () => {
+                const state = get();
+                const { courseData, exerciseSearchTerm, exerciseSortBy } = state;
+
+                if (!courseData?.course.exercises) {
+                    return [];
+                }
+
+                const filtered = filterExercises(courseData.course.exercises, exerciseSearchTerm);
+                return sortExercises(filtered, exerciseSortBy);
+            },
+
+            sortedExams: () => {
+                const state = get();
+                const { courseData } = state;
+
+                if (!courseData?.course.exams) {
+                    return [];
+                }
+
+                return sortExams(courseData.course.exams);
+            },
+        }),
+        {
+            name: 'CourseDetailStore',
+            enabled: process.env.NODE_ENV === 'development',
         }
-
-        const filtered = filterExercises(courseData.course.exercises, exerciseSearchTerm);
-        return sortExercises(filtered, exerciseSortBy);
-    },
-
-    sortedExams: () => {
-        const state = get();
-        const { courseData } = state;
-
-        if (!courseData?.course.exams) {
-            return [];
-        }
-
-        return sortExams(courseData.course.exams);
-    },
-}));
+    )
+);

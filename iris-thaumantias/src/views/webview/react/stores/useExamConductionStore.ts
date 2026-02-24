@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { devtools } from 'zustand/middleware';
 
 interface ExamConductionState {
     studentExam: unknown | null;
@@ -41,26 +42,34 @@ const initialState: ExamConductionState = {
     error: null,
 };
 
-export const useExamConductionStore = create<ExamConductionStore>((set) => ({
-    ...initialState,
+export const useExamConductionStore = create<ExamConductionStore>()(
+    devtools(
+        (set) => ({
+            ...initialState,
 
-    setExamData: (payload) => {
-        set({
-            studentExam: payload.studentExam,
-            courseId: payload.courseId,
-            examId: payload.examId,
-            endTime: payload.endTime,
-            startTime: payload.startTime,
-            totalDuration: payload.totalDuration,
-            workspaceExerciseId: payload.workspaceExerciseId,
-            loading: false,
-            error: null,
-        });
-    },
+            setExamData: (payload) => {
+                set({
+                    studentExam: payload.studentExam,
+                    courseId: payload.courseId,
+                    examId: payload.examId,
+                    endTime: payload.endTime,
+                    startTime: payload.startTime,
+                    totalDuration: payload.totalDuration,
+                    workspaceExerciseId: payload.workspaceExerciseId,
+                    loading: false,
+                    error: null,
+                }, false, 'setExamData');
+            },
 
-    setLoading: (loading) => set({ loading }),
+            setLoading: (loading) => set({ loading }, false, 'setLoading'),
 
-    setError: (error) => set({ error, loading: false }),
+            setError: (error) => set({ error, loading: false }, false, 'setError'),
 
-    reset: () => set(initialState),
-}));
+            reset: () => set(initialState, false, 'reset'),
+        }),
+        {
+            name: 'ExamConductionStore',
+            enabled: process.env.NODE_ENV === 'development',
+        }
+    )
+);

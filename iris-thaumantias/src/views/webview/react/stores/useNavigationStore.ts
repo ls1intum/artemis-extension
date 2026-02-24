@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { devtools } from 'zustand/middleware';
 
 export interface BreadcrumbSegment {
     label: string;
@@ -23,36 +24,44 @@ function abbreviateLabel(label: string): string {
     return label;
 }
 
-export const useNavigationStore = create<NavigationState>((set, get) => ({
-    breadcrumbs: [],
+export const useNavigationStore = create<NavigationState>()(
+    devtools(
+        (set, get) => ({
+            breadcrumbs: [],
 
-    pushBreadcrumb: (label: string, view: string, navigateFn: () => void) => {
-        const abbreviatedLabel = abbreviateLabel(label);
-        set((state) => ({
-            breadcrumbs: [
-                ...state.breadcrumbs,
-                {
-                    label: abbreviatedLabel,
-                    view,
-                    onClick: navigateFn,
-                },
-            ],
-        }));
-    },
+            pushBreadcrumb: (label: string, view: string, navigateFn: () => void) => {
+                const abbreviatedLabel = abbreviateLabel(label);
+                set((state) => ({
+                    breadcrumbs: [
+                        ...state.breadcrumbs,
+                        {
+                            label: abbreviatedLabel,
+                            view,
+                            onClick: navigateFn,
+                        },
+                    ],
+                }), false, 'pushBreadcrumb');
+            },
 
-    popToBreadcrumb: (index: number) => {
-        const state = get();
-        const targetSegment = state.breadcrumbs[index];
+            popToBreadcrumb: (index: number) => {
+                const state = get();
+                const targetSegment = state.breadcrumbs[index];
 
-        if (targetSegment) {
-            // Slice to target index + 1
-            set({ breadcrumbs: state.breadcrumbs.slice(0, index + 1) });
-            // Call the onClick handler to navigate
-            targetSegment.onClick();
+                if (targetSegment) {
+                    // Slice to target index + 1
+                    set({ breadcrumbs: state.breadcrumbs.slice(0, index + 1) }, false, 'popToBreadcrumb');
+                    // Call the onClick handler to navigate
+                    targetSegment.onClick();
+                }
+            },
+
+            clearBreadcrumbs: () => {
+                set({ breadcrumbs: [] }, false, 'clearBreadcrumbs');
+            },
+        }),
+        {
+            name: 'NavigationStore',
+            enabled: process.env.NODE_ENV === 'development',
         }
-    },
-
-    clearBreadcrumbs: () => {
-        set({ breadcrumbs: [] });
-    },
-}));
+    )
+);

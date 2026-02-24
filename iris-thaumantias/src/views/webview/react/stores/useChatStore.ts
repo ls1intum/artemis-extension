@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { devtools } from 'zustand/middleware';
 import type {
     ChatMessage,
     ChatSession,
@@ -55,146 +56,154 @@ interface ChatState {
     setShowDiagnostics: (show: boolean) => void;
 }
 
-export const useChatStore = create<ChatState>((set) => ({
-    // Initial state
-    context: null,
-    activeSessionId: null,
-    sessions: [],
-    recentExercises: [],
-    recentCourses: [],
-    allExercises: [],
-    allCourses: [],
-    messages: [],
-    streaming: {
-        isStreaming: false,
-        messageLocalId: null,
-        visibleChunks: [],
-    },
-    isLoading: false,
-    isWebSocketConnected: false,
-    disabledMessage: null,
-    isNoAiDetected: false,
-    referencedFiles: null,
-    showDiagnostics: false,
-
-    // Actions
-    setIrisState: (state) => {
-        set({
-            context: state.context ? {
-                type: state.context.type as 'course' | 'exercise',
-                id: state.context.id,
-                title: state.context.title,
-                shortName: state.context.shortName,
-                courseId: state.context.type === 'exercise' ? (state.context as any).courseId : undefined,
-                locked: state.context.locked,
-                source: state.context.source as 'user-selected' | 'workspace-detected' | 'system-default',
-            } : null,
-            activeSessionId: state.activeSessionId,
-            sessions: state.sessions.map(s => ({
-                id: s.id,
-                artemisSessionId: s.artemisSessionId,
-                preview: s.preview,
-                messageCount: s.messageCount,
-                createdAt: s.createdAt,
-                lastActivity: s.lastActivity,
-            })),
-            recentExercises: state.recentExercises,
-            recentCourses: state.recentCourses,
-            allExercises: state.allExercises,
-            allCourses: state.allCourses,
-        });
-    },
-
-    setMessages: (messages) => {
-        set({ messages });
-    },
-
-    addMessage: (message) => {
-        set((state) => ({
-            messages: [...state.messages, message],
-        }));
-    },
-
-    clearMessages: () => {
-        set({ messages: [] });
-    },
-
-    updateMessageContent: (localId, content) => {
-        set((state) => ({
-            messages: state.messages.map(msg =>
-                msg.localId === localId ? { ...msg, content } : msg
-            ),
-        }));
-    },
-
-    setMessageStatus: (localId, status, errorMessage) => {
-        set((state) => ({
-            messages: state.messages.map(msg =>
-                msg.localId === localId ? { ...msg, status, errorMessage } : msg
-            ),
-        }));
-    },
-
-    // Streaming actions
-    startStreaming: (localId) => {
-        set({
+export const useChatStore = create<ChatState>()(
+    devtools(
+        (set) => ({
+            // Initial state
+            context: null,
+            activeSessionId: null,
+            sessions: [],
+            recentExercises: [],
+            recentCourses: [],
+            allExercises: [],
+            allCourses: [],
+            messages: [],
             streaming: {
-                isStreaming: true,
-                messageLocalId: localId,
+                isStreaming: false,
+                messageLocalId: null,
                 visibleChunks: [],
             },
-        });
-    },
+            isLoading: false,
+            isWebSocketConnected: false,
+            disabledMessage: null,
+            isNoAiDetected: false,
+            referencedFiles: null,
+            showDiagnostics: false,
 
-    appendStreamChunk: (chunk) => {
-        set((state) => ({
-            streaming: {
-                ...state.streaming,
-                visibleChunks: [...state.streaming.visibleChunks, chunk],
+            // Actions
+            setIrisState: (state) => {
+                set({
+                    context: state.context ? {
+                        type: state.context.type as 'course' | 'exercise',
+                        id: state.context.id,
+                        title: state.context.title,
+                        shortName: state.context.shortName,
+                        courseId: state.context.type === 'exercise' ? (state.context as any).courseId : undefined,
+                        locked: state.context.locked,
+                        source: state.context.source as 'user-selected' | 'workspace-detected' | 'system-default',
+                    } : null,
+                    activeSessionId: state.activeSessionId,
+                    sessions: state.sessions.map(s => ({
+                        id: s.id,
+                        artemisSessionId: s.artemisSessionId,
+                        preview: s.preview,
+                        messageCount: s.messageCount,
+                        createdAt: s.createdAt,
+                        lastActivity: s.lastActivity,
+                    })),
+                    recentExercises: state.recentExercises,
+                    recentCourses: state.recentCourses,
+                    allExercises: state.allExercises,
+                    allCourses: state.allCourses,
+                }, false, 'setIrisState');
             },
-        }));
-    },
 
-    finishStreaming: (finalContent) => {
-        set((state) => {
-            const { messageLocalId } = state.streaming;
-            return {
-                streaming: {
-                    isStreaming: false,
-                    messageLocalId: null,
-                    visibleChunks: [],
-                },
-                messages: messageLocalId
-                    ? state.messages.map(msg =>
-                        msg.localId === messageLocalId ? { ...msg, content: finalContent } : msg
-                    )
-                    : state.messages,
-            };
-        });
-    },
+            setMessages: (messages) => {
+                set({ messages }, false, 'setMessages');
+            },
 
-    // UI actions
-    setLoading: (loading) => {
-        set({ isLoading: loading });
-    },
+            addMessage: (message) => {
+                set((state) => ({
+                    messages: [...state.messages, message],
+                }), false, 'addMessage');
+            },
 
-    setWebSocketConnected: (connected) => {
-        set({ isWebSocketConnected: connected });
-    },
+            clearMessages: () => {
+                set({ messages: [] }, false, 'clearMessages');
+            },
 
-    setDisabledMessage: (message) => {
-        set({ disabledMessage: message });
-    },
+            updateMessageContent: (localId, content) => {
+                set((state) => ({
+                    messages: state.messages.map(msg =>
+                        msg.localId === localId ? { ...msg, content } : msg
+                    ),
+                }), false, 'updateMessageContent');
+            },
 
-    setNoAiDetected: (detected) => {
-        set({ isNoAiDetected: detected });
-    },
+            setMessageStatus: (localId, status, errorMessage) => {
+                set((state) => ({
+                    messages: state.messages.map(msg =>
+                        msg.localId === localId ? { ...msg, status, errorMessage } : msg
+                    ),
+                }), false, 'setMessageStatus');
+            },
 
-    setReferencedFiles: (data) => {
-        set({ referencedFiles: data });
-    },
+            // Streaming actions
+            startStreaming: (localId) => {
+                set({
+                    streaming: {
+                        isStreaming: true,
+                        messageLocalId: localId,
+                        visibleChunks: [],
+                    },
+                }, false, 'startStreaming');
+            },
 
-    setShowDiagnostics: (show) => {
-        set({ showDiagnostics: show });
-    },
-}));
+            appendStreamChunk: (chunk) => {
+                set((state) => ({
+                    streaming: {
+                        ...state.streaming,
+                        visibleChunks: [...state.streaming.visibleChunks, chunk],
+                    },
+                }), false, 'appendStreamChunk');
+            },
+
+            finishStreaming: (finalContent) => {
+                set((state) => {
+                    const { messageLocalId } = state.streaming;
+                    return {
+                        streaming: {
+                            isStreaming: false,
+                            messageLocalId: null,
+                            visibleChunks: [],
+                        },
+                        messages: messageLocalId
+                            ? state.messages.map(msg =>
+                                msg.localId === messageLocalId ? { ...msg, content: finalContent } : msg
+                            )
+                            : state.messages,
+                    };
+                }, false, 'finishStreaming');
+            },
+
+            // UI actions
+            setLoading: (loading) => {
+                set({ isLoading: loading }, false, 'setLoading');
+            },
+
+            setWebSocketConnected: (connected) => {
+                set({ isWebSocketConnected: connected }, false, 'setWebSocketConnected');
+            },
+
+            setDisabledMessage: (message) => {
+                set({ disabledMessage: message }, false, 'setDisabledMessage');
+            },
+
+            setNoAiDetected: (detected) => {
+                set({ isNoAiDetected: detected }, false, 'setNoAiDetected');
+            },
+
+            setReferencedFiles: (data) => {
+                set({ referencedFiles: data }, false, 'setReferencedFiles');
+            },
+
+            setShowDiagnostics: (show) => {
+                set({ showDiagnostics: show }, false, 'setShowDiagnostics');
+            },
+        }),
+        {
+            name: 'ChatStore',
+            enabled: process.env.NODE_ENV === 'development',
+        }
+    )
+);

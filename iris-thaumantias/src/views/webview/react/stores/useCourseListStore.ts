@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { devtools } from 'zustand/middleware';
 import type { VsCodeApi, CourseData, ArchivedCourse } from '../../../../shared/messageContracts';
 
 interface CourseListState {
@@ -69,184 +70,192 @@ function compareSemesters(a: string, b: string): number {
     return semesterA.sortKey - semesterB.sortKey;
 }
 
-export const useCourseListStore = create<CourseListState>((set, get) => ({
-    courses: [],
-    archivedCourses: [],
-    archivedLoaded: false,
-    isLoading: false,
-    error: null,
-    searchTerm: '',
-    typeFilter: 'all',
-    semesterFilter: 'all',
-    sortBy: 'semester-desc',
-
-    setCourses: (courses, archived) => {
-        set({
-            courses,
-            archivedCourses: archived || [],
-            archivedLoaded: archived !== undefined,
+export const useCourseListStore = create<CourseListState>()(
+    devtools(
+        (set, get) => ({
+            courses: [],
+            archivedCourses: [],
+            archivedLoaded: false,
             isLoading: false,
             error: null,
-        });
-    },
-
-    setArchivedCourses: (archived) => {
-        set({
-            archivedCourses: archived,
-            archivedLoaded: true,
-            isLoading: false,
-        });
-    },
-
-    setLoading: (loading) => {
-        set({ isLoading: loading });
-    },
-
-    setError: (error) => {
-        set({ error, isLoading: false });
-    },
-
-    setSearchTerm: (term) => {
-        set({ searchTerm: term });
-    },
-
-    setTypeFilter: (filter) => {
-        set({ typeFilter: filter });
-    },
-
-    setSemesterFilter: (filter) => {
-        set({ semesterFilter: filter });
-    },
-
-    setSortBy: (sort) => {
-        set({ sortBy: sort });
-    },
-
-    clearFilters: () => {
-        set({
             searchTerm: '',
             typeFilter: 'all',
             semesterFilter: 'all',
             sortBy: 'semester-desc',
-        });
-    },
 
-    loadCourses: (vscodeApi) => {
-        set({ isLoading: true, error: null });
-        vscodeApi.postMessage({
-            type: 'command',
-            command: 'reloadCourses',
-        });
-    },
+            setCourses: (courses, archived) => {
+                set({
+                    courses,
+                    archivedCourses: archived || [],
+                    archivedLoaded: archived !== undefined,
+                    isLoading: false,
+                    error: null,
+                }, false, 'setCourses');
+            },
 
-    loadArchivedCourses: (vscodeApi) => {
-        set({ isLoading: true });
-        vscodeApi.postMessage({
-            type: 'command',
-            command: 'loadArchivedCourses',
-        });
-    },
+            setArchivedCourses: (archived) => {
+                set({
+                    archivedCourses: archived,
+                    archivedLoaded: true,
+                    isLoading: false,
+                }, false, 'setArchivedCourses');
+            },
 
-    filteredCourses: () => {
-        const state = get();
-        const { courses, archivedCourses, searchTerm, typeFilter, semesterFilter, sortBy } = state;
+            setLoading: (loading) => {
+                set({ isLoading: loading }, false, 'setLoading');
+            },
 
-        // Apply search and filters
-        const lowerSearchTerm = searchTerm.toLowerCase().trim();
+            setError: (error) => {
+                set({ error, isLoading: false }, false, 'setError');
+            },
 
-        const filteredActive = courses.filter((courseData) => {
-            const course = courseData.course;
-            const title = course.title?.toLowerCase() || '';
-            const semester = course.semester?.toLowerCase() || '';
-            const description = course.description?.toLowerCase() || '';
+            setSearchTerm: (term) => {
+                set({ searchTerm: term }, false, 'setSearchTerm');
+            },
 
-            // Search filter
-            if (lowerSearchTerm && !title.includes(lowerSearchTerm) && !semester.includes(lowerSearchTerm) && !description.includes(lowerSearchTerm)) {
-                return false;
-            }
+            setTypeFilter: (filter) => {
+                set({ typeFilter: filter }, false, 'setTypeFilter');
+            },
 
-            // Semester filter
-            if (semesterFilter !== 'all' && semester !== semesterFilter.toLowerCase()) {
-                return false;
-            }
+            setSemesterFilter: (filter) => {
+                set({ semesterFilter: filter }, false, 'setSemesterFilter');
+            },
 
-            return true;
-        });
+            setSortBy: (sort) => {
+                set({ sortBy: sort }, false, 'setSortBy');
+            },
 
-        const filteredArchived = archivedCourses.filter((course) => {
-            const title = course.title?.toLowerCase() || '';
-            const semester = course.semester?.toLowerCase() || '';
+            clearFilters: () => {
+                set({
+                    searchTerm: '',
+                    typeFilter: 'all',
+                    semesterFilter: 'all',
+                    sortBy: 'semester-desc',
+                }, false, 'clearFilters');
+            },
 
-            // Search filter
-            if (lowerSearchTerm && !title.includes(lowerSearchTerm) && !semester.includes(lowerSearchTerm)) {
-                return false;
-            }
+            loadCourses: (vscodeApi) => {
+                set({ isLoading: true, error: null }, false, 'loadCourses');
+                vscodeApi.postMessage({
+                    type: 'command',
+                    command: 'reloadCourses',
+                });
+            },
 
-            // Semester filter
-            if (semesterFilter !== 'all' && semester !== semesterFilter.toLowerCase()) {
-                return false;
-            }
+            loadArchivedCourses: (vscodeApi) => {
+                set({ isLoading: true }, false, 'loadArchivedCourses');
+                vscodeApi.postMessage({
+                    type: 'command',
+                    command: 'loadArchivedCourses',
+                });
+            },
 
-            return true;
-        });
+            filteredCourses: () => {
+                const state = get();
+                const { courses, archivedCourses, searchTerm, typeFilter, semesterFilter, sortBy } = state;
 
-        // Sort courses
-        const sortedActive = [...filteredActive].sort((a, b) => {
-            const courseA = a.course;
-            const courseB = b.course;
+                // Apply search and filters
+                const lowerSearchTerm = searchTerm.toLowerCase().trim();
 
-            const titleA = courseA.title || '';
-            const titleB = courseB.title || '';
-            const semesterA = courseA.semester || '';
-            const semesterB = courseB.semester || '';
-            const exercisesA = courseA.exercises?.length || 0;
-            const exercisesB = courseB.exercises?.length || 0;
+                const filteredActive = courses.filter((courseData) => {
+                    const course = courseData.course;
+                    const title = course.title?.toLowerCase() || '';
+                    const semester = course.semester?.toLowerCase() || '';
+                    const description = course.description?.toLowerCase() || '';
 
-            switch (sortBy) {
-                case 'title-asc':
-                    return titleA.localeCompare(titleB);
-                case 'title-desc':
-                    return titleB.localeCompare(titleA);
-                case 'semester-desc':
-                    return compareSemesters(semesterB, semesterA); // newest first
-                case 'semester-asc':
-                    return compareSemesters(semesterA, semesterB); // oldest first
-                case 'exercises-desc':
-                    return exercisesB - exercisesA;
-                case 'exercises-asc':
-                    return exercisesA - exercisesB;
-                default:
-                    return titleA.localeCompare(titleB);
-            }
-        });
-
-        const sortedArchived = [...filteredArchived].sort((a, b) => {
-            const titleA = a.title || '';
-            const titleB = b.title || '';
-            const semesterA = a.semester || '';
-            const semesterB = b.semester || '';
-
-            switch (sortBy) {
-                case 'title-asc':
-                    return titleA.localeCompare(titleB);
-                case 'title-desc':
-                    return titleB.localeCompare(titleA);
-                case 'semester-desc':
-                    return compareSemesters(semesterB, semesterA); // newest first
-                case 'semester-asc':
-                    return compareSemesters(semesterA, semesterB); // oldest first
-                default:
-                    // For archived courses, default to semester-desc if exercises sort is selected
-                    if (sortBy.startsWith('exercises-')) {
-                        return compareSemesters(semesterB, semesterA);
+                    // Search filter
+                    if (lowerSearchTerm && !title.includes(lowerSearchTerm) && !semester.includes(lowerSearchTerm) && !description.includes(lowerSearchTerm)) {
+                        return false;
                     }
-                    return titleA.localeCompare(titleB);
-            }
-        });
 
-        return {
-            active: sortedActive,
-            archived: sortedArchived,
-        };
-    },
-}));
+                    // Semester filter
+                    if (semesterFilter !== 'all' && semester !== semesterFilter.toLowerCase()) {
+                        return false;
+                    }
+
+                    return true;
+                });
+
+                const filteredArchived = archivedCourses.filter((course) => {
+                    const title = course.title?.toLowerCase() || '';
+                    const semester = course.semester?.toLowerCase() || '';
+
+                    // Search filter
+                    if (lowerSearchTerm && !title.includes(lowerSearchTerm) && !semester.includes(lowerSearchTerm)) {
+                        return false;
+                    }
+
+                    // Semester filter
+                    if (semesterFilter !== 'all' && semester !== semesterFilter.toLowerCase()) {
+                        return false;
+                    }
+
+                    return true;
+                });
+
+                // Sort courses
+                const sortedActive = [...filteredActive].sort((a, b) => {
+                    const courseA = a.course;
+                    const courseB = b.course;
+
+                    const titleA = courseA.title || '';
+                    const titleB = courseB.title || '';
+                    const semesterA = courseA.semester || '';
+                    const semesterB = courseB.semester || '';
+                    const exercisesA = courseA.exercises?.length || 0;
+                    const exercisesB = courseB.exercises?.length || 0;
+
+                    switch (sortBy) {
+                        case 'title-asc':
+                            return titleA.localeCompare(titleB);
+                        case 'title-desc':
+                            return titleB.localeCompare(titleA);
+                        case 'semester-desc':
+                            return compareSemesters(semesterB, semesterA); // newest first
+                        case 'semester-asc':
+                            return compareSemesters(semesterA, semesterB); // oldest first
+                        case 'exercises-desc':
+                            return exercisesB - exercisesA;
+                        case 'exercises-asc':
+                            return exercisesA - exercisesB;
+                        default:
+                            return titleA.localeCompare(titleB);
+                    }
+                });
+
+                const sortedArchived = [...filteredArchived].sort((a, b) => {
+                    const titleA = a.title || '';
+                    const titleB = b.title || '';
+                    const semesterA = a.semester || '';
+                    const semesterB = b.semester || '';
+
+                    switch (sortBy) {
+                        case 'title-asc':
+                            return titleA.localeCompare(titleB);
+                        case 'title-desc':
+                            return titleB.localeCompare(titleA);
+                        case 'semester-desc':
+                            return compareSemesters(semesterB, semesterA); // newest first
+                        case 'semester-asc':
+                            return compareSemesters(semesterA, semesterB); // oldest first
+                        default:
+                            // For archived courses, default to semester-desc if exercises sort is selected
+                            if (sortBy.startsWith('exercises-')) {
+                                return compareSemesters(semesterB, semesterA);
+                            }
+                            return titleA.localeCompare(titleB);
+                    }
+                });
+
+                return {
+                    active: sortedActive,
+                    archived: sortedArchived,
+                };
+            },
+        }),
+        {
+            name: 'CourseListStore',
+            enabled: process.env.NODE_ENV === 'development',
+        }
+    )
+);

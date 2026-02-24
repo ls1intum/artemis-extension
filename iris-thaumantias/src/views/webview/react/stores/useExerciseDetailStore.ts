@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { devtools } from 'zustand/middleware';
 import type { VsCodeApi } from '../../../../shared/messageContracts';
 
 interface ExerciseDetailState {
@@ -68,125 +69,133 @@ function getLatestResult(participation: any): any {
     }, participation.results[0]);
 }
 
-export const useExerciseDetailStore = create<ExerciseDetailState>((set, get) => ({
-    exerciseData: null,
-    hideDeveloperTools: false,
-    isLoading: false,
-    error: null,
-
-    setExerciseData: (data, hideDeveloperTools) => {
-        set({
-            exerciseData: data,
-            hideDeveloperTools,
+export const useExerciseDetailStore = create<ExerciseDetailState>()(
+    devtools(
+        (set, get) => ({
+            exerciseData: null,
+            hideDeveloperTools: false,
             isLoading: false,
             error: null,
-        });
-    },
 
-    setLoading: (loading) => {
-        set({ isLoading: loading });
-    },
+            setExerciseData: (data, hideDeveloperTools) => {
+                set({
+                    exerciseData: data,
+                    hideDeveloperTools,
+                    isLoading: false,
+                    error: null,
+                }, false, 'setExerciseData');
+            },
 
-    setError: (error) => {
-        set({ error, isLoading: false });
-    },
+            setLoading: (loading) => {
+                set({ isLoading: loading }, false, 'setLoading');
+            },
 
-    loadExerciseDetail: (vscodeApi, exerciseId) => {
-        set({ isLoading: true, error: null });
-        vscodeApi.postMessage({
-            type: 'command',
-            command: 'reloadExerciseDetail',
-            payload: { exerciseId },
-        });
-    },
+            setError: (error) => {
+                set({ error, isLoading: false }, false, 'setError');
+            },
 
-    updateBuildStatus: (payload) => {
-        const state = get();
-        if (!state.exerciseData) {
-            return;
+            loadExerciseDetail: (vscodeApi, exerciseId) => {
+                set({ isLoading: true, error: null }, false, 'loadExerciseDetail');
+                vscodeApi.postMessage({
+                    type: 'command',
+                    command: 'reloadExerciseDetail',
+                    payload: { exerciseId },
+                });
+            },
+
+            updateBuildStatus: (payload) => {
+                const state = get();
+                if (!state.exerciseData) {
+                    return;
+                }
+
+                // payload is the newResult data
+                const result = payload;
+
+                // Deep clone exerciseData
+                const updatedData = JSON.parse(JSON.stringify(state.exerciseData));
+
+                // Find participation for this result
+                const participation = findParticipationForResult(updatedData, result);
+
+                if (participation) {
+                    // Update or add result
+                    if (!participation.results) {
+                        participation.results = [];
+                    }
+
+                    const existingIndex = participation.results.findIndex((r: any) => r.id === result.id);
+                    if (existingIndex >= 0) {
+                        participation.results[existingIndex] = result;
+                    } else {
+                        participation.results.push(result);
+                    }
+
+                    // Update latest result reference
+                    updatedData.latestResult = getLatestResult(participation);
+                }
+
+                set({ exerciseData: updatedData }, false, 'updateBuildStatus');
+            },
+
+            updateSubmission: (payload) => {
+                const state = get();
+                if (!state.exerciseData) {
+                    return;
+                }
+
+                // payload is the newSubmission data
+                const submission = payload;
+
+                // Deep clone exerciseData
+                const updatedData = JSON.parse(JSON.stringify(state.exerciseData));
+
+                // Find participation by ID
+                const participation = updatedData.exercise?.studentParticipations?.find(
+                    (p: any) => p.id === submission.participation?.id
+                );
+
+                if (participation) {
+                    // Update or add submission
+                    if (!participation.submissions) {
+                        participation.submissions = [];
+                    }
+
+                    const existingIndex = participation.submissions.findIndex((s: any) => s.id === submission.id);
+                    if (existingIndex >= 0) {
+                        participation.submissions[existingIndex] = submission;
+                    } else {
+                        participation.submissions.push(submission);
+                    }
+
+                    // Update latest submission reference
+                    updatedData.latestSubmission = getLatestSubmission(participation);
+                }
+
+                set({ exerciseData: updatedData }, false, 'updateSubmission');
+            },
+
+            updateSubmissionProcessing: (payload) => {
+                const state = get();
+                if (!state.exerciseData) {
+                    return;
+                }
+
+                // payload contains submission processing status
+                // For now, just flag that a submission is processing
+
+                // Deep clone exerciseData
+                const updatedData = JSON.parse(JSON.stringify(state.exerciseData));
+
+                // Mark pending submission
+                updatedData.pendingSubmission = payload;
+
+                set({ exerciseData: updatedData }, false, 'updateSubmissionProcessing');
+            },
+        }),
+        {
+            name: 'ExerciseDetailStore',
+            enabled: process.env.NODE_ENV === 'development',
         }
-
-        // payload is the newResult data
-        const result = payload;
-
-        // Deep clone exerciseData
-        const updatedData = JSON.parse(JSON.stringify(state.exerciseData));
-
-        // Find participation for this result
-        const participation = findParticipationForResult(updatedData, result);
-
-        if (participation) {
-            // Update or add result
-            if (!participation.results) {
-                participation.results = [];
-            }
-
-            const existingIndex = participation.results.findIndex((r: any) => r.id === result.id);
-            if (existingIndex >= 0) {
-                participation.results[existingIndex] = result;
-            } else {
-                participation.results.push(result);
-            }
-
-            // Update latest result reference
-            updatedData.latestResult = getLatestResult(participation);
-        }
-
-        set({ exerciseData: updatedData });
-    },
-
-    updateSubmission: (payload) => {
-        const state = get();
-        if (!state.exerciseData) {
-            return;
-        }
-
-        // payload is the newSubmission data
-        const submission = payload;
-
-        // Deep clone exerciseData
-        const updatedData = JSON.parse(JSON.stringify(state.exerciseData));
-
-        // Find participation by ID
-        const participation = updatedData.exercise?.studentParticipations?.find(
-            (p: any) => p.id === submission.participation?.id
-        );
-
-        if (participation) {
-            // Update or add submission
-            if (!participation.submissions) {
-                participation.submissions = [];
-            }
-
-            const existingIndex = participation.submissions.findIndex((s: any) => s.id === submission.id);
-            if (existingIndex >= 0) {
-                participation.submissions[existingIndex] = submission;
-            } else {
-                participation.submissions.push(submission);
-            }
-
-            // Update latest submission reference
-            updatedData.latestSubmission = getLatestSubmission(participation);
-        }
-
-        set({ exerciseData: updatedData });
-    },
-
-    updateSubmissionProcessing: (payload) => {
-        const state = get();
-        if (!state.exerciseData) {
-            return;
-        }
-
-        // payload contains submission processing status
-        // For now, just flag that a submission is processing
-
-        // Deep clone exerciseData
-        const updatedData = JSON.parse(JSON.stringify(state.exerciseData));
-
-        // Mark pending submission
-        updatedData.pendingSubmission = payload;
-
-        set({ exerciseData: updatedData });
-    },
-}));
+    )
+);
