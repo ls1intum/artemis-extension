@@ -39,8 +39,8 @@ Requirements for v1.0 React Webview Migration. Each maps to roadmap phases.
 
 ### Cleanup
 
-- [ ] **CLEAN-01**: All legacy `generateXxxHtml()` functions and inline JS/CSS templates are removed
-- [ ] **CLEAN-02**: HTML-string-based ViewRouter is replaced with React conditional rendering
+- [x] **CLEAN-01**: All legacy `generateXxxHtml()` functions and inline JS/CSS templates are removed
+- [x] **CLEAN-02**: HTML-string-based ViewRouter is replaced with React conditional rendering
 - [ ] **CLEAN-03**: Production builds use tree-shaking and minification with verified bundle size
 
 ## Future Requirements
@@ -91,8 +91,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 | VIEW-03 | Phase 3 | Complete |
 | CRIT-01 | Phase 5 | Complete |
 | CRIT-02 | Phase 6 | Complete |
-| CLEAN-01 | Phase 7 | Pending |
-| CLEAN-02 | Phase 7 | Pending |
+| CLEAN-01 | Phase 7 | Complete |
+| CLEAN-02 | Phase 7 | Complete |
 | CLEAN-03 | Phase 7 | Pending |
 
 **Coverage:**

@@ -9,12 +9,12 @@ See: .planning/PROJECT.md (updated 2026-02-23)
 
 ## Current Position
 
-Phase: 6 of 7 (Iris Chat with Streaming)
-Plan: 2 of 3
+Phase: 7 of 7 (Cleanup and Optimization)
+Plan: 2 of 4
 Status: In Progress
-Last activity: 2026-02-24 — Completed plan 06-02 (Chat UI Components)
+Last activity: 2026-02-24 — Completed plan 07-01 (Legacy View Removal)
 
-Progress: [██████████████████████████████████████████████████] 98%
+Progress: [███████████████████████████████████████████████████] 100%
 
 ## Performance Metrics
 
@@ -62,6 +62,7 @@ Progress: [███████████████████████
 | Phase 06 P01 | 269 | 2 tasks | 8 files |
 | Phase 06 P02 | 524 | 2 tasks | 18 files |
 | Phase 06 P03 | 283 | 2 tasks | 5 files |
+| Phase 07 P01 | 4 | 2 tasks | 81 files |
 
 ## Accumulated Context
 
@@ -139,6 +140,7 @@ Recent decisions affecting current work:
 - [Phase 06]: State persistence limited to forceContextPicker flag (matches legacy behavior)
 - [Phase 06]: Side menu as simple dropdown with click-outside-to-close (not full drawer)
 - [Phase 06]: Help popup via VS Code showInformationMessage modal (not custom webview)
+- [Phase 07-01]: Temporarily disabled fullscreen panel support until React implementation
 
 ### Pending Todos
 
