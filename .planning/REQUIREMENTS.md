@@ -35,7 +35,7 @@ Requirements for v1.0 React Webview Migration. Each maps to roadmap phases.
 ### Critical Views
 
 - [x] **CRIT-01**: Exam countdown timers use Web Workers with absolute timestamps (no drift from background tab throttling)
-- [ ] **CRIT-02**: Iris chat message streaming uses React.memo and separated streaming state (no flicker during token delivery)
+- [x] **CRIT-02**: Iris chat message streaming uses React.memo and separated streaming state (no flicker during token delivery)
 
 ### Cleanup
 
@@ -90,7 +90,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | VIEW-02 | Phase 3 | Complete |
 | VIEW-03 | Phase 3 | Complete |
 | CRIT-01 | Phase 5 | Complete |
-| CRIT-02 | Phase 6 | Pending |
+| CRIT-02 | Phase 6 | Complete |
 | CLEAN-01 | Phase 7 | Pending |
 | CLEAN-02 | Phase 7 | Pending |
 | CLEAN-03 | Phase 7 | Pending |

@@ -10,18 +10,18 @@ See: .planning/PROJECT.md (updated 2026-02-23)
 ## Current Position
 
 Phase: 6 of 7 (Iris Chat with Streaming)
-Plan: 1 of 3
+Plan: 2 of 3
 Status: In Progress
-Last activity: 2026-02-24 — Completed plan 06-01 (Chat State Infrastructure)
+Last activity: 2026-02-24 — Completed plan 06-02 (Chat UI Components)
 
-Progress: [█████████████████████████████████████████████████░] 97%
+Progress: [██████████████████████████████████████████████████] 98%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 17
-- Average duration: 5.5 minutes
-- Total execution time: 1.63 hours
+- Total plans completed: 18
+- Average duration: 5.7 minutes
+- Total execution time: 1.78 hours
 
 **By Phase:**
 
@@ -32,11 +32,11 @@ Progress: [███████████████████████
 | 03 | 4 | 17.8 min | 4.5 min |
 | 04 | 5 | 32.4 min | 6.5 min |
 | 05 | 2 | 13.9 min | 6.9 min |
-| 06 | 1 | 4.5 min | 4.5 min |
+| 06 | 2 | 13.2 min | 6.6 min |
 
 **Recent Trend:**
-- Last 5 plans: 04-05 (3 min), 05-01 (6.5 min), 05-02 (7.4 min), 06-01 (4.5 min)
-- Trend: Stable (latest plan 4.5 min, faster than recent average)
+- Last 5 plans: 05-01 (6.5 min), 05-02 (7.4 min), 06-01 (4.5 min), 06-02 (8.7 min)
+- Trend: Stable (latest plan 8.7 min, within normal range)
 
 **Detailed Metrics:**
 
@@ -60,6 +60,7 @@ Progress: [███████████████████████
 | Phase 05 P01 | 388 | 2 tasks | 14 files |
 | Phase 05 P02 | 443 | 2 tasks | 17 files |
 | Phase 06 P01 | 269 | 2 tasks | 8 files |
+| Phase 06 P02 | 524 | 2 tasks | 18 files |
 
 ## Accumulated Context
 
@@ -128,6 +129,11 @@ Recent decisions affecting current work:
 - [Phase 06]: use-stick-to-bottom library for smart auto-scroll (handles momentum, touch, user intent)
 - [Phase 06]: OpenSettingsCommand payload made optional to avoid breaking existing code
 - [Phase 06]: @ts-expect-error for use-stick-to-bottom ESM import (esbuild handles at bundle time)
+- [Phase 06]: React.memo with custom comparator for MessageBubble (prevents unnecessary re-renders)
+- [Phase 06]: Streamdown for progressive markdown (purpose-built for AI streaming)
+- [Phase 06]: Shiki singleton highlighter (module-level Promise, lazy initialization)
+- [Phase 06]: ContextSelector dual-mode dropdown (session list vs context picker in one component)
+- [Phase 06]: @ts-expect-error for shiki and streamdown ESM imports (same esbuild handling pattern)
 
 ### Pending Todos
 
@@ -140,5 +146,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-24 (plan execution)
-Stopped at: Completed 06-01-PLAN.md - Chat State Infrastructure
+Stopped at: Completed 06-02-PLAN.md - Chat UI Components
 Resume file: None

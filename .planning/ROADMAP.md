@@ -146,5 +146,5 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7
 | 3. Simple Views Migration | 3/4 | In Progress | - |
 | 4. Main UI Views | 4/5 | In Progress | - |
 | 5. Exam Views with Timer Accuracy | 2/2 | Complete   | 2026-02-24 |
-| 6. Iris Chat with Streaming | 1/3 | In Progress | - |
+| 6. Iris Chat with Streaming | 2/3 | In Progress|  |
 | 7. Cleanup & Optimization | 0/TBD | Not started | - |
