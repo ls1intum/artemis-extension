@@ -1,242 +1,221 @@
 # Feature Research
 
-**Domain:** React-based VS Code Webview Extensions
-**Researched:** 2026-02-23
+**Domain:** Production-ready VS Code extension with React webviews
+**Researched:** 2026-02-25
 **Confidence:** HIGH
 
 ## Feature Landscape
 
 ### Table Stakes (Users Expect These)
 
-Features users assume exist. Missing these = migration feels incomplete.
+Features users assume exist in production-ready VS Code extensions. Missing these = product feels incomplete or unprofessional.
 
 | Feature | Why Expected | Complexity | Notes |
 |---------|--------------|------------|-------|
-| Component-based architecture | Standard React pattern, required for composition and reusability | MEDIUM | Port existing 20+ components (Button, ListItem, etc.) to React with same visual design. ExamExerciseDetail reuses ExerciseDetail components. |
-| Type-safe message passing | Industry standard for extension-webview communication, prevents runtime errors | MEDIUM | Replace current message handler routing with typed contracts. Libraries: vscode-messenger (TypeFox), react-vscode-webview-ipc. |
-| State persistence (getState/setState) | Webview content destroyed when hidden, must restore state when visible again | LOW | Use VS Code's acquireVsCodeApi().setState() for UI state. Performance cost remarkably low, synchronous, no size limits. |
-| VS Code theme integration | Webviews must respect user's color theme | LOW | VS Code exposes 400+ theme colors as CSS variables on HTML element. Use `var(--vscode-*)` in styles. |
-| Content Security Policy (CSP) | Required for VS Code webview security sandbox | MEDIUM | Use nonce-based script-src CSP. Extract inline scripts/styles to external files. CSP implicitly disables inline content. |
-| Bundler configuration (dual-target) | Extension runs in Node.js, webview runs in browser sandbox | MEDIUM | Separate builds: extension (CJS for Node.js) + webview (IIFE/ESM for browser). Current: esbuild. Options: webpack, vite. |
-| Message event cleanup | Prevent memory leaks when webview disposed | LOW | Use onDidDispose for cleanup (fires after webview destroyed). Track disposables array for event listeners. |
-| Error boundaries | Catch React rendering errors gracefully | LOW | Wrap views in ErrorBoundary components. Cannot catch errors in event handlers or async code (use try/catch). |
+| Theme-aware icons | VS Code extensions must adapt to light/dark themes | LOW | Codicons (1000+ icons) handle theming automatically via CSS variables. Custom SVG icons require manual theme handling with `--vscode-*` CSS variables or `currentColor`. Lucide icons need explicit color prop binding to theme variables. |
+| Zero TypeScript errors | Production code shouldn't have compilation warnings | MEDIUM | **Already have 10 pre-existing errors** to fix. Requires enabling `strict: true` in tsconfig.json and eliminating all `any` types. VS Code API itself has some strict-mode compatibility issues (Issue #38649). Use `@typescript-eslint/no-explicit-any` ESLint rule to enforce. |
+| Reasonable bundle size | Large extensions slow VS Code startup and webview load | MEDIUM | **Current: 3.5MB webview bundle** (IIFE format). No official limits but Import Cost extension shows 70KB+ as heavy. esbuild with `minify: true` enables tree-shaking automatically. Code splitting difficult in webviews due to dynamic asset paths (Issue #93041). Target: <2MB for webview bundle. |
+| UI integration tests | Validates that real user workflows function correctly | MEDIUM | **Already have login-flow test** via vscode-extension-tester. WebdriverIO alternative offers more features. Must switch iframe context to test webview elements. Complement with unit/integration tests (test pyramid). |
+| Automated linting | Enforces code quality standards automatically | LOW | ESLint with `@typescript-eslint/recommended-type-checked` or `strict-type-checked` for production. Already have tooling, need to apply to all code and CI. |
+| Bundled extension | Required for VS Code Web (github.dev, vscode.dev) | LOW | **Already using esbuild**. Production build with `minify: true` yields smallest bundles. Extension must be bundled to work in web environments. |
 
 ### Differentiators (Competitive Advantage)
 
-Features that set the product apart. Not required, but valuable for DX and maintainability.
+Features that set production extensions apart. Not required, but valuable for quality perception.
 
 | Feature | Value Proposition | Complexity | Notes |
 |---------|-------------------|------------|-------|
-| Hot module replacement (HMR) | Instant feedback during development, no manual webview reload | HIGH | Webpack dev server with Fast Refresh. Development vs production logic required. Alternative: F1 → Developer: Reload Webviews. |
-| Type-safe state management | Prevent state drift bugs, better IntelliSense | MEDIUM | Options: Context API + TypeScript, vscode-messenger, custom hooks. Extension is authoritative, pushes state to webview. |
-| Streaming message handling | Smooth real-time updates for chat (Iris) without flicker | MEDIUM | React state updates for incremental message chunks. Avoid full re-renders. Use key prop stability. |
-| Timer accuracy patterns | Exam countdown timers must not drift or regress | MEDIUM | Use requestAnimationFrame or reference date pattern (not setTimeout alone). Clear intervals in useEffect cleanup. |
-| Feature-based folder structure | Colocate related code by feature, not file type | LOW | Organize by view (e.g., `views/irisChat/`) with components/, hooks/, types/ inside. Shared components in global components/. |
-| VS Code Messenger integration | Typed RPC-like protocol with lifecycle management, devtools for debugging | MEDIUM | TypeFox library. Auto-unregisters views on dispose. Multidirectional messaging. Complementary debugging extension available. |
-| Stateless webview pattern | Make webview a rendering target, extension holds source of truth | MEDIUM | All state managed in extension host, sent to webview via messages. Webview sends user actions back. Simplifies persistence. |
-| React Context for webview state | Share state across components without prop drilling | LOW | Wrap app in context provider. Subscribe components via useContext. Webview-specific: sync with extension via messages. |
+| React component tests | Catches UI bugs before they reach users, enables confident refactoring | MEDIUM | Use Vitest (faster, native ESM, Vite-compatible) or Jest with React Testing Library. Test components in isolation using `render()` and query by user-visible text/roles. **Current trend:** Vitest overtaking Jest in satisfaction (State of JS 2024). Coverage target: 70-80% for production apps. |
+| Type-safe message contracts | Prevents runtime errors from webview-extension communication | LOW | **Already have discriminated unions** (v1.0). Maintain 100% - no loosening to `any`. Use `satisfies` operator for type narrowing. |
+| Consistent icon system | Professional, cohesive visual language | LOW | **Decision needed:** Standardize on Codicons (theme-native), Lucide React (1500+ icons, tree-shakable), or hybrid. Current: Custom inline SVG + Lucide just installed. Codicons preferred for VS Code-native look, Lucide for design consistency if custom UI. |
+| Optimized bundle analysis | Identifies bloat sources, tracks size over time | LOW | Use Import Cost extension during development or webpack-bundle-analyzer post-build. Track bundle size in CI to prevent regressions. **Current gap:** No bundle analysis tooling in place. |
+| CSP-compliant architecture | Security best practice for webviews | LOW | **Already compliant** (nonce-based CSP). Maintain: no inline scripts, styles must use nonce, all assets served via webview URI. |
+| 80%+ test coverage | Industry standard for production applications | MEDIUM-HIGH | Current: **UI smoke tests only**. Need: component unit tests (Vitest/Jest + RTL), integration tests (@vscode/test-electron), UI tests (vscode-extension-tester). Target: 70-80% coverage overall, higher for critical paths (exam timing, submission flow). |
 
 ### Anti-Features (Commonly Requested, Often Problematic)
 
-Features that seem good but create problems.
+Features that seem good but create problems in VS Code extension context.
 
 | Feature | Why Requested | Why Problematic | Alternative |
 |---------|---------------|-----------------|-------------|
-| retainContextWhenHidden: true | Preserve webview state when hidden, avoid reload | High memory overhead. Webview acts like background tab with scripts running. Should only be used when getState/setState won't work. | Use getState/setState for persistence. Much lower overhead. Extension can also store state in globalState. |
-| Full Redux/MobX state management | Familiar pattern from web apps | Overkill for VS Code webviews. Extension is source of truth, not client. Adds bundle size and complexity. | React Context API + message passing. Extension manages state, webview subscribes via messages. Continue extension uses Redux Toolkit but is large-scale. |
-| Inline scripts/styles in HTML | Simpler to write everything in one file | Breaks CSP. VS Code requires nonce-based CSP or 'unsafe-inline' (security risk). | Extract to external .js/.css files. Bundler handles this automatically. |
-| Client-side routing (React Router) | Standard for SPAs | Webviews aren't SPAs. Extension controls which view to show via ViewRouter pattern. | Use conditional rendering based on extension state. Extension sends "show view X" message. |
-| Shared state across multiple webviews | Share data between separate webview panels | Separate iframes can't directly share state. Requires extension host as mediator. | Extension holds shared state. Sends messages to all webviews when state changes. Simple: send full state. Complex: send reducer actions. |
-| setTimeout/setInterval for timers | Standard browser API | Chrome/Electron/VS Code throttle timers when webview in background. Causes drift for exam countdowns. | Use reference date pattern: `endTime - Date.now()`. Update with requestAnimationFrame. Check actual elapsed time, not assumed intervals. |
-| Global CSS or Tailwind without VS Code variables | Easier than theme integration | Breaks VS Code theme compliance. User switches theme, extension looks wrong. | Use VS Code CSS variables: `var(--vscode-foreground)`. Tailwind: arbitrary properties `text-[color:var(--vscode-descriptionForeground)]`. |
-| Vite for extension bundling | Modern, fast, great DX | VS Code extensions don't support ESM (CommonJS required). Vite's CommonJS support deprecated. | Use esbuild or webpack for extension. Can use Vite for webview build only (dual-bundler setup). |
+| 100% TypeScript strict mode initially | "Best practice" to enable all strict flags | VS Code API has known incompatibilities with some strict options (strictNullChecks on Provider interfaces, noImplicitAny on test runner). Can block progress if adopted too early without mitigation strategy. | Enable `strict: true` but use `@ts-expect-error` with explanatory comments for VS Code API limitations. File types.d.ts augmentations where possible. Prioritize fixing application code first, then tackle API boundary issues. |
+| Code splitting for webviews | Reduces initial bundle size | Webview asset paths vary per machine; webpack requires static publicPath for dynamic imports. Workarounds exist but add complexity (Issue #93041). **Current: single IIFE bundle.** | Tree-shaking via esbuild (automatic with `minify: true`), lazy-load heavy dependencies (Shiki already does this), evaluate if 3.5MB → <2MB via minification + dead code elimination suffices before adding splitting complexity. |
+| 100% test coverage | "More tests = better quality" | Diminishing returns above 80%. Chasing 100% often tests implementation details rather than behavior. Critical for safety systems (aerospace, medical) but overkill for dev tools. | Target 70-80% overall with 90%+ on critical paths (authentication, exam timing, submission flow, WebSocket state). Use coverage reports to find gaps, not as a metric to game. |
+| Hot Module Replacement (HMR) | Faster development iteration | Requires significant build config changes, webview state management, and may not persist across HMR reloads. **Already deferred to DX-01.** | Current: full webview rebuild on change. Acceptable for v1.1. Revisit if iteration speed becomes major pain point after launch. |
+| Custom icon font | "Smaller bundle than SVGs" | Must handle theming manually, no tree-shaking (entire font loads), CORS/CSP complications in webviews, maintenance burden. | Use Codicons (built-in font, zero bundle cost) or Lucide React SVG components (tree-shakable, only imports used icons). Current custom inline SVGs should migrate to one of these. |
+| Aggressive bundle splitting | Theoretical optimal loading | Creating bundles <1KB causes network overhead that outweighs size savings. Over-splitting increases complexity. | Bundle strategically: one main chunk, separate heavy optional deps (syntax highlighters, charting if added). Don't split for splitting's sake. |
 
 ## Feature Dependencies
 
 ```
-Type-safe message passing
-    └──requires──> Message event cleanup (prevent leaks)
+Type-Safe Message Contracts (v1.0 ✓)
+    └──enables──> Zero TypeScript Errors (v1.1)
+                      └──blocked-by──> Fix 10 pre-existing errors first
 
-State persistence (getState/setState)
-    └──requires──> Type-safe message passing (sync with extension)
+Bundled Extension (esbuild ✓)
+    └──enables──> Bundle Optimization (tree-shaking)
+                      └──enables──> Bundle Size Analysis
+    └──enables──> React Component Tests (need test env setup)
 
-Streaming message handling
-    └──requires──> Type-safe state management (track incremental updates)
+UI Integration Tests (vscode-extension-tester ✓)
+    ├──complements──> React Component Tests (test different layers)
+    └──requires──> Stable selectors (CSS classes, test IDs)
 
-Timer accuracy patterns
-    └──requires──> Message event cleanup (clear intervals on dispose)
+Theme-Aware Icons
+    ├──option-A──> Codicons (built-in, zero config)
+    ├──option-B──> Lucide React + CSS var theming
+    └──conflicts──> Custom inline SVGs (current) - migrate one direction
 
-Hot module replacement
-    └──requires──> Bundler configuration (webpack dev server)
-
-Stateless webview pattern
-    └──requires──> Type-safe message passing (extension pushes state)
-
-React Context for webview state
-    └──enhances──> Type-safe state management (share state across components)
-
-VS Code Messenger integration
-    └──enhances──> Type-safe message passing (RPC-like protocol)
-                   └──enhances──> Message event cleanup (auto-unregister)
-
-Error boundaries
-    └──independent──> (can add anytime)
-
-Feature-based folder structure
-    └──independent──> (organizational choice)
+Automated Linting (ESLint ✓)
+    └──enforces──> Zero TypeScript Errors
+    └──enforces──> No `any` types (@typescript-eslint/no-explicit-any)
 ```
 
 ### Dependency Notes
 
-- **Type-safe message passing requires message event cleanup:** Without cleanup, event listeners leak memory when webview disposed. TypeScript types prevent invalid messages.
-- **State persistence requires type-safe message passing:** setState saves UI state locally, but extension state needs message sync to survive webview disposal.
-- **Streaming message handling requires type-safe state management:** Incremental chat message chunks must be tracked in state. Without proper state updates, UI flickers or shows stale data.
-- **Timer accuracy patterns require message event cleanup:** Exam timers use setInterval/requestAnimationFrame. Must clear on component unmount and webview dispose.
-- **Stateless webview pattern enhances architecture:** Extension is source of truth, webview is pure rendering layer. Simplifies persistence, multi-webview sync, and testing.
-- **VS Code Messenger enhances type safety and lifecycle:** RPC-like protocol with auto-unregister on dispose. Reduces boilerplate. TypeFox devtools extension helps debug message flow.
+- **Type-Safe Contracts enables Zero TS Errors:** Already have discriminated unions (v1.0), now need to fix existing 10 errors and enforce going forward. Can't achieve 100% type safety with unresolved errors.
+- **Bundled Extension enables Optimization:** esbuild's tree-shaking (`minify: true`) automatically removes dead code. Must be bundled first before optimization can occur.
+- **UI Tests complement Component Tests:** vscode-extension-tester tests full workflows (login, navigation), React Testing Library tests components in isolation. Different layers of test pyramid—both needed.
+- **Icon System conflicts:** Must choose between Codicons, Lucide, or hybrid. Current custom inline SVGs in IconDefinitions.ts should migrate to one consistent system. Mixing systems increases bundle size and maintenance.
+- **Linting enforces Standards:** ESLint with typescript-eslint recommended-type-checked preset automates enforcement of no `any` types and other type safety rules. Critical for maintaining quality as team scales.
 
 ## MVP Definition
 
-### Launch With (v1 - React Migration)
+### Launch With (v1.1 Production Ready)
 
-Minimum viable migration — what's needed to achieve functionality parity with HTML string templates.
+Minimum features to claim "production ready" status — what's needed to validate quality bar.
 
-- [x] **Component-based architecture** — Required to replace HTML string templates. All 14 views must render via React components.
-- [x] **Type-safe message passing** — Replace current `any`-heavy message handlers. Prevents runtime errors during migration.
-- [x] **State persistence (getState/setState)** — Views become hidden when user switches tabs. Must restore state when visible again.
-- [x] **VS Code theme integration** — Preserve existing visual design with theme compliance. Use CSS variables.
-- [x] **Content Security Policy (CSP)** — Required for VS Code webview security. Extract inline scripts.
-- [x] **Bundler configuration (dual-target)** — Separate builds for extension (Node.js) and webview (browser sandbox).
-- [x] **Message event cleanup** — Prevent memory leaks. Extension will run long-term, leaks accumulate.
-- [x] **Error boundaries** — Catch React errors gracefully. Better than white screen.
+- [x] **Theme-aware icon system** — Choose Codicons OR Lucide, eliminate custom inline SVGs. Dashboard ghost buttons need icons (already Lucide installed). Essential for professional appearance.
+- [ ] **Zero TypeScript errors** — Fix 10 pre-existing errors, enable `strict: true`, eliminate all `any` types. Can't ship "production ready" with compilation warnings.
+- [ ] **Bundle optimization** — 3.5MB → <2MB via minification, tree-shaking, lazy loading. Current size hurts webview load performance.
+- [ ] **Expanded UI test coverage** — Beyond login flow: course browsing, exercise submission, Iris chat basics. Validates critical user paths work.
+- [ ] **Automated quality gates** — ESLint strict mode in CI, bundle size tracking. Prevents regressions after launch.
 
-### Add After Validation (v1.x)
+### Add After Validation (v1.2+)
 
-Features to add once core migration is stable and working.
+Features to add once v1.1 is stable and in use.
 
-- [ ] **Hot module replacement (HMR)** — Add when DX bottleneck identified. F1 → Reload Webviews works for now.
-- [ ] **VS Code Messenger integration** — Add if message passing becomes complex or hard to maintain. Current typed contracts may suffice.
-- [ ] **Feature-based folder structure** — Refactor once component boundaries are clear. Can start with simpler structure.
+- [ ] **React component test suite** — Unit tests for 22 shared components (Button, ListItem, IconButton, etc.). Trigger: After v1.1 ships, before adding new components. Enables confident refactoring.
+- [ ] **80% test coverage** — Comprehensive coverage across unit, integration, UI layers. Trigger: When adding major new features (e.g., new exam modes) that increase risk.
+- [ ] **Bundle size monitoring** — webpack-bundle-analyzer or Import Cost extension in CI. Trigger: After initial optimization, to track size over time and prevent regressions.
 
 ### Future Consideration (v2+)
 
-Features to defer until migration complete and new patterns proven.
+Features to defer until core quality is proven in production.
 
-- [ ] **Advanced streaming optimizations** — Add if Iris chat shows flicker/lag after migration. May not be needed.
-- [ ] **Timer accuracy patterns (advanced)** — Add if exam countdown shows drift. Start with simpler setInterval + reference date.
-- [ ] **Stateless webview pattern (full refactor)** — Architectural improvement, but requires rethinking state ownership. Defer to avoid scope creep.
+- [ ] **Code splitting for webviews** — Only if bundle remains >2MB after v1.1 optimization. Defer: High complexity, VS Code webview path issues (Issue #93041), may not be necessary if tree-shaking suffices.
+- [ ] **100% test coverage** — Diminishing returns above 80%. Defer: Industry standard is 70-80%, effort better spent on new features unless in regulated domain.
+- [ ] **Visual regression testing** — Screenshot comparison for UI consistency. Defer: Maintenance overhead high, manual review currently sufficient given React component architecture prevents most CSS regressions.
 
 ## Feature Prioritization Matrix
 
 | Feature | User Value | Implementation Cost | Priority |
 |---------|------------|---------------------|----------|
-| Component-based architecture | HIGH (migration goal) | HIGH (14 views, 20+ components) | P1 |
-| Type-safe message passing | HIGH (prevents bugs) | MEDIUM (replace current handlers) | P1 |
-| State persistence (getState/setState) | HIGH (required for hidden tabs) | LOW (VS Code API built-in) | P1 |
-| VS Code theme integration | HIGH (preserve visual design) | LOW (CSS variables) | P1 |
-| Content Security Policy (CSP) | HIGH (security requirement) | MEDIUM (extract inline code) | P1 |
-| Bundler configuration (dual-target) | HIGH (required for build) | MEDIUM (adapt existing esbuild) | P1 |
-| Message event cleanup | HIGH (prevent memory leaks) | LOW (onDidDispose hooks) | P1 |
-| Error boundaries | MEDIUM (better UX) | LOW (wrapper components) | P1 |
-| Streaming message handling | MEDIUM (Iris chat smoothness) | MEDIUM (incremental state updates) | P1 |
-| Timer accuracy patterns | MEDIUM (exam countdown correctness) | MEDIUM (requestAnimationFrame) | P1 |
-| React Context for webview state | MEDIUM (cleaner code) | LOW (wrap app in provider) | P2 |
-| Type-safe state management | MEDIUM (better IntelliSense) | MEDIUM (context + TypeScript) | P2 |
-| Hot module replacement (HMR) | MEDIUM (DX improvement) | HIGH (webpack dev server) | P2 |
-| Feature-based folder structure | LOW (organizational benefit) | LOW (move files) | P2 |
-| Stateless webview pattern | MEDIUM (architecture improvement) | HIGH (refactor state ownership) | P3 |
-| VS Code Messenger integration | LOW (nice-to-have library) | MEDIUM (replace message system) | P3 |
+| Zero TypeScript errors | HIGH (eliminates runtime bugs) | MEDIUM (10 errors + strict mode) | **P1** |
+| Theme-aware icon system | HIGH (professional appearance) | LOW (migrate to Codicons/Lucide) | **P1** |
+| Bundle optimization | HIGH (faster webview load) | MEDIUM (analyze, tree-shake, lazy-load) | **P1** |
+| Expanded UI tests | HIGH (catches regressions) | MEDIUM (3-5 critical flows) | **P1** |
+| Automated quality gates | HIGH (prevents regressions) | LOW (CI integration) | **P1** |
+| React component tests | MEDIUM (refactoring confidence) | MEDIUM (22 components + setup) | **P2** |
+| 80% test coverage | MEDIUM (quality signal) | HIGH (unit + integration tests) | **P2** |
+| Bundle size monitoring | MEDIUM (trend tracking) | LOW (analyzer tooling) | **P2** |
+| Code splitting | LOW (marginal gains if <2MB) | HIGH (webpack config complexity) | **P3** |
+| 100% test coverage | LOW (diminishing returns) | HIGH (chase edge cases) | **P3** |
+| Visual regression tests | LOW (current arch prevents issues) | HIGH (infrastructure + maintenance) | **P3** |
 
 **Priority key:**
-- P1: Must have for migration completion (functionality parity)
-- P2: Should have, add when stable (DX and maintainability)
-- P3: Nice to have, future refactor (architectural improvements)
+- **P1:** Must have for v1.1 "production ready" launch — table stakes
+- **P2:** Should have, add in v1.2 when stable — differentiators
+- **P3:** Nice to have, future consideration — optimize only if needed
 
 ## Competitor Feature Analysis
 
-Analysis of successful React-based VS Code webview extensions.
+Production-ready VS Code extensions with React webviews as reference points.
 
-| Feature | Continue (AI chat) | GitHub Copilot Chat | Our Approach (Artemis) |
-|---------|-------------------|---------------------|------------------------|
-| Architecture | core ↔ extension ↔ gui (React), message passing protocol | Webview with React, proprietary communication | Migrate existing message routing to typed contracts. Keep existing AppStateManager, ViewRouter. |
-| State management | Redux Toolkit in gui/ | Not publicly documented | Start with React Context + message passing. Redux overkill for our scale. |
-| Bundler | TypeScript, React build | Not publicly documented | Continue with esbuild (dual-target). Avoid Vite for extension (ESM incompatibility). |
-| Folder structure | Separate folders: core/, gui/, extensions/vscode/ | Not publicly documented | Use feature-based: views/[viewName]/ with components/, hooks/ inside. Shared in components/. |
-| Real-time updates | Message streaming for chat | Real-time completions | Incremental state updates for Iris chat. Avoid full re-renders. |
-| Theme integration | VS Code CSS variables | VS Code native components | Use CSS variables `var(--vscode-*)`. Preserve existing design. |
-| Webview lifecycle | Type-safe protocols, ContinueGUIWebviewViewProvider | Not publicly documented | Enhance existing ArtemisWebviewProvider, ChatWebviewProvider with React. |
-| Development workflow | TypeScript compilation | Not publicly documented | Add HMR as P2. F1 → Reload Webviews sufficient for MVP. |
+| Feature | GitHub Copilot Chat | GitLens | Our Approach (Artemis) |
+|---------|---------------------|---------|------------------------|
+| Icon System | Codicons (native) | Codicons (native) | **Decision:** Migrate to Codicons for ghost buttons + migrate custom SVGs, or standardize on Lucide React for all UI. Hybrid increases bundle size. |
+| Bundle Size | Unknown (proprietary) | Unknown (proprietary) | **Target:** <2MB (currently 3.5MB). Use esbuild minify + tree-shaking + lazy Shiki. |
+| Type Safety | Assumed strict (Microsoft) | Assumed strict (commercial) | **Current:** 10 errors, `any` types exist. **Target:** `strict: true`, zero errors, `@typescript-eslint/no-explicit-any` enforced. |
+| Testing Strategy | Unknown (Microsoft internal) | Unknown (commercial) | **Current:** UI smoke tests. **Target:** UI (vscode-extension-tester) + component tests (Vitest + RTL) + integration tests. 70-80% coverage. |
+| Bundle Format | Likely split chunks | Single bundle (observed) | **Current:** Single IIFE. **Decision:** Stick with single bundle if optimization achieves <2MB; splitting adds complexity without clear value. |
+| Theme Integration | Native (Codicons, CSS vars) | Native (Codicons, CSS vars) | **Current:** Mix of custom SVGs + CSS variables + Lucide (just added). **Target:** Consistent system using `--vscode-*` CSS variables for colors. |
 
-## Architectural Constraints from Existing Codebase
+## Architecture Dependencies
 
-| Constraint | Existing Pattern | React Migration Impact |
-|------------|------------------|------------------------|
-| Two webview providers | ArtemisWebviewProvider (main UI), ChatWebviewProvider (Iris chat) | Preserve separate providers. Migrate each to render React root. |
-| AppStateManager | Manages view state machine (login, dashboard, courseList, etc.) | Keep as-is. Use as source of truth for which view to render in React. |
-| ViewRouter | Determines which view to render based on state | Keep pattern. Replace HTML generation with React conditional rendering. |
-| Message handler routing | Handler registry for webview ↔ extension messages | Replace with typed message contracts. Preserve handler pattern. |
-| Exam timing requirements | ExamExerciseDetail with countdown timers | Use reference date pattern. Clear intervals in useEffect cleanup. Test for drift. |
-| Iris chat streaming | Real-time message chunks via WebSocket/STOMP | Incremental state updates. Append chunks to message array. Use stable keys. |
-| Shared exercise components | ExamExerciseDetail reuses ExerciseDetail UI components | React composition natural fit. Extract shared components to components/exercise/. |
-| 14+ view screens | Each screen has dedicated `generate[View]Html()` function | Each becomes React component. Export from views/[viewName]/index.tsx. |
-| 20+ reusable components | Button, ListItem, Container, Badge, BackLink, etc. | Port to React. Keep same visual design. Use CSS variables for themes. |
+Features depend on current v1.0 architecture (existing foundation).
+
+### Already Built (v1.0 Foundation)
+
+- **React 18.3.1 webviews** — All 12 views use React components
+- **22 shared components** — Button, ListItem, IconButton, Container, etc.
+- **Typed message contracts** — Discriminated unions for webview-extension communication
+- **CSS Modules** — Scoped styles, camelCase class names, VS Code CSS variables
+- **esbuild dual-target** — Node.js CJS (extension) + browser IIFE (webview)
+- **CSP-compliant** — Nonce-based Content Security Policy
+- **Custom SVG icons** — IconDefinitions.ts with inline SVG strings
+
+### v1.1 Must Build On
+
+- **Icon system consolidation** — Depends on: Current custom SVG system, Lucide just installed. Decision: Migrate all to one system (Codicons or Lucide).
+- **Bundle optimization** — Depends on: Current 3.5MB IIFE bundle, esbuild config. Must analyze before optimizing.
+- **Type safety enforcement** — Depends on: 10 pre-existing TypeScript errors must be fixed first, then enable strict mode.
+- **UI test expansion** — Depends on: Existing vscode-extension-tester setup, login-flow test. Expand to more critical paths.
+- **Component testing** — Depends on: No test framework for React components yet. Must add Vitest/Jest + React Testing Library setup.
+
+### v1.1 Must NOT Break
+
+- **Functionality parity** — All existing features work identically (core requirement)
+- **Exam timing accuracy** — Web Worker timers with absolute timestamps (critical path)
+- **Chat streaming smoothness** — RAF-based token buffering (critical UX)
+- **Theme compliance** — VS Code CSS variables must continue working (theme-aware)
+- **No backend changes** — Extension host services unchanged (constraint)
 
 ## Sources
 
-**Official Documentation:**
-- [VS Code Webview API](https://code.visualstudio.com/api/extension-guides/webview) — Webview lifecycle, state persistence, CSP, retainContextWhenHidden
-- [VS Code Bundling Extensions](https://code.visualstudio.com/api/working-with-extensions/bundling-extension) — esbuild, webpack, bundler options
+### Official Documentation
 
-**React Webview Patterns:**
-- [Using React in Visual Studio Code Webviews - Ken Muse](https://www.kenmuse.com/blog/using-react-in-vs-code-webviews/) — React setup, bundling, message passing, state management
-- [GitHub Next - vscode-react-webviews](https://github.com/githubnext/vscode-react-webviews) — Starter template for React webviews
-- [Configuring VSCode Extensions: Webpack, React, and TypeScript](https://medium.com/@captaincolinr/vscode-react-extension-guide-10ea25cb983f) — Dual-target webpack setup
-- [Building a VSCode Extension: Part Four - CodeByCorey](https://codebycorey.com/blog/building-a-vscode-extension-part-four) — State persistence patterns
+- [VS Code Webview API Guide](https://code.visualstudio.com/api/extension-guides/webview) — Webview architecture, CSP, performance considerations
+- [VS Code Product Icon Reference](https://code.visualstudio.com/api/references/icons-in-labels) — Codicons usage, theme integration, custom icons
+- [VS Code Testing Extensions Guide](https://code.visualstudio.com/api/working-with-extensions/testing-extension) — Integration tests, @vscode/test-electron, Mocha
+- [VS Code Theme Color Reference](https://code.visualstudio.com/api/references/theme-color) — CSS variables for webviews, theme-aware styling
+- [VS Code Bundling Extensions Guide](https://code.visualstudio.com/api/working-with-extensions/bundling-extension) — esbuild configuration, tree-shaking
+- [esbuild API Documentation](https://esbuild.github.io/api/) — Minification, tree-shaking, bundle optimization
+- [TypeScript Compiler Options](https://www.typescriptlang.org/tsconfig/) — Strict mode flags, type checking options
+- [typescript-eslint no-explicit-any Rule](https://typescript-eslint.io/rules/no-explicit-any/) — Enforcing type safety, avoiding `any` types
 
-**State Management & Communication:**
-- [Enhancing communication with VS Code Messenger - TypeFox](https://www.typefox.io/blog/vs-code-messenger/) — Type-safe RPC protocol, lifecycle management
-- [GitHub - TypeFox/vscode-messenger](https://github.com/TypeFox/vscode-messenger) — vscode-messenger library
-- [GitHub - hbmartin/react-vscode-webview-ipc](https://github.com/hbmartin/react-vscode-webview-ipc) — Type-safe IPC for React webviews
-- [Simplify Visual Studio Code extension webview communication - Elio Struyf](https://www.eliostruyf.com/simplify-communication-visual-studio-code-extension-webview/) — Message passing patterns
-- [VSCode Webview Lifecycle - Symposium](https://symposium.dev/references/vscode-webview-lifecycle.html) — getState/setState, onDidDispose
-- [State Persistence - Symposium](https://symposium.dev/design/vscode-extension/state-persistence.html) — globalState vs setState patterns
+### Community Resources & Best Practices
 
-**Hot Module Replacement:**
-- [Use React in your VSCode WebView with hot module replacement - Elio Struyf](https://www.eliostruyf.com/react-vscode-webview-hot-module-replacement/) — HMR setup, webpack dev server
-- [Hot Module Replacement in VS code Webview with React - GitHub Discussion #739](https://github.com/microsoft/vscode-discussions/discussions/739) — HMR challenges, webpack config
+- [Building VS Code Extensions in 2026: The Complete Guide](https://abdulkadersafi.com/blog/building-vs-code-extensions-in-2026-the-complete-modern-guide) — Modern patterns: React, TypeScript strict, esbuild
+- [A Complete Guide to VS Code Extension Testing](https://dev.to/sourishkrout/a-complete-guide-to-vs-code-extension-testing-268p) — Test pyramid, vscode-extension-tester webview testing
+- [Using React in VS Code Webviews](https://www.kenmuse.com/blog/using-react-in-vs-code-webviews/) — React setup, bundling, CSP compliance
+- [A code-driven approach to theme your VS Code webview](https://www.eliostruyf.com/code-driven-approach-theme-vscode-webview/) — CSS variables, theme integration
+- [Vitest vs Jest 2026: Performance Benchmarks and Migration Guide](https://www.sitepoint.com/vitest-vs-jest-2026-migration-benchmark/) — Test framework comparison, modern tooling
+- [Testing in 2026: Jest, React Testing Library, and Full Stack Testing Strategies](https://www.nucamp.co/blog/testing-in-2026-jest-react-testing-library-and-full-stack-testing-strategies) — Test layering, coverage targets
 
-**Theme & Styling:**
-- [GitHub Next - React Webview UI Toolkit](https://githubnext.com/projects/react-webview-ui-toolkit/) — VS Code theme integration (Note: deprecated Jan 1, 2025)
-- [Create VS Code Extension with React, TypeScript, Tailwind](https://medium.com/@amalhan43/create-vs-code-extension-with-react-typescript-tailwind-b42932adc77b) — Tailwind + VS Code CSS variables
-- [Web components in VS Code - Hawk Ticehurst](https://hawkticehurst.com/2023/12/web-components-in-vs-code/) — 400+ CSS variables
+### Tools & Libraries
 
-**Timers & Real-time:**
-- [Webview timer throttling - GitHub Discussion #983](https://github.com/microsoft/vscode-discussions/discussions/983) — Timer throttling in webviews
-- [Building timer in React - Bartosz Salwiczek](https://medium.com/@bsalwiczek/building-timer-in-react-its-not-as-simple-as-you-may-think-80e5f2648f9b) — Reference date pattern, requestAnimationFrame
-- [React Countdown Timer with Performance Enhancements - GitHub Gist](https://gist.github.com/JeremyIglehart/e37407b848f950d0abfd6b66cf422def) — Optimization techniques
+- [vscode-extension-tester GitHub](https://github.com/redhat-developer/vscode-extension-tester) — Selenium-based UI testing for VS Code extensions
+- [Lucide Icons](https://lucide.dev/guide/) — 1500+ icons, tree-shakable, React components
+- [Lucide React Package](https://lucide.dev/guide/packages/lucide-react) — React integration, SVG components
+- [vscode-codicons GitHub](https://github.com/microsoft/vscode-codicons) — VS Code's icon library, 1000+ icons
+- [React Testing Library](https://testing-library.com/docs/react-testing-library/intro/) — Component testing, user-centric queries
+- [Vitest Guide](https://vitest.dev/guide/) — Fast test framework, native ESM, Vite-compatible
 
-**Error Handling:**
-- [Error Boundaries - React](https://legacy.reactjs.org/docs/error-boundaries.html) — componentDidCatch, limitations
-- [Error Handling in React with react-error-boundary](https://certificates.dev/blog/error-handling-in-react-with-react-error-boundary) — Modern error boundary library
+### Code Quality & Coverage Standards
 
-**Security:**
-- [Getting Started with VS Code Extension Development - vogella](https://vogella.com/blog/vscode-extension-webview-getting-started/) — CSP with nonces
-- [Escaping misconfigured VSCode extensions - Trail of Bits](https://blog.trailofbits.com/2023/02/21/vscode-extension-escape-vulnerability/) — CSP security importance
+- [On Code Coverage: What It Is and Why It Matters](https://launchdarkly.com/blog/code-coverage-what-it-is-and-why-it-matters/) — Industry standards, 70-80% target
+- [What unit test coverage percentage should teams aim for?](https://www.techtarget.com/searchsoftwarequality/tip/What-unit-test-coverage-percentage-should-teams-aim-for) — 80% corporate standard
+- [Minimum Acceptable Code Coverage](https://www.bullseye.com/minimum.html) — Context-dependent targets, safety-critical vs general
+- [Avoiding anys with Linting and TypeScript](https://typescript-eslint.io/blog/avoiding-anys/) — Type safety enforcement strategies
 
-**Bundlers:**
-- [Using Vite for bundling your VS Code extension - Elio Struyf](https://www.eliostruyf.com/vite-bundling-visual-studio-code-extension/) — Vite for webview only, ESM incompatibility
-- [Using esbuild for your VS Code Extensions - datho7561](http://datho7561.dev/blog/vscode-webpack-to-esbuild/) — webpack to esbuild migration, 50s → <1s
-- [Which Javascript Bundler is Best in 2025?](https://medium.com/@Hariharasudhan_/which-javascript-bundler-is-best-in-2025-vite-vs-rollup-vs-webpack-vs-esbuild-9bca86a9b36e) — Bundler comparison
+### Known Issues & Limitations
 
-**Real-world Examples:**
-- [Continue Extension Architecture - DeepWiki](https://deepwiki.com/continuedev/continue/6.1-chat-interface) — core ↔ extension ↔ gui architecture, Redux Toolkit
-- [VS Code Extension - continuedev/continue](https://www.continue.dev/continuedev/vscode) — Open-source AI chat extension
-
-**React Best Practices:**
-- [React Folder Structure in 5 Steps](https://www.robinwieruch.de/react-folder-structure/) — Feature-based organization, colocation
-- [How To Structure React Projects - Web Dev Simplified](https://blog.webdevsimplified.com/2022-07/react-folder-structure/) — components/, hooks/, contexts/ patterns
-- [Guidelines to improve React folder structure - Max Rozen](https://maxrozen.com/guidelines-improve-react-app-folder-structure) — Keep related files together
+- [VS Code Issue #93041: Split webpack bundles difficult in webviews](https://github.com/microsoft/vscode/issues/93041) — Dynamic asset path challenges
+- [VS Code Issue #38649: API not compatible with strict TypeScript options](https://github.com/microsoft/vscode/issues/38649) — Known strict mode limitations
+- [VS Code Issue #41785: Expose theme colors to webview via CSS variables](https://github.com/Microsoft/vscode/issues/41785) — Theme integration patterns
 
 ---
-*Feature research for: React-based VS Code Webview Extensions (Artemis migration context)*
-*Researched: 2026-02-23*
+*Feature research for: Production-ready VS Code extension with React webviews (Artemis)*
+*Researched: 2026-02-25*
+*Confidence: HIGH — Official docs, community best practices, industry standards verified*

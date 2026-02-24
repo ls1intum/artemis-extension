@@ -1,198 +1,326 @@
 # Project Research Summary
 
-**Project:** React Webview Migration for Artemis VS Code Extension
-**Domain:** VS Code Extension Webviews with React
-**Researched:** 2026-02-23
+**Project:** Artemis VS Code Extension v1.1 Production Readiness
+**Domain:** VS Code Extension Enhancement (Type Safety, Bundle Optimization, Testing, UI Polish)
+**Researched:** 2026-02-25
 **Confidence:** HIGH
 
 ## Executive Summary
 
-This project involves migrating 14 existing HTML-template-based webviews to React in a VS Code extension for the Artemis learning platform. The extension currently generates views using string concatenation, which limits maintainability and developer experience. Research confirms React migration is standard practice for complex VS Code webviews, with established patterns for dual-target builds (Node.js extension host + browser webview), type-safe messaging, and state management.
+The Artemis VS Code extension has a solid React 18.3.1 + esbuild + Zustand foundation established in v1.0. The path to production readiness requires four targeted enhancements: (1) Complete Lucide icon migration for professional UI consistency, (2) Bundle size reduction from 3.5MB to <2MB via tree-shaking optimization, (3) Comprehensive testing infrastructure with Vitest for React components, and (4) Strict TypeScript enforcement via incremental migration strategy. The existing architecture supports all these changes with minimal modification—no message contract changes, no store refactors, no extension host modifications.
 
-The recommended approach uses React 18.3.1 (safer than React 19 for webviews), esbuild for bundling (faster than webpack/Vite), Zustand for lightweight state management, and typed message contracts for extension-webview communication. The migration must be incremental view-by-view to avoid big-bang failures. Critical risks include state loss on tab switching, exam timer accuracy in background tabs, and chat streaming performance. These are all solvable with proper patterns: getState/setState for persistence, Web Workers for timers, and React.memo for streaming optimization.
+**The critical constraint:** VS Code webviews require IIFE bundle format, which prevents code splitting in esbuild. Bundle optimization must focus on tree-shaking, lazy loading, and dependency analysis rather than chunk-based splitting. This is a hard architectural limit, not a tooling gap.
 
-The migration is well-documented with high confidence in stack choices and architecture patterns. The main challenge is execution discipline: incremental migration, proper CSP configuration from day one, and avoiding code duplication between similar views (ExerciseDetail vs ExamExerciseDetail).
+**Key risks:** Big-bang strict TypeScript migration could halt development for weeks (10 pre-existing errors will multiply under strict mode). Icon library migration could increase bundle size if barrel imports are used instead of named imports. Testing React components without proper webview bridge mocking will create false confidence. All these risks have proven mitigation strategies from the research.
 
 ## Key Findings
 
 ### Recommended Stack
 
-React 18.3.1 is the safer choice over React 19 for VS Code webviews in 2026 - it includes React 19 deprecation warnings while avoiding unnecessary server component features. esbuild should be used for bundling with dual-target builds (Node.js + browser) using automatic JSX transforms. Zustand provides lightweight state management (1KB) perfect for webview contexts where extension host is the source of truth.
+The existing stack remains unchanged. v1.1 adds capabilities through configuration changes and testing infrastructure, not new runtime dependencies. React 18.3.1 continues as the webview framework, esbuild remains the bundler (with enhanced metafile generation), TypeScript 5.9.3 shifts to strict mode, and Zustand 5.0.11 handles state management. Lucide-react 0.575.0 is already installed—migration work is needed, not new packages.
 
 **Core technologies:**
-- React 18.3.1: UI framework - stable bridge release with React 19 warnings, better for sandboxed webviews than React 19
-- esbuild 0.28.0: Bundler - 10-100x faster than webpack, native JSX support, simpler configuration for dual builds
-- Zustand 5.0.3: State management - minimal boilerplate, works outside React tree for postMessage integration
-- TypeScript 5.9.3: Type safety - already in use, supports automatic JSX runtime
-- Typed message contracts: Custom discriminated unions - better than vscode-messenger library for this scale
+- **Vitest ^3.0.0** — React component testing (10-20x faster than Jest, native ESM, Vite-compatible)
+- **@testing-library/react ~16.1.0** — Component testing utilities (user-centric queries, behavior testing)
+- **happy-dom ~16.7.0** — Fast DOM environment (2-3x faster than jsdom, sufficient for 95% of test cases)
+- **esbuild-visualizer 0.7.0** — Bundle size analysis (visual tree map of dependencies)
+- **typescript-strict-plugin** — Gradual strict mode enforcement (per-directory, prevents big-bang migration)
 
-**Avoid:**
-- React 19 (compiler/server features not applicable to webviews)
-- @vscode/webview-ui-toolkit (deprecated Jan 1, 2025)
-- Redux/Redux Toolkit (overkill for webview state)
-- Vite (ESM incompatibility with VS Code extension CommonJS)
-- CSS-in-JS libraries (bundle bloat, no benefit over CSS variables)
+**Critical configurations:**
+- TypeScript strict mode enabled incrementally (noImplicitAny → strictNullChecks → others)
+- esbuild metafile generation for bundle analysis (already present, needs documentation)
+- Vitest with jsdom environment for React component isolation
+- Named imports for Lucide icons to enable tree-shaking
 
 ### Expected Features
 
-**Must have (table stakes):**
-- Component-based architecture - required to replace 14 HTML string template views
-- Type-safe message passing - prevents runtime errors, industry standard for extensions
-- State persistence (getState/setState) - webviews destroyed when hidden, must restore state
-- VS Code theme integration - use CSS variables for theme compliance
-- Content Security Policy - required for webview security sandbox
-- Bundler configuration (dual-target) - separate Node.js and browser builds
-- Message event cleanup - prevent memory leaks on dispose
-- Error boundaries - catch React rendering errors gracefully
+**Must have (table stakes) — users expect these in production-ready extensions:**
+- **Zero TypeScript errors** — Production code shouldn't have compilation warnings. Current: 10 pre-existing errors to fix. Requires enabling strict: true and eliminating all any types.
+- **Theme-aware icon system** — VS Code extensions must adapt to light/dark themes. Decision: Migrate to Lucide React with explicit color prop binding to CSS variables, or standardize on Codicons for native look.
+- **Reasonable bundle size** — 3.5MB current state is heavy. Target: <2MB via tree-shaking and lazy loading. Import Cost shows 70KB+ as heavy; extensions should minimize startup impact.
+- **UI integration tests** — Already have login-flow test via vscode-extension-tester. Expand to critical paths: course browsing, exercise submission, Iris chat basics.
+- **Automated linting** — ESLint with @typescript-eslint/recommended-type-checked already exists. Apply to all code and enforce in CI.
 
-**Should have (competitive):**
-- Streaming message handling - smooth Iris chat updates without flicker
-- Timer accuracy patterns - exam countdown must not drift in background tabs
-- Feature-based folder structure - colocate by view, not file type
-- Type-safe state management - Context API + TypeScript for better IntelliSense
-- React Context for webview state - share state without prop drilling
+**Should have (competitive advantage) — differentiates quality extensions:**
+- **React component tests** — Catch UI bugs before users see them. Use Vitest + React Testing Library. Coverage target: 70-80% for production apps.
+- **Type-safe message contracts** — Already have discriminated unions (v1.0). Maintain 100%—no loosening to any.
+- **Consistent icon system** — Choose Lucide (1500+ icons, tree-shakable) or Codicons (theme-native). Current: custom inline SVG + Lucide just installed. Mixing systems increases bundle size.
+- **Optimized bundle analysis** — Track bundle size in CI to prevent regressions. Use esbuild-visualizer post-build.
+- **80%+ test coverage** — Industry standard for production apps. Current: UI smoke tests only. Need: component unit tests, integration tests, expanded UI tests.
 
-**Defer (v2+):**
-- Hot module replacement - nice DX improvement but complex in webview sandbox
-- VS Code Messenger integration - only if message passing becomes unmaintainable
-- Stateless webview pattern - architectural refactor, defer until migration proven
-- Advanced streaming optimizations - only if Iris chat shows issues
+**Defer (v2+) — anti-features or premature optimization:**
+- **Code splitting for webviews** — IIFE format doesn't support splitting. Would require ESM switch (complex CSP changes, module loader overhead). Defer to DX-03.
+- **100% test coverage** — Diminishing returns above 80%. Industry standard is 70-80%. Target critical paths at 90%+, overall 70-80%.
+- **Hot Module Replacement (HMR)** — Significant build config changes, state management complexity. Already deferred to DX-01. Acceptable iteration speed currently.
 
 ### Architecture Approach
 
-VS Code extensions with React webviews use a three-layer architecture: Extension Host (Node.js) manages business logic and backend communication, Webview Providers create and manage webview panels, and React Apps render UI in sandboxed browser contexts. Communication happens via typed postMessage contracts with discriminated unions. The extension host is the source of truth for state, pushing updates to webviews which act as rendering targets.
+The dual-target esbuild setup (Node.js CJS for extension host, browser IIFE for webviews) remains unchanged. Production readiness features integrate at specific layers: Lucide migration affects 30-40 component files (presentational layer only), bundle optimization modifies esbuild.js build config, strict TypeScript adds compiler plugin and fixes errors file-by-file, and Vitest creates a parallel testing layer alongside existing Mocha tests. No message contract changes, no Zustand store refactors, no extension host service modifications.
 
 **Major components:**
-1. WebviewProvider - manages webview lifecycle, creates panels, handles provider-level state
-2. Message Bridge - type-safe bidirectional communication with discriminated unions
-3. React App Root - single mount point per provider with state-based routing (no URL routing needed)
-4. Shared Components - reusable UI matching VS Code design language with CSS variables
-5. Build Pipeline - dual esbuild contexts for extension (CJS/Node) and webview (IIFE/browser)
+1. **Icon migration (component-level only)** — Replace IconDefinitions.ts and inline SVGs with Lucide components. Pattern change: dangerouslySetInnerHTML → <LucideIcon /> components. Bundle impact via tree-shaking (named imports critical). Estimated: 30-40 file modifications, no store or contract changes.
 
-**Key patterns:**
-- Dual webview providers with independent React apps (main UI + chat)
-- State-based routing without URLs (extension controls view state via messages)
-- Shared component extraction with composition (ExerciseDetail/ExamExerciseDetail reuse 70% of components)
-- Extension host as authoritative state source, webview as rendering layer
+2. **Bundle optimization (build config only)** — esbuild.js modifications: metafile: true, treeShaking: true (already default), bundle analyzer plugin integration. Code splitting NOT possible with IIFE format—this is architectural constraint. Alternative strategies: lazy loading heavy deps (Shiki), dynamic imports for Web Workers (blob URLs), or defer to ESM switch (DX-03).
+
+3. **Strict TypeScript (compiler + incremental fixes)** — Use typescript-strict-plugin for selective enforcement (new React code first, legacy code incremental). Phase 1: noImplicitAny. Phase 2: strictNullChecks. Phase 3: remaining flags. Common fixes: implicit any → typed parameters, nullable types → null checks, uninitialized properties → definite assignment or nullable.
+
+4. **Testing expansion (new infrastructure)** — Dual strategy: Vitest for React components (jsdom environment), existing Mocha for extension host (VS Code API integration). Critical: webview bridge mocking via global.acquireVsCodeApi mock. New files: vitest.config.ts, test/react/setup.ts, colocated *.test.tsx files. Package.json scripts: test:react, test:react:ui, test:react:coverage.
 
 ### Critical Pitfalls
 
-1. **CSP violations from inline scripts** - React dev builds inject inline scripts that violate VS Code CSP, causing blank screens in production. Configure bundler for external scripts only, use nonce-based CSP from day one.
+1. **IIFE bundle format prevents code splitting** — esbuild code splitting only works with ESM format. VS Code webviews need IIFE for single-file loading with CSP. Attempting splitting: true causes build failures. Mitigation: Accept single bundle constraint, focus on tree-shaking + lazy loading + bundle analysis. Target 10-15% reduction (350-525KB) without splitting. Only consider ESM switch if bundle exceeds 5MB after optimization.
 
-2. **State loss on tab switching** - VS Code destroys webview contents when hidden. All React state (forms, timers, chat) lost unless persisted with getState/setState or sent to extension host before hide.
+2. **Big-bang strict TypeScript migration halts development** — Enabling strict: true on 39,841 LOC generates thousands of errors. Teams fix all at once, halt features for weeks/months, eventually revert. Mitigation: Gradual strategy via typescript-strict-plugin. Phase 1: noImplicitAny on new code only. Phase 2: Fix high-traffic files (auth, message handlers, stores). Phase 3: strictNullChecks module-by-module. Never add new any types—enforce via ESLint.
 
-3. **postMessage race conditions** - Extension sends messages before React hydration completes. Implement message queuing, webview sends "ready" signal, extension waits before sending initial data.
+3. **Icon library migration bloats bundle without tree-shaking** — Barrel imports (import * as Icons from 'lucide-react') or dynamic selection (icons[key]) defeat tree-shaking. Entire library bundles (~2000+ icons). Mitigation: Use named imports (import { Check, X } from 'lucide-react'), verify with bundle analyzer, avoid dynamic lookups, test production build.
 
-4. **Exam timer drift from throttling** - Browser throttles setInterval to 1 second in background tabs. Use Web Workers + absolute timestamps instead of intervals to prevent timer drift.
+4. **Testing React components without mocking webview bridge** — Tests fail with "vscode is not defined". Mocking with jest.fn() hides bugs in message contracts. Mitigation: Comprehensive VSCode API mock in test setup (acquireVsCodeApi with postMessage/getState/setState). Verify message contracts (assert on postMessage calls with correct types). Consider Vitest browser mode for full WebView environment.
 
-5. **Chat streaming flicker** - Re-rendering entire message list on each token causes flicker. Wrap messages in React.memo(), keep streaming message separate from history state.
-
-6. **Bundle size bloat** - Development React builds in production create 500KB+ bundles. Set NODE_ENV=production, enable minification, use bundle analyzer to verify tree-shaking.
-
-7. **Big-bang migration** - Migrating all 14 views at once creates untestable surface. Migrate incrementally view-by-view with feature flags for rollback.
+5. **Dependency cleanup removes production dependencies** — Automated tools (depcheck, knip) flag dompurify or lucide-react as "unused" due to tree-shaking. Developer removes, CI passes, webview crashes at runtime. Mitigation: Whitelist runtime deps (dompurify, lucide-react, react, zustand, shiki, streamdown), verify production .vsix after removal, check esbuild external config, audit dynamic imports.
 
 ## Implications for Roadmap
 
-Based on research, suggested phase structure:
+Based on research, suggested phase structure with dependency-driven ordering:
 
-### Phase 1: Foundation & Build Pipeline (Week 1-2)
-**Rationale:** Must establish React infrastructure and proper build configuration before any view migration. CSP configuration, dual-target builds, and production settings must be correct from day one to avoid rework.
-**Delivers:** React builds successfully, proper CSP configured, message bridge scaffold created
-**Addresses:** Component-based architecture (foundation), bundler configuration, CSP compliance
-**Avoids:** CSP violations (Pitfall #1), bundle size bloat (Pitfall #6), dev mode in production (Pitfall #10)
+### Phase 1: UI Polish & Icon System
+**Rationale:** Foundational change with no dependencies. Lucide migration establishes tree-shaking baseline for bundle optimization (Phase 2). Low risk—presentational only, no state or message changes. Visual regression testing sufficient.
 
-### Phase 2: Shared Component Library (Week 2-3)
-**Rationale:** Extract reusable components before migrating complex views to prevent code duplication between ExerciseDetail and ExamExerciseDetail. Establishes composition patterns.
-**Delivers:** 8-10 React components (Button, Badge, Container, ListItem, BackLink, etc.) matching existing visual design
-**Addresses:** Component-based architecture (shared components)
-**Avoids:** Code duplication between views (Pitfall #9)
+**Delivers:**
+- Complete Lucide icon migration (30-40 component files)
+- Remove IconDefinitions.ts and custom SVG system
+- Consistent icon system (Lucide components with CSS variable theming)
+- Bundle size baseline for Phase 2 comparison
 
-### Phase 3: Simple Views Migration (Week 3-4)
-**Rationale:** Start with standalone views having minimal state to validate migration patterns before tackling complex views. LoginView is ideal test case.
-**Delivers:** 4 simple views migrated (Login, ServiceStatus, GitCredentials, RecommendedExtensions)
-**Addresses:** State persistence, type-safe message passing
-**Avoids:** Big-bang migration (Pitfall #7), postMessage race conditions (Pitfall #3)
+**Addresses Features:**
+- Theme-aware icon system (table stakes)
+- Consistent icon system (differentiator)
 
-### Phase 4: Main UI Views (Week 4-6)
-**Rationale:** Core application flow after simple views proven stable. Dependency order: Dashboard → CourseList → CourseDetail → ExerciseDetail.
-**Delivers:** 5 core views including ExerciseDetail with shared components
-**Addresses:** Real-time updates (WebSocket integration), complex state management
-**Uses:** Zustand for view state, message bridge for backend sync
+**Avoids Pitfalls:**
+- Icon library tree-shaking failure (#3) — enforce named imports, verify with analyzer
+- Bundle bloat — measure before/after with esbuild metafile
 
-### Phase 5: Exam Views with Timer Accuracy (Week 6-7)
-**Rationale:** Time-sensitive views require Web Worker implementation for timer accuracy. ExamExerciseDetail reuses ExerciseDetail components established in Phase 4.
-**Delivers:** Exam-related views with accurate countdown timers
-**Addresses:** Timer accuracy patterns (Pitfall #4)
-**Implements:** Web Worker for timers, reference date pattern, visibility API
+**Research Flag:** Standard patterns (Lucide docs comprehensive). Skip /gsd:research-phase.
 
-### Phase 6: Iris Chat with Streaming (Week 7-8)
-**Rationale:** Chat has separate provider and requires streaming optimization. Deferred until React patterns proven with main UI.
-**Delivers:** Chat webview with smooth message streaming
-**Addresses:** Streaming message handling, separate state management
-**Avoids:** Streaming flicker (Pitfall #5)
-**Implements:** React.memo optimization, virtualized message list
+---
 
-### Phase 7: Cleanup & Optimization (Week 8)
-**Rationale:** Remove legacy code only after all views migrated and stable.
-**Delivers:** Removed ViewRouter, old HTML generators, unused CSS, optimized bundle
-**Addresses:** Final bundle optimization, documentation updates
+### Phase 2: Bundle Size Optimization
+**Rationale:** Depends on Phase 1 Lucide migration to measure tree-shaking impact. Build config changes only (esbuild.js)—low risk. Establishes size monitoring for remaining phases. Must address IIFE constraint documentation early.
+
+**Delivers:**
+- esbuild metafile generation and analyzer integration
+- Bundle size reduced to <2MB (target: 3.5MB → 2.0MB)
+- CI bundle size budget enforcement (fail if >4MB or +10%)
+- Documentation of IIFE code splitting constraint
+
+**Uses Stack:**
+- esbuild-visualizer (bundle analysis)
+- @rnx-kit/esbuild-bundle-analyzer (CI comparison)
+- esbuild metafile (already present, enhance)
+
+**Addresses Features:**
+- Reasonable bundle size (table stakes)
+- Optimized bundle analysis (differentiator)
+
+**Avoids Pitfalls:**
+- IIFE code splitting attempts (#1) — document constraint, focus on tree-shaking
+- Bundle size unchecked growth (performance trap) — CI budget prevents regression
+
+**Research Flag:** Standard patterns (esbuild docs + constraint well-documented). Skip /gsd:research-phase.
+
+---
+
+### Phase 3: Testing Infrastructure & Quality
+**Rationale:** Independent of Phases 1-2 (can run parallel). Creates foundation for Phase 6 (component test suite). Requires webview bridge mocking pattern establishment. Medium complexity—new build tool integration.
+
+**Delivers:**
+- Vitest setup (config, test environment, VS Code API mocks)
+- Shared test utilities for webview bridge
+- Expanded UI test coverage (3-5 critical flows)
+- ESLint strict enforcement in CI
+- Test scripts: test:react, test:react:ui, test:react:coverage
+
+**Uses Stack:**
+- Vitest + @vitest/ui + @vitest/coverage-v8
+- @testing-library/react + @testing-library/user-event
+- happy-dom (jsdom fallback if needed)
+- vscode-extension-tester (expand existing)
+
+**Addresses Features:**
+- UI integration tests (table stakes)
+- Automated linting (table stakes)
+- Testing infrastructure for component tests (differentiator foundation)
+
+**Avoids Pitfalls:**
+- Testing without webview mocking (#4) — create comprehensive mocks, document patterns
+- Test deps bundled in production (#7) — verify metafile, dist/ size unchanged
+
+**Research Flag:** Moderate complexity. Consider /gsd:research-phase for webview mocking patterns (Vitest + VS Code API not well-documented together).
+
+---
+
+### Phase 4: TypeScript Strict Mode (Incremental)
+**Rationale:** Requires strict plugin setup (Phase 3 foundation). Gradual migration (2-3 weeks estimated). High value for preventing runtime bugs. Must follow testing infrastructure to verify fixes don't break behavior.
+
+**Delivers:**
+- typescript-strict-plugin configuration (new code enforcement)
+- Fix 10 pre-existing TypeScript errors
+- Enable noImplicitAny on React components
+- Enable strictNullChecks on stores and message handlers
+- Zero compilation errors, ESLint @typescript-eslint/no-explicit-any enforced
+
+**Uses Stack:**
+- typescript-strict-plugin (gradual enforcement)
+- TypeScript 5.9.3 strict mode flags
+- ESLint typescript-eslint rules
+
+**Addresses Features:**
+- Zero TypeScript errors (table stakes)
+- Type-safe message contracts maintained (differentiator)
+
+**Avoids Pitfalls:**
+- Big-bang strict mode migration (#2) — gradual strategy, per-file tracking
+- Type errors spreading uncontrolled — fix message contracts first (root cause isolation)
+
+**Research Flag:** Standard patterns (TypeScript strict migration well-documented). Skip /gsd:research-phase. However, monitor for VS Code API strict mode incompatibilities (known Issue #38649).
+
+---
+
+### Phase 5: React Component Test Suite
+**Rationale:** Depends on Phase 3 (Vitest infrastructure). Can start during Phase 4 (parallel work). Provides confidence for future refactoring. Large scope (50-100 test files)—can be split across multiple sub-phases.
+
+**Delivers:**
+- Component unit tests (22 shared components)
+- Store tests (9 Zustand stores)
+- View integration tests (12 views, critical paths)
+- 70-80% test coverage overall, 90%+ on critical paths
+
+**Addresses Features:**
+- React component tests (differentiator)
+- 80%+ test coverage (differentiator)
+
+**Avoids Pitfalls:**
+- False confidence from incomplete mocks (#4) — verify postMessage contracts in tests
+- Testing implementation details — focus on behavior, user-visible outcomes
+
+**Research Flag:** Standard patterns (React Testing Library docs comprehensive). Skip /gsd:research-phase.
+
+---
+
+### Phase 6: Dependency Cleanup & Security Audit
+**Rationale:** Final phase—ensures optimization gains preserved. Requires all features complete to verify production .vsix. Includes CSP nonce audit (security baseline). Low risk if manual whitelist approach used.
+
+**Delivers:**
+- Audit and remove unused dependencies
+- Verify production .vsix in clean environment
+- CSP nonce security verification (crypto.randomBytes usage)
+- Bundle size final verification (<2MB target met)
+
+**Addresses Features:**
+- Production readiness validation
+- Security best practices (CSP compliance)
+
+**Avoids Pitfalls:**
+- Production dependency removed (#6) — manual whitelist, test .vsix after removal
+- Weak CSP nonce (#5) — verify crypto.randomBytes usage
+
+**Research Flag:** Standard patterns (dependency cleanup + security audit). Skip /gsd:research-phase.
+
+---
 
 ### Phase Ordering Rationale
 
-- **Build pipeline first** prevents rework from CSP violations and incorrect production builds
-- **Shared components before complex views** avoids duplication between ExerciseDetail/ExamExerciseDetail
-- **Simple views validate patterns** before applying to complex time-sensitive views
-- **Exam views after main UI** because ExamExerciseDetail reuses ExerciseDetail components
-- **Chat last** because separate provider, complex streaming, can be validated independently
-- **Cleanup only after migration complete** to maintain rollback capability
+**Why this order:**
+1. **Icons first (Phase 1)** — Establishes tree-shaking baseline, no dependencies, low risk
+2. **Bundle optimization next (Phase 2)** — Measures Phase 1 impact, documents IIFE constraint
+3. **Testing infrastructure (Phase 3)** — Parallel with 1-2, creates foundation for later phases
+4. **Strict TypeScript (Phase 4)** — Depends on testing to verify fixes, gradual migration over weeks
+5. **Component tests (Phase 5)** — Depends on Phase 3 infrastructure, can overlap with Phase 4
+6. **Cleanup last (Phase 6)** — Requires all features complete, validates final production artifact
+
+**Parallel opportunities:**
+- Phase 1 (icons) + Phase 3 (testing setup) — independent domains
+- Phase 4 (strict TypeScript) + Phase 5 (component tests) — can write tests during type fixes
+
+**Critical path:**
+- Phase 1 → Phase 2 (bundle optimization needs Lucide baseline)
+- Phase 3 → Phase 5 (component tests need Vitest setup)
+- Phase 1-5 → Phase 6 (cleanup needs all features complete)
 
 ### Research Flags
 
-Phases with standard patterns (skip research-phase):
-- **Phase 1-3:** Well-documented React + esbuild + VS Code webview patterns
-- **Phase 4:** Standard WebSocket integration, existing patterns proven
-- **Phase 7:** Cleanup phase, no new research needed
+**Phases likely needing deeper research during planning:**
+- **Phase 3 (Testing Infrastructure)** — Vitest + VS Code webview bridge mocking not well-documented together. May need experimentation for acquireVsCodeApi mock patterns. Consider /gsd:research-phase if initial tests fail.
 
-Phases that may need targeted research during planning:
-- **Phase 5:** Web Worker timer implementation may need browser API research
-- **Phase 6:** Virtualization library choice (react-window vs react-virtual) may need comparison
+**Phases with standard patterns (skip research-phase):**
+- **Phase 1 (Icons)** — Lucide React documentation comprehensive, tree-shaking patterns well-established
+- **Phase 2 (Bundle Optimization)** — esbuild metafile + analyzer tooling mature, IIFE constraint documented
+- **Phase 4 (Strict TypeScript)** — Gradual migration patterns proven, typescript-strict-plugin documented
+- **Phase 5 (Component Tests)** — React Testing Library best practices established
+- **Phase 6 (Dependency Cleanup)** — Standard audit process, security patterns known
 
 ## Confidence Assessment
 
 | Area | Confidence | Notes |
 |------|------------|-------|
-| Stack | HIGH | All recommendations verified with 2026 sources, official docs, version compatibility confirmed |
-| Features | HIGH | VS Code webview patterns well-documented, feature dependencies clearly mapped |
-| Architecture | HIGH | Standard patterns from successful extensions (Continue, GitHub Copilot), proven dual-provider approach |
-| Pitfalls | HIGH | Sourced from official VS Code issues, real migration experiences, performance research |
+| Stack | HIGH | Official esbuild, TypeScript, React docs verified. Vitest vs Jest comparison from 2026 benchmarks. All version compatibility confirmed. |
+| Features | HIGH | VS Code extension best practices from official docs + community guides. Table stakes vs differentiators validated against GitHub Copilot / GitLens patterns. Coverage targets from industry standards (70-80%). |
+| Architecture | HIGH | Existing v1.0 architecture well-documented in codebase. Integration points identified (component-level for icons, build config for optimization, compiler for types, parallel testing). IIFE constraint from esbuild GitHub issues + official docs. |
+| Pitfalls | HIGH | IIFE code splitting limitation confirmed from esbuild Issue #16 + official FAQ. Strict TypeScript migration patterns from multiple real-world case studies. Tree-shaking anti-patterns from bundle analyzer guides. Webview mocking from VS Code extension testing docs. |
 
 **Overall confidence:** HIGH
 
 ### Gaps to Address
 
-- **HMR implementation details** - Research shows standard HMR difficult in webviews, but specific workaround implementation may need trial during Phase 1
-- **Web Worker timer specifics** - Pattern is clear (Workers + absolute timestamps), but integration with React hooks may need experimentation in Phase 5
-- **Bundle size targets** - 200KB gzipped suggested but actual size depends on final component count, monitor during Phase 7
+**Bundle size target validation:**
+- 3.5MB → <2MB is aggressive without code splitting. Research indicates 10-15% reduction (350-525KB) via tree-shaking is realistic. May need to adjust target to 2.5MB or identify additional optimization opportunities (lazy Shiki, Streamdown alternatives) during Phase 2 execution. Mitigation: Use bundle analyzer to profile largest dependencies, defer to DX-03 (ESM switch) if target unmet.
+
+**VS Code API strict mode compatibility:**
+- TypeScript Issue #38649 notes some VS Code API surfaces incompatible with strict mode (Provider interfaces, test runner). May need @ts-expect-error with explanatory comments or type augmentations. Mitigation: Fix application code first (message contracts, stores, components), tackle API boundary issues last with targeted workarounds.
+
+**Vitest + VS Code webview testing patterns:**
+- Limited community examples of Vitest specifically with VS Code webview bridge mocking. jsdom environment sufficient but may need Vitest browser mode for Web Worker tests or IntersectionObserver usage. Mitigation: Start with jsdom (happy-dom), document mock patterns in test/react/setup.ts, escalate to browser mode if DOM API gaps discovered.
+
+**Component test coverage scope:**
+- 22 shared components + 12 views + 9 stores = 50-100 test files estimated. Large scope for Phase 5. May need to split into sub-phases (P5a: critical components, P5b: full coverage) or defer non-critical component tests to v1.2. Mitigation: Prioritize critical paths (auth flow, chat, submission) at 90%+ coverage, defer exhaustive coverage to post-launch.
 
 ## Sources
 
 ### Primary (HIGH confidence)
-- VS Code Extension API Official Docs - Webview lifecycle, CSP, state persistence, message passing
-- React 19 Release Notes & Upgrade Guide - Version selection rationale
-- esbuild Official Documentation - JSX transforms, dual-target builds, performance
-- Real-world extension examples (Continue, GitHub Copilot Chat) - Architecture validation
-- VS Code GitHub Issues (#125546, #79340, #113507) - Pitfall verification from actual bugs
+
+**Official Documentation:**
+- VS Code API documentation — webview architecture, CSP, theming, testing, bundling best practices
+- esbuild official docs — metafile, tree-shaking, format limitations, analyzer tooling
+- TypeScript handbook — strict mode flags, compiler options, type system
+- React Testing Library docs — component testing patterns, user-centric queries
+- Vitest documentation — configuration, jsdom environment, coverage providers
+- Lucide React guide — tree-shaking, named imports, React integration
+
+**GitHub Issues & RFCs:**
+- esbuild Issue #16 — code splitting format limitations (IIFE not supported)
+- VS Code Issue #93041 — webpack bundle splitting in webviews (dynamic path challenges)
+- VS Code Issue #38649 — API strict TypeScript compatibility gaps
 
 ### Secondary (MEDIUM confidence)
-- Ken Muse's React webview tutorials - Build configuration patterns
-- Elio Struyf's VS Code extension guides - HMR approaches, Vite considerations
-- TypeFox VS Code Messenger documentation - Alternative messaging library comparison
-- Medium articles on React + VS Code (2024-2026) - Community best practices
 
-### Tertiary (validation recommended)
-- Timer throttling behavior in specific VS Code/Electron versions - May need testing
-- React 18.3 vs 19 performance differences in webview context - Theoretical, needs measurement
+**Community Guides & Benchmarks:**
+- "Building VS Code Extensions in 2026: The Complete Guide" — modern patterns, React, TypeScript strict, esbuild
+- "Vitest vs Jest 2026: Performance Benchmarks" — 10-20x speed advantage verified
+- "TypeScript Strict Mode Migration Guide 2026" — gradual approach, per-directory enforcement
+- "The Hidden Bundle Cost of React Icons" — Lucide vs react-icons benchmark (60% savings)
+- "Testing in 2026: Jest, React Testing Library, Full Stack Strategies" — coverage targets, test pyramid
+
+**Real-World Case Studies:**
+- Bitwarden Adopt TypeScript Strict flag ADR — gradual migration strategy
+- Migrating to TypeScript Strict Mode at an Early-Stage Startup — incremental approach success story
+- How I Reduced Our React Bundle by 62% — tree-shaking anti-patterns identified
+
+### Tertiary (LOW confidence, needs validation)
+
+- Bundle size benchmarks from Import Cost extension (70KB+ threshold) — not official VS Code guidance
+- happy-dom 2-3x faster than jsdom claim — from single blog post, needs profiling in actual codebase
+- Tree-shaking 10-15% reduction estimate — extrapolated from general esbuild guides, not VS Code specific
 
 ---
-*Research completed: 2026-02-23*
+
+*Research completed: 2026-02-25*
 *Ready for roadmap: yes*

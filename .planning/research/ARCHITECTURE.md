@@ -1,919 +1,817 @@
-# Architecture Research: React Webview Migration for VS Code Extension
+# Architecture Research: Production Readiness Integration
 
-**Domain:** VS Code Extension with React Webviews
-**Researched:** 2026-02-23
+**Domain:** VS Code Extension Webview Architecture (Production Readiness)
+**Researched:** 2026-02-25
 **Confidence:** HIGH
 
-## Standard Architecture
+## Executive Summary
+
+This research focuses on how production readiness features (Lucide icons, bundle optimization, strict TypeScript, comprehensive testing) integrate with the existing React webview architecture. The extension uses a dual-target esbuild setup (CJS for extension host, IIFE for webviews) with React 18, Zustand stores, CSS Modules, and typed message contracts.
+
+**Key Findings:**
+- **Lucide migration** requires component-level imports, minimal architecture changes
+- **Bundle optimization** limited by IIFE format (code splitting unsupported), focus on tree-shaking
+- **Strict TypeScript** requires incremental migration with typescript-strict-plugin for selective enforcement
+- **Testing expansion** needs dual strategy: Vitest for React components, existing Mocha for extension host
+
+## Current Architecture
 
 ### System Overview
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                   VS Code Extension Host (Node.js)              │
-│  ┌──────────────┐  ┌─────────────────┐  ┌──────────────────┐   │
-│  │  Extension   │  │  Auth Manager   │  │ API Services     │   │
-│  │  Activation  │  │  WebSocket Svc  │  │ Telemetry        │   │
-│  └──────┬───────┘  └────────┬────────┘  └────────┬─────────┘   │
-│         │                   │                     │             │
-├─────────┴───────────────────┴─────────────────────┴─────────────┤
-│                      Webview Providers                          │
-│  ┌──────────────────────────┐  ┌──────────────────────────┐    │
-│  │ ArtemisWebviewProvider   │  │  ChatWebviewProvider     │    │
-│  │  - State management      │  │  - Chat state            │    │
-│  │  - Message routing       │  │  - Session management    │    │
-│  │  - View lifecycle        │  │  - Context tracking      │    │
-│  └──────────┬───────────────┘  └──────────┬───────────────┘    │
-│             │                              │                    │
-│             │    postMessage Bridge        │                    │
-│             ↓                              ↓                    │
-├─────────────────────────────────────────────────────────────────┤
-│                 Webview Runtime (Browser/Iframe)                │
-│  ┌─────────────────────────────────────────────────────────┐   │
-│  │  React App Root                                         │   │
-│  │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐  │   │
-│  │  │  View Router │  │ Message API  │  │ State Store  │  │   │
-│  │  │  (State-     │  │  (Typed      │  │ (Context/    │  │   │
-│  │  │   based)     │  │   Contract)  │  │  Zustand)    │  │   │
-│  │  └──────┬───────┘  └──────┬───────┘  └──────┬───────┘  │   │
-│  │         │                  │                  │          │   │
-│  │  ┌──────┴──────────────────┴──────────────────┴───────┐ │   │
-│  │  │           React Component Tree                     │ │   │
-│  │  │  Login → Dashboard → CourseList → CourseDetail    │ │   │
-│  │  │           ↓                                        │ │   │
-│  │  │      ExerciseDetail ← ExamExerciseDetail          │ │   │
-│  │  │           ↓                                        │ │   │
-│  │  │  Shared Components (Button, Badge, Container...)  │ │   │
-│  │  └────────────────────────────────────────────────────┘ │   │
-│  └─────────────────────────────────────────────────────────┘   │
-└─────────────────────────────────────────────────────────────────┘
+┌────────────────────────────────────────────────────────────┐
+│                    Extension Host (Node.js)                 │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐      │
+│  │ Auth Service │  │ API Service  │  │   WebSocket  │      │
+│  └──────┬───────┘  └──────┬───────┘  └──────┬───────┘      │
+│         │                 │                 │              │
+│  ┌──────┴─────────────────┴─────────────────┴───────┐      │
+│  │           WebviewProvider (postMessage)          │      │
+│  └──────────────────────┬───────────────────────────┘      │
+├────────────────────────┴────────────────────────────────────┤
+│                  Message Bridge (nonce CSP)                 │
+├─────────────────────────────────────────────────────────────┤
+│                 React Webview (Browser IIFE)                │
+│  ┌──────────────────────────────────────────────────────┐   │
+│  │  ReactApp (view router) → 12 View Components        │   │
+│  │    ↓ reads from                                      │   │
+│  │  9 Zustand Stores (useChatStore, useDashboard...)   │   │
+│  │    ↓ render                                          │   │
+│  │  22 Shared Components (Button, ListItem, Badge...)  │   │
+│  └──────────────────────────────────────────────────────┘   │
+├─────────────────────────────────────────────────────────────┤
+│               Web Workers (exam timers, background)          │
+└─────────────────────────────────────────────────────────────┘
 ```
 
-### Component Responsibilities
-
-| Component | Responsibility | Typical Implementation |
-|-----------|----------------|------------------------|
-| **WebviewProvider** | Manages webview lifecycle, creates/destroys webview panels, handles provider-level state | Class implementing `vscode.WebviewViewProvider` with `resolveWebviewView()` |
-| **Message Bridge** | Type-safe bidirectional communication between extension host and webview | Typed message contracts with discriminated unions, generic helper functions |
-| **React App Root** | Single mount point for React app, manages routing and global state | `createRoot()` in webview entry point, wraps app in providers |
-| **View Router** | Determines which React component to render based on app state | State-based conditional rendering (no URL routing needed in webviews) |
-| **Shared Components** | Reusable UI components matching VS Code design language | React components using VS Code CSS variables, styled to match editor theme |
-| **Build Pipeline** | Separate builds for extension host (Node.js) and webview (browser) | esbuild or Vite with dual contexts: platform 'node' + platform 'browser' |
-
-## Recommended Project Structure
+### Build Pipeline
 
 ```
-iris-thaumantias/
-├── src/
-│   ├── extension.ts                    # Extension entry point (Node.js)
-│   ├── provider/                       # Webview providers (Node.js)
-│   │   ├── artemisWebviewProvider.ts   # Main UI provider
-│   │   └── chatWebviewProvider.ts      # Chat UI provider
-│   ├── views/                          # View layer
-│   │   ├── webview/                    # NEW: React webview code (Browser)
-│   │   │   ├── apps/                   # NEW: React app roots
-│   │   │   │   ├── main/               # Main UI React app
-│   │   │   │   │   ├── index.tsx       # Entry point for ArtemisWebviewProvider
-│   │   │   │   │   ├── App.tsx         # Root component with routing
-│   │   │   │   │   ├── router.tsx      # State-based view router
-│   │   │   │   │   ├── store/          # State management (Zustand/Context)
-│   │   │   │   │   ├── views/          # View components (Login, Dashboard, etc.)
-│   │   │   │   │   └── messaging/      # Typed postMessage API
-│   │   │   │   └── chat/               # Chat UI React app
-│   │   │   │       ├── index.tsx       # Entry point for ChatWebviewProvider
-│   │   │   │       ├── App.tsx         # Chat root component
-│   │   │   │       └── store/          # Chat-specific state
-│   │   │   ├── components/             # NEW: Shared React components
-│   │   │   │   ├── Button/             # Migrated from buttonComponent.ts
-│   │   │   │   ├── Badge/              # Migrated from badgeComponent.ts
-│   │   │   │   ├── Container/          # Migrated from containerComponent.ts
-│   │   │   │   ├── BackLink/           # Migrated from backLinkComponent.ts
-│   │   │   │   └── ListItem/           # Migrated from listItemComponent.ts
-│   │   │   └── shared/                 # NEW: Shared utilities
-│   │   │       ├── types.ts            # Message contracts, shared types
-│   │   │       └── hooks.ts            # Shared React hooks
-│   │   ├── app/                        # EXISTING: Extension-side view logic (Node.js)
-│   │   │   ├── appStateManager.ts      # KEEP: Extension-side state
-│   │   │   ├── viewRouter.ts           # REMOVE: Replaced by React routing
-│   │   │   └── webViewMessageHandler.ts # KEEP: Message dispatch to commands
-│   │   └── [legacy views]/             # REMOVE GRADUALLY: Old HTML generators
-│   ├── api/                            # API services (Node.js)
-│   ├── auth/                           # Auth manager (Node.js)
-│   ├── services/                       # Business logic services (Node.js)
-│   └── types/                          # Shared TypeScript types
-├── dist/
-│   ├── extension.js                    # Compiled extension (CJS, Node.js)
-│   ├── webview-main.js                 # Compiled main React app (IIFE, Browser)
-│   ├── webview-chat.js                 # Compiled chat React app (IIFE, Browser)
-│   └── views/                          # CSS files (copied by build)
-├── esbuild.js                          # MODIFIED: Add React app builds
-└── package.json
+esbuild.js (dual-target build)
+├── Extension Host Bundle (CJS)
+│   ├── Entry: src/extension.ts
+│   ├── Format: CommonJS (Node.js)
+│   ├── Platform: node
+│   ├── External: ['vscode']
+│   └── Output: dist/extension.js (665KB)
+│
+└── Webview Bundle (IIFE)
+    ├── Entry: src/views/webview/react/index.tsx
+    ├── Format: IIFE (browser)
+    ├── Platform: browser
+    ├── Plugins:
+    │   ├── cssModulesPlugin() → camelCase class names
+    │   └── inlineWorkerPlugin() → Web Worker bundling
+    └── Output: dist/webview-react.js (3.5MB) ← OPTIMIZATION TARGET
 ```
 
-### Structure Rationale
+**Critical constraint:** IIFE format does NOT support code splitting in esbuild ([Issue #16](https://github.com/evanw/esbuild/issues/16)). Code splitting only works with ESM format.
 
-- **`src/views/webview/apps/`**: Separate React apps for each webview provider enables independent state management and code splitting
-- **`src/views/webview/components/`**: Shared components used by both main and chat apps, following component-per-folder pattern
-- **`src/views/webview/shared/`**: Type definitions and hooks that cross app boundaries
-- **Keep extension-side code separate**: Providers, services, and API clients stay in Node.js context
-- **Gradual migration**: Legacy view generators can coexist during migration, removed view-by-view
+### Component Architecture
 
-## Architectural Patterns
+| Layer | Count | Responsibilities | File Pattern |
+|-------|-------|------------------|--------------|
+| **Views** | 12 | Full-page UI, Zustand integration | `src/views/webview/react/views/{ViewName}/` |
+| **Stores** | 9 | State management, postMessage handlers | `src/views/webview/react/stores/use{Name}Store.ts` |
+| **Components** | 22 | Reusable UI primitives | `src/views/webview/react/components/{Name}/{Name}.tsx` |
+| **Message Contracts** | 1 | Typed extension ↔ webview messages | `src/shared/messageContracts.ts` |
 
-### Pattern 1: Dual Webview Providers with Independent React Apps
+### Current Icon System
 
-**What:** Each `WebviewViewProvider` mounts its own React application in the webview it creates. The main UI provider mounts the `main` app, and the chat provider mounts the `chat` app.
+**Custom SVG System:**
+- **File:** `src/utils/iconDefinitions.ts`
+- **Format:** Raw SVG strings in Record<string, string>
+- **Usage:** `dangerouslySetInnerHTML` in components
+- **Size impact:** All SVGs bundled regardless of usage
 
-**When to use:** When you have multiple webviews with distinct purposes and state (e.g., main UI vs. chat panel).
+**Partial Lucide Usage:**
+- Already imported in `DashboardView.tsx`
+- Package installed: `lucide-react@0.575.0`
+- Migration incomplete
 
-**Trade-offs:**
-- **Pro**: Complete isolation between webviews, independent state management
-- **Pro**: Smaller bundle sizes per webview (only loads what's needed)
-- **Con**: Shared components must be carefully managed to avoid duplication
-- **Con**: Cross-webview communication requires extension host as intermediary
+## Production Readiness Integration Points
 
-**Example:**
+### 1. Lucide React Icon Migration
 
+**Architecture Changes: MINIMAL (component-level only)**
+
+#### What Changes
+- **Modified:** All components currently using `IconDefinitions.ts` or inline SVGs
+- **Removed:** `src/utils/iconDefinitions.ts` (entire file)
+- **Pattern change:** From `dangerouslySetInnerHTML` to `<LucideIcon />` component
+
+#### Bundle Size Impact
+- **Before:** All custom SVGs bundled (~50+ icons)
+- **After:** Only imported Lucide icons bundled (tree-shaking)
+- **Import pattern critical:**
+  ```typescript
+  // ✅ CORRECT (tree-shakeable)
+  import { Check, X, Menu } from 'lucide-react';
+
+  // ❌ WRONG (imports entire library)
+  import * as Icons from 'lucide-react';
+  ```
+
+**Source:** [Lucide React documentation](https://lucide.dev/guide/packages/lucide-react) confirms tree-shaking works with named imports. [2026 Bundle Analysis](https://medium.nkcroft.com/the-hidden-bundle-cost-of-react-icons-why-lucide-wins-in-2026-1ddb74c1a86c) shows Lucide outperforms react-icons by 60%+ with proper imports.
+
+#### Implementation Pattern
+
+**IconButton.tsx refactor:**
 ```typescript
-// src/provider/artemisWebviewProvider.ts (Node.js)
-export class ArtemisWebviewProvider implements vscode.WebviewViewProvider {
-    public async resolveWebviewView(
-        webviewView: vscode.WebviewView,
-        context: vscode.WebviewViewResolveContext,
-        _token: vscode.CancellationToken,
-    ) {
-        this._view = webviewView;
+// Before: Custom SVG
+<svg width="16" height="16">
+  <path d="M12 4L4 12M4 4L12 12" stroke="currentColor"/>
+</svg>
 
-        webviewView.webview.options = {
-            enableScripts: true,
-            localResourceRoots: [this._extensionUri]
-        };
+// After: Lucide component
+import { X, Check, Menu } from 'lucide-react';
 
-        // Serve React app HTML
-        webviewView.webview.html = this._getReactAppHtml(webviewView.webview);
-
-        // Set up message handler
-        webviewView.webview.onDidReceiveMessage(
-            message => this._messageHandler.handleMessage(message),
-            undefined,
-            []
-        );
-    }
-
-    private _getReactAppHtml(webview: vscode.Webview): string {
-        const scriptUri = webview.asWebviewUri(
-            vscode.Uri.joinPath(this._extensionUri, 'dist', 'webview-main.js')
-        );
-
-        return `<!DOCTYPE html>
-        <html lang="en">
-        <head>
-            <meta charset="UTF-8">
-            <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <meta http-equiv="Content-Security-Policy"
-                  content="default-src 'none'; script-src ${webview.cspSource}; style-src ${webview.cspSource} 'unsafe-inline';">
-            <title>Artemis Extension</title>
-        </head>
-        <body>
-            <div id="root"></div>
-            <script src="${scriptUri}"></script>
-        </body>
-        </html>`;
-    }
-}
-
-// src/views/webview/apps/main/index.tsx (Browser)
-import { createRoot } from 'react-dom/client';
-import { App } from './App';
-
-const container = document.getElementById('root');
-const root = createRoot(container!);
-root.render(<App />);
+<IconButton icon={<X size={16} />} ariaLabel="Close" />
 ```
 
-### Pattern 2: Typed Message Contracts with Discriminated Unions
+**No store changes, no message contract changes, no build config changes.**
 
-**What:** Define a strict TypeScript contract for all messages between extension host and webview using discriminated unions. Each message type has a unique `command` field and typed payload.
+#### New Components
+None. Lucide icons drop into existing `IconButton` component pattern.
 
-**When to use:** Always. Critical for type safety in VS Code webview extensions.
+#### Modified Components
+- `Button.tsx`, `IconButton.tsx`, `BackLink.tsx`, `Dropdown.tsx`
+- All view files using icons (12 views)
+- Estimated: 30-40 file modifications
 
-**Trade-offs:**
-- **Pro**: Compile-time type checking prevents runtime message errors
-- **Pro**: IntelliSense auto-completion for message payloads
-- **Pro**: Refactoring is safe (TypeScript catches broken references)
-- **Con**: Requires discipline to maintain type definitions
+#### Data Flow
+**Before:** IconDefinitions → dangerouslySetInnerHTML → DOM
+**After:** lucide-react → React component → DOM
 
-**Example:**
+No state flow changes. Icons are presentational only.
 
-```typescript
-// src/views/webview/shared/types.ts (Shared between Node.js and Browser)
+---
 
-// Messages FROM extension host TO webview
-export type HostToWebviewMessage =
-    | { command: 'loginSuccess'; user: UserInfo }
-    | { command: 'updateCourses'; courses: CourseData[] }
-    | { command: 'updateExercise'; exerciseId: number; data: ExerciseData }
-    | { command: 'newSubmission'; submission: Submission }
-    | { command: 'showLoading'; message: string }
-    | { command: 'hideLoading' };
+### 2. Bundle Optimization (IIFE Constraints)
 
-// Messages FROM webview TO extension host
-export type WebviewToHostMessage =
-    | { command: 'login'; username: string; password: string; serverUrl: string }
-    | { command: 'logout' }
-    | { command: 'openCourse'; courseId: number }
-    | { command: 'openExercise'; exerciseId: number }
-    | { command: 'cloneRepository'; exerciseId: number; repositoryUrl: string }
-    | { command: 'submitExercise'; exerciseId: number };
+**Architecture Changes: BUILD CONFIG ONLY**
 
-export interface UserInfo {
-    username: string;
-    serverUrl: string;
-    user?: any;
-}
+#### Code Splitting Limitation
 
-export interface CourseData {
-    id: number;
-    title: string;
-    exercises: ExerciseData[];
-}
+**Critical finding:** esbuild does NOT support code splitting for IIFE format. From [esbuild Issue #2144](https://github.com/evanw/esbuild/issues/2144): "splitting currently only works with the 'esm' format."
 
-export interface ExerciseData {
-    id: number;
-    title: string;
-    type: string;
-    dueDate?: string;
-    // ... other fields
-}
+**Impact:** Cannot split `webview-react.js` into route-based chunks while maintaining IIFE format required by VS Code webviews.
 
-// src/views/webview/apps/main/messaging/api.ts (Browser)
-import type { WebviewToHostMessage, HostToWebviewMessage } from '../../../shared/types';
+**Alternative:** Switch to ESM format + dynamic imports. This requires:
+1. VS Code webview HTML changes (module scripts)
+2. Runtime module loader overhead
+3. Potential CSP complications
 
-type VsCodeApi = {
-    postMessage: (message: any) => void;
-    getState: () => any;
-    setState: (state: any) => void;
-};
+**Recommendation:** Defer to DX-03 deferred work item. Not viable for v1.1.
 
-declare function acquireVsCodeApi(): VsCodeApi;
+#### What IS Possible: Tree-Shaking Optimization
 
-const vscode = acquireVsCodeApi();
-
-// Type-safe message sender
-export function sendMessage<T extends WebviewToHostMessage>(message: T): void {
-    vscode.postMessage(message);
-}
-
-// Type-safe message listener with discriminated union
-export function onMessage(callback: (message: HostToWebviewMessage) => void): () => void {
-    const handler = (event: MessageEvent<HostToWebviewMessage>) => {
-        const message = event.data;
-        callback(message);
-    };
-
-    window.addEventListener('message', handler);
-    return () => window.removeEventListener('message', handler);
-}
-
-// Usage in React component:
-import { sendMessage, onMessage } from './messaging/api';
-
-function LoginView() {
-    const handleLogin = (username: string, password: string) => {
-        // TypeScript enforces correct message shape
-        sendMessage({
-            command: 'login',
-            username,
-            password,
-            serverUrl: 'https://artemis.example.com'
-        });
-    };
-
-    useEffect(() => {
-        const unsubscribe = onMessage((message) => {
-            // TypeScript narrows type based on command
-            if (message.command === 'loginSuccess') {
-                console.log('Logged in as', message.user.username);
-            }
-        });
-        return unsubscribe;
-    }, []);
-}
-```
-
-### Pattern 3: State-Based Routing Without URLs
-
-**What:** Use component state to determine which view to render rather than URL-based routing (React Router). The extension host controls view state via messages.
-
-**When to use:** Always in VS Code webviews (no meaningful URLs in iframes).
-
-**Trade-offs:**
-- **Pro**: Simpler than URL routing, no history management needed
-- **Pro**: Extension host has full control over navigation
-- **Pro**: No router library dependency (smaller bundle)
-- **Con**: No browser back/forward buttons (acceptable in VS Code context)
-- **Con**: Deep linking not possible (not needed in VS Code)
-
-**Example:**
-
-```typescript
-// src/views/webview/apps/main/store/viewStore.ts (Browser)
-import { create } from 'zustand';
-
-export type ViewType =
-    | 'login'
-    | 'dashboard'
-    | 'courseList'
-    | 'courseDetail'
-    | 'exerciseDetail'
-    | 'examExerciseDetail';
-
-interface ViewState {
-    currentView: ViewType;
-    courseId?: number;
-    exerciseId?: number;
-    examContext?: ExamContext;
-}
-
-interface ViewStore extends ViewState {
-    setView: (view: ViewType, params?: Partial<ViewState>) => void;
-}
-
-export const useViewStore = create<ViewStore>((set) => ({
-    currentView: 'login',
-    setView: (view, params = {}) => set({ currentView: view, ...params }),
-}));
-
-// src/views/webview/apps/main/App.tsx (Browser)
-import { useViewStore } from './store/viewStore';
-import { LoginView } from './views/LoginView';
-import { DashboardView } from './views/DashboardView';
-import { CourseDetailView } from './views/CourseDetailView';
-import { ExerciseDetailView } from './views/ExerciseDetailView';
-
-export function App() {
-    const currentView = useViewStore((state) => state.currentView);
-
-    // State-based routing - simple switch statement
-    switch (currentView) {
-        case 'login':
-            return <LoginView />;
-        case 'dashboard':
-            return <DashboardView />;
-        case 'courseList':
-            return <CourseListView />;
-        case 'courseDetail':
-            return <CourseDetailView />;
-        case 'exerciseDetail':
-            return <ExerciseDetailView />;
-        case 'examExerciseDetail':
-            return <ExamExerciseDetailView />;
-        default:
-            return <LoginView />;
-    }
-}
-
-// Message handler triggers state changes
-useEffect(() => {
-    const unsubscribe = onMessage((message) => {
-        if (message.command === 'loginSuccess') {
-            useViewStore.getState().setView('dashboard');
-        } else if (message.command === 'showCourseDetail') {
-            useViewStore.getState().setView('courseDetail', {
-                courseId: message.courseId
-            });
-        }
-    });
-    return unsubscribe;
-}, []);
-```
-
-### Pattern 4: Shared Component Extraction with Composition
-
-**What:** Extract common UI elements between ExerciseDetail and ExamExerciseDetail into shared React components with composition patterns.
-
-**When to use:** When two views share significant UI structure but differ in context (exam vs. regular exercise).
-
-**Trade-offs:**
-- **Pro**: Single source of truth for shared components (no duplication)
-- **Pro**: Changes to shared UI automatically apply to all consumers
-- **Pro**: Better testability (test component once, use everywhere)
-- **Con**: Over-abstraction can make components hard to understand
-- **Con**: Props explosion if not carefully designed
-
-**Example:**
-
-```typescript
-// src/views/webview/components/ExerciseHeader/ExerciseHeader.tsx
-interface ExerciseHeaderProps {
-    title: string;
-    type: string;
-    dueDate?: string;
-    isExam?: boolean;
-    examTimeRemaining?: string;
-    onBack: () => void;
-    onFullscreen?: () => void;
-}
-
-export function ExerciseHeader({
-    title,
-    type,
-    dueDate,
-    isExam = false,
-    examTimeRemaining,
-    onBack,
-    onFullscreen
-}: ExerciseHeaderProps) {
-    return (
-        <div className="exercise-header">
-            <BackLink onClick={onBack} label={isExam ? "Back to Exam" : "Back to Course"} />
-            <div className="exercise-title-row">
-                <Badge variant={type}>{type}</Badge>
-                <h1>{title}</h1>
-                {onFullscreen && <FullscreenButton onClick={onFullscreen} />}
-            </div>
-            {isExam && examTimeRemaining && (
-                <div className="exam-timer">Time Remaining: {examTimeRemaining}</div>
-            )}
-            {!isExam && dueDate && (
-                <div className="due-date">Due: {formatDate(dueDate)}</div>
-            )}
-        </div>
-    );
-}
-
-// src/views/webview/components/SubmissionStatus/SubmissionStatus.tsx
-interface SubmissionStatusProps {
-    participation: Participation;
-    latestResult?: Result;
-    buildInProgress?: boolean;
-}
-
-export function SubmissionStatus({
-    participation,
-    latestResult,
-    buildInProgress
-}: SubmissionStatusProps) {
-    if (buildInProgress) {
-        return <BuildProgress />;
-    }
-
-    if (!latestResult) {
-        return <NoSubmissionYet />;
-    }
-
-    return (
-        <div className="submission-status">
-            <ResultBadge result={latestResult} />
-            <SubmissionDetails result={latestResult} />
-            <FeedbackList feedbacks={latestResult.feedbacks} />
-        </div>
-    );
-}
-
-// Usage in ExerciseDetailView.tsx
-export function ExerciseDetailView({ exerciseData }: Props) {
-    const { sendMessage } = useMessaging();
-
-    return (
-        <div className="exercise-detail">
-            <ExerciseHeader
-                title={exerciseData.exercise.title}
-                type={exerciseData.exercise.type}
-                dueDate={exerciseData.exercise.dueDate}
-                onBack={() => sendMessage({ command: 'backToCourseDetails' })}
-                onFullscreen={() => sendMessage({
-                    command: 'openFullscreen',
-                    exerciseId: exerciseData.exercise.id
-                })}
-            />
-            <SubmissionStatus
-                participation={exerciseData.participation}
-                latestResult={exerciseData.latestResult}
-            />
-            {/* Rest of exercise-specific UI */}
-        </div>
-    );
-}
-
-// Usage in ExamExerciseDetailView.tsx
-export function ExamExerciseDetailView({ exerciseData, examContext }: Props) {
-    const { sendMessage } = useMessaging();
-
-    return (
-        <div className="exam-exercise-detail">
-            <ExerciseHeader
-                title={exerciseData.exercise.title}
-                type={exerciseData.exercise.type}
-                isExam={true}
-                examTimeRemaining={examContext.timeRemaining}
-                onBack={() => sendMessage({ command: 'backToExam' })}
-                // No fullscreen in exam mode
-            />
-            <SubmissionStatus
-                participation={exerciseData.participation}
-                latestResult={exerciseData.latestResult}
-            />
-            {/* Exam-specific UI differences */}
-        </div>
-    );
-}
-```
-
-## Data Flow
-
-### Request Flow (User Action → Extension Host → Backend)
-
-```
-[User clicks "Clone Repository"]
-    ↓
-[React Component] → calls sendMessage({ command: 'cloneRepository', ... })
-    ↓
-[postMessage API] → serializes and sends to extension host
-    ↓
-[WebviewProvider.onDidReceiveMessage()] → receives message
-    ↓
-[WebViewMessageHandler] → routes based on message.command
-    ↓
-[RepositoryCommandModule] → handles 'cloneRepository' command
-    ↓
-[Git Service] → executes git clone
-    ↓
-[Response] ← success/error
-    ↓
-[WebviewProvider] ← webview.postMessage({ command: 'repositoryCloned', ... })
-    ↓
-[React Message Listener] ← receives confirmation
-    ↓
-[State Update] ← React state updated
-    ↓
-[UI Re-render] ← Component shows "Cloned successfully"
-```
-
-### State Management (Extension Host Controls View State)
-
-```
-Extension Host State (AppStateManager)
-    ↓ (on state change)
-[webview.postMessage({ command: 'updateView', view: 'exerciseDetail', data: {...} })]
-    ↓
-React App Message Listener
-    ↓
-Zustand Store Update (or Context update)
-    ↓
-useViewStore() hook triggers
-    ↓
-Component Re-renders with New View
-```
-
-### Real-time Update Flow (WebSocket → UI)
-
-```
-[Artemis Server] → sends submission result via WebSocket
-    ↓
-[ArtemisWebsocketService] (Node.js) → receives message
-    ↓
-[WebviewProvider._handleNewResult()] → processes result
-    ↓
-[webview.postMessage({ command: 'newResult', result: {...} })]
-    ↓
-[React Message Listener] → receives result
-    ↓
-[Exercise Store] → updates cached exercise data
-    ↓
-[ExerciseDetailView] → re-renders with new result
-    ↓
-[SubmissionStatus Component] → shows updated score/feedback
-```
-
-### Key Data Flows
-
-1. **Authentication Flow**: Login form → extension host → API → success → extension sends user info → React updates state → navigates to dashboard
-2. **Navigation Flow**: User clicks course → React sends openCourse message → extension fetches course data → sends updateView message → React renders CourseDetailView
-3. **Real-time Build Updates**: WebSocket receives build progress → extension forwards to webview → React updates build progress bar → no full page reload
-
-## Build Pipeline Configuration
-
-### esbuild Setup for Dual Targets
+**Modified:** `esbuild.js` only (build config)
 
 ```javascript
-// esbuild.js
-const esbuild = require("esbuild");
+// Enhanced production build
+const webviewReactCtx = await esbuild.context({
+  // ... existing config
+  minify: production,
+  treeShaking: true,  // Explicit (already default)
+  metafile: true,     // Already present for analysis
 
-async function main() {
-    // Build 1: Extension host (Node.js, CJS)
-    const extensionCtx = await esbuild.context({
-        entryPoints: ['src/extension.ts'],
-        bundle: true,
-        format: 'cjs',
-        platform: 'node',
-        outfile: 'dist/extension.js',
-        external: ['vscode'],
-        minify: production,
-        sourcemap: !production,
-    });
-
-    // Build 2: Main React app (Browser, IIFE)
-    const mainWebviewCtx = await esbuild.context({
-        entryPoints: ['src/views/webview/apps/main/index.tsx'],
-        bundle: true,
-        format: 'iife',
-        platform: 'browser',
-        outfile: 'dist/webview-main.js',
-        jsx: 'automatic',  // React 17+ automatic JSX transform
-        jsxDev: !production,
-        minify: production,
-        sourcemap: !production,
-        loader: {
-            '.tsx': 'tsx',
-            '.ts': 'ts',
-            '.css': 'css',
-        },
-    });
-
-    // Build 3: Chat React app (Browser, IIFE)
-    const chatWebviewCtx = await esbuild.context({
-        entryPoints: ['src/views/webview/apps/chat/index.tsx'],
-        bundle: true,
-        format: 'iife',
-        platform: 'browser',
-        outfile: 'dist/webview-chat.js',
-        jsx: 'automatic',
-        jsxDev: !production,
-        minify: production,
-        sourcemap: !production,
-    });
-
-    if (watch) {
-        await extensionCtx.watch();
-        await mainWebviewCtx.watch();
-        await chatWebviewCtx.watch();
-    } else {
-        await extensionCtx.rebuild();
-        await mainWebviewCtx.rebuild();
-        await chatWebviewCtx.rebuild();
-        await extensionCtx.dispose();
-        await mainWebviewCtx.dispose();
-        await chatWebviewCtx.dispose();
-    }
-}
-
-main().catch(e => {
-    console.error(e);
-    process.exit(1);
+  // NEW: Bundle analyzer integration
+  plugins: [
+    inlineWorkerPlugin(),
+    cssModulesPlugin(),
+    {
+      name: 'bundle-analyzer',
+      setup(build) {
+        build.onEnd(async (result) => {
+          if (production && result.metafile) {
+            // Generate visual bundle analysis
+            const text = await esbuild.analyzeMetafile(result.metafile);
+            console.log(text);
+          }
+        });
+      }
+    },
+    esbuildProblemMatcherPlugin,
+  ],
 });
 ```
 
-### Key Build Considerations
+**New npm script:**
+```json
+"analyze": "npx esbuild-visualizer --metadata=dist/meta.json --open"
+```
 
-| Concern | Solution |
-|---------|----------|
-| **Separate Node.js vs Browser code** | Three esbuild contexts with different `platform` settings |
-| **React JSX transform** | `jsx: 'automatic'` for React 17+ (no need to import React) |
-| **CSS bundling** | esbuild handles CSS with `loader: { '.css': 'css' }` or separate plugin |
-| **Development speed** | `watch: true` for hot reload, `sourcemap: true` for debugging |
-| **Bundle size** | `minify: true` in production, tree-shaking enabled by default |
-| **VS Code CSP compliance** | Use `webview.asWebviewUri()` for script tags, no inline scripts/styles |
+Already exists in `package.json` line 184. Just needs documentation.
 
-## Integration Points Between React and Extension Host
+#### What Gets Smaller
 
-### Extension Host → React (Provider Responsibilities)
+| Category | Before | After | How |
+|----------|--------|-------|-----|
+| Lucide icons | N/A | Tree-shaken | Named imports only |
+| Unused Zustand features | Bundled | Tree-shaken | ESM imports |
+| React DevTools | Bundled (dev) | Excluded | `process.env.NODE_ENV` check |
+| CSS Modules unused classes | Bundled | Removed | cssModulesPlugin dead code elim |
 
-| Integration Point | Implementation | Notes |
-|-------------------|----------------|-------|
-| **Initial HTML** | Provider's `_getReactAppHtml()` returns minimal HTML with root div + script tag | CSP meta tag required, script URI must use `asWebviewUri()` |
-| **Message sending** | `webview.postMessage(message)` with typed message contracts | Extension decides when to push state updates to webview |
-| **State push** | Extension sends view changes via messages (e.g., `{ command: 'updateView', ... }`) | Extension host is source of truth for backend-derived state |
-| **Resource URIs** | Extension provides webview with URIs for scripts, styles, images via `asWebviewUri()` | Required for CSP compliance |
+**Expected reduction:** 10-15% (350-525KB off 3.5MB) without code splitting.
 
-### React → Extension Host (Webview Responsibilities)
+**Source:** [esbuild FAQ](https://esbuild.github.io/faq/) confirms tree-shaking works across formats. [Webpack vs esbuild 2026](https://www.mindfulchase.com/explore/troubleshooting-tips/build-bundling/troubleshooting-build,-plugin,-and-performance-issues-in-esbuild.html) shows minification + tree-shaking typically achieves 10-20% reduction.
 
-| Integration Point | Implementation | Notes |
-|-------------------|----------------|-------|
-| **Message sending** | `vscode.postMessage(message)` via typed API wrapper | React app sends commands/requests, extension host handles them |
-| **User actions** | Button clicks, form submits trigger messages to extension | All backend interactions go through extension host |
-| **State queries** | Request current state via message if needed | Generally avoid - extension should push state proactively |
+#### New Components
+- Bundle analyzer script (shell/npm script)
+- CI bundle size tracking (optional: store meta.json in git, diff on PR)
 
-## Component Migration Strategy
+#### Modified Components
+- `esbuild.js` (build config)
+- `package.json` (document existing `analyze` script)
 
-### New Components Needed
+#### Data Flow
+No runtime data flow changes. This is build-time optimization only.
 
-| Component | Source | Purpose | Complexity |
-|-----------|--------|---------|------------|
-| **Button** | `buttonComponent.ts` → `Button.tsx` | Primary, secondary, icon, ghost button variants | Low |
-| **Badge** | `badgeComponent.ts` → `Badge.tsx` | Status badges (success, warning, error) | Low |
-| **BackLink** | `backLinkComponent.ts` → `BackLink.tsx` | Navigation back links with icon | Low |
-| **Container** | `containerComponent.ts` → `Container.tsx` | Card-style containers with optional headers | Low |
-| **ListItem** | `listItemComponent.ts` → `ListItem.tsx` | Clickable list items for courses/exercises | Medium |
-| **ExerciseHeader** | Extracted from exerciseDetailView | Shared header for exercise/exam exercise views | Medium |
-| **SubmissionStatus** | `submissionStatusComponent.ts` → `SubmissionStatus.tsx` | Shows latest submission result, score, feedback | High |
-| **BuildProgress** | `buildProgressComponent.ts` → `BuildProgress.tsx` | Real-time build progress with WebSocket updates | High |
-| **ParticipationActions** | `participationActionsComponent.ts` → `ParticipationActions.tsx` | Clone repo, submit, open workspace buttons | High |
+---
 
-### Modified Extension Components
+### 3. Strict TypeScript Migration
 
-| Component | Current State | Migration Change | Rationale |
-|-----------|---------------|------------------|-----------|
-| **ArtemisWebviewProvider** | Returns HTML string from ViewRouter | Returns minimal React mount HTML | Provider no longer generates views, just hosts React app |
-| **ChatWebviewProvider** | Returns HTML string from IrisChatView | Returns minimal React mount HTML | Same as above |
-| **ViewRouter** | Switch statement generating HTML strings | REMOVED | Replaced by React app's state-based routing |
-| **AppStateManager** | Manages extension-side state | KEEP, modify message sending | Still manages extension state, but sends state updates via messages |
-| **WebViewMessageHandler** | Routes messages to command modules | KEEP unchanged | Command modules remain Node.js-based, no change needed |
-| **Command Modules** | Handle business logic (auth, nav, repo, etc.) | KEEP unchanged | Business logic stays in extension host |
+**Architecture Changes: COMPILER CONFIG + INCREMENTAL FILE UPDATES**
 
-### Data Flow Changes
+#### Current State
+```json
+// tsconfig.json
+{
+  "compilerOptions": {
+    "strict": true,  // Already enabled!
+    // But 10 pre-existing errors remain unfixed
+  }
+}
+```
 
-| Flow | Before (HTML Strings) | After (React) |
-|------|----------------------|---------------|
-| **View rendering** | Provider calls ViewRouter.getHtml() → returns full HTML string → assigns to webview.html | Provider sets HTML once with React mount point → React app handles all view changes |
-| **State updates** | AppStateManager changes → calls ViewRouter.getHtml() → full webview reload | AppStateManager changes → sends postMessage to webview → React state update → partial re-render |
-| **User interaction** | Inline `<script>` in HTML → vscode.postMessage() → provider receives → handler processes | React component → sendMessage() → provider receives → handler processes (same) |
-| **WebSocket updates** | Provider receives → webview.postMessage() → inline script updates DOM directly | Provider receives → webview.postMessage() → React message listener → state update → re-render |
+**Problem:** `strict: true` is enabled but not enforced. Errors exist in:
+- Legacy non-React code (pre-migration)
+- Extension host services (auth, API, WebSocket)
+- Message handlers (any-typed event objects)
 
-## Build Order for Migration Phases
+#### Incremental Migration Strategy
 
-### Phase 1: Foundation (Week 1-2)
-**Goal:** Set up React infrastructure without breaking existing views.
+**Pattern 1: Use typescript-strict-plugin for Selective Enforcement**
 
-1. **Install dependencies**: `react`, `react-dom`, `@types/react`, `zustand` (or chosen state lib)
-2. **Configure esbuild**: Add webview build targets with `jsx: 'automatic'`, `platform: 'browser'`
-3. **Create project structure**: `src/views/webview/apps/`, `components/`, `shared/`
-4. **Define message contracts**: Create `shared/types.ts` with all message discriminated unions
-5. **Create messaging API**: Typed `sendMessage()` and `onMessage()` wrappers
-6. **Test build pipeline**: Ensure both extension.js and webview-main.js compile successfully
+**Install:**
+```bash
+npm install -D typescript-strict-plugin
+```
 
-**Validation:** Extension still works with old views, new React files compile.
+**tsconfig.json:**
+```json
+{
+  "compilerOptions": {
+    "strict": true,
+    "plugins": [
+      { "name": "typescript-plugin-css-modules" },
+      {
+        "name": "typescript-strict-plugin",
+        "paths": ["./src/views/webview/react/**/*"]  // Enforce in React code ONLY
+      }
+    ]
+  }
+}
+```
 
-### Phase 2: Shared Components (Week 2-3)
-**Goal:** Port existing UI components to React.
+**Effect:** New React code MUST be strict-compliant. Legacy code can be fixed incrementally.
 
-**Order** (simple → complex, most reused first):
-1. **Button** (used everywhere, simple)
-2. **Badge** (used everywhere, simple)
-3. **BackLink** (simple)
-4. **Container** (medium, used widely)
-5. **ListItem** (medium, used in course/exercise lists)
-6. **Input** (if exists, medium)
-7. **Dropdown** (if exists, medium)
+**Source:** [TypeScript Strict Plugin](https://github.com/allegro/typescript-strict-plugin) allows per-directory strict enforcement. [2026 Migration Guide](https://oneuptime.com/blog/post/2026-02-20-typescript-strict-mode-guide/view) recommends incremental approach starting with new code.
 
-**Validation:** Each component has TypeScript props interface, matches existing visual design.
+#### Common Fixes Required
 
-### Phase 3: Simple Views (Week 3-4)
-**Goal:** Migrate standalone views with minimal dependencies.
+**1. Implicit Any (noImplicitAny)**
+```typescript
+// Before
+function handleMessage(msg) {  // 'msg' is any
+  vscode.postMessage(msg);
+}
 
-**Order** (least state → most state):
-1. **LoginView** (minimal state, good test case)
-2. **ServiceStatusView** (simple, read-only)
-3. **GitCredentialsView** (simple form)
-4. **RecommendedExtensionsView** (list view, no backend state)
+// After
+function handleMessage(msg: WebviewToExtensionMessage) {
+  vscode.postMessage(msg);
+}
+```
 
-**Validation:** Each view works in React app, can switch between views, messages work.
+**2. Nullable Types (strictNullChecks)**
+```typescript
+// Before
+const session = sessions.find(s => s.id === id);
+session.messages = [];  // Error: session possibly undefined
 
-### Phase 4: Main UI Views (Week 4-6)
-**Goal:** Migrate core application views.
+// After
+const session = sessions.find(s => s.id === id);
+if (session) {
+  session.messages = [];
+}
+// OR
+const session = sessions.find(s => s.id === id)!;  // Non-null assertion (use sparingly)
+```
 
-**Order** (dependency order):
-1. **DashboardView** (landing page after login)
-2. **CourseListView** (depends on dashboard navigation)
-3. **CourseDetailView** (depends on course list, shows exercises)
-4. **ExerciseDetailView** (complex, depends on course detail)
-5. **ExamExerciseDetailView** (reuses ExerciseDetail components, different context)
+**3. Uninitialized Properties (strictPropertyInitialization)**
+```typescript
+// Before
+class MyService {
+  apiClient: ApiClient;  // Error: not initialized
+}
 
-**Validation:** Full navigation flow works, real-time updates work, WebSocket integration works.
+// After
+class MyService {
+  apiClient: ApiClient | null = null;
+  // OR
+  apiClient!: ApiClient;  // Definite assignment assertion
+}
+```
 
-### Phase 5: Chat UI (Week 6-7)
-**Goal:** Migrate Iris chat webview to React.
+#### New Components
+- **TypeScript Strict Plugin** (dev dependency)
+- **Type guard utilities** (optional: `src/utils/typeGuards.ts`)
 
-**Dependencies:**
-- Chat has separate state management (session, context, messages)
-- Streaming message rendering must be smooth
-- File monitoring integration required
+#### Modified Components
+- `tsconfig.json` (add plugin config)
+- All files with TypeScript errors (10+ files)
+- Potentially: message handler files (5-10 files)
 
-**Order:**
-1. **IrisChatView** layout and shell
-2. **Context picker** (exercise/course selection)
-3. **Message list** with streaming
-4. **Session management** (create, switch, delete)
+#### Data Flow Changes
+**None at runtime.** Type annotations don't affect compiled JavaScript. This is compile-time only.
 
-**Validation:** Chat works smoothly, no flicker on message streaming, context switching works.
+---
 
-### Phase 6: Exam Views (Week 7-8)
-**Goal:** Migrate exam-related views (time-sensitive).
+### 4. Comprehensive Testing Expansion
 
-**Order:**
-1. **ExamStartView** (simple, starts exam)
-2. **ExamConductionView** (complex, timer, navigation)
-3. **ExamExerciseDetailView** (already done in Phase 4, integrate with exam context)
+**Architecture Changes: NEW TESTING LAYER + TEST INFRASTRUCTURE**
 
-**Critical:** Exam timer must be accurate, no regressions in time tracking.
+#### Current Testing Setup
 
-**Validation:** Timer counts down correctly, submission deadlines enforced, no time drift.
+**Framework:** Mocha + @vscode/test-cli
+**Structure:**
+```
+test/
+├── ui/                   # vscode-extension-tester (Selenium)
+│   ├── login.ui.test.ts
+│   └── login-flow.ui.test.ts
+├── auth/                 # Unit tests (extension host)
+├── provider/             # Unit tests (extension host)
+└── utils/                # Unit tests (extension host)
+```
 
-### Phase 7: Cleanup (Week 8)
-**Goal:** Remove legacy code, optimize bundles.
+**Config:** `.vscode-test.mjs` defines two test labels:
+- `unit` → All tests except e2e
+- `e2e` → Integration tests (requires Artemis server)
 
-1. **Remove old view generators** (exerciseDetailView.ts, courseDetailView.ts, etc.)
-2. **Remove ViewRouter** (replaced by React routing)
-3. **Remove unused CSS** (now in React components)
-4. **Remove old webview/components.ts** (legacy string component system)
-5. **Optimize bundle**: Tree-shaking analysis, code splitting if needed
-6. **Update documentation**: Reflect new React architecture
+**Gap:** No React component tests. 10,174 LOC of React code (22 components, 12 views) untested.
 
-**Validation:** Extension still works, smaller bundle size, no dead code warnings.
+#### Dual Testing Strategy
 
-## Anti-Patterns
+**Why Not Mocha for React?** Mocha runs in Node.js. React components need DOM. Options:
+1. **jsdom** (Node.js DOM simulation) — works but incomplete, missing Web APIs
+2. **happy-dom** (faster jsdom alternative) — same limitations
+3. **Vitest Browser Mode** (real browser) — full DOM + Web APIs
 
-### Anti-Pattern 1: Using React Router for Webview Navigation
+**Recommendation:** Add Vitest for React components, keep Mocha for extension host.
 
-**What people do:** Install `react-router-dom` and use URL-based routing in the webview.
+**Source:** [2026 Testing Trends](https://www.nucamp.co/blog/testing-in-2026-jest-react-testing-library-and-full-stack-testing-strategies) recommend Vitest for Vite/ESM projects. [VS Code Extension Testing Guide](https://devblogs.microsoft.com/ise/testing-vscode-extensions-with-typescript/) confirms official tools don't support webview testing.
 
-**Why it's wrong:** VS Code webviews don't have meaningful URLs (they're iframes). URL changes don't persist, back/forward buttons don't work as expected, and it adds unnecessary bundle size.
+#### New Testing Architecture
 
-**Do this instead:** Use state-based routing with a view store (Zustand/Context) where the extension host controls view state via messages.
+```
+Extension Testing (unchanged)
+├── Mocha (@vscode/test-cli)
+│   ├── Extension host unit tests
+│   ├── Integration tests (extension + VS Code APIs)
+│   └── UI tests (vscode-extension-tester)
+│
+└── NEW: React Component Testing
+    └── Vitest + React Testing Library
+        ├── Component unit tests (Button, ListItem, etc.)
+        ├── View integration tests (Dashboard, Chat, etc.)
+        └── Store tests (Zustand actions/selectors)
+```
 
-### Anti-Pattern 2: Fetching Data Directly from React Components
+#### Implementation: Vitest Setup
 
-**What people do:** Use `fetch()` or axios in React components to call backend APIs directly.
+**Install:**
+```bash
+npm install -D vitest @testing-library/react @testing-library/user-event \
+  @vitest/ui jsdom @types/testing-library__react
+```
 
-**Why it's wrong:** Violates VS Code extension architecture. Webviews run in a sandboxed iframe with CSP restrictions. All backend communication must go through the extension host, which has access to Node.js APIs, authentication, and the Artemis API.
+**vitest.config.ts (new file):**
+```typescript
+import { defineConfig } from 'vitest/config';
+import react from '@vitejs/plugin-react';
 
-**Do this instead:** React components send messages to extension host, extension host handles API calls, extension host sends results back via postMessage.
+export default defineConfig({
+  plugins: [react()],
+  test: {
+    globals: true,
+    environment: 'jsdom',
+    setupFiles: './test/react/setup.ts',
+    include: ['src/**/*.{test,spec}.{ts,tsx}'],
+    exclude: ['node_modules', 'dist', 'out', 'test/ui/**'],
+    coverage: {
+      provider: 'v8',
+      reporter: ['text', 'json', 'html'],
+      exclude: [
+        'node_modules/',
+        'test/',
+        '**/*.d.ts',
+        '**/*.config.*',
+        '**/mockData.ts',
+      ],
+    },
+  },
+  resolve: {
+    alias: {
+      '@': '/src',
+    },
+  },
+});
+```
 
-### Anti-Pattern 3: Full Webview Reloads on State Changes
+**test/react/setup.ts (new file):**
+```typescript
+import '@testing-library/jest-dom';
+import { cleanup } from '@testing-library/react';
+import { afterEach, vi } from 'vitest';
 
-**What people do:** On every state change, regenerate full HTML and assign to `webview.html`.
+// Mock VS Code API
+global.acquireVsCodeApi = vi.fn(() => ({
+  postMessage: vi.fn(),
+  getState: vi.fn(),
+  setState: vi.fn(),
+}));
 
-**Why it's wrong:** Destroys webview DOM, loses scroll position, disrupts user input, breaks real-time updates, and causes flicker. This is what the current HTML string approach does.
+// Cleanup after each test
+afterEach(() => {
+  cleanup();
+});
+```
 
-**Do this instead:** Set webview HTML once on creation (React mount point), then use postMessage to update React state, which triggers surgical re-renders of only changed components.
+**package.json scripts:**
+```json
+{
+  "scripts": {
+    "test:react": "vitest",
+    "test:react:ui": "vitest --ui",
+    "test:react:coverage": "vitest --coverage",
+    "test:all": "npm run test:react && vscode-test"
+  }
+}
+```
 
-### Anti-Pattern 4: Inline Scripts and Styles in HTML
+#### Example Component Test
 
-**What people do:** Embed `<script>` and `<style>` tags directly in the HTML string with inline JavaScript.
+**Button.test.tsx (new file):**
+```typescript
+import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { describe, it, expect, vi } from 'vitest';
+import { Button } from './Button';
 
-**Why it's wrong:** Violates Content Security Policy (CSP). VS Code webviews require `script-src` to reference external files via `asWebviewUri()`, not inline scripts.
+describe('Button', () => {
+  it('renders with correct text', () => {
+    render(<Button>Click me</Button>);
+    expect(screen.getByRole('button', { name: /click me/i })).toBeInTheDocument();
+  });
 
-**Do this instead:** Use external bundled JavaScript files loaded via `<script src="${scriptUri}">` where `scriptUri` is created with `webview.asWebviewUri()`.
+  it('calls onClick handler when clicked', async () => {
+    const handleClick = vi.fn();
+    render(<Button onClick={handleClick}>Click me</Button>);
 
-### Anti-Pattern 5: Duplicating Component Logic Between ExerciseDetail and ExamExerciseDetail
+    await userEvent.click(screen.getByRole('button'));
+    expect(handleClick).toHaveBeenCalledTimes(1);
+  });
 
-**What people do:** Copy-paste entire view components for similar views (e.g., regular exercise vs. exam exercise), maintaining two versions of the same UI.
+  it('disables button when disabled prop is true', () => {
+    render(<Button disabled>Click me</Button>);
+    expect(screen.getByRole('button')).toBeDisabled();
+  });
+});
+```
 
-**Why it's wrong:** Changes to shared UI require editing two places, bugs get fixed in one but not the other, tests must cover both versions.
+#### Example Store Test
 
-**Do this instead:** Extract shared components (ExerciseHeader, SubmissionStatus, etc.) and compose them with variant props (`isExam`, `examContext`).
+**useChatStore.test.ts (new file):**
+```typescript
+import { renderHook, act } from '@testing-library/react';
+import { describe, it, expect } from 'vitest';
+import { useChatStore } from './useChatStore';
 
-### Anti-Pattern 6: Mixing Extension Host and Webview Code
+describe('useChatStore', () => {
+  it('adds message to store', () => {
+    const { result } = renderHook(() => useChatStore());
 
-**What people do:** Import Node.js modules (`fs`, `path`, `vscode`) in React components or mix browser APIs in extension host code.
+    act(() => {
+      result.current.addMessage({
+        localId: '123',
+        role: 'user',
+        content: 'Hello Iris',
+        timestamp: Date.now(),
+      });
+    });
 
-**Why it's wrong:** Build fails or runtime errors. Extension host is Node.js (has `vscode` API, file system), webview is browser sandbox (no Node.js APIs).
+    expect(result.current.messages).toHaveLength(1);
+    expect(result.current.messages[0].content).toBe('Hello Iris');
+  });
 
-**Do this instead:** Strict separation. Extension host code in `src/provider/`, `src/services/`. Webview code in `src/views/webview/`. Use shared types in `src/views/webview/shared/types.ts`.
+  it('clears all messages', () => {
+    const { result } = renderHook(() => useChatStore());
+
+    act(() => {
+      result.current.addMessage({ /* ... */ });
+      result.current.addMessage({ /* ... */ });
+      result.current.clearMessages();
+    });
+
+    expect(result.current.messages).toHaveLength(0);
+  });
+});
+```
+
+#### New Components
+
+| Component | Purpose | Location |
+|-----------|---------|----------|
+| `vitest.config.ts` | Vitest configuration | Root |
+| `test/react/setup.ts` | Test environment setup | test/react/ |
+| `*.test.tsx` files | Component tests | Colocated with components |
+| `*.test.ts` files (stores) | Store tests | Colocated with stores |
+
+**Colocated pattern:**
+```
+src/views/webview/react/components/Button/
+├── Button.tsx
+├── Button.module.css
+└── Button.test.tsx  ← NEW
+```
+
+#### Modified Components
+- `package.json` (add Vitest scripts and deps)
+- `.gitignore` (add `coverage/` directory)
+- CI config (run both Mocha and Vitest)
+
+#### Data Flow Changes
+**None.** Tests don't affect runtime. Vitest runs in separate process.
+
+---
+
+## Integration Dependencies and Build Order
+
+### Phase 1: Foundation (No Dependencies)
+1. **Lucide Migration** (icon system replacement)
+   - New: Install lucide-react (already installed)
+   - Modified: 30-40 component files
+   - Test: Visual regression (manual)
+   - Risk: LOW (presentational only)
+
+2. **TypeScript Strict Plugin** (incremental enforcement)
+   - New: Install typescript-strict-plugin
+   - Modified: tsconfig.json
+   - Test: `npm run check-types` passes
+   - Risk: LOW (no runtime changes)
+
+### Phase 2: Infrastructure (Depends on Phase 1)
+3. **Bundle Optimization** (build config)
+   - New: Bundle analyzer script
+   - Modified: esbuild.js
+   - Test: `npm run analyze`, measure bundle size
+   - Risk: LOW (build-time only)
+   - **Dependency:** Should follow Lucide migration to measure tree-shaking impact
+
+4. **Vitest Testing Setup** (new test layer)
+   - New: vitest.config.ts, test/react/setup.ts
+   - Modified: package.json (scripts, devDeps)
+   - Test: Run `npm run test:react` (empty suite passes)
+   - Risk: MEDIUM (new build tool, potential conflicts)
+
+### Phase 3: Implementation (Depends on Phase 2)
+5. **Fix TypeScript Errors** (incremental)
+   - New: Type guard utilities (optional)
+   - Modified: 10+ files with errors
+   - Test: `npm run check-types` zero errors
+   - Risk: MEDIUM (potential runtime behavior changes)
+   - **Dependency:** Requires strict plugin from Phase 1
+
+6. **Write React Component Tests** (test coverage)
+   - New: 50-100 test files
+   - Modified: None (tests only)
+   - Test: `npm run test:react:coverage` target 80%+
+   - Risk: LOW (no production code changes)
+   - **Dependency:** Requires Vitest setup from Phase 2
+
+### Parallel vs Sequential
+
+**Can be done in parallel:**
+- Lucide migration + TypeScript strict plugin (independent)
+- Bundle optimization + Vitest setup (different domains)
+
+**Must be sequential:**
+- Bundle optimization AFTER Lucide migration (to measure impact)
+- Component tests AFTER Vitest setup (infrastructure required)
+- TypeScript error fixes AFTER strict plugin (enforcement tool required)
+
+### Critical Path
+1. Lucide migration (foundation for bundle optimization)
+2. Bundle optimization (validate tree-shaking works)
+3. Vitest setup (foundation for testing)
+4. Component tests (quality gate)
+
+**Total estimated duration:** 2-3 weeks for all phases.
+
+---
+
+## Anti-Patterns to Avoid
+
+### Anti-Pattern 1: Code Splitting with IIFE
+
+**What people try:** Enable `splitting: true` in esbuild config for IIFE format.
+
+**Why it fails:** esbuild only supports code splitting with ESM format. IIFE generates a single file by design.
+
+**Do this instead:** Accept single bundle OR switch to ESM format (requires webview HTML changes, CSP updates, module loader overhead). Recommend: defer to DX-03.
+
+---
+
+### Anti-Pattern 2: Barrel Imports for Icons
+
+**What people do:**
+```typescript
+import * as Icons from 'lucide-react';
+<Icons.Check />
+```
+
+**Why it's wrong:** Imports entire Lucide library (~50KB compressed). Tree-shaking fails with namespace imports.
+
+**Do this instead:**
+```typescript
+import { Check, X, Menu } from 'lucide-react';
+<Check />
+```
+
+**Source:** [Lucide React documentation](https://lucide.dev/guide/packages/lucide-react) explicitly warns against barrel imports.
+
+---
+
+### Anti-Pattern 3: Testing React Components with Mocha
+
+**What people do:** Try to use Mocha + jsdom for React component tests.
+
+**Why it's wrong:**
+- jsdom incomplete (missing Web APIs like IntersectionObserver)
+- No React Testing Library integration
+- Slow compared to Vitest
+- Maintenance burden (two test frameworks)
+
+**Do this instead:** Use Vitest with jsdom or Vitest Browser Mode. Modern, fast, React-native.
+
+**Source:** [2026 Testing Strategies](https://www.nucamp.co/blog/testing-in-2026-jest-react-testing-library-and-full-stack-testing-strategies) show Vitest 10-20x faster than Jest/Mocha for React.
+
+---
+
+### Anti-Pattern 4: Enabling All Strict Flags at Once
+
+**What people do:**
+```json
+{
+  "strict": true,
+  "noImplicitAny": true,
+  "strictNullChecks": true,
+  // ... all flags enabled
+}
+```
+
+Then try to fix 100+ errors across entire codebase.
+
+**Why it's wrong:** Overwhelming. Blocks progress. High risk of introducing bugs in "quick fixes."
+
+**Do this instead:** Use typescript-strict-plugin to enforce strict mode only in new code (React components). Fix legacy code incrementally.
+
+**Source:** [Incremental Migration Guide](https://preetmishra.com/blog/migrating-to-typescript-strict-mode-at-an-early-stage-startup) recommends phased approach.
+
+---
+
+### Anti-Pattern 5: Running All Tests in Single Process
+
+**What people do:** Try to run Mocha extension tests + Vitest React tests in same process.
+
+**Why it's wrong:** Different environments (Node.js vs jsdom), different assertion libraries, different mocking strategies. Conflicts inevitable.
+
+**Do this instead:** Separate test commands:
+```json
+{
+  "test:extension": "vscode-test --label unit",
+  "test:react": "vitest",
+  "test:all": "npm run test:react && npm run test:extension"
+}
+```
+
+---
 
 ## Scaling Considerations
 
 | Scale | Architecture Adjustments |
 |-------|--------------------------|
-| **0-20 views (current)** | Single React app per provider, state-based routing, Zustand/Context for state. Keep it simple. |
-| **20-50 views** | Consider code splitting with React.lazy() for large views. Separate state stores for different domains (courses vs. exercises vs. chat). |
-| **50+ views** | Module federation or micro-frontends if views become independently deployable. Unlikely for this extension. |
+| **Current (v1.1)** | Single IIFE bundle (~3MB), Lucide tree-shaking, Vitest for React |
+| **v1.2-1.5** | Bundle size monitoring in CI, lazy-load heavy dependencies (Shiki, Streamdown) |
+| **v2.0+** | Consider ESM format + dynamic imports for route-based splitting (DX-03) |
 
-### Scaling Priorities
+### When to Consider Code Splitting
 
-1. **First bottleneck: Initial load time** → Code split large views (exam conduction, exercise detail) with `React.lazy()` and `Suspense`. Measure with esbuild's metafile analyzer.
+**Trigger:** Bundle size exceeds 5MB despite optimization.
 
-2. **Second bottleneck: Message latency** → If messages become slow, batch state updates (e.g., send one "updateMultipleExercises" message instead of N "updateExercise" messages). Use message queuing if needed.
+**Approach:**
+1. Switch webview bundle format from IIFE to ESM
+2. Update webview HTML to use `<script type="module">`
+3. Add dynamic imports for route boundaries:
+   ```typescript
+   const DashboardView = lazy(() => import('./views/Dashboard'));
+   const ChatView = lazy(() => import('./views/IrisChat'));
+   ```
+4. Update CSP to allow module scripts
+5. Add loading fallback for Suspense boundaries
 
-3. **Third bottleneck: State complexity** → If Zustand store becomes unwieldy, split into domain stores (coursesStore, exercisesStore, authStore) and use selector hooks to prevent unnecessary re-renders.
+**Estimated impact:** 40-60% reduction in initial load (load only active view).
+
+**Complexity:** HIGH (requires CSP changes, webview provider updates, testing in multiple VS Code versions).
+
+---
+
+## Summary: Integration Overview
+
+### New Components Required
+
+| Component | Type | Purpose | Size |
+|-----------|------|---------|------|
+| **vitest.config.ts** | Config | Vitest configuration | ~50 lines |
+| **test/react/setup.ts** | Setup | Test environment mocks | ~30 lines |
+| **Bundle analyzer script** | Script | Visualize bundle composition | ~20 lines |
+| **Component test files** | Tests | React component coverage | ~2000-5000 lines |
+| **Store test files** | Tests | Zustand store coverage | ~500-1000 lines |
+
+**Total new code:** ~3000-6000 lines (mostly tests).
+
+### Modified Components
+
+| Component | Changes | Impact |
+|-----------|---------|--------|
+| **esbuild.js** | Add bundle analyzer plugin | Build-time only |
+| **tsconfig.json** | Add typescript-strict-plugin | Compile-time only |
+| **package.json** | Add Vitest scripts/deps | Dev dependencies |
+| **30-40 component files** | Replace IconDefinitions with Lucide | Runtime (icons) |
+| **10+ files with TS errors** | Fix strict mode violations | Runtime (type safety) |
+
+### Data Flow Changes
+
+**Runtime data flow:** UNCHANGED
+- Lucide renders same as custom SVGs (just different source)
+- TypeScript annotations compile away
+- Tests run in separate process
+
+**Build-time data flow:** ENHANCED
+- Bundle analyzer provides visibility
+- Vitest adds component test layer
+- TypeScript strict plugin enforces quality
+
+### No Changes Required
+
+- **Message contracts** (typed communication unchanged)
+- **Zustand stores** (state management unchanged)
+- **Extension host services** (auth, API, WebSocket unchanged)
+- **CSS Modules** (styling system unchanged)
+- **Web Workers** (background tasks unchanged)
+- **Webview provider** (postMessage bridge unchanged)
+
+---
 
 ## Sources
 
-### VS Code Extension Architecture
-- [Webview API | Visual Studio Code Extension API](https://code.visualstudio.com/api/extension-guides/webview)
-- [How to Build a VS Code Extension using React Webviews](https://medium.com/snowflake/how-to-build-a-vs-code-extension-using-react-webviews-0e2481ce1ba2)
-- [Reactception: extending a VS Code extension with Webviews and React](https://medium.com/younited-tech-blog/reactception-extending-vs-code-extension-with-webviews-and-react-12be2a5898fd)
+### Bundle Optimization
+- [esbuild API Documentation](https://esbuild.github.io/api/)
+- [Code splitting limitations - Issue #16](https://github.com/evanw/esbuild/issues/16)
+- [VS Code Extension Building Guide 2026](https://abdulkadersafi.com/blog/building-vs-code-extensions-in-2026-the-complete-modern-guide)
+- [Configuring VSCode Extensions with Webpack and React](https://medium.com/@captaincolinr/vscode-react-extension-guide-10ea25cb983f)
 
-### Build Configuration
-- [Using React in Visual Studio Code Webviews - Ken Muse](https://www.kenmuse.com/blog/using-react-in-vs-code-webviews/)
-- [Create advanced VSCode extension w/ React webview, esbuild bundler](https://medium.com/@aga1laoui/create-advanced-vscode-extension-w-react-webview-esbuild-bundler-eslint-airbnb-and-prettier-2ba2e3893667)
-- [GitHub - githubnext/vscode-react-webviews](https://github.com/githubnext/vscode-react-webviews)
-- [esbuild - Getting Started](https://esbuild.github.io/getting-started/)
+### Lucide React
+- [Lucide React Documentation](https://lucide.dev/guide/packages/lucide-react)
+- [React Icon Libraries Bundle Size Analysis 2026](https://medium.nkcroft.com/the-hidden-bundle-cost-of-react-icons-why-lucide-wins-in-2026-1ddb74c1a86c)
+- [Best React Icon Libraries for 2026](https://mighil.com/best-react-icon-libraries)
 
-### Typed Message Contracts
-- [Simplify Visual Studio Code extension webview communication](https://www.eliostruyf.com/simplify-communication-visual-studio-code-extension-webview/)
-- [Typed Async postMessage: Iframes & React Native](https://medium.com/@dm_borisov/say-goodbye-to-untyped-communication-between-windows-iframes-and-react-native-webviews-6b8f5f826a4d)
-- [A pattern for strongly-typed IFrame messaging](https://www.nickwhite.cc/blog/strongly-typed-iframe-messaging/)
+### TypeScript Strict Mode
+- [TypeScript Strict Mode Guide 2026](https://oneuptime.com/blog/post/2026-02-20-typescript-strict-mode-guide/view)
+- [TypeScript Strict Plugin](https://github.com/allegro/typescript-strict-plugin)
+- [Incremental Migration to Strict Mode](https://preetmishra.com/blog/migrating-to-typescript-strict-mode-at-an-early-stage-startup)
+- [Understanding TypeScript's Strict Compiler Option](https://betterstack.com/community/guides/scaling-nodejs/typescript-strict-option/)
 
-### State-Based Routing
-- [React Routing without Router](https://rixong.medium.com/react-routing-without-router-e8db7052a1e)
-- [React: Navigation Without React-Router](https://ncoughlin.com/posts/react-navigation-without-react-router)
-- [You might not need React Router](https://www.freecodecamp.org/news/you-might-not-need-react-router-38673620f3d/)
-
-### UI Components & Styling
-- [GitHub Next | React Webview UI Toolkit for VS Code](https://githubnext.com/projects/react-webview-ui-toolkit/)
-- [GitHub - microsoft/vscode-webview-ui-toolkit](https://github.com/microsoft/vscode-webview-ui-toolkit)
+### Testing
+- [Vitest Component Testing Guide](https://vitest.dev/guide/browser/component-testing)
+- [Testing in 2026: Jest, React Testing Library, and Full Stack Strategies](https://www.nucamp.co/blog/testing-in-2026-jest-react-testing-library-and-full-stack-testing-strategies)
+- [VS Code Extension Testing Documentation](https://code.visualstudio.com/api/working-with-extensions/testing-extension)
+- [Complete Guide to VS Code Extension Testing](https://dev.to/sourishkrout/a-complete-guide-to-vs-code-extension-testing-268p)
+- [Using React in VS Code Webviews](https://www.kenmuse.com/blog/using-react-in-vs-code-webviews/)
 
 ---
-*Architecture research for: VS Code Extension React Webview Migration*
-*Researched: 2026-02-23*
+
+*Architecture research for: Artemis Extension v1.1 Production Readiness*
+*Researched: 2026-02-25*
