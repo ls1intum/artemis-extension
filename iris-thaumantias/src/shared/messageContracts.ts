@@ -343,6 +343,118 @@ export interface WebSocketConnectedMessage {
     type: 'websocketConnected';
 }
 
+// ============================================================================
+// Iris Chat Messages (Extension → Webview)
+// ============================================================================
+
+/**
+ * Full Iris state snapshot sent to webview.
+ */
+export interface IrisChatStateMessage {
+    type: 'updateIrisState';
+    state: {
+        context: { type: string; id: number; title: string; shortName?: string; locked: boolean; source: string } | null;
+        activeSessionId: string | null;
+        sessions: Array<{
+            id: string;
+            artemisSessionId?: number;
+            preview: string;
+            messageCount: number;
+            createdAt: number;
+            lastActivity: number;
+        }>;
+        recentExercises: Array<{ id: number; title: string; shortName?: string; courseId?: number; repositoryUri?: string; isWorkspace?: boolean }>;
+        recentCourses: Array<{ id: number; title: string; shortName?: string }>;
+        allExercises: Array<{ id: number; title: string; shortName?: string; courseId?: number; repositoryUri?: string; isWorkspace?: boolean }>;
+        allCourses: Array<{ id: number; title: string; shortName?: string }>;
+    };
+}
+
+/**
+ * Show context picker dropdown.
+ */
+export interface IrisChatShowContextPickerMessage {
+    type: 'showContextPicker';
+    state: IrisChatStateMessage['state'];
+}
+
+/**
+ * Add a single message to the chat.
+ */
+export interface IrisChatAddMessage {
+    type: 'addMessage';
+    message: {
+        id?: number;
+        role: 'user' | 'assistant';
+        content: string;
+        timestamp: number;
+        helpful?: boolean | null;
+    };
+}
+
+/**
+ * Load full message history.
+ */
+export interface IrisChatLoadMessages {
+    type: 'loadMessages';
+    messages: Array<{
+        id?: number;
+        role: 'user' | 'assistant';
+        content: string;
+        timestamp: number;
+        helpful?: boolean | null;
+    }>;
+}
+
+/**
+ * Clear all chat messages.
+ */
+export interface IrisChatClearMessages {
+    type: 'clearChatMessages';
+}
+
+/**
+ * Update referenced files display.
+ */
+export interface IrisChatReferencedFilesMessage {
+    type: 'updateReferencedFiles';
+    includedFiles: string[];
+    excludedFiles: Array<{ path: string; reason?: string }>;
+    totalCount: number;
+}
+
+/**
+ * Update WebSocket connection status.
+ */
+export interface IrisChatWebSocketStatusMessage {
+    type: 'updateWebSocketStatus';
+    isConnected: boolean;
+}
+
+/**
+ * Show disabled state (Iris not available).
+ */
+export interface IrisChatShowDisabledMessage {
+    type: 'showDisabledState';
+    message: string;
+}
+
+/**
+ * Hide disabled state.
+ */
+export interface IrisChatHideDisabledMessage {
+    type: 'hideDisabledState';
+}
+
+/**
+ * Update .noai detection status.
+ */
+export interface IrisChatNoAiStatusMessage {
+    type: 'updateNoAiStatus';
+    isNoAiDetected: boolean;
+    noAiFilePath?: string;
+}
+
 /**
  * CourseData structure for active courses.
  */
@@ -441,6 +553,16 @@ export type ExtensionToWebviewMessage =
     | WebSocketUpdateMessage
     | WebSocketDisconnectedMessage
     | WebSocketConnectedMessage
+    | IrisChatStateMessage
+    | IrisChatShowContextPickerMessage
+    | IrisChatAddMessage
+    | IrisChatLoadMessages
+    | IrisChatClearMessages
+    | IrisChatReferencedFilesMessage
+    | IrisChatWebSocketStatusMessage
+    | IrisChatShowDisabledMessage
+    | IrisChatHideDisabledMessage
+    | IrisChatNoAiStatusMessage
     | { type: 'error'; payload: { message: string } };
 
 // ============================================================================
@@ -558,6 +680,7 @@ export interface OpenWebsiteCommand {
 export interface OpenSettingsCommand {
     type: 'command';
     command: 'openSettings';
+    payload?: { setting: string };
 }
 
 /**
@@ -956,6 +1079,127 @@ export interface ReloadExamConductionCommand {
     command: 'reloadExamConduction';
 }
 
+// ============================================================================
+// Iris Chat Commands (Webview → Extension)
+// ============================================================================
+
+/**
+ * Send a message to Iris.
+ */
+export interface SendMessageCommand {
+    type: 'command';
+    command: 'sendMessage';
+    payload: { text: string };
+}
+
+/**
+ * Select chat context (course or exercise).
+ */
+export interface SelectChatContextCommand {
+    type: 'command';
+    command: 'selectChatContext';
+    payload: { context: string; itemId: number; itemName: string; itemShortName?: string };
+}
+
+/**
+ * Switch to a different chat session.
+ */
+export interface SwitchSessionCommand {
+    type: 'command';
+    command: 'switchSession';
+    payload: { sessionId: string };
+}
+
+/**
+ * Create a new chat session.
+ */
+export interface CreateNewSessionCommand {
+    type: 'command';
+    command: 'createNewSession';
+    payload: Record<string, never>;
+}
+
+/**
+ * Switch to workspace-detected context.
+ */
+export interface SwitchToWorkspaceContextCommand {
+    type: 'command';
+    command: 'switchToWorkspaceContext';
+    payload: Record<string, never>;
+}
+
+/**
+ * Open context picker (switch context).
+ */
+export interface SwitchContextCommand {
+    type: 'command';
+    command: 'switchContext';
+    payload: Record<string, never>;
+}
+
+/**
+ * Reset all chat sessions.
+ */
+export interface ResetChatSessionsCommand {
+    type: 'command';
+    command: 'resetChatSessions';
+    payload: Record<string, never>;
+}
+
+/**
+ * Reconnect WebSocket.
+ */
+export interface ReconnectWebSocketCommand {
+    type: 'command';
+    command: 'reconnectWebSocket';
+    payload: Record<string, never>;
+}
+
+/**
+ * Send feedback on a message (thumbs up/down).
+ */
+export interface MessageFeedbackCommand {
+    type: 'command';
+    command: 'messageFeedback';
+    payload: { sessionId: number; messageId: number; feedback: 'positive' | 'negative' };
+}
+
+/**
+ * Open a file in the editor.
+ */
+export interface OpenFileCommand {
+    type: 'command';
+    command: 'openFile';
+    payload: { filePath: string };
+}
+
+/**
+ * Open diagnostics popup.
+ */
+export interface OpenDiagnosticsCommand {
+    type: 'command';
+    command: 'openDiagnostics';
+    payload: Record<string, never>;
+}
+
+/**
+ * Debug sessions (developer tool).
+ */
+export interface DebugSessionsCommand {
+    type: 'command';
+    command: 'debugSessions';
+    payload: Record<string, never>;
+}
+
+/**
+ * Open help popup.
+ */
+export interface OpenHelpPopupCommand {
+    type: 'command';
+    command: 'openHelpPopup';
+    payload: Record<string, never>;
+}
+
 /**
  * Error message from webview to extension.
  */
@@ -1024,6 +1268,19 @@ export type WebviewToExtensionMessage =
     | OpenExamInBrowserCommand
     | RefreshExamCommand
     | ReloadExamConductionCommand
+    | SendMessageCommand
+    | SelectChatContextCommand
+    | SwitchSessionCommand
+    | CreateNewSessionCommand
+    | SwitchToWorkspaceContextCommand
+    | SwitchContextCommand
+    | ResetChatSessionsCommand
+    | ReconnectWebSocketCommand
+    | MessageFeedbackCommand
+    | OpenFileCommand
+    | OpenDiagnosticsCommand
+    | DebugSessionsCommand
+    | OpenHelpPopupCommand
     | ErrorMessage;
 
 // ============================================================================
@@ -1037,7 +1294,7 @@ export type WebviewToExtensionMessage =
 export function isExtensionMessage(msg: unknown): msg is ExtensionToWebviewMessage {
     return typeof msg === 'object' && msg !== null && 'type' in msg
         && typeof (msg as { type: unknown }).type === 'string'
-        && ['init', 'gitCredentialsInit', 'gitCredentialsResult', 'serviceStatusInit', 'healthCheckResults', 'recommendedExtensionsInit', 'showLoading', 'hideLoading', 'updateLoading', 'loginSuccess', 'loginError', 'logoutSuccess', 'showLoggedIn', 'setServerUrl', 'dashboardInit', 'workspaceExerciseDetected', 'courseListInit', 'archivedCoursesLoaded', 'courseDetailInit', 'exerciseDetailInit', 'examConductionInit', 'examStartInit', 'examExerciseDetailInit', 'websocketUpdate', 'websocketDisconnected', 'websocketConnected', 'error'].includes((msg as { type: string }).type);
+        && ['init', 'gitCredentialsInit', 'gitCredentialsResult', 'serviceStatusInit', 'healthCheckResults', 'recommendedExtensionsInit', 'showLoading', 'hideLoading', 'updateLoading', 'loginSuccess', 'loginError', 'logoutSuccess', 'showLoggedIn', 'setServerUrl', 'dashboardInit', 'workspaceExerciseDetected', 'courseListInit', 'archivedCoursesLoaded', 'courseDetailInit', 'exerciseDetailInit', 'examConductionInit', 'examStartInit', 'examExerciseDetailInit', 'websocketUpdate', 'websocketDisconnected', 'websocketConnected', 'updateIrisState', 'showContextPicker', 'addMessage', 'loadMessages', 'clearChatMessages', 'updateReferencedFiles', 'updateWebSocketStatus', 'showDisabledState', 'hideDisabledState', 'updateNoAiStatus', 'error'].includes((msg as { type: string }).type);
 }
 
 /**
