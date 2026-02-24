@@ -17,4 +17,5 @@ export interface WebViewActionHandler {
     openExerciseFullscreen(exerciseData: any): Promise<void>;
     openCourseFullscreen(courseData: any): Promise<void>;
     render(): void;
+    resendViewData(): void;
 }

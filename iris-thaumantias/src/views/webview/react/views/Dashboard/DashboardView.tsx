@@ -27,8 +27,6 @@ export function DashboardView({ vscodeApi }: DashboardViewProps) {
 
     // Load dashboard data on mount
     useEffect(() => {
-        loadDashboard(vscodeApi);
-
         // Listen for dashboard messages
         const handleMessage = (event: MessageEvent) => {
             const message = event.data;
@@ -67,8 +65,12 @@ export function DashboardView({ vscodeApi }: DashboardViewProps) {
         };
 
         window.addEventListener('message', handleMessage);
+
+        // Send ready signal to trigger init data from provider
+        vscodeApi.postMessage({ type: 'ready' });
+
         return () => window.removeEventListener('message', handleMessage);
-    }, [vscodeApi, loadDashboard, setDashboardData, setWorkspaceExercise]);
+    }, [vscodeApi, setDashboardData, setWorkspaceExercise]);
 
     const handleReloadDashboard = () => {
         loadDashboard(vscodeApi);

@@ -297,8 +297,6 @@ export class NavigationCommandModule {
                 payload: { archivedCourses }
             });
 
-            this.context.actionHandler.render();
-
             const archivedCount = archivedCourses.length;
             if (archivedCount > 0) {
                 vscode.window.showInformationMessage(`Loaded ${archivedCount} archived course${archivedCount === 1 ? '' : 's'}`);
@@ -314,7 +312,9 @@ export class NavigationCommandModule {
     private handleReloadCourses = async (): Promise<void> => {
         try {
             this.context.appStateManager.clearCoursesData();
-            await this.context.actionHandler.showCourseList();
+            await this.context.appStateManager.showCourseList();
+            // Send updated data to React without re-rendering
+            this.context.actionHandler.resendViewData();
         } catch (error) {
             logger.viewError('Reload courses error:', error);
             vscode.window.showErrorMessage('Error reloading courses');
@@ -326,7 +326,9 @@ export class NavigationCommandModule {
             this.context.appStateManager.clearDashboardData();
             const userInfo = this.context.appStateManager.userInfo;
             if (userInfo) {
-                await this.context.actionHandler.showDashboard(userInfo);
+                await this.context.appStateManager.showDashboard(userInfo);
+                // Send updated data to React without re-rendering
+                this.context.actionHandler.resendViewData();
             }
         } catch (error) {
             logger.viewError('Reload dashboard error:', error);
@@ -360,7 +362,8 @@ export class NavigationCommandModule {
                 }
 
                 this.context.appStateManager.showCourseDetail(courseData);
-                this.context.actionHandler.render();
+                // Send updated data to React without re-rendering
+                this.context.actionHandler.resendViewData();
             }
         } catch (error) {
             logger.viewError('Reload course detail error:', error);
@@ -373,7 +376,9 @@ export class NavigationCommandModule {
             const exerciseId = message.exerciseId || this.context.appStateManager.currentExerciseData?.exercise?.id || this.context.appStateManager.currentExerciseData?.id;
             if (exerciseId) {
                 this.context.appStateManager.clearCurrentExerciseData();
-                await this.context.actionHandler.openExerciseDetails(exerciseId);
+                await this.context.appStateManager.showExerciseDetail(exerciseId);
+                // Send updated data to React without re-rendering
+                this.context.actionHandler.resendViewData();
             }
         } catch (error) {
             logger.viewError('Reload exercise detail error:', error);

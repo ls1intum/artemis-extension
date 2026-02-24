@@ -114,6 +114,82 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
         }
     }
 
+    /**
+     * Resend view data to the existing React app without re-rendering.
+     * Used by reload handlers to update data in-place instead of destroying the webview.
+     */
+    public resendViewData(): void {
+        const currentState = this._appStateManager.currentState;
+
+        if (currentState === 'dashboard') {
+            const coursesData = this._appStateManager.coursesData;
+            const courses = coursesData?.courses || [];
+
+            const recentCourseNodes = courses.map((courseItem: any) => {
+                const course = courseItem.course || courseItem;
+                const exercises = course.exercises || [];
+
+                const recentExercises = exercises
+                    .filter((ex: any) => ex.releaseDate || ex.startDate || ex.dueDate)
+                    .sort((a: any, b: any) => {
+                        const aDate = a.releaseDate || a.startDate || a.dueDate || '';
+                        const bDate = b.releaseDate || b.startDate || b.dueDate || '';
+                        return bDate.localeCompare(aDate);
+                    });
+
+                return {
+                    courseData: { course },
+                    exercises: recentExercises,
+                };
+            });
+
+            this._postMessageSafe({
+                type: 'dashboardInit',
+                payload: { courses: recentCourseNodes, workspaceExercise: undefined },
+            });
+        } else if (currentState === 'course-list') {
+            const coursesData = this._appStateManager.coursesData;
+            const courses = coursesData?.courses || [];
+            const archivedCourses = this._appStateManager.archivedCoursesData || undefined;
+
+            this._postMessageSafe({
+                type: 'courseListInit',
+                payload: { courses, archivedCourses },
+            });
+        } else if (currentState === 'course-detail') {
+            const courseData = this._appStateManager.currentCourseData;
+            const { detectWorkspaceExercise } = require('../services');
+            const exercises = courseData?.course?.exercises || [];
+
+            detectWorkspaceExercise(exercises).then((detectedExercise: any) => {
+                const workspaceExerciseId = detectedExercise?.id ?? null;
+                const config = vscode.workspace.getConfiguration('artemis');
+                const developerMode = config.get<boolean>('developerMode', false);
+
+                this._postMessageSafe({
+                    type: 'courseDetailInit',
+                    payload: {
+                        courseData: courseData,
+                        workspaceExerciseId: workspaceExerciseId,
+                        hideDeveloperTools: !developerMode,
+                    },
+                });
+            });
+        } else if (currentState === 'exercise-detail') {
+            const exerciseData = this._appStateManager.currentExerciseData;
+            const config = vscode.workspace.getConfiguration('artemis');
+            const developerMode = config.get<boolean>('developerMode', false);
+
+            this._postMessageSafe({
+                type: 'exerciseDetailInit',
+                payload: {
+                    exerciseData: exerciseData,
+                    hideDeveloperTools: !developerMode,
+                },
+            });
+        }
+    }
+
     // WebViewActionHandler interface implementation
     public async openJsonInEditor(data: any): Promise<void> {
         await this._viewActionService.openJsonInEditor(data);
