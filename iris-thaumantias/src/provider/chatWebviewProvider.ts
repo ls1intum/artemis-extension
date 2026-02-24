@@ -1,11 +1,11 @@
 import * as vscode from 'vscode';
-import { IrisChatView } from '../views/irisChat/irisChatView';
 import {
     ActiveContext,
     StoredSession,
     ChatContextType,
     ContextSnapshot,
 } from '../types';
+import { getReactWebviewHtml } from '../utils/webviewHelpers';
 import { logger, LogLevel, LogCategory } from '../services/loggingService';
 import { ArtemisApiService } from '../api';
 import {
@@ -44,7 +44,6 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
     public static readonly viewType = 'iris.chatView';
 
     private _view?: vscode.WebviewView;
-    private _irisChatView?: IrisChatView;
     private readonly _contextStore: ContextStore;
     private readonly _disposables: vscode.Disposable[] = [];
     private _fileMonitorService: FileMonitorService;
@@ -183,13 +182,6 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
         this._websocketMessageHandler.handleIrisWebSocketMessage(data);
     }
 
-    private _getOrCreateIrisChatView(): IrisChatView {
-        if (!this._irisChatView) {
-            this._irisChatView = new IrisChatView(this._extensionContext);
-        }
-        return this._irisChatView;
-    }
-
     public resolveWebviewView(
         webviewView: vscode.WebviewView,
         _context: vscode.WebviewViewResolveContext,
@@ -203,9 +195,7 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
             localResourceRoots: [this._extensionUri],
         };
 
-        const config = vscode.workspace.getConfiguration('artemis');
-        const showDeveloperTools = config.get<boolean>('developerMode', false);
-        webviewView.webview.html = this._getOrCreateIrisChatView().generateHtml(webviewView.webview, showDeveloperTools);
+        webviewView.webview.html = getReactWebviewHtml(webviewView.webview, this._extensionUri, 'irisChat');
 
         const messageListener = webviewView.webview.onDidReceiveMessage(message => {
             this._handleMessage(message);
@@ -303,9 +293,15 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
         }
         const snapshot = this._contextStore.snapshot();
         const payload = this._serializeSnapshot(snapshot);
+
+        // Include developer mode flag
+        const config = vscode.workspace.getConfiguration('artemis');
+        const showDiagnostics = config.get<boolean>('developerMode', false);
+
         this._view.webview.postMessage({
             command: 'updateIrisState',
             state: payload,
+            showDiagnostics,
         });
 
         if (options.showContextPicker) {
@@ -399,6 +395,13 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
     }
 
     private _handleMessage(message: any): void {
+        // Handle React ready signal (sent as { type: 'ready' })
+        if (message.type === 'ready') {
+            this._postSnapshot();
+            this._postNoAiStatus(this._noAiDetectionService.isNoAiEnabled);
+            return;
+        }
+
         switch (message.command) {
             case 'sendMessage':
                 // Proper error handling for async chat message handler
@@ -468,6 +471,9 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
                 if (message.filePath) {
                     this._handleOpenFile(message.filePath);
                 }
+                break;
+            case 'openHelpPopup':
+                this._handleOpenHelpPopup();
                 break;
             default:
                 logger.debug('Unhandled message in chat view', LogCategory.IRIS_CHAT, message);
@@ -541,6 +547,54 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
                     }
                 });
             }
+        );
+    }
+
+    private _handleOpenHelpPopup(): void {
+        // Open the Iris Chat help documentation
+        const helpMessage = `
+# Iris Chat Context Guide
+
+## Context Selection
+Iris Chat operates within a specific **context** - either a course or an exercise. Your context determines what information Iris has access to and what help it can provide.
+
+## How Context Works
+
+**Exercise Context:**
+- Iris can see the exercise description, test cases, and your code
+- Get help with the specific requirements
+- Ask about failing tests
+- Request code review and suggestions
+
+**Course Context:**
+- Iris can see the overall course information
+- Ask general questions about course topics
+- Get help understanding concepts covered in the course
+
+**Workspace Detection:**
+- If you have an Artemis exercise open in your workspace, Iris will automatically detect it
+- You'll see a lock icon indicating this is your workspace exercise
+
+## Tips for Best Results
+
+1. **Be specific:** Ask about particular parts of your code or specific test failures
+2. **Provide context:** Mention which file or function you're working on
+3. **Ask follow-ups:** Iris remembers your conversation, so you can build on previous questions
+
+## Session Management
+
+- Each context has multiple sessions - like separate conversations
+- Create a new session to start fresh while keeping your old conversations
+- Switch between sessions using the context selector dropdown
+
+## Referenced Files
+
+Iris can see files from your workspace (configurable in settings). Check the "Referenced Files" section to see which files Iris has access to for the current message.
+        `.trim();
+
+        vscode.window.showInformationMessage(
+            'Iris Chat Context Guide',
+            { modal: true, detail: helpMessage }
         );
     }
 
@@ -784,9 +838,7 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
 
     public refreshTheme(): void {
         if (this._view) {
-            const config = vscode.workspace.getConfiguration('artemis');
-            const showDeveloperTools = config.get<boolean>('developerMode', false);
-            this._view.webview.html = this._getOrCreateIrisChatView().generateHtml(this._view.webview, showDeveloperTools);
+            this._view.webview.html = getReactWebviewHtml(this._view.webview, this._extensionUri, 'irisChat');
             this._postSnapshot();
         }
     }

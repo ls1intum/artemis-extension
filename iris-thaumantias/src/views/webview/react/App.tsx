@@ -10,6 +10,7 @@ import { ExerciseDetailView } from './views/ExerciseDetail';
 import { ExamStartView } from './views/ExamStart';
 import { ExamConductionView } from './views/ExamConduction';
 import { ExamExerciseDetailView } from './views/ExamExerciseDetail';
+import { IrisChatView } from './views/IrisChat';
 
 interface AppProps {
 	vscodeApi: VsCodeApi;
@@ -43,6 +44,8 @@ export function App({ vscodeApi }: AppProps) {
 			return <ExamConductionView vscodeApi={vscodeApi} />;
 		case 'examExerciseDetail':
 			return <ExamExerciseDetailView vscodeApi={vscodeApi} />;
+		case 'irisChat':
+			return <IrisChatView vscodeApi={vscodeApi} />;
 		default:
 			return (
 				<div style={{ color: 'var(--vscode-foreground)', padding: '20px' }}>
