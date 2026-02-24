@@ -113,10 +113,12 @@ Plans:
   2. Message streaming uses React.memo and separated streaming state to prevent flicker during token delivery
   3. Chat sessions support context switching and message history without performance degradation
   4. Code highlights in messages render correctly with syntax highlighting
-**Plans**: TBD
+**Plans**: 3 plans
 
 Plans:
-- TBD (will be created during planning)
+- [ ] 06-01-PLAN.md — Install streaming deps, chat store, streaming hooks, message contracts (VIEW-01, CRIT-02)
+- [ ] 06-02-PLAN.md — Chat UI components: MessageBubble, StreamingMessage, CodeBlock, ChatInput, ContextSelector (VIEW-01, CRIT-02)
+- [ ] 06-03-PLAN.md — IrisChatView assembly + ChatWebviewProvider React wiring (VIEW-01, CRIT-02)
 
 ### Phase 7: Cleanup & Optimization
 **Goal**: All legacy HTML generation code removed and production bundles optimized
@@ -144,5 +146,5 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7
 | 3. Simple Views Migration | 3/4 | In Progress | - |
 | 4. Main UI Views | 4/5 | In Progress | - |
 | 5. Exam Views with Timer Accuracy | 2/2 | Complete   | 2026-02-24 |
-| 6. Iris Chat with Streaming | 0/TBD | Not started | - |
+| 6. Iris Chat with Streaming | 0/3 | Not started | - |
 | 7. Cleanup & Optimization | 0/TBD | Not started | - |
