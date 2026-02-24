@@ -272,6 +272,53 @@ export interface ExerciseDetailInitMessage {
 }
 
 /**
+ * ExamConduction view initialization message.
+ */
+export interface ExamConductionInitMessage {
+    type: 'examConductionInit';
+    payload: {
+        studentExam: unknown;
+        courseId: number;
+        examId: number;
+        endTime: number;
+        startTime: number;
+        totalDuration: number;
+        workspaceExerciseId: number | null;
+    };
+}
+
+/**
+ * ExamStart view initialization message.
+ */
+export interface ExamStartInitMessage {
+    type: 'examStartInit';
+    payload: {
+        studentExam: unknown;
+        courseId: number;
+        examId: number;
+    };
+}
+
+/**
+ * ExamExerciseDetail view initialization message.
+ */
+export interface ExamExerciseDetailInitMessage {
+    type: 'examExerciseDetailInit';
+    payload: {
+        exerciseData: unknown;
+        examContext: {
+            courseId: number;
+            examId: number;
+            studentExam: unknown;
+            endTime: number;
+            startTime: number;
+            totalDuration: number;
+        };
+        hideDeveloperTools: boolean;
+    };
+}
+
+/**
  * WebSocket update message (forwarded from extension's WebSocket handler).
  */
 export interface WebSocketUpdateMessage {
@@ -388,6 +435,9 @@ export type ExtensionToWebviewMessage =
     | ArchivedCoursesLoadedMessage
     | CourseDetailInitMessage
     | ExerciseDetailInitMessage
+    | ExamConductionInitMessage
+    | ExamStartInitMessage
+    | ExamExerciseDetailInitMessage
     | WebSocketUpdateMessage
     | WebSocketDisconnectedMessage
     | WebSocketConnectedMessage
@@ -852,6 +902,65 @@ export interface CheckRepositoryStatusCommand {
 }
 
 /**
+ * Open exam exercise details command.
+ */
+export interface OpenExamExerciseDetailsCommand {
+    type: 'command';
+    command: 'openExamExerciseDetails';
+    payload: {
+        exercise: unknown;
+        exerciseIndex: number;
+        courseId: number;
+        examId: number;
+    };
+}
+
+/**
+ * Back to exam command.
+ */
+export interface BackToExamCommand {
+    type: 'command';
+    command: 'backToExam';
+    payload: {
+        courseId: number;
+        examId: number;
+    };
+}
+
+/**
+ * Open exam in browser command.
+ */
+export interface OpenExamInBrowserCommand {
+    type: 'command';
+    command: 'openExamInBrowser';
+    payload: {
+        courseId: number;
+        examId: number;
+    };
+}
+
+/**
+ * Refresh exam command.
+ */
+export interface RefreshExamCommand {
+    type: 'command';
+    command: 'refreshExam';
+    payload: {
+        courseId: number;
+        examId: number;
+        studentExamId?: number;
+    };
+}
+
+/**
+ * Reload exam conduction command.
+ */
+export interface ReloadExamConductionCommand {
+    type: 'command';
+    command: 'reloadExamConduction';
+}
+
+/**
  * Error message from webview to extension.
  */
 export interface ErrorMessage {
@@ -914,6 +1023,11 @@ export type WebviewToExtensionMessage =
     | ToggleExerciseFullscreenCommand
     | DownloadFileCommand
     | CheckRepositoryStatusCommand
+    | OpenExamExerciseDetailsCommand
+    | BackToExamCommand
+    | OpenExamInBrowserCommand
+    | RefreshExamCommand
+    | ReloadExamConductionCommand
     | ErrorMessage;
 
 // ============================================================================
@@ -927,7 +1041,7 @@ export type WebviewToExtensionMessage =
 export function isExtensionMessage(msg: unknown): msg is ExtensionToWebviewMessage {
     return typeof msg === 'object' && msg !== null && 'type' in msg
         && typeof (msg as { type: unknown }).type === 'string'
-        && ['init', 'gitCredentialsInit', 'gitCredentialsResult', 'serviceStatusInit', 'healthCheckResults', 'recommendedExtensionsInit', 'showLoading', 'hideLoading', 'updateLoading', 'loginSuccess', 'loginError', 'logoutSuccess', 'showLoggedIn', 'setServerUrl', 'dashboardInit', 'workspaceExerciseDetected', 'courseListInit', 'archivedCoursesLoaded', 'courseDetailInit', 'exerciseDetailInit', 'websocketUpdate', 'websocketDisconnected', 'websocketConnected', 'error'].includes((msg as { type: string }).type);
+        && ['init', 'gitCredentialsInit', 'gitCredentialsResult', 'serviceStatusInit', 'healthCheckResults', 'recommendedExtensionsInit', 'showLoading', 'hideLoading', 'updateLoading', 'loginSuccess', 'loginError', 'logoutSuccess', 'showLoggedIn', 'setServerUrl', 'dashboardInit', 'workspaceExerciseDetected', 'courseListInit', 'archivedCoursesLoaded', 'courseDetailInit', 'exerciseDetailInit', 'examConductionInit', 'examStartInit', 'examExerciseDetailInit', 'websocketUpdate', 'websocketDisconnected', 'websocketConnected', 'error'].includes((msg as { type: string }).type);
 }
 
 /**
