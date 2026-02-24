@@ -61,6 +61,7 @@ Progress: [███████████████████████
 | Phase 05 P02 | 443 | 2 tasks | 17 files |
 | Phase 06 P01 | 269 | 2 tasks | 8 files |
 | Phase 06 P02 | 524 | 2 tasks | 18 files |
+| Phase 06 P03 | 283 | 2 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -134,6 +135,10 @@ Recent decisions affecting current work:
 - [Phase 06]: Shiki singleton highlighter (module-level Promise, lazy initialization)
 - [Phase 06]: ContextSelector dual-mode dropdown (session list vs context picker in one component)
 - [Phase 06]: @ts-expect-error for shiki and streamdown ESM imports (same esbuild handling pattern)
+- [Phase 06]: Context switch animation with fade out/skeleton/fade in on context ID change
+- [Phase 06]: State persistence limited to forceContextPicker flag (matches legacy behavior)
+- [Phase 06]: Side menu as simple dropdown with click-outside-to-close (not full drawer)
+- [Phase 06]: Help popup via VS Code showInformationMessage modal (not custom webview)
 
 ### Pending Todos
 
