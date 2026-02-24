@@ -1,0 +1,110 @@
+.container {
+    margin: 0 16px 8px 16px;
+    border: 1px solid var(--vscode-panel-border);
+    border-radius: 6px;
+    background: var(--vscode-editor-background);
+    overflow: hidden;
+}
+
+.header {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 12px;
+    background: transparent;
+    border: none;
+    color: var(--vscode-foreground);
+    cursor: pointer;
+    transition: background 150ms ease;
+}
+
+.header:hover {
+    background: var(--vscode-list-hoverBackground);
+}
+
+.headerContent {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.fileIcon {
+    color: var(--vscode-foreground);
+    opacity: 0.8;
+}
+
+.headerText {
+    font-size: 13px;
+    font-weight: 500;
+}
+
+.chevron {
+    color: var(--vscode-foreground);
+    opacity: 0.6;
+    transition: transform 150ms ease;
+}
+
+.chevronExpanded {
+    transform: rotate(180deg);
+}
+
+.fileList {
+    border-top: 1px solid var(--vscode-panel-border);
+    max-height: 200px;
+    overflow-y: auto;
+}
+
+.fileItem {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    background: transparent;
+    border: none;
+    color: var(--vscode-foreground);
+    cursor: pointer;
+    text-align: left;
+    transition: background 150ms ease;
+}
+
+.fileItem:hover {
+    background: var(--vscode-list-hoverBackground);
+}
+
+.fileItemExcluded {
+    opacity: 0.6;
+}
+
+.fileItemIcon {
+    flex-shrink: 0;
+    color: var(--vscode-foreground);
+}
+
+.fileName {
+    flex: 1;
+    font-size: 13px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.fileStatus {
+    flex-shrink: 0;
+    font-size: 11px;
+    color: var(--vscode-charts-green);
+    font-weight: 500;
+}
+
+.fileReason {
+    flex-shrink: 0;
+    font-size: 11px;
+    color: var(--vscode-descriptionForeground);
+}
+
+.divider {
+    height: 1px;
+    background: var(--vscode-panel-border);
+    margin: 4px 0;
+}

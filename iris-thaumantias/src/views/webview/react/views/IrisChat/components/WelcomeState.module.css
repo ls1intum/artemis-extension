@@ -1,0 +1,77 @@
+.container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 48px 24px;
+    height: 100%;
+    text-align: center;
+}
+
+.greeting {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 32px;
+}
+
+.avatar {
+    width: 64px;
+    height: 64px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--vscode-foreground);
+    opacity: 0.8;
+    margin-bottom: 8px;
+}
+
+.title {
+    margin: 0;
+    font-size: 20px;
+    font-weight: 600;
+    color: var(--vscode-foreground);
+}
+
+.subtitle {
+    margin: 0;
+    font-size: 14px;
+    color: var(--vscode-descriptionForeground);
+}
+
+.message {
+    font-size: 14px;
+    color: var(--vscode-descriptionForeground);
+    max-width: 400px;
+}
+
+.promptsContainer {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    width: 100%;
+    max-width: 400px;
+}
+
+.promptButton {
+    padding: 12px 20px;
+    background: var(--vscode-button-secondaryBackground);
+    color: var(--vscode-button-secondaryForeground);
+    border: 1px solid var(--vscode-button-border);
+    border-radius: 20px;
+    font-size: 14px;
+    cursor: pointer;
+    transition: all 150ms ease;
+    text-align: center;
+}
+
+.promptButton:hover {
+    background: var(--vscode-button-secondaryHoverBackground);
+    transform: translateY(-2px);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.promptButton:active {
+    transform: translateY(0);
+}

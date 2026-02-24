@@ -1,0 +1,70 @@
+.container {
+    display: flex;
+    align-items: flex-end;
+    gap: 8px;
+    padding: 12px 16px;
+    background: var(--vscode-editor-background);
+    border-top: 1px solid var(--vscode-panel-border);
+}
+
+.textarea {
+    flex: 1;
+    resize: none;
+    padding: 10px 12px;
+    background: var(--vscode-input-background);
+    color: var(--vscode-input-foreground);
+    border: 1px solid var(--vscode-input-border);
+    border-radius: 6px;
+    font-family: var(--vscode-font-family);
+    font-size: 14px;
+    line-height: 1.5;
+    outline: none;
+    transition: border-color 150ms ease;
+}
+
+.textarea:focus {
+    border-color: var(--vscode-focusBorder);
+}
+
+.textarea.disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.textarea::placeholder {
+    color: var(--vscode-input-placeholderForeground);
+}
+
+.sendButton {
+    flex-shrink: 0;
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    border: 1px solid var(--vscode-button-border);
+    border-radius: 6px;
+    color: var(--vscode-button-foreground);
+    cursor: pointer;
+    transition: all 150ms ease;
+}
+
+.sendButtonActive {
+    background: var(--vscode-button-background);
+    color: var(--vscode-button-foreground);
+}
+
+.sendButtonActive:hover {
+    background: var(--vscode-button-hoverBackground);
+}
+
+.sendButtonDisabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    color: var(--vscode-disabledForeground);
+}
+
+.sendButton:active:not(.sendButtonDisabled) {
+    transform: scale(0.95);
+}
