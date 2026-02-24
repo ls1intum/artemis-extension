@@ -46,6 +46,9 @@ export class ViewRouter {
         ['course-list', true],  // Phase 4: migrated
         ['course-detail', true],  // Phase 4: migrated
         ['exercise-detail', true],  // Phase 4: migrated
+        ['exam-start', true],  // Phase 5: migrated
+        ['exam-conduction', true],  // Phase 5: migrated
+        ['exam-exercise-detail', true],  // Phase 5: migrated
         // Other views will be added as they're migrated
     ]);
 

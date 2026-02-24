@@ -7,6 +7,9 @@ import { DashboardView } from './views/Dashboard';
 import { CourseListView } from './views/CourseList';
 import { CourseDetailView } from './views/CourseDetail';
 import { ExerciseDetailView } from './views/ExerciseDetail';
+import { ExamStartView } from './views/ExamStart';
+import { ExamConductionView } from './views/ExamConduction';
+import { ExamExerciseDetailView } from './views/ExamExerciseDetail';
 
 interface AppProps {
 	vscodeApi: VsCodeApi;
@@ -34,6 +37,12 @@ export function App({ vscodeApi }: AppProps) {
 			return <CourseDetailView vscodeApi={vscodeApi} />;
 		case 'exerciseDetail':
 			return <ExerciseDetailView vscodeApi={vscodeApi} />;
+		case 'examStart':
+			return <ExamStartView vscodeApi={vscodeApi} />;
+		case 'examConduction':
+			return <ExamConductionView vscodeApi={vscodeApi} />;
+		case 'examExerciseDetail':
+			return <ExamExerciseDetailView vscodeApi={vscodeApi} />;
 		default:
 			return (
 				<div style={{ color: 'var(--vscode-foreground)', padding: '20px' }}>

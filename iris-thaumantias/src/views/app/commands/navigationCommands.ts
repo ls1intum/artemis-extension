@@ -41,6 +41,7 @@ export class NavigationCommandModule {
             openExam: this.handleOpenExam,
             startExam: this.handleStartExam,
             refreshExam: this.handleRefreshExam,
+            reloadExamConduction: this.handleReloadExamConduction,
             openExamInBrowser: this.handleOpenExamInBrowser,
             openRulesInEditor: this.handleOpenRulesInEditor,
         };
@@ -479,6 +480,32 @@ export class NavigationCommandModule {
         } catch (error) {
             logger.viewError('[EXAMMODE] Error refreshing exam:', error);
             vscode.window.showErrorMessage('Failed to refresh exam status.');
+        }
+    };
+
+    private handleReloadExamConduction = async (message: any): Promise<void> => {
+        try {
+            const examData = this.context.appStateManager.currentExamData;
+            if (!examData) {
+                logger.viewError('[EXAMMODE] No exam data available for reload');
+                return;
+            }
+
+            const { courseId, examId } = examData;
+            logger.view(`[EXAMMODE] Reloading exam conduction for course ${courseId}, exam ${examId}`);
+
+            const studentExam = await this.context.artemisApi.getOwnStudentExam(courseId, examId);
+
+            if (studentExam.started && studentExam.id) {
+                const conductionDetails = await this.context.artemisApi.startStudentExam(courseId, examId, studentExam.id);
+                this.context.appStateManager.showExamConduction({ studentExam: conductionDetails, courseId, examId });
+                this.context.actionHandler.resendViewData();
+            } else {
+                vscode.window.showWarningMessage('Exam has not been started yet.');
+            }
+        } catch (error) {
+            logger.viewError('[EXAMMODE] Error reloading exam conduction:', error);
+            vscode.window.showErrorMessage('Failed to reload exam conduction.');
         }
     };
 }

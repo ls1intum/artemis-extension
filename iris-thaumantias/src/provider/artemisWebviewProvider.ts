@@ -187,6 +187,87 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
                     hideDeveloperTools: !developerMode,
                 },
             });
+        } else if (currentState === 'exam-conduction') {
+            const examData = this._appStateManager.currentExamData;
+            const studentExam = examData.studentExam;
+            const exam = studentExam.exam;
+
+            // Calculate absolute timestamps for timer
+            let startTime: number;
+            let endTime: number;
+            if (exam.testExam && studentExam.startedDate) {
+                startTime = new Date(studentExam.startedDate).getTime();
+            } else if (exam.startDate) {
+                startTime = new Date(exam.startDate).getTime();
+            } else {
+                startTime = Date.now();
+            }
+            endTime = startTime + (studentExam.workingTime * 1000);
+            const totalDuration = studentExam.workingTime * 1000;
+
+            // Detect workspace exercise
+            const { detectWorkspaceExercise } = require('../services');
+            const exercises = studentExam.exercises || [];
+            detectWorkspaceExercise(exercises).then((detectedExercise: any) => {
+                this._postMessageSafe({
+                    type: 'examConductionInit',
+                    payload: {
+                        studentExam,
+                        courseId: examData.courseId,
+                        examId: examData.examId,
+                        endTime,
+                        startTime,
+                        totalDuration,
+                        workspaceExerciseId: detectedExercise?.id ?? null,
+                    },
+                });
+            });
+        } else if (currentState === 'exam-start') {
+            const examData = this._appStateManager.currentExamData;
+            this._postMessageSafe({
+                type: 'examStartInit',
+                payload: {
+                    studentExam: examData.studentExam,
+                    courseId: examData.courseId,
+                    examId: examData.examId,
+                },
+            });
+        } else if (currentState === 'exam-exercise-detail') {
+            const exerciseData = this._appStateManager.currentExerciseData;
+            const examData = this._appStateManager.currentExamData;
+            const studentExam = examData?.studentExam;
+            const exam = studentExam?.exam;
+
+            // Calculate timer timestamps
+            let startTime: number;
+            if (exam?.testExam && studentExam?.startedDate) {
+                startTime = new Date(studentExam.startedDate).getTime();
+            } else if (exam?.startDate) {
+                startTime = new Date(exam.startDate).getTime();
+            } else {
+                startTime = Date.now();
+            }
+            const endTime = startTime + ((studentExam?.workingTime || 0) * 1000);
+            const totalDuration = (studentExam?.workingTime || 0) * 1000;
+
+            const config = vscode.workspace.getConfiguration('artemis');
+            const developerMode = config.get<boolean>('developerMode', false);
+
+            this._postMessageSafe({
+                type: 'examExerciseDetailInit',
+                payload: {
+                    exerciseData,
+                    examContext: {
+                        courseId: examData?.courseId,
+                        examId: examData?.examId,
+                        studentExam,
+                        endTime,
+                        startTime,
+                        totalDuration,
+                    },
+                    hideDeveloperTools: !developerMode,
+                },
+            });
         }
     }
 
