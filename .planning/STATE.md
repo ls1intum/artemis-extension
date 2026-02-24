@@ -10,9 +10,9 @@ See: .planning/PROJECT.md (updated 2026-02-23)
 ## Current Position
 
 Phase: 7 of 7 (Cleanup and Optimization)
-Plan: 2 of 4
+Plan: 3 of 4
 Status: In Progress
-Last activity: 2026-02-24 — Completed plan 07-01 (Legacy View Removal)
+Last activity: 2026-02-24 — Completed plan 07-02 (Build Pipeline Optimization)
 
 Progress: [███████████████████████████████████████████████████] 100%
 
@@ -63,6 +63,7 @@ Progress: [███████████████████████
 | Phase 06 P02 | 524 | 2 tasks | 18 files |
 | Phase 06 P03 | 283 | 2 tasks | 5 files |
 | Phase 07 P01 | 4 | 2 tasks | 81 files |
+| Phase 07 P02 | 3 | 2 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -141,6 +142,10 @@ Recent decisions affecting current work:
 - [Phase 06]: Side menu as simple dropdown with click-outside-to-close (not full drawer)
 - [Phase 06]: Help popup via VS Code showInformationMessage modal (not custom webview)
 - [Phase 07-01]: Temporarily disabled fullscreen panel support until React implementation
+- [Phase 07-02]: Source maps always enabled (production + dev) for better debugging
+- [Phase 07-02]: Metafile generation only in production builds to avoid overhead in watch mode
+- [Phase 07-02]: Pre-commit hooks run ESLint --fix on staged TypeScript files only
+- [Phase 07-02]: Bundle analysis uses esbuild-visualizer with interactive HTML output
 
 ### Pending Todos
 
