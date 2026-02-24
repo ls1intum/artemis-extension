@@ -38,6 +38,11 @@
         "icon": "$(sign-in)"
       },
       {
+        "command": "artemis.logout",
+        "title": "Logout from Artemis",
+        "icon": "$(sign-out)"
+      },
+      {
         "command": "artemis.checkIrisHealth",
         "title": "Check Iris Health Status",
         "icon": "$(heart)"

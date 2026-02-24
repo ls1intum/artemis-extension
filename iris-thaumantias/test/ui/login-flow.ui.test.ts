@@ -1,4 +1,4 @@
-import { VSBrowser, WebDriver } from 'vscode-extension-tester';
+import { VSBrowser, WebDriver, Workbench } from 'vscode-extension-tester';
 import {
 	openArtemisView,
 	switchToWebviewFrame,
@@ -24,6 +24,13 @@ describe('Login Flow UI Tests', function () {
 
 		driver = VSBrowser.instance.driver;
 		await VSBrowser.instance.waitForWorkbench();
+	});
+
+	after(async function () {
+		this.timeout(15000);
+		const workbench = new Workbench();
+		await workbench.executeCommand('Logout from Artemis');
+		await driver.sleep(2000);
 	});
 
 	afterEach(async function () {
