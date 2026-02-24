@@ -98,10 +98,11 @@ Plans:
   2. ExamExerciseDetail reuses ExerciseDetail components from Phase 4 via composition
   3. Exam countdown timers use Web Workers with absolute timestamps and remain accurate when tab is backgrounded
   4. Timer displays update smoothly without drift or throttling issues
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- TBD (will be created during planning)
+- [ ] 05-01-PLAN.md — Web Worker timer infrastructure + ExamConduction view (VIEW-01, CRIT-01)
+- [ ] 05-02-PLAN.md — ExamStart + ExamExerciseDetail views + router/provider wiring (VIEW-01, CRIT-01)
 
 ### Phase 6: Iris Chat with Streaming
 **Goal**: Chat webview renders with smooth message streaming optimized for token-by-token delivery
