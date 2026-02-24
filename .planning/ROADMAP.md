@@ -129,10 +129,13 @@ Plans:
   2. HTML-string-based ViewRouter is replaced with React conditional rendering
   3. Production builds use tree-shaking and minification with bundle size under target (verified with analyzer)
   4. Documentation reflects React architecture with updated developer guides
-**Plans**: TBD
+**Plans**: 4 plans
 
 Plans:
-- TBD (will be created during planning)
+- [ ] 07-01-PLAN.md — Remove legacy views, components, coexistence router; dead code cleanup (CLEAN-01, CLEAN-02)
+- [ ] 07-02-PLAN.md — Optimize esbuild config, add bundle analysis, pre-commit hooks (CLEAN-03)
+- [ ] 07-03-PLAN.md — Consolidate Zustand stores with DevTools, standardize ErrorBoundary (CLEAN-01)
+- [ ] 07-04-PLAN.md — Clean up legacy tests, create developer guide with Mermaid diagrams (CLEAN-01, CLEAN-03)
 
 ## Progress
 
