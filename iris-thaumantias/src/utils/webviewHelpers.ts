@@ -40,6 +40,9 @@ export function getReactWebviewHtml(webview: vscode.Webview, extensionUri: vscod
     const styleUri = webview.asWebviewUri(
         vscode.Uri.joinPath(extensionUri, 'dist', 'base.css')
     );
+    const reactStyleUri = webview.asWebviewUri(
+        vscode.Uri.joinPath(extensionUri, 'dist', 'webview-react.css')
+    );
 
     const dataViewAttr = viewName ? ` data-view="${viewName}"` : '';
 
@@ -51,6 +54,7 @@ export function getReactWebviewHtml(webview: vscode.Webview, extensionUri: vscod
     <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src ${webview.cspSource} https:; font-src ${webview.cspSource}; style-src ${webview.cspSource} 'nonce-${nonce}'; script-src 'nonce-${nonce}';">
     <title>Artemis</title>
     <link rel="stylesheet" type="text/css" href="${styleUri}" nonce="${nonce}">
+    <link rel="stylesheet" type="text/css" href="${reactStyleUri}" nonce="${nonce}">
 </head>
 <body>
     <div id="root"${dataViewAttr}></div>
