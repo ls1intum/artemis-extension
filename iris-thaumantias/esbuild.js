@@ -26,61 +26,6 @@ const esbuildProblemMatcherPlugin = {
 	},
 };
 
-/**
- * Plugin to copy CSS files from src/views to dist/views
- * REMOVED: No longer needed since all views are now React (CSS bundled via CSS Modules)
- * @type {import('esbuild').Plugin}
- */
-// const copyCssPlugin = {
-// 	name: 'copy-css',
-//
-// 	setup(build) {
-// 		build.onEnd(() => {
-// 			const viewsSrc = path.join(__dirname, 'src/views');
-// 			const viewsDist = path.join(__dirname, 'dist/views');
-// 			const baseCssSrc = path.join(__dirname, 'media/styles/base.css');
-// 			const baseCssDist = path.join(__dirname, 'dist/base.css');
-//
-// 			// Ensure dist/views directory exists
-// 			if (!fs.existsSync(viewsDist)) {
-// 				fs.mkdirSync(viewsDist, { recursive: true });
-// 			}
-//
-// 			// Copy base.css to dist/
-// 			if (fs.existsSync(baseCssSrc)) {
-// 				fs.copyFileSync(baseCssSrc, baseCssDist);
-// 				console.log(`[copy-css] ${path.relative(__dirname, baseCssSrc)} -> ${path.relative(__dirname, baseCssDist)}`);
-// 			}
-//
-// 			// Function to recursively copy CSS files
-// 			function copyCssFiles(srcDir, destDir) {
-// 				if (!fs.existsSync(srcDir)) {
-// 					return;
-// 				}
-//
-// 				const entries = fs.readdirSync(srcDir, { withFileTypes: true });
-//
-// 				for (const entry of entries) {
-// 					const srcPath = path.join(srcDir, entry.name);
-// 					const destPath = path.join(destDir, entry.name);
-//
-// 					if (entry.isDirectory()) {
-// 						if (!fs.existsSync(destPath)) {
-// 							fs.mkdirSync(destPath, { recursive: true });
-// 						}
-// 						copyCssFiles(srcPath, destPath);
-// 					} else if (entry.isFile() && entry.name.endsWith('.css')) {
-// 						fs.copyFileSync(srcPath, destPath);
-// 						console.log(`[copy-css] ${path.relative(__dirname, srcPath)} -> ${path.relative(__dirname, destPath)}`);
-// 					}
-// 				}
-// 			}
-//
-// 			copyCssFiles(viewsSrc, viewsDist);
-// 		});
-// 	},
-// };
-
 async function main() {
 	// Dynamic import for ESM-only package
 	const { default: inlineWorkerPlugin } = await import('esbuild-plugin-inline-worker');
@@ -93,36 +38,16 @@ async function main() {
 		bundle: true,
 		format: 'cjs',
 		minify: production,
-		sourcemap: !production,
+		sourcemap: true,
 		sourcesContent: false,
 		platform: 'node',
 		outfile: 'dist/extension.js',
 		external: ['vscode'],
 		logLevel: 'silent',
 		plugins: [
-			// copyCssPlugin, // Removed - no longer needed for React views
-			/* add to the end of plugins array */
 			esbuildProblemMatcherPlugin,
 		],
 	});
-
-	// Legacy webview components bundle (REMOVED - all views now use React)
-	// const webviewCtx = await esbuild.context({
-	// 	entryPoints: [
-	// 		'src/views/webview/components.ts'
-	// 	],
-	// 	bundle: true,
-	// 	format: 'iife',
-	// 	minify: production,
-	// 	sourcemap: !production,
-	// 	sourcesContent: false,
-	// 	platform: 'browser',
-	// 	outfile: 'dist/webview-components.js',
-	// 	logLevel: 'silent',
-	// 	plugins: [
-	// 		esbuildProblemMatcherPlugin,
-	// 	],
-	// });
 
 	// Build React webview (Browser)
 	const webviewReactCtx = await esbuild.context({
@@ -132,10 +57,11 @@ async function main() {
 		bundle: true,
 		format: 'iife',
 		minify: production,
-		sourcemap: !production,
+		sourcemap: true,
 		sourcesContent: false,
 		platform: 'browser',
 		outfile: 'dist/webview-react.js',
+		metafile: true,
 		loader: {
 			'.tsx': 'tsx',
 			'.ts': 'ts',
@@ -154,14 +80,21 @@ async function main() {
 
 	if (watch) {
 		await extensionCtx.watch();
-		// await webviewCtx.watch(); // Removed - legacy bundle no longer needed
 		await webviewReactCtx.watch();
 	} else {
 		await extensionCtx.rebuild();
-		// await webviewCtx.rebuild(); // Removed - legacy bundle no longer needed
-		await webviewReactCtx.rebuild();
+		const webviewResult = await webviewReactCtx.rebuild();
+
+		// Write metafile for bundle analysis in production builds
+		if (production && webviewResult.metafile) {
+			await fs.promises.writeFile(
+				path.join(__dirname, 'dist/meta.json'),
+				JSON.stringify(webviewResult.metafile)
+			);
+			console.log('[build] Generated bundle analysis metadata at dist/meta.json');
+		}
+
 		await extensionCtx.dispose();
-		// await webviewCtx.dispose(); // Removed - legacy bundle no longer needed
 		await webviewReactCtx.dispose();
 	}
 }
