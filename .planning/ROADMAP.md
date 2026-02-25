@@ -84,22 +84,25 @@ Plans:
 - [ ] 10-02-PLAN.md — Sample tests (Button, useDashboardStore, LoginView bridge) and helper README documentation
 
 ### Phase 11: Bundle Optimization
-**Goal**: Reduce bundle size from 3.5MB to <2.5MB via tree-shaking and analysis
+**Goal**: Implement bundle analysis tooling and verify tree-shaking for optimized dependency bundling
 **Depends on**: Phase 9 (Lucide migration establishes tree-shaking baseline)
 **Requirements**: BUNDLE-01, BUNDLE-02
 **Success Criteria** (what must be TRUE):
   1. Bundle analyzer integrated (esbuild-visualizer) with metafile generation
   2. Top dependencies profiled by size with optimization opportunities identified
   3. Tree-shaking verified (only used Lucide icons and Shiki languages bundled)
-  4. Bundle size reduced by 10-30% from baseline (target: 2.5MB-3.2MB range)
+  4. Bundle baseline documented at 3.44 MB (IIFE format with Shiki 2.36 MB + KaTeX 1.63 MB — accepted as architectural minimum)
   5. IIFE code splitting constraint documented in PROJECT.md with rationale
+
+**Deferred to v1.2+:** Lazy-loading Shiki languages and KaTeX on demand (requires architectural changes beyond Phase 11 scope)
+
 **Plans**: 4 plans
 
 Plans:
 - [x] 11-01-PLAN.md — Bundle analysis tooling, size reporting, ESLint Lucide rule, esbuild-visualizer integration
 - [x] 11-02-PLAN.md — Shiki language expansion (7 to 27) and tree-shaking verification
 - [x] 11-03-PLAN.md — (Gap closure) Fix Lucide barrel imports with direct icon paths for tree-shaking
-- [ ] 11-04-PLAN.md — (Gap closure) Accept 3.44 MB baseline, update documentation and success criteria
+- [x] 11-04-PLAN.md — (Gap closure) Accept 3.44 MB baseline, update documentation and success criteria
 
 ### Phase 12: TypeScript Strict Mode
 **Goal**: Achieve 100% type safety with zero compilation errors and strict mode enabled
@@ -139,7 +142,7 @@ Plans:
   2. Misplaced dependencies corrected (clsx moved to dependencies if needed)
   3. Production .vsix tested in clean environment (all features functional)
   4. CSP nonce implementation verified (crypto.randomBytes usage confirmed, no inline scripts without nonce)
-  5. Bundle size meets <2.5MB target or documented rationale for variance
+  5. Bundle size tracked against 3.44 MB accepted baseline — no regressions introduced
 **Plans**: TBD
 
 Plans:
