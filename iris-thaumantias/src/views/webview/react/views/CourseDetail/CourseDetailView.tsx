@@ -3,6 +3,7 @@ import { useCourseDetailStore } from '../../stores/useCourseDetailStore';
 import { useNavigationStore } from '../../stores/useNavigationStore';
 import type { CourseDetailViewProps, CourseDetailPersistedState } from './types';
 import type { Exercise, Exam } from '../../../../../shared/messageContracts';
+import { getIcon } from '../../../../../utils/iconMap';
 import {
     BackLink,
     IconButton,
@@ -194,23 +195,6 @@ export function CourseDetailView({ vscodeApi }: CourseDetailViewProps) {
         return now >= start && now <= end;
     });
 
-    // Exercise type icon mapping (legacy IconDefinitions.getIcon)
-    const getExerciseIcon = (type: string): string => {
-        switch (type?.toLowerCase()) {
-            case 'programming':
-                return '💻';
-            case 'modeling':
-                return '📐';
-            case 'quiz':
-                return '❓';
-            case 'text':
-                return '📝';
-            case 'file-upload':
-                return '📤';
-            default:
-                return '📄';
-        }
-    };
 
     const formatDate = (dateString?: string): string => {
         if (!dateString) return 'No date';
@@ -384,7 +368,10 @@ export function CourseDetailView({ vscodeApi }: CourseDetailViewProps) {
                                         >
                                             <div className={styles.exerciseHeader}>
                                                 <span className={styles.exerciseTypeIcon}>
-                                                    {getExerciseIcon(exercise.type || '')}
+                                                    {(() => {
+                                                        const ExerciseIcon = getIcon(exercise.type);
+                                                        return <ExerciseIcon size={16} />;
+                                                    })()}
                                                 </span>
                                                 <span className={styles.exerciseTitle}>
                                                     {exercise.title || 'Untitled Exercise'}

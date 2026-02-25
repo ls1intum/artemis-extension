@@ -1,6 +1,6 @@
 import { ListItem } from '../../../components/ListItem/ListItem';
 import { Badge } from '../../../components/Badge/Badge';
-import { IconDefinitions } from '../../../../../../utils/iconDefinitions';
+import { getIcon } from '../../../../../../utils/iconMap';
 import styles from './ExerciseList.module.css';
 
 interface Exercise {
@@ -28,7 +28,7 @@ export function ExerciseList({
         <div className={styles.exerciseList}>
             {exercises.map((exercise, index) => {
                 const isWorkspace = exercise.id === workspaceExerciseId;
-                const icon = IconDefinitions.getIcon(exercise.type || 'default');
+                const ExerciseIcon = getIcon(exercise.type);
 
                 return (
                     <ListItem
@@ -39,10 +39,9 @@ export function ExerciseList({
                         <div className={styles.exerciseHeader}>
                             <span className={styles.exerciseNumber}>Exercise {index + 1}</span>
                             <span className={styles.exerciseTitle}>{exercise.title || 'Untitled'}</span>
-                            <span
-                                className={styles.exerciseTypeIcon}
-                                dangerouslySetInnerHTML={{ __html: icon }}
-                            />
+                            <span className={styles.exerciseTypeIcon}>
+                                <ExerciseIcon size={16} />
+                            </span>
                         </div>
                         <div className={styles.exerciseInfo}>
                             <span>{exercise.maxPoints || 0} Points</span>

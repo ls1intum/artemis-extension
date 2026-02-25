@@ -1,5 +1,5 @@
 export * from './constants';
-export * from './iconDefinitions';
+export * from './iconMap';
 export * from './aiExtensionsBlocklist';
 export * from './plantUmlProcessor';
 export * from './workspaceFileChecker';

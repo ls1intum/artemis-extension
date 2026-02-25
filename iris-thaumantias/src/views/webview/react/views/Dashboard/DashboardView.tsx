@@ -9,6 +9,19 @@ import {
     SkeletonList,
     ErrorMessage,
 } from '../../components';
+import {
+    GraduationCap,
+    Settings,
+    Sparkles,
+    Puzzle,
+    ExternalLink,
+    HeartPulse,
+    Activity,
+    GitBranch,
+    Bug,
+    LogOut,
+    ChevronRight,
+} from 'lucide-react';
 import styles from './DashboardView.module.css';
 
 export function DashboardView({ vscodeApi }: DashboardViewProps) {
@@ -272,19 +285,7 @@ export function DashboardView({ vscodeApi }: DashboardViewProps) {
                                             onClick={() => toggleCourseExpanded(index)}
                                             aria-label={isExpanded ? 'Collapse' : 'Expand'}
                                         >
-                                            <svg
-                                                className={styles.courseExpandIcon}
-                                                width="12"
-                                                height="12"
-                                                viewBox="0 0 12 12"
-                                            >
-                                                <path
-                                                    d="M4 2 L8 6 L4 10"
-                                                    fill="none"
-                                                    stroke="currentColor"
-                                                    strokeWidth="2"
-                                                />
-                                            </svg>
+                                            <ChevronRight size={12} className={styles.courseExpandIcon} />
                                         </button>
                                         <span className={styles.courseTitle}>{course.title}</span>
                                         <span className={styles.courseExerciseCount}>
@@ -331,37 +332,37 @@ export function DashboardView({ vscodeApi }: DashboardViewProps) {
                 header={<h2 className={styles.sectionTitle}>Tools & Settings</h2>}
             >
                 <div className={styles.actionMenu}>
-                    <Button variant="ghost" fullWidth onClick={handleBrowseCourses}>
+                    <Button variant="ghost" fullWidth onClick={handleBrowseCourses} icon={<GraduationCap size={16} />}>
                         Browse Courses
                     </Button>
-                    <Button variant="ghost" fullWidth onClick={handleOpenSettings}>
+                    <Button variant="ghost" fullWidth onClick={handleOpenSettings} icon={<Settings size={16} />}>
                         Open Settings
                     </Button>
-                    <Button variant="ghost" fullWidth onClick={handleShowAiConfig}>
+                    <Button variant="ghost" fullWidth onClick={handleShowAiConfig} icon={<Sparkles size={16} />}>
                         AI Checker
                     </Button>
-                    <Button variant="ghost" fullWidth onClick={handleShowRecommendedExtensions}>
+                    <Button variant="ghost" fullWidth onClick={handleShowRecommendedExtensions} icon={<Puzzle size={16} />}>
                         Recommended Extensions
                     </Button>
-                    <Button variant="ghost" fullWidth onClick={handleOpenWebsite}>
+                    <Button variant="ghost" fullWidth onClick={handleOpenWebsite} icon={<ExternalLink size={16} />}>
                         Open Artemis in browser
                     </Button>
-                    <Button variant="ghost" fullWidth onClick={handleShowStruggleDetection}>
+                    <Button variant="ghost" fullWidth onClick={handleShowStruggleDetection} icon={<HeartPulse size={16} />}>
                         Struggle Detection
                     </Button>
-                    <Button variant="ghost" fullWidth onClick={handleShowServiceStatus}>
+                    <Button variant="ghost" fullWidth onClick={handleShowServiceStatus} icon={<Activity size={16} />}>
                         Service Status
                     </Button>
-                    <Button variant="ghost" fullWidth onClick={handleShowGitCredentials}>
+                    <Button variant="ghost" fullWidth onClick={handleShowGitCredentials} icon={<GitBranch size={16} />}>
                         Git Credentials
                     </Button>
-                    <Button variant="ghost" fullWidth onClick={handleOpenBugReport}>
+                    <Button variant="ghost" fullWidth onClick={handleOpenBugReport} icon={<Bug size={16} />}>
                         Bug Report
                     </Button>
 
                     <div className={styles.actionMenuDivider} />
 
-                    <Button variant="ghost" fullWidth onClick={handleLogout} className={styles.btnDangerGhost}>
+                    <Button variant="ghost" fullWidth onClick={handleLogout} className={styles.btnDangerGhost} icon={<LogOut size={16} />}>
                         Logout from Artemis
                     </Button>
                 </div>
