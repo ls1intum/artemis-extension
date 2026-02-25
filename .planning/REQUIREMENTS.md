@@ -21,7 +21,7 @@ Requirements for v1.1 Production Ready. Each maps to roadmap phases.
 
 ### Bundle Optimization
 
-- [ ] **BUNDLE-01**: Bundle analyzer (esbuild-visualizer) integrated and top dependencies by size profiled
+- [x] **BUNDLE-01**: Bundle analyzer (esbuild-visualizer) integrated and top dependencies by size profiled
 - [ ] **BUNDLE-02**: Tree-shaking verified — only used Lucide icons and Shiki languages bundled
 
 ### Testing
@@ -83,7 +83,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | UI-02 | Phase 9 | Complete |
 | UI-03 | Phase 9 | Complete |
 | TEST-01 | Phase 10 | Complete |
-| BUNDLE-01 | Phase 11 | Pending |
+| BUNDLE-01 | Phase 11 | Complete |
 | BUNDLE-02 | Phase 11 | Pending |
 | TYPE-01 | Phase 12 | Pending |
 | TYPE-02 | Phase 12 | Pending |
