@@ -151,10 +151,10 @@ Plans:
   1. `openExternalLink` command handler registered — clicking links in problem statements opens the URL in the default browser
   2. `openImagePreview` command handler registered — clicking images in problem statements opens VS Code image preview
   3. E2E flow "Problem statement link click" passes (no silent failures)
-**Plans**: TBD
+**Plans**: 1 plan
 
 Plans:
-- [ ] TBD
+- [ ] 15-01-PLAN.md — Implement openExternalLink and openImagePreview handlers with protocol validation, trusted domains, and image preview
 
 ## Progress
 
