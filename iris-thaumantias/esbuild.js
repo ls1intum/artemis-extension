@@ -6,6 +6,12 @@ const cssModulesPlugin = require('esbuild-css-modules-plugin');
 const production = process.argv.includes('--production');
 const watch = process.argv.includes('--watch');
 
+const formatSize = (bytes) => {
+	const kb = bytes / 1024;
+	const mb = kb / 1024;
+	return mb >= 1 ? `${mb.toFixed(2)} MB` : `${kb.toFixed(2)} KB`;
+};
+
 /**
  * @type {import('esbuild').Plugin}
  */
@@ -44,6 +50,7 @@ async function main() {
 		outfile: 'dist/extension.js',
 		external: ['vscode'],
 		logLevel: 'silent',
+		metafile: true,
 		plugins: [
 			esbuildProblemMatcherPlugin,
 		],
@@ -65,7 +72,10 @@ async function main() {
 		loader: {
 			'.tsx': 'tsx',
 			'.ts': 'ts',
-			'.css': 'css'
+			'.css': 'css',
+			'.woff': 'file',
+			'.woff2': 'file',
+			'.ttf': 'file'
 		},
 		define: {
 			'process.env.NODE_ENV': production ? '"production"' : '"development"'
@@ -82,17 +92,29 @@ async function main() {
 		await extensionCtx.watch();
 		await webviewReactCtx.watch();
 	} else {
-		await extensionCtx.rebuild();
+		const extensionResult = await extensionCtx.rebuild();
 		const webviewResult = await webviewReactCtx.rebuild();
 
-		// Write metafile for bundle analysis in production builds
-		if (production && webviewResult.metafile) {
+		// Write metafiles for bundle analysis
+		if (webviewResult.metafile) {
 			await fs.promises.writeFile(
-				path.join(__dirname, 'dist/meta.json'),
+				path.join(__dirname, 'dist/meta-webview.json'),
 				JSON.stringify(webviewResult.metafile)
 			);
-			console.log('[build] Generated bundle analysis metadata at dist/meta.json');
 		}
+		if (extensionResult.metafile) {
+			await fs.promises.writeFile(
+				path.join(__dirname, 'dist/meta-extension.json'),
+				JSON.stringify(extensionResult.metafile)
+			);
+		}
+
+		// Report bundle sizes
+		const extStats = fs.statSync(path.join(__dirname, 'dist/extension.js'));
+		const webviewStats = fs.statSync(path.join(__dirname, 'dist/webview-react.js'));
+		console.log(`[build] extension.js: ${formatSize(extStats.size)}`);
+		console.log(`[build] webview-react.js: ${formatSize(webviewStats.size)}`);
+		console.log(`[build] Total: ${formatSize(extStats.size + webviewStats.size)}`);
 
 		await extensionCtx.dispose();
 		await webviewReactCtx.dispose();
