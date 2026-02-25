@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: Production Ready
 status: unknown
-last_updated: "2026-02-25T13:49:30.342Z"
+last_updated: "2026-02-25T15:34:53.638Z"
 progress:
   total_phases: 5
-  completed_phases: 4
-  total_plans: 10
-  completed_plans: 9
+  completed_phases: 5
+  total_plans: 11
+  completed_plans: 11
 ---
 
 # Project State
@@ -24,11 +24,11 @@ See: .planning/PROJECT.md (updated 2026-02-25)
 
 Milestone: v1.1 Production Ready
 Phase: 11 of 14 (Bundle Size Optimization)
-Plan: 2 of 2
+Plan: 3 of 3
 Status: Complete
-Last activity: 2026-02-25 — Completed 11-02 (Shiki language expansion to all 27 Artemis languages, tree-shaking verification)
+Last activity: 2026-02-25 — Completed 11-03 (Lucide barrel import fix with direct icon paths)
 
-Progress: [█████████░░░░░] 75% (v1.0: 7/7 complete, v1.1: 9/15 plans complete)
+Progress: [█████████░░░░░] 76% (v1.0: 7/7 complete, v1.1: 10/15 plans complete)
 
 ## Performance Metrics
 
@@ -41,17 +41,17 @@ Progress: [█████████░░░░░] 75% (v1.0: 7/7 complete, 
 
 **v1.1 Milestone (In Progress):**
 - Phases: 8 (8-15)
-- Plans completed: 9 of 15
+- Plans completed: 10 of 15
 - Phase 8 execution: 15 minutes (2 plans, Phase 8 COMPLETE)
 - Phase 9 execution: 7 minutes (3 plans, Phase 9 COMPLETE)
 - Phase 10 execution: 10 minutes (2 plans, Phase 10 COMPLETE)
-- Phase 11 execution: 6 minutes (2 of 2 plans, Phase 11 COMPLETE)
+- Phase 11 execution: 14 minutes (3 of 3 plans, Phase 11 COMPLETE)
 - Phase 15 execution: 3.6 minutes (1 plan, Phase 15 COMPLETE)
-- Files created: 16 (raw findings, flow findings, audit document, problemStatementProcessor, vitest config, 3 test helpers, 3 test files, helper README, 8 SUMMARYs)
-- Files modified: 51 (artemisWebviewProvider, messageContracts, ProblemStatement TSX/CSS, ExerciseDetailView, ExamExerciseDetailView, types, index.tsx, CourseDetailView CSS, package.json, .vscode-test.mjs, 23 test files with import path updates, webViewMessageHandler, extension, utilityCommands, esbuild.js, eslint.config.mjs, .gitignore, package-lock.json, CodeBlock.tsx)
+- Files created: 16 (raw findings, flow findings, audit document, problemStatementProcessor, vitest config, 3 test helpers, 3 test files, helper README, 9 SUMMARYs)
+- Files modified: 56 (artemisWebviewProvider, messageContracts, ProblemStatement TSX/CSS, ExerciseDetailView, ExamExerciseDetailView, types, index.tsx, CourseDetailView CSS, package.json, .vscode-test.mjs, 23 test files with import path updates, webViewMessageHandler, extension, utilityCommands, esbuild.js, eslint.config.mjs, .gitignore, package-lock.json, CodeBlock.tsx, iconMap.ts, DashboardView.tsx, IconButton.tsx, ArtemisLogo.tsx)
 - Files moved: 68 (test directory reorganization)
 - Tests added: 30 (Button: 12, useDashboardStore: 9, LoginView: 9)
-- Estimated total: ~60 minutes remaining
+- Estimated total: ~54 minutes remaining
 
 ## Accumulated Context
 
@@ -89,6 +89,9 @@ Recent decisions affecting v1.1 work:
 - [Phase 11-01]: Add font loaders to esbuild for KaTeX CSS imports - fixes pre-existing build failures
 - [Phase 11-02]: All 27 Artemis languages loaded at highlighter initialization - singleton pattern requires upfront loading for consistent fallback behavior
 - [Phase 11-02]: Lucide barrel import prevents tree-shaking - 1688 icons bundled (1.47 MB) vs ~50 needed, fix deferred to future optimization plan
+- [Phase 11]: Use type-only imports from barrel for LucideIcon and LucideProps types
+- [Phase 11]: ESLint allowTypeImports flag for lucide-react barrel
+- [Phase 11]: Include .tsx files in ESLint config scope
 
 ### Pending Todos
 
@@ -121,10 +124,10 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-25
-Stopped at: Completed 11-02-PLAN.md (Shiki language expansion to all 27 Artemis languages, tree-shaking verification)
+Stopped at: Completed 11-03-PLAN.md (Lucide barrel import fix with direct icon paths)
 Resume with: Phase 12 (Type Safety Hardening) or continue with remaining v1.1 phases
 
 ---
 
 *Created: 2026-02-23 (v1.0)*
-*Updated: 2026-02-25 (Phase 11 COMPLETE — Bundle optimization with language expansion and tree-shaking verification)*
+*Updated: 2026-02-25 (Phase 11 COMPLETE — Bundle optimization: analysis tooling, Shiki language expansion, Lucide direct icon imports)*
