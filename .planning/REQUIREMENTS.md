@@ -92,11 +92,13 @@ Which phases cover which requirements. Updated during roadmap creation.
 | TEST-03 | Phase 13 | Pending |
 | CLEAN-01 | Phase 14 | Pending |
 | CLEAN-02 | Phase 14 | Pending |
+| UI-03 (integration) | Phase 15 | Pending |
 
 **Coverage:**
 - v1.1 requirements: 15 total
 - Mapped to phases: 15/15 ✓
 - Unmapped: 0
+- Gap closure: Phase 15 supplements UI-03 (missing command handlers)
 
 ---
 *Requirements defined: 2026-02-25*

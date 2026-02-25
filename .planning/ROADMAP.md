@@ -33,6 +33,7 @@ Full details: milestones/v1.0-ROADMAP.md
 - [ ] **Phase 12: TypeScript Strict Mode** - Zero compilation errors with strict mode enabled
 - [ ] **Phase 13: Component Test Suite** - Comprehensive tests for components, stores, and flows
 - [ ] **Phase 14: Dependency Cleanup** - Remove unused deps and verify production security
+- [ ] **Phase 15: Command Handler Gap Closure** - Implement missing openExternalLink and openImagePreview handlers
 
 ## Phase Details
 
@@ -140,9 +141,23 @@ Plans:
 Plans:
 - [ ] TBD
 
+### Phase 15: Command Handler Gap Closure
+**Goal**: Implement missing extension command handlers for problem statement interactions
+**Depends on**: Phase 9 (command contracts defined in 09-03)
+**Requirements**: UI-03 (supplementary — closes integration gap)
+**Gap Closure**: Closes integration gaps from v1.1 audit
+**Success Criteria** (what must be TRUE):
+  1. `openExternalLink` command handler registered — clicking links in problem statements opens the URL in the default browser
+  2. `openImagePreview` command handler registered — clicking images in problem statements opens VS Code image preview
+  3. E2E flow "Problem statement link click" passes (no silent failures)
+**Plans**: TBD
+
+Plans:
+- [ ] TBD
+
 ## Progress
 
-**Execution Order:** Numeric order (8 → 9 → 10 → 11 → 12 → 13 → 14)
+**Execution Order:** Numeric order (8 → 9 → 10 → 11 → 12 → 13 → 14 → 15)
 
 **Parallelization Opportunities:**
 - Phase 9 (icons) + Phase 10 (testing setup) — independent domains, can run in parallel
@@ -164,6 +179,7 @@ Plans:
 | 12. TypeScript Strict Mode | v1.1 | 0/? | Not started | - |
 | 13. Component Test Suite | v1.1 | 0/? | Not started | - |
 | 14. Dependency Cleanup | v1.1 | 0/? | Not started | - |
+| 15. Command Handler Gap Closure | v1.1 | 0/? | Not started | - |
 
 ---
 
