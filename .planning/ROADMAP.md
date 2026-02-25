@@ -93,12 +93,13 @@ Plans:
   3. Tree-shaking verified (only used Lucide icons and Shiki languages bundled)
   4. Bundle size reduced by 10-30% from baseline (target: 2.5MB-3.2MB range)
   5. IIFE code splitting constraint documented in PROJECT.md with rationale
-**Plans**: 3 plans
+**Plans**: 4 plans
 
 Plans:
 - [x] 11-01-PLAN.md — Bundle analysis tooling, size reporting, ESLint Lucide rule, esbuild-visualizer integration
 - [x] 11-02-PLAN.md — Shiki language expansion (7 to 27) and tree-shaking verification
-- [ ] 11-03-PLAN.md — (Gap closure) Fix Lucide barrel imports with direct icon paths for tree-shaking
+- [x] 11-03-PLAN.md — (Gap closure) Fix Lucide barrel imports with direct icon paths for tree-shaking
+- [ ] 11-04-PLAN.md — (Gap closure) Accept 3.44 MB baseline, update documentation and success criteria
 
 ### Phase 12: TypeScript Strict Mode
 **Goal**: Achieve 100% type safety with zero compilation errors and strict mode enabled
@@ -178,7 +179,7 @@ Plans:
 | 8. Architecture Review | v1.1 | 2/2 | Complete | 2026-02-25 |
 | 9. UI Polish & Icons | v1.1 | 0/3 | Planned | - |
 | 10. Testing Infrastructure | 2/2 | Complete    | 2026-02-25 | - |
-| 11. Bundle Optimization | 3/3 | Complete   | 2026-02-25 | - |
+| 11. Bundle Optimization | 3/4 | In Progress | 2026-02-25 | - |
 | 12. TypeScript Strict Mode | v1.1 | 0/? | Not started | - |
 | 13. Component Test Suite | v1.1 | 0/? | Not started | - |
 | 14. Dependency Cleanup | v1.1 | 0/? | Not started | - |
