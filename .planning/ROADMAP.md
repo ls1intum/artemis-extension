@@ -77,10 +77,11 @@ Plans:
   2. Test scripts operational (test:react, test:react:ui, test:react:coverage)
   3. VS Code webview bridge mocking patterns documented and reusable (acquireVsCodeApi, postMessage contracts)
   4. Sample component test validates setup (at least one shared component tested)
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] TBD
+- [ ] 10-01-PLAN.md — Vitest installation, configuration, test helpers, directory reorganization, npm script updates
+- [ ] 10-02-PLAN.md — Sample tests (Button, useDashboardStore, LoginView bridge) and helper README documentation
 
 ### Phase 11: Bundle Optimization
 **Goal**: Reduce bundle size from 3.5MB to <2.5MB via tree-shaking and analysis
