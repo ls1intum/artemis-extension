@@ -101,12 +101,12 @@ None yet.
 
 **Known from v1.0:**
 - 10 pre-existing TypeScript errors (streamdown/mermaid module, unused @ts-expect-error directives)
-- 3.5MB webview-react.js bundle (may benefit from tree-shaking optimization)
+- ~~3.5MB webview-react.js bundle (may benefit from tree-shaking optimization)~~ (RESOLVED in Phase 11 — 3.44 MB accepted as baseline for IIFE format with Shiki + KaTeX)
 - ~~Fullscreen panel support temporarily disabled during v1.0 cleanup~~ (RESOLVED in 09-02)
 - IIFE bundle format prevents code splitting (architectural constraint)
 
 **v1.1 Risks:**
-- Bundle size target of <2MB may be aggressive without code splitting (research suggests 10-30% reduction via tree-shaking is realistic)
+- ~~Bundle size target of <2MB may be aggressive without code splitting~~ (RESOLVED in Phase 11 — 3.44 MB accepted as architectural minimum, lazy-loading deferred to v1.2+)
 - Big-bang strict TypeScript migration could halt development (mitigation: incremental approach via typescript-strict-plugin)
 - Icon library migration could bloat bundle without proper named imports (mitigation: bundle analyzer verification)
 - Testing React components without proper webview bridge mocking could create false confidence (mitigation: comprehensive acquireVsCodeApi mocks)
@@ -124,7 +124,7 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-25
-Stopped at: Completed 11-03-PLAN.md (Lucide barrel import fix with direct icon paths)
+Stopped at: Completed 11-04-PLAN.md (Gap closure — accepted 3.44 MB bundle baseline, updated documentation)
 Resume with: Phase 12 (Type Safety Hardening) or continue with remaining v1.1 phases
 
 ---

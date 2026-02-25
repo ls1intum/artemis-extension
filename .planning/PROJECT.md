@@ -54,8 +54,8 @@ Students can interact with Artemis courses, exercises, and the Iris AI tutor wit
 
 - **Codebase:** 39,841 LOC TypeScript/TSX, 12 React views, 22 shared components, 9 Zustand stores
 - **Architecture:** React 18 webviews with CSS Modules, esbuild dual-target build, typed message contracts
-- **Build artifacts:** extension.js (665KB CJS), webview-react.js (3.5MB IIFE), webview-react.css (~74KB)
-- **Known issues:** 10 pre-existing TypeScript errors, 3.5MB bundle size (code splitting candidate), fullscreen panel temporarily disabled
+- **Build artifacts:** extension.js (323KB CJS), webview-react.js (3.44MB IIFE, accepted baseline), webview-react.css (~74KB)
+- **Known issues:** 10 pre-existing TypeScript errors, fullscreen panel temporarily disabled
 - **Tech stack:** React 18.3.1, Zustand, esbuild, CSS Modules, Shiki, Streamdown, Web Workers
 
 ## Constraints
@@ -80,7 +80,7 @@ Students can interact with Artemis courses, exercises, and the Iris AI tutor wit
 | RAF token buffering | Sentence boundary detection, no per-token setState | ✓ Good |
 | Shiki syntax highlighting | Singleton highlighter with lazy init for chat code blocks | ✓ Good |
 | Tests separate milestone | Keep v1.0 focused; test updates in v1.1 | ⚠️ Revisit |
-| IIFE bundle format | Single file, consistent with webview constraints | ⚠️ Revisit (3.5MB) |
+| IIFE bundle format | Single file, VS Code webview constraint (Issue #93041). 3.44 MB accepted baseline: Shiki 2.36 MB + KaTeX 1.63 MB + React/utilities ~450 KB | ✓ Accepted |
 
 ## Architecture Decisions
 
@@ -123,7 +123,7 @@ This section documents current architectural patterns discovered during the Phas
 
 **Files:** `esbuild.js` — webview bundle config: `format: 'iife'`
 
-**Status:** Platform constraint, not a choice. Current 3.5MB bundle is large but acceptable (~500ms load). Phase 11 will optimize via tree-shaking. Code splitting deferred to v1.2+ pending VS Code platform support.
+**Status:** Platform constraint, not a choice. Phase 11 (2026-02-25) confirmed 3.44 MB as the architectural minimum for IIFE format: Shiki 2.36 MB (27 Artemis languages) + KaTeX 1.63 MB (math rendering) + React/markdown/utilities ~450 KB. Bundle analysis tooling (esbuild-visualizer) and ESLint barrel import prevention now in place. Lazy-loading Shiki/KaTeX deferred to v1.2+ (requires architectural changes). Code splitting deferred pending VS Code ESM support (Issue #93041).
 
 ---
 
