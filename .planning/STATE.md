@@ -11,11 +11,11 @@ See: .planning/PROJECT.md (updated 2026-02-25)
 
 Milestone: v1.1 Production Ready
 Phase: 8 of 14 (Architecture Review)
-Plan: 1 of 2
-Status: In progress
-Last activity: 2026-02-25 — Completed 08-01 (automated analysis and structural review)
+Plan: 2 of 2
+Status: Complete
+Last activity: 2026-02-25 — Completed 08-02 (flow tracing, audit compilation, PROJECT.md updates)
 
-Progress: [███████░░░░░░░] 50% (v1.0: 7/7 complete, v1.1: 1/15 plans complete)
+Progress: [████████░░░░░░] 53% (v1.0: 7/7 complete, v1.1: 2/15 plans complete)
 
 ## Performance Metrics
 
@@ -28,10 +28,10 @@ Progress: [███████░░░░░░░] 50% (v1.0: 7/7 complete, 
 
 **v1.1 Milestone (In Progress):**
 - Phases: 7 (8-14)
-- Plans completed: 1 of 15
-- Phase 8 execution: 6 minutes (1 plan)
-- Files created: 1 (raw findings document)
-- Estimated total: ~90 minutes remaining
+- Plans completed: 2 of 15
+- Phase 8 execution: 15 minutes (2 plans, Phase 8 COMPLETE)
+- Files created: 4 (raw findings, flow findings, audit document, SUMMARY)
+- Estimated total: ~85 minutes remaining
 
 ## Accumulated Context
 
@@ -46,6 +46,10 @@ Recent decisions affecting v1.1 work:
 - v1.1: Architecture review first — identify anti-patterns before optimization work
 - 08-01: Use madge for dependency analysis (simpler than dependency-cruiser for initial analysis)
 - 08-01: Document all 240 files in appendix (verify completeness, provide audit trail)
+- [Phase 08-02]: WebSocket error swallowing is HIGH impact Quick Win for v1.1
+- [Phase 08-02]: Message contract type safety mapped to Phase 12 TYPE-03 requirement
+- [Phase 08-02]: State persistence deferred to v1.2 as known limitation
+- [Phase 08-02]: Dual state management and view-scoped stores preserved as migration-era patterns
 
 ### Pending Todos
 
@@ -65,19 +69,23 @@ None yet.
 - Icon library migration could bloat bundle without proper named imports (mitigation: bundle analyzer verification)
 - Testing React components without proper webview bridge mocking could create false confidence (mitigation: comprehensive acquireVsCodeApi mocks)
 
-**From 08-01 analysis:**
-- Dual state management (AppStateManager + Zustand) may cause state drift if not synchronized properly
-- WebSocket errors may not propagate to UI (logged but no postMessage evidence) - needs verification in Plan 02
-- getState/setState not implemented for React webviews - transient UI state may be lost on panel hide/show
-- 2 circular dependencies in module graph (ProviderRegistry cycles) - low impact but should be fixed
+**From 08-02 audit (PHASE 8 COMPLETE):**
+- WebSocket error swallowing CONFIRMED (HIGH impact) - errors logged but NOT sent to webview UI, users see "loading..." forever on failures (Quick Win for v1.1)
+- State persistence gap CONFIRMED (MEDIUM impact) - no getState/setState usage, transient UI state lost on panel hide/show (deferred to v1.2 as known limitation)
+- Dual state management preserved as migration-era pattern (intentional technical debt from v1.0, do NOT refactor in v1.1)
+- Message contract type safety gap (HIGH impact) - all postMessage typed as `any`, mapped to Phase 12 TYPE-03
+- 2 circular dependencies confirmed LOW impact - fix as Quick Win in Phase 13
+- Silent exam fetch errors flagged (MEDIUM impact) - add user notification (Quick Win)
+- View-scoped stores (9 stores) preserved as intentional pattern - repetitive loading/error patterns by design
+- IIFE bundle format is platform constraint (VS Code webviews don't support ESM code splitting), not architectural choice
 
 ## Session Continuity
 
 Last session: 2026-02-25
-Stopped at: Phase 8, Plan 01 complete (raw analysis findings documented)
-Resume with: Plan 02 (synthesize findings into audit document)
+Stopped at: Phase 8 COMPLETE — 08-02-PLAN.md finished (audit document and PROJECT.md updates)
+Resume with: Phase 9 (UI Polish & Icons)
 
 ---
 
 *Created: 2026-02-23 (v1.0)*
-*Updated: 2026-02-25 (Phase 8 Plan 01 complete)*
+*Updated: 2026-02-25 (Phase 8 complete — architecture audit delivered)*

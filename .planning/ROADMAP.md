@@ -49,7 +49,7 @@ Full details: milestones/v1.0-ROADMAP.md
 
 Plans:
 - [x] 08-01-PLAN.md — Automated dependency analysis and area-by-area structural review (completed 2026-02-25, 6 minutes)
-- [ ] 08-02-PLAN.md — End-to-end flow tracing, audit document compilation, and PROJECT.md updates
+- [x] 08-02-PLAN.md — End-to-end flow tracing, audit document compilation, and PROJECT.md updates (completed 2026-02-25, 9 minutes)
 
 ### Phase 9: UI Polish & Icons
 **Goal**: Migrate to Lucide icon system for professional, theme-aware UI consistency
@@ -155,7 +155,7 @@ Plans:
 | 5. Exam Views with Timer Accuracy | v1.0 | 2/2 | Complete | 2026-02-24 |
 | 6. Iris Chat with Streaming | v1.0 | 3/3 | Complete | 2026-02-24 |
 | 7. Cleanup & Optimization | v1.0 | 4/4 | Complete | 2026-02-24 |
-| 8. Architecture Review | v1.1 | 1/2 | In Progress | 2026-02-25 |
+| 8. Architecture Review | v1.1 | 2/2 | Complete | 2026-02-25 |
 | 9. UI Polish & Icons | v1.1 | 0/? | Not started | - |
 | 10. Testing Infrastructure | v1.1 | 0/? | Not started | - |
 | 11. Bundle Optimization | v1.1 | 0/? | Not started | - |
@@ -166,4 +166,4 @@ Plans:
 ---
 
 *Created: 2026-02-23 (v1.0)*
-*Updated: 2026-02-25 (Phase 8 Plan 01 complete)*
+*Updated: 2026-02-25 (Phase 8 complete — architecture audit delivered)*

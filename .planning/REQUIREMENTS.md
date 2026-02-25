@@ -32,8 +32,8 @@ Requirements for v1.1 Production Ready. Each maps to roadmap phases.
 
 ### Architecture Review
 
-- [ ] **ARCH-01**: Codebase architecture audit completed — anti-patterns identified, structure decisions evaluated
-- [ ] **ARCH-02**: Architecture improvements documented and implemented based on audit findings
+- [x] **ARCH-01**: Codebase architecture audit completed — anti-patterns identified, structure decisions evaluated
+- [x] **ARCH-02**: Architecture improvements documented and implemented based on audit findings
 
 ### Dependency Cleanup & Security
 
@@ -77,8 +77,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| ARCH-01 | Phase 8 | Pending |
-| ARCH-02 | Phase 8 | Pending |
+| ARCH-01 | Phase 8 | Complete |
+| ARCH-02 | Phase 8 | Complete |
 | UI-01 | Phase 9 | Pending |
 | UI-02 | Phase 9 | Pending |
 | UI-03 | Phase 9 | Pending |
@@ -100,4 +100,4 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 ---
 *Requirements defined: 2026-02-25*
-*Last updated: 2026-02-25 after roadmap creation*
+*Last updated: 2026-02-25 (Phase 8 complete — ARCH-01, ARCH-02 satisfied)*
