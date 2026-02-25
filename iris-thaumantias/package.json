@@ -66,6 +66,10 @@
         "command": "artemis.showStruggleScore",
         "title": "Show Struggle Detection Score (Debug)",
         "icon": "$(graph)"
+      },
+      {
+        "command": "artemis.clearTrustedDomains",
+        "title": "Artemis: Clear Trusted Domains"
       }
     ],
     "viewsContainers": {

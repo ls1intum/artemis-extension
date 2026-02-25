@@ -47,7 +47,8 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
             this._appStateManager,
             this,
             undefined,  // buildCodeLens will be set later
-            undefined   // websocketService will be set later
+            undefined,  // websocketService will be set later
+            this._extensionContext
         );
     }
 
@@ -63,7 +64,8 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
             this._appStateManager,
             this,
             codeLensProvider,
-            this._websocketService
+            this._websocketService,
+            this._extensionContext
         );
     }
 

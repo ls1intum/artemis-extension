@@ -207,6 +207,20 @@ export async function activate(context: vscode.ExtensionContext) {
 
 	context.subscriptions.push(goToSourceErrorCommand);
 
+	// Register clearTrustedDomains command
+	const clearTrustedDomainsCommand = vscode.commands.registerCommand('artemis.clearTrustedDomains', async () => {
+		const result = await vscode.window.showWarningMessage(
+			'Clear all trusted domains? You will be prompted again before opening external links.',
+			{ modal: true },
+			'Clear'
+		);
+		if (result === 'Clear') {
+			await context.globalState.update('artemis.trustedDomains', []);
+			vscode.window.showInformationMessage('Trusted domains cleared.');
+		}
+	});
+	context.subscriptions.push(clearTrustedDomainsCommand);
+
 	// Register the Artemis login command
 	const loginCommand = vscode.commands.registerCommand('artemis.login', () => {
 		// This command can be used to programmatically open the Artemis view

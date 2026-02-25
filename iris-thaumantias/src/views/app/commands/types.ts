@@ -1,3 +1,4 @@
+import type * as vscode from 'vscode';
 import type { AuthManager } from '../../../auth';
 import type { ArtemisApiService } from '../../../api';
 import type { AppStateManager } from '../appStateManager';
@@ -16,4 +17,5 @@ export interface CommandContext {
     updateAuthContext(isAuthenticated: boolean): Promise<void>;
     buildCodeLens?: any; // BuildErrorCodeLensProvider
     websocketService?: ArtemisWebsocketService;
+    extensionContext: vscode.ExtensionContext;
 }

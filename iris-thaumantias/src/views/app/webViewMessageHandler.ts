@@ -32,7 +32,8 @@ export class WebViewMessageHandler {
         private readonly appStateManager: AppStateManager,
         private readonly actionHandler: WebViewActionHandler,
         private readonly buildCodeLens?: any,
-        websocketService?: ArtemisWebsocketService
+        websocketService?: ArtemisWebsocketService,
+        extensionContext?: vscode.ExtensionContext
     ) {
         this._websocketService = websocketService;
         const context: CommandContext = {
@@ -43,7 +44,8 @@ export class WebViewMessageHandler {
             sendMessage: (message: any) => this._sendMessage(message),
             updateAuthContext: (isAuthenticated: boolean) => this.updateAuthContext(isAuthenticated),
             buildCodeLens: this.buildCodeLens,
-            websocketService: this._websocketService
+            websocketService: this._websocketService,
+            extensionContext: extensionContext!
         };
 
         const modules = [
