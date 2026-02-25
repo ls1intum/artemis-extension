@@ -10,12 +10,12 @@ See: .planning/PROJECT.md (updated 2026-02-25)
 ## Current Position
 
 Milestone: v1.1 Production Ready
-Phase: 9 of 14 (UI Polish & Icons)
-Plan: 3 of 3
-Status: Complete
-Last activity: 2026-02-25 — Completed 09-03 (comprehensive problem statement rendering with KaTeX and PlantUML)
+Phase: 10 of 14 (Testing Infrastructure)
+Plan: 1 of 2
+Status: In Progress
+Last activity: 2026-02-25 — Completed 10-01 (Vitest testing infrastructure, React test helpers, test directory reorganization)
 
-Progress: [████████░░░░░░] 62% (v1.0: 7/7 complete, v1.1: 4/15 plans complete)
+Progress: [█████████░░░░░] 64% (v1.0: 7/7 complete, v1.1: 5/15 plans complete)
 
 ## Performance Metrics
 
@@ -28,12 +28,14 @@ Progress: [████████░░░░░░] 62% (v1.0: 7/7 complete, 
 
 **v1.1 Milestone (In Progress):**
 - Phases: 7 (8-14)
-- Plans completed: 4 of 15
+- Plans completed: 5 of 15
 - Phase 8 execution: 15 minutes (2 plans, Phase 8 COMPLETE)
 - Phase 9 execution: 7 minutes (3 plans, Phase 9 COMPLETE)
-- Files created: 5 (raw findings, flow findings, audit document, problemStatementProcessor, 3 SUMMARYs)
-- Files modified: 14 (artemisWebviewProvider, messageContracts, ProblemStatement TSX/CSS, ExerciseDetailView, ExamExerciseDetailView, types, index.tsx, CourseDetailView CSS)
-- Estimated total: ~78 minutes remaining
+- Phase 10 execution: 6 minutes (1 plan, in progress)
+- Files created: 10 (raw findings, flow findings, audit document, problemStatementProcessor, vitest config, 3 test helpers, 4 SUMMARYs)
+- Files modified: 40 (artemisWebviewProvider, messageContracts, ProblemStatement TSX/CSS, ExerciseDetailView, ExamExerciseDetailView, types, index.tsx, CourseDetailView CSS, package.json, .vscode-test.mjs, 23 test files with import path updates)
+- Files moved: 68 (test directory reorganization)
+- Estimated total: ~72 minutes remaining
 
 ## Accumulated Context
 
@@ -58,6 +60,8 @@ Recent decisions affecting v1.1 work:
 - [Phase 09-03]: PlantUML async rendering via extension command handler and Artemis server API
 - [Phase 09-ui-polish-icons]: Typed const map with satisfies pattern for icon system provides type-safe IconKey while preserving const literal types for tree-shaking
 - [Phase 09-ui-polish-icons]: ArtemisLogo as standalone component with LucideProps API maintains brand identity while matching Lucide ecosystem for consistency
+- [Phase 10-01]: Use triple-slash directives for Vitest global types instead of polluting main tsconfig
+- [Phase 10-01]: Separate test directories by runner: test/unit/ (vscode-test), test/e2e/ (vscode-test E2E), test/react/ (Vitest), test/__shared__/ (cross-runner)
 
 ### Pending Todos
 
@@ -90,10 +94,10 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-25
-Stopped at: Phase 9 COMPLETE — 09-03-PLAN.md finished (KaTeX, PlantUML, comprehensive problem statement rendering)
-Resume with: Phase 10 (Testing Infrastructure)
+Stopped at: Completed 10-01-PLAN.md (Vitest testing infrastructure, React test helpers, test directory reorganization)
+Resume with: Phase 10-02 (Sample React component tests)
 
 ---
 
 *Created: 2026-02-23 (v1.0)*
-*Updated: 2026-02-25 (Phase 9 complete — KaTeX, PlantUML, problem statement rendering)*
+*Updated: 2026-02-25 (Phase 10-01 complete — Vitest infrastructure, test helpers, directory reorganization)*
