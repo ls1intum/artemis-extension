@@ -24,20 +24,63 @@ const getHighlighter = () => {
                 import('shiki/themes/github-light.mjs'),
             ],
             langs: [
+                // Artemis programming languages (20)
                 // @ts-expect-error - shiki ESM imports resolved by esbuild at bundle time
-                import('shiki/langs/java.mjs'),
+                import('shiki/langs/asm.mjs'),           // Assembler
                 // @ts-expect-error - shiki ESM imports resolved by esbuild at bundle time
-                import('shiki/langs/python.mjs'),
+                import('shiki/langs/shellscript.mjs'),   // Bash
                 // @ts-expect-error - shiki ESM imports resolved by esbuild at bundle time
-                import('shiki/langs/c.mjs'),
+                import('shiki/langs/c.mjs'),             // C
                 // @ts-expect-error - shiki ESM imports resolved by esbuild at bundle time
-                import('shiki/langs/javascript.mjs'),
+                import('shiki/langs/cpp.mjs'),           // C++
                 // @ts-expect-error - shiki ESM imports resolved by esbuild at bundle time
-                import('shiki/langs/typescript.mjs'),
+                import('shiki/langs/csharp.mjs'),        // C#
                 // @ts-expect-error - shiki ESM imports resolved by esbuild at bundle time
-                import('shiki/langs/sql.mjs'),
+                import('shiki/langs/dart.mjs'),          // Dart
                 // @ts-expect-error - shiki ESM imports resolved by esbuild at bundle time
-                import('shiki/langs/shellscript.mjs'),
+                import('shiki/langs/go.mjs'),            // Go
+                // @ts-expect-error - shiki ESM imports resolved by esbuild at bundle time
+                import('shiki/langs/haskell.mjs'),       // Haskell
+                // @ts-expect-error - shiki ESM imports resolved by esbuild at bundle time
+                import('shiki/langs/java.mjs'),          // Java
+                // @ts-expect-error - shiki ESM imports resolved by esbuild at bundle time
+                import('shiki/langs/javascript.mjs'),    // JavaScript
+                // @ts-expect-error - shiki ESM imports resolved by esbuild at bundle time
+                import('shiki/langs/kotlin.mjs'),        // Kotlin
+                // @ts-expect-error - shiki ESM imports resolved by esbuild at bundle time
+                import('shiki/langs/matlab.mjs'),        // MATLAB
+                // @ts-expect-error - shiki ESM imports resolved by esbuild at bundle time
+                import('shiki/langs/ocaml.mjs'),         // OCaml
+                // @ts-expect-error - shiki ESM imports resolved by esbuild at bundle time
+                import('shiki/langs/python.mjs'),        // Python
+                // @ts-expect-error - shiki ESM imports resolved by esbuild at bundle time
+                import('shiki/langs/r.mjs'),             // R
+                // @ts-expect-error - shiki ESM imports resolved by esbuild at bundle time
+                import('shiki/langs/ruby.mjs'),          // Ruby
+                // @ts-expect-error - shiki ESM imports resolved by esbuild at bundle time
+                import('shiki/langs/rust.mjs'),          // Rust
+                // @ts-expect-error - shiki ESM imports resolved by esbuild at bundle time
+                import('shiki/langs/swift.mjs'),         // Swift
+                // @ts-expect-error - shiki ESM imports resolved by esbuild at bundle time
+                import('shiki/langs/typescript.mjs'),    // TypeScript
+                // @ts-expect-error - shiki ESM imports resolved by esbuild at bundle time
+                import('shiki/langs/vhdl.mjs'),          // VHDL
+                // SQL
+                // @ts-expect-error - shiki ESM imports resolved by esbuild at bundle time
+                import('shiki/langs/sql.mjs'),           // SQL
+                // Common markup/config languages (6)
+                // @ts-expect-error - shiki ESM imports resolved by esbuild at bundle time
+                import('shiki/langs/json.mjs'),          // JSON
+                // @ts-expect-error - shiki ESM imports resolved by esbuild at bundle time
+                import('shiki/langs/yaml.mjs'),          // YAML
+                // @ts-expect-error - shiki ESM imports resolved by esbuild at bundle time
+                import('shiki/langs/html.mjs'),          // HTML
+                // @ts-expect-error - shiki ESM imports resolved by esbuild at bundle time
+                import('shiki/langs/css.mjs'),           // CSS
+                // @ts-expect-error - shiki ESM imports resolved by esbuild at bundle time
+                import('shiki/langs/markdown.mjs'),      // Markdown
+                // @ts-expect-error - shiki ESM imports resolved by esbuild at bundle time
+                import('shiki/langs/xml.mjs'),           // XML
             ],
             engine: createJavaScriptRegexEngine(),
         });
