@@ -114,10 +114,12 @@ Plans:
   3. ESLint @typescript-eslint/no-explicit-any rule enforced across codebase
   4. Zero compilation errors in both extension host and webview builds
   5. Type-safe message contracts maintained (no any types in handler signatures)
-**Plans**: TBD
+**Plans**: 3 plans
 
 Plans:
-- [ ] TBD
+- [ ] 12-01-PLAN.md — Resolve all 107 compilation errors (declaration files, tsconfig fixes, suppression comment removal)
+- [ ] 12-02-PLAN.md — ESLint strict type rules + eliminate any from extension host code (providers, commands, services)
+- [ ] 12-03-PLAN.md — Eliminate any from webview React code (stores, components, message contracts)
 
 ### Phase 13: Component Test Suite
 **Goal**: Comprehensive unit tests for React components, Zustand stores, and critical user flows
