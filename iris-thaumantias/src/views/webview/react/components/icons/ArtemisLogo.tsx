@@ -3,7 +3,7 @@
  * Standalone React component matching Lucide's prop API
  */
 
-import { type LucideProps } from 'lucide-react';
+import type { LucideProps } from 'lucide-react';
 
 export interface ArtemisLogoProps extends Omit<LucideProps, 'ref'> {
   size?: number;

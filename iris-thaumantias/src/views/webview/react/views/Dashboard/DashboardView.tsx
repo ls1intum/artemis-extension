@@ -9,19 +9,17 @@ import {
     SkeletonList,
     ErrorMessage,
 } from '../../components';
-import {
-    GraduationCap,
-    Settings,
-    Sparkles,
-    Puzzle,
-    ExternalLink,
-    HeartPulse,
-    Activity,
-    GitBranch,
-    Bug,
-    LogOut,
-    ChevronRight,
-} from 'lucide-react';
+import GraduationCap from 'lucide-react/dist/esm/icons/graduation-cap';
+import Settings from 'lucide-react/dist/esm/icons/settings';
+import Sparkles from 'lucide-react/dist/esm/icons/sparkles';
+import Puzzle from 'lucide-react/dist/esm/icons/puzzle';
+import ExternalLink from 'lucide-react/dist/esm/icons/external-link';
+import HeartPulse from 'lucide-react/dist/esm/icons/heart-pulse';
+import Activity from 'lucide-react/dist/esm/icons/activity';
+import GitBranch from 'lucide-react/dist/esm/icons/git-branch';
+import Bug from 'lucide-react/dist/esm/icons/bug';
+import LogOut from 'lucide-react/dist/esm/icons/log-out';
+import ChevronRight from 'lucide-react/dist/esm/icons/chevron-right';
 import styles from './DashboardView.module.css';
 
 export function DashboardView({ vscodeApi }: DashboardViewProps) {

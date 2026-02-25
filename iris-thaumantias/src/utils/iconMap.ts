@@ -3,48 +3,46 @@
  * All icons are imported individually to enable tree-shaking
  */
 
-import {
-  CircleDot,
-  Code2,
-  CheckCircle,
-  Upload,
-  Box,
-  FileText,
-  BookOpen,
-  ClipboardList,
-  RefreshCw,
-  Trash2,
-  Stethoscope,
-  Star,
-  Sparkles,
-  MousePointer,
-  Settings,
-  Puzzle,
-  Globe,
-  LogOut,
-  MessageSquarePlus,
-  KeyRound,
-  Shield,
-  Copy,
-  Link,
-  GitBranch,
-  HelpCircle,
-  ThumbsUp,
-  ThumbsDown,
-  LayoutGrid,
-  Target,
-  Eye,
-  EyeOff,
-  Check,
-  Plus,
-  File,
-  X,
-  ChevronDown,
-  ChevronRight,
-  XCircle,
-  Bug,
-  type LucideIcon,
-} from 'lucide-react';
+import CircleDot from 'lucide-react/dist/esm/icons/circle-dot';
+import Code2 from 'lucide-react/dist/esm/icons/code-2';
+import CheckCircle from 'lucide-react/dist/esm/icons/check-circle';
+import Upload from 'lucide-react/dist/esm/icons/upload';
+import Box from 'lucide-react/dist/esm/icons/box';
+import FileText from 'lucide-react/dist/esm/icons/file-text';
+import BookOpen from 'lucide-react/dist/esm/icons/book-open';
+import ClipboardList from 'lucide-react/dist/esm/icons/clipboard-list';
+import RefreshCw from 'lucide-react/dist/esm/icons/refresh-cw';
+import Trash2 from 'lucide-react/dist/esm/icons/trash-2';
+import Stethoscope from 'lucide-react/dist/esm/icons/stethoscope';
+import Star from 'lucide-react/dist/esm/icons/star';
+import Sparkles from 'lucide-react/dist/esm/icons/sparkles';
+import MousePointer from 'lucide-react/dist/esm/icons/mouse-pointer';
+import Settings from 'lucide-react/dist/esm/icons/settings';
+import Puzzle from 'lucide-react/dist/esm/icons/puzzle';
+import Globe from 'lucide-react/dist/esm/icons/globe';
+import LogOut from 'lucide-react/dist/esm/icons/log-out';
+import MessageSquarePlus from 'lucide-react/dist/esm/icons/message-square-plus';
+import KeyRound from 'lucide-react/dist/esm/icons/key-round';
+import Shield from 'lucide-react/dist/esm/icons/shield';
+import Copy from 'lucide-react/dist/esm/icons/copy';
+import Link from 'lucide-react/dist/esm/icons/link';
+import GitBranch from 'lucide-react/dist/esm/icons/git-branch';
+import HelpCircle from 'lucide-react/dist/esm/icons/help-circle';
+import ThumbsUp from 'lucide-react/dist/esm/icons/thumbs-up';
+import ThumbsDown from 'lucide-react/dist/esm/icons/thumbs-down';
+import LayoutGrid from 'lucide-react/dist/esm/icons/layout-grid';
+import Target from 'lucide-react/dist/esm/icons/target';
+import Eye from 'lucide-react/dist/esm/icons/eye';
+import EyeOff from 'lucide-react/dist/esm/icons/eye-off';
+import Check from 'lucide-react/dist/esm/icons/check';
+import Plus from 'lucide-react/dist/esm/icons/plus';
+import File from 'lucide-react/dist/esm/icons/file';
+import X from 'lucide-react/dist/esm/icons/x';
+import ChevronDown from 'lucide-react/dist/esm/icons/chevron-down';
+import ChevronRight from 'lucide-react/dist/esm/icons/chevron-right';
+import XCircle from 'lucide-react/dist/esm/icons/x-circle';
+import Bug from 'lucide-react/dist/esm/icons/bug';
+import type { LucideIcon } from 'lucide-react';
 
 /**
  * Typed icon map - all exercise and UI icons

@@ -1,6 +1,12 @@
 import { ReactNode } from 'react';
 import clsx from 'clsx';
-import { X, Check, Menu, ChevronDown, Maximize2, RefreshCw, Settings } from 'lucide-react';
+import X from 'lucide-react/dist/esm/icons/x';
+import Check from 'lucide-react/dist/esm/icons/check';
+import Menu from 'lucide-react/dist/esm/icons/menu';
+import ChevronDown from 'lucide-react/dist/esm/icons/chevron-down';
+import Maximize2 from 'lucide-react/dist/esm/icons/maximize-2';
+import RefreshCw from 'lucide-react/dist/esm/icons/refresh-cw';
+import Settings from 'lucide-react/dist/esm/icons/settings';
 import styles from './IconButton.module.css';
 
 export interface IconButtonProps {
