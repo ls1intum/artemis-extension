@@ -577,6 +577,14 @@ export interface ReadyMessage {
 }
 
 /**
+ * Update panel title (for fullscreen panels).
+ */
+export interface UpdatePanelTitleMessage {
+    type: 'updatePanelTitle';
+    title: string;
+}
+
+/**
  * Save Git identity command.
  */
 export interface SaveGitIdentityCommand {
@@ -998,7 +1006,7 @@ export interface AskIrisAboutExerciseCommand {
  */
 export interface ToggleExerciseFullscreenCommand {
     type: 'command';
-    command: 'toggleExerciseFullscreen';
+    command: 'toggleFullscreen';
 }
 
 /**
@@ -1218,6 +1226,7 @@ export interface ErrorMessage {
  */
 export type WebviewToExtensionMessage =
     | ReadyMessage
+    | UpdatePanelTitleMessage
     | SaveGitIdentityCommand
     | RequestGitIdentityCommand
     | CopyToClipboardCommand

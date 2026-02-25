@@ -7,6 +7,7 @@ import { ProviderRegistry } from '../services/ProviderRegistry';
 import { CONFIG, VSCODE_CONFIG } from '../utils';
 import { AI_EXTENSIONS_BLOCKLIST } from '../utils/aiExtensionsBlocklist';
 import { getRecommendedExtensionsByCategory } from '../utils/recommendedExtensions';
+import { getReactWebviewHtml } from '../utils/webviewHelpers';
 import { AppStateManager, type UserInfo } from '../views/app/appStateManager';
 import { WebViewMessageHandler } from '../views/app/webViewMessageHandler';
 import type { WebViewActionHandler } from '../views/app/types';
@@ -768,17 +769,101 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
     }
 
     public async openExerciseFullscreen(exerciseData: any): Promise<void> {
-        // Fullscreen panels are not yet supported with React views
-        // TODO: Implement React-based fullscreen panel support in a future plan
-        vscode.window.showWarningMessage('Fullscreen exercise view is temporarily disabled during migration to React');
-        logger.warn('openExerciseFullscreen called but fullscreen panels not yet supported with React views', LogCategory.VIEW);
+        const exerciseTitle = exerciseData?.exercise?.title || 'Exercise';
+
+        const panel = vscode.window.createWebviewPanel(
+            'artemis.exerciseFullscreen',
+            `Exercise: ${exerciseTitle}`,
+            vscode.ViewColumn.One,
+            {
+                enableScripts: true,
+                retainContextWhenHidden: true,
+                localResourceRoots: [vscode.Uri.joinPath(this._extensionUri, 'dist')]
+            }
+        );
+
+        // Reuse the same React webview HTML with exerciseDetail view routing
+        panel.webview.html = getReactWebviewHtml(panel.webview, this._extensionUri, 'exerciseDetail');
+
+        // Register message handler for the fullscreen panel
+        panel.webview.onDidReceiveMessage(async (message) => {
+            // Handle 'ready' signal — send exercise data
+            if (message.type === 'ready') {
+                panel.webview.postMessage({
+                    type: 'exerciseDetailInit',
+                    payload: {
+                        exerciseData: exerciseData,
+                        hideDeveloperTools: false,
+                    }
+                });
+            }
+
+            // Handle title updates from the webview
+            if (message.type === 'updatePanelTitle') {
+                panel.title = `Exercise: ${message.title}`;
+            }
+
+            // Forward all other messages (commands, legacy format) to the existing handler
+            // Use handleMessageWithSender so responses go back to THIS panel, not the sidebar
+            const legacyMessage = (message.type === 'command' && message.command)
+                ? { command: message.command, ...(message.payload || {}) }
+                : message;
+            this._messageHandler.handleMessageWithSender(legacyMessage, (responseMessage: any) => {
+                panel.webview.postMessage(responseMessage);
+            });
+        });
+
+        // Track panel for cleanup
+        this._extensionContext.subscriptions.push(panel);
     }
 
     public async openCourseFullscreen(courseData: any): Promise<void> {
-        // Fullscreen panels are not yet supported with React views
-        // TODO: Implement React-based fullscreen panel support in a future plan
-        vscode.window.showWarningMessage('Fullscreen course view is temporarily disabled during migration to React');
-        logger.warn('openCourseFullscreen called but fullscreen panels not yet supported with React views', LogCategory.VIEW);
+        const courseTitle = courseData?.course?.title || 'Course';
+
+        const panel = vscode.window.createWebviewPanel(
+            'artemis.courseFullscreen',
+            `Course: ${courseTitle}`,
+            vscode.ViewColumn.One,
+            {
+                enableScripts: true,
+                retainContextWhenHidden: true,
+                localResourceRoots: [vscode.Uri.joinPath(this._extensionUri, 'dist')]
+            }
+        );
+
+        panel.webview.html = getReactWebviewHtml(panel.webview, this._extensionUri, 'courseDetail');
+
+        panel.webview.onDidReceiveMessage(async (message) => {
+            if (message.type === 'ready') {
+                // Read developer mode setting
+                const config = vscode.workspace.getConfiguration('artemis');
+                const developerMode = config.get<boolean>('developerMode', false);
+                const hideDeveloperTools = !developerMode;
+
+                panel.webview.postMessage({
+                    type: 'courseDetailInit',
+                    payload: {
+                        courseData: courseData,
+                        workspaceExerciseId: null,
+                        hideDeveloperTools: hideDeveloperTools
+                    }
+                });
+            }
+
+            if (message.type === 'updatePanelTitle') {
+                panel.title = `Course: ${message.title}`;
+            }
+
+            // Forward all other messages via handleMessageWithSender
+            const legacyMessage = (message.type === 'command' && message.command)
+                ? { command: message.command, ...(message.payload || {}) }
+                : message;
+            this._messageHandler.handleMessageWithSender(legacyMessage, (responseMessage: any) => {
+                panel.webview.postMessage(responseMessage);
+            });
+        });
+
+        this._extensionContext.subscriptions.push(panel);
     }
 
     // WebSocket message handlers

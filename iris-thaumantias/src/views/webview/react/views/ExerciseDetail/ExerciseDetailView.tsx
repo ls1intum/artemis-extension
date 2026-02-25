@@ -127,7 +127,7 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
     };
 
     const handleFullscreen = () => {
-        vscodeApi.postMessage({ type: 'command', command: 'toggleExerciseFullscreen' });
+        vscodeApi.postMessage({ type: 'command', command: 'toggleFullscreen' });
     };
 
     const handleSettings = () => {
