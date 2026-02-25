@@ -10,12 +10,12 @@ See: .planning/PROJECT.md (updated 2026-02-25)
 ## Current Position
 
 Milestone: v1.1 Production Ready
-Phase: 10 of 14 (Testing Infrastructure)
-Plan: 2 of 2
+Phase: 15 of 14 (Command Handler Gap Closure)
+Plan: 1 of 1
 Status: Complete
-Last activity: 2026-02-25 — Completed 10-02 (Sample React component tests: Button, useDashboardStore, LoginView with 30 passing tests)
+Last activity: 2026-02-25 — Completed 15-01 (Command handler gap closure: openExternalLink, openImagePreview, clearTrustedDomains)
 
-Progress: [█████████░░░░░] 68% (v1.0: 7/7 complete, v1.1: 6/15 plans complete)
+Progress: [█████████░░░░░] 71% (v1.0: 7/7 complete, v1.1: 7/15 plans complete)
 
 ## Performance Metrics
 
@@ -27,16 +27,17 @@ Progress: [█████████░░░░░] 68% (v1.0: 7/7 complete, 
 - Lines of code: 39,841 TypeScript/TSX
 
 **v1.1 Milestone (In Progress):**
-- Phases: 7 (8-14)
-- Plans completed: 6 of 15
+- Phases: 8 (8-15)
+- Plans completed: 7 of 15
 - Phase 8 execution: 15 minutes (2 plans, Phase 8 COMPLETE)
 - Phase 9 execution: 7 minutes (3 plans, Phase 9 COMPLETE)
 - Phase 10 execution: 10 minutes (2 plans, Phase 10 COMPLETE)
-- Files created: 14 (raw findings, flow findings, audit document, problemStatementProcessor, vitest config, 3 test helpers, 3 test files, helper README, 5 SUMMARYs)
-- Files modified: 40 (artemisWebviewProvider, messageContracts, ProblemStatement TSX/CSS, ExerciseDetailView, ExamExerciseDetailView, types, index.tsx, CourseDetailView CSS, package.json, .vscode-test.mjs, 23 test files with import path updates)
+- Phase 15 execution: 3.6 minutes (1 plan, Phase 15 COMPLETE)
+- Files created: 15 (raw findings, flow findings, audit document, problemStatementProcessor, vitest config, 3 test helpers, 3 test files, helper README, 6 SUMMARYs)
+- Files modified: 46 (artemisWebviewProvider, messageContracts, ProblemStatement TSX/CSS, ExerciseDetailView, ExamExerciseDetailView, types, index.tsx, CourseDetailView CSS, package.json, .vscode-test.mjs, 23 test files with import path updates, webViewMessageHandler, extension, utilityCommands)
 - Files moved: 68 (test directory reorganization)
 - Tests added: 30 (Button: 12, useDashboardStore: 9, LoginView: 9)
-- Estimated total: ~68 minutes remaining
+- Estimated total: ~64 minutes remaining
 
 ## Accumulated Context
 
@@ -66,6 +67,10 @@ Recent decisions affecting v1.1 work:
 - [Phase 10-02]: Sample tests demonstrate meaningful assertions, not smoke tests (user requirement: validate behavior, interactions, state changes)
 - [Phase 10-02]: Focus assertions on behavior and DOM structure, not CSS class names (CSS modules produce hashed class names; RTL best practices)
 - [Phase 10-02]: LoginView test validates full bridge communication both directions (postMessage outgoing + dispatchExtensionMessage incoming)
+- [Phase 15-01]: Modal dialogs with no Cancel button — VS Code provides implicit dismiss via Escape/close button
+- [Phase 15-01]: Trust domain granularity at hostname level (not full URL)
+- [Phase 15-01]: No temp file cleanup for v1.1 — VS Code cleans globalStorageUri on uninstall
+- [Phase 15-01]: Images don't require confirmation — content vs navigation distinction
 
 ### Pending Todos
 
@@ -98,10 +103,10 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-25
-Stopped at: Completed 10-02-PLAN.md (Sample React component tests: Button, useDashboardStore, LoginView with 30 passing tests)
+Stopped at: Completed 15-01-PLAN.md (Command handler gap closure: openExternalLink, openImagePreview, clearTrustedDomains with 2 handlers and 5 helper methods)
 Resume with: Phase 11 (Bundle Size Optimization)
 
 ---
 
 *Created: 2026-02-23 (v1.0)*
-*Updated: 2026-02-25 (Phase 10 COMPLETE — Testing infrastructure with sample tests, helper docs, 30 passing tests)*
+*Updated: 2026-02-25 (Phase 15 COMPLETE — Command handler gap closure with link/image handling, trusted domain persistence)*
