@@ -28,7 +28,7 @@ Full details: milestones/v1.0-ROADMAP.md
 
 - [ ] **Phase 8: Architecture Review** - Audit codebase for anti-patterns and improvement opportunities
 - [ ] **Phase 9: UI Polish & Icons** - Lucide icon migration and fullscreen panel restoration
-- [ ] **Phase 10: Testing Infrastructure** - Vitest setup with React Testing Library and webview mocks
+- [x] **Phase 10: Testing Infrastructure** - Vitest setup with React Testing Library and webview mocks (completed 2026-02-25)
 - [ ] **Phase 11: Bundle Optimization** - Bundle analyzer integration and tree-shaking verification
 - [ ] **Phase 12: TypeScript Strict Mode** - Zero compilation errors with strict mode enabled
 - [ ] **Phase 13: Component Test Suite** - Comprehensive tests for components, stores, and flows
@@ -175,7 +175,7 @@ Plans:
 | 7. Cleanup & Optimization | v1.0 | 4/4 | Complete | 2026-02-24 |
 | 8. Architecture Review | v1.1 | 2/2 | Complete | 2026-02-25 |
 | 9. UI Polish & Icons | v1.1 | 0/3 | Planned | - |
-| 10. Testing Infrastructure | 1/2 | In Progress|  | - |
+| 10. Testing Infrastructure | 2/2 | Complete   | 2026-02-25 | - |
 | 11. Bundle Optimization | v1.1 | 0/? | Not started | - |
 | 12. TypeScript Strict Mode | v1.1 | 0/? | Not started | - |
 | 13. Component Test Suite | v1.1 | 0/? | Not started | - |

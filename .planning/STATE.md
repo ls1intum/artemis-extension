@@ -11,11 +11,11 @@ See: .planning/PROJECT.md (updated 2026-02-25)
 
 Milestone: v1.1 Production Ready
 Phase: 10 of 14 (Testing Infrastructure)
-Plan: 1 of 2
-Status: In Progress
-Last activity: 2026-02-25 — Completed 10-01 (Vitest testing infrastructure, React test helpers, test directory reorganization)
+Plan: 2 of 2
+Status: Complete
+Last activity: 2026-02-25 — Completed 10-02 (Sample React component tests: Button, useDashboardStore, LoginView with 30 passing tests)
 
-Progress: [█████████░░░░░] 64% (v1.0: 7/7 complete, v1.1: 5/15 plans complete)
+Progress: [█████████░░░░░] 68% (v1.0: 7/7 complete, v1.1: 6/15 plans complete)
 
 ## Performance Metrics
 
@@ -28,14 +28,15 @@ Progress: [█████████░░░░░] 64% (v1.0: 7/7 complete, 
 
 **v1.1 Milestone (In Progress):**
 - Phases: 7 (8-14)
-- Plans completed: 5 of 15
+- Plans completed: 6 of 15
 - Phase 8 execution: 15 minutes (2 plans, Phase 8 COMPLETE)
 - Phase 9 execution: 7 minutes (3 plans, Phase 9 COMPLETE)
-- Phase 10 execution: 6 minutes (1 plan, in progress)
-- Files created: 10 (raw findings, flow findings, audit document, problemStatementProcessor, vitest config, 3 test helpers, 4 SUMMARYs)
+- Phase 10 execution: 10 minutes (2 plans, Phase 10 COMPLETE)
+- Files created: 14 (raw findings, flow findings, audit document, problemStatementProcessor, vitest config, 3 test helpers, 3 test files, helper README, 5 SUMMARYs)
 - Files modified: 40 (artemisWebviewProvider, messageContracts, ProblemStatement TSX/CSS, ExerciseDetailView, ExamExerciseDetailView, types, index.tsx, CourseDetailView CSS, package.json, .vscode-test.mjs, 23 test files with import path updates)
 - Files moved: 68 (test directory reorganization)
-- Estimated total: ~72 minutes remaining
+- Tests added: 30 (Button: 12, useDashboardStore: 9, LoginView: 9)
+- Estimated total: ~68 minutes remaining
 
 ## Accumulated Context
 
@@ -62,6 +63,9 @@ Recent decisions affecting v1.1 work:
 - [Phase 09-ui-polish-icons]: ArtemisLogo as standalone component with LucideProps API maintains brand identity while matching Lucide ecosystem for consistency
 - [Phase 10-01]: Use triple-slash directives for Vitest global types instead of polluting main tsconfig
 - [Phase 10-01]: Separate test directories by runner: test/unit/ (vscode-test), test/e2e/ (vscode-test E2E), test/react/ (Vitest), test/__shared__/ (cross-runner)
+- [Phase 10-02]: Sample tests demonstrate meaningful assertions, not smoke tests (user requirement: validate behavior, interactions, state changes)
+- [Phase 10-02]: Focus assertions on behavior and DOM structure, not CSS class names (CSS modules produce hashed class names; RTL best practices)
+- [Phase 10-02]: LoginView test validates full bridge communication both directions (postMessage outgoing + dispatchExtensionMessage incoming)
 
 ### Pending Todos
 
@@ -94,10 +98,10 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-25
-Stopped at: Completed 10-01-PLAN.md (Vitest testing infrastructure, React test helpers, test directory reorganization)
-Resume with: Phase 10-02 (Sample React component tests)
+Stopped at: Completed 10-02-PLAN.md (Sample React component tests: Button, useDashboardStore, LoginView with 30 passing tests)
+Resume with: Phase 11 (Bundle Size Optimization)
 
 ---
 
 *Created: 2026-02-23 (v1.0)*
-*Updated: 2026-02-25 (Phase 10-01 complete — Vitest infrastructure, test helpers, directory reorganization)*
+*Updated: 2026-02-25 (Phase 10 COMPLETE — Testing infrastructure with sample tests, helper docs, 30 passing tests)*
