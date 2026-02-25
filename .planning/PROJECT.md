@@ -82,5 +82,152 @@ Students can interact with Artemis courses, exercises, and the Iris AI tutor wit
 | Tests separate milestone | Keep v1.0 focused; test updates in v1.1 | ⚠️ Revisit |
 | IIFE bundle format | Single file, consistent with webview constraints | ⚠️ Revisit (3.5MB) |
 
+## Architecture Decisions
+
+**Source:** Phase 8 Architecture Review (2026-02-25)
+**Reference:** .planning/phases/08-architecture-review/08-AUDIT.md
+
+This section documents current architectural patterns discovered during the Phase 8 audit, including decisions that should be preserved and those that should be revisited.
+
+### Decisions to Preserve (Do NOT Refactor in v1.1)
+
+#### Dual State Management (AppStateManager + Zustand)
+
+**Pattern:** Extension host uses `AppStateManager` (class-based, 13 states, API data caching). React webview uses 9 Zustand stores (feature-scoped, UI state). Data flows one-way: API → AppStateManager → postMessage → Zustand → React.
+
+**Rationale:** v1.0 React migration preserved extension host architecture to reduce scope and risk. Migration to single state system would require rewriting extension host services.
+
+**Files:** `src/views/app/appStateManager.ts`, `src/views/webview/react/stores/*.ts`
+
+**Status:** Intentional technical debt. Works correctly for one-way data flow. **Do NOT attempt** migration before Phase 13 (comprehensive testing in place).
+
 ---
-*Last updated: 2026-02-25 after v1.1 milestone start*
+
+#### View-Scoped Zustand Stores (9 separate stores)
+
+**Pattern:** Each view has its own store (Dashboard, CourseList, CourseDetail, ExerciseDetail, + 4 exam views, + Chat, + Navigation). Each store owns loading/error state independently.
+
+**Rationale:** Clear separation of concerns, no cross-store dependencies, easier to reason about. Matches React component hierarchy. Repetitive loading/error patterns are INTENTIONAL.
+
+**Files:** `src/views/webview/react/stores/*.ts`
+
+**Status:** Working as designed. Consolidation would create god-store anti-pattern. Acceptable enhancement: Extract global UI state (toasts, global errors) into separate `useUIStore`.
+
+---
+
+#### IIFE Bundle Format (webview-react.js)
+
+**Pattern:** Webview bundle uses IIFE (Immediately Invoked Function Expression) format, not ESM.
+
+**Rationale:** VS Code webviews require single-file bundles. ESM code splitting is NOT supported in VS Code webviews (VS Code Issue #93041). Tree-shaking DOES work with IIFE.
+
+**Files:** `esbuild.js` — webview bundle config: `format: 'iife'`
+
+**Status:** Platform constraint, not a choice. Current 3.5MB bundle is large but acceptable (~500ms load). Phase 11 will optimize via tree-shaking. Code splitting deferred to v1.2+ pending VS Code platform support.
+
+---
+
+#### Web Worker Exam Timers
+
+**Pattern:** Exam timers run in Web Workers with absolute timestamps, not main thread `setTimeout`.
+
+**Rationale:** Main thread timers are throttled in background tabs (up to 1s intervals). Web Workers run at full speed, preventing drift. Matches Artemis webapp behavior.
+
+**Files:** `src/views/webview/react/workers/examTimer.worker.ts`, `src/views/webview/react/components/ExamTimer/ExamTimer.tsx`
+
+**Status:** Exemplary implementation. **Do NOT change** without thorough testing (accuracy is critical for exams).
+
+---
+
+#### postMessage Bridge (not VS Code Messenger)
+
+**Pattern:** Extension ↔ webview communication uses raw `postMessage` with plain object messages.
+
+**Rationale:** VS Code Messenger adds complexity and bundle size. postMessage is VS Code standard, well-documented. Message contracts can be typed via discriminated unions (Phase 12).
+
+**Files:** `src/views/app/webViewMessageHandler.ts`, `src/provider/artemisWebviewProvider.ts`
+
+**Status:** Working as designed. Type safety gap will be addressed in Phase 12 (TYPE-03). VS Code Messenger upgrade deferred to v1.2+ (DX-02).
+
+---
+
+### Decisions to Revisit
+
+#### Message Contract Type Safety
+
+**Current:** All postMessage payloads typed as `any`. No compile-time checks for message structure.
+
+**Issue:** Runtime errors possible if message shape changes. Adding new message types is error-prone.
+
+**Plan:** Phase 12 (TYPE-03) will migrate to TypeScript discriminated unions with exhaustive checking. Create `src/shared/messageContracts.ts` with typed message contracts.
+
+**Status:** Flagged for v1.1 remediation (HIGH impact, MEDIUM effort).
+
+---
+
+#### WebSocket Error Propagation
+
+**Current:** WebSocket/STOMP errors logged but NOT sent to webview UI. Users see "loading..." forever if connection fails.
+
+**Issue:** Poor UX, no error feedback for connection failures.
+
+**Plan:** Phase 13 will add error propagation: `postMessage({ type: 'websocketError', payload: {...} })` when WebSocket errors occur. Add `websocketError` state to Zustand stores for UI display.
+
+**Status:** Flagged for v1.1 remediation (HIGH impact, LOW effort — Quick Win).
+
+---
+
+#### State Persistence (getState/setState)
+
+**Current:** Webview does NOT use `vscode.getState()` / `vscode.setState()`. Transient UI state lost on panel hide/show.
+
+**Issue:** Navigation breadcrumbs, scroll position, form drafts lost if VS Code destroys webview content.
+
+**Plan:** v1.2 deferred. Add debounced `setState()` to Zustand stores for transient UI state. Document as known limitation for v1.1.
+
+**Status:** Known limitation (MEDIUM impact, MEDIUM effort).
+
+---
+
+#### Circular Dependencies
+
+**Current:** 2 circular imports via `ProviderRegistry` (low impact but confusing).
+
+**Issue:** Harder to understand module graph, may confuse bundlers.
+
+**Plan:** Phase 13 will extract interfaces (`IArtemisWebviewProvider`, `IChatWebviewProvider`) to break cycles. Alternative: Import services directly instead of via barrel file.
+
+**Status:** Flagged for v1.1 remediation (LOW impact, LOW effort — Quick Win).
+
+---
+
+### Data Caching Policy
+
+**Current:** Inconsistent caching behavior:
+- Exercise detail: ALWAYS refetch (ensures latest submission status)
+- Course detail: Use cached data (performance)
+- Dashboard: Use cached data (performance)
+
+**Rationale:** Exercise/exam data changes frequently (submissions, results) → always fresh. Course data changes rarely → can be cached. Users can manually refresh via reload commands.
+
+**Files:** `src/views/app/appStateManager.ts` (see comments for detailed policy)
+
+**Status:** Working as designed. Policy documented in code comments (Finding 8 remediation).
+
+---
+
+### Tech Stack Rationale
+
+| Choice | Why | Alternatives Considered |
+|--------|-----|-------------------------|
+| React 18.3.1 | Stable, battle-tested in VS Code webviews, includes React 19 migration warnings | React 19 (too new, breaking changes) |
+| Zustand | Lightweight (~2KB), no Provider boilerplate, DevTools support, easy testing | Redux (complex), Context API (verbose) |
+| CSS Modules | No runtime cost, VS Code CSS variables support, TypeScript typing | Styled Components/Emotion (bundle bloat, runtime overhead) |
+| esbuild | 10-100x faster than webpack, dual-target support, tree-shaking built-in | webpack (slow), Vite (ESM-only) |
+| Shiki | VS Code themes, accurate highlighting, lazy load | Highlight.js (heavy), Prism (manual language loading) |
+| RAF token buffering | Sentence-level updates (smooth UX), prevents React re-render thrashing | Per-token setState (flicker, poor performance) |
+
+---
+
+*Architecture Decisions documented: 2026-02-25 (Phase 8 Architecture Review)*
+*Last updated: 2026-02-25*
