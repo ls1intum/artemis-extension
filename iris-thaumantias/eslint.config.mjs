@@ -2,7 +2,7 @@ import typescriptEslint from "@typescript-eslint/eslint-plugin";
 import tsParser from "@typescript-eslint/parser";
 
 export default [{
-    files: ["**/*.ts"],
+    files: ["**/*.ts", "**/*.tsx"],
 }, {
     plugins: {
         "@typescript-eslint": typescriptEslint,
@@ -29,12 +29,14 @@ export default [{
         // Only the loggingService.ts file is allowed to use console.* (with eslint-disable comments)
         "no-console": "error",
 
-        // Prevent wildcard imports from lucide-react to maintain tree-shaking
+        // Prevent ALL imports from lucide-react barrel file to ensure tree-shaking
+        // Icons must use direct paths: import Icon from 'lucide-react/dist/esm/icons/icon-name'
+        // Type imports (import type { LucideIcon } from 'lucide-react') are allowed — erased at compile time
         'no-restricted-imports': ['error', {
-            patterns: [{
-                group: ['lucide-react'],
-                importNamePattern: '^\\*$',
-                message: 'Do not use wildcard imports from lucide-react. Use named imports: import { IconName } from "lucide-react".',
+            paths: [{
+                name: 'lucide-react',
+                message: 'Import icons from direct paths: import Icon from "lucide-react/dist/esm/icons/icon-name". Type imports (import type { ... } from "lucide-react") are allowed.',
+                allowTypeImports: true,
             }],
         }],
     },
