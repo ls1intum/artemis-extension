@@ -24,10 +24,19 @@ export default [{
         eqeqeq: "warn",
         "no-throw-literal": "warn",
         semi: "warn",
-        
+
         // Enforce usage of LoggingService instead of console.*
         // Only the loggingService.ts file is allowed to use console.* (with eslint-disable comments)
         "no-console": "error",
+
+        // Prevent wildcard imports from lucide-react to maintain tree-shaking
+        'no-restricted-imports': ['error', {
+            patterns: [{
+                group: ['lucide-react'],
+                importNamePattern: '^\\*$',
+                message: 'Do not use wildcard imports from lucide-react. Use named imports: import { IconName } from "lucide-react".',
+            }],
+        }],
     },
 },
 // Allow console.* in test files

@@ -17,6 +17,10 @@ out/
 coverage/
 *.vsix
 
+# Bundle analysis reports (generated, regenerate with npm run build:analyze)
+dist/meta-*.json
+dist/*.html
+
 # Test reports (generated per run)
 test/struggle-detection/reports/
 
