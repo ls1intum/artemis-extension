@@ -83,3 +83,6 @@ export type { ErrorMessageProps } from './ErrorMessage';
 
 export { EmptyState } from './EmptyState';
 export type { EmptyStateProps } from './EmptyState';
+
+// Icon components
+export { ArtemisLogo } from './icons';

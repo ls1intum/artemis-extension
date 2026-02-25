@@ -1,5 +1,6 @@
 /* Icon Button Components - Compact action buttons with icons */
 
+/* Icon theming — applies to all icon buttons */
 .iconBtn {
     display: inline-flex;
     align-items: center;
@@ -14,6 +15,16 @@
     transition: background-color 0.15s ease, color 0.15s ease;
     outline: none;
     flex-shrink: 0;
+    color: var(--vscode-icon-foreground, #c5c5c5);
+}
+
+.iconBtn:hover:not(.iconBtnDisabled) {
+    background-color: var(--vscode-toolbar-hoverBackground, rgba(90, 93, 94, 0.31));
+    color: var(--vscode-foreground, #cccccc);
+}
+
+.iconBtn:active:not(.iconBtnDisabled) {
+    background-color: var(--vscode-toolbar-activeBackground, rgba(99, 102, 103, 0.4));
 }
 
 .iconBtn svg {
@@ -28,10 +39,6 @@
 }
 
 /* Checkmark button (confirm/accept) - Green accent */
-.iconBtnCheckmark {
-    color: var(--vscode-icon-foreground, #c5c5c5);
-}
-
 .iconBtnCheckmark:hover:not(.iconBtnDisabled) {
     background-color: var(--vscode-button-background, #007acc);
     color: var(--vscode-button-foreground, #ffffff);
@@ -42,10 +49,6 @@
 }
 
 /* Close button (cancel/close) - Red accent on hover */
-.iconBtnClose {
-    color: var(--vscode-icon-foreground, #c5c5c5);
-}
-
 .iconBtnClose:hover:not(.iconBtnDisabled) {
     background-color: var(--vscode-inputValidation-errorBackground, rgba(244, 71, 71, 0.2));
     color: var(--vscode-errorForeground, #f48771);
@@ -55,19 +58,7 @@
     background-color: var(--vscode-inputValidation-errorBackground, rgba(244, 71, 71, 0.3));
 }
 
-/* Fullscreen button */
-.iconBtnFullscreen {
-    color: var(--vscode-icon-foreground, #c5c5c5);
-}
-
-.iconBtnFullscreen:hover:not(.iconBtnDisabled) {
-    background-color: var(--vscode-toolbar-hoverBackground, rgba(90, 93, 94, 0.31));
-    color: var(--vscode-foreground, #cccccc);
-}
-
-.iconBtnFullscreen:active:not(.iconBtnDisabled) {
-    background-color: var(--vscode-toolbar-activeBackground, rgba(99, 102, 103, 0.4));
-}
+/* Fullscreen button - uses base theme */
 
 /* Disabled state */
 .iconBtnDisabled,
@@ -77,19 +68,7 @@
     pointer-events: none;
 }
 
-/* Collapse/expand toggle button */
-.iconBtnCollapse {
-    color: var(--vscode-icon-foreground, #c5c5c5);
-}
-
-.iconBtnCollapse:hover:not(.iconBtnDisabled) {
-    background-color: var(--vscode-toolbar-hoverBackground, rgba(90, 93, 94, 0.31));
-    color: var(--vscode-foreground, #cccccc);
-}
-
-.iconBtnCollapse:active:not(.iconBtnDisabled) {
-    background-color: var(--vscode-toolbar-activeBackground, rgba(99, 102, 103, 0.4));
-}
+/* Collapse/expand toggle button - uses base theme */
 
 .collapseChevron {
     transition: transform 0.2s ease;
@@ -129,52 +108,16 @@
     transform: rotate(90deg);
 }
 
-/* Burger menu button */
-.iconBtnBurgerMenu {
-    color: var(--vscode-icon-foreground, #c5c5c5);
-}
-
-.iconBtnBurgerMenu:hover:not(.iconBtnDisabled) {
-    background-color: var(--vscode-toolbar-hoverBackground, rgba(90, 93, 94, 0.31));
-    color: var(--vscode-foreground, #cccccc);
-}
-
-.iconBtnBurgerMenu:active:not(.iconBtnDisabled) {
-    background-color: var(--vscode-toolbar-activeBackground, rgba(99, 102, 103, 0.4));
-}
+/* Burger menu button - uses base theme */
 
 /* Open state - subtle highlight to indicate menu is open */
 .iconBtnBurgerMenuOpen {
     background-color: var(--vscode-toolbar-activeBackground, rgba(99, 102, 103, 0.4));
 }
 
-/* Settings button */
-.iconBtnSettings {
-    color: var(--vscode-icon-foreground, #c5c5c5);
-}
+/* Settings button - uses base theme */
 
-.iconBtnSettings:hover:not(.iconBtnDisabled) {
-    background-color: var(--vscode-toolbar-hoverBackground, rgba(90, 93, 94, 0.31));
-    color: var(--vscode-foreground, #cccccc);
-}
-
-.iconBtnSettings:active:not(.iconBtnDisabled) {
-    background-color: var(--vscode-toolbar-activeBackground, rgba(99, 102, 103, 0.4));
-}
-
-/* Reload button */
-.iconBtnReload {
-    color: var(--vscode-icon-foreground, #c5c5c5);
-}
-
-.iconBtnReload:hover:not(.iconBtnDisabled) {
-    background-color: var(--vscode-toolbar-hoverBackground, rgba(90, 93, 94, 0.31));
-    color: var(--vscode-foreground, #cccccc);
-}
-
-.iconBtnReload:active:not(.iconBtnDisabled) {
-    background-color: var(--vscode-toolbar-activeBackground, rgba(99, 102, 103, 0.4));
-}
+/* Reload button - uses base theme */
 
 /* Loading state - spinning animation */
 .iconBtnLoading svg {
