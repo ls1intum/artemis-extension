@@ -142,3 +142,27 @@
   gap: 8px;
   flex-wrap: wrap;
 }
+
+/* Fullscreen responsive layout */
+@media (min-width: 600px) {
+    .exerciseDetailView {
+        max-width: 900px;
+        margin: 0 auto;
+        padding: 16px 24px;
+    }
+
+    .infoGrid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+@media (min-width: 900px) {
+    .exerciseDetailView {
+        max-width: 1100px;
+        padding: 20px 32px;
+    }
+
+    .infoGrid {
+        grid-template-columns: repeat(3, 1fr);
+    }
+}

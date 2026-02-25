@@ -217,3 +217,24 @@
     gap: 8px;
     flex-wrap: wrap;
 }
+
+/* Fullscreen responsive layout */
+@media (min-width: 600px) {
+    .courseDetailContainer {
+        max-width: 900px;
+        margin: 0 auto;
+        padding: 16px 24px;
+    }
+}
+
+@media (min-width: 900px) {
+    .courseDetailContainer {
+        max-width: 1100px;
+        padding: 20px 32px;
+    }
+
+    /* Allow exercise list to use more horizontal space */
+    .exerciseHeader {
+        gap: 12px;
+    }
+}
