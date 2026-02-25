@@ -56,6 +56,8 @@ Recent decisions affecting v1.1 work:
 - [Phase 09-ui-polish-icons]: Use CSS media queries for responsive layout rather than fullscreen-specific classes
 - [Phase 09-03]: KaTeX class-based HTML output for CSP compliance
 - [Phase 09-03]: PlantUML async rendering via extension command handler and Artemis server API
+- [Phase 09-ui-polish-icons]: Typed const map with satisfies pattern for icon system provides type-safe IconKey while preserving const literal types for tree-shaking
+- [Phase 09-ui-polish-icons]: ArtemisLogo as standalone component with LucideProps API maintains brand identity while matching Lucide ecosystem for consistency
 
 ### Pending Todos
 

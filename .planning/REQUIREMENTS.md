@@ -9,7 +9,7 @@ Requirements for v1.1 Production Ready. Each maps to roadmap phases.
 
 ### UI Polish
 
-- [ ] **UI-01**: All custom SVG icons (IconDefinitions.ts) migrated to Lucide React components with named imports for tree-shaking
+- [x] **UI-01**: All custom SVG icons (IconDefinitions.ts) migrated to Lucide React components with named imports for tree-shaking
 - [x] **UI-02**: Fullscreen panel support re-enabled and functional
 - [x] **UI-03**: Exercise detail page renders problem statement content correctly
 
@@ -79,7 +79,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 |-------------|-------|--------|
 | ARCH-01 | Phase 8 | Complete |
 | ARCH-02 | Phase 8 | Complete |
-| UI-01 | Phase 9 | Pending |
+| UI-01 | Phase 9 | Complete |
 | UI-02 | Phase 9 | Complete |
 | UI-03 | Phase 9 | Complete |
 | TEST-01 | Phase 10 | Pending |
