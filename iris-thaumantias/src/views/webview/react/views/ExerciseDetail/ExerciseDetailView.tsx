@@ -3,6 +3,7 @@ import { useExerciseDetailStore } from '../../stores/useExerciseDetailStore';
 import { useNavigationStore } from '../../stores/useNavigationStore';
 import { useWebSocketUpdates } from '../../hooks/useWebSocketUpdates';
 import type { ExerciseDetailViewProps } from './types';
+import { getIcon } from '../../../../../utils/iconMap';
 import {
     BackLink,
     IconButton,
@@ -333,7 +334,10 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
                             <div className={styles.exerciseTitle}>{exercise.title}</div>
                             <div className={styles.exerciseMeta}>
                                 <div className={styles.exerciseIconBadge}>
-                                    {exerciseType === 'programming' ? '💻' : '📄'}
+                                    {(() => {
+                                        const ExerciseTypeIcon = getIcon(exercise.type);
+                                        return <ExerciseTypeIcon size={16} />;
+                                    })()}
                                 </div>
                                 <Badge variant="default">
                                     {maxPoints} {maxPoints === 1 ? 'point' : 'points'}
@@ -484,6 +488,7 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
                 markdown={problemStatementHtml}
                 downloadLinks={downloadLinks}
                 onDownload={handleDownloadFile}
+                vscodeApi={vscodeApi}
             />
 
             {/* Developer Tools */}

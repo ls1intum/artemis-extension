@@ -1022,6 +1022,40 @@ export interface DownloadFileCommand {
 }
 
 /**
+ * Open external link in browser command.
+ */
+export interface OpenExternalLinkCommand {
+    type: 'command';
+    command: 'openExternalLink';
+    payload: {
+        url: string;
+    };
+}
+
+/**
+ * Open image preview in VS Code command.
+ */
+export interface OpenImagePreviewCommand {
+    type: 'command';
+    command: 'openImagePreview';
+    payload: {
+        uri: string;
+    };
+}
+
+/**
+ * Render PlantUML diagram inline command.
+ */
+export interface RenderPlantUmlInlineCommand {
+    type: 'command';
+    command: 'renderPlantUmlInline';
+    payload: {
+        plantUml: string;
+        index: number;
+    };
+}
+
+/**
  * Check repository status command.
  */
 export interface CheckRepositoryStatusCommand {
@@ -1271,6 +1305,9 @@ export type WebviewToExtensionMessage =
     | AskIrisAboutExerciseCommand
     | ToggleExerciseFullscreenCommand
     | DownloadFileCommand
+    | OpenExternalLinkCommand
+    | OpenImagePreviewCommand
+    | RenderPlantUmlInlineCommand
     | CheckRepositoryStatusCommand
     | OpenExamExerciseDetailsCommand
     | BackToExamCommand

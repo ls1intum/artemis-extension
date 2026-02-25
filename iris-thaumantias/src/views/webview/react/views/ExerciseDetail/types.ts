@@ -23,6 +23,7 @@ export interface ProblemStatementProps {
     markdown: string;
     downloadLinks?: Array<{ name: string; url: string }>;
     onDownload?: (url: string, name: string) => void;
+    vscodeApi?: VsCodeApi;
 }
 
 /**
