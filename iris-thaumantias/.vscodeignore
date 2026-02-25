@@ -28,3 +28,5 @@ coverage/**
 CONTRIBUTING.md
 renovate.json
 dist/meta.json
+.env
+.env.*

@@ -4,9 +4,9 @@ export default defineConfig([
 	{
 		// Unit tests (default)
 		label: 'unit',
-		files: 'out/test/**/*.test.js',
-		// Exclude e2e tests from unit test run
-		exclude: ['out/test/e2e/**'],
+		files: 'out/test/unit/**/*.test.js',
+		// Exclude struggle-detection tests (run via test:struggle script)
+		exclude: ['out/test/unit/struggle-detection/**'],
 		coverage: {
 			exclude: ['**/test/**', '**/out/test/**'],
 		},

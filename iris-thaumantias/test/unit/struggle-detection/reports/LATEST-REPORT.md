@@ -1,0 +1,1172 @@
+# Struggle Detection Algorithm (EQ) - Test Report
+
+> **Generated:** 2026-02-22T12:42:35.569Z
+> **Duration:** 0.01 seconds
+> **Status:** ✅ 100.0% Pass Rate (23/23 scenarios)
+
+This document provides a comprehensive analysis of the EQ-based struggle detection algorithm's performance.
+
+---
+
+## Executive Summary
+
+### Key Metrics at a Glance
+
+| Metric | Value | Target | Status |
+|--------|-------|--------|--------|
+| **Precision** | 100.0% | > 85% | ✅ |
+| **Recall** | 100.0% | > 70% | ✅ |
+| **F1 Score** | 100.0% | > 75% | ✅ |
+| **Accuracy** | 100.0% | > 80% | ✅ |
+
+**Assessment:** The algorithm is **well-balanced**.
+
+---
+
+## Methodology
+
+### What is Struggle Detection?
+
+The algorithm monitors student behaviour during programming exercises to identify when they might be stuck.
+
+### How the Algorithm Works (EQ System)
+
+The **Error Quotient (EQ)** scores consecutive pairs of compile-equivalent events using the Jadud 2006 formula:
+
+| Factor | Score | Description |
+|--------|-------|-------------|
+| **Both events have errors** | +8 | Both snapshots contain compiler errors |
+| **Same error family** | +3 | The same error type appears in both |
+| **Max per pair** | 11 | Normalized to 0.0-1.0 |
+
+EQ = mean(pair_scores) / 11. Range: 0.0 (no struggle) to 1.0 (maximum struggle).
+
+### EQ Thresholds
+
+| EQ Range | Classification | Recommended Action |
+|----------|----------------|-------------------|
+| < 0.15 | No struggle | None |
+| 0.15-0.34 | Mild struggle | Subtle hint |
+| 0.35-0.59 | Moderate struggle | Notification |
+| 0.60-1.0 | Severe struggle | Proactive intervention |
+
+### How We Test
+
+Each **scenario** simulates events (edits, saves, diagnostics, builds, time):
+1. **Save events** create ErrorSnapshots from active diagnostics → fed to EQ engine
+2. **Build events** create ErrorSnapshots from build classification → fed to EQ engine
+3. The **final EQ** is compared against expected ranges
+4. Results are aggregated into precision/recall metrics
+
+---
+
+## Understanding the Results
+
+### The Confusion Matrix
+
+```
+                        ALGORITHM PREDICTION
+                    ┌─────────────┬─────────────┐
+                    │  Struggle   │  No Struggle │
+        ┌───────────┼─────────────┼─────────────┤
+ACTUAL  │ Struggle  │ TP: 13      │ FN:  0       │
+REALITY │───────────┼─────────────┼─────────────│
+        │No Struggle│ FP:  0      │ TN: 10       │
+        └───────────┴─────────────┴─────────────┘
+```
+
+| Cell | Count | Meaning |
+|------|-------|---------|
+| **True Positive (TP)** | 13 | Correctly detected struggle |
+| **True Negative (TN)** | 10 | Correctly detected no struggle |
+| **False Positive (FP)** | 0 | Wrongly detected struggle |
+| **False Negative (FN)** | 0 | Missed real struggle |
+
+---
+
+## Detailed Metrics
+
+### Classification Metrics
+
+| Metric | Value | Interpretation |
+|--------|-------|----------------|
+| **Precision** | 100.0% | No false alarms! |
+| **Recall** | 100.0% | Catches all struggles! |
+| **F1 Score** | 100.0% | Well-balanced |
+| **Accuracy** | 100.0% | Overall correctness |
+
+### By Difficulty Category
+
+| Category | Passed | Failed | Avg EQ |
+|----------|--------|--------|--------|
+| **Obvious** | 16/16 | 0 | 0.600 |
+| **Subtle** | 1/1 | 0 | 0.286 |
+| **Edge-case** | 6/6 | 0 | 0.331 |
+
+---
+
+## Results by Category
+
+### Obvious Struggle Scenarios
+
+| Status | Scenario | Expected EQ | Actual EQ | Gap |
+|--------|----------|-------------|-----------|-----|
+| ✅ | Critical Struggle - Proactive Intervention | 0.6-0.8 | 0.714 | - |
+| ✅ | Long Inactivity With Errors | 1-1 | 1.000 | - |
+| ✅ | Persistent Syntax Error | 1-1 | 1.000 | - |
+| ✅ | Repeated Build Failures | 1-1 | 1.000 | - |
+| ✅ | Severe Struggle - Notification Level | 0.35-0.5 | 0.429 | - |
+| ✅ | Thrashing Then Giving Up | 0.65-0.8 | 0.727 | - |
+| ✅ | Normal Development Flow | 0-0 | 0.000 | - |
+| ✅ | Thinking Pause - No Errors | 0-0 | 0.000 | - |
+| ✅ | All Clean Compiles | 0-0 | 0.000 | - |
+| ✅ | All Different Errors | 0.72-0.73 | 0.727 | - |
+| ✅ | All Same Error | 1-1 | 1.000 | - |
+| ✅ | Below Minimum Events | 0.9-1 | 1.000 | - |
+| ✅ | Build Compiler Error | 1-1 | 1.000 | - |
+| ✅ | Build Test Failure | 0-0 | 0.000 | - |
+| ✅ | Mixed Clean and Error | 0-0 | 0.000 | - |
+| ✅ | Session Split | 0.9-1 | 1.000 | - |
+
+### Subtle Struggle Scenarios
+
+| Status | Scenario | Expected EQ | Actual EQ | Gap |
+|--------|----------|-------------|-----------|-----|
+| ✅ | Errors Then Recovery | 0.28-0.3 | 0.286 | - |
+
+### No-Struggle Scenarios
+
+| Status | Scenario | Expected EQ | Actual EQ | Gap |
+|--------|----------|-------------|-----------|-----|
+| ✅ | Normal Development Flow | 0-0 | 0.000 | - |
+| ✅ | Thinking Pause - No Errors | 0-0 | 0.000 | - |
+| ✅ | Intermittent Errors | 0.14-0.145 | 0.143 | - |
+| ✅ | Long Thinking Period - No Errors | 0-0 | 0.000 | - |
+| ✅ | Warnings Only - No Errors | 0-0 | 0.000 | - |
+| ✅ | All Clean Compiles | 0-0 | 0.000 | - |
+| ✅ | Below Minimum Events | 0.9-1 | 1.000 | - |
+| ✅ | Build Test Failure | 0-0 | 0.000 | - |
+| ✅ | Mixed Clean and Error | 0-0 | 0.000 | - |
+| ✅ | Session Split | 0.9-1 | 1.000 | - |
+
+### Edge Case Scenarios
+
+| Status | Scenario | Expected EQ | Actual EQ | Gap |
+|--------|----------|-------------|-----------|-----|
+| ✅ | Intermittent Errors | 0.14-0.145 | 0.143 | - |
+| ✅ | Long Thinking Period - No Errors | 0-0 | 0.000 | - |
+| ✅ | Slow Progress - Errors Then Different Error Then Clean | 0.38-0.4 | 0.390 | - |
+| ✅ | Thrashing - Different Errors Each Save | 0.72-0.73 | 0.727 | - |
+| ✅ | Undo/Redo Pattern - Alternating Errors | 0.72-0.73 | 0.727 | - |
+| ✅ | Warnings Only - No Errors | 0-0 | 0.000 | - |
+
+
+---
+
+## Detailed Scenario Analysis
+
+### ✅ PASSED: Critical Struggle - Proactive Intervention
+
+**ID:** `critical-struggle-proactive`  
+**Difficulty:** obvious  
+**Tags:** `proactive-threshold`, `critical-struggle`, `eq-high`  
+
+#### Expected vs Actual
+
+| Metric | Expected | Actual | Status |
+|--------|----------|--------|--------|
+| Should Detect Struggle | Yes | Yes | ✅ |
+| EQ Range | 0.6-0.8 | 0.714 | ✅ |
+| Recommended Action | proactive | proactive | ✅ |
+
+#### EQ Statistics
+
+- **Min EQ:** 0.000
+- **Max EQ:** 1.000
+- **Avg EQ:** 0.694
+- **Final EQ:** 0.714
+- **Time to Detection:** 36.1s
+
+#### Event Timeline
+
+| Time | Event | EQ | Confidence | Action |
+|------|-------|----|------------|--------|
+| 0s | diagnostic | 0.000 | insufficient | none |
+| 0s | save | 0.000 | insufficient | none |
+| 6s | wait | 0.000 | insufficient | none |
+| 6s | save | 1.000 | insufficient | none |
+| 12s | wait | 1.000 | insufficient | none |
+| 12s | save | 1.000 | insufficient | none |
+| 18s | wait | 1.000 | insufficient | none |
+| 18s | save | 1.000 | insufficient | none |
+| 24s | wait | 1.000 | insufficient | none |
+| 24s | diagnostic | 1.000 | insufficient | none |
+| 24s | save | 0.750 | insufficient | none |
+| 30s | wait | 0.750 | insufficient | none |
+| 30s | diagnostic | 0.750 | insufficient | none |
+| 30s | save | 0.600 | insufficient | none |
+| 36s | wait | 0.600 | insufficient | none |
+| ... | *3 more events* | ... | ... | ... |
+
+### ✅ PASSED: Long Inactivity With Errors
+
+**ID:** `long-inactivity-with-errors`  
+**Difficulty:** obvious  
+**Tags:** `inactivity`, `persistent-error`, `eq-max`  
+
+#### Expected vs Actual
+
+| Metric | Expected | Actual | Status |
+|--------|----------|--------|--------|
+| Should Detect Struggle | Yes | Yes | ✅ |
+| EQ Range | 1-1 | 1.000 | ✅ |
+| Recommended Action | proactive | proactive | ✅ |
+
+#### EQ Statistics
+
+- **Min EQ:** 0.000
+- **Max EQ:** 1.000
+- **Avg EQ:** 0.813
+- **Final EQ:** 1.000
+- **Time to Detection:** 180.1s
+
+#### Event Timeline
+
+| Time | Event | EQ | Confidence | Action |
+|------|-------|----|------------|--------|
+| 0s | diagnostic | 0.000 | insufficient | none |
+| 0s | save | 0.000 | insufficient | none |
+| 30s | wait | 0.000 | insufficient | none |
+| 30s | save | 1.000 | insufficient | none |
+| 60s | wait | 1.000 | insufficient | none |
+| 60s | save | 1.000 | insufficient | none |
+| 90s | wait | 1.000 | insufficient | none |
+| 90s | save | 1.000 | insufficient | none |
+| 120s | wait | 1.000 | insufficient | none |
+| 120s | save | 1.000 | insufficient | none |
+| 150s | wait | 1.000 | insufficient | none |
+| 150s | save | 1.000 | insufficient | none |
+| 180s | wait | 1.000 | insufficient | none |
+| 180s | save | 1.000 | sufficient | proactive |
+| 210s | wait | 1.000 | sufficient | proactive |
+| ... | *1 more events* | ... | ... | ... |
+
+### ✅ PASSED: Persistent Syntax Error
+
+**ID:** `persistent-syntax-error`  
+**Difficulty:** obvious  
+**Tags:** `syntax-error`, `persistent`, `eq-max`  
+
+#### Expected vs Actual
+
+| Metric | Expected | Actual | Status |
+|--------|----------|--------|--------|
+| Should Detect Struggle | Yes | Yes | ✅ |
+| EQ Range | 1-1 | 1.000 | ✅ |
+| Recommended Action | proactive | proactive | ✅ |
+
+#### EQ Statistics
+
+- **Min EQ:** 0.000
+- **Max EQ:** 1.000
+- **Avg EQ:** 0.813
+- **Final EQ:** 1.000
+- **Time to Detection:** 36.1s
+
+#### Event Timeline
+
+| Time | Event | EQ | Confidence | Action |
+|------|-------|----|------------|--------|
+| 0s | diagnostic | 0.000 | insufficient | none |
+| 0s | save | 0.000 | insufficient | none |
+| 6s | wait | 0.000 | insufficient | none |
+| 6s | save | 1.000 | insufficient | none |
+| 12s | wait | 1.000 | insufficient | none |
+| 12s | save | 1.000 | insufficient | none |
+| 18s | wait | 1.000 | insufficient | none |
+| 18s | save | 1.000 | insufficient | none |
+| 24s | wait | 1.000 | insufficient | none |
+| 24s | save | 1.000 | insufficient | none |
+| 30s | wait | 1.000 | insufficient | none |
+| 30s | save | 1.000 | insufficient | none |
+| 36s | wait | 1.000 | insufficient | none |
+| 36s | save | 1.000 | sufficient | proactive |
+| 42s | wait | 1.000 | sufficient | proactive |
+| ... | *1 more events* | ... | ... | ... |
+
+### ✅ PASSED: Repeated Build Failures
+
+**ID:** `repeated-build-failures`  
+**Difficulty:** obvious  
+**Tags:** `build-failure`, `persistent-error`, `eq-max`  
+
+#### Expected vs Actual
+
+| Metric | Expected | Actual | Status |
+|--------|----------|--------|--------|
+| Should Detect Struggle | Yes | Yes | ✅ |
+| EQ Range | 1-1 | 1.000 | ✅ |
+| Recommended Action | proactive | proactive | ✅ |
+
+#### EQ Statistics
+
+- **Min EQ:** 0.000
+- **Max EQ:** 1.000
+- **Avg EQ:** 0.867
+- **Final EQ:** 1.000
+- **Time to Detection:** 60.0s
+
+#### Event Timeline
+
+| Time | Event | EQ | Confidence | Action |
+|------|-------|----|------------|--------|
+| 0s | build | 0.000 | insufficient | none |
+| 10s | wait | 0.000 | insufficient | none |
+| 10s | build | 1.000 | insufficient | none |
+| 20s | wait | 1.000 | insufficient | none |
+| 20s | build | 1.000 | insufficient | none |
+| 30s | wait | 1.000 | insufficient | none |
+| 30s | build | 1.000 | insufficient | none |
+| 40s | wait | 1.000 | insufficient | none |
+| 40s | build | 1.000 | insufficient | none |
+| 50s | wait | 1.000 | insufficient | none |
+| 50s | build | 1.000 | insufficient | none |
+| 60s | wait | 1.000 | insufficient | none |
+| 60s | build | 1.000 | sufficient | proactive |
+| 70s | wait | 1.000 | sufficient | proactive |
+| 70s | build | 1.000 | sufficient | proactive |
+
+### ✅ PASSED: Severe Struggle - Notification Level
+
+**ID:** `severe-struggle-notification`  
+**Difficulty:** obvious  
+**Tags:** `notification-threshold`, `mixed-errors`, `eq-medium`  
+
+#### Expected vs Actual
+
+| Metric | Expected | Actual | Status |
+|--------|----------|--------|--------|
+| Should Detect Struggle | Yes | Yes | ✅ |
+| EQ Range | 0.35-0.5 | 0.429 | ✅ |
+| Recommended Action | notification | notification | ✅ |
+
+#### EQ Statistics
+
+- **Min EQ:** 0.000
+- **Max EQ:** 1.000
+- **Avg EQ:** 0.448
+- **Final EQ:** 0.429
+- **Time to Detection:** 36.1s
+
+#### Event Timeline
+
+| Time | Event | EQ | Confidence | Action |
+|------|-------|----|------------|--------|
+| 0s | diagnostic | 0.000 | insufficient | none |
+| 0s | save | 0.000 | insufficient | none |
+| 6s | wait | 0.000 | insufficient | none |
+| 6s | save | 1.000 | insufficient | none |
+| 12s | wait | 1.000 | insufficient | none |
+| 12s | diagnostic | 1.000 | insufficient | none |
+| 12s | save | 0.500 | insufficient | none |
+| 18s | wait | 0.500 | insufficient | none |
+| 18s | diagnostic | 0.500 | insufficient | none |
+| 18s | save | 0.333 | insufficient | none |
+| 24s | wait | 0.333 | insufficient | none |
+| 24s | save | 0.500 | insufficient | none |
+| 30s | wait | 0.500 | insufficient | none |
+| 30s | diagnostic | 0.500 | insufficient | none |
+| 30s | save | 0.400 | insufficient | none |
+| ... | *5 more events* | ... | ... | ... |
+
+### ✅ PASSED: Thrashing Then Giving Up
+
+**ID:** `thrashing-then-giving-up`  
+**Difficulty:** obvious  
+**Tags:** `thrashing`, `different-errors`, `eq-high`, `frustration`  
+
+#### Expected vs Actual
+
+| Metric | Expected | Actual | Status |
+|--------|----------|--------|--------|
+| Should Detect Struggle | Yes | Yes | ✅ |
+| EQ Range | 0.65-0.8 | 0.727 | ✅ |
+| Recommended Action | proactive | proactive | ✅ |
+
+#### EQ Statistics
+
+- **Min EQ:** 0.000
+- **Max EQ:** 0.727
+- **Avg EQ:** 0.606
+- **Final EQ:** 0.727
+- **Time to Detection:** 36.1s
+
+#### Event Timeline
+
+| Time | Event | EQ | Confidence | Action |
+|------|-------|----|------------|--------|
+| 0s | diagnostic | 0.000 | insufficient | none |
+| 0s | save | 0.000 | insufficient | none |
+| 6s | wait | 0.000 | insufficient | none |
+| 6s | diagnostic | 0.000 | insufficient | none |
+| 6s | diagnostic | 0.000 | insufficient | none |
+| 6s | save | 0.727 | insufficient | none |
+| 12s | wait | 0.727 | insufficient | none |
+| 12s | diagnostic | 0.727 | insufficient | none |
+| 12s | diagnostic | 0.727 | insufficient | none |
+| 12s | save | 0.727 | insufficient | none |
+| 18s | wait | 0.727 | insufficient | none |
+| 18s | diagnostic | 0.727 | insufficient | none |
+| 18s | diagnostic | 0.727 | insufficient | none |
+| 18s | save | 0.727 | insufficient | none |
+| 24s | wait | 0.727 | insufficient | none |
+| ... | *15 more events* | ... | ... | ... |
+
+### ✅ PASSED: Errors Then Recovery
+
+**ID:** `undo-redo-then-giving-up`  
+**Difficulty:** subtle  
+**Tags:** `subtle`, `recovery`, `error-then-fix`  
+
+#### Expected vs Actual
+
+| Metric | Expected | Actual | Status |
+|--------|----------|--------|--------|
+| Should Detect Struggle | Yes | Yes | ✅ |
+| EQ Range | 0.28-0.3 | 0.286 | ✅ |
+| Recommended Action | subtle | subtle | ✅ |
+
+#### EQ Statistics
+
+- **Min EQ:** 0.000
+- **Max EQ:** 1.000
+- **Avg EQ:** 0.534
+- **Final EQ:** 0.286
+- **Time to Detection:** 36.2s
+
+#### Event Timeline
+
+| Time | Event | EQ | Confidence | Action |
+|------|-------|----|------------|--------|
+| 0s | diagnostic | 0.000 | insufficient | none |
+| 0s | save | 0.000 | insufficient | none |
+| 6s | wait | 0.000 | insufficient | none |
+| 6s | save | 1.000 | insufficient | none |
+| 12s | wait | 1.000 | insufficient | none |
+| 12s | save | 1.000 | insufficient | none |
+| 18s | wait | 1.000 | insufficient | none |
+| 18s | diagnostic | 1.000 | insufficient | none |
+| 18s | save | 0.667 | insufficient | none |
+| 24s | wait | 0.667 | insufficient | none |
+| 24s | save | 0.500 | insufficient | none |
+| 30s | wait | 0.500 | insufficient | none |
+| 30s | save | 0.400 | insufficient | none |
+| 36s | wait | 0.400 | insufficient | none |
+| 36s | save | 0.333 | sufficient | subtle |
+| ... | *2 more events* | ... | ... | ... |
+
+### ✅ PASSED: Normal Development Flow
+
+**ID:** `normal-development`  
+**Difficulty:** obvious  
+**Tags:** `no-struggle`, `normal`  
+
+#### Expected vs Actual
+
+| Metric | Expected | Actual | Status |
+|--------|----------|--------|--------|
+| Should Detect Struggle | No | No | ✅ |
+| EQ Range | 0-0 | 0.000 | ✅ |
+| Recommended Action | none | none | ✅ |
+
+#### EQ Statistics
+
+- **Min EQ:** 0.000
+- **Max EQ:** 0.000
+- **Avg EQ:** 0.000
+- **Final EQ:** 0.000
+
+#### Event Timeline
+
+| Time | Event | EQ | Confidence | Action |
+|------|-------|----|------------|--------|
+| 0s | diagnostic | 0.000 | insufficient | none |
+| 0s | save | 0.000 | insufficient | none |
+| 6s | wait | 0.000 | insufficient | none |
+| 6s | diagnostic | 0.000 | insufficient | none |
+| 6s | save | 0.000 | insufficient | none |
+| 12s | wait | 0.000 | insufficient | none |
+| 12s | diagnostic | 0.000 | insufficient | none |
+| 12s | save | 0.000 | insufficient | none |
+| 18s | wait | 0.000 | insufficient | none |
+| 18s | diagnostic | 0.000 | insufficient | none |
+| 18s | save | 0.000 | insufficient | none |
+| 24s | wait | 0.000 | insufficient | none |
+| 24s | diagnostic | 0.000 | insufficient | none |
+| 25s | save | 0.000 | insufficient | none |
+| 31s | wait | 0.000 | insufficient | none |
+| ... | *8 more events* | ... | ... | ... |
+
+### ✅ PASSED: Thinking Pause - No Errors
+
+**ID:** `thinking-pause`  
+**Difficulty:** obvious  
+**Tags:** `no-struggle`, `thinking`, `clean-code`  
+
+#### Expected vs Actual
+
+| Metric | Expected | Actual | Status |
+|--------|----------|--------|--------|
+| Should Detect Struggle | No | No | ✅ |
+| EQ Range | 0-0 | 0.000 | ✅ |
+| Recommended Action | none | none | ✅ |
+
+#### EQ Statistics
+
+- **Min EQ:** 0.000
+- **Max EQ:** 0.000
+- **Avg EQ:** 0.000
+- **Final EQ:** 0.000
+
+#### Event Timeline
+
+| Time | Event | EQ | Confidence | Action |
+|------|-------|----|------------|--------|
+| 0s | save | 0.000 | insufficient | none |
+| 15s | wait | 0.000 | insufficient | none |
+| 15s | save | 0.000 | insufficient | none |
+| 35s | wait | 0.000 | insufficient | none |
+| 35s | save | 0.000 | insufficient | none |
+| 60s | wait | 0.000 | insufficient | none |
+| 60s | save | 0.000 | insufficient | none |
+| 90s | wait | 0.000 | insufficient | none |
+| 90s | save | 0.000 | insufficient | none |
+| 110s | wait | 0.000 | insufficient | none |
+| 110s | save | 0.000 | insufficient | none |
+| 135s | wait | 0.000 | insufficient | none |
+| 135s | save | 0.000 | sufficient | none |
+| 150s | wait | 0.000 | sufficient | none |
+| 150s | save | 0.000 | sufficient | none |
+
+### ✅ PASSED: Intermittent Errors
+
+**ID:** `intermittent-errors`  
+**Difficulty:** edge-case  
+**Tags:** `edge-case`, `intermittent`, `below-threshold`  
+
+#### Expected vs Actual
+
+| Metric | Expected | Actual | Status |
+|--------|----------|--------|--------|
+| Should Detect Struggle | No | No | ✅ |
+| EQ Range | 0.14-0.145 | 0.143 | ✅ |
+| Recommended Action | none | none | ✅ |
+
+#### EQ Statistics
+
+- **Min EQ:** 0.000
+- **Max EQ:** 0.167
+- **Avg EQ:** 0.031
+- **Final EQ:** 0.143
+- **Time to Detection:** 36.5s
+
+#### Event Timeline
+
+| Time | Event | EQ | Confidence | Action |
+|------|-------|----|------------|--------|
+| 0s | diagnostic | 0.000 | insufficient | none |
+| 0s | save | 0.000 | insufficient | none |
+| 6s | wait | 0.000 | insufficient | none |
+| 6s | diagnostic | 0.000 | insufficient | none |
+| 6s | save | 0.000 | insufficient | none |
+| 12s | wait | 0.000 | insufficient | none |
+| 12s | save | 0.000 | insufficient | none |
+| 18s | wait | 0.000 | insufficient | none |
+| 18s | diagnostic | 0.000 | insufficient | none |
+| 18s | save | 0.000 | insufficient | none |
+| 24s | wait | 0.000 | insufficient | none |
+| 24s | diagnostic | 0.000 | insufficient | none |
+| 24s | save | 0.000 | insufficient | none |
+| 30s | wait | 0.000 | insufficient | none |
+| 30s | diagnostic | 0.000 | insufficient | none |
+| ... | *6 more events* | ... | ... | ... |
+
+### ✅ PASSED: Long Thinking Period - No Errors
+
+**ID:** `long-thinking-no-struggle`  
+**Difficulty:** edge-case  
+**Tags:** `edge-case`, `no-struggle`, `thinking`, `long-pause`  
+
+#### Expected vs Actual
+
+| Metric | Expected | Actual | Status |
+|--------|----------|--------|--------|
+| Should Detect Struggle | No | No | ✅ |
+| EQ Range | 0-0 | 0.000 | ✅ |
+| Recommended Action | none | none | ✅ |
+
+#### EQ Statistics
+
+- **Min EQ:** 0.000
+- **Max EQ:** 0.000
+- **Avg EQ:** 0.000
+- **Final EQ:** 0.000
+
+#### Event Timeline
+
+| Time | Event | EQ | Confidence | Action |
+|------|-------|----|------------|--------|
+| 0s | save | 0.000 | insufficient | none |
+| 60s | wait | 0.000 | insufficient | none |
+| 60s | save | 0.000 | insufficient | none |
+| 120s | wait | 0.000 | insufficient | none |
+| 120s | save | 0.000 | insufficient | none |
+| 180s | wait | 0.000 | insufficient | none |
+| 180s | save | 0.000 | insufficient | none |
+| 240s | wait | 0.000 | insufficient | none |
+| 240s | save | 0.000 | insufficient | none |
+| 300s | wait | 0.000 | insufficient | none |
+| 300s | save | 0.000 | insufficient | none |
+| 360s | wait | 0.000 | insufficient | none |
+| 360s | save | 0.000 | sufficient | none |
+| 420s | wait | 0.000 | sufficient | none |
+| 420s | save | 0.000 | sufficient | none |
+
+### ✅ PASSED: Slow Progress - Errors Then Different Error Then Clean
+
+**ID:** `slow-progress`  
+**Difficulty:** edge-case  
+**Tags:** `edge-case`, `slow-progress`, `error-transition`  
+
+#### Expected vs Actual
+
+| Metric | Expected | Actual | Status |
+|--------|----------|--------|--------|
+| Should Detect Struggle | Yes | Yes | ✅ |
+| EQ Range | 0.38-0.4 | 0.390 | ✅ |
+| Recommended Action | notification | notification | ✅ |
+
+#### EQ Statistics
+
+- **Min EQ:** 0.000
+- **Max EQ:** 1.000
+- **Avg EQ:** 0.657
+- **Final EQ:** 0.390
+- **Time to Detection:** 36.3s
+
+#### Event Timeline
+
+| Time | Event | EQ | Confidence | Action |
+|------|-------|----|------------|--------|
+| 0s | diagnostic | 0.000 | insufficient | none |
+| 0s | save | 0.000 | insufficient | none |
+| 6s | wait | 0.000 | insufficient | none |
+| 6s | save | 1.000 | insufficient | none |
+| 12s | wait | 1.000 | insufficient | none |
+| 12s | save | 1.000 | insufficient | none |
+| 18s | wait | 1.000 | insufficient | none |
+| 18s | diagnostic | 1.000 | insufficient | none |
+| 18s | diagnostic | 1.000 | insufficient | none |
+| 18s | save | 0.909 | insufficient | none |
+| 24s | wait | 0.909 | insufficient | none |
+| 24s | diagnostic | 0.909 | insufficient | none |
+| 24s | save | 0.682 | insufficient | none |
+| 30s | wait | 0.682 | insufficient | none |
+| 30s | save | 0.545 | insufficient | none |
+| ... | *4 more events* | ... | ... | ... |
+
+### ✅ PASSED: Thrashing - Different Errors Each Save
+
+**ID:** `thrashing-same-file`  
+**Difficulty:** edge-case  
+**Tags:** `edge-case`, `thrashing`, `different-errors`, `high-eq`  
+
+#### Expected vs Actual
+
+| Metric | Expected | Actual | Status |
+|--------|----------|--------|--------|
+| Should Detect Struggle | Yes | Yes | ✅ |
+| EQ Range | 0.72-0.73 | 0.727 | ✅ |
+| Recommended Action | proactive | proactive | ✅ |
+
+#### EQ Statistics
+
+- **Min EQ:** 0.000
+- **Max EQ:** 0.727
+- **Avg EQ:** 0.606
+- **Final EQ:** 0.727
+- **Time to Detection:** 36.7s
+
+#### Event Timeline
+
+| Time | Event | EQ | Confidence | Action |
+|------|-------|----|------------|--------|
+| 0s | diagnostic | 0.000 | insufficient | none |
+| 0s | save | 0.000 | insufficient | none |
+| 6s | wait | 0.000 | insufficient | none |
+| 6s | diagnostic | 0.000 | insufficient | none |
+| 6s | diagnostic | 0.000 | insufficient | none |
+| 6s | save | 0.727 | insufficient | none |
+| 12s | wait | 0.727 | insufficient | none |
+| 12s | diagnostic | 0.727 | insufficient | none |
+| 12s | diagnostic | 0.727 | insufficient | none |
+| 12s | save | 0.727 | insufficient | none |
+| 18s | wait | 0.727 | insufficient | none |
+| 18s | diagnostic | 0.727 | insufficient | none |
+| 18s | diagnostic | 0.727 | insufficient | none |
+| 18s | save | 0.727 | insufficient | none |
+| 24s | wait | 0.727 | insufficient | none |
+| ... | *15 more events* | ... | ... | ... |
+
+### ✅ PASSED: Undo/Redo Pattern - Alternating Errors
+
+**ID:** `undo-redo-pattern`  
+**Difficulty:** edge-case  
+**Tags:** `edge-case`, `undo-redo`, `alternating-errors`, `high-eq`  
+
+#### Expected vs Actual
+
+| Metric | Expected | Actual | Status |
+|--------|----------|--------|--------|
+| Should Detect Struggle | Yes | Yes | ✅ |
+| EQ Range | 0.72-0.73 | 0.727 | ✅ |
+| Recommended Action | proactive | proactive | ✅ |
+
+#### EQ Statistics
+
+- **Min EQ:** 0.000
+- **Max EQ:** 0.727
+- **Avg EQ:** 0.606
+- **Final EQ:** 0.727
+- **Time to Detection:** 36.7s
+
+#### Event Timeline
+
+| Time | Event | EQ | Confidence | Action |
+|------|-------|----|------------|--------|
+| 0s | diagnostic | 0.000 | insufficient | none |
+| 0s | save | 0.000 | insufficient | none |
+| 6s | wait | 0.000 | insufficient | none |
+| 6s | diagnostic | 0.000 | insufficient | none |
+| 6s | diagnostic | 0.000 | insufficient | none |
+| 6s | save | 0.727 | insufficient | none |
+| 12s | wait | 0.727 | insufficient | none |
+| 12s | diagnostic | 0.727 | insufficient | none |
+| 12s | diagnostic | 0.727 | insufficient | none |
+| 12s | save | 0.727 | insufficient | none |
+| 18s | wait | 0.727 | insufficient | none |
+| 18s | diagnostic | 0.727 | insufficient | none |
+| 18s | diagnostic | 0.727 | insufficient | none |
+| 18s | save | 0.727 | insufficient | none |
+| 24s | wait | 0.727 | insufficient | none |
+| ... | *15 more events* | ... | ... | ... |
+
+### ✅ PASSED: Warnings Only - No Errors
+
+**ID:** `warning-only`  
+**Difficulty:** edge-case  
+**Tags:** `edge-case`, `warnings-only`, `no-errors`, `clean-eq`  
+
+#### Expected vs Actual
+
+| Metric | Expected | Actual | Status |
+|--------|----------|--------|--------|
+| Should Detect Struggle | No | No | ✅ |
+| EQ Range | 0-0 | 0.000 | ✅ |
+| Recommended Action | none | none | ✅ |
+
+#### EQ Statistics
+
+- **Min EQ:** 0.000
+- **Max EQ:** 0.000
+- **Avg EQ:** 0.000
+- **Final EQ:** 0.000
+
+#### Event Timeline
+
+| Time | Event | EQ | Confidence | Action |
+|------|-------|----|------------|--------|
+| 0s | diagnostic | 0.000 | insufficient | none |
+| 0s | save | 0.000 | insufficient | none |
+| 6s | wait | 0.000 | insufficient | none |
+| 6s | save | 0.000 | insufficient | none |
+| 12s | wait | 0.000 | insufficient | none |
+| 12s | diagnostic | 0.000 | insufficient | none |
+| 12s | diagnostic | 0.000 | insufficient | none |
+| 12s | save | 0.000 | insufficient | none |
+| 18s | wait | 0.000 | insufficient | none |
+| 18s | save | 0.000 | insufficient | none |
+| 24s | wait | 0.000 | insufficient | none |
+| 24s | diagnostic | 0.000 | insufficient | none |
+| 24s | diagnostic | 0.000 | insufficient | none |
+| 24s | save | 0.000 | insufficient | none |
+| 30s | wait | 0.000 | insufficient | none |
+| ... | *5 more events* | ... | ... | ... |
+
+### ✅ PASSED: All Clean Compiles
+
+**ID:** `eq-all-clean-compiles`  
+**Difficulty:** obvious  
+**Tags:** `eq-specific`, `clean`, `baseline`  
+
+#### Expected vs Actual
+
+| Metric | Expected | Actual | Status |
+|--------|----------|--------|--------|
+| Should Detect Struggle | No | No | ✅ |
+| EQ Range | 0-0 | 0.000 | ✅ |
+| Recommended Action | none | none | ✅ |
+
+#### EQ Statistics
+
+- **Min EQ:** 0.000
+- **Max EQ:** 0.000
+- **Avg EQ:** 0.000
+- **Final EQ:** 0.000
+
+#### Event Timeline
+
+| Time | Event | EQ | Confidence | Action |
+|------|-------|----|------------|--------|
+| 0s | save | 0.000 | insufficient | none |
+| 6s | wait | 0.000 | insufficient | none |
+| 6s | save | 0.000 | insufficient | none |
+| 12s | wait | 0.000 | insufficient | none |
+| 12s | save | 0.000 | insufficient | none |
+| 18s | wait | 0.000 | insufficient | none |
+| 18s | save | 0.000 | insufficient | none |
+| 24s | wait | 0.000 | insufficient | none |
+| 24s | save | 0.000 | insufficient | none |
+| 30s | wait | 0.000 | insufficient | none |
+| 30s | save | 0.000 | insufficient | none |
+| 36s | wait | 0.000 | insufficient | none |
+| 36s | save | 0.000 | sufficient | none |
+| 42s | wait | 0.000 | sufficient | none |
+| 42s | save | 0.000 | sufficient | none |
+
+### ✅ PASSED: All Different Errors
+
+**ID:** `eq-all-different-errors`  
+**Difficulty:** obvious  
+**Tags:** `eq-specific`, `different-errors`, `eq-high`  
+
+#### Expected vs Actual
+
+| Metric | Expected | Actual | Status |
+|--------|----------|--------|--------|
+| Should Detect Struggle | Yes | Yes | ✅ |
+| EQ Range | 0.72-0.73 | 0.727 | ✅ |
+| Recommended Action | proactive | proactive | ✅ |
+
+#### EQ Statistics
+
+- **Min EQ:** 0.000
+- **Max EQ:** 0.727
+- **Avg EQ:** 0.606
+- **Final EQ:** 0.727
+- **Time to Detection:** 36.1s
+
+#### Event Timeline
+
+| Time | Event | EQ | Confidence | Action |
+|------|-------|----|------------|--------|
+| 0s | diagnostic | 0.000 | insufficient | none |
+| 0s | save | 0.000 | insufficient | none |
+| 6s | wait | 0.000 | insufficient | none |
+| 6s | diagnostic | 0.000 | insufficient | none |
+| 6s | diagnostic | 0.000 | insufficient | none |
+| 6s | save | 0.727 | insufficient | none |
+| 12s | wait | 0.727 | insufficient | none |
+| 12s | diagnostic | 0.727 | insufficient | none |
+| 12s | diagnostic | 0.727 | insufficient | none |
+| 12s | save | 0.727 | insufficient | none |
+| 18s | wait | 0.727 | insufficient | none |
+| 18s | diagnostic | 0.727 | insufficient | none |
+| 18s | diagnostic | 0.727 | insufficient | none |
+| 18s | save | 0.727 | insufficient | none |
+| 24s | wait | 0.727 | insufficient | none |
+| ... | *15 more events* | ... | ... | ... |
+
+### ✅ PASSED: All Same Error
+
+**ID:** `eq-all-same-error`  
+**Difficulty:** obvious  
+**Tags:** `eq-specific`, `persistent-error`, `eq-max`  
+
+#### Expected vs Actual
+
+| Metric | Expected | Actual | Status |
+|--------|----------|--------|--------|
+| Should Detect Struggle | Yes | Yes | ✅ |
+| EQ Range | 1-1 | 1.000 | ✅ |
+| Recommended Action | proactive | proactive | ✅ |
+
+#### EQ Statistics
+
+- **Min EQ:** 0.000
+- **Max EQ:** 1.000
+- **Avg EQ:** 0.813
+- **Final EQ:** 1.000
+- **Time to Detection:** 36.1s
+
+#### Event Timeline
+
+| Time | Event | EQ | Confidence | Action |
+|------|-------|----|------------|--------|
+| 0s | diagnostic | 0.000 | insufficient | none |
+| 0s | save | 0.000 | insufficient | none |
+| 6s | wait | 0.000 | insufficient | none |
+| 6s | save | 1.000 | insufficient | none |
+| 12s | wait | 1.000 | insufficient | none |
+| 12s | save | 1.000 | insufficient | none |
+| 18s | wait | 1.000 | insufficient | none |
+| 18s | save | 1.000 | insufficient | none |
+| 24s | wait | 1.000 | insufficient | none |
+| 24s | save | 1.000 | insufficient | none |
+| 30s | wait | 1.000 | insufficient | none |
+| 30s | save | 1.000 | insufficient | none |
+| 36s | wait | 1.000 | insufficient | none |
+| 36s | save | 1.000 | sufficient | proactive |
+| 42s | wait | 1.000 | sufficient | proactive |
+| ... | *1 more events* | ... | ... | ... |
+
+### ✅ PASSED: Below Minimum Events
+
+**ID:** `eq-below-minimum-events`  
+**Difficulty:** obvious  
+**Tags:** `eq-specific`, `low-confidence`, `insufficient-data`  
+
+#### Expected vs Actual
+
+| Metric | Expected | Actual | Status |
+|--------|----------|--------|--------|
+| Should Detect Struggle | No | No | ✅ |
+| EQ Range | 0.9-1 | 1.000 | ✅ |
+| Recommended Action | none | none | ✅ |
+
+#### EQ Statistics
+
+- **Min EQ:** 0.000
+- **Max EQ:** 1.000
+- **Avg EQ:** 0.625
+- **Final EQ:** 1.000
+
+#### Event Timeline
+
+| Time | Event | EQ | Confidence | Action |
+|------|-------|----|------------|--------|
+| 0s | diagnostic | 0.000 | insufficient | none |
+| 0s | save | 0.000 | insufficient | none |
+| 6s | wait | 0.000 | insufficient | none |
+| 6s | save | 1.000 | insufficient | none |
+| 12s | wait | 1.000 | insufficient | none |
+| 12s | save | 1.000 | insufficient | none |
+| 18s | wait | 1.000 | insufficient | none |
+| 18s | save | 1.000 | insufficient | none |
+
+### ✅ PASSED: Build Compiler Error
+
+**ID:** `eq-build-compiler-error`  
+**Difficulty:** obvious  
+**Tags:** `eq-specific`, `build-failure`, `eq-max`  
+
+#### Expected vs Actual
+
+| Metric | Expected | Actual | Status |
+|--------|----------|--------|--------|
+| Should Detect Struggle | Yes | Yes | ✅ |
+| EQ Range | 1-1 | 1.000 | ✅ |
+| Recommended Action | proactive | proactive | ✅ |
+
+#### EQ Statistics
+
+- **Min EQ:** 0.000
+- **Max EQ:** 1.000
+- **Avg EQ:** 0.867
+- **Final EQ:** 1.000
+- **Time to Detection:** 60.0s
+
+#### Event Timeline
+
+| Time | Event | EQ | Confidence | Action |
+|------|-------|----|------------|--------|
+| 0s | build | 0.000 | insufficient | none |
+| 10s | wait | 0.000 | insufficient | none |
+| 10s | build | 1.000 | insufficient | none |
+| 20s | wait | 1.000 | insufficient | none |
+| 20s | build | 1.000 | insufficient | none |
+| 30s | wait | 1.000 | insufficient | none |
+| 30s | build | 1.000 | insufficient | none |
+| 40s | wait | 1.000 | insufficient | none |
+| 40s | build | 1.000 | insufficient | none |
+| 50s | wait | 1.000 | insufficient | none |
+| 50s | build | 1.000 | insufficient | none |
+| 60s | wait | 1.000 | insufficient | none |
+| 60s | build | 1.000 | sufficient | proactive |
+| 70s | wait | 1.000 | sufficient | proactive |
+| 70s | build | 1.000 | sufficient | proactive |
+
+### ✅ PASSED: Build Test Failure
+
+**ID:** `eq-build-test-failure`  
+**Difficulty:** obvious  
+**Tags:** `eq-specific`, `test-failure`, `baseline`  
+
+#### Expected vs Actual
+
+| Metric | Expected | Actual | Status |
+|--------|----------|--------|--------|
+| Should Detect Struggle | No | No | ✅ |
+| EQ Range | 0-0 | 0.000 | ✅ |
+| Recommended Action | none | none | ✅ |
+
+#### EQ Statistics
+
+- **Min EQ:** 0.000
+- **Max EQ:** 0.000
+- **Avg EQ:** 0.000
+- **Final EQ:** 0.000
+
+#### Event Timeline
+
+| Time | Event | EQ | Confidence | Action |
+|------|-------|----|------------|--------|
+| 0s | build | 0.000 | insufficient | none |
+| 10s | wait | 0.000 | insufficient | none |
+| 10s | build | 0.000 | insufficient | none |
+| 20s | wait | 0.000 | insufficient | none |
+| 20s | build | 0.000 | insufficient | none |
+| 30s | wait | 0.000 | insufficient | none |
+| 30s | build | 0.000 | insufficient | none |
+| 40s | wait | 0.000 | insufficient | none |
+| 40s | build | 0.000 | insufficient | none |
+| 50s | wait | 0.000 | insufficient | none |
+| 50s | build | 0.000 | insufficient | none |
+| 60s | wait | 0.000 | insufficient | none |
+| 60s | build | 0.000 | sufficient | none |
+| 70s | wait | 0.000 | sufficient | none |
+| 70s | build | 0.000 | sufficient | none |
+
+### ✅ PASSED: Mixed Clean and Error
+
+**ID:** `eq-mixed-clean-error`  
+**Difficulty:** obvious  
+**Tags:** `eq-specific`, `alternating`, `baseline`  
+
+#### Expected vs Actual
+
+| Metric | Expected | Actual | Status |
+|--------|----------|--------|--------|
+| Should Detect Struggle | No | No | ✅ |
+| EQ Range | 0-0 | 0.000 | ✅ |
+| Recommended Action | none | none | ✅ |
+
+#### EQ Statistics
+
+- **Min EQ:** 0.000
+- **Max EQ:** 0.000
+- **Avg EQ:** 0.000
+- **Final EQ:** 0.000
+
+#### Event Timeline
+
+| Time | Event | EQ | Confidence | Action |
+|------|-------|----|------------|--------|
+| 0s | diagnostic | 0.000 | insufficient | none |
+| 0s | save | 0.000 | insufficient | none |
+| 6s | wait | 0.000 | insufficient | none |
+| 6s | diagnostic | 0.000 | insufficient | none |
+| 6s | save | 0.000 | insufficient | none |
+| 12s | wait | 0.000 | insufficient | none |
+| 12s | diagnostic | 0.000 | insufficient | none |
+| 12s | save | 0.000 | insufficient | none |
+| 18s | wait | 0.000 | insufficient | none |
+| 18s | diagnostic | 0.000 | insufficient | none |
+| 18s | save | 0.000 | insufficient | none |
+| 24s | wait | 0.000 | insufficient | none |
+| 24s | diagnostic | 0.000 | insufficient | none |
+| 24s | save | 0.000 | insufficient | none |
+| 30s | wait | 0.000 | insufficient | none |
+| ... | *8 more events* | ... | ... | ... |
+
+### ✅ PASSED: Session Split
+
+**ID:** `eq-session-split`  
+**Difficulty:** obvious  
+**Tags:** `eq-specific`, `session-split`, `inactivity`  
+
+#### Expected vs Actual
+
+| Metric | Expected | Actual | Status |
+|--------|----------|--------|--------|
+| Should Detect Struggle | No | No | ✅ |
+| EQ Range | 0.9-1 | 1.000 | ✅ |
+| Recommended Action | none | none | ✅ |
+
+#### EQ Statistics
+
+- **Min EQ:** 0.000
+- **Max EQ:** 1.000
+- **Avg EQ:** 0.688
+- **Final EQ:** 1.000
+
+#### Event Timeline
+
+| Time | Event | EQ | Confidence | Action |
+|------|-------|----|------------|--------|
+| 0s | diagnostic | 0.000 | insufficient | none |
+| 0s | save | 0.000 | insufficient | none |
+| 6s | wait | 0.000 | insufficient | none |
+| 6s | save | 1.000 | insufficient | none |
+| 12s | wait | 1.000 | insufficient | none |
+| 12s | save | 1.000 | insufficient | none |
+| 18s | wait | 1.000 | insufficient | none |
+| 18s | save | 1.000 | insufficient | none |
+| 1878s | wait | 1.000 | insufficient | none |
+| 1878s | save | 0.000 | insufficient | none |
+| 1884s | wait | 0.000 | insufficient | none |
+| 1884s | save | 1.000 | insufficient | none |
+| 1890s | wait | 1.000 | insufficient | none |
+| 1890s | save | 1.000 | insufficient | none |
+| 1896s | wait | 1.000 | insufficient | none |
+| ... | *1 more events* | ... | ... | ... |
+
+
+
+---
+
+## Recommendations
+
+### Algorithm Performance is Good
+All key metrics are within acceptable ranges.
+
+---
+
+## Appendix
+
+### How to Run These Tests
+
+```bash
+cd iris-thaumantias
+npm run test:struggle
+```
+
+### Test Framework Architecture (EQ)
+
+```
+StruggleTestRunner
+    │
+    ├── Sinon.js Fake Timers (time control)
+    │
+    ├── ErrorQuotientEngine (real, not mocked)
+    │
+    ├── Active Diagnostics State (simulated)
+    │
+    └── ScenarioLoader (JSON → Events)
+            │
+            └── EvaluationEngine (Results → Metrics)
+```
+
+---
+
+*Report generated at 2026-02-22T12:42:35.569Z*

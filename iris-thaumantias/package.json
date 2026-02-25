@@ -195,7 +195,7 @@
     "test:react:coverage": "vitest run --coverage",
     "test:struggle": "npm run compile-tests && vscode-test --label unit --grep \"Struggle Detection\"",
     "test:e2e": "npm run compile-tests && vscode-test --label e2e",
-    "test:ui": "bash test/ui/run-tests.sh",
+    "test:ui": "bash test/e2e/ui/run-tests.sh",
     "test:all": "npm run test:unit && npm run test:react",
     "coverage:all": "npm run test:unit:coverage && npm run test:react:coverage",
     "clean": "rm -rf dist out *.vsix",
