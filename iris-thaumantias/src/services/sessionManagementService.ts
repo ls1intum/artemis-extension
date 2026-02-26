@@ -3,6 +3,7 @@ import { ContextStore } from './contextStore';
 import { IrisSessionManager } from './irisSessionManager';
 import { ArtemisApiService } from '../api';
 import { ActiveContext } from '../types';
+import type { IrisChatSession, IrisChatMessage } from '../types/apiResponses';
 import { logger, LogCategory } from './loggingService';
 
 export class SessionManagementService {
@@ -10,7 +11,7 @@ export class SessionManagementService {
         private readonly _contextStore: ContextStore,
         private readonly _artemisApiService: ArtemisApiService | undefined,
         private readonly _getIrisSessionManager: () => IrisSessionManager | undefined,
-        private readonly _postMessage: (message: any) => void,
+        private readonly _postMessage: (message: { command: string }) => void,
         private readonly _postSnapshot: () => void,
         private readonly _loadIrisMessages: () => Promise<void>
     ) { }
@@ -36,9 +37,10 @@ export class SessionManagementService {
                     this._storeArtemisSessionId(sessionId);
                     vscode.window.showInformationMessage('New conversation started!');
                 })
-                .catch(err => {
+                .catch((err: unknown) => {
                     logger.error('Error creating new Iris session:', LogCategory.IRIS_CHAT, err);
-                    vscode.window.showErrorMessage(`Failed to create new conversation: ${err.message}`);
+                    const errorMessage = err instanceof Error ? err.message : String(err);
+                    vscode.window.showErrorMessage(`Failed to create new conversation: ${errorMessage}`);
                 });
         }
     }
@@ -85,7 +87,7 @@ export class SessionManagementService {
             logger.irisChat('Fetching all Iris sessions from Artemis for context:', activeContext.title);
 
             // Step 1: Fetch session metadata
-            let artemisSessionsMetadata: any[] = [];
+            let artemisSessionsMetadata: IrisChatSession[] = [];
             if (activeContext.type === 'course') {
                 artemisSessionsMetadata = await this._artemisApiService.getCourseChatSessions(activeContext.id);
             } else if (activeContext.type === 'exercise') {
@@ -95,10 +97,10 @@ export class SessionManagementService {
             logger.irisChat(`Fetched ${artemisSessionsMetadata.length} session(s) metadata from Artemis`);
 
             // Step 2: Fetch messages for all sessions
-            const artemisSessionsListFromServer: any[] = await Promise.all(
+            const artemisSessionsListFromServer: Array<IrisChatSession & { messages: IrisChatMessage[] }> = await Promise.all(
                 artemisSessionsMetadata.map(async (session) => {
                     try {
-                        const messages = await this._artemisApiService!.getChatMessages(session.id);
+                        const messages = await this._artemisApiService!.getChatMessages(session.id ?? 0);
                         return {
                             ...session,
                             messages: messages
@@ -132,7 +134,7 @@ export class SessionManagementService {
                     // Create preview from first user message or use default
                     let preview = 'New conversation';
                     if (artemisSession.messages && artemisSession.messages.length > 0) {
-                        const firstUserMsg = artemisSession.messages.find((m: any) => m.sender === 'USER');
+                        const firstUserMsg = artemisSession.messages.find((m: IrisChatMessage) => m.sender === 'USER');
                         if (firstUserMsg?.content?.[0]?.textContent) {
                             preview = firstUserMsg.content[0].textContent.substring(0, 50);
                         }
@@ -142,7 +144,7 @@ export class SessionManagementService {
                         preview,
                         messageCount,
                         createdAt,
-                        artemisSession.id
+                        artemisSession.id ?? 0
                     );
 
                     // Switch to the newest session if this is the first one
@@ -162,9 +164,10 @@ export class SessionManagementService {
             } else {
                 vscode.window.showInformationMessage('No sessions found on Artemis for this context');
             }
-        } catch (error: any) {
+        } catch (error: unknown) {
             logger.error('Error resetting sessions from Artemis:', LogCategory.IRIS_CHAT, error);
-            vscode.window.showErrorMessage(`Failed to reload sessions: ${error.message}`);
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            vscode.window.showErrorMessage(`Failed to reload sessions: ${errorMessage}`);
         }
     }
 
