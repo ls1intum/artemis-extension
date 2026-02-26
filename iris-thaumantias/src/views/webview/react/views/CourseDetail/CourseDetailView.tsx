@@ -152,7 +152,7 @@ export function CourseDetailView({ vscodeApi }: CourseDetailViewProps) {
             vscodeApi.postMessage({
                 type: 'command',
                 command: 'openInEditor',
-                payload: { data: courseData },
+                payload: { data: courseData as unknown as Record<string, unknown> },
             });
         }
     };

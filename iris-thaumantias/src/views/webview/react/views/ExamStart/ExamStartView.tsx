@@ -209,8 +209,8 @@ export function ExamStartView({ vscodeApi }: ExamStartViewProps) {
                             {hasStarted ? (
                                 <ExamTimer
                                     endTime={timerEndTime}
-                                    startTime={timerEndTime - (studentExam.workingTime * 1000)}
-                                    totalDuration={studentExam.workingTime * 1000}
+                                    startTime={timerEndTime - ((studentExam.workingTime || 0) * 1000)}
+                                    totalDuration={(studentExam.workingTime || 0) * 1000}
                                 />
                             ) : (
                                 <div className={styles.countdownTimer}>
@@ -233,7 +233,7 @@ export function ExamStartView({ vscodeApi }: ExamStartViewProps) {
                 </summary>
                 <div
                     className={styles.rulesContent}
-                    dangerouslySetInnerHTML={{ __html: sanitizeRules(exam.startText) }}
+                    dangerouslySetInnerHTML={{ __html: sanitizeRules(exam.startText || '') }}
                 />
             </details>
 

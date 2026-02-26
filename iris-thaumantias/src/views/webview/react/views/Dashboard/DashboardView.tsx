@@ -98,7 +98,7 @@ export function DashboardView({ vscodeApi }: DashboardViewProps) {
         vscodeApi.postMessage({
             type: 'command',
             command: 'viewCourseDetails',
-            payload: { courseData },
+            payload: { courseData: courseData as any },
         });
     };
 

@@ -114,7 +114,13 @@ export function LoginView({ vscodeApi }: LoginViewProps) {
 
 				case 'healthCheckResults':
 					// Convert health check results to ServiceInfo format
-					const results = message.payload.results;
+					const results = message.payload.results as Record<string, {
+						status: string;
+						message: string;
+						endpoint: string;
+						httpStatus: number | null;
+						response: string | null;
+					}>;
 					const services: ServiceInfo[] = Object.entries(results).map(([serviceName, data]) => ({
 						name: formatServiceName(serviceName),
 						status: data.status as 'online' | 'offline' | 'checking' | 'unknown',

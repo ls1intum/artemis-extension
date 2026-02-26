@@ -107,10 +107,11 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
 
     // Auto-retry once on error
     useEffect(() => {
-        if (error && !autoRetried && exerciseData?.exercise?.id) {
+        const exerciseId = exerciseData?.exercise?.id;
+        if (error && !autoRetried && exerciseId) {
             const timer = setTimeout(() => {
                 setAutoRetried(true);
-                loadExerciseDetail(vscodeApi, exerciseData.exercise.id);
+                loadExerciseDetail(vscodeApi, exerciseId);
             }, 2000);
             return () => clearTimeout(timer);
         }
@@ -145,7 +146,7 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
 
     const handleAskIris = () => {
         const exercise = exerciseData?.exercise;
-        if (exercise) {
+        if (exercise && exercise.id !== undefined && exercise.title !== undefined) {
             vscodeApi.postMessage({
                 type: 'command',
                 command: 'askIrisAboutExercise',
@@ -273,11 +274,11 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
     const bonusPoints = exercise.bonusPoints ?? 0;
     const dueDate = exercise.dueDate;
     const releaseDate = exercise.releaseDate || exercise.startDate;
-    const mode = exercise.mode || 'individual';
-    const includedInScore = exercise.includedInScore !== false ? 'Graded' : 'Not graded';
+    const mode = (exercise as any).mode || 'individual';
+    const includedInScore = (exercise as any).includedInScore !== false ? 'Graded' : 'Not graded';
     const courseName = exercise.course?.title || 'Unknown Course';
     const semester = exercise.course?.semester;
-    const filePattern = exercise.filePattern;
+    const filePattern = (exercise as any).filePattern as string | undefined;
 
     // Time remaining calculation
     let timeRemaining = '';
@@ -403,6 +404,7 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
                     hasRepository={!!repositoryUri}
                     canSubmit={hasParticipation && isProgramming}
                     onStart={() => {
+                        if (exercise.id === undefined) return;
                         vscodeApi.postMessage({
                             type: 'command',
                             command: 'startExercise',
@@ -439,6 +441,7 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
                         });
                     }}
                     onStartPractice={() => {
+                        if (exercise.id === undefined) return;
                         vscodeApi.postMessage({
                             type: 'command',
                             command: 'startPractice',

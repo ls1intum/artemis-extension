@@ -41,22 +41,20 @@ export function RecommendedExtensionsView({ vscodeApi }: RecommendedExtensionsVi
 
             const typedMessage = message as ExtensionToWebviewMessage;
 
-            switch (typedMessage.type) {
-                case 'recommendedExtensionsInit':
-                    setCategories(typedMessage.payload.categories);
-                    setIsLoaded(true);
-                    break;
-
+            if ('type' in typedMessage) {
+                switch (typedMessage.type) {
+                    case 'recommendedExtensionsInit':
+                        setCategories(typedMessage.payload.categories);
+                        setIsLoaded(true);
+                        break;
+                }
+            } else if ('command' in typedMessage && (typedMessage as any).command === 'recommendedExtensionsInit') {
                 // Handle legacy command format for robustness
-                default:
-                    if ('command' in typedMessage && (typedMessage as any).command === 'recommendedExtensionsInit') {
-                        const legacyMessage = typedMessage as any;
-                        if (legacyMessage.categories) {
-                            setCategories(legacyMessage.categories);
-                            setIsLoaded(true);
-                        }
-                    }
-                    break;
+                const legacyMessage = typedMessage as any;
+                if (legacyMessage.categories) {
+                    setCategories(legacyMessage.categories);
+                    setIsLoaded(true);
+                }
             }
         };
 

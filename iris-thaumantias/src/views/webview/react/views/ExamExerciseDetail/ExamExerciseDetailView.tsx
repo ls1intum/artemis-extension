@@ -67,10 +67,11 @@ export function ExamExerciseDetailView({ vscodeApi }: ExamExerciseDetailViewProp
 
     // Auto-retry on error
     useEffect(() => {
-        if (exerciseError && !autoRetried && exerciseData?.exercise?.id) {
+        const exerciseId = exerciseData?.exercise?.id;
+        if (exerciseError && !autoRetried && exerciseId) {
             const timer = setTimeout(() => {
                 setAutoRetried(true);
-                loadExerciseDetail(vscodeApi, exerciseData.exercise.id);
+                loadExerciseDetail(vscodeApi, exerciseId);
             }, 2000);
             return () => clearTimeout(timer);
         }
@@ -236,6 +237,7 @@ export function ExamExerciseDetailView({ vscodeApi }: ExamExerciseDetailViewProp
                     canSubmit={hasParticipation && isProgramming}
                     isExamExercise={true}
                     onStart={() => {
+                        if (exercise.id === undefined) return;
                         vscodeApi.postMessage({
                             type: 'command',
                             command: 'startExercise',
@@ -272,6 +274,7 @@ export function ExamExerciseDetailView({ vscodeApi }: ExamExerciseDetailViewProp
                         });
                     }}
                     onStartPractice={() => {
+                        if (exercise.id === undefined) return;
                         vscodeApi.postMessage({
                             type: 'command',
                             command: 'startPractice',

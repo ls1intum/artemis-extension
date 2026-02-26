@@ -25,7 +25,7 @@ export function ExamConductionView({ vscodeApi }: ExamConductionViewProps) {
         const handleMessage = (event: MessageEvent) => {
             const message = event.data as ExtensionToWebviewMessage;
 
-            if (message.type === 'examConductionInit') {
+            if ('type' in message && message.type === 'examConductionInit') {
                 store.setExamData(message.payload);
             }
         };
