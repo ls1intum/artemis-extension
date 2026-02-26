@@ -114,13 +114,14 @@ Plans:
   3. ESLint @typescript-eslint/no-explicit-any rule enforced across codebase
   4. Zero compilation errors in both extension host and webview builds
   5. Type-safe message contracts maintained (no any types in handler signatures)
-**Plans**: 7 plans
+**Plans**: 8 plans
 
 Plans:
 - [x] 12-01-PLAN.md — Resolve all 107 compilation errors (declaration files, tsconfig fixes, suppression comment removal)
 - [x] 12-02-PLAN.md — ESLint strict type rules + eliminate any from extension host code (partial: foundation laid, 772 errors remain)
 - [x] 12-03-PLAN.md — Eliminate any from webview React code (partial: stores typed, 11 any types remain in views)
-- [ ] 12-04-PLAN.md — (Gap closure) Fix 85 TypeScript compilation errors from typing changes
+- [ ] 12-04-PLAN.md — (Gap closure) Fix extension host TypeScript errors (missing types, broken imports, legacy commands)
+- [ ] 12-08-PLAN.md — (Gap closure) Fix webview provider and React view TypeScript compilation errors
 - [ ] 12-05-PLAN.md — (Gap closure) Eliminate any from extension host providers and services
 - [ ] 12-06-PLAN.md — (Gap closure) Eliminate any from extension host command handlers
 - [ ] 12-07-PLAN.md — (Gap closure) Eliminate any from webview React views and shared modules
