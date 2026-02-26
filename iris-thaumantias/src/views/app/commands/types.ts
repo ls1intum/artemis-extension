@@ -5,7 +5,7 @@ import type { AppStateManager } from '../appStateManager';
 import type { WebViewActionHandler } from '../types';
 import type { ArtemisWebsocketService } from '../../../services';
 import type { WebviewToExtensionMessage, ExtensionToWebviewMessage } from '../../../shared/messageContracts';
-import type { BuildErrorCodeLensProvider } from '../../../codeErrorCodeLensProvider';
+import type { BuildErrorCodeLensProvider } from '../../../provider/buildErrorCodeLensProvider';
 
 export type CommandHandler = (message: WebviewToExtensionMessage) => Promise<void>;
 export type CommandMap = Record<string, CommandHandler>;

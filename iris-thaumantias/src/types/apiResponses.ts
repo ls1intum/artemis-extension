@@ -144,3 +144,41 @@ export interface StudentExam {
     startedDate?: string;
     [key: string]: unknown;
 }
+
+/**
+ * Artemis user information returned from authentication.
+ */
+export interface ArtemisUser {
+    id?: number;
+    login: string;
+    firstName?: string;
+    lastName?: string;
+    email?: string;
+    activated?: boolean;
+    langKey?: string;
+    authorities?: string[];
+    [key: string]: unknown;
+}
+
+/**
+ * Archived course structure (courses from previous semesters).
+ */
+export interface ArchivedCourse {
+    id: number;
+    title: string;
+    semester?: string;
+    color?: string;
+    [key: string]: unknown;
+}
+
+/**
+ * Full course detail data with exercises and exams.
+ */
+export interface CourseDetailData {
+    course: CourseDashboardCourse & {
+        exercises?: ExerciseDetail[];
+        exams?: ExamSummary[];
+        isArchived?: boolean;
+    };
+    [key: string]: unknown;
+}

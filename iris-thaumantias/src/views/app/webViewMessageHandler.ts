@@ -7,7 +7,7 @@ import { AppStateManager } from './appStateManager';
 import type { WebViewActionHandler } from './types';
 import type { CommandContext, CommandHandler } from './commands/types';
 import type { WebviewToExtensionMessage, ExtensionToWebviewMessage } from '../../shared/messageContracts';
-import type { BuildErrorCodeLensProvider } from '../../codeErrorCodeLensProvider';
+import type { BuildErrorCodeLensProvider } from '../../provider/buildErrorCodeLensProvider';
 import { AuthCommandModule } from './commands/authCommands';
 import { NavigationCommandModule } from './commands/navigationCommands';
 import { RepositoryCommandModule } from './commands/repositoryCommands';

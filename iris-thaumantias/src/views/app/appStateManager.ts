@@ -182,7 +182,7 @@ export class AppStateManager {
      */
     public async refreshCurrentExercise(): Promise<void> {
         if (this._currentState === 'exercise-detail' && this._currentExerciseData) {
-            const exerciseId = this._currentExerciseData?.exercise?.id || this._currentExerciseData?.id;
+            const exerciseId = this._currentExerciseData?.exercise?.id;
             if (exerciseId) {
                 logger.view(`🔄 Refreshing exercise ${exerciseId}`);
                 await this.showExerciseDetail(exerciseId);
@@ -213,7 +213,14 @@ export class AppStateManager {
 
     public async loadArchivedCourses(): Promise<void> {
         try {
-            this._archivedCoursesData = await this._artemisApi.getArchivedCourses();
+            const courses = await this._artemisApi.getArchivedCourses();
+            // Map CourseDashboardCourse to ArchivedCourse (subset of fields)
+            this._archivedCoursesData = courses.map(course => ({
+                id: course.id!,
+                title: course.title || '',
+                semester: course.semester,
+                color: course.color
+            }));
         } catch (error) {
             logger.error('Error loading archived courses:', LogCategory.VIEW, error);
             throw error;
