@@ -54,16 +54,30 @@ export class AuthManager {
     }
 
     // Capture Set-Cookie from a fetch Response and store it
-    public async setFromResponse(response: any, persist: boolean): Promise<void> {
+    public async setFromResponse(response: unknown, persist: boolean): Promise<void> {
         try {
             let setCookies: string[] | undefined;
             // undici supports getSetCookie() in Node fetch
-            const anyHeaders = response?.headers as any;
-            if (anyHeaders && typeof anyHeaders.getSetCookie === 'function') {
-                setCookies = anyHeaders.getSetCookie();
-            } else if (response?.headers?.get) {
-                const single = response.headers.get('set-cookie');
-                setCookies = single ? [single] : undefined;
+            // Type guard for response with headers
+            if (response && typeof response === 'object' && 'headers' in response) {
+                const headers = (response as { headers: unknown }).headers;
+
+                // Check for getSetCookie method (undici Headers)
+                if (headers && typeof headers === 'object' && 'getSetCookie' in headers) {
+                    const getSetCookie = (headers as { getSetCookie: unknown }).getSetCookie;
+                    if (typeof getSetCookie === 'function') {
+                        const result: unknown = (getSetCookie as () => unknown)();
+                        setCookies = result as string[];
+                    }
+                } else if (headers && typeof headers === 'object' && 'get' in headers) {
+                    // Fallback to standard Headers.get
+                    const get = (headers as { get: unknown }).get;
+                    if (typeof get === 'function') {
+                        const result: unknown = (get as (name: string) => unknown)('set-cookie');
+                        const single = result as string | null;
+                        setCookies = single ? [single] : undefined;
+                    }
+                }
             }
 
             const cookieHeader = AuthManager.extractCookieHeader(setCookies);

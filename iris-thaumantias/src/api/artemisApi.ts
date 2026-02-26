@@ -64,9 +64,12 @@ export class ArtemisApiService {
                 const errorBody = await response.text();
                 if (errorBody) {
                     try {
-                        const parsed = JSON.parse(errorBody);
+                        const parsed: unknown = JSON.parse(errorBody);
                         // Artemis uses different fields for error messages
-                        errorDetail = parsed.message || parsed.detail || parsed.title || parsed.error;
+                        if (parsed && typeof parsed === 'object') {
+                            const errorObj = parsed as { message?: string; detail?: string; title?: string; error?: string };
+                            errorDetail = errorObj.message || errorObj.detail || errorObj.title || errorObj.error;
+                        }
                     } catch {
                         // Response is not JSON, use raw text if meaningful
                         if (errorBody.length < 200 && !errorBody.includes('<')) {
@@ -183,13 +186,13 @@ export class ArtemisApiService {
 
     // Get participations for the current user
     async getParticipations(): Promise<ArtemisParticipation[]> {
-        const data = await (await this.makeRequest('/api/core/participations')).json();
+        const data: unknown = await (await this.makeRequest('/api/core/participations')).json();
         return (data as unknown[]).map(p => ArtemisParticipation.fromJSON(p));
     }
 
     // Get results for a participation
     async getResults(participationId: number): Promise<ArtemisResult[]> {
-        const data = await (await this.makeRequest(`/api/core/participations/${participationId}/results`)).json();
+        const data: unknown = await (await this.makeRequest(`/api/core/participations/${participationId}/results`)).json();
         return (data as unknown[]).map(r => ArtemisResult.fromJSON(r));
     }
 
@@ -206,7 +209,7 @@ export class ArtemisApiService {
             endpoint += `?resultId=${resultId}`;
         }
         const response = await this.makeRequest(endpoint);
-        const data = await response.json();
+        const data: unknown = await response.json();
         return (data as unknown[]).map(e => BuildLogEntry.fromJSON(e));
     }
 
@@ -289,8 +292,11 @@ export class ArtemisApiService {
 
             if (parsedMessage) {
                 try {
-                    const parsed = JSON.parse(rawError);
-                    parsedMessage = parsed?.title || parsed?.message || parsed?.detail || parsed?.error || parsedMessage;
+                    const parsed: unknown = JSON.parse(rawError);
+                    if (parsed && typeof parsed === 'object') {
+                        const errorObj = parsed as { title?: string; message?: string; detail?: string; error?: string };
+                        parsedMessage = errorObj.title || errorObj.message || errorObj.detail || errorObj.error || parsedMessage;
+                    }
                 } catch (parseError) {
                     // Fall back to plain text error message when JSON parsing fails
                 }
