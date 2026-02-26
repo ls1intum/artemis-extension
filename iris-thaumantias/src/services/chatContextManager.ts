@@ -149,6 +149,6 @@ export class ChatContextManager {
     }
 
     private _clearChatMessages(): void {
-        this._postMessage({ command: 'clearChatMessages' });
+        this._postMessage({ type: 'clearChatMessages' });
     }
 }

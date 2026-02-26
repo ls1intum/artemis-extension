@@ -1,8 +1,15 @@
 import * as vscode from 'vscode';
 import { ArtemisApiService } from '../api';
 import { ArtemisWebsocketService } from './artemisWebsocketService';
-import { ActiveContext } from '../types';
+import { ActiveContext, type IrisChatMessage } from '../types';
 import { logger, LogLevel } from './loggingService';
+
+/** WebSocket message structure for Iris chat */
+interface IrisWebSocketMessage {
+    type?: string;
+    message?: IrisChatMessage;
+    [key: string]: unknown;
+}
 
 /**
  * Minimum interval between resubscription attempts (milliseconds).
@@ -26,7 +33,7 @@ export class IrisSessionManager implements vscode.Disposable {
     private _lastResubscribeAttempt: number = 0;
     private _isSubscribed: boolean = false;
 
-    private readonly _onDidReceiveMessage = new vscode.EventEmitter<any>();
+    private readonly _onDidReceiveMessage = new vscode.EventEmitter<IrisWebSocketMessage>();
     public readonly onDidReceiveMessage = this._onDidReceiveMessage.event;
     private readonly _onDidConnectionStateChange = new vscode.EventEmitter<boolean>();
     public readonly onDidConnectionStateChange = this._onDidConnectionStateChange.event;
@@ -141,7 +148,7 @@ export class IrisSessionManager implements vscode.Disposable {
         try {
             this._irisUnsubscribe = this._websocketService.subscribeToIrisSession(
                 sessionId,
-                (data: any) => this._handleWebSocketMessage(data)
+                (data: unknown) => this._handleWebSocketMessage(data)
             );
             this._isSubscribed = true;
             logger.session(`Successfully subscribed to session: ${sessionId}`);
@@ -159,8 +166,8 @@ export class IrisSessionManager implements vscode.Disposable {
         this._subscribeIfConnected(sessionId);
     }
 
-    private _handleWebSocketMessage(data: any): void {
-        this._onDidReceiveMessage.fire(data);
+    private _handleWebSocketMessage(data: unknown): void {
+        this._onDidReceiveMessage.fire(data as IrisWebSocketMessage);
     }
 
     /**

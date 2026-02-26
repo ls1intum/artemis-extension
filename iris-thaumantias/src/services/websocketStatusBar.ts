@@ -585,7 +585,9 @@ export class WebSocketStatusBarService implements vscode.Disposable {
         this._statusBarItem.dispose();
 
         // Dispose all other disposables
-        this._disposables.forEach(d => d.dispose());
+        this._disposables.forEach(d => {
+            void d.dispose();
+        });
         this._disposables = [];
     }
 }

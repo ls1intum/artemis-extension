@@ -135,7 +135,7 @@ export class ChatMessageService {
     private _displayUserMessage(text: string): void {
         logger.websocket('💬 Sending user message to webview');
         this._postMessage({
-            command: 'addMessage',
+            type: 'addMessage',
             message: {
                 role: 'user',
                 content: text,
@@ -198,7 +198,7 @@ export class ChatMessageService {
                     .map(f => ({ path: f.path, reason: f.reason || 'Excluded' }));
 
                 this._postMessage({
-                    command: 'updateReferencedFiles',
+                    type: 'updateReferencedFiles',
                     includedFiles: Array.from(uncommittedFiles.keys()),
                     excludedFiles: excludedFiles,
                     totalCount: result.totalCount

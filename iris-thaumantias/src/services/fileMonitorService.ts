@@ -55,11 +55,13 @@ export class FileMonitorService implements vscode.Disposable {
         if (gitExtension) {
             Promise.resolve(gitExtension.activate()).then(() => {
                 logger.fileMonitor('Git extension activated');
-                const git = gitExtension.exports.getAPI(1);
-                if (git) {
+                // Git extension exports are untyped - use unknown and type guard
+                const exports = gitExtension.exports as { getAPI?: (version: number) => unknown };
+                const git = exports.getAPI?.(1) as { repositories?: Array<{ state: { onDidChange: (listener: () => void) => vscode.Disposable } }> } | undefined;
+                if (git?.repositories) {
                     logger.fileMonitor(`Git API available, watching ${git.repositories.length} repositories`);
                     // Listen to repository state changes
-                    git.repositories.forEach((repo: any) => {
+                    git.repositories.forEach((repo) => {
                         const repoListener = repo.state.onDidChange(() => {
                             logger.fileMonitor('Git state changed, updating...');
                             void this._updateReferencedFilesDisplay();

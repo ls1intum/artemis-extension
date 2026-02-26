@@ -306,6 +306,7 @@ export class ArtemisWebsocketService {
                         this._log(`WebSocket error: ${err.message}`);
                     });
 
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-return -- STOMP library expects generic WebSocket type
                     return ws as any;
                 },
 
@@ -317,6 +318,7 @@ export class ArtemisWebsocketService {
                     this._onError(`STOMP error: ${frame.headers['message']}`);
                 },
 
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any -- STOMP library onWebSocketError uses generic event type
                 onWebSocketError: (event: any) => {
                     this._onError(`WebSocket error`);
                 },
@@ -508,7 +510,7 @@ export class ArtemisWebsocketService {
      * Subscribe to Iris chat session updates
      * Topic format: /user/topic/iris/{sessionId} for authenticated user-specific messages
      */
-    public subscribeToIrisSession(sessionId: number, onMessage: (message: any) => void): () => void {
+    public subscribeToIrisSession(sessionId: number, onMessage: (message: unknown) => void): () => void {
         if (!this._isConnected || !this._client) {
             this._log('Cannot subscribe: not connected');
             throw new Error('WebSocket not connected');
@@ -534,7 +536,7 @@ export class ArtemisWebsocketService {
         const subscription = this._client.subscribe(topic, (message: IMessage) => {
             try {
                 this._log(`📨 Received WebSocket message for Iris session ${sessionId}`);
-                const data = JSON.parse(message.body);
+                const data: unknown = JSON.parse(message.body);
                 this._log(`📦 Message data preview: ${JSON.stringify(data).substring(0, 200)}...`);
                 this._log(`🔔 Invoking onMessage callback for session ${sessionId}`);
                 onMessage(data);

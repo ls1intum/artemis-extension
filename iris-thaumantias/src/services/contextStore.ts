@@ -7,6 +7,7 @@ import {
     StoredSession,
     TrackedCourse,
     TrackedExercise,
+    type IrisChatMessage,
 } from '../types';
 import { logger } from './loggingService';
 
@@ -318,7 +319,7 @@ export class ContextStore {
         messageCount: number,
         createdAt: number,
         artemisSessionId?: number,
-        messages?: any[]
+        messages?: IrisChatMessage[]
     ): ContextSnapshot {
         const active = this.state.activeContext;
         if (!active) {
@@ -575,7 +576,8 @@ export class ContextStore {
             return [value, ...list];
         }
         const next = [...list];
-        next[index] = { ...(list[index] as any), ...(value as any) };
+        // Spread both objects assuming they're object types
+        next[index] = { ...(list[index] as object), ...(value as object) } as T;
         return next;
     }
 

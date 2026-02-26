@@ -43,9 +43,10 @@ export class ExerciseRegistry {
         }
     }
 
-    public registerFromCourseData(courseData: any): void {
-        const exercises = courseData?.course?.exercises || courseData?.exercises || [];
-        const courseId = courseData?.course?.id ?? courseData?.id;
+    public registerFromCourseData(courseData: unknown): void {
+        const data = courseData as { course?: { id?: number; exercises?: unknown[] }; exercises?: unknown[]; id?: number };
+        const exercises = data?.course?.exercises || data?.exercises || [];
+        const courseId = data?.course?.id ?? data?.id;
 
         // Clear existing exercises for this course before registering fresh data
         // This ensures deleted exercises are properly removed from the registry
@@ -58,20 +59,26 @@ export class ExerciseRegistry {
         const skipped: string[] = [];
 
         for (const exercise of exercises) {
-            const participations = exercise.studentParticipations || [];
+            const ex = exercise as {
+                id?: number;
+                title?: string;
+                shortName?: string;
+                studentParticipations?: Array<{ repositoryUri?: string }>
+            };
+            const participations = ex.studentParticipations || [];
 
-            if (participations.length > 0 && participations[0].repositoryUri) {
+            if (participations.length > 0 && participations[0].repositoryUri && ex.id && ex.title) {
                 this.registerExercise(
-                    exercise.id,
-                    exercise.title,
+                    ex.id,
+                    ex.title,
                     participations[0].repositoryUri,
-                    exercise.shortName,
+                    ex.shortName,
                     courseId
                 );
                 registeredCount++;
-                registered.push(`${exercise.id}: ${exercise.title}`);
+                registered.push(`${ex.id}: ${ex.title}`);
             } else {
-                skipped.push(`${exercise.id}: ${exercise.title} (no repo URI)`);
+                skipped.push(`${ex.id ?? 'unknown'}: ${ex.title ?? 'unknown'} (no repo URI)`);
             }
         }
 
