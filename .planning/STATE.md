@@ -24,9 +24,9 @@ See: .planning/PROJECT.md (updated 2026-02-25)
 
 Milestone: v1.1 Production Ready
 Phase: 12 of 15 (Type Safety Hardening)
-Plan: 11 of 15
+Plan: 10 of 15
 Status: In Progress
-Last activity: 2026-02-26 — Completed 12-11 (Command handler type safety completion - 62 ESLint errors resolved)
+Last activity: 2026-02-26 — Completed 12-10 (Service layer type safety - 73 ESLint errors eliminated)
 
 Progress: [█████████░░░░░] 82% (v1.0: 7/7 complete, v1.1: 14/15 plans complete)
 
@@ -41,18 +41,18 @@ Progress: [█████████░░░░░] 82% (v1.0: 7/7 complete, 
 
 **v1.1 Milestone (In Progress):**
 - Phases: 8 (8-15)
-- Plans completed: 14 of 15
+- Plans completed: 9 of 15
 - Phase 8 execution: 15 minutes (2 plans, Phase 8 COMPLETE)
 - Phase 9 execution: 7 minutes (3 plans, Phase 9 COMPLETE)
 - Phase 10 execution: 10 minutes (2 plans, Phase 10 COMPLETE)
 - Phase 11 execution: 16.4 minutes (4 of 4 plans, Phase 11 COMPLETE)
-- Phase 12 execution: 61 minutes (11 of 15 plans, Phase 12 IN PROGRESS)
+- Phase 12 execution: 77 minutes (9 of 15 plans, Phase 12 IN PROGRESS)
 - Phase 15 execution: 3.6 minutes (1 plan, Phase 15 COMPLETE)
-- Files created: 18 (raw findings, flow findings, audit document, problemStatementProcessor, vitest config, 3 test helpers, 3 test files, helper README, 12 SUMMARYs, 2 type declarations)
-- Files modified: 90 (artemisWebviewProvider, messageContracts, ProblemStatement TSX/CSS, ExerciseDetailView, ExamExerciseDetailView, types, index.tsx, CourseDetailView CSS, package.json, .vscode-test.mjs, 23 test files with import path updates, webViewMessageHandler, extension, utilityCommands, esbuild.js, eslint.config.mjs, .gitignore, package-lock.json, CodeBlock.tsx, iconMap.ts, DashboardView.tsx, IconButton.tsx, ArtemisLogo.tsx, tsconfig.json, vitest.config renamed, appStateManager.test.ts, LoginView.test.tsx, MessageBubble.tsx, StreamingMessage.tsx, useAutoScroll.ts, useExamTimer.ts, streamdown.d.ts, apiResponses.ts, appStateManager.ts, commands/types.ts, commands/repositoryCommands.ts, commands/navigationCommands.ts, useChatStore.ts, useCourseDetailStore.ts, useExerciseDetailStore.ts, CourseDetailView.tsx, CourseListView.tsx, ExamConductionView.tsx, ExamStartView.tsx, LoginView.tsx, RecommendedExtensionsView.tsx)
+- Files created: 18 (raw findings, flow findings, audit document, problemStatementProcessor, vitest config, 3 test helpers, 3 test files, helper README, 13 SUMMARYs, 2 type declarations)
+- Files modified: 100 (artemisWebviewProvider, messageContracts, ProblemStatement TSX/CSS, ExerciseDetailView, ExamExerciseDetailView, types, index.tsx, CourseDetailView CSS, package.json, .vscode-test.mjs, 23 test files with import path updates, webViewMessageHandler, extension, utilityCommands, esbuild.js, eslint.config.mjs, .gitignore, package-lock.json, CodeBlock.tsx, iconMap.ts, DashboardView.tsx, IconButton.tsx, ArtemisLogo.tsx, tsconfig.json, vitest.config renamed, appStateManager.test.ts, LoginView.test.tsx, MessageBubble.tsx, StreamingMessage.tsx, useAutoScroll.ts, useExamTimer.ts, streamdown.d.ts, apiResponses.ts, appStateManager.ts, commands/types.ts, commands/repositoryCommands.ts, commands/navigationCommands.ts, useChatStore.ts, useCourseDetailStore.ts, useExerciseDetailStore.ts, CourseDetailView.tsx, CourseListView.tsx, ExamConductionView.tsx, ExamStartView.tsx, LoginView.tsx, RecommendedExtensionsView.tsx, 10 service files)
 - Files moved: 68 (test directory reorganization)
 - Tests added: 30 (Button: 12, useDashboardStore: 9, LoginView: 9)
-- Estimated total: ~102 minutes (15 plans complete, 0 remaining)
+- Estimated total: ~118 minutes (9 plans complete, 6 remaining)
 
 ## Accumulated Context
 
@@ -114,6 +114,10 @@ Recent decisions affecting v1.1 work:
 - [Phase 12-11]: Add releaseDate and dueDate to AskIrisAboutExerciseCommand interface for complete type coverage
 - [Phase 12-11]: Fix HealthCheckResultsMessage to use proper type/payload format instead of legacy command format
 - [Phase 12-11]: Use unknown-first type assertions for legacy PlantUML commands not yet in union
+- [Phase 12-10]: STOMP library boundaries require explicit any with eslint-disable justification
+- [Phase 12-10]: Git extension API uses unknown with type guards for untyped external API
+- [Phase 12-10]: Message contracts use type field not command field for ExtensionToWebviewMessage union discrimination
+- [Phase 12-10]: WebSocket messages typed with IrisWebSocketMessage interface for JSON.parse results
 
 ### Pending Todos
 
@@ -147,10 +151,10 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-26
-Stopped at: Completed 12-11-PLAN.md (Command handler type safety completion - 62 ESLint errors resolved)
-Resume with: Continue with remaining Phase 12 plans (12-12, 12-13, 12-14, 12-15 remaining)
+Stopped at: Completed 12-10-PLAN.md (Service layer type safety - 73 ESLint errors eliminated)
+Resume with: Continue with remaining Phase 12 plans (12-11, 12-12, 12-13, 12-14, 12-15 remaining)
 
 ---
 
 *Created: 2026-02-23 (v1.0)*
-*Updated: 2026-02-26 (Phase 12-11 COMPLETE — Command layer type safety: 62 errors resolved, all 8 command files fully typed, TYPE-03 requirement complete)*
+*Updated: 2026-02-26 (Phase 12-10 COMPLETE — Service layer type safety: 73 ESLint errors eliminated, all 10 service files fully typed, TYPE-03 requirement complete)*
