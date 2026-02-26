@@ -225,9 +225,10 @@ export class UtilityCommandModule {
         }
     };
 
-    private handleOpenExerciseInBrowser = async (message: any): Promise<void> => {
-        const exerciseId: number = message.exerciseId;
-        const courseId: number = message.courseId;
+    private handleOpenExerciseInBrowser = async (message: WebviewToExtensionMessage): Promise<void> => {
+        const payload = getPayload<{ type: 'command'; command: 'openExerciseInBrowser'; payload: OpenExerciseInBrowserPayload }>(message);
+        const exerciseId = payload.exerciseId;
+        const courseId = payload.courseId;
 
         if (!exerciseId) {
             vscode.window.showErrorMessage('Cannot open exercise: missing exercise ID');
@@ -257,9 +258,10 @@ export class UtilityCommandModule {
         }
     };
 
-    private handleViewBuildLog = async (message: any): Promise<void> => {
-        const participationId: number = message.participationId;
-        const resultId: number | undefined = message.resultId;
+    private handleViewBuildLog = async (message: WebviewToExtensionMessage): Promise<void> => {
+        const payload = getPayload<{ type: 'command'; command: 'viewBuildLog'; payload: ViewBuildLogPayload }>(message);
+        const participationId = payload.participationId;
+        const resultId = payload.resultId;
 
         try {
             if (!participationId) {
@@ -281,9 +283,12 @@ export class UtilityCommandModule {
 
             // Format the build log for display
             const logContent = buildLogs
-                .map((entry: any) => {
-                    const timestamp = new Date(entry.time).toISOString().replace('T', ' ').substring(0, 19);
-                    return `${timestamp}\n    ${entry.log}`;
+                .map((entry: unknown) => {
+                    if (typeof entry !== 'object' || entry === null) return '';
+                    const entryObj = entry as { time?: unknown; log?: unknown };
+                    const timestamp = entryObj.time ? new Date(entryObj.time as string).toISOString().replace('T', ' ').substring(0, 19) : '';
+                    const log = typeof entryObj.log === 'string' ? entryObj.log : '';
+                    return `${timestamp}\n    ${log}`;
                 })
                 .join('\n');
 
@@ -326,10 +331,11 @@ export class UtilityCommandModule {
         }
     };
 
-    private handleGoToSourceError = async (message: any): Promise<void> => {
-        const filePath: string = normalizeRelativePath(message.filePath);
-        const line: number = message.line;
-        const column: number | undefined = message.column;
+    private handleGoToSourceError = async (message: WebviewToExtensionMessage): Promise<void> => {
+        const payload = getPayload<{ type: 'command'; command: 'goToSourceError'; payload: GoToSourceErrorPayload }>(message);
+        const filePath: string = normalizeRelativePath(payload.filePath);
+        const line = payload.line;
+        const column = payload.column;
 
         try {
             if (!filePath) {
@@ -379,9 +385,10 @@ export class UtilityCommandModule {
         }
     };
 
-    private handleFetchBuildLogsForError = async (message: any): Promise<void> => {
-        const participationId: number = message.participationId;
-        const resultId: number | undefined = message.resultId;
+    private handleFetchBuildLogsForError = async (message: WebviewToExtensionMessage): Promise<void> => {
+        const payload = getPayload<{ type: 'command'; command: 'fetchBuildLogsForError'; payload: FetchBuildLogsForErrorPayload }>(message);
+        const participationId = payload.participationId;
+        const resultId = payload.resultId;
 
         try {
             if (!participationId) {
@@ -443,13 +450,14 @@ export class UtilityCommandModule {
     /**
      * Handles log messages from webview scripts
      */
-    private handleWebviewLog = async (message: any): Promise<void> => {
-        const { level, text, category } = message;
+    private handleWebviewLog = async (message: WebviewToExtensionMessage): Promise<void> => {
+        const payload = getPayload<{ type: 'command'; command: 'webviewLog'; payload: WebviewLogPayload }>(message);
+        const { level, text, category } = payload;
         const logCategory = LogCategory.VIEW;
 
         switch (level) {
             case 'error':
-                logger.error(text, logCategory, message.error);
+                logger.error(text, logCategory, payload.error);
                 break;
             case 'warn':
                 logger.warn(text, logCategory);
@@ -467,10 +475,11 @@ export class UtilityCommandModule {
     /**
      * Handle opening external links with trusted domain confirmation
      */
-    private handleOpenExternalLink = async (message: any): Promise<void> => {
+    private handleOpenExternalLink = async (message: WebviewToExtensionMessage): Promise<void> => {
         try {
             // Input validation
-            const url = message.payload?.url;
+            const payload = getPayload<OpenExternalLinkCommand>(message);
+            const url = payload.url;
             if (!url || typeof url !== 'string') {
                 vscode.window.showErrorMessage('Invalid URL: missing or not a string');
                 return;
@@ -532,12 +541,13 @@ export class UtilityCommandModule {
             }
         } catch (error: unknown) {
             logger.error('Open external link error:', LogCategory.VIEW, error);
+            const payload = getPayload<OpenExternalLinkCommand>(message);
             const action = await vscode.window.showErrorMessage(
                 `Failed to open external link: ${error instanceof Error ? error.message : 'Unknown error'}`,
                 'Copy URL'
             );
-            if (action === 'Copy URL' && message.payload?.url) {
-                await vscode.env.clipboard.writeText(message.payload.url);
+            if (action === 'Copy URL' && payload.url) {
+                await vscode.env.clipboard.writeText(payload.url);
             }
         }
     };
@@ -545,10 +555,11 @@ export class UtilityCommandModule {
     /**
      * Handle opening image previews (data URIs or remote URLs)
      */
-    private handleOpenImagePreview = async (message: any): Promise<void> => {
+    private handleOpenImagePreview = async (message: WebviewToExtensionMessage): Promise<void> => {
         try {
             // Input validation
-            const uri = message.payload?.uri;
+            const payload = getPayload<OpenImagePreviewCommand>(message);
+            const uri = payload.uri;
             if (!uri || typeof uri !== 'string') {
                 vscode.window.showErrorMessage('Invalid image URI: missing or not a string');
                 return;
@@ -595,12 +606,13 @@ export class UtilityCommandModule {
             await vscode.env.openExternal(vscode.Uri.parse(uri));
         } catch (error: unknown) {
             logger.error('Open image preview error:', LogCategory.VIEW, error);
+            const payload = getPayload<OpenImagePreviewCommand>(message);
             const action = await vscode.window.showErrorMessage(
                 `Failed to open image: ${error instanceof Error ? error.message : 'Unknown error'}`,
                 'Copy URL'
             );
-            if (action === 'Copy URL' && message.payload?.uri) {
-                await vscode.env.clipboard.writeText(message.payload.uri);
+            if (action === 'Copy URL' && payload.uri) {
+                await vscode.env.clipboard.writeText(payload.uri);
             }
         }
     };
