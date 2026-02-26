@@ -1,6 +1,12 @@
 import * as vscode from 'vscode';
 import type { CommandContext, CommandMap } from './types';
+import type { WebviewToExtensionMessage, LoginCommand } from '../../../shared/messageContracts';
 import { logger } from '../../../services/loggingService';
+
+// Helper to extract typed payload from command messages
+function getPayload<T extends WebviewToExtensionMessage & { payload: unknown }>(message: WebviewToExtensionMessage): T['payload'] {
+    return (message as T).payload;
+}
 
 export class AuthCommandModule {
     constructor(private readonly context: CommandContext) { }
@@ -12,10 +18,11 @@ export class AuthCommandModule {
         };
     }
 
-    private handleLogin = async (message: any): Promise<void> => {
-        const username: string = message.username;
-        const password: string = message.password;
-        const rememberMe: boolean = message.rememberMe || false;
+    private handleLogin = async (message: WebviewToExtensionMessage): Promise<void> => {
+        const payload = getPayload<LoginCommand>(message);
+        const username = payload.username;
+        const password = payload.password;
+        const rememberMe = payload.rememberMe || false;
 
         const config = vscode.workspace.getConfiguration('artemis');
         const serverUrl = config.get<string>('serverUrl', 'https://artemis.tum.de');
@@ -33,7 +40,7 @@ export class AuthCommandModule {
                 serverUrl: serverUrl,
                 user: user
             });
-        } catch (error) {
+        } catch (error: unknown) {
             logger.authError('Login error:', error);
             const friendlyError = this.formatLoginError(error);
             vscode.window.showErrorMessage(friendlyError);
@@ -54,7 +61,7 @@ export class AuthCommandModule {
 
             this.context.appStateManager.showLogin();
             this.context.actionHandler.render();
-        } catch (error) {
+        } catch (error: unknown) {
             logger.authError('Logout error:', error);
             vscode.window.showErrorMessage('Error during logout');
         }
