@@ -32,7 +32,7 @@ export class PlantUmlCommandModule {
     }
 
     private handleRenderPlantUml = async (message: WebviewToExtensionMessage): Promise<void> => {
-        const payload = message as { plantUmlDiagrams: string[]; exerciseTitle?: string };
+        const payload = message as unknown as RenderPlantUmlPayload;
         const plantUmlDiagrams: string[] = payload.plantUmlDiagrams;
         const exerciseTitle: string | undefined = payload.exerciseTitle;
 
@@ -99,7 +99,7 @@ export class PlantUmlCommandModule {
     };
 
     private handleOpenPlantUmlInNewTab = async (message: WebviewToExtensionMessage): Promise<void> => {
-        const payload = message as { plantUml: string; index: number };
+        const payload = message as unknown as OpenPlantUmlInNewTabPayload;
         const plantUml: string = payload.plantUml;
         const index: number = payload.index;
 

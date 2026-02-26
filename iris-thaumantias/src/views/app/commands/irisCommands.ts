@@ -2,6 +2,12 @@ import * as vscode from 'vscode';
 import { ProviderRegistry } from '../../../services/ProviderRegistry';
 import { logger, LogCategory } from '../../../services/loggingService';
 import type { CommandContext, CommandMap } from './types';
+import type { WebviewToExtensionMessage, AskIrisAboutExerciseCommand, AskIrisAboutCourseCommand } from '../../../shared/messageContracts';
+
+// Helper to extract typed payload from message
+function getPayload<T extends WebviewToExtensionMessage & { payload: unknown }>(message: WebviewToExtensionMessage): T['payload'] {
+    return (message as T).payload;
+}
 
 export class IrisCommandModule {
     constructor(private readonly context: CommandContext) { }
@@ -13,13 +19,15 @@ export class IrisCommandModule {
         };
     }
 
-    private handleAskIrisAboutExercise = async (message: any): Promise<void> => {
-        const exerciseId: number = message.exerciseId;
-        const exerciseTitle: string | undefined = message.exerciseTitle;
-        const exerciseShortName: string | undefined = message.exerciseShortName;
-        const releaseDate: string | undefined = message.releaseDate;
-        const dueDate: string | undefined = message.dueDate;
-        const courseId: number | undefined = message.courseId;
+    private handleAskIrisAboutExercise = async (message: WebviewToExtensionMessage): Promise<void> => {
+        const {
+            exerciseId,
+            exerciseTitle,
+            exerciseShortName,
+            releaseDate,
+            dueDate,
+            courseId
+        } = getPayload<AskIrisAboutExerciseCommand>(message);
 
         logger.debug('Button clicked with data:', LogCategory.IRIS_CHAT, {
             exerciseId,
@@ -65,10 +73,8 @@ export class IrisCommandModule {
         }
     };
 
-    private handleAskIrisAboutCourse = async (message: any): Promise<void> => {
-        const courseId: number = message.courseId;
-        const courseTitle: string | undefined = message.courseTitle;
-        const courseShortName: string | undefined = message.courseShortName;
+    private handleAskIrisAboutCourse = async (message: WebviewToExtensionMessage): Promise<void> => {
+        const { courseId, courseTitle, courseShortName } = getPayload<AskIrisAboutCourseCommand>(message);
 
         if (!courseId) {
             vscode.window.showWarningMessage('Unable to open Iris chat: missing course information.');

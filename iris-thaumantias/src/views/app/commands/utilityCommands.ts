@@ -284,7 +284,7 @@ export class UtilityCommandModule {
             // Format the build log for display
             const logContent = buildLogs
                 .map((entry: unknown) => {
-                    if (typeof entry !== 'object' || entry === null) return '';
+                    if (typeof entry !== 'object' || entry === null) {return '';}
                     const entryObj = entry as { time?: unknown; log?: unknown };
                     const timestamp = entryObj.time ? new Date(entryObj.time as string).toISOString().replace('T', ' ').substring(0, 19) : '';
                     const log = typeof entryObj.log === 'string' ? entryObj.log : '';

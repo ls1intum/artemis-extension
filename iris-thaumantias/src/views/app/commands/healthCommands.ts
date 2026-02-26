@@ -9,18 +9,14 @@ function getPayload<T extends WebviewToExtensionMessage & { payload: unknown }>(
 
 // Health check result structure
 interface HealthCheckResult {
-    status: 'online' | 'offline' | 'unknown';
+    status: string;
     message: string;
     endpoint: string;
     httpStatus: number | null;
     response: string | null;
 }
 
-interface HealthCheckResults {
-    serverReachability: HealthCheckResult;
-    apiAvailability: HealthCheckResult;
-    irisService: HealthCheckResult;
-}
+type HealthCheckResults = Record<string, HealthCheckResult>;
 
 export class HealthCommandModule {
     constructor(private readonly context: CommandContext) { }
@@ -171,8 +167,10 @@ export class HealthCommandModule {
         }
 
         this.context.sendMessage({
-            command: 'healthCheckResults',
-            results: results
+            type: 'healthCheckResults',
+            payload: {
+                results: results
+            }
         });
     };
 }
