@@ -121,7 +121,7 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
                                 return {
                                     id: msg.id,
                                     localId: crypto.randomUUID(),
-                                    role: msg.role,
+                                    role: msg.role as 'user' | 'assistant', // Type guard confirms it's one of these
                                     content: msg.content,
                                     timestamp: msg.timestamp,
                                     helpful: typeof msg.helpful === 'boolean' ? msg.helpful : null,

@@ -37,11 +37,14 @@ export function List({ children, onSelect, className, ariaLabel }: ListProps) {
   const enhancedChildren = Children.map(children, (child, index) => {
     if (isValidElement(child)) {
       const itemId = `list-item-${index}`;
-      return cloneElement(child, {
+      // Type assertion justified: React.cloneElement with spread props is a known React pattern
+      // for adding props to children. The `any` is unavoidable here due to React's type definitions.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-argument
+      return cloneElement(child as React.ReactElement<any>, {
         selected: index === selectedIndex,
         id: itemId,
         ...child.props,
-      } as any);
+      });
     }
     return child;
   });

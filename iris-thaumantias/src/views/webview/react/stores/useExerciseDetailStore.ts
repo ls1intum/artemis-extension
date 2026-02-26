@@ -122,7 +122,7 @@ export const useExerciseDetailStore = create<ExerciseDetailState>()(
                 const result = payload;
 
                 // Deep clone exerciseData
-                const updatedData = JSON.parse(JSON.stringify(state.exerciseData));
+                const updatedData = JSON.parse(JSON.stringify(state.exerciseData)) as ExerciseDetailsResponse;
 
                 // Find participation for this result
                 const participation = findParticipationForResult(updatedData, result);
@@ -140,8 +140,9 @@ export const useExerciseDetailStore = create<ExerciseDetailState>()(
                         participation.results.push(result);
                     }
 
-                    // Update latest result reference
-                    updatedData.latestResult = getLatestResult(participation);
+                    // Update latest result reference - updatedData may have latestResult field via index signature
+                    const updatedDataWithLatest = updatedData as ExerciseDetailsResponse & { latestResult?: ResultSummary | null };
+                    updatedDataWithLatest.latestResult = getLatestResult(participation);
                 }
 
                 set({ exerciseData: updatedData }, false, 'updateBuildStatus');
@@ -155,11 +156,12 @@ export const useExerciseDetailStore = create<ExerciseDetailState>()(
 
                 // payload is the newSubmission data
                 const submission = payload;
-                // Submission may have a participation reference (not in type but present at runtime)
-                const submissionParticipation = (submission as any).participation as ParticipationSummary | undefined;
+                // Submission may have a participation reference (not in type but present at runtime via index signature)
+                const submissionWithParticipation = submission as SubmissionSummary & { participation?: ParticipationSummary };
+                const submissionParticipation = submissionWithParticipation.participation;
 
                 // Deep clone exerciseData
-                const updatedData = JSON.parse(JSON.stringify(state.exerciseData));
+                const updatedData = JSON.parse(JSON.stringify(state.exerciseData)) as ExerciseDetailsResponse;
 
                 // Find participation by ID
                 const participation = updatedData.exercise?.studentParticipations?.find(
@@ -179,8 +181,9 @@ export const useExerciseDetailStore = create<ExerciseDetailState>()(
                         participation.submissions.push(submission);
                     }
 
-                    // Update latest submission reference
-                    updatedData.latestSubmission = getLatestSubmission(participation);
+                    // Update latest submission reference - updatedData may have latestSubmission field via index signature
+                    const updatedDataWithLatest = updatedData as ExerciseDetailsResponse & { latestSubmission?: SubmissionSummary | null };
+                    updatedDataWithLatest.latestSubmission = getLatestSubmission(participation);
                 }
 
                 set({ exerciseData: updatedData }, false, 'updateSubmission');
@@ -196,10 +199,11 @@ export const useExerciseDetailStore = create<ExerciseDetailState>()(
                 // For now, just flag that a submission is processing
 
                 // Deep clone exerciseData
-                const updatedData = JSON.parse(JSON.stringify(state.exerciseData));
+                const updatedData = JSON.parse(JSON.stringify(state.exerciseData)) as ExerciseDetailsResponse;
 
-                // Mark pending submission
-                updatedData.pendingSubmission = payload;
+                // Mark pending submission - updatedData may have pendingSubmission field via index signature
+                const updatedDataWithPending = updatedData as ExerciseDetailsResponse & { pendingSubmission?: typeof payload };
+                updatedDataWithPending.pendingSubmission = payload;
 
                 set({ exerciseData: updatedData }, false, 'updateSubmissionProcessing');
             },

@@ -35,7 +35,7 @@ export function ServiceStatusView({ vscodeApi }: ServiceStatusViewProps) {
                 return;
             }
 
-            const typedMessage = message as ExtensionToWebviewMessage;
+            const typedMessage = message as { type: string };
 
             switch (typedMessage.type) {
                 case 'serviceStatusInit': {

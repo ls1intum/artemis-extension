@@ -50,7 +50,7 @@ export function DashboardView({ vscodeApi }: DashboardViewProps) {
 
             // Handle typed message format
             if (typedMessage.type === 'dashboardInit') {
-                const payload = typedMessage.payload as { courses?: unknown[]; workspaceExercise?: { id: number; title: string } } | undefined;
+                const payload = typedMessage.payload as { courses?: RecentCourseNode[]; workspaceExercise?: { id: number; title: string } } | undefined;
                 setDashboardData(payload?.courses ?? []);
                 if (payload?.workspaceExercise) {
                     setWorkspaceExercise({
@@ -64,18 +64,6 @@ export function DashboardView({ vscodeApi }: DashboardViewProps) {
                     setWorkspaceExercise({
                         id: payload.exerciseId,
                         title: payload.exerciseTitle,
-                    });
-                } else {
-                    setWorkspaceExercise(null);
-                }
-            }
-
-            // Handle legacy message format for backward compatibility
-            if (message.command === 'workspaceExerciseDetected') {
-                if (message.exerciseId && message.exerciseTitle) {
-                    setWorkspaceExercise({
-                        id: message.exerciseId,
-                        title: message.exerciseTitle,
                     });
                 } else {
                     setWorkspaceExercise(null);
