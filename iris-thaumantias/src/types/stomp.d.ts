@@ -29,12 +29,17 @@ declare module '@stomp/stompjs' {
         onConnect?: (frame: IFrame) => void;
         onDisconnect?: (frame: IFrame) => void;
         onStompError?: (frame: IFrame) => void;
+        // WebSocket event types are untyped at STOMP library boundary
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         onWebSocketClose?: (evt: any) => void;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         onWebSocketError?: (evt: any) => void;
         onUnhandledMessage?: (message: IMessage) => void;
         onUnhandledReceipt?: (frame: IFrame) => void;
         onUnhandledFrame?: (frame: IFrame) => void;
         beforeConnect?: () => void | Promise<void>;
+        // WebSocket factory returns untyped WebSocket instance at library boundary
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         webSocketFactory?: () => any;
     }
 
@@ -73,7 +78,10 @@ declare module '@stomp/stompjs' {
         onConnect?: (frame: IFrame) => void;
         onDisconnect?: (frame: IFrame) => void;
         onStompError?: (frame: IFrame) => void;
+        // WebSocket event types are untyped at STOMP library boundary
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         onWebSocketClose?: (evt: any) => void;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         onWebSocketError?: (evt: any) => void;
     }
 }

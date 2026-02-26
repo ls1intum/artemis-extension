@@ -129,35 +129,59 @@ export async function checkWorkspaceFiles(
                     if (!gitExtension.isActive) {
                         await gitExtension.activate();
                     }
-                    const git = gitExtension.exports.getAPI(1);
-                    if (git && git.repositories.length > 0) {
-                        const repo = folder ?
-                            git.repositories.find((r: any) => r.rootUri.fsPath === folder.uri.fsPath) :
-                            git.repositories[0];
+                    // Git extension API is untyped external API - use unknown with type guards
+                    const gitExports: unknown = gitExtension.exports;
+                    let gitApi: unknown;
 
-                        if (repo) {
-                            // Check each dirty file to see if it's gitignored
-                            for (const file of dirtyFiles) {
-                                const fileUri = vscode.Uri.joinPath(folder.uri, file);
-                                try {
-                                    // Use Git API to check if file is ignored
-                                    const isIgnored = await repo.status(fileUri).then(
-                                        () => false, // File is tracked, not ignored
-                                        () => true   // File is not tracked (likely ignored)
-                                    );
+                    // Type guard for exports with getAPI method
+                    if (gitExports && typeof gitExports === 'object' && 'getAPI' in gitExports) {
+                        const getAPI = (gitExports as { getAPI: unknown }).getAPI;
+                        if (typeof getAPI === 'function') {
+                            gitApi = (getAPI as (version: number) => unknown)(1);
+                        }
+                    }
 
-                                    if (!isIgnored) {
+                    // Type guard for Git API
+                    if (gitApi && typeof gitApi === 'object' && 'repositories' in gitApi) {
+                        const repositories = (gitApi as { repositories: unknown }).repositories;
+
+                        if (Array.isArray(repositories) && repositories.length > 0) {
+                            const repo: unknown = folder ?
+                                repositories.find((r: unknown) =>
+                                    r && typeof r === 'object' && 'rootUri' in r &&
+                                    (r as { rootUri: { fsPath: string } }).rootUri.fsPath === folder.uri.fsPath
+                                ) :
+                                repositories[0];
+
+                            if (repo && typeof repo === 'object' && 'status' in repo) {
+                                const repoWithStatus = repo as { status: (uri: vscode.Uri) => Promise<unknown> };
+
+                                // Check each dirty file to see if it's gitignored
+                                for (const file of dirtyFiles) {
+                                    const fileUri = vscode.Uri.joinPath(folder.uri, file);
+                                    try {
+                                        // Use Git API to check if file is ignored
+                                        const isIgnored: boolean = await repoWithStatus.status(fileUri).then(
+                                            () => false, // File is tracked, not ignored
+                                            () => true   // File is not tracked (likely ignored)
+                                        );
+
+                                        if (!isIgnored) {
+                                            allFiles.add(file);
+                                        } else {
+                                            logger.fileMonitor(`Skipping gitignored dirty file: ${file}`);
+                                        }
+                                    } catch {
+                                        // If we can't determine, include it to be safe
                                         allFiles.add(file);
-                                    } else {
-                                        logger.fileMonitor(`Skipping gitignored dirty file: ${file}`);
                                     }
-                                } catch {
-                                    // If we can't determine, include it to be safe
-                                    allFiles.add(file);
                                 }
+                            } else {
+                                // No repo found, include all dirty files
+                                dirtyFiles.forEach(file => allFiles.add(file));
                             }
                         } else {
-                            // No repo found, include all dirty files
+                            // Git not available, include all dirty files
                             dirtyFiles.forEach(file => allFiles.add(file));
                         }
                     } else {

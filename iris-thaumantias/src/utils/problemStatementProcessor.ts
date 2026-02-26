@@ -7,7 +7,9 @@ import DOMPurify from 'dompurify';
  * and link/image attribute injection.
  */
 export function processProblemStatement(html: string): string {
-    if (!html) return '';
+    if (!html) {
+        return '';
+    }
 
     // 1. Sanitize HTML first (allow safe tags for rich content)
     let processed = DOMPurify.sanitize(html, {
@@ -30,13 +32,13 @@ export function processProblemStatement(html: string): string {
     });
 
     // 2. Replace block math ($$...$$) — process BEFORE inline to avoid conflict
-    processed = processed.replace(/\$\$([^$]+)\$\$/g, (_match, latex) => {
+    processed = processed.replace(/\$\$([^$]+)\$\$/g, (_match: string, latex: string) => {
         return renderKaTeX(latex.trim(), true);
     });
 
     // 3. Replace inline math ($...$) — single $ delimiters
     // Use negative lookbehind/lookahead to avoid matching $$ or escaped \$
-    processed = processed.replace(/(?<!\$)\$(?!\$)([^$\n]+?)\$(?!\$)/g, (_match, latex) => {
+    processed = processed.replace(/(?<!\$)\$(?!\$)([^$\n]+?)\$(?!\$)/g, (_match: string, latex: string) => {
         return renderKaTeX(latex.trim(), false);
     });
 
@@ -44,7 +46,7 @@ export function processProblemStatement(html: string): string {
     // Artemis problem statements may contain <pre> blocks with @startuml...@enduml
     processed = processed.replace(
         /<pre[^>]*>(?:<code[^>]*>)?(@startuml[\s\S]*?@enduml)(?:<\/code>)?<\/pre>/gi,
-        (_match, plantUml, _offset) => {
+        (_match: string, plantUml: string, _offset: number) => {
             const encoded = encodeURIComponent(plantUml.trim());
             return `<div class="plantuml-placeholder" data-plantuml="${encoded}">Loading diagram...</div>`;
         }
