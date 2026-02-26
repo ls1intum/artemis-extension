@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from 'react';
-import type { VsCodeApi } from '../../../../../shared/messageContracts';
+import type { VsCodeApi, IrisChatStateMessage } from '../../../../../shared/messageContracts';
 import { useChatStore } from '../../stores/useChatStore';
 import { ChatMessageList } from './components/ChatMessageList';
 import { ChatInput } from './components/ChatInput';
@@ -58,78 +58,127 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
 
     // Message listener - handles messages from extension (uses legacy format with message.command)
     useEffect(() => {
-        const handler = (event: MessageEvent) => {
+        const handler = (event: MessageEvent<unknown>) => {
             const message = event.data;
 
-            switch (message.command) {
-                case 'updateIrisState':
-                    store.setIrisState(message.state);
+            // Type guard for extension messages
+            if (typeof message !== 'object' || message === null || !('type' in message)) {
+                return;
+            }
+
+            const typedMessage = message as Record<string, unknown>;
+
+            switch (typedMessage.type) {
+                case 'updateIrisState': {
+                    const stateMsg = typedMessage as { type: 'updateIrisState'; state: unknown; showDiagnostics?: unknown };
+                    if (stateMsg.state && typeof stateMsg.state === 'object') {
+                        store.setIrisState(stateMsg.state as IrisChatStateMessage['state']);
+                    }
                     // Extract showDiagnostics flag if present
-                    if (typeof message.showDiagnostics === 'boolean') {
-                        store.setShowDiagnostics(message.showDiagnostics);
+                    if (typeof stateMsg.showDiagnostics === 'boolean') {
+                        store.setShowDiagnostics(stateMsg.showDiagnostics);
                     }
                     break;
+                }
 
-                case 'showContextPicker':
-                    store.setIrisState(message.state);
+                case 'showContextPicker': {
+                    const pickerMsg = typedMessage as { type: 'showContextPicker'; state: unknown };
+                    if (pickerMsg.state && typeof pickerMsg.state === 'object') {
+                        store.setIrisState(pickerMsg.state as IrisChatStateMessage['state']);
+                    }
                     setForceContextPicker(true);
                     break;
+                }
 
-                case 'addMessage':
-                    if (message.message) {
-                        store.addMessage({
-                            id: message.message.id,
-                            localId: crypto.randomUUID(),
-                            role: message.message.role,
-                            content: message.message.content,
-                            timestamp: message.message.timestamp,
-                            helpful: message.message.helpful,
-                            status: 'sent',
-                        });
+                case 'addMessage': {
+                    const addMsg = typedMessage as { type: 'addMessage'; message?: unknown };
+                    if (addMsg.message && typeof addMsg.message === 'object') {
+                        const msg = addMsg.message as { id?: number; role?: unknown; content?: unknown; timestamp?: unknown; helpful?: unknown };
+                        if ((msg.role === 'user' || msg.role === 'assistant') && typeof msg.content === 'string' && typeof msg.timestamp === 'number') {
+                            store.addMessage({
+                                id: msg.id,
+                                localId: crypto.randomUUID(),
+                                role: msg.role,
+                                content: msg.content,
+                                timestamp: msg.timestamp,
+                                helpful: typeof msg.helpful === 'boolean' ? msg.helpful : null,
+                                status: 'sent',
+                            });
+                        }
                     }
                     break;
+                }
 
-                case 'loadMessages':
-                    if (message.messages) {
-                        store.setMessages(message.messages.map((m: any) => ({
-                            id: m.id,
-                            localId: crypto.randomUUID(),
-                            role: m.role,
-                            content: m.content,
-                            timestamp: m.timestamp,
-                            helpful: m.helpful,
-                            status: 'sent',
-                        })));
+                case 'loadMessages': {
+                    const loadMsg = typedMessage as { type: 'loadMessages'; messages?: unknown };
+                    if (Array.isArray(loadMsg.messages)) {
+                        store.setMessages(loadMsg.messages.map((m: unknown) => {
+                            if (typeof m !== 'object' || m === null) {
+                                return null;
+                            }
+                            const msg = m as { id?: number; role?: unknown; content?: unknown; timestamp?: unknown; helpful?: unknown };
+                            if ((msg.role === 'user' || msg.role === 'assistant') && typeof msg.content === 'string' && typeof msg.timestamp === 'number') {
+                                return {
+                                    id: msg.id,
+                                    localId: crypto.randomUUID(),
+                                    role: msg.role,
+                                    content: msg.content,
+                                    timestamp: msg.timestamp,
+                                    helpful: typeof msg.helpful === 'boolean' ? msg.helpful : null,
+                                    status: 'sent' as const,
+                                };
+                            }
+                            return null;
+                        }).filter((msg): msg is NonNullable<typeof msg> => msg !== null));
                     }
                     break;
+                }
 
                 case 'clearChatMessages':
                     store.clearMessages();
                     break;
 
-                case 'updateReferencedFiles':
+                case 'updateReferencedFiles': {
+                    const filesMsg = typedMessage as { type: 'updateReferencedFiles'; includedFiles?: unknown; excludedFiles?: unknown; totalCount?: unknown };
                     store.setReferencedFiles({
-                        includedFiles: message.includedFiles || [],
-                        excludedFiles: message.excludedFiles || [],
-                        totalCount: message.totalCount || 0,
+                        includedFiles: Array.isArray(filesMsg.includedFiles) ? filesMsg.includedFiles.filter((f): f is string => typeof f === 'string') : [],
+                        excludedFiles: Array.isArray(filesMsg.excludedFiles)
+                            ? filesMsg.excludedFiles.filter((f: unknown): f is { path: string; reason?: string } => {
+                                return typeof f === 'object' && f !== null && 'path' in f && typeof (f as Record<string, unknown>).path === 'string';
+                            })
+                            : [],
+                        totalCount: typeof filesMsg.totalCount === 'number' ? filesMsg.totalCount : 0,
                     });
                     break;
+                }
 
-                case 'updateWebSocketStatus':
-                    store.setWebSocketConnected(message.isConnected);
+                case 'updateWebSocketStatus': {
+                    const wsMsg = typedMessage as { type: 'updateWebSocketStatus'; isConnected?: unknown };
+                    if (typeof wsMsg.isConnected === 'boolean') {
+                        store.setWebSocketConnected(wsMsg.isConnected);
+                    }
                     break;
+                }
 
-                case 'showDisabledState':
-                    store.setDisabledMessage(message.message);
+                case 'showDisabledState': {
+                    const disMsg = typedMessage as { type: 'showDisabledState'; message?: unknown };
+                    if (typeof disMsg.message === 'string') {
+                        store.setDisabledMessage(disMsg.message);
+                    }
                     break;
+                }
 
                 case 'hideDisabledState':
                     store.setDisabledMessage(null);
                     break;
 
-                case 'updateNoAiStatus':
-                    store.setNoAiDetected(message.isNoAiDetected);
+                case 'updateNoAiStatus': {
+                    const noAiMsg = typedMessage as { type: 'updateNoAiStatus'; isNoAiDetected?: unknown };
+                    if (typeof noAiMsg.isNoAiDetected === 'boolean') {
+                        store.setNoAiDetected(noAiMsg.isNoAiDetected);
+                    }
                     break;
+                }
             }
         };
 
@@ -153,7 +202,11 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
 
     // Command dispatch helpers
     const sendCommand = (command: string, payload?: Record<string, unknown>) => {
-        vscodeApi.postMessage({ command, ...payload } as any);
+        vscodeApi.postMessage({
+            type: 'command',
+            command,
+            payload: payload || {},
+        } as VsCodeApi extends { postMessage(message: infer M): void } ? M : never);
     };
 
     const handleSendMessage = (text: string) => {

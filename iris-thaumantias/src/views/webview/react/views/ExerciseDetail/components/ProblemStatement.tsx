@@ -87,14 +87,21 @@ export function ProblemStatement({
         });
 
         // Listen for rendered SVG responses
-        const handleMessage = (event: MessageEvent) => {
+        const handleMessage = (event: MessageEvent<unknown>) => {
             const message = event.data;
-            if (message.command === 'plantUmlRendered' && container) {
+
+            if (typeof message !== 'object' || message === null || !('command' in message)) {
+                return;
+            }
+
+            const typedMessage = message as { command: string; index?: number; svg?: string };
+
+            if (typedMessage.command === 'plantUmlRendered' && container) {
                 const element = container.querySelector(
-                    `[data-plantuml-index="${message.index}"]`
+                    `[data-plantuml-index="${typedMessage.index ?? ''}"]`
                 );
-                if (element) {
-                    element.innerHTML = DOMPurify.sanitize(message.svg, {
+                if (element && typeof typedMessage.svg === 'string') {
+                    element.innerHTML = DOMPurify.sanitize(typedMessage.svg, {
                         ALLOWED_TAGS: ['svg', 'g', 'path', 'rect', 'circle', 'ellipse',
                                       'line', 'polyline', 'polygon', 'text', 'tspan',
                                       'defs', 'clipPath', 'use', 'style'],
@@ -109,9 +116,9 @@ export function ProblemStatement({
                 }
             }
 
-            if (message.command === 'plantUmlError' && container) {
+            if (typedMessage.command === 'plantUmlError' && container) {
                 const element = container.querySelector(
-                    `[data-plantuml-index="${message.index}"]`
+                    `[data-plantuml-index="${typedMessage.index ?? ''}"]`
                 );
                 if (element) {
                     element.textContent = 'Failed to render diagram';

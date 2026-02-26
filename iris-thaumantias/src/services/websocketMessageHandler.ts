@@ -1,31 +1,35 @@
 import * as vscode from 'vscode';
 import { ArtemisWebsocketService } from './artemisWebsocketService';
 import { IrisSessionManager } from './irisSessionManager';
+import type { IrisChatMessage, IrisChatMessageContent } from '../types/apiResponses';
 import { logger, LogCategory } from './loggingService';
 
 export class WebSocketMessageHandler {
     constructor(
         private readonly _websocketService: ArtemisWebsocketService | undefined,
         private readonly _getIrisSessionManager: () => IrisSessionManager | undefined,
-        private readonly _postMessage: (message: any) => void
+        private readonly _postMessage: (message: { command: string; message?: unknown; isConnected?: boolean }) => void
     ) { }
 
-    public handleIrisWebSocketMessage(data: any): void {
+    public handleIrisWebSocketMessage(data: unknown): void {
         logger.websocket(`🔔 Received Iris WebSocket message: ${JSON.stringify(data, null, 2)}`);
 
+        // Narrow unknown to typed object
+        const typedData = data as { type?: string; message?: IrisChatMessage };
+
         // Handle different message types
-        if (data.type === 'MESSAGE' && data.message) {
+        if (typedData.type === 'MESSAGE' && typedData.message) {
             logger.websocket('📦 Processing MESSAGE type');
             // Extract content from the message
             let content = '';
-            const msg = data.message;
+            const msg = typedData.message;
 
             if (msg.content && Array.isArray(msg.content) && msg.content.length > 0) {
-                content = msg.content.map((item: any) => {
+                content = msg.content.map((item: IrisChatMessageContent) => {
                     if (item.textContent) {
                         return item.textContent;
                     }
-                    return item.toString();
+                    return item.toString?.() ?? String(item);
                 }).join('\n');
             } else if (typeof msg.content === 'string') {
                 content = msg.content;
@@ -44,14 +48,14 @@ export class WebSocketMessageHandler {
                         role: 'assistant',
                         content: content,
                         timestamp: msg.sentAt ? new Date(msg.sentAt).getTime() : Date.now(),
-                        helpful: msg.helpful // true, false, or null
+                        helpful: (msg as { helpful?: boolean | null }).helpful // true, false, or null
                     }
                 });
                 logger.websocket('✅ Assistant message sent to webview');
             } else {
                 logger.websocket('⏭️ Skipping message (either USER message or no content)');
             }
-        } else if (data.type === 'STATUS') {
+        } else if (typedData.type === 'STATUS') {
             // Handle status updates (e.g., "Iris is thinking...")
             logger.websocket(`📊 Iris status update: ${JSON.stringify(data)}`);
             // TODO: Show status indicator in UI
@@ -86,9 +90,10 @@ export class WebSocketMessageHandler {
 
             this._updateWebSocketStatus(true);
             vscode.window.showInformationMessage('Successfully reconnected to WebSocket');
-        } catch (error: any) {
+        } catch (error: unknown) {
             logger.error('Failed to reconnect WebSocket', LogCategory.WEBSOCKET, error);
-            vscode.window.showErrorMessage(`Failed to reconnect: ${error.message}`);
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            vscode.window.showErrorMessage(`Failed to reconnect: ${errorMessage}`);
             this._updateWebSocketStatus(false);
         }
     }

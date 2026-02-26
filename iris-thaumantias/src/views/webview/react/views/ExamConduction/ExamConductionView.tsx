@@ -22,11 +22,17 @@ export function ExamConductionView({ vscodeApi }: ExamConductionViewProps) {
 
     // Message handler
     useEffect(() => {
-        const handleMessage = (event: MessageEvent) => {
-            const message = event.data as ExtensionToWebviewMessage;
+        const handleMessage = (event: MessageEvent<unknown>) => {
+            const message = event.data;
 
-            if ('type' in message && message.type === 'examConductionInit') {
-                store.setExamData(message.payload);
+            if (typeof message !== 'object' || message === null || !('type' in message)) {
+                return;
+            }
+
+            const typedMessage = message as { type: string; payload?: unknown };
+
+            if (typedMessage.type === 'examConductionInit' && typedMessage.payload) {
+                store.setExamData(typedMessage.payload as Parameters<typeof store.setExamData>[0]);
             }
         };
 

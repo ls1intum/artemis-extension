@@ -58,21 +58,22 @@ export function CourseListView({ vscodeApi }: CourseListViewProps) {
         });
 
         // Listen for courseList messages
-        const handleMessage = (event: MessageEvent) => {
+        const handleMessage = (event: MessageEvent<unknown>) => {
             const message = event.data;
 
-            // Handle typed message format
-            if (message.type === 'courseListInit') {
-                setCourses(message.payload.courses || [], message.payload.archivedCourses);
-            } else if (message.type === 'archivedCoursesLoaded') {
-                setArchivedCourses(message.payload.archivedCourses || []);
+            if (typeof message !== 'object' || message === null || !('type' in message)) {
+                return;
             }
 
-            // Handle legacy message format for backward compatibility
-            if (message.command === 'courseListInit') {
-                setCourses(message.courses || [], message.archivedCourses);
-            } else if (message.command === 'archivedCoursesLoaded') {
-                setArchivedCourses(message.archivedCourses || []);
+            const typedMessage = message as Record<string, unknown> & { type: string };
+
+            // Handle typed message format
+            if (typedMessage.type === 'courseListInit') {
+                const payload = typedMessage.payload as { courses?: unknown[]; archivedCourses?: unknown[] } | undefined;
+                setCourses(payload?.courses ?? [], payload?.archivedCourses);
+            } else if (typedMessage.type === 'archivedCoursesLoaded') {
+                const payload = typedMessage.payload as { archivedCourses?: unknown[] } | undefined;
+                setArchivedCourses(payload?.archivedCourses ?? []);
             }
         };
 

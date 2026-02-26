@@ -1,8 +1,65 @@
 import * as vscode from 'vscode';
 import * as crypto from 'crypto';
 import type { CommandContext, CommandMap } from './types';
+import type {
+    WebviewToExtensionMessage,
+    CopyToClipboardCommand,
+    OpenSettingsCommand,
+    SearchMarketplaceCommand,
+    OpenInEditorCommand,
+    OpenExternalLinkCommand,
+    OpenImagePreviewCommand,
+} from '../../../shared/messageContracts';
 import { BuildLogParser, normalizeRelativePath } from '../../../utils';
 import { logger, LogLevel, LogCategory } from '../../../services/loggingService';
+
+// Helper to extract typed payload from command messages
+function getPayload<T extends WebviewToExtensionMessage & { payload: unknown }>(message: WebviewToExtensionMessage): T['payload'] {
+    return (message as T).payload;
+}
+
+// Internal payload types for commands without full contracts
+interface AlertPayload {
+    text: string;
+}
+
+interface ShowSubmissionDetailsPayload {
+    participationId: number;
+    resultId: number;
+}
+
+interface FetchTestResultsPayload {
+    participationId: number;
+    resultId: number;
+}
+
+interface OpenExerciseInBrowserPayload {
+    exerciseId: number;
+    courseId?: number;
+}
+
+interface ViewBuildLogPayload {
+    participationId: number;
+    resultId?: number;
+}
+
+interface GoToSourceErrorPayload {
+    filePath: string;
+    line: number;
+    column?: number;
+}
+
+interface FetchBuildLogsForErrorPayload {
+    participationId: number;
+    resultId?: number;
+}
+
+interface WebviewLogPayload {
+    level: string;
+    text: string;
+    category: string;
+    error?: unknown;
+}
 
 export class UtilityCommandModule {
     constructor(private readonly context: CommandContext) { }
@@ -29,14 +86,16 @@ export class UtilityCommandModule {
         };
     }
 
-    private handleAlert = async (message: any): Promise<void> => {
-        if (message?.text) {
-            vscode.window.showErrorMessage(message.text);
+    private handleAlert = async (message: WebviewToExtensionMessage): Promise<void> => {
+        const payload = getPayload<{ type: 'command'; command: 'alert'; payload: AlertPayload }>(message);
+        if (payload?.text) {
+            vscode.window.showErrorMessage(payload.text);
         }
     };
 
-    private handleOpenSettings = async (message: any): Promise<void> => {
-        const settingId = message?.settingId || 'Artemis';
+    private handleOpenSettings = async (message: WebviewToExtensionMessage): Promise<void> => {
+        const payload = getPayload<OpenSettingsCommand>(message);
+        const settingId = payload?.setting || 'Artemis';
         await vscode.commands.executeCommand('workbench.action.openSettings', settingId);
     };
 
@@ -48,20 +107,23 @@ export class UtilityCommandModule {
         await vscode.env.openExternal(vscode.Uri.parse('https://github.com/ls1intum/artemis-extension/issues'));
     };
 
-    private handleOpenInEditor = async (message: any): Promise<void> => {
-        await this.context.actionHandler.openJsonInEditor(message.data);
+    private handleOpenInEditor = async (message: WebviewToExtensionMessage): Promise<void> => {
+        const payload = getPayload<OpenInEditorCommand>(message);
+        await this.context.actionHandler.openJsonInEditor(payload.data);
     };
 
-    private handleCopyToClipboard = async (message: any): Promise<void> => {
-        if (typeof message.text === 'string') {
-            await vscode.env.clipboard.writeText(message.text);
+    private handleCopyToClipboard = async (message: WebviewToExtensionMessage): Promise<void> => {
+        const payload = getPayload<CopyToClipboardCommand>(message);
+        if (typeof payload.text === 'string') {
+            await vscode.env.clipboard.writeText(payload.text);
             vscode.window.showInformationMessage('Copied to clipboard');
         }
     };
 
-    private handleSearchMarketplace = async (message: any): Promise<void> => {
-        if (message.extensionId) {
-            await vscode.commands.executeCommand('workbench.extensions.search', `@id:${message.extensionId}`);
+    private handleSearchMarketplace = async (message: WebviewToExtensionMessage): Promise<void> => {
+        const payload = getPayload<SearchMarketplaceCommand>(message);
+        if (payload.extensionId) {
+            await vscode.commands.executeCommand('workbench.extensions.search', `@id:${payload.extensionId}`);
         }
     };
 
@@ -85,7 +147,7 @@ export class UtilityCommandModule {
             } else {
                 vscode.window.showErrorMessage('No submission details found');
             }
-        } catch (error) {
+        } catch (error: unknown) {
             logger.submissionError('Show submission details error:', error);
             vscode.window.showErrorMessage(`Failed to fetch submission details: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
@@ -144,7 +206,7 @@ export class UtilityCommandModule {
                     testCases: []
                 });
             }
-        } catch (error) {
+        } catch (error: unknown) {
             logger.submissionError('Fetch test results error:', error);
             this.context.sendMessage({
                 command: 'testResultsData',
@@ -180,7 +242,7 @@ export class UtilityCommandModule {
 
             // Open in external browser
             await vscode.env.openExternal(vscode.Uri.parse(exerciseUrl));
-        } catch (error) {
+        } catch (error: unknown) {
             logger.viewError('Open exercise in browser error:', error);
             vscode.window.showErrorMessage(`Failed to open exercise in browser: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
@@ -249,7 +311,7 @@ export class UtilityCommandModule {
             }
 
             vscode.window.showInformationMessage('Build log opened in editor');
-        } catch (error) {
+        } catch (error: unknown) {
             logger.error('View build log error:', LogCategory.BUILD, error);
             vscode.window.showErrorMessage(`Failed to fetch build log: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
@@ -302,7 +364,7 @@ export class UtilityCommandModule {
             }
 
             vscode.window.showInformationMessage(`Navigated to ${filePath}:${line}`);
-        } catch (error) {
+        } catch (error: unknown) {
             logger.viewError('Go to source error:', error);
             vscode.window.showErrorMessage(`Failed to navigate to source: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
@@ -348,7 +410,7 @@ export class UtilityCommandModule {
             } else {
                 logger.info('No parseable errors found in build logs', LogCategory.BUILD);
             }
-        } catch (error) {
+        } catch (error: unknown) {
             logger.error('Fetch build logs for error:', LogCategory.BUILD, error);
             // Silently fail - this is a background operation
         }
@@ -363,7 +425,7 @@ export class UtilityCommandModule {
                 this.context.buildCodeLens.clearErrors();
                 logger.info('✅ CodeLens errors cleared', LogCategory.BUILD);
             }
-        } catch (error) {
+        } catch (error: unknown) {
             logger.error('Error clearing build errors:', LogCategory.BUILD, error);
             // Silently fail - this is a background operation
         }
@@ -459,7 +521,7 @@ export class UtilityCommandModule {
                 await this.context.extensionContext.globalState.update('artemis.trustedDomains', updatedDomains);
                 await vscode.env.openExternal(vscode.Uri.parse(url));
             }
-        } catch (error) {
+        } catch (error: unknown) {
             logger.error('Open external link error:', LogCategory.VIEW, error);
             const action = await vscode.window.showErrorMessage(
                 `Failed to open external link: ${error instanceof Error ? error.message : 'Unknown error'}`,
@@ -522,7 +584,7 @@ export class UtilityCommandModule {
 
             // Open remote image in default browser
             await vscode.env.openExternal(vscode.Uri.parse(uri));
-        } catch (error) {
+        } catch (error: unknown) {
             logger.error('Open image preview error:', LogCategory.VIEW, error);
             const action = await vscode.window.showErrorMessage(
                 `Failed to open image: ${error instanceof Error ? error.message : 'Unknown error'}`,

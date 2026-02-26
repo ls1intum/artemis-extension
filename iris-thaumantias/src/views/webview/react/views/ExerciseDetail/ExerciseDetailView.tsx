@@ -3,6 +3,7 @@ import { useExerciseDetailStore } from '../../stores/useExerciseDetailStore';
 import { useNavigationStore } from '../../stores/useNavigationStore';
 import { useWebSocketUpdates } from '../../hooks/useWebSocketUpdates';
 import type { ExerciseDetailViewProps } from './types';
+import type { ExerciseDetailsResponse } from '../../../../../types/apiResponses';
 import { getIcon } from '../../../../../utils/iconMap';
 import {
     BackLink,
@@ -53,37 +54,29 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
         });
 
         // Listen for exerciseDetailInit messages
-        const handleMessage = (event: MessageEvent) => {
+        const handleMessage = (event: MessageEvent<unknown>) => {
             const message = event.data;
 
-            // Handle typed message format
-            if (message.type === 'exerciseDetailInit') {
-                setExerciseData(message.payload.exerciseData, message.payload.hideDeveloperTools);
-
-                // Push breadcrumbs: Dashboard > CourseName > ExerciseName
-                const exercise = message.payload.exerciseData?.exercise;
-                const courseName = exercise?.course?.title || 'Course';
-                const exerciseTitle = exercise?.title || 'Exercise';
-                const abbreviatedCourse = courseName.length > 20 ? courseName.substring(0, 17) + '...' : courseName;
-                const abbreviatedExercise = exerciseTitle.length > 20 ? exerciseTitle.substring(0, 17) + '...' : exerciseTitle;
-
-                pushBreadcrumb(abbreviatedCourse, 'course-detail', () => {
-                    vscodeApi.postMessage({ type: 'command', command: 'backToCourseDetails' });
-                });
-
-                pushBreadcrumb(abbreviatedExercise, 'exercise-detail', () => {
-                    // Current page, no action
-                });
+            if (typeof message !== 'object' || message === null) {
+                return;
             }
 
-            // Handle legacy message format for backward compatibility
-            if (message.command === 'exerciseDetailInit') {
-                setExerciseData(message.exerciseData, message.hideDeveloperTools || false);
+            const typedMessage = message as Record<string, unknown>;
 
-                // Push breadcrumbs
-                const exercise = message.exerciseData?.exercise;
-                const courseName = exercise?.course?.title || 'Course';
-                const exerciseTitle = exercise?.title || 'Exercise';
+            // Handle typed message format
+            if (typedMessage.type === 'exerciseDetailInit') {
+                const payload = typedMessage.payload as { exerciseData?: unknown; hideDeveloperTools?: unknown } | undefined;
+                if (!payload) return;
+
+                const exerciseData = payload.exerciseData as ExerciseDetailsResponse;
+                const hideDeveloperTools = typeof payload.hideDeveloperTools === 'boolean' ? payload.hideDeveloperTools : false;
+
+                setExerciseData(exerciseData, hideDeveloperTools);
+
+                // Push breadcrumbs: Dashboard > CourseName > ExerciseName
+                const exercise = exerciseData?.exercise;
+                const courseName = exercise?.course?.title ?? 'Course';
+                const exerciseTitle = exercise?.title ?? 'Exercise';
                 const abbreviatedCourse = courseName.length > 20 ? courseName.substring(0, 17) + '...' : courseName;
                 const abbreviatedExercise = exerciseTitle.length > 20 ? exerciseTitle.substring(0, 17) + '...' : exerciseTitle;
 
@@ -274,11 +267,13 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
     const bonusPoints = exercise.bonusPoints ?? 0;
     const dueDate = exercise.dueDate;
     const releaseDate = exercise.releaseDate || exercise.startDate;
-    const mode = (exercise as any).mode || 'individual';
-    const includedInScore = (exercise as any).includedInScore !== false ? 'Graded' : 'Not graded';
+    // Additional fields not in core type (using index signature)
+    const exerciseWithExtra = exercise as typeof exercise & { mode?: string; includedInScore?: boolean; filePattern?: string };
+    const mode = exerciseWithExtra.mode ?? 'individual';
+    const includedInScore = exerciseWithExtra.includedInScore !== false ? 'Graded' : 'Not graded';
     const courseName = exercise.course?.title || 'Unknown Course';
     const semester = exercise.course?.semester;
-    const filePattern = (exercise as any).filePattern as string | undefined;
+    const filePattern = exerciseWithExtra.filePattern;
 
     // Time remaining calculation
     let timeRemaining = '';

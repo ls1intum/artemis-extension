@@ -25,12 +25,18 @@ export function GitCredentialsView({ vscodeApi }: GitCredentialsViewProps) {
 
     // Message handler
     useEffect(() => {
-        const handleMessage = (event: MessageEvent) => {
+        const handleMessage = (event: MessageEvent<unknown>) => {
             const message = event.data;
 
-            switch (message.type) {
+            if (typeof message !== 'object' || message === null || !('type' in message)) {
+                return;
+            }
+
+            const typedMessage = message as { type: string };
+
+            switch (typedMessage.type) {
                 case 'gitCredentialsInit': {
-                    const initMsg = message as GitCredentialsInitMessage;
+                    const initMsg = typedMessage as GitCredentialsInitMessage;
                     if (initMsg.payload.currentName) {
                         setName(initMsg.payload.currentName);
                     }
@@ -40,7 +46,7 @@ export function GitCredentialsView({ vscodeApi }: GitCredentialsViewProps) {
                     break;
                 }
                 case 'gitCredentialsResult': {
-                    const resultMsg = message as GitCredentialsResultMessage;
+                    const resultMsg = typedMessage as GitCredentialsResultMessage;
                     setStatusMessage(resultMsg.message);
                     setStatusType(resultMsg.status);
                     // Clear status after 5 seconds

@@ -28,41 +28,38 @@ export function ServiceStatusView({ vscodeApi }: ServiceStatusViewProps) {
 
     // Handle messages from extension
     useEffect(() => {
-        const messageHandler = (event: MessageEvent) => {
-            const message = event.data as ExtensionToWebviewMessage;
+        const messageHandler = (event: MessageEvent<unknown>) => {
+            const message = event.data;
 
-            // Handle both new typed format and legacy command format
-            if ('type' in message) {
-                switch (message.type) {
-                    case 'serviceStatusInit': {
-                        const initMsg = message as ServiceStatusInitMessage;
-                        const url = initMsg.payload.serverUrl || '';
-                        setServerUrl(url);
-                        // Trigger health check if we have a server URL
-                        if (url) {
-                            setIsChecking(true);
-                            vscodeApi.postMessage({
-                                type: 'command',
-                                command: 'performHealthChecks',
-                                payload: { serverUrl: url },
-                            });
-                        }
-                        break;
+            if (typeof message !== 'object' || message === null || !('type' in message)) {
+                return;
+            }
+
+            const typedMessage = message as ExtensionToWebviewMessage;
+
+            switch (typedMessage.type) {
+                case 'serviceStatusInit': {
+                    const initMsg = typedMessage as ServiceStatusInitMessage;
+                    const url = initMsg.payload.serverUrl ?? '';
+                    setServerUrl(url);
+                    // Trigger health check if we have a server URL
+                    if (url) {
+                        setIsChecking(true);
+                        vscodeApi.postMessage({
+                            type: 'command',
+                            command: 'performHealthChecks',
+                            payload: { serverUrl: url },
+                        });
                     }
-                    case 'healthCheckResults': {
-                        const resultsMsg = message as HealthCheckResultsMessage;
-                        setHealthResults(resultsMsg.payload.results as Record<string, HealthCheckResult>);
-                        setIsChecking(false);
-                        setLastCheckTime(new Date());
-                        break;
-                    }
+                    break;
                 }
-            } else if ('command' in message && (message as any).command === 'healthCheckResults') {
-                // Legacy command format from HealthCommandModule
-                const legacyMsg = message as any;
-                setHealthResults(legacyMsg.results as Record<string, HealthCheckResult>);
-                setIsChecking(false);
-                setLastCheckTime(new Date());
+                case 'healthCheckResults': {
+                    const resultsMsg = typedMessage as HealthCheckResultsMessage;
+                    setHealthResults(resultsMsg.payload.results as Record<string, HealthCheckResult>);
+                    setIsChecking(false);
+                    setLastCheckTime(new Date());
+                    break;
+                }
             }
         };
 

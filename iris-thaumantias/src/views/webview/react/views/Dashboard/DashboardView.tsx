@@ -39,23 +39,31 @@ export function DashboardView({ vscodeApi }: DashboardViewProps) {
     // Load dashboard data on mount
     useEffect(() => {
         // Listen for dashboard messages
-        const handleMessage = (event: MessageEvent) => {
+        const handleMessage = (event: MessageEvent<unknown>) => {
             const message = event.data;
 
+            if (typeof message !== 'object' || message === null || !('type' in message)) {
+                return;
+            }
+
+            const typedMessage = message as Record<string, unknown> & { type: string };
+
             // Handle typed message format
-            if (message.type === 'dashboardInit') {
-                setDashboardData(message.payload.courses || []);
-                if (message.payload.workspaceExercise) {
+            if (typedMessage.type === 'dashboardInit') {
+                const payload = typedMessage.payload as { courses?: unknown[]; workspaceExercise?: { id: number; title: string } } | undefined;
+                setDashboardData(payload?.courses ?? []);
+                if (payload?.workspaceExercise) {
                     setWorkspaceExercise({
-                        id: message.payload.workspaceExercise.id,
-                        title: message.payload.workspaceExercise.title,
+                        id: payload.workspaceExercise.id,
+                        title: payload.workspaceExercise.title,
                     });
                 }
-            } else if (message.type === 'workspaceExerciseDetected') {
-                if (message.payload) {
+            } else if (typedMessage.type === 'workspaceExerciseDetected') {
+                const payload = typedMessage.payload as { exerciseId?: number; exerciseTitle?: string } | null;
+                if (payload && typeof payload.exerciseId === 'number' && typeof payload.exerciseTitle === 'string') {
                     setWorkspaceExercise({
-                        id: message.payload.exerciseId,
-                        title: message.payload.exerciseTitle,
+                        id: payload.exerciseId,
+                        title: payload.exerciseTitle,
                     });
                 } else {
                     setWorkspaceExercise(null);

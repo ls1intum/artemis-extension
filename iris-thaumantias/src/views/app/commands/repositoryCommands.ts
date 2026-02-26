@@ -2,10 +2,49 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
 import type { CommandContext, CommandMap } from './types';
-import type { WebviewToExtensionMessage, CheckRepositoryStatusCommand, CloneRepositoryCommand } from '../../../shared/messageContracts';
+import type {
+    WebviewToExtensionMessage,
+    CheckRepositoryStatusCommand,
+    CloneRepositoryCommand,
+    SubmitExerciseCommand,
+    StartExerciseCommand,
+    StartPracticeCommand,
+    SaveGitIdentityCommand,
+    OpenRepositoryCommand,
+} from '../../../shared/messageContracts';
 import { VSCODE_CONFIG, checkWorkspaceFiles } from '../../../utils';
 import { detectWorkspaceExercise, normalizeRepositoryUrl, type ExerciseSource, GitService } from '../../../services';
 import { logger } from '../../../services/loggingService';
+
+// Helper to extract typed payload from command messages
+function getPayload<T extends WebviewToExtensionMessage & { payload: unknown }>(message: WebviewToExtensionMessage): T['payload'] {
+    return (message as T).payload;
+}
+
+// Internal payload types for commands without typed contracts
+interface ParticipateInExercisePayload {
+    exerciseId: number;
+    exerciseTitle: string;
+}
+
+interface OpenClonedRepositoryPayload {
+    exerciseId: number;
+}
+
+interface CopyCloneUrlPayload {
+    participationId: number;
+    repositoryUri: string;
+}
+
+interface PullChangesPayload {
+    exerciseTitle: string;
+}
+
+interface SaveGitCredentialsPayload {
+    username?: string;
+    token?: string;
+    serverUrl?: string;
+}
 
 interface RepoContext {
     expectedRepoUrl: string;
@@ -67,7 +106,7 @@ export class RepositoryCommandModule {
                 exerciseId: detected?.id ?? null,
                 exerciseTitle: detected?.title ?? null
             });
-        } catch (error) {
+        } catch (error: unknown) {
             logger.submissionWarn('Error detecting workspace exercise:', error);
             this.context.sendMessage({
                 command: 'workspaceExerciseDetected',
@@ -106,9 +145,10 @@ export class RepositoryCommandModule {
         return exercises;
     }
 
-    private handleParticipateInExercise = async (message: any): Promise<void> => {
-        const exerciseId: number = message.exerciseId;
-        const exerciseTitle: string = message.exerciseTitle;
+    private handleParticipateInExercise = async (message: WebviewToExtensionMessage): Promise<void> => {
+        const payload = getPayload<{ type: 'command'; command: 'participateInExercise'; payload: ParticipateInExercisePayload }>(message);
+        const exerciseId = payload.exerciseId;
+        const exerciseTitle = payload.exerciseTitle;
 
         try {
             vscode.window.showInformationMessage('Starting exercise participation...');
@@ -121,7 +161,7 @@ export class RepositoryCommandModule {
 
                 await this.context.actionHandler.openExerciseDetails(exerciseId);
             }
-        } catch (error) {
+        } catch (error: unknown) {
             logger.submissionError('Failed to start exercise participation:', error);
             vscode.window.showErrorMessage(
                 `Failed to start participation in "${exerciseTitle}": ${error instanceof Error ? error.message : 'Unknown error'}`
@@ -129,10 +169,27 @@ export class RepositoryCommandModule {
         }
     };
 
-    private handleCheckRepositoryStatus = async (message: any): Promise<void> => {
+    private handleCheckRepositoryStatus = async (message: WebviewToExtensionMessage | RepoContext): Promise<void> => {
         try {
-            const expectedRepoUrl: string = message.expectedRepoUrl;
-            const exerciseId: number = message.exerciseId;
+            // When called internally, it passes RepoContext directly
+            // When called from webview, message will have type/command but we need repo context from current state
+            let expectedRepoUrl: string;
+            let exerciseId: number;
+
+            if ('expectedRepoUrl' in message) {
+                // Internal call with RepoContext
+                expectedRepoUrl = message.expectedRepoUrl;
+                exerciseId = message.exerciseId;
+            } else {
+                // Webview message - use current repo context or current exercise data
+                if (this.currentRepoContext) {
+                    expectedRepoUrl = this.currentRepoContext.expectedRepoUrl;
+                    exerciseId = this.currentRepoContext.exerciseId;
+                } else {
+                    logger.submissionWarn('No repository context available');
+                    return;
+                }
+            }
 
             const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
             let isConnected = false;
@@ -161,7 +218,7 @@ export class RepositoryCommandModule {
                                 applyFilters: false
                             });
                             hasChanges = result.hasChanges;
-                        } catch (statusError: any) {
+                        } catch (statusError: unknown) {
                             logger.submissionWarn('Failed to determine repository changes:', statusError);
                             hasChanges = false;
                         }
@@ -170,13 +227,15 @@ export class RepositoryCommandModule {
                         const coursesData = this.context.appStateManager.coursesData;
                         if (coursesData?.courses) {
                             for (const courseData of coursesData.courses) {
-                                const exercises = courseData?.course?.exercises || courseData?.exercises || [];
-                                const exercise = exercises.find((e: any) => e.id === exerciseId);
+                                const exercises = courseData?.course?.exercises || [];
+                                const exercise = exercises.find((e) => e?.id === exerciseId);
 
                                 if (exercise) {
                                     const participations = exercise.studentParticipations || [];
                                     // Find graded participation (not testRun)
-                                    const gradedParticipation = participations.find((p: any) => !p.testRun);
+                                    const gradedParticipation = participations.find((p) => {
+                                        return p && typeof p === 'object' && 'testRun' in p && !p.testRun;
+                                    });
 
                                     if (gradedParticipation?.repositoryUri) {
                                         const normalizedGraded = normalizeRepositoryUrl(gradedParticipation.repositoryUri);
@@ -189,7 +248,7 @@ export class RepositoryCommandModule {
                             }
                         }
                     }
-                } catch (gitError: any) {
+                } catch (gitError: unknown) {
                     isConnected = false;
                     hasChanges = false;
                 }
@@ -201,14 +260,19 @@ export class RepositoryCommandModule {
                 hasChanges: hasChanges,
                 isGradedRepo: isGradedRepo
             });
-        } catch (error: any) {
+        } catch (error: unknown) {
             logger.submissionError('Check repository status error:', error);
             vscode.window.showErrorMessage('Error checking repository status');
         }
     };
 
-    private handleCloneRepository = async (message: any): Promise<void> => {
-        const { participationId, repositoryUri, exerciseId, exerciseTitle } = message;
+    private handleCloneRepository = async (message: WebviewToExtensionMessage): Promise<void> => {
+        const payload = getPayload<CloneRepositoryCommand>(message);
+        const { participationId, repositoryUri, exerciseTitle } = payload;
+        // exerciseId is needed for tracking but not in the typed command - extract if present
+        const exerciseId = 'exerciseId' in payload && typeof (payload as {exerciseId?: unknown}).exerciseId === 'number'
+            ? (payload as {exerciseId: number}).exerciseId
+            : participationId; // Use participationId as fallback for tracking
 
         try {
             if (!participationId || !repositoryUri) {
@@ -424,14 +488,15 @@ export class RepositoryCommandModule {
                     void vscode.commands.executeCommand('vscode.openFolder', repoUri, true);
                 }, 3000);
             }
-        } catch (error) {
+        } catch (error: unknown) {
             logger.submissionError('Clone repository error:', error);
             vscode.window.showErrorMessage('Failed to clone repository.');
         }
     };
 
-    private handleOpenClonedRepository = async (message: any): Promise<void> => {
-        const exerciseId: number = message.exerciseId;
+    private handleOpenClonedRepository = async (message: WebviewToExtensionMessage): Promise<void> => {
+        const payload = getPayload<{ type: 'command'; command: 'openClonedRepository'; payload: OpenClonedRepositoryPayload }>(message);
+        const exerciseId = payload.exerciseId;
 
         try {
             const repoInfo = this.clonedRepositories.get(exerciseId);
@@ -452,14 +517,15 @@ export class RepositoryCommandModule {
             await vscode.commands.executeCommand('vscode.openFolder', repoUri, true);
 
             this.clonedRepositories.delete(exerciseId);
-        } catch (error) {
+        } catch (error: unknown) {
             logger.submissionError('Open cloned repository error:', error);
             vscode.window.showErrorMessage('Failed to open cloned repository.');
         }
     };
 
-    private handleCopyCloneUrl = async (message: any): Promise<void> => {
-        const { participationId, repositoryUri } = message;
+    private handleCopyCloneUrl = async (message: WebviewToExtensionMessage): Promise<void> => {
+        const payload = getPayload<{ type: 'command'; command: 'copyCloneUrl'; payload: CopyCloneUrlPayload }>(message);
+        const { participationId, repositoryUri } = payload;
 
         try {
             if (!participationId || !repositoryUri) {
@@ -493,14 +559,15 @@ export class RepositoryCommandModule {
             } catch {
                 vscode.window.showErrorMessage('Failed to construct clone URL.');
             }
-        } catch (error) {
+        } catch (error: unknown) {
             logger.submissionError('Copy clone URL error:', error);
             vscode.window.showErrorMessage('Failed to copy clone URL.');
         }
     };
 
-    private handlePullChanges = async (message: any): Promise<void> => {
-        const exerciseTitle: string = message.exerciseTitle;
+    private handlePullChanges = async (message: WebviewToExtensionMessage): Promise<void> => {
+        const payload = getPayload<{ type: 'command'; command: 'pullChanges'; payload: PullChangesPayload }>(message);
+        const exerciseTitle = payload.exerciseTitle;
 
         try {
             const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
@@ -523,25 +590,36 @@ export class RepositoryCommandModule {
                     if (this.currentRepoContext) {
                         await this.handleCheckRepositoryStatus(this.currentRepoContext);
                     }
-                } catch (pullError: any) {
-                    if (pullError.message && pullError.message.includes('CONFLICT')) {
+                } catch (pullError: unknown) {
+                    const errorMessage = pullError instanceof Error ? pullError.message : '';
+                    if (errorMessage && errorMessage.includes('CONFLICT')) {
                         throw new Error('Merge conflict detected. Please resolve conflicts manually.');
-                    } else if (pullError.message && pullError.message.includes('Already up to date')) {
+                    } else if (errorMessage && errorMessage.includes('Already up to date')) {
                         vscode.window.showInformationMessage('Repository is already up to date.');
                     } else {
                         throw pullError;
                     }
                 }
             });
-        } catch (error: any) {
+        } catch (error: unknown) {
             logger.submissionError('Pull changes error:', error);
             const errorMessage = error instanceof Error ? error.message : 'Failed to pull changes.';
             vscode.window.showErrorMessage(errorMessage);
         }
     };
 
-    private handleSubmitExercise = async (message: any): Promise<void> => {
-        const { participationId, exerciseId, exerciseTitle, commitMessage } = message;
+    private handleSubmitExercise = async (message: WebviewToExtensionMessage): Promise<void> => {
+        const payload = getPayload<SubmitExerciseCommand>(message);
+        const participationId = payload.participationId;
+        const exerciseId = 'exerciseId' in payload && typeof (payload as {exerciseId?: unknown}).exerciseId === 'number'
+            ? (payload as {exerciseId: number}).exerciseId
+            : 0;
+        const exerciseTitle = 'exerciseTitle' in payload && typeof (payload as {exerciseTitle?: unknown}).exerciseTitle === 'string'
+            ? (payload as {exerciseTitle: string}).exerciseTitle
+            : 'Exercise';
+        const commitMessage = 'commitMessage' in payload && typeof (payload as {commitMessage?: unknown}).commitMessage === 'string'
+            ? (payload as {commitMessage: string}).commitMessage
+            : undefined;
         const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
         if (!workspaceFolder) {
             const errorText = 'Open the exercise repository in VS Code before submitting.';
@@ -589,11 +667,12 @@ export class RepositoryCommandModule {
                 progress.report({ message: 'Syncing with remote...' });
                 try {
                     await this.gitService.pullWithRebase({ cwd });
-                } catch (pullError: any) {
-                    if (pullError.message && pullError.message.includes('CONFLICT')) {
+                } catch (pullError: unknown) {
+                    const errorMessage = pullError instanceof Error ? pullError.message : '';
+                    if (errorMessage && errorMessage.includes('CONFLICT')) {
                         throw new Error('Merge conflict detected. Please resolve conflicts manually using git and try again.');
                     }
-                    logger.submissionWarn('Pull failed, but continuing with push:', pullError.message);
+                    logger.submissionWarn('Pull failed, but continuing with push:', errorMessage);
                 }
 
                 progress.report({ message: 'Pushing to Artemis...' });
@@ -612,7 +691,7 @@ export class RepositoryCommandModule {
                     logger.websocketError('Failed to connect WebSocket after submission:', wsError);
                 }
             }
-        } catch (error: any) {
+        } catch (error: unknown) {
             logger.submissionError('Submit exercise error:', error);
             const errorMessage = error instanceof Error ? error.message : 'Failed to submit exercise.';
 
@@ -654,9 +733,10 @@ export class RepositoryCommandModule {
         return await this.gitService.getConfigValue(key, { cwd }, true);
     }
 
-    private handleSaveGitIdentity = async (message: any): Promise<void> => {
-        const rawName = typeof message?.name === 'string' ? message.name.trim() : '';
-        const rawEmail = typeof message?.email === 'string' ? message.email.trim() : '';
+    private handleSaveGitIdentity = async (message: WebviewToExtensionMessage): Promise<void> => {
+        const payload = getPayload<SaveGitIdentityCommand>(message);
+        const rawName = payload.name.trim();
+        const rawEmail = payload.email.trim();
 
         const sendResult = (status: 'success' | 'error' | 'warning' | 'info', text: string) => {
             this.context.sendMessage({
@@ -682,7 +762,7 @@ export class RepositoryCommandModule {
             await this.gitService.setGlobalIdentity({ name: rawName, email: rawEmail });
             sendResult('success', 'Git identity saved globally.');
             vscode.window.showInformationMessage('Git author information saved globally.');
-        } catch (error: any) {
+        } catch (error: unknown) {
             logger.submissionError('Failed to save Git identity globally:', error);
             const messageText = error instanceof Error ? error.message : 'Unknown error';
             sendResult('error', `Failed to save Git identity: ${messageText}`);
@@ -704,10 +784,11 @@ export class RepositoryCommandModule {
         });
     };
 
-    private handleSaveGitCredentials = async (message: any): Promise<void> => {
-        const rawUsername = typeof message?.username === 'string' ? message.username.trim() : '';
-        const rawToken = typeof message?.token === 'string' ? message.token.trim() : '';
-        const rawServerUrl = typeof message?.serverUrl === 'string' ? message.serverUrl.trim() : '';
+    private handleSaveGitCredentials = async (message: WebviewToExtensionMessage): Promise<void> => {
+        const payload = getPayload<{ type: 'command'; command: 'saveGitCredentials'; payload: SaveGitCredentialsPayload }>(message);
+        const rawUsername = typeof payload.username === 'string' ? payload.username.trim() : '';
+        const rawToken = typeof payload.token === 'string' ? payload.token.trim() : '';
+        const rawServerUrl = typeof payload.serverUrl === 'string' ? payload.serverUrl.trim() : '';
 
         const config = vscode.workspace.getConfiguration(VSCODE_CONFIG.ARTEMIS_SECTION);
         const configuredServerUrl = config.get<string>(VSCODE_CONFIG.SERVER_URL_KEY, 'https://artemis.cit.tum.de');
@@ -740,7 +821,7 @@ export class RepositoryCommandModule {
             if (!host) {
                 throw new Error('Missing host in server URL.');
             }
-        } catch (error) {
+        } catch (error: unknown) {
             logger.submissionError('Invalid Artemis server URL:', error);
             sendResult('error', 'Invalid Artemis server URL.');
             vscode.window.showErrorMessage('Invalid Artemis server URL. Please verify the value and try again.');
@@ -760,7 +841,7 @@ export class RepositoryCommandModule {
 
         try {
             await this.gitService.ensureCredentialHelper();
-        } catch (error: any) {
+        } catch (error: unknown) {
             logger.submissionError('Failed to configure credential helper:', error);
             const messageText = error instanceof Error ? error.message : 'Unknown error';
             sendResult('error', `Failed to configure credential helper: ${messageText}`);
@@ -773,7 +854,7 @@ export class RepositoryCommandModule {
             const successMessage = `Saved Git credentials for ${host}.`;
             sendResult('success', successMessage);
             vscode.window.showInformationMessage(successMessage);
-        } catch (error: any) {
+        } catch (error: unknown) {
             logger.submissionError('Failed to store credential entry:', error);
             const messageText = error instanceof Error ? error.message : 'Unknown error';
             sendResult('error', `Failed to save credentials: ${messageText}`);
@@ -902,9 +983,12 @@ export class RepositoryCommandModule {
         });
     }
 
-    private handleStartPractice = async (message: any): Promise<void> => {
-        const exerciseId: number = message.exerciseId;
-        const exerciseTitle: string = message.exerciseTitle;
+    private handleStartPractice = async (message: WebviewToExtensionMessage): Promise<void> => {
+        const payload = getPayload<StartPracticeCommand>(message);
+        const exerciseId = payload.exerciseId;
+        const exerciseTitle = 'exerciseTitle' in payload && typeof (payload as {exerciseTitle?: unknown}).exerciseTitle === 'string'
+            ? (payload as {exerciseTitle: string}).exerciseTitle
+            : 'Exercise';
 
         try {
             vscode.window.showInformationMessage('Starting practice mode...');
@@ -917,7 +1001,7 @@ export class RepositoryCommandModule {
 
                 await this.context.actionHandler.openExerciseDetails(exerciseId);
             }
-        } catch (error) {
+        } catch (error: unknown) {
             logger.submissionError('Failed to start practice participation:', error);
             vscode.window.showErrorMessage(
                 `Failed to start practice mode for "${exerciseTitle}": ${error instanceof Error ? error.message : 'Unknown error'}`

@@ -54,27 +54,22 @@ export function CourseDetailView({ vscodeApi }: CourseDetailViewProps) {
         });
 
         // Listen for courseDetailInit messages
-        const handleMessage = (event: MessageEvent) => {
+        const handleMessage = (event: MessageEvent<unknown>) => {
             const message = event.data;
 
-            // Handle typed message format
-            if (message.type === 'courseDetailInit') {
-                setCourseData(message.payload.courseData, message.payload.workspaceExerciseId);
-
-                // Push course breadcrumb
-                const courseTitle = message.payload.courseData?.course?.title || 'Course';
-                const abbreviatedTitle = courseTitle.length > 20 ? courseTitle.substring(0, 17) + '...' : courseTitle;
-                pushBreadcrumb(abbreviatedTitle, 'course-detail', () => {
-                    // Current page, no action
-                });
+            if (typeof message !== 'object' || message === null || !('type' in message)) {
+                return;
             }
 
-            // Handle legacy message format for backward compatibility
-            if (message.command === 'courseDetailInit') {
-                setCourseData(message.courseData, message.workspaceExerciseId);
+            const typedMessage = message as Record<string, unknown> & { type: string };
+
+            // Handle typed message format
+            if (typedMessage.type === 'courseDetailInit') {
+                const payload = typedMessage.payload as { courseData?: { course?: { title?: string } }; workspaceExerciseId?: unknown } | undefined;
+                setCourseData(payload?.courseData as Parameters<typeof setCourseData>[0], payload?.workspaceExerciseId as Parameters<typeof setCourseData>[1]);
 
                 // Push course breadcrumb
-                const courseTitle = message.courseData?.course?.title || 'Course';
+                const courseTitle = payload?.courseData?.course?.title ?? 'Course';
                 const abbreviatedTitle = courseTitle.length > 20 ? courseTitle.substring(0, 17) + '...' : courseTitle;
                 pushBreadcrumb(abbreviatedTitle, 'course-detail', () => {
                     // Current page, no action

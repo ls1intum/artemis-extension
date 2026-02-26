@@ -51,17 +51,22 @@ export function LoginView({ vscodeApi }: LoginViewProps) {
 
 	// Message handler for extension-to-webview messages
 	useEffect(() => {
-		const messageHandler = (event: MessageEvent) => {
+		const messageHandler = (event: MessageEvent<unknown>) => {
 			const message = event.data;
 
-			// Handle both typed format and legacy command format
-			const type = message.type || message.command;
+			if (typeof message !== 'object' || message === null || !('type' in message)) {
+				return;
+			}
 
-			switch (type) {
-				case 'showLoading':
+			const typedMessage = message as Record<string, unknown> & { type: string };
+
+			switch (typedMessage.type) {
+				case 'showLoading': {
 					setViewState('loading');
-					setLoadingMessage(message.payload?.message || message.message || 'Checking authentication...');
+					const payload = typedMessage.payload as { message?: string } | undefined;
+					setLoadingMessage(payload?.message ?? 'Checking authentication...');
 					break;
+				}
 
 				case 'hideLoading':
 					if (viewState === 'loading') {
@@ -71,9 +76,11 @@ export function LoginView({ vscodeApi }: LoginViewProps) {
 					setLoadingSubtext('');
 					break;
 
-				case 'updateLoading':
-					setLoadingMessage(message.payload?.message || message.message || 'Processing...');
+				case 'updateLoading': {
+					const payload = typedMessage.payload as { message?: string } | undefined;
+					setLoadingMessage(payload?.message ?? 'Processing...');
 					break;
+				}
 
 				case 'loginSuccess':
 					setViewState('form'); // Dashboard transition handled by extension
@@ -82,9 +89,10 @@ export function LoginView({ vscodeApi }: LoginViewProps) {
 					setShowHealthChecks(false);
 					break;
 
-				case 'loginError':
+				case 'loginError': {
 					setViewState('form');
-					setStatusMessage(message.payload?.error || message.error || 'Login failed');
+					const payload = typedMessage.payload as { error?: string } | undefined;
+					setStatusMessage(payload?.error ?? 'Login failed');
 					setStatusType('error');
 					setIsSubmitting(false);
 					setShowHealthChecks(true);
@@ -93,6 +101,7 @@ export function LoginView({ vscodeApi }: LoginViewProps) {
 						performHealthChecks();
 					}
 					break;
+				}
 
 				case 'logoutSuccess':
 					setViewState('form');
@@ -102,37 +111,46 @@ export function LoginView({ vscodeApi }: LoginViewProps) {
 					setShowHealthChecks(false);
 					break;
 
-				case 'showLoggedIn':
+				case 'showLoggedIn': {
 					setViewState('loggedIn');
-					setUserInfo(message.payload?.userInfo || message.userInfo || null);
+					const payload = typedMessage.payload as { userInfo?: UserInfo } | undefined;
+					setUserInfo(payload?.userInfo ?? null);
 					setShowHealthChecks(false);
 					break;
+				}
 
-				case 'setServerUrl':
-					setServerUrl(message.payload?.serverUrl || message.serverUrl || '');
+				case 'setServerUrl': {
+					const payload = typedMessage.payload as { serverUrl?: string } | undefined;
+					setServerUrl(payload?.serverUrl ?? '');
 					break;
+				}
 
-				case 'healthCheckResults':
+				case 'healthCheckResults': {
 					// Convert health check results to ServiceInfo format
-					const results = message.payload.results as Record<string, {
-						status: string;
-						message: string;
-						endpoint: string;
-						httpStatus: number | null;
-						response: string | null;
-					}>;
+					const payload = typedMessage.payload as {
+						results?: Record<string, {
+							status: string;
+							message: string;
+							endpoint: string;
+							httpStatus: number | null;
+							response: string | null;
+						}>;
+					} | undefined;
+
+					const results = payload?.results ?? {};
 					const services: ServiceInfo[] = Object.entries(results).map(([serviceName, data]) => ({
 						name: formatServiceName(serviceName),
 						status: data.status as 'online' | 'offline' | 'checking' | 'unknown',
-						message: data.message || '',
-						endpoint: data.endpoint || '',
+						message: data.message ?? '',
+						endpoint: data.endpoint ?? '',
 						httpStatus: data.httpStatus !== null ? String(data.httpStatus) : undefined,
-						response: data.response || undefined,
+						response: data.response ?? undefined,
 					}));
 					setHealthServices(services);
 					setIsHealthChecking(false);
 					setLastHealthCheck(new Date());
 					break;
+				}
 			}
 		};
 

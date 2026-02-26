@@ -15,11 +15,17 @@ export function ExamStartView({ vscodeApi }: ExamStartViewProps) {
 
     // Load data on mount
     useEffect(() => {
-        const handleMessage = (event: MessageEvent) => {
+        const handleMessage = (event: MessageEvent<unknown>) => {
             const message = event.data;
 
-            if (message.type === 'examStartInit') {
-                setExamStartData(message.payload);
+            if (typeof message !== 'object' || message === null || !('type' in message)) {
+                return;
+            }
+
+            const typedMessage = message as { type: string; payload?: unknown };
+
+            if (typedMessage.type === 'examStartInit' && typedMessage.payload) {
+                setExamStartData(typedMessage.payload as Parameters<typeof setExamStartData>[0]);
             }
         };
 

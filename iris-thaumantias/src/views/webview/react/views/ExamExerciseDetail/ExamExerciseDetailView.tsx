@@ -43,17 +43,23 @@ export function ExamExerciseDetailView({ vscodeApi }: ExamExerciseDetailViewProp
 
     // Load data on mount
     useEffect(() => {
-        const handleMessage = (event: MessageEvent) => {
+        const handleMessage = (event: MessageEvent<unknown>) => {
             const message = event.data;
 
-            if (message.type === 'examExerciseDetailInit') {
-                const { exerciseData, examContext, hideDeveloperTools } = message.payload;
-                setExerciseData(exerciseData, hideDeveloperTools);
+            if (typeof message !== 'object' || message === null || !('type' in message)) {
+                return;
+            }
+
+            const typedMessage = message as { type: string; payload?: unknown };
+
+            if (typedMessage.type === 'examExerciseDetailInit' && typedMessage.payload) {
+                const payload = typedMessage.payload as { exerciseData: unknown; examContext: unknown; hideDeveloperTools: unknown };
+                setExerciseData(payload.exerciseData as Parameters<typeof setExerciseData>[0], payload.hideDeveloperTools as boolean);
                 setExamExerciseData({
-                    exerciseData,
-                    examContext,
-                    hideDeveloperTools,
-                });
+                    exerciseData: payload.exerciseData,
+                    examContext: payload.examContext,
+                    hideDeveloperTools: payload.hideDeveloperTools,
+                } as Parameters<typeof setExamExerciseData>[0]);
             }
         };
 

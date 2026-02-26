@@ -4,9 +4,42 @@ import { ProviderRegistry } from '../../../services/ProviderRegistry';
 import { ExamErrorHandler } from '../../../services/examErrorHandler';
 import type { CommandContext, CommandMap } from './types';
 import { logger } from '../../../services/loggingService';
+import type {
+    WebviewToExtensionMessage,
+    OpenExamCommand,
+    OpenExamInBrowserCommand,
+    ViewCourseDetailsCommand,
+    OpenExerciseDetailsCommand,
+    OpenExamExerciseDetailsCommand,
+    ReloadCourseDetailCommand,
+    ReloadExerciseDetailCommand,
+    ViewArchivedCourseCommand,
+    OpenExerciseCommand,
+    RefreshExamCommand,
+    ReloadExamConductionCommand,
+    ExerciseDetail,
+} from '../../../shared/messageContracts';
+import type {
+    CourseDashboardCourse,
+    CourseDashboardEntry,
+    CourseDetailData,
+    ExamSummary,
+} from '../../../types/apiResponses';
 
 interface CourseQuickPickItem extends vscode.QuickPickItem {
-    courseData: any;
+    courseData: CourseDashboardEntry;
+}
+
+// Helper to extract typed payload from command messages
+function getPayload<T extends WebviewToExtensionMessage & { payload: unknown }>(message: WebviewToExtensionMessage): T['payload'] {
+    return (message as T).payload;
+}
+
+// Internal message types for commands without typed contracts
+interface StartExamPayload {
+    courseId: number;
+    examId: number;
+    studentExamId: number;
 }
 
 export class NavigationCommandModule {
@@ -47,9 +80,11 @@ export class NavigationCommandModule {
         };
     }
 
-    private handleOpenRulesInEditor = async (message: any): Promise<void> => {
+    private handleOpenRulesInEditor = async (message: WebviewToExtensionMessage): Promise<void> => {
         try {
-            const text = message.text;
+            // Note: openRulesInEditor doesn't have a typed command interface yet
+            // This is a legacy command - extract text field with runtime check
+            const text = 'text' in message && typeof message.text === 'string' ? message.text : '';
             const document = await vscode.workspace.openTextDocument({
                 content: text,
                 language: 'markdown'
@@ -61,9 +96,9 @@ export class NavigationCommandModule {
         }
     };
 
-    private handleOpenExamInBrowser = async (message: any): Promise<void> => {
+    private handleOpenExamInBrowser = async (message: WebviewToExtensionMessage): Promise<void> => {
         try {
-            const { courseId, examId } = message;
+            const { courseId, examId } = getPayload<OpenExamInBrowserCommand>(message);
             const serverUrl = this.context.appStateManager.userInfo?.serverUrl;
             if (serverUrl) {
                 const url = `${serverUrl}/courses/${courseId}/exams/${examId}`;
@@ -77,9 +112,9 @@ export class NavigationCommandModule {
         }
     };
 
-    private handleOpenExam = async (message: any): Promise<void> => {
+    private handleOpenExam = async (message: WebviewToExtensionMessage): Promise<void> => {
         try {
-            const { courseId, examId } = message;
+            const { courseId, examId } = getPayload<OpenExamCommand>(message);
             logger.view(`[EXAMMODE] Handling openExam for course ${courseId}, exam ${examId}`);
             const studentExam = await this.context.artemisApi.getOwnStudentExam(courseId, examId);
             logger.view(`[EXAMMODE] Fetched student exam:`, studentExam);
@@ -88,14 +123,15 @@ export class NavigationCommandModule {
                 logger.view(`[EXAMMODE] Exam already started, proceeding to conduction`);
                 // If already started, go directly to conduction (to be implemented)
                 // For now, we can reuse the start exam logic which will fetch conduction details
-                await this.handleStartExam({ courseId, examId, studentExamId: studentExam.id });
+                const studentExamId = studentExam.id ?? 0;
+                await this.handleStartExam({ courseId, examId, studentExamId });
             } else {
                 logger.view(`[EXAMMODE] Exam not started, showing start view`);
                 // Show start exam view
                 this.context.appStateManager.showExamStart({ studentExam, courseId, examId });
                 this.context.actionHandler.render();
             }
-        } catch (error: any) {
+        } catch (error: unknown) {
             logger.viewError('[EXAMMODE] Error opening exam:', error);
             const userMessage = ExamErrorHandler.getExamErrorMessage(error);
             vscode.window.showErrorMessage(userMessage);
@@ -103,9 +139,14 @@ export class NavigationCommandModule {
     };
 
 
-    private handleStartExam = async (message: any): Promise<void> => {
+    private handleStartExam = async (message: WebviewToExtensionMessage | StartExamPayload): Promise<void> => {
         try {
-            const { courseId, examId, studentExamId } = message;
+            // Handle both typed message and internal payload format
+            const payload = 'type' in message && message.type === 'command'
+                ? getPayload<{ type: 'command'; command: 'startExam'; payload: StartExamPayload }>(message)
+                : message as StartExamPayload;
+
+            const { courseId, examId, studentExamId } = payload;
             logger.view(`[EXAMMODE] Starting exam ${examId} for student exam ${studentExamId}`);
             const conductionDetails = await this.context.artemisApi.startStudentExam(courseId, examId, studentExamId);
 
@@ -115,7 +156,7 @@ export class NavigationCommandModule {
             this.context.appStateManager.showExamConduction({ studentExam: conductionDetails, courseId, examId });
             this.context.actionHandler.render();
 
-        } catch (error) {
+        } catch (error: unknown) {
             logger.viewError('[EXAMMODE] Error starting exam:', error);
             vscode.window.showErrorMessage('Failed to start exam.');
         }
@@ -128,15 +169,15 @@ export class NavigationCommandModule {
             const dashboardData = await this.context.artemisApi.getCoursesForDashboard();
 
             if (dashboardData?.courses && dashboardData.courses.length > 0) {
-                const quickPickItems: CourseQuickPickItem[] = dashboardData.courses.map((courseData: any) => {
+                const quickPickItems: CourseQuickPickItem[] = dashboardData.courses.map((courseData: CourseDashboardEntry) => {
                     const course = courseData.course;
-                    const exerciseCount = course.exercises ? course.exercises.length : 0;
-                    const semester = course.semester || 'No semester';
+                    const exerciseCount = course?.exercises ? course.exercises.length : 0;
+                    const semester = course?.semester || 'No semester';
 
                     return {
-                        label: course.title,
+                        label: course?.title ?? 'Untitled Course',
                         description: `${semester} • ${exerciseCount} exercises`,
-                        detail: course.description || 'No description available',
+                        detail: course?.description || 'No description available',
                         courseData
                     };
                 });
@@ -153,7 +194,7 @@ export class NavigationCommandModule {
             } else {
                 vscode.window.showWarningMessage('No courses found or you don\'t have access to any courses.');
             }
-        } catch (error) {
+        } catch (error: unknown) {
             logger.viewError('Browse courses error:', error);
             vscode.window.showErrorMessage('Error loading courses');
         }
@@ -162,7 +203,7 @@ export class NavigationCommandModule {
     private handleViewExercises = async (): Promise<void> => {
         try {
             vscode.window.showInformationMessage('This feature will show exercises in a future update.');
-        } catch (error) {
+        } catch (error: unknown) {
             logger.viewError('View exercises error:', error);
             vscode.window.showErrorMessage('Error accessing exercises');
         }
@@ -171,7 +212,7 @@ export class NavigationCommandModule {
     private handleCheckGrades = async (): Promise<void> => {
         try {
             vscode.window.showInformationMessage('This feature will show grades in a future update.');
-        } catch (error) {
+        } catch (error: unknown) {
             logger.viewError('Check grades error:', error);
             vscode.window.showErrorMessage('Error accessing grades');
         }
@@ -181,29 +222,37 @@ export class NavigationCommandModule {
         await this.context.actionHandler.showCourseList();
     };
 
-    private handleViewCourseDetails = async (message: any): Promise<void> => {
-        await this.processCourseDetails(message.courseData);
+    private handleViewCourseDetails = async (message: WebviewToExtensionMessage): Promise<void> => {
+        const { courseData } = getPayload<ViewCourseDetailsCommand>(message);
+        await this.processCourseDetails(courseData);
     };
 
-    private async processCourseDetails(courseData: any): Promise<void> {
+    private async processCourseDetails(courseData: CourseDashboardEntry | CourseDashboardCourse): Promise<void> {
         try {
-            const course = courseData?.course || courseData;
+            const course: CourseDashboardCourse | undefined = 'course' in courseData ? courseData.course : courseData;
 
             // Fetch exams for the course
-            if (course && course.id) {
+            if (course?.id) {
                 try {
                     const exams = await this.context.artemisApi.getExamsForCourse(course.id);
                     course.exams = exams;
-                } catch (error) {
+                } catch (error: unknown) {
                     logger.apiError('Error fetching exams:', error);
                     // Continue without exams if fetch fails
                 }
             }
 
-            this.context.appStateManager.showCourseDetail(courseData);
+            // Convert to CourseDetailData format expected by state manager
+            const courseDetailData: CourseDetailData = {
+                course: 'course' in courseData ? courseData.course! : courseData
+            };
+
+            this.context.appStateManager.showCourseDetail(courseDetailData);
 
             const registry = ExerciseRegistry.getInstance();
-            registry.registerFromCourseData(courseData);
+            // Pass the entry format for registration (expects CourseDashboardEntry)
+            const entryFormat: CourseDashboardEntry = 'course' in courseData ? courseData : { course: courseData };
+            registry.registerFromCourseData(entryFormat);
 
             const chatProvider = ProviderRegistry.getInstance().getChatWebviewProvider();
             if (course) {
@@ -217,11 +266,13 @@ export class NavigationCommandModule {
                 }
 
                 if (course.exercises && Array.isArray(course.exercises) && chatProvider && typeof chatProvider.updateDetectedExercise === 'function') {
-                    course.exercises.forEach((exercise: any) => {
-                        if (exercise.studentParticipations && exercise.studentParticipations.length > 0) {
-                            const exerciseTitle = exercise.title || 'Untitled Exercise';
-                            const exerciseId = exercise.id;
-                            const releaseDate = exercise.releaseDate || exercise.startDate;
+                    course.exercises.forEach((exercise) => {
+                        // Type guard: exercise is from CourseDashboardCourse which uses optional fields
+                        if (exercise && typeof exercise === 'object' && 'studentParticipations' in exercise &&
+                            Array.isArray(exercise.studentParticipations) && exercise.studentParticipations.length > 0) {
+                            const exerciseTitle = exercise.title ?? 'Untitled Exercise';
+                            const exerciseId = exercise.id ?? 0;
+                            const releaseDate = exercise.releaseDate ?? exercise.startDate;
                             const dueDate = exercise.dueDate;
                             const shortName = exercise.shortName;
 
@@ -233,7 +284,7 @@ export class NavigationCommandModule {
             }
 
             this.context.actionHandler.render();
-        } catch (error) {
+        } catch (error: unknown) {
             logger.viewError('View course details error:', error);
             vscode.window.showErrorMessage('Error viewing course details');
         }
@@ -246,12 +297,13 @@ export class NavigationCommandModule {
         }
     };
 
-    private handleOpenExerciseDetails = async (message: any): Promise<void> => {
-        await this.context.actionHandler.openExerciseDetails(message.exerciseId);
+    private handleOpenExerciseDetails = async (message: WebviewToExtensionMessage): Promise<void> => {
+        const { exerciseId } = getPayload<OpenExerciseDetailsCommand>(message);
+        await this.context.actionHandler.openExerciseDetails(exerciseId);
     };
 
-    private handleOpenExamExerciseDetails = async (message: any): Promise<void> => {
-        const { exercise, exerciseIndex, courseId, examId } = message;
+    private handleOpenExamExerciseDetails = async (message: WebviewToExtensionMessage): Promise<void> => {
+        const { exercise, exerciseIndex, courseId, examId } = getPayload<OpenExamExerciseDetailsCommand>(message);
         await this.context.actionHandler.openExamExerciseDetails(exercise, exerciseIndex, courseId, examId);
     };
 
@@ -304,7 +356,7 @@ export class NavigationCommandModule {
             } else {
                 vscode.window.showInformationMessage('No archived courses found');
             }
-        } catch (error) {
+        } catch (error: unknown) {
             logger.viewError('Load archived courses error:', error);
             vscode.window.showErrorMessage('Error loading archived courses');
         }
@@ -316,7 +368,7 @@ export class NavigationCommandModule {
             await this.context.appStateManager.showCourseList();
             // Send updated data to React without re-rendering
             this.context.actionHandler.resendViewData();
-        } catch (error) {
+        } catch (error: unknown) {
             logger.viewError('Reload courses error:', error);
             vscode.window.showErrorMessage('Error reloading courses');
         }
@@ -331,33 +383,34 @@ export class NavigationCommandModule {
                 // Send updated data to React without re-rendering
                 this.context.actionHandler.resendViewData();
             }
-        } catch (error) {
+        } catch (error: unknown) {
             logger.viewError('Reload dashboard error:', error);
             vscode.window.showErrorMessage('Error reloading dashboard');
         }
     };
 
-    private handleReloadCourseDetail = async (message: any): Promise<void> => {
+    private handleReloadCourseDetail = async (message: WebviewToExtensionMessage): Promise<void> => {
         try {
-            const courseId = message.courseId || this.context.appStateManager.currentCourseData?.course?.id;
+            const payload = getPayload<ReloadCourseDetailCommand>(message);
+            const courseId = payload.courseId || this.context.appStateManager.currentCourseData?.course?.id;
             if (courseId) {
                 this.context.appStateManager.clearCurrentCourseData();
 
                 // Fetch fresh course data from the single-course dashboard endpoint
                 const dashboardDTO = await this.context.artemisApi.getCourseForDashboard(courseId);
 
-                // Build courseData structure expected by showCourseDetail
-                const courseData = {
-                    course: dashboardDTO.course
+                // Build CourseDetailData structure expected by showCourseDetail
+                const courseData: CourseDetailData = {
+                    course: dashboardDTO.course as CourseDashboardCourse
                 };
 
                 // Fetch exams separately (not included in dashboard endpoint)
                 try {
                     const exams = await this.context.artemisApi.getExamsForCourse(courseId);
                     if (courseData.course) {
-                        courseData.course.exams = exams;
+                        courseData.course.exams = exams as ExamSummary[];
                     }
-                } catch (error) {
+                } catch (error: unknown) {
                     logger.apiError('Error fetching exams during reload:', error);
                     // Continue without exams if fetch fails
                 }
@@ -366,68 +419,84 @@ export class NavigationCommandModule {
                 // Send updated data to React without re-rendering
                 this.context.actionHandler.resendViewData();
             }
-        } catch (error) {
+        } catch (error: unknown) {
             logger.viewError('Reload course detail error:', error);
             vscode.window.showErrorMessage('Error reloading course details');
         }
     };
 
-    private handleReloadExerciseDetail = async (message: any): Promise<void> => {
+    private handleReloadExerciseDetail = async (message: WebviewToExtensionMessage): Promise<void> => {
         try {
-            const exerciseId = message.exerciseId || this.context.appStateManager.currentExerciseData?.exercise?.id || this.context.appStateManager.currentExerciseData?.id;
+            const payload = getPayload<ReloadExerciseDetailCommand>(message);
+            const currentData = this.context.appStateManager.currentExerciseData;
+
+            // Extract exercise ID from various possible structures
+            let exerciseId: number | undefined = payload.exerciseId;
+            if (!exerciseId && currentData) {
+                // Check if it's ExerciseDetailsResponse format
+                if ('exercise' in currentData && currentData.exercise?.id) {
+                    exerciseId = currentData.exercise.id;
+                }
+                // Check if it's direct format (ExamExerciseData)
+                else if ('id' in currentData && typeof currentData.id === 'number') {
+                    exerciseId = currentData.id;
+                }
+            }
+
             if (exerciseId) {
                 this.context.appStateManager.clearCurrentExerciseData();
                 await this.context.appStateManager.showExerciseDetail(exerciseId);
                 // Send updated data to React without re-rendering
                 this.context.actionHandler.resendViewData();
             }
-        } catch (error) {
+        } catch (error: unknown) {
             logger.viewError('Reload exercise detail error:', error);
             vscode.window.showErrorMessage('Error reloading exercise details');
         }
     };
 
-    private handleViewArchivedCourse = async (message: any): Promise<void> => {
-        const courseId: number = message.courseId;
+    private handleViewArchivedCourse = async (message: WebviewToExtensionMessage): Promise<void> => {
+        const { courseId } = getPayload<ViewArchivedCourseCommand>(message);
         try {
             vscode.window.showInformationMessage('Loading archived course details...');
 
             await this.context.appStateManager.showArchivedCourseDetail(courseId);
             this.context.actionHandler.render();
-        } catch (error) {
+        } catch (error: unknown) {
             logger.viewError('View archived course error:', error);
             vscode.window.showErrorMessage('Error viewing archived course details');
         }
     };
 
-    private handleOpenExercise = async (message: any): Promise<void> => {
-        const exerciseId: number = message.exerciseId;
+    private handleOpenExercise = async (message: WebviewToExtensionMessage): Promise<void> => {
+        const { exerciseId } = getPayload<OpenExerciseCommand>(message);
 
         try {
             const coursesData = this.context.appStateManager.coursesData;
-            let parentCourseData = null;
+            let parentCourseDetailData: CourseDetailData | null = null;
 
             if (coursesData?.courses) {
-                for (const courseData of coursesData.courses) {
-                    const exercises = courseData?.course?.exercises || courseData?.exercises || [];
-                    const foundExercise = exercises.find((ex: any) => ex.id === exerciseId);
+                for (const courseEntry of coursesData.courses) {
+                    const exercises = courseEntry?.course?.exercises || [];
+                    const foundExercise = exercises.find((ex) => ex?.id === exerciseId);
 
-                    if (foundExercise) {
-                        parentCourseData = courseData;
-                        logger.view(`[Navigation] 📚 Found parent course for exercise ${exerciseId}: ${courseData.course?.title}`);
+                    if (foundExercise && courseEntry.course) {
+                        // Convert to CourseDetailData format
+                        parentCourseDetailData = { course: courseEntry.course };
+                        logger.view(`[Navigation] 📚 Found parent course for exercise ${exerciseId}: ${courseEntry.course.title}`);
                         break;
                     }
                 }
             }
 
-            if (parentCourseData) {
-                this.context.appStateManager.showCourseDetail(parentCourseData);
+            if (parentCourseDetailData) {
+                this.context.appStateManager.showCourseDetail(parentCourseDetailData);
             } else {
                 logger.viewWarn(`⚠️  Could not find parent course for exercise ${exerciseId}`);
             }
 
             await this.context.actionHandler.openExerciseDetails(exerciseId);
-        } catch (error) {
+        } catch (error: unknown) {
             logger.viewError('Open exercise error:', error);
             vscode.window.showErrorMessage('Failed to open exercise details.');
         }
@@ -442,7 +511,7 @@ export class NavigationCommandModule {
             }
 
             await this.context.actionHandler.openExerciseFullscreen(exerciseData);
-        } catch (error) {
+        } catch (error: unknown) {
             logger.viewError('Error opening exercise in fullscreen:', error);
             vscode.window.showErrorMessage('Failed to open exercise in fullscreen mode');
         }
@@ -457,15 +526,15 @@ export class NavigationCommandModule {
             }
 
             await this.context.actionHandler.openCourseFullscreen(courseData);
-        } catch (error) {
+        } catch (error: unknown) {
             logger.viewError('Error opening course in fullscreen:', error);
             vscode.window.showErrorMessage('Failed to open course in fullscreen mode');
         }
     };
 
-    private handleRefreshExam = async (message: any): Promise<void> => {
+    private handleRefreshExam = async (message: WebviewToExtensionMessage): Promise<void> => {
         try {
-            const { courseId, examId, studentExamId } = message;
+            const { courseId, examId, studentExamId } = getPayload<RefreshExamCommand>(message);
             logger.view(`[EXAMMODE] Refreshing exam status for course ${courseId}, exam ${examId}`);
 
             const studentExam = await this.context.artemisApi.getOwnStudentExam(courseId, examId);
@@ -473,17 +542,18 @@ export class NavigationCommandModule {
             if (studentExam.started) {
                 logger.view(`[EXAMMODE] Exam started in browser, proceeding to conduction`);
                 // Proceed to conduction by fetching details
-                await this.handleStartExam({ courseId, examId, studentExamId });
+                const effectiveStudentExamId = studentExamId || studentExam.id || 0;
+                await this.handleStartExam({ courseId, examId, studentExamId: effectiveStudentExamId });
             } else {
                 vscode.window.showInformationMessage('Exam has not been started yet. Please start it in the browser.');
             }
-        } catch (error) {
+        } catch (error: unknown) {
             logger.viewError('[EXAMMODE] Error refreshing exam:', error);
             vscode.window.showErrorMessage('Failed to refresh exam status.');
         }
     };
 
-    private handleReloadExamConduction = async (message: any): Promise<void> => {
+    private handleReloadExamConduction = async (_message: WebviewToExtensionMessage): Promise<void> => {
         try {
             const examData = this.context.appStateManager.currentExamData;
             if (!examData) {
@@ -492,8 +562,10 @@ export class NavigationCommandModule {
             }
 
             // Extract courseId and examId from exam data (added as context fields)
-            const courseId = (examData as any).courseId;
-            const examId = (examData as any).examId;
+            // Type assertion needed as ExamData interface may extend with these fields
+            const examDataWithContext = examData as { courseId?: unknown; examId?: unknown };
+            const courseId = examDataWithContext.courseId;
+            const examId = examDataWithContext.examId;
 
             if (typeof courseId !== 'number' || typeof examId !== 'number') {
                 logger.viewError('[EXAMMODE] Invalid exam context - missing courseId or examId');
@@ -511,7 +583,7 @@ export class NavigationCommandModule {
             } else {
                 vscode.window.showWarningMessage('Exam has not been started yet.');
             }
-        } catch (error) {
+        } catch (error: unknown) {
             logger.viewError('[EXAMMODE] Error reloading exam conduction:', error);
             vscode.window.showErrorMessage('Failed to reload exam conduction.');
         }
