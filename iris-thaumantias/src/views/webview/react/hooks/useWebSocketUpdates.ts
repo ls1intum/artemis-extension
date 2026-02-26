@@ -42,10 +42,8 @@ export function useWebSocketUpdates(vscodeApi: VsCodeApi): void {
 
             // Filter for websocketUpdate messages
             if (message.type === 'websocketUpdate') {
-                const { updateType, data } = message.payload;
-
-                // Add to buffer
-                bufferRef.current.push({ updateType, data });
+                // Add to buffer - push entire payload to preserve discriminated union
+                bufferRef.current.push(message.payload);
 
                 // Schedule RAF flush if not already scheduled
                 if (rafIdRef.current === null) {
