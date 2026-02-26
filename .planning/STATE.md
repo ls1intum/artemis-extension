@@ -23,12 +23,12 @@ See: .planning/PROJECT.md (updated 2026-02-25)
 ## Current Position
 
 Milestone: v1.1 Production Ready
-Phase: 11 of 14 (Bundle Size Optimization)
-Plan: 4 of 4
-Status: Complete
-Last activity: 2026-02-25 — Completed 11-04 (Gap closure — accepted 3.44 MB bundle baseline)
+Phase: 12 of 15 (Type Safety Hardening)
+Plan: 1 of 3
+Status: In Progress
+Last activity: 2026-02-26 — Completed 12-01 (TypeScript strict mode - zero compilation errors)
 
-Progress: [█████████░░░░░] 77% (v1.0: 7/7 complete, v1.1: 11/15 plans complete)
+Progress: [█████████░░░░░] 80% (v1.0: 7/7 complete, v1.1: 12/15 plans complete)
 
 ## Performance Metrics
 
@@ -41,17 +41,18 @@ Progress: [█████████░░░░░] 77% (v1.0: 7/7 complete, 
 
 **v1.1 Milestone (In Progress):**
 - Phases: 8 (8-15)
-- Plans completed: 11 of 15
+- Plans completed: 12 of 15
 - Phase 8 execution: 15 minutes (2 plans, Phase 8 COMPLETE)
 - Phase 9 execution: 7 minutes (3 plans, Phase 9 COMPLETE)
 - Phase 10 execution: 10 minutes (2 plans, Phase 10 COMPLETE)
 - Phase 11 execution: 16.4 minutes (4 of 4 plans, Phase 11 COMPLETE)
+- Phase 12 execution: 16 minutes (1 of 3 plans, Phase 12 IN PROGRESS)
 - Phase 15 execution: 3.6 minutes (1 plan, Phase 15 COMPLETE)
-- Files created: 16 (raw findings, flow findings, audit document, problemStatementProcessor, vitest config, 3 test helpers, 3 test files, helper README, 9 SUMMARYs)
-- Files modified: 56 (artemisWebviewProvider, messageContracts, ProblemStatement TSX/CSS, ExerciseDetailView, ExamExerciseDetailView, types, index.tsx, CourseDetailView CSS, package.json, .vscode-test.mjs, 23 test files with import path updates, webViewMessageHandler, extension, utilityCommands, esbuild.js, eslint.config.mjs, .gitignore, package-lock.json, CodeBlock.tsx, iconMap.ts, DashboardView.tsx, IconButton.tsx, ArtemisLogo.tsx)
+- Files created: 18 (raw findings, flow findings, audit document, problemStatementProcessor, vitest config, 3 test helpers, 3 test files, helper README, 10 SUMMARYs, 2 type declarations)
+- Files modified: 66 (artemisWebviewProvider, messageContracts, ProblemStatement TSX/CSS, ExerciseDetailView, ExamExerciseDetailView, types, index.tsx, CourseDetailView CSS, package.json, .vscode-test.mjs, 23 test files with import path updates, webViewMessageHandler, extension, utilityCommands, esbuild.js, eslint.config.mjs, .gitignore, package-lock.json, CodeBlock.tsx, iconMap.ts, DashboardView.tsx, IconButton.tsx, ArtemisLogo.tsx, tsconfig.json, vitest.config renamed, appStateManager.test.ts, LoginView.test.tsx, MessageBubble.tsx, StreamingMessage.tsx, useAutoScroll.ts, useExamTimer.ts, streamdown.d.ts)
 - Files moved: 68 (test directory reorganization)
 - Tests added: 30 (Button: 12, useDashboardStore: 9, LoginView: 9)
-- Estimated total: ~54 minutes remaining
+- Estimated total: ~70 minutes (12 plans complete, 3 remaining)
 
 ## Accumulated Context
 
@@ -95,6 +96,9 @@ Recent decisions affecting v1.1 work:
 - [Phase 11-04]: Accept 3.44 MB as architectural minimum for IIFE format (Shiki 2.36 MB + KaTeX 1.63 MB + React/utilities ~450 KB)
 - [Phase 11-04]: Defer lazy-loading optimizations to v1.2+ (requires architectural changes beyond Phase 11 scope)
 - [Phase 11-04]: Reframe Phase 11 goal as bundle analysis tooling implementation (achieved) rather than size reduction target (architecturally blocked)
+- [Phase 12-01]: Enable skipLibCheck: true for multi-test-framework compatibility (Mocha vs Vitest global type conflicts)
+- [Phase 12-01]: Keep 6 @ts-expect-error directives for ESM imports (Node16 module resolution + ESM packages = unavoidable TS1479 errors, runtime works via esbuild)
+- [Phase 12-01]: Wildcard module declaration for lucide-react direct icon imports resolves 57 TS7016 errors
 
 ### Pending Todos
 
@@ -103,7 +107,7 @@ None yet.
 ### Blockers/Concerns
 
 **Known from v1.0:**
-- 10 pre-existing TypeScript errors (streamdown/mermaid module, unused @ts-expect-error directives)
+- ~~10 pre-existing TypeScript errors (streamdown/mermaid module, unused @ts-expect-error directives)~~ (RESOLVED in Phase 12-01 — zero compilation errors achieved)
 - ~~3.5MB webview-react.js bundle (may benefit from tree-shaking optimization)~~ (RESOLVED in Phase 11 — 3.44 MB accepted as baseline for IIFE format with Shiki + KaTeX)
 - ~~Fullscreen panel support temporarily disabled during v1.0 cleanup~~ (RESOLVED in 09-02)
 - IIFE bundle format prevents code splitting (architectural constraint)
@@ -126,11 +130,11 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-02-25
-Stopped at: Completed 11-04-PLAN.md (Gap closure — accepted 3.44 MB bundle baseline, updated documentation)
-Resume with: Phase 12 (Type Safety Hardening) or continue with remaining v1.1 phases
+Last session: 2026-02-26
+Stopped at: Completed 12-01-PLAN.md (TypeScript strict mode - zero compilation errors achieved)
+Resume with: Phase 12-02 (Message contract type safety) or continue with remaining Phase 12 plans
 
 ---
 
 *Created: 2026-02-23 (v1.0)*
-*Updated: 2026-02-25 (Phase 11 COMPLETE — Bundle optimization: analysis tooling, Shiki language expansion, Lucide direct icon imports)*
+*Updated: 2026-02-26 (Phase 12-01 COMPLETE — TypeScript strict mode: 107 errors resolved, zero compilation errors)*
