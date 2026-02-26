@@ -5,6 +5,7 @@ import {
     ChatContextType,
     ContextSnapshot,
 } from '../types';
+import type { IrisChatMessage, IrisChatMessageContent } from '../types/apiResponses';
 import { getReactWebviewHtml } from '../utils/webviewHelpers';
 import { logger, LogLevel, LogCategory } from '../services/loggingService';
 import { ArtemisApiService } from '../api';
@@ -178,7 +179,7 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
         this._onDidChangeExerciseContext.dispose();
     }
 
-    private _handleIrisWebSocketMessage(data: any): void {
+    private _handleIrisWebSocketMessage(data: unknown): void {
         this._websocketMessageHandler.handleIrisWebSocketMessage(data);
     }
 
@@ -394,37 +395,46 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
         }
     }
 
-    private _handleMessage(message: any): void {
+    private _handleMessage(message: unknown): void {
+        // Narrow unknown to typed message
+        const typedMessage = message as { type?: string; command?: string; context?: ChatContextType; itemId?: number; itemName?: string; itemShortName?: string; exerciseId?: number; courseId?: number; sessionId?: string; setting?: string; filePath?: string };
+
         // Handle React ready signal (sent as { type: 'ready' })
-        if (message.type === 'ready') {
+        if (typedMessage.type === 'ready') {
             this._postSnapshot();
             this._postNoAiStatus(this._noAiDetectionService.isNoAiEnabled);
             return;
         }
 
-        switch (message.command) {
+        switch (typedMessage.command) {
             case 'sendMessage':
                 // Proper error handling for async chat message handler
-                void this._handleChatMessage(message).catch(err => {
+                void this._handleChatMessage(typedMessage).catch(err => {
                     logger.error('Error handling chat message', LogCategory.IRIS_CHAT, err);
                     vscode.window.showErrorMessage('Failed to send message. Please try again.');
                 });
                 break;
             case 'selectChatContext':
-                this._handleContextSelection(message.context, message.itemId, message.itemName, message.itemShortName);
+                if (typedMessage.context && typeof typedMessage.itemId === 'number' && typeof typedMessage.itemName === 'string') {
+                    this._handleContextSelection(typedMessage.context, typedMessage.itemId, typedMessage.itemName, typedMessage.itemShortName);
+                }
                 break;
             case 'selectExerciseContext': // Legacy
-                this._handleExerciseSelection(message.exerciseId);
+                if (typeof typedMessage.exerciseId === 'number') {
+                    this._handleExerciseSelection(typedMessage.exerciseId);
+                }
                 break;
             case 'selectCourseContext': // Legacy
-                this._handleCourseSelection(message.courseId);
+                if (typeof typedMessage.courseId === 'number') {
+                    this._handleCourseSelection(typedMessage.courseId);
+                }
                 break;
             case 'createNewSession':
                 this.createNewSession();
                 break;
             case 'switchSession':
-                if (typeof message.sessionId === 'string') {
-                    this.switchToSession(message.sessionId);
+                if (typeof typedMessage.sessionId === 'string') {
+                    this.switchToSession(typedMessage.sessionId);
                 }
                 break;
             case 'switchContext':
@@ -440,7 +450,7 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
                 });
                 break;
             case 'debugSessions':
-                this._chatDiagnosticsService.handleDebugSessions().catch((err: any) => {
+                this._chatDiagnosticsService.handleDebugSessions().catch((err: unknown) => {
                     logger.error('Error debugging sessions', LogCategory.IRIS_CHAT, err);
                     vscode.window.showErrorMessage('Failed to fetch debug session data');
                 });
@@ -458,25 +468,25 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
                 break;
             case 'messageFeedback':
                 // Proper error handling for async feedback handler
-                void this._handleMessageFeedback(message).catch(err => {
+                void this._handleMessageFeedback(typedMessage).catch(err => {
                     logger.error('Error handling message feedback', LogCategory.IRIS_CHAT, err);
                 });
                 break;
             case 'openSettings':
-                if (message.setting) {
-                    vscode.commands.executeCommand('workbench.action.openSettings', message.setting);
+                if (typeof typedMessage.setting === 'string') {
+                    vscode.commands.executeCommand('workbench.action.openSettings', typedMessage.setting);
                 }
                 break;
             case 'openFile':
-                if (message.filePath) {
-                    this._handleOpenFile(message.filePath);
+                if (typeof typedMessage.filePath === 'string') {
+                    this._handleOpenFile(typedMessage.filePath);
                 }
                 break;
             case 'openHelpPopup':
                 this._handleOpenHelpPopup();
                 break;
             default:
-                logger.debug('Unhandled message in chat view', LogCategory.IRIS_CHAT, message);
+                logger.debug('Unhandled message in chat view', LogCategory.IRIS_CHAT, typedMessage);
                 break;
         }
     }
@@ -493,9 +503,10 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
 
         try {
             await this._initializeIrisSession(activeContext);
-        } catch (error: any) {
+        } catch (error: unknown) {
             logger.error('Failed to load Iris messages', LogCategory.IRIS_CHAT, error);
-            vscode.window.showWarningMessage(`Could not load previous messages: ${error.message}`);
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            vscode.window.showWarningMessage(`Could not load previous messages: ${errorMessage}`);
         }
     }
 
@@ -623,7 +634,7 @@ Iris can see files from your workspace (configurable in settings). Check the "Re
 
 
 
-    private async _handleChatMessage(message: any): Promise<void> {
+    private async _handleChatMessage(message: { text?: string }): Promise<void> {
         // Check if .noai file is detected first
         if (this._noAiDetectionService.isNoAiEnabled) {
             logger.websocketWarn('Chat blocked: .noai file detected');
@@ -656,10 +667,12 @@ Iris can see files from your workspace (configurable in settings). Check the "Re
         const struggleContext = this.getStruggleContext();
 
         // Delegate to ChatMessageService with struggle context
-        await this._chatMessageService.handleChatMessage(message.text, activeContext, struggleContext);
+        if (typeof message.text === 'string') {
+            await this._chatMessageService.handleChatMessage(message.text, activeContext, struggleContext);
+        }
     }
 
-    private async _handleMessageFeedback(message: any): Promise<void> {
+    private async _handleMessageFeedback(message: { sessionId?: number; messageId?: number; feedback?: string }): Promise<void> {
         const sessionId: number | undefined = message.sessionId;
         const messageId: number | undefined = message.messageId;
         const feedback: string | undefined = message.feedback;
@@ -738,7 +751,7 @@ Iris can see files from your workspace (configurable in settings). Check the "Re
                 logger.irisChatWarn('Clearing stale Artemis session ID mapping...');
 
                 // Clear the stale mapping
-                this._contextStore.setArtemisSessionId(undefined as any);
+                this._contextStore.setArtemisSessionId(undefined);
                 this._postSnapshot();
 
                 vscode.window.showWarningMessage(
@@ -754,21 +767,21 @@ Iris can see files from your workspace (configurable in settings). Check the "Re
             if (this._view && messages && messages.length > 0) {
                 logger.irisChat('Sending messages to webview', messages);
 
-                const formattedMessages = messages.map((msg: any) => {
+                const formattedMessages = messages.map((msg: IrisChatMessage) => {
                     // Extract content from the message structure
                     let content = '';
                     if (msg.content && Array.isArray(msg.content) && msg.content.length > 0) {
                         // Content is an array of content items
-                        content = msg.content.map((item: any) => {
+                        content = msg.content.map((item: IrisChatMessageContent) => {
                             if (item.textContent) {
                                 return item.textContent;
                             }
-                            return item.toString();
+                            return item.toString?.() ?? String(item);
                         }).join('\n');
                     } else if (typeof msg.content === 'string') {
                         content = msg.content;
-                    } else if (msg.message) {
-                        content = msg.message;
+                    } else if (typeof (msg as { message?: string }).message === 'string') {
+                        content = (msg as { message: string }).message;
                     } else {
                         content = JSON.stringify(msg.content);
                     }
@@ -778,7 +791,7 @@ Iris can see files from your workspace (configurable in settings). Check the "Re
                         role: msg.sender === 'USER' ? 'user' : 'assistant',
                         content: content,
                         timestamp: msg.sentAt ? new Date(msg.sentAt).getTime() : Date.now(),
-                        helpful: msg.helpful // true, false, or null
+                        helpful: (msg as { helpful?: boolean | null }).helpful // true, false, or null
                     };
                 });
 
@@ -797,9 +810,10 @@ Iris can see files from your workspace (configurable in settings). Check the "Re
             }
 
             vscode.window.showInformationMessage(`Connected to Iris for ${context.title}`);
-        } catch (error: any) {
+        } catch (error: unknown) {
             logger.error('Error initializing Iris session', LogCategory.IRIS_CHAT, error);
-            throw new Error(`Failed to connect to Iris: ${error.message}`);
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            throw new Error(`Failed to connect to Iris: ${errorMessage}`);
         }
     }
 
