@@ -114,17 +114,21 @@ Plans:
   3. ESLint @typescript-eslint/no-explicit-any rule enforced across codebase
   4. Zero compilation errors in both extension host and webview builds
   5. Type-safe message contracts maintained (no any types in handler signatures)
-**Plans**: 8 plans
+**Plans**: 12 plans
 
 Plans:
 - [x] 12-01-PLAN.md — Resolve all 107 compilation errors (declaration files, tsconfig fixes, suppression comment removal)
 - [x] 12-02-PLAN.md — ESLint strict type rules + eliminate any from extension host code (partial: foundation laid, 772 errors remain)
 - [x] 12-03-PLAN.md — Eliminate any from webview React code (partial: stores typed, 11 any types remain in views)
-- [ ] 12-04-PLAN.md — (Gap closure) Fix extension host TypeScript errors (missing types, broken imports, legacy commands)
-- [ ] 12-08-PLAN.md — (Gap closure) Fix webview provider and React view TypeScript compilation errors
-- [ ] 12-05-PLAN.md — (Gap closure) Eliminate any from extension host providers and services
-- [ ] 12-06-PLAN.md — (Gap closure) Eliminate any from extension host command handlers
-- [ ] 12-07-PLAN.md — (Gap closure) Eliminate any from webview React views and shared modules
+- [x] 12-04-PLAN.md — (Gap closure) Fix extension host TypeScript errors (missing types, broken imports, legacy commands)
+- [x] 12-05-PLAN.md — (Gap closure) Eliminate any from extension host providers and services (partial: providers done)
+- [x] 12-06-PLAN.md — (Gap closure) Eliminate any from extension host command handlers (partial: 4/8 files done)
+- [x] 12-07-PLAN.md — (Gap closure) Eliminate any from webview React views and shared modules (partial: stores done)
+- [x] 12-08-PLAN.md — (Gap closure) Fix webview provider and React view TypeScript compilation errors
+- [ ] 12-09-PLAN.md — (Gap closure) Fix all 46 TypeScript compilation errors (type exports, message contracts, provider/command alignment)
+- [ ] 12-10-PLAN.md — (Gap closure) Eliminate any from remaining 10 service files (72 ESLint errors)
+- [ ] 12-11-PLAN.md — (Gap closure) Eliminate any from remaining 3 command handler files (62 ESLint errors)
+- [ ] 12-12-PLAN.md — (Gap closure) Fix React view payload typing + api/auth/utils errors (93 ESLint errors)
 
 ### Phase 13: Component Test Suite
 **Goal**: Comprehensive unit tests for React components, Zustand stores, and critical user flows
