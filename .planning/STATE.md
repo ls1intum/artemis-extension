@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: Production Ready
 status: unknown
-last_updated: "2026-02-26T13:29:26.221Z"
+last_updated: "2026-02-26T13:52:47.404Z"
 progress:
   total_phases: 6
   completed_phases: 5
   total_plans: 20
-  completed_plans: 17
+  completed_plans: 19
 ---
 
 # Project State
@@ -106,6 +106,8 @@ Recent decisions affecting v1.1 work:
 - [Phase 12-04]: Dual message format (type: vs command:) preserved - runtime uses command: field, contracts define both discriminators
 - [Phase 12-04]: Explicit field mapping for optional-to-required type conversions (ExerciseDetail to ExerciseSource) safer than type predicates alone
 - [Phase 12-08]: ExamData interface wrapper for exam state fixes type mismatch (StudentExam alone was incorrect)
+- [Phase 12-07]: MessageEvent<unknown> pattern for all webview message listeners provides type-safe event handling
+- [Phase 12-07]: JSON.parse type loss fixed with explicit type assertions (ExerciseDetailsResponse cast) after deserialization
 
 ### Pending Todos
 
