@@ -80,8 +80,8 @@ export function CodeBlock({ language, children, code }: CodeBlockProps) {
                     theme,
                 });
                 setHighlightedHtml(html);
-            } catch (error) {
-                console.error('Shiki highlighting error:', error);
+            } catch {
+                // Fallback to plain text if highlighting fails
                 setHighlightedHtml(`<pre><code>${escapeHtml(codeContent)}</code></pre>`);
             }
         };
@@ -94,8 +94,10 @@ export function CodeBlock({ language, children, code }: CodeBlockProps) {
             await navigator.clipboard.writeText(codeContent);
             setCopyText('Copied!');
             setTimeout(() => setCopyText('Copy'), 2000);
-        } catch (error) {
-            console.error('Copy failed:', error);
+        } catch {
+            // Silently fail - clipboard API may not be available
+            setCopyText('Failed');
+            setTimeout(() => setCopyText('Copy'), 2000);
         }
     };
 
