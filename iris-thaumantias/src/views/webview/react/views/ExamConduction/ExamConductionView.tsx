@@ -10,7 +10,7 @@ import { BackLink } from '../../components/BackLink/BackLink';
 import { Container } from '../../components/Container/Container';
 import { Badge } from '../../components/Badge/Badge';
 import { IconButton } from '../../components/Button/IconButton';
-import type { ExtensionToWebviewMessage } from '../../../../../shared/messageContracts';
+import type { ExtensionToWebviewMessage, ExerciseDetail } from '../../../../../shared/messageContracts';
 import styles from './ExamConductionView.module.css';
 
 /**
@@ -90,8 +90,10 @@ export function ExamConductionView({ vscodeApi }: ExamConductionViewProps) {
             title?: string;
         };
         exercises?: Array<{
-            id?: number;
+            id: number;
             title?: string;
+            type?: string;
+            maxPoints?: number;
         }>;
     }
     const studentExam = store.studentExam as ExamData;
@@ -104,21 +106,15 @@ export function ExamConductionView({ vscodeApi }: ExamConductionViewProps) {
     const showOverlay = timerExpired && !overlayDismissed;
 
     const handleExerciseClick = (exerciseIndex: number) => {
-        interface ExamExercisePayload {
-            exercise: unknown;
-            exerciseIndex: number;
-            courseId: number;
-            examId: number;
-        }
         vscodeApi.postMessage({
             type: 'command',
             command: 'openExamExerciseDetails',
             payload: {
-                exercise: exercises[exerciseIndex],
+                exercise: exercises[exerciseIndex] as unknown as ExerciseDetail,
                 exerciseIndex,
                 courseId: store.courseId!,
                 examId: store.examId!,
-            } as ExamExercisePayload,
+            },
         });
     };
 

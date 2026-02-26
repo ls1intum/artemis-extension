@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useDashboardStore } from '../../stores/useDashboardStore';
 import type { DashboardViewProps, RecentCourseNode, Exercise } from './types';
+import type { CourseDashboardCourse } from '../../../../../types/apiResponses';
 import {
     Container,
     Button,
@@ -91,13 +92,10 @@ export function DashboardView({ vscodeApi }: DashboardViewProps) {
     };
 
     const handleViewCourseDetails = (courseData: RecentCourseNode) => {
-        interface CoursePayload {
-            courseData: unknown;
-        }
         vscodeApi.postMessage({
             type: 'command',
             command: 'viewCourseDetails',
-            payload: { courseData } as CoursePayload,
+            payload: { courseData: courseData as unknown as CourseDashboardCourse },
         });
     };
 

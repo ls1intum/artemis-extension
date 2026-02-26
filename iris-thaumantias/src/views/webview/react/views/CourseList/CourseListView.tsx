@@ -2,6 +2,7 @@ import { useEffect, useMemo } from 'react';
 import { useCourseListStore } from '../../stores/useCourseListStore';
 import { useNavigationStore } from '../../stores/useNavigationStore';
 import type { CourseListViewProps, CourseListPersistedState, CourseData, ArchivedCourse } from './types';
+import type { CourseDashboardCourse } from '../../../../../types/apiResponses';
 import {
     BackLink,
     IconButton,
@@ -152,13 +153,10 @@ export function CourseListView({ vscodeApi }: CourseListViewProps) {
     };
 
     const handleViewCourseDetails = (courseData: CourseData) => {
-        interface CoursePayload {
-            courseData: unknown;
-        }
         vscodeApi.postMessage({
             type: 'command',
             command: 'viewCourseDetails',
-            payload: { courseData: courseData.course } as CoursePayload,
+            payload: { courseData: courseData.course as unknown as CourseDashboardCourse },
         });
     };
 
