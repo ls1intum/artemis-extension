@@ -1,7 +1,8 @@
 import { ArtemisApiService } from '../../api';
 import { logger, LogLevel, LogCategory } from '../../services/loggingService';
 import { getRecommendedExtensionsByCategory, type RecommendedExtensionCategory } from '../../utils/recommendedExtensions';
-import type { CourseDashboardResponse, ArchivedCourse, CourseDetailData, ExerciseDetailsResponse, StudentExam, ArtemisUser, ExerciseDetail } from '../../types/apiResponses';
+import type { CourseDashboardResponse, ArchivedCourse, CourseDetailData, ExerciseDetailsResponse, StudentExam, ExerciseDetail } from '../../types/apiResponses';
+import type { ArtemisUser } from '../../types';
 
 export type AppState = 'login' | 'dashboard' | 'course-list' | 'course-detail' | 'exercise-detail' | 'exam-exercise-detail' | 'ai-config' | 'service-status' | 'struggle-detection' | 'recommended-extensions' | 'git-credentials' | 'exam-start' | 'exam-conduction';
 

@@ -145,20 +145,6 @@ export interface StudentExam {
     [key: string]: unknown;
 }
 
-/**
- * Artemis user information returned from authentication.
- */
-export interface ArtemisUser {
-    id?: number;
-    login: string;
-    firstName?: string;
-    lastName?: string;
-    email?: string;
-    activated?: boolean;
-    langKey?: string;
-    authorities?: string[];
-    [key: string]: unknown;
-}
 
 /**
  * Archived course structure (courses from previous semesters).

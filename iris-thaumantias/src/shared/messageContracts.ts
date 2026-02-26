@@ -16,6 +16,9 @@ import type {
     SubmissionSummary,
 } from '../types/apiResponses';
 
+// Re-export ExerciseDetail for use in navigationCommands and other consumers
+export type { ExerciseDetail } from '../types/apiResponses';
+
 /**
  * VS Code API interface available in webview context.
  * Acquired via window.acquireVsCodeApi() in webview code.
@@ -690,7 +693,11 @@ export type ExtensionToWebviewMessage =
     | TestResultsDataMessage
     | UpdateDirtyPagesStatusMessage
     | UpdateRepoStatusMessage
-    | { type: 'error'; payload: { message: string } };
+    | { type: 'error'; payload: { message: string } }
+    | { command: 'loginError'; error: string }
+    | { command: 'healthCheckResults'; results: Record<string, unknown> }
+    | { command: 'workspaceExerciseDetected'; exerciseId: number | null; exerciseTitle: string | null }
+    | { command: 'gitCredentialsResult'; status: string; message: string };
 
 // ============================================================================
 // Webview → Extension Messages
@@ -1123,6 +1130,8 @@ export interface AskIrisAboutExerciseCommand {
         exerciseId: number;
         exerciseTitle: string;
         exerciseShortName?: string;
+        releaseDate?: string;
+        dueDate?: string;
         courseId?: number;
         courseTitle?: string;
         courseShortName?: string;
@@ -1455,7 +1464,21 @@ export type WebviewToExtensionMessage =
     | OpenDiagnosticsCommand
     | DebugSessionsCommand
     | OpenHelpPopupCommand
-    | ErrorMessage;
+    | ErrorMessage
+    | { type: 'command'; command: 'alert'; payload: { text: string } }
+    | { type: 'command'; command: 'showSubmissionDetails'; payload: { participationId: number; resultId: number } }
+    | { type: 'command'; command: 'fetchTestResults'; payload: { participationId: number; resultId: number } }
+    | { type: 'command'; command: 'openExerciseInBrowser'; payload: { exerciseId: number; courseId?: number } }
+    | { type: 'command'; command: 'viewBuildLog'; payload: { participationId: number; resultId?: number } }
+    | { type: 'command'; command: 'goToSourceError'; payload: { filePath: string; line: number; column?: number } }
+    | { type: 'command'; command: 'fetchBuildLogsForError'; payload: { participationId: number; resultId?: number } }
+    | { type: 'command'; command: 'webviewLog'; payload: { level: string; text: string; category: string; error?: unknown } }
+    | { type: 'command'; command: 'participateInExercise'; payload: { exerciseId: number; exerciseTitle: string } }
+    | { type: 'command'; command: 'openClonedRepository'; payload: { exerciseId: number } }
+    | { type: 'command'; command: 'copyCloneUrl'; payload: { participationId: number; repositoryUri: string } }
+    | { type: 'command'; command: 'pullChanges'; payload: { exerciseTitle: string } }
+    | { type: 'command'; command: 'saveGitCredentials'; payload: { username?: string; token?: string; serverUrl?: string } }
+    | { type: 'command'; command: 'startExam'; payload: { courseId: number; examId: number; studentExamId: number } };
 
 // ============================================================================
 // Type Guards
