@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
 import type { CommandContext, CommandMap } from './types';
+import type { WebviewToExtensionMessage, CheckRepositoryStatusCommand, CloneRepositoryCommand } from '../../../shared/messageContracts';
 import { VSCODE_CONFIG, checkWorkspaceFiles } from '../../../utils';
 import { detectWorkspaceExercise, normalizeRepositoryUrl, type ExerciseSource, GitService } from '../../../services';
 import { logger } from '../../../services/loggingService';

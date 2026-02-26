@@ -6,6 +6,16 @@
  * It's importable from both contexts (no vscode imports).
  */
 
+// Import domain types for message payloads
+import type {
+    ExerciseDetailsResponse,
+    ExerciseDetail,
+    StudentExam,
+    CourseDashboardCourse,
+    ResultSummary,
+    SubmissionSummary,
+} from '../types/apiResponses';
+
 /**
  * VS Code API interface available in webview context.
  * Acquired via window.acquireVsCodeApi() in webview code.
@@ -266,7 +276,7 @@ export interface CourseDetailInitMessage {
 export interface ExerciseDetailInitMessage {
     type: 'exerciseDetailInit';
     payload: {
-        exerciseData: unknown;
+        exerciseData: ExerciseDetailsResponse;
         hideDeveloperTools: boolean;
     };
 }
@@ -277,7 +287,7 @@ export interface ExerciseDetailInitMessage {
 export interface ExamConductionInitMessage {
     type: 'examConductionInit';
     payload: {
-        studentExam: unknown;
+        studentExam: StudentExam;
         courseId: number;
         examId: number;
         endTime: number;
@@ -293,7 +303,7 @@ export interface ExamConductionInitMessage {
 export interface ExamStartInitMessage {
     type: 'examStartInit';
     payload: {
-        studentExam: unknown;
+        studentExam: StudentExam;
         courseId: number;
         examId: number;
     };
@@ -305,11 +315,11 @@ export interface ExamStartInitMessage {
 export interface ExamExerciseDetailInitMessage {
     type: 'examExerciseDetailInit';
     payload: {
-        exerciseData: unknown;
+        exerciseData: ExerciseDetailsResponse;
         examContext: {
             courseId: number;
             examId: number;
-            studentExam: unknown;
+            studentExam: StudentExam;
             endTime: number;
             startTime: number;
             totalDuration: number;
@@ -320,14 +330,30 @@ export interface ExamExerciseDetailInitMessage {
 
 /**
  * WebSocket update message (forwarded from extension's WebSocket handler).
+ * Uses discriminated union based on updateType for type-safe data access.
  */
-export interface WebSocketUpdateMessage {
-    type: 'websocketUpdate';
-    payload: {
-        updateType: 'newResult' | 'newSubmission' | 'submissionProcessing';
-        data: unknown;
+export type WebSocketUpdateMessage =
+    | {
+        type: 'websocketUpdate';
+        payload: {
+            updateType: 'newResult';
+            data: ResultSummary;
+        };
+    }
+    | {
+        type: 'websocketUpdate';
+        payload: {
+            updateType: 'newSubmission';
+            data: SubmissionSummary;
+        };
+    }
+    | {
+        type: 'websocketUpdate';
+        payload: {
+            updateType: 'submissionProcessing';
+            data: { submissionId: number };
+        };
     };
-}
 
 /**
  * WebSocket disconnected message.
@@ -722,7 +748,7 @@ export interface ViewCourseDetailsCommand {
     type: 'command';
     command: 'viewCourseDetails';
     payload: {
-        courseData: unknown;
+        courseData: CourseDashboardCourse;
     };
 }
 
@@ -878,12 +904,13 @@ export interface ToggleCourseFullscreenCommand {
 
 /**
  * Open in editor command (developer tools).
+ * Data can be any domain object (course, exercise, exam, etc.) for inspection.
  */
 export interface OpenInEditorCommand {
     type: 'command';
     command: 'openInEditor';
     payload: {
-        data: unknown;
+        data: Record<string, unknown>;
     };
 }
 
@@ -1073,7 +1100,7 @@ export interface OpenExamExerciseDetailsCommand {
     type: 'command';
     command: 'openExamExerciseDetails';
     payload: {
-        exercise: unknown;
+        exercise: ExerciseDetail;
         exerciseIndex: number;
         courseId: number;
         examId: number;

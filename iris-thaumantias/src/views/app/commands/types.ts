@@ -4,8 +4,10 @@ import type { ArtemisApiService } from '../../../api';
 import type { AppStateManager } from '../appStateManager';
 import type { WebViewActionHandler } from '../types';
 import type { ArtemisWebsocketService } from '../../../services';
+import type { WebviewToExtensionMessage, ExtensionToWebviewMessage } from '../../../shared/messageContracts';
+import type { BuildErrorCodeLensProvider } from '../../../codeErrorCodeLensProvider';
 
-export type CommandHandler = (message: any) => Promise<void>;
+export type CommandHandler = (message: WebviewToExtensionMessage) => Promise<void>;
 export type CommandMap = Record<string, CommandHandler>;
 
 export interface CommandContext {
@@ -13,9 +15,9 @@ export interface CommandContext {
     artemisApi: ArtemisApiService;
     appStateManager: AppStateManager;
     actionHandler: WebViewActionHandler;
-    sendMessage(message: any): void;
+    sendMessage(message: ExtensionToWebviewMessage): void;
     updateAuthContext(isAuthenticated: boolean): Promise<void>;
-    buildCodeLens?: any; // BuildErrorCodeLensProvider
+    buildCodeLens?: BuildErrorCodeLensProvider;
     websocketService?: ArtemisWebsocketService;
     extensionContext: vscode.ExtensionContext;
 }

@@ -6,6 +6,8 @@ import { ArtemisWebsocketService } from '../../services';
 import { AppStateManager } from './appStateManager';
 import type { WebViewActionHandler } from './types';
 import type { CommandContext, CommandHandler } from './commands/types';
+import type { WebviewToExtensionMessage, ExtensionToWebviewMessage } from '../../shared/messageContracts';
+import type { BuildErrorCodeLensProvider } from '../../codeErrorCodeLensProvider';
 import { AuthCommandModule } from './commands/authCommands';
 import { NavigationCommandModule } from './commands/navigationCommands';
 import { RepositoryCommandModule } from './commands/repositoryCommands';
@@ -19,7 +21,7 @@ import { UtilityCommandModule } from './commands/utilityCommands';
  */
 export class WebViewMessageHandler {
     private _authContextUpdater?: (isAuthenticated: boolean) => Promise<void>;
-    private _sendMessage: (message: any) => void = (message: any) => {
+    private _sendMessage: (message: ExtensionToWebviewMessage) => void = (message: ExtensionToWebviewMessage) => {
         logger.debug('Message to send to webview:', LogCategory.VIEW, message);
     };
     private readonly commandHandlers: Map<string, CommandHandler> = new Map();
@@ -31,7 +33,7 @@ export class WebViewMessageHandler {
         private readonly artemisApi: ArtemisApiService,
         private readonly appStateManager: AppStateManager,
         private readonly actionHandler: WebViewActionHandler,
-        private readonly buildCodeLens?: any,
+        private readonly buildCodeLens?: BuildErrorCodeLensProvider,
         websocketService?: ArtemisWebsocketService,
         extensionContext?: vscode.ExtensionContext
     ) {
@@ -41,7 +43,7 @@ export class WebViewMessageHandler {
             artemisApi: this.artemisApi,
             appStateManager: this.appStateManager,
             actionHandler: this.actionHandler,
-            sendMessage: (message: any) => this._sendMessage(message),
+            sendMessage: (message: ExtensionToWebviewMessage) => this._sendMessage(message),
             updateAuthContext: (isAuthenticated: boolean) => this.updateAuthContext(isAuthenticated),
             buildCodeLens: this.buildCodeLens,
             websocketService: this._websocketService,
@@ -72,7 +74,7 @@ export class WebViewMessageHandler {
     /**
      * Process a message received from the webview, temporarily overriding the message sender.
      */
-    public async handleMessageWithSender(message: any, sendResponse: (message: any) => void): Promise<void> {
+    public async handleMessageWithSender(message: WebviewToExtensionMessage, sendResponse: (message: ExtensionToWebviewMessage) => void): Promise<void> {
         const originalSender = this._sendMessage;
         this._sendMessage = sendResponse;
 
@@ -86,18 +88,21 @@ export class WebViewMessageHandler {
     /**
      * Process a message received from the webview.
      */
-    public async handleMessage(message: any): Promise<void> {
+    public async handleMessage(message: WebviewToExtensionMessage): Promise<void> {
         try {
-            const handler = this.commandHandlers.get(message.command);
+            // Extract command from message (discriminated union with 'type' and optional 'command')
+            const command = message.type === 'command' ? (message as { type: 'command'; command: string }).command : message.type;
+            const handler = this.commandHandlers.get(command);
             if (!handler) {
-                logger.warn(`Unknown message command: ${message.command}`, LogCategory.VIEW);
+                logger.warn(`Unknown message command: ${command}`, LogCategory.VIEW);
                 return;
             }
 
             await handler(message);
         } catch (error) {
             logger.error('Error handling message:', LogCategory.VIEW, error);
-            vscode.window.showErrorMessage(`Error processing command: ${message.command}`);
+            const command = message.type === 'command' ? (message as { type: 'command'; command: string }).command : message.type;
+            vscode.window.showErrorMessage(`Error processing command: ${command}`);
         }
     }
 
@@ -118,7 +123,7 @@ export class WebViewMessageHandler {
     /**
      * Set the method for sending messages to the webview.
      */
-    public setMessageSender(sendMessage: (message: any) => void): void {
+    public setMessageSender(sendMessage: (message: ExtensionToWebviewMessage) => void): void {
         this._sendMessage = sendMessage;
     }
 
