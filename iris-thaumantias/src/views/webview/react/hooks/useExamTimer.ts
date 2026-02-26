@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-// @ts-expect-error - esbuild-plugin-inline-worker transforms this import
+// @ts-expect-error - esbuild-plugin-inline-worker transforms this import (TS1192: requires module declaration)
 import ExamTimerWorker from '../workers/examTimer.worker';
 
 interface TimerState {

@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-// @ts-expect-error - streamdown is ESM but TypeScript Node16 resolution complains. esbuild handles at bundle time.
+// @ts-expect-error - streamdown is ESM but TypeScript Node16 resolution complains (TS1479). esbuild handles at bundle time.
 import { Streamdown } from 'streamdown';
 import { CodeBlock } from './CodeBlock';
 import styles from './StreamingMessage.module.css';
@@ -22,7 +22,7 @@ export function StreamingMessage({ chunks }: StreamingMessageProps) {
                     duration: 150,
                 }}
                 components={{
-                    code: ({ node, className, children, ...props }) => {
+                    code: ({ node, className, children, ...props }: { node?: unknown; className?: string; children?: React.ReactNode; [key: string]: unknown }) => {
                         // Check if this is a fenced code block (has language class)
                         const match = /language-(\w+)/.exec(className || '');
                         const language = match ? match[1] : undefined;

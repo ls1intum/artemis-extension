@@ -1,5 +1,5 @@
 import { memo, useState, useMemo } from 'react';
-// @ts-expect-error - streamdown is ESM but TypeScript Node16 resolution complains. esbuild handles at bundle time.
+// @ts-expect-error - streamdown is ESM but TypeScript Node16 resolution complains (TS1479). esbuild handles at bundle time.
 import { Streamdown } from 'streamdown';
 import clsx from 'clsx';
 import { StreamingMessage } from './StreamingMessage';
@@ -104,7 +104,7 @@ function MessageBubbleComponent({
                         <Streamdown
                             mode="static"
                             components={{
-                                code: ({ node, className, children, ...props }) => {
+                                code: ({ node, className, children, ...props }: { node?: unknown; className?: string; children?: React.ReactNode; [key: string]: unknown }) => {
                                     const match = /language-(\w+)/.exec(className || '');
                                     const language = match ? match[1] : undefined;
 

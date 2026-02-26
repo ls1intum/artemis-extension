@@ -1,5 +1,5 @@
 import { useCallback } from 'react';
-// @ts-expect-error - ES module import handled by esbuild at bundle time
+// @ts-expect-error - ES module import handled by esbuild at bundle time (TS1479: Node16 module resolution vs ESM)
 import { useStickToBottom } from 'use-stick-to-bottom';
 
 /**
