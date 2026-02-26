@@ -126,7 +126,7 @@ export function ServiceHealth({
   };
 
   const formatLastCheckTime = () => {
-    if (!lastCheckTime) return 'Never';
+    if (!lastCheckTime) {return 'Never';}
     return lastCheckTime.toLocaleTimeString();
   };
 

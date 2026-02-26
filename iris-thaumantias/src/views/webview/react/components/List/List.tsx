@@ -16,7 +16,7 @@ export function List({ children, onSelect, className, ariaLabel }: ListProps) {
     const childrenArray = Children.toArray(children);
     const count = childrenArray.length;
 
-    if (count === 0) return;
+    if (count === 0) {return;}
 
     if (e.key === 'ArrowDown') {
       e.preventDefault();

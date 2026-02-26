@@ -28,7 +28,7 @@ export function HelpPopup({
 
   // Close popup when clicking outside
   useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen) {return;}
 
     function handleClickOutside(event: MouseEvent) {
       if (popupRef.current && !popupRef.current.contains(event.target as Node)) {

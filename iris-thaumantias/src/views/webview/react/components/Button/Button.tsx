@@ -49,8 +49,8 @@ export function Button({
   );
 
   const inlineStyles: React.CSSProperties = {};
-  if (width) inlineStyles.width = width;
-  if (height) inlineStyles.height = height;
+  if (width) {inlineStyles.width = width;}
+  if (height) {inlineStyles.height = height;}
 
   // Icon-only button
   if (isIconOnly) {

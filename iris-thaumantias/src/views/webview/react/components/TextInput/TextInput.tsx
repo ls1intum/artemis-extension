@@ -66,11 +66,11 @@ export function TextInput({
   };
 
   const handleBlur = (e: FocusEvent<HTMLInputElement>) => {
-    if (onBlur) onBlur();
+    if (onBlur) {onBlur();}
   };
 
   const handleFocus = (e: FocusEvent<HTMLInputElement>) => {
-    if (onFocus) onFocus();
+    if (onFocus) {onFocus();}
   };
 
   const togglePasswordVisibility = () => {

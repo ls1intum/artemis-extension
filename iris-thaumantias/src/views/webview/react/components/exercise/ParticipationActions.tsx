@@ -103,7 +103,7 @@ export function ParticipationActions({
 
   // Practice mode indicator
   const renderPracticeModeIndicator = () => {
-    if (!isPracticeMode) return null;
+    if (!isPracticeMode) {return null;}
     return (
       <div className={styles.practiceModeIndicator}>
         <span className={styles.practiceModeIcon}>🧪</span> Practice Mode
@@ -113,7 +113,7 @@ export function ParticipationActions({
 
   // Workspace status indicator
   const renderWorkspaceStatus = () => {
-    if (!isProgramming || !hasParticipation) return null;
+    if (!isProgramming || !hasParticipation) {return null;}
 
     const statusMessage = workspaceMessage || getDefaultWorkspaceMessage(workspaceStatus);
 
@@ -127,7 +127,7 @@ export function ParticipationActions({
 
   // Cloned repository notice
   const renderClonedNotice = () => {
-    if (!showClonedNotice) return null;
+    if (!showClonedNotice) {return null;}
     return (
       <div className={styles.clonedRepoNotice}>
         <span>Repository recently cloned.</span>{' '}
@@ -140,7 +140,7 @@ export function ParticipationActions({
 
   // Unsaved changes banner
   const renderUnsavedChangesBanner = () => {
-    if (!hasUnsavedChanges) return null;
+    if (!hasUnsavedChanges) {return null;}
     return (
       <div className={styles.unsavedChangesBanner}>
         <span className={styles.unsavedChangesIcon}>⚠️</span>
@@ -156,7 +156,7 @@ export function ParticipationActions({
 
   // Submit button group
   const renderSubmitButtonGroup = () => {
-    if (!isProgramming || !hasParticipation || !canSubmit) return null;
+    if (!isProgramming || !hasParticipation || !canSubmit) {return null;}
     return (
       <div className={styles.submitButtonGroup}>
         <Button variant="primary" onClick={onSubmit} fullWidth>
@@ -171,7 +171,7 @@ export function ParticipationActions({
 
   // Commit message input
   const renderCommitMessageInput = () => {
-    if (!showCommitMessageInput) return null;
+    if (!showCommitMessageInput) {return null;}
     return (
       <div className={styles.commitMessageInputContainer}>
         <input
@@ -187,7 +187,7 @@ export function ParticipationActions({
 
   // Action buttons for programming exercises
   const renderProgrammingActions = () => {
-    if (!isProgramming) return null;
+    if (!isProgramming) {return null;}
 
     // Practice available - show practice and browser buttons
     if (isPracticeAvailable) {
@@ -263,7 +263,7 @@ export function ParticipationActions({
 
   // Action buttons for non-programming exercises
   const renderNonProgrammingActions = () => {
-    if (isProgramming || isExamExercise) return null;
+    if (isProgramming || isExamExercise) {return null;}
 
     return (
       <div className={clsx(styles.participationActions, className)}>
