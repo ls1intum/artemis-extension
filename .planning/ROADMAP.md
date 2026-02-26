@@ -114,7 +114,7 @@ Plans:
   3. ESLint @typescript-eslint/no-explicit-any rule enforced across codebase
   4. Zero compilation errors in both extension host and webview builds
   5. Type-safe message contracts maintained (no any types in handler signatures)
-**Plans**: 14 plans
+**Plans**: 15 plans
 
 Plans:
 - [x] 12-01-PLAN.md — Resolve all 107 compilation errors (declaration files, tsconfig fixes, suppression comment removal)
@@ -128,9 +128,10 @@ Plans:
 - [ ] 12-09-PLAN.md — (Gap closure) Fix type export conflicts and message contract gaps (foundation)
 - [ ] 12-10-PLAN.md — (Gap closure) Eliminate any from remaining 10 service files (72 ESLint errors)
 - [ ] 12-11-PLAN.md — (Gap closure) Eliminate any from remaining 3 command handler files (62 ESLint errors)
-- [ ] 12-12-PLAN.md — (Gap closure) Fix React view payload typing (37 ESLint errors)
+- [ ] 12-12-PLAN.md — (Gap closure) Fix React view payload typing (13 view files, ~25 ESLint errors)
 - [ ] 12-13-PLAN.md — (Gap closure) Fix provider and command handler compilation errors (alignment)
 - [ ] 12-14-PLAN.md — (Gap closure) Fix api/auth/utils/types ESLint errors (56 errors)
+- [ ] 12-15-PLAN.md — (Gap closure) Fix React hooks/stores/shared component typing (10 files, ~12 ESLint errors)
 
 ### Phase 13: Component Test Suite
 **Goal**: Comprehensive unit tests for React components, Zustand stores, and critical user flows
@@ -196,7 +197,7 @@ Plans:
 | 9. UI Polish & Icons | v1.1 | 0/3 | Planned | - |
 | 10. Testing Infrastructure | 2/2 | Complete    | 2026-02-25 | - |
 | 11. Bundle Optimization | 4/4 | Complete    | 2026-02-25 | - |
-| 12. TypeScript Strict Mode | 8/14 | In Progress|  | - |
+| 12. TypeScript Strict Mode | 8/15 | In Progress|  | - |
 | 13. Component Test Suite | v1.1 | 0/? | Not started | - |
 | 14. Dependency Cleanup | v1.1 | 0/? | Not started | - |
 | 15. Command Handler Gap Closure | 1/1 | Complete    | 2026-02-25 | - |
