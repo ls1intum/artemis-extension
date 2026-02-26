@@ -15,6 +15,9 @@ import { ViewActionService } from '../views/app/viewActionService';
 import { ViewRouter } from '../views/app/viewRouter';
 import { ExerciseRegistry } from '../services';
 import { WebSocketMessageHandler, ResultDTO, ProgrammingSubmission, ProgrammingSubmissionState, SubmissionProcessingMessage } from '../types';
+import type { BuildErrorCodeLensProvider } from './buildErrorCodeLensProvider';
+import type { ExtensionToWebviewMessage, WebviewToExtensionMessage } from '../shared/messageContracts';
+import type { CourseDashboardEntry, ExerciseDetail, CourseDetailData, ExerciseDetailsResponse } from '../types/apiResponses';
 
 export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebViewActionHandler {
     public static readonly viewType = CONFIG.WEBVIEW.VIEW_TYPE;
@@ -27,11 +30,11 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
     private _authContextUpdater?: (isAuthenticated: boolean) => Promise<void>;
     private _websocketService?: ArtemisWebsocketService;
     private _websocketHandler?: WebSocketMessageHandler;
-    private _buildCodeLens?: any; // BuildErrorCodeLensProvider
+    private _buildCodeLens?: BuildErrorCodeLensProvider;
 
     // Ready-signal handshake state
     private _webviewReady = false;
-    private _pendingMessages: any[] = [];
+    private _pendingMessages: ExtensionToWebviewMessage[] = [];
 
     constructor(
         private readonly _extensionUri: vscode.Uri,
@@ -55,7 +58,7 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
     /**
      * Set the CodeLens provider
      */
-    public setBuildDiagnostics(codeLensProvider: any): void {
+    public setBuildDiagnostics(codeLensProvider: BuildErrorCodeLensProvider): void {
         this._buildCodeLens = codeLensProvider;
         // Recreate message handler with CodeLens provider
         this._messageHandler = new WebViewMessageHandler(
@@ -126,13 +129,13 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
             const coursesData = this._appStateManager.coursesData;
             const courses = coursesData?.courses || [];
 
-            const recentCourseNodes = courses.map((courseItem: any) => {
+            const recentCourseNodes = courses.map((courseItem: CourseDashboardEntry) => {
                 const course = courseItem.course || courseItem;
                 const exercises = course.exercises || [];
 
                 const recentExercises = exercises
-                    .filter((ex: any) => ex.releaseDate || ex.startDate || ex.dueDate)
-                    .sort((a: any, b: any) => {
+                    .filter((ex: ExerciseDetail) => ex.releaseDate || ex.startDate || ex.dueDate)
+                    .sort((a: ExerciseDetail, b: ExerciseDetail) => {
                         const aDate = a.releaseDate || a.startDate || a.dueDate || '';
                         const bDate = b.releaseDate || b.startDate || b.dueDate || '';
                         return bDate.localeCompare(aDate);
@@ -159,10 +162,10 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
             });
         } else if (currentState === 'course-detail') {
             const courseData = this._appStateManager.currentCourseData;
-            const { detectWorkspaceExercise } = require('../services');
+            const { detectWorkspaceExercise } = require('../services') as { detectWorkspaceExercise: (exercises: ExerciseDetail[]) => Promise<{ id?: number } | null> };
             const exercises = courseData?.course?.exercises || [];
 
-            detectWorkspaceExercise(exercises).then((detectedExercise: any) => {
+            detectWorkspaceExercise(exercises).then((detectedExercise: { id?: number } | null) => {
                 const workspaceExerciseId = detectedExercise?.id ?? null;
                 const config = vscode.workspace.getConfiguration('artemis');
                 const developerMode = config.get<boolean>('developerMode', false);
@@ -212,9 +215,9 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
             const totalDuration = (studentExam.workingTime || 0) * 1000;
 
             // Detect workspace exercise
-            const { detectWorkspaceExercise } = require('../services');
+            const { detectWorkspaceExercise } = require('../services') as { detectWorkspaceExercise: (exercises: ExerciseDetail[]) => Promise<{ id?: number } | null> };
             const exercises = studentExam.exercises || [];
-            detectWorkspaceExercise(exercises).then((detectedExercise: any) => {
+            detectWorkspaceExercise(exercises).then((detectedExercise: { id?: number } | null) => {
                 this._postMessageSafe({
                     type: 'examConductionInit',
                     payload: {
@@ -289,7 +292,7 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
     }
 
     // WebViewActionHandler interface implementation
-    public async openJsonInEditor(data: any): Promise<void> {
+    public async openJsonInEditor(data: Record<string, unknown>): Promise<void> {
         await this._viewActionService.openJsonInEditor(data);
     }
 
@@ -343,7 +346,7 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
     }
 
     public async openExamExerciseDetails(
-        exercise: any,
+        exercise: ExerciseDetail,
         exerciseIndex: number,
         courseId: number,
         examId: number
@@ -386,7 +389,7 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
         webviewView.webview.html = await this._viewRouter.getHtml();
 
         // Set up message sender for the message handler (using safe posting)
-        this._messageHandler.setMessageSender((message: any) => {
+        this._messageHandler.setMessageSender((message: ExtensionToWebviewMessage) => {
             this._postMessageSafe(message);
         });
 
@@ -398,9 +401,12 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
 
         // Handle messages from the webview using the message handler
         webviewView.webview.onDidReceiveMessage(
-            message => {
+            (message: unknown) => {
+                // Narrow unknown to typed message
+                const typedMessage = message as { type?: string };
+
                 // Handle ready signal from React webview
-                if (message.type === 'ready') {
+                if (typedMessage.type === 'ready') {
                     this._webviewReady = true;
                     // Flush any messages that were queued before ready
                     this._pendingMessages.forEach(msg => {
@@ -436,14 +442,14 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
                         const courses = coursesData?.courses || [];
 
                         // Build recent course nodes (same structure as legacy dashboard)
-                        const recentCourseNodes = courses.map((courseItem: any) => {
+                        const recentCourseNodes = courses.map((courseItem: CourseDashboardEntry) => {
                             const course = courseItem.course || courseItem;
                             const exercises = course.exercises || [];
 
                             // Get recent exercises (sorted by date)
                             const recentExercises = exercises
-                                .filter((ex: any) => ex.releaseDate || ex.startDate || ex.dueDate)
-                                .sort((a: any, b: any) => {
+                                .filter((ex: ExerciseDetail) => ex.releaseDate || ex.startDate || ex.dueDate)
+                                .sort((a: ExerciseDetail, b: ExerciseDetail) => {
                                     const aDate = a.releaseDate || a.startDate || a.dueDate || '';
                                     const bDate = b.releaseDate || b.startDate || b.dueDate || '';
                                     return bDate.localeCompare(aDate);
@@ -482,11 +488,11 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
                         const courseData = this._appStateManager.currentCourseData;
 
                         // Detect workspace exercise ID asynchronously
-                        const { detectWorkspaceExercise } = require('../services');
+                        const { detectWorkspaceExercise } = require('../services') as { detectWorkspaceExercise: (exercises: ExerciseDetail[]) => Promise<{ id?: number } | null> };
                         const exercises = courseData?.course?.exercises || [];
 
                         // Use non-blocking async call
-                        detectWorkspaceExercise(exercises).then((detectedExercise: any) => {
+                        detectWorkspaceExercise(exercises).then((detectedExercise: { id?: number } | null) => {
                             const workspaceExerciseId = detectedExercise?.id ?? null;
 
                             // Read developer mode setting
@@ -524,24 +530,25 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
                 }
 
                 // Bridge new typed message format to legacy command handler
-                if (message.type === 'command' && message.command) {
+                const msgWithCommand = typedMessage as { type?: string; command?: string; payload?: unknown };
+                if (msgWithCommand.type === 'command' && msgWithCommand.command) {
                     // Extract command and payload, delegate to existing handler
                     const legacyMessage = {
-                        command: message.command,
-                        ...(message.payload || {})
+                        command: msgWithCommand.command,
+                        ...(msgWithCommand.payload as Record<string, unknown> || {})
                     };
-                    this._messageHandler.handleMessage(legacyMessage);
+                    this._messageHandler.handleMessage(legacyMessage as WebviewToExtensionMessage);
                     return;
                 }
 
                 // Handle legacy format messages (for non-React views)
-                if (message.command) {
-                    this._messageHandler.handleMessage(message);
+                if (msgWithCommand.command) {
+                    this._messageHandler.handleMessage(message as WebviewToExtensionMessage);
                     return;
                 }
 
                 // Handle other typed messages
-                this._messageHandler.handleMessage(message);
+                this._messageHandler.handleMessage(message as WebviewToExtensionMessage);
             },
             undefined,
             []
@@ -601,7 +608,7 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
 
     public showAiConfig(): void {
         // Map installed extensions by ID for quick lookup
-        const installedExtensions = new Map<string, vscode.Extension<any>>();
+        const installedExtensions = new Map<string, vscode.Extension<unknown>>();
         for (const ext of vscode.extensions.all) {
             installedExtensions.set(ext.id.toLowerCase(), ext);
         }
@@ -610,7 +617,7 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
             .flatMap(([providerName, providerData]) => {
                 return providerData.extensions.map(blocklistExt => {
                     const installedExt = installedExtensions.get(blocklistExt.id.toLowerCase());
-                    const packageJson = installedExt?.packageJSON ?? {};
+                    const packageJson = (installedExt?.packageJSON ?? {}) as { publisher?: string; version?: string };
 
                     return {
                         id: blocklistExt.id,
@@ -632,7 +639,7 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
     }
 
     public showRecommendedExtensions(): void {
-        const installedExtensions = new Map<string, vscode.Extension<any>>();
+        const installedExtensions = new Map<string, vscode.Extension<unknown>>();
         for (const ext of vscode.extensions.all) {
             installedExtensions.set(ext.id.toLowerCase(), ext);
         }
@@ -641,7 +648,7 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
             ...category,
             extensions: category.extensions.map(extension => {
                 const installedExt = installedExtensions.get(extension.id.toLowerCase());
-                const packageJson = installedExt?.packageJSON ?? {};
+                const packageJson = (installedExt?.packageJSON ?? {}) as { version?: string };
 
                 return {
                     ...extension,
@@ -678,7 +685,7 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
         }
     }
 
-    public showCourseDetail(courseData: any): void {
+    public showCourseDetail(courseData: CourseDetailData): void {
         this._appStateManager.showCourseDetail(courseData);
 
         // Populate exercise registry with repository URLs for workspace matching
@@ -752,7 +759,7 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
                         await this.showDashboard({
                             username: user.login || 'User',
                             serverUrl: serverUrl,
-                            user: user as any  // ArtemisUser from models/core is compatible with ArtemisUser from types/apiResponses
+                            user: user  // ArtemisUser from models/core is compatible with ArtemisUser from types/apiResponses
                         });
                     });
                 } catch (userError) {
@@ -786,7 +793,7 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
         }
     }
 
-    public async openExerciseFullscreen(exerciseData: any): Promise<void> {
+    public async openExerciseFullscreen(exerciseData: ExerciseDetailsResponse): Promise<void> {
         const exerciseTitle = exerciseData?.exercise?.title || 'Exercise';
 
         const panel = vscode.window.createWebviewPanel(
@@ -804,9 +811,12 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
         panel.webview.html = getReactWebviewHtml(panel.webview, this._extensionUri, 'exerciseDetail');
 
         // Register message handler for the fullscreen panel
-        panel.webview.onDidReceiveMessage(async (message) => {
+        panel.webview.onDidReceiveMessage(async (message: unknown) => {
+            // Narrow unknown message to typed object
+            const typedMessage = message as { type?: string; title?: string; command?: string; payload?: unknown };
+
             // Handle 'ready' signal — send exercise data
-            if (message.type === 'ready') {
+            if (typedMessage.type === 'ready') {
                 panel.webview.postMessage({
                     type: 'exerciseDetailInit',
                     payload: {
@@ -817,16 +827,16 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
             }
 
             // Handle title updates from the webview
-            if (message.type === 'updatePanelTitle') {
-                panel.title = `Exercise: ${message.title}`;
+            if (typedMessage.type === 'updatePanelTitle' && typeof typedMessage.title === 'string') {
+                panel.title = `Exercise: ${typedMessage.title}`;
             }
 
             // Forward all other messages (commands, legacy format) to the existing handler
             // Use handleMessageWithSender so responses go back to THIS panel, not the sidebar
-            const legacyMessage = (message.type === 'command' && message.command)
-                ? { command: message.command, ...(message.payload || {}) }
+            const legacyMessage = (typedMessage.type === 'command' && typedMessage.command)
+                ? { command: typedMessage.command, ...(typedMessage.payload as Record<string, unknown> || {}) }
                 : message;
-            this._messageHandler.handleMessageWithSender(legacyMessage, (responseMessage: any) => {
+            this._messageHandler.handleMessageWithSender(legacyMessage as WebviewToExtensionMessage, (responseMessage: ExtensionToWebviewMessage) => {
                 panel.webview.postMessage(responseMessage);
             });
         });
@@ -835,7 +845,7 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
         this._extensionContext.subscriptions.push(panel);
     }
 
-    public async openCourseFullscreen(courseData: any): Promise<void> {
+    public async openCourseFullscreen(courseData: CourseDetailData): Promise<void> {
         const courseTitle = courseData?.course?.title || 'Course';
 
         const panel = vscode.window.createWebviewPanel(
@@ -851,8 +861,15 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
 
         panel.webview.html = getReactWebviewHtml(panel.webview, this._extensionUri, 'courseDetail');
 
-        panel.webview.onDidReceiveMessage(async (message) => {
-            if (message.type === 'ready') {
+        panel.webview.onDidReceiveMessage(async (message: unknown) => {
+            // Narrow the unknown message to a typed object
+            if (!message || typeof message !== 'object') {
+                return;
+            }
+
+            const typedMessage = message as { type?: string; title?: string; command?: string; payload?: unknown };
+
+            if (typedMessage.type === 'ready') {
                 // Read developer mode setting
                 const config = vscode.workspace.getConfiguration('artemis');
                 const developerMode = config.get<boolean>('developerMode', false);
@@ -868,15 +885,15 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
                 });
             }
 
-            if (message.type === 'updatePanelTitle') {
-                panel.title = `Course: ${message.title}`;
+            if (typedMessage.type === 'updatePanelTitle' && typeof typedMessage.title === 'string') {
+                panel.webview.postMessage(`Course: ${typedMessage.title}`);
             }
 
             // Forward all other messages via handleMessageWithSender
-            const legacyMessage = (message.type === 'command' && message.command)
-                ? { command: message.command, ...(message.payload || {}) }
+            const legacyMessage = (typedMessage.type === 'command' && typedMessage.command)
+                ? { command: typedMessage.command, ...(typedMessage.payload as Record<string, unknown> || {}) }
                 : message;
-            this._messageHandler.handleMessageWithSender(legacyMessage, (responseMessage: any) => {
+            this._messageHandler.handleMessageWithSender(legacyMessage as WebviewToExtensionMessage, (responseMessage: ExtensionToWebviewMessage) => {
                 panel.webview.postMessage(responseMessage);
             });
         });
@@ -1036,7 +1053,7 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
 
             panel.webview.onDidReceiveMessage(
                 message => {
-                    this._messageHandler.handleMessageWithSender(message, (responseMessage: any) => {
+                    this._messageHandler.handleMessageWithSender(message as WebviewToExtensionMessage, (responseMessage: ExtensionToWebviewMessage) => {
                         panel.webview.postMessage(responseMessage);
                     });
                 },
@@ -1058,7 +1075,7 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
      * Safely post a message to the webview, queuing it if the webview is not ready yet.
      * This prevents race conditions where messages are sent before React hydration completes.
      */
-    private _postMessageSafe(message: any): void {
+    private _postMessageSafe(message: ExtensionToWebviewMessage): void {
         if (this._webviewReady && this._view) {
             this._view.webview.postMessage(message);
         } else {

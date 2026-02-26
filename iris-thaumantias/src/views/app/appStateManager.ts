@@ -1,7 +1,7 @@
 import { ArtemisApiService } from '../../api';
 import { logger, LogLevel, LogCategory } from '../../services/loggingService';
 import { getRecommendedExtensionsByCategory, type RecommendedExtensionCategory } from '../../utils/recommendedExtensions';
-import type { CourseDashboardResponse, ArchivedCourse, CourseDetailData, ExerciseDetailsResponse, StudentExam, ArtemisUser } from '../../types/apiResponses';
+import type { CourseDashboardResponse, ArchivedCourse, CourseDetailData, ExerciseDetailsResponse, StudentExam, ArtemisUser, ExerciseDetail } from '../../types/apiResponses';
 
 export type AppState = 'login' | 'dashboard' | 'course-list' | 'course-detail' | 'exercise-detail' | 'exam-exercise-detail' | 'ai-config' | 'service-status' | 'struggle-detection' | 'recommended-extensions' | 'git-credentials' | 'exam-start' | 'exam-conduction';
 
@@ -15,6 +15,15 @@ export interface ExamData {
     studentExam: StudentExam;
     courseId: number;
     examId: number;
+}
+
+export interface ExamExerciseData {
+    exercise: ExerciseDetail;
+    exerciseIndex: number;
+    courseId: number;
+    examId: number;
+    isExamExercise: true;
+    studentExam?: StudentExam;
 }
 
 export interface AiExtension {
@@ -37,7 +46,7 @@ export class AppStateManager {
     private _coursesData?: CourseDashboardResponse;
     private _archivedCoursesData?: ArchivedCourse[];
     private _currentCourseData?: CourseDetailData;
-    private _currentExerciseData?: ExerciseDetailsResponse;
+    private _currentExerciseData?: ExerciseDetailsResponse | ExamExerciseData;
     private _currentExamData?: ExamData;
     private _aiExtensions?: AiExtension[];
     private _recommendedExtensions?: RecommendedExtensionCategory[];
@@ -65,7 +74,7 @@ export class AppStateManager {
         return this._currentCourseData;
     }
 
-    get currentExerciseData(): ExerciseDetailsResponse | undefined {
+    get currentExerciseData(): ExerciseDetailsResponse | ExamExerciseData | undefined {
         return this._currentExerciseData;
     }
 
@@ -120,7 +129,7 @@ export class AppStateManager {
         }
     }
 
-    public showCourseDetail(courseData: any): void {
+    public showCourseDetail(courseData: CourseDetailData): void {
         this._currentCourseData = courseData;
         this._currentState = 'course-detail';
     }
@@ -213,7 +222,7 @@ export class AppStateManager {
         this._coursesData = undefined;
     }
 
-    public setCoursesData(data: any): void {
+    public setCoursesData(data: CourseDashboardResponse): void {
         this._coursesData = data;
     }
 
@@ -273,7 +282,7 @@ export class AppStateManager {
     }
 
     public showExamExerciseDetail(
-        exercise: any,
+        exercise: ExerciseDetail,
         exerciseIndex: number,
         courseId: number,
         examId: number

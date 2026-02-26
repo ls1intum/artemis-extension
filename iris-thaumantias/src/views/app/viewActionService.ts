@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { logger, LogLevel, LogCategory } from '../../services/loggingService';
 import { AppStateManager } from './appStateManager';
+import type { ExerciseDetail } from '../../types/apiResponses';
 
 /**
  * Hosts actions triggered from the webview that reach beyond simple rendering.
@@ -8,7 +9,7 @@ import { AppStateManager } from './appStateManager';
 export class ViewActionService {
     constructor(private readonly _appStateManager: AppStateManager) { }
 
-    public async openJsonInEditor(data: any): Promise<void> {
+    public async openJsonInEditor(data: Record<string, unknown>): Promise<void> {
         try {
             const jsonContent = JSON.stringify(data, null, 2);
             const document = await vscode.workspace.openTextDocument({
@@ -45,7 +46,7 @@ export class ViewActionService {
      * This avoids API calls that are forbidden during exams.
      */
     public async openExamExerciseDetails(
-        exercise: any,
+        exercise: ExerciseDetail,
         exerciseIndex: number,
         courseId: number,
         examId: number

@@ -265,8 +265,9 @@ export async function activate(context: vscode.ExtensionContext) {
 				chatWebviewProvider.clearAllSessions();
 				vscode.window.showInformationMessage('✅ Iris chat sessions have been reset. Local session data cleared.');
 			});
-		} catch (error: any) {
-			vscode.window.showErrorMessage(`Failed to reset Iris chat: ${error.message}`);
+		} catch (error: unknown) {
+			const message = error instanceof Error ? error.message : String(error);
+			vscode.window.showErrorMessage(`Failed to reset Iris chat: ${message}`);
 		}
 	});
 
