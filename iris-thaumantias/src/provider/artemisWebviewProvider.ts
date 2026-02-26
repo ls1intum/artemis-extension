@@ -8,7 +8,7 @@ import { CONFIG, VSCODE_CONFIG } from '../utils';
 import { AI_EXTENSIONS_BLOCKLIST } from '../utils/aiExtensionsBlocklist';
 import { getRecommendedExtensionsByCategory } from '../utils/recommendedExtensions';
 import { getReactWebviewHtml } from '../utils/webviewHelpers';
-import { AppStateManager, type UserInfo } from '../views/app/appStateManager';
+import { AppStateManager, type UserInfo, type ExamData } from '../views/app/appStateManager';
 import { WebViewMessageHandler } from '../views/app/webViewMessageHandler';
 import type { WebViewActionHandler } from '../views/app/types';
 import { ViewActionService } from '../views/app/viewActionService';
@@ -190,21 +190,26 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
             });
         } else if (currentState === 'exam-conduction') {
             const examData = this._appStateManager.currentExamData;
+            if (!examData) {
+                logger.error('Exam conduction state missing exam data', LogCategory.VIEW);
+                return;
+            }
+
             const studentExam = examData.studentExam;
             const exam = studentExam.exam;
 
             // Calculate absolute timestamps for timer
             let startTime: number;
             let endTime: number;
-            if (exam.testExam && studentExam.startedDate) {
+            if (exam?.testExam && studentExam.startedDate) {
                 startTime = new Date(studentExam.startedDate).getTime();
-            } else if (exam.startDate) {
+            } else if (exam?.startDate) {
                 startTime = new Date(exam.startDate).getTime();
             } else {
                 startTime = Date.now();
             }
-            endTime = startTime + (studentExam.workingTime * 1000);
-            const totalDuration = studentExam.workingTime * 1000;
+            endTime = startTime + ((studentExam.workingTime || 0) * 1000);
+            const totalDuration = (studentExam.workingTime || 0) * 1000;
 
             // Detect workspace exercise
             const { detectWorkspaceExercise } = require('../services');
@@ -225,6 +230,11 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
             });
         } else if (currentState === 'exam-start') {
             const examData = this._appStateManager.currentExamData;
+            if (!examData) {
+                logger.error('Exam start state missing exam data', LogCategory.VIEW);
+                return;
+            }
+
             this._postMessageSafe({
                 type: 'examStartInit',
                 payload: {
@@ -236,20 +246,26 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
         } else if (currentState === 'exam-exercise-detail') {
             const exerciseData = this._appStateManager.currentExerciseData;
             const examData = this._appStateManager.currentExamData;
-            const studentExam = examData?.studentExam;
-            const exam = studentExam?.exam;
+
+            if (!examData) {
+                logger.error('Exam exercise detail state missing exam data', LogCategory.VIEW);
+                return;
+            }
+
+            const studentExam = examData.studentExam;
+            const exam = studentExam.exam;
 
             // Calculate timer timestamps
             let startTime: number;
-            if (exam?.testExam && studentExam?.startedDate) {
+            if (exam?.testExam && studentExam.startedDate) {
                 startTime = new Date(studentExam.startedDate).getTime();
             } else if (exam?.startDate) {
                 startTime = new Date(exam.startDate).getTime();
             } else {
                 startTime = Date.now();
             }
-            const endTime = startTime + ((studentExam?.workingTime || 0) * 1000);
-            const totalDuration = (studentExam?.workingTime || 0) * 1000;
+            const endTime = startTime + ((studentExam.workingTime || 0) * 1000);
+            const totalDuration = (studentExam.workingTime || 0) * 1000;
 
             const config = vscode.workspace.getConfiguration('artemis');
             const developerMode = config.get<boolean>('developerMode', false);
@@ -259,8 +275,8 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
                 payload: {
                     exerciseData,
                     examContext: {
-                        courseId: examData?.courseId,
-                        examId: examData?.examId,
+                        courseId: examData.courseId,
+                        examId: examData.examId,
                         studentExam,
                         endTime,
                         startTime,
@@ -295,20 +311,20 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
 
             // Notify Iris chat about the detected exercise
             const exerciseData = this._appStateManager.currentExerciseData;
-            if (exerciseData) {
-                const exerciseTitle = exerciseData.exercise?.title || exerciseData.title || 'Untitled';
-                const exerciseIdFromData = exerciseData.exercise?.id || exerciseData.id || exerciseId;
+            if (exerciseData?.exercise) {
+                const exercise = exerciseData.exercise;
+                const exerciseTitle = exercise.title || 'Untitled';
+                const exerciseIdFromData = exercise.id || exerciseId;
 
                 // Register this exercise in the registry with its repository URL
-                const exercise = exerciseData.exercise || exerciseData;
                 const participations = exercise.studentParticipations || [];
-                if (participations.length > 0 && participations[0].repositoryUri) {
+                if (participations.length > 0 && participations[0]?.repositoryUri) {
                     const registry = ExerciseRegistry.getInstance();
                     registry.registerExercise(
                         exerciseIdFromData,
                         exerciseTitle,
                         participations[0].repositoryUri,
-                        exercise.shortName,
+                        exercise.shortName || '',
                         exercise.course?.id
                     );
                     logger.exercise(`Registered individual exercise: ${exerciseTitle}`);
@@ -320,7 +336,7 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
                     const releaseDate = exercise.releaseDate || exercise.startDate;
                     const dueDate = exercise.dueDate;
                     const shortName = exercise.shortName;
-                    chatProvider.updateDetectedExercise(exerciseTitle, exerciseIdFromData, releaseDate, dueDate, shortName, exercise.course?.id);
+                    chatProvider.updateDetectedExercise(exerciseTitle, exerciseIdFromData, releaseDate, dueDate, shortName || '', exercise.course?.id);
                 }
             }
         }
@@ -736,7 +752,7 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
                         await this.showDashboard({
                             username: user.login || 'User',
                             serverUrl: serverUrl,
-                            user: user
+                            user: user as any  // ArtemisUser from models/core is compatible with ArtemisUser from types/apiResponses
                         });
                     });
                 } catch (userError) {

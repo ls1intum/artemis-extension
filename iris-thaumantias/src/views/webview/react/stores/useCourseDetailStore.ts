@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { devtools } from 'zustand/middleware';
-import type { VsCodeApi, CourseDetailData, Exam } from '../../../../shared/messageContracts';
+import type { VsCodeApi, CourseDetailData, Exam, Exercise } from '../../../../shared/messageContracts';
 import type { ExerciseDetail } from '../../../../types/apiResponses';
 
 interface CourseDetailState {
@@ -20,14 +20,14 @@ interface CourseDetailState {
     loadCourseDetail: (vscodeApi: VsCodeApi, courseId?: number) => void;
 
     // Derived
-    filteredExercises: () => ExerciseDetail[];
+    filteredExercises: () => Exercise[];
     sortedExams: () => Exam[];
 }
 
 /**
  * Filter exercises by search term (case-insensitive, matches title or type).
  */
-function filterExercises(exercises: ExerciseDetail[], searchTerm: string): ExerciseDetail[] {
+function filterExercises(exercises: Exercise[], searchTerm: string): Exercise[] {
     const lowerSearchTerm = searchTerm.toLowerCase().trim();
     if (!lowerSearchTerm) {
         return exercises;
@@ -43,7 +43,7 @@ function filterExercises(exercises: ExerciseDetail[], searchTerm: string): Exerc
 /**
  * Sort exercises based on selected sort option.
  */
-function sortExercises(exercises: ExerciseDetail[], sortBy: string): ExerciseDetail[] {
+function sortExercises(exercises: Exercise[], sortBy: string): Exercise[] {
     const sorted = [...exercises];
 
     switch (sortBy) {
@@ -69,14 +69,14 @@ function sortExercises(exercises: ExerciseDetail[], sortBy: string): ExerciseDet
             });
         case 'points-asc':
             return sorted.sort((a, b) => {
-                const aPoints = a.maxPoints || 0;
-                const bPoints = b.maxPoints || 0;
+                const aPoints = (a as any).maxPoints || 0;
+                const bPoints = (b as any).maxPoints || 0;
                 return aPoints - bPoints;
             });
         case 'points-desc':
             return sorted.sort((a, b) => {
-                const aPoints = a.maxPoints || 0;
-                const bPoints = b.maxPoints || 0;
+                const aPoints = (a as any).maxPoints || 0;
+                const bPoints = (b as any).maxPoints || 0;
                 return bPoints - aPoints;
             });
         default:

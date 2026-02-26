@@ -11,6 +11,12 @@ export interface UserInfo {
     user?: ArtemisUser;
 }
 
+export interface ExamData {
+    studentExam: StudentExam;
+    courseId: number;
+    examId: number;
+}
+
 export interface AiExtension {
     id: string;
     name: string;
@@ -32,7 +38,7 @@ export class AppStateManager {
     private _archivedCoursesData?: ArchivedCourse[];
     private _currentCourseData?: CourseDetailData;
     private _currentExerciseData?: ExerciseDetailsResponse;
-    private _currentExamData?: StudentExam;
+    private _currentExamData?: ExamData;
     private _aiExtensions?: AiExtension[];
     private _recommendedExtensions?: RecommendedExtensionCategory[];
 
@@ -63,7 +69,7 @@ export class AppStateManager {
         return this._currentExerciseData;
     }
 
-    get currentExamData(): StudentExam | undefined {
+    get currentExamData(): ExamData | undefined {
         return this._currentExamData;
     }
 
@@ -256,12 +262,12 @@ export class AppStateManager {
         this._currentState = 'git-credentials';
     }
 
-    public showExamStart(examData: any): void {
+    public showExamStart(examData: ExamData): void {
         this._currentExamData = examData;
         this._currentState = 'exam-start';
     }
 
-    public showExamConduction(examData: any): void {
+    public showExamConduction(examData: ExamData): void {
         this._currentExamData = examData;
         this._currentState = 'exam-conduction';
     }

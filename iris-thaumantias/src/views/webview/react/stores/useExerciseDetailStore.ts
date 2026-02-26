@@ -155,13 +155,15 @@ export const useExerciseDetailStore = create<ExerciseDetailState>()(
 
                 // payload is the newSubmission data
                 const submission = payload;
+                // Submission may have a participation reference (not in type but present at runtime)
+                const submissionParticipation = (submission as any).participation as ParticipationSummary | undefined;
 
                 // Deep clone exerciseData
                 const updatedData = JSON.parse(JSON.stringify(state.exerciseData));
 
                 // Find participation by ID
                 const participation = updatedData.exercise?.studentParticipations?.find(
-                    (p) => p.id === submission.participation?.id
+                    (p: ParticipationSummary) => p.id === submissionParticipation?.id
                 );
 
                 if (participation) {
@@ -170,7 +172,7 @@ export const useExerciseDetailStore = create<ExerciseDetailState>()(
                         participation.submissions = [];
                     }
 
-                    const existingIndex = participation.submissions.findIndex((s) => s.id === submission.id);
+                    const existingIndex = participation.submissions.findIndex((s: SubmissionSummary) => s.id === submission.id);
                     if (existingIndex >= 0) {
                         participation.submissions[existingIndex] = submission;
                     } else {
