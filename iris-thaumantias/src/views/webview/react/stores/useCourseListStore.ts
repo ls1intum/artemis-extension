@@ -44,14 +44,18 @@ function parseSemester(semester: string): { type: string; year: number; sortKey:
         // Winter semester: WS24/25 or WS24
         let year = parseInt(wsMatch[1]);
         // Convert 2-digit years to 4-digit (24 -> 2024)
-        if (year < 100) year += 2000;
+        if (year < 100) {
+            year += 2000;
+        }
         // Winter semester starts in fall, so it's the later year
         return { type: 'WS', year: year, sortKey: year * 10 + 1 }; // +1 to make WS slightly later than SS of same year
     } else if (ssMatch) {
         // Summer semester: SS25
         let year = parseInt(ssMatch[1]);
         // Convert 2-digit years to 4-digit (25 -> 2025)
-        if (year < 100) year += 2000;
+        if (year < 100) {
+            year += 2000;
+        }
         return { type: 'SS', year: year, sortKey: year * 10 };
     }
 

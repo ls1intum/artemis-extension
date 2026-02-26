@@ -21,8 +21,12 @@ export function useStreamingMessage() {
 
     // Sentence boundary detection
     const shouldFlush = useCallback((buffer: string): boolean => {
-        if (buffer.length > 200) return true;  // ~50 tokens
-        if (/[.!?\n]$/.test(buffer)) return true;
+        if (buffer.length > 200) {
+            return true;  // ~50 tokens
+        }
+        if (/[.!?\n]$/.test(buffer)) {
+            return true;
+        }
         return false;
     }, []);
 

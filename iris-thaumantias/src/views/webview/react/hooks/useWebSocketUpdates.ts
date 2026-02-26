@@ -37,8 +37,8 @@ export function useWebSocketUpdates(vscodeApi: VsCodeApi): void {
             }
         };
 
-        const handleMessage = (event: MessageEvent): void => {
-            const message = event.data;
+        const handleMessage = (event: MessageEvent<unknown>): void => {
+            const message = event.data as WebSocketUpdateMessage;
 
             // Filter for websocketUpdate messages
             if (message.type === 'websocketUpdate') {

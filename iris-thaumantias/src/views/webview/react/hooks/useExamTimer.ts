@@ -31,6 +31,7 @@ export function useExamTimer(endTime: number | null): TimerState {
             return;
         }
 
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-call -- esbuild-plugin-inline-worker transforms this import
         const worker = new ExamTimerWorker() as Worker;
 
         worker.onmessage = (event: MessageEvent<TickMessage>) => {
