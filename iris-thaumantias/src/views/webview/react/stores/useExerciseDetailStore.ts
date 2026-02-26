@@ -1,35 +1,44 @@
 import { create } from 'zustand';
 import { devtools } from 'zustand/middleware';
 import type { VsCodeApi } from '../../../../shared/messageContracts';
+import type {
+    ExerciseDetailsResponse,
+    ParticipationSummary,
+    ResultSummary,
+    SubmissionSummary,
+} from '../../../../types/apiResponses';
 
 interface ExerciseDetailState {
-    exerciseData: any | null;
+    exerciseData: ExerciseDetailsResponse | null;
     hideDeveloperTools: boolean;
     isLoading: boolean;
     error: string | null;
 
     // Actions
-    setExerciseData: (data: any, hideDeveloperTools: boolean) => void;
+    setExerciseData: (data: ExerciseDetailsResponse, hideDeveloperTools: boolean) => void;
     setLoading: (loading: boolean) => void;
     setError: (error: string | null) => void;
     loadExerciseDetail: (vscodeApi: VsCodeApi, exerciseId: number) => void;
-    updateBuildStatus: (payload: any) => void;
-    updateSubmission: (payload: any) => void;
-    updateSubmissionProcessing: (payload: any) => void;
+    updateBuildStatus: (payload: ResultSummary) => void;
+    updateSubmission: (payload: SubmissionSummary) => void;
+    updateSubmissionProcessing: (payload: { submissionId: number }) => void;
 }
 
 /**
  * Helper to find participation by result or submission ID.
  * Mimics the legacy resolveParticipationForResult logic.
  */
-function findParticipationForResult(exerciseData: any, result: any): any {
+function findParticipationForResult(
+    exerciseData: ExerciseDetailsResponse,
+    result: ResultSummary
+): ParticipationSummary | null {
     if (!exerciseData?.exercise?.studentParticipations) {
         return null;
     }
 
     for (const participation of exerciseData.exercise.studentParticipations) {
         if (participation.results) {
-            const foundResult = participation.results.find((r: any) => r.id === result.id);
+            const foundResult = participation.results.find((r) => r.id === result.id);
             if (foundResult) {
                 return participation;
             }
@@ -42,12 +51,12 @@ function findParticipationForResult(exerciseData: any, result: any): any {
 /**
  * Get the latest submission from a participation.
  */
-function getLatestSubmission(participation: any): any {
+function getLatestSubmission(participation: ParticipationSummary): SubmissionSummary | null {
     if (!participation?.submissions || participation.submissions.length === 0) {
         return null;
     }
 
-    return participation.submissions.reduce((latest: any, current: any) => {
+    return participation.submissions.reduce((latest, current) => {
         const latestDate = latest?.submissionDate ? new Date(latest.submissionDate).getTime() : 0;
         const currentDate = current?.submissionDate ? new Date(current.submissionDate).getTime() : 0;
         return currentDate > latestDate ? current : latest;
@@ -57,12 +66,12 @@ function getLatestSubmission(participation: any): any {
 /**
  * Get the latest result from a participation.
  */
-function getLatestResult(participation: any): any {
+function getLatestResult(participation: ParticipationSummary): ResultSummary | null {
     if (!participation?.results || participation.results.length === 0) {
         return null;
     }
 
-    return participation.results.reduce((latest: any, current: any) => {
+    return participation.results.reduce((latest, current) => {
         const latestDate = latest?.completionDate ? new Date(latest.completionDate).getTime() : 0;
         const currentDate = current?.completionDate ? new Date(current.completionDate).getTime() : 0;
         return currentDate > latestDate ? current : latest;
@@ -124,7 +133,7 @@ export const useExerciseDetailStore = create<ExerciseDetailState>()(
                         participation.results = [];
                     }
 
-                    const existingIndex = participation.results.findIndex((r: any) => r.id === result.id);
+                    const existingIndex = participation.results.findIndex((r) => r.id === result.id);
                     if (existingIndex >= 0) {
                         participation.results[existingIndex] = result;
                     } else {
@@ -152,7 +161,7 @@ export const useExerciseDetailStore = create<ExerciseDetailState>()(
 
                 // Find participation by ID
                 const participation = updatedData.exercise?.studentParticipations?.find(
-                    (p: any) => p.id === submission.participation?.id
+                    (p) => p.id === submission.participation?.id
                 );
 
                 if (participation) {
@@ -161,7 +170,7 @@ export const useExerciseDetailStore = create<ExerciseDetailState>()(
                         participation.submissions = [];
                     }
 
-                    const existingIndex = participation.submissions.findIndex((s: any) => s.id === submission.id);
+                    const existingIndex = participation.submissions.findIndex((s) => s.id === submission.id);
                     if (existingIndex >= 0) {
                         participation.submissions[existingIndex] = submission;
                     } else {

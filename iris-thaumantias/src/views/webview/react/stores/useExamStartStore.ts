@@ -1,8 +1,9 @@
 import { create } from 'zustand';
 import { devtools } from 'zustand/middleware';
+import type { StudentExam } from '../../../../types/apiResponses';
 
 interface ExamStartState {
-    studentExam: any;
+    studentExam: StudentExam | null;
     courseId: number | null;
     examId: number | null;
     loading: boolean;
@@ -10,7 +11,7 @@ interface ExamStartState {
 }
 
 interface ExamStartActions {
-    setExamStartData: (payload: { studentExam: any; courseId: number; examId: number }) => void;
+    setExamStartData: (payload: { studentExam: StudentExam; courseId: number; examId: number }) => void;
     setLoading: (loading: boolean) => void;
     setError: (error: string | null) => void;
     reset: () => void;

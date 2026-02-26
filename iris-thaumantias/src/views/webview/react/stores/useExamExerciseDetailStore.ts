@@ -1,10 +1,11 @@
 import { create } from 'zustand';
 import { devtools } from 'zustand/middleware';
+import type { StudentExam, ExerciseDetailsResponse } from '../../../../types/apiResponses';
 
 interface ExamContext {
     courseId: number | null;
     examId: number | null;
-    studentExam: any;
+    studentExam: StudentExam;
     endTime: number;
     startTime: number;
     totalDuration: number;
@@ -18,7 +19,7 @@ interface ExamExerciseDetailState {
 
 interface ExamExerciseDetailActions {
     setExamExerciseData: (payload: {
-        exerciseData: any;
+        exerciseData: ExerciseDetailsResponse;
         examContext: ExamContext;
         hideDeveloperTools: boolean;
     }) => void;

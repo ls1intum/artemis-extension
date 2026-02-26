@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import type { VsCodeApi } from '../../../../shared/messageContracts';
+import type { VsCodeApi, WebSocketUpdateMessage } from '../../../../shared/messageContracts';
 import { useExerciseDetailStore } from '../stores/useExerciseDetailStore';
 
 /**
@@ -7,16 +7,16 @@ import { useExerciseDetailStore } from '../stores/useExerciseDetailStore';
  * Buffers incoming WebSocket messages and processes them once per frame
  * to prevent re-render storms from high-frequency updates.
  */
-export function useWebSocketUpdates(vscodeApi: VsCodeApi) {
+export function useWebSocketUpdates(vscodeApi: VsCodeApi): void {
     const updateBuildStatus = useExerciseDetailStore((state) => state.updateBuildStatus);
     const updateSubmission = useExerciseDetailStore((state) => state.updateSubmission);
     const updateSubmissionProcessing = useExerciseDetailStore((state) => state.updateSubmissionProcessing);
 
-    const bufferRef = useRef<Array<{ updateType: string; data: any }>>([]);
+    const bufferRef = useRef<Array<WebSocketUpdateMessage['payload']>>([]);
     const rafIdRef = useRef<number | null>(null);
 
     useEffect(() => {
-        const flushBuffer = () => {
+        const flushBuffer = (): void => {
             const updates = bufferRef.current;
             bufferRef.current = [];
             rafIdRef.current = null;
@@ -37,7 +37,7 @@ export function useWebSocketUpdates(vscodeApi: VsCodeApi) {
             }
         };
 
-        const handleMessage = (event: MessageEvent) => {
+        const handleMessage = (event: MessageEvent): void => {
             const message = event.data;
 
             // Filter for websocketUpdate messages

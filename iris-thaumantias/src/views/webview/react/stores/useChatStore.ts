@@ -88,7 +88,7 @@ export const useChatStore = create<ChatState>()(
                         id: state.context.id,
                         title: state.context.title,
                         shortName: state.context.shortName,
-                        courseId: state.context.type === 'exercise' ? (state.context as any).courseId : undefined,
+                        courseId: state.context.type === 'exercise' ? state.context.courseId : undefined,
                         locked: state.context.locked,
                         source: state.context.source as 'user-selected' | 'workspace-detected' | 'system-default',
                     } : null,
