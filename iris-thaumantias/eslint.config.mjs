@@ -12,6 +12,9 @@ export default [{
         parser: tsParser,
         ecmaVersion: 2022,
         sourceType: "module",
+        parserOptions: {
+            project: "./tsconfig.json",
+        },
     },
 
     rules: {
@@ -39,19 +42,37 @@ export default [{
                 allowTypeImports: true,
             }],
         }],
+
+        // Strict type-checking rules
+        "@typescript-eslint/no-explicit-any": "error",
+        "@typescript-eslint/no-unsafe-assignment": "error",
+        "@typescript-eslint/no-unsafe-return": "error",
+        "@typescript-eslint/no-unsafe-member-access": "error",
+        "@typescript-eslint/no-unsafe-call": "error",
+        "@typescript-eslint/no-unsafe-argument": "error",
     },
 },
-// Allow console.* in test files
+// Allow console.* in test files, disable type-aware rules (tests not in main tsconfig project)
 {
     files: ["test/**/*.ts"],
     rules: {
         "no-console": "off",
+        "@typescript-eslint/no-unsafe-assignment": "off",
+        "@typescript-eslint/no-unsafe-return": "off",
+        "@typescript-eslint/no-unsafe-member-access": "off",
+        "@typescript-eslint/no-unsafe-call": "off",
+        "@typescript-eslint/no-unsafe-argument": "off",
     },
 },
-// Allow console.* in JavaScript config files (esbuild.js, etc.)
+// Allow console.* in JavaScript config files, disable type-aware rules (not TypeScript)
 {
     files: ["**/*.js", "**/*.mjs"],
     rules: {
         "no-console": "off",
+        "@typescript-eslint/no-unsafe-assignment": "off",
+        "@typescript-eslint/no-unsafe-return": "off",
+        "@typescript-eslint/no-unsafe-member-access": "off",
+        "@typescript-eslint/no-unsafe-call": "off",
+        "@typescript-eslint/no-unsafe-argument": "off",
     },
 }];
