@@ -10,6 +10,7 @@
 		"sourceMap": true,
 		"outDir": "./out",
 		"strict": true,   /* enable all strict type-checking options */
+		"skipLibCheck": true,   /* skip type checking of declaration files in node_modules (standard for multi-test-framework projects) */
 		"plugins": [
 			{ "name": "typescript-plugin-css-modules" }
 		],

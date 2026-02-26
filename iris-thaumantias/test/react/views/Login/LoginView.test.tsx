@@ -108,11 +108,11 @@ describe('LoginView', () => {
 
 	it('restores persisted state from getState', () => {
 		const mockApi = createMockVsCodeApi({
-			getState: vi.fn(() => ({
+			getState: <T = unknown>() => ({
 				username: 'saved-user',
 				password: 'saved-pass',
 				rememberMe: true,
-			})),
+			}) as T | undefined,
 		});
 
 		render(<LoginView vscodeApi={mockApi} />);

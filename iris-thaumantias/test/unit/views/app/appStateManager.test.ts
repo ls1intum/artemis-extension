@@ -1,7 +1,7 @@
 import * as assert from 'assert';
-import { AppStateManager } from '../../../src/views/app/appStateManager';
-import { AuthManager } from '../../../src/auth';
-import { ArtemisApiService } from '../../../src/api';
+import { AppStateManager } from '../../../../src/views/app/appStateManager';
+import { AuthManager } from '../../../../src/auth';
+import { ArtemisApiService } from '../../../../src/api';
 import { MockExtensionContext } from '../../mocks/vscodeMocks';
 
 class MockAuthManager extends AuthManager {
