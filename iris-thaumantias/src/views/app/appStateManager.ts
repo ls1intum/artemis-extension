@@ -1,13 +1,14 @@
 import { ArtemisApiService } from '../../api';
 import { logger, LogLevel, LogCategory } from '../../services/loggingService';
 import { getRecommendedExtensionsByCategory, type RecommendedExtensionCategory } from '../../utils/recommendedExtensions';
+import type { CourseDashboardResponse, ArchivedCourse, CourseDetailData, ExerciseDetailsResponse, StudentExam, ArtemisUser } from '../../types/apiResponses';
 
 export type AppState = 'login' | 'dashboard' | 'course-list' | 'course-detail' | 'exercise-detail' | 'exam-exercise-detail' | 'ai-config' | 'service-status' | 'struggle-detection' | 'recommended-extensions' | 'git-credentials' | 'exam-start' | 'exam-conduction';
 
 export interface UserInfo {
     username: string;
     serverUrl: string;
-    user?: any;
+    user?: ArtemisUser;
 }
 
 export interface AiExtension {
@@ -27,11 +28,11 @@ export interface AiExtension {
 export class AppStateManager {
     private _currentState: AppState = 'login';
     private _userInfo?: UserInfo;
-    private _coursesData?: any;
-    private _archivedCoursesData?: any[];
-    private _currentCourseData?: any;
-    private _currentExerciseData?: any;
-    private _currentExamData?: any;
+    private _coursesData?: CourseDashboardResponse;
+    private _archivedCoursesData?: ArchivedCourse[];
+    private _currentCourseData?: CourseDetailData;
+    private _currentExerciseData?: ExerciseDetailsResponse;
+    private _currentExamData?: StudentExam;
     private _aiExtensions?: AiExtension[];
     private _recommendedExtensions?: RecommendedExtensionCategory[];
 
@@ -46,23 +47,23 @@ export class AppStateManager {
         return this._userInfo;
     }
 
-    get coursesData(): any {
+    get coursesData(): CourseDashboardResponse | undefined {
         return this._coursesData;
     }
 
-    get archivedCoursesData(): any[] | undefined {
+    get archivedCoursesData(): ArchivedCourse[] | undefined {
         return this._archivedCoursesData;
     }
 
-    get currentCourseData(): any {
+    get currentCourseData(): CourseDetailData | undefined {
         return this._currentCourseData;
     }
 
-    get currentExerciseData(): any {
+    get currentExerciseData(): ExerciseDetailsResponse | undefined {
         return this._currentExerciseData;
     }
 
-    get currentExamData(): any {
+    get currentExamData(): StudentExam | undefined {
         return this._currentExamData;
     }
 
