@@ -84,7 +84,17 @@ export function ExamConductionView({ vscodeApi }: ExamConductionViewProps) {
         );
     }
 
-    const studentExam = store.studentExam as any;
+    interface ExamData {
+        exam?: {
+            testExam?: boolean;
+            title?: string;
+        };
+        exercises?: Array<{
+            id?: number;
+            title?: string;
+        }>;
+    }
+    const studentExam = store.studentExam as ExamData;
     const exam = studentExam.exam || {};
     const exercises = studentExam.exercises || [];
     const isTestExam = exam.testExam === true;
@@ -94,6 +104,12 @@ export function ExamConductionView({ vscodeApi }: ExamConductionViewProps) {
     const showOverlay = timerExpired && !overlayDismissed;
 
     const handleExerciseClick = (exerciseIndex: number) => {
+        interface ExamExercisePayload {
+            exercise: unknown;
+            exerciseIndex: number;
+            courseId: number;
+            examId: number;
+        }
         vscodeApi.postMessage({
             type: 'command',
             command: 'openExamExerciseDetails',
@@ -102,7 +118,7 @@ export function ExamConductionView({ vscodeApi }: ExamConductionViewProps) {
                 exerciseIndex,
                 courseId: store.courseId!,
                 examId: store.examId!,
-            },
+            } as ExamExercisePayload,
         });
     };
 

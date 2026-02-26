@@ -330,7 +330,11 @@ export function ExamExerciseDetailView({ vscodeApi }: ExamExerciseDetailViewProp
             {/* Test Results (if available) */}
             {latestResult?.feedbacks && latestResult.feedbacks.length > 0 && (
                 <TestResults
-                    testCases={latestResult.feedbacks.map((feedback: any) => ({
+                    testCases={latestResult.feedbacks.map((feedback: {
+                        text?: string;
+                        positive?: boolean;
+                        detailText?: string;
+                    }) => ({
                         name: feedback.text || 'Test',
                         passed: feedback.positive || false,
                         message: feedback.detailText,

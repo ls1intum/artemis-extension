@@ -91,10 +91,13 @@ export function DashboardView({ vscodeApi }: DashboardViewProps) {
     };
 
     const handleViewCourseDetails = (courseData: RecentCourseNode) => {
+        interface CoursePayload {
+            courseData: unknown;
+        }
         vscodeApi.postMessage({
             type: 'command',
             command: 'viewCourseDetails',
-            payload: { courseData: courseData as any },
+            payload: { courseData } as CoursePayload,
         });
     };
 

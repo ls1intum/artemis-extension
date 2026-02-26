@@ -179,7 +179,10 @@ export function CourseDetailView({ vscodeApi }: CourseDetailViewProps) {
     const exams = sortedExams();
 
     // Check developer mode from init message (stored in courseData metadata)
-    const hideDeveloperTools = (courseData as any)?.hideDeveloperTools ?? true;
+    interface CourseDataWithMeta {
+        hideDeveloperTools?: boolean;
+    }
+    const hideDeveloperTools = (courseData as CourseDataWithMeta)?.hideDeveloperTools ?? true;
     const showDeveloperTools = !hideDeveloperTools;
 
     // Calculate exam status for collapsible behavior
@@ -352,7 +355,10 @@ export function CourseDetailView({ vscodeApi }: CourseDetailViewProps) {
                             <div className={styles.exercisesList}>
                                 {exercises.map((exercise: Exercise) => {
                                     const isWorkspaceExercise = exercise.id === workspaceExerciseId;
-                                    const points = (exercise as any).maxPoints || 0;
+                                    interface ExerciseWithPoints {
+                                        maxPoints?: number;
+                                    }
+                                    const points = (exercise as ExerciseWithPoints).maxPoints || 0;
 
                                     return (
                                         <ListItem

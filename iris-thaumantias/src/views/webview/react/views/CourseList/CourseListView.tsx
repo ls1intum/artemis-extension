@@ -152,10 +152,13 @@ export function CourseListView({ vscodeApi }: CourseListViewProps) {
     };
 
     const handleViewCourseDetails = (courseData: CourseData) => {
+        interface CoursePayload {
+            courseData: unknown;
+        }
         vscodeApi.postMessage({
             type: 'command',
             command: 'viewCourseDetails',
-            payload: { courseData: courseData.course as any },
+            payload: { courseData: courseData.course } as CoursePayload,
         });
     };
 
