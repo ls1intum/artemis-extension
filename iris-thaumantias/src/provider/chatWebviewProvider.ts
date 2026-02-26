@@ -409,7 +409,7 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
         switch (typedMessage.command) {
             case 'sendMessage':
                 // Proper error handling for async chat message handler
-                void this._handleChatMessage(typedMessage).catch(err => {
+                void this._handleChatMessage({ text: (typedMessage as { text?: string }).text }).catch(err => {
                     logger.error('Error handling chat message', LogCategory.IRIS_CHAT, err);
                     vscode.window.showErrorMessage('Failed to send message. Please try again.');
                 });
@@ -468,7 +468,11 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
                 break;
             case 'messageFeedback':
                 // Proper error handling for async feedback handler
-                void this._handleMessageFeedback(typedMessage).catch(err => {
+                void this._handleMessageFeedback({
+                    sessionId: typeof typedMessage.sessionId === 'string' ? parseInt(typedMessage.sessionId, 10) : undefined,
+                    messageId: (typedMessage as { messageId?: number }).messageId,
+                    feedback: (typedMessage as { feedback?: string }).feedback
+                }).catch(err => {
                     logger.error('Error handling message feedback', LogCategory.IRIS_CHAT, err);
                 });
                 break;

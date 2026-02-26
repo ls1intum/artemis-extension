@@ -16,7 +16,7 @@ import { ViewRouter } from '../views/app/viewRouter';
 import { ExerciseRegistry } from '../services';
 import { WebSocketMessageHandler, ResultDTO, ProgrammingSubmission, ProgrammingSubmissionState, SubmissionProcessingMessage } from '../types';
 import type { BuildErrorCodeLensProvider } from './buildErrorCodeLensProvider';
-import type { ExtensionToWebviewMessage, WebviewToExtensionMessage } from '../shared/messageContracts';
+import type { ExtensionToWebviewMessage, WebviewToExtensionMessage, CourseDetailData as CourseDetailPayload } from '../shared/messageContracts';
 import type { CourseDashboardEntry, ExerciseDetail, CourseDetailData, ExerciseDetailsResponse } from '../types/apiResponses';
 
 export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebViewActionHandler {
@@ -142,7 +142,15 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
                     });
 
                 return {
-                    courseData: { course },
+                    courseData: {
+                        course: {
+                            id: (course.id ?? 0) as number,
+                            title: (course.title ?? 'Untitled Course') as string,
+                            exercises: course.exercises,
+                            startDate: course.startDate as string | undefined,
+                            creationDate: course.startDate as string | undefined,
+                        }
+                    },
                     exercises: recentExercises,
                 };
             });
@@ -156,14 +164,33 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
             const courses = coursesData?.courses || [];
             const archivedCourses = this._appStateManager.archivedCoursesData || undefined;
 
+            // Map CourseDashboardEntry to CourseData for message contract
+            const mappedCourses = courses.map((entry: CourseDashboardEntry) => ({
+                course: {
+                    id: entry.course?.id || 0,
+                    title: entry.course?.title || 'Untitled Course',
+                    description: entry.course?.description,
+                    semester: entry.course?.semester,
+                    color: entry.course?.color,
+                    exercises: entry.course?.exercises,
+                    numberOfStudents: entry.course?.numberOfStudents,
+                    instructorGroupName: entry.course?.instructorGroupName,
+                }
+            }));
+
             this._postMessageSafe({
                 type: 'courseListInit',
-                payload: { courses, archivedCourses },
+                payload: { courses: mappedCourses, archivedCourses },
             });
         } else if (currentState === 'course-detail') {
             const courseData = this._appStateManager.currentCourseData;
+            if (!courseData) {
+                logger.error('Course detail state missing course data', LogCategory.VIEW);
+                return;
+            }
+
             const { detectWorkspaceExercise } = require('../services') as { detectWorkspaceExercise: (exercises: ExerciseDetail[]) => Promise<{ id?: number } | null> };
-            const exercises = courseData?.course?.exercises || [];
+            const exercises = courseData.course?.exercises || [];
 
             detectWorkspaceExercise(exercises).then((detectedExercise: { id?: number } | null) => {
                 const workspaceExerciseId = detectedExercise?.id ?? null;
@@ -173,7 +200,7 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
                 this._postMessageSafe({
                     type: 'courseDetailInit',
                     payload: {
-                        courseData: courseData,
+                        courseData: courseData as CourseDetailPayload,
                         workspaceExerciseId: workspaceExerciseId,
                         hideDeveloperTools: !developerMode,
                     },
@@ -181,13 +208,19 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
             });
         } else if (currentState === 'exercise-detail') {
             const exerciseData = this._appStateManager.currentExerciseData;
+            if (!exerciseData) {
+                logger.error('Exercise detail state missing exercise data', LogCategory.VIEW);
+                return;
+            }
+
+            // For non-exam exercise detail, exerciseData should be ExerciseDetailsResponse
             const config = vscode.workspace.getConfiguration('artemis');
             const developerMode = config.get<boolean>('developerMode', false);
 
             this._postMessageSafe({
                 type: 'exerciseDetailInit',
                 payload: {
-                    exerciseData: exerciseData,
+                    exerciseData: exerciseData as ExerciseDetailsResponse,
                     hideDeveloperTools: !developerMode,
                 },
             });
@@ -254,6 +287,10 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
                 logger.error('Exam exercise detail state missing exam data', LogCategory.VIEW);
                 return;
             }
+            if (!exerciseData) {
+                logger.error('Exam exercise detail state missing exercise data', LogCategory.VIEW);
+                return;
+            }
 
             const studentExam = examData.studentExam;
             const exam = studentExam.exam;
@@ -276,7 +313,7 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
             this._postMessageSafe({
                 type: 'examExerciseDetailInit',
                 payload: {
-                    exerciseData,
+                    exerciseData: exerciseData as ExerciseDetailsResponse,
                     examContext: {
                         courseId: examData.courseId,
                         examId: examData.examId,
@@ -426,9 +463,17 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
                         });
                     } else if (currentState === 'recommended-extensions') {
                         const categories = this._appStateManager.recommendedExtensions || [];
+                        // Ensure isInstalled is boolean (not undefined)
+                        const mappedCategories = categories.map(category => ({
+                            ...category,
+                            extensions: category.extensions.map(ext => ({
+                                ...ext,
+                                isInstalled: ext.isInstalled ?? false
+                            }))
+                        }));
                         this._postMessageSafe({
                             type: 'recommendedExtensionsInit',
-                            payload: { categories }
+                            payload: { categories: mappedCategories }
                         });
                     } else if (currentState === 'login') {
                         // Send server URL to login view for health checks
@@ -457,7 +502,13 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
 
                             return {
                                 courseData: {
-                                    course: course
+                                    course: {
+                                        id: (course.id ?? 0) as number,
+                                        title: (course.title ?? 'Untitled Course') as string,
+                                        exercises: course.exercises,
+                                        startDate: course.startDate as string | undefined,
+                                        creationDate: course.startDate as string | undefined,
+                                    }
                                 },
                                 exercises: recentExercises
                             };
@@ -476,20 +527,38 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
                         const courses = coursesData?.courses || [];
                         const archivedCourses = this._appStateManager.archivedCoursesData || undefined;
 
+                        // Map CourseDashboardEntry to CourseData for message contract
+                        const mappedCourses = courses.map((entry: CourseDashboardEntry) => ({
+                            course: {
+                                id: entry.course?.id || 0,
+                                title: entry.course?.title || 'Untitled Course',
+                                description: entry.course?.description,
+                                semester: entry.course?.semester,
+                                color: entry.course?.color,
+                                exercises: entry.course?.exercises,
+                                numberOfStudents: entry.course?.numberOfStudents,
+                                instructorGroupName: entry.course?.instructorGroupName,
+                            }
+                        }));
+
                         this._postMessageSafe({
                             type: 'courseListInit',
                             payload: {
-                                courses: courses,
+                                courses: mappedCourses,
                                 archivedCourses: archivedCourses
                             }
                         });
                     } else if (currentState === 'course-detail') {
                         // Send course detail data with exercises and exams
                         const courseData = this._appStateManager.currentCourseData;
+                        if (!courseData) {
+                            logger.error('Course detail state missing course data', LogCategory.VIEW);
+                            return;
+                        }
 
                         // Detect workspace exercise ID asynchronously
                         const { detectWorkspaceExercise } = require('../services') as { detectWorkspaceExercise: (exercises: ExerciseDetail[]) => Promise<{ id?: number } | null> };
-                        const exercises = courseData?.course?.exercises || [];
+                        const exercises = courseData.course?.exercises || [];
 
                         // Use non-blocking async call
                         detectWorkspaceExercise(exercises).then((detectedExercise: { id?: number } | null) => {
@@ -503,7 +572,7 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
                             this._postMessageSafe({
                                 type: 'courseDetailInit',
                                 payload: {
-                                    courseData: courseData,
+                                    courseData: courseData as CourseDetailPayload,
                                     workspaceExerciseId: workspaceExerciseId,
                                     hideDeveloperTools: hideDeveloperTools
                                 }
@@ -512,6 +581,10 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
                     } else if (currentState === 'exercise-detail') {
                         // Send exercise detail data
                         const exerciseData = this._appStateManager.currentExerciseData;
+                        if (!exerciseData) {
+                            logger.error('Exercise detail state missing exercise data', LogCategory.VIEW);
+                            return;
+                        }
 
                         // Read developer mode setting
                         const config = vscode.workspace.getConfiguration('artemis');
@@ -521,7 +594,7 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
                         this._postMessageSafe({
                             type: 'exerciseDetailInit',
                             payload: {
-                                exerciseData: exerciseData,
+                                exerciseData: exerciseData as ExerciseDetailsResponse,
                                 hideDeveloperTools: hideDeveloperTools
                             }
                         });
