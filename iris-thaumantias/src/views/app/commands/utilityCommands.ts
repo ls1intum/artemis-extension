@@ -127,9 +127,10 @@ export class UtilityCommandModule {
         }
     };
 
-    private handleShowSubmissionDetails = async (message: any): Promise<void> => {
-        const participationId: number = message.participationId;
-        const resultId: number = message.resultId;
+    private handleShowSubmissionDetails = async (message: WebviewToExtensionMessage): Promise<void> => {
+        const payload = getPayload<{ type: 'command'; command: 'showSubmissionDetails'; payload: ShowSubmissionDetailsPayload }>(message);
+        const participationId = payload.participationId;
+        const resultId = payload.resultId;
 
         try {
             if (!participationId || !resultId) {
@@ -153,9 +154,10 @@ export class UtilityCommandModule {
         }
     };
 
-    private handleFetchTestResults = async (message: any): Promise<void> => {
-        const participationId: number = message.participationId;
-        const resultId: number = message.resultId;
+    private handleFetchTestResults = async (message: WebviewToExtensionMessage): Promise<void> => {
+        const payload = getPayload<{ type: 'command'; command: 'fetchTestResults'; payload: FetchTestResultsPayload }>(message);
+        const participationId = payload.participationId;
+        const resultId = payload.resultId;
 
         try {
             if (!participationId || !resultId) {
@@ -171,11 +173,11 @@ export class UtilityCommandModule {
 
             logger.submission('[Test Results] Result details received:', JSON.stringify(resultDetails, null, 2));
 
-            let feedbacks: any[] = [];
+            let feedbacks: unknown[] = [];
 
             if (Array.isArray(resultDetails)) {
                 feedbacks = resultDetails;
-            } else if (resultDetails && resultDetails.feedbacks) {
+            } else if (resultDetails && typeof resultDetails === 'object' && 'feedbacks' in resultDetails && Array.isArray(resultDetails.feedbacks)) {
                 feedbacks = resultDetails.feedbacks;
             }
 
@@ -183,14 +185,21 @@ export class UtilityCommandModule {
 
             if (feedbacks.length > 0) {
                 const testCases = feedbacks
-                    .filter((feedback: any) => feedback.testCase)
-                    .map((feedback: any) => ({
-                        testName: feedback.testCase?.testName || 'Unnamed Test',
+                    .filter((feedback): feedback is Record<string, unknown> =>
+                        typeof feedback === 'object' && feedback !== null && 'testCase' in feedback)
+                    .map((feedback) => ({
+                        testName: (typeof feedback.testCase === 'object' && feedback.testCase !== null && 'testName' in feedback.testCase && typeof feedback.testCase.testName === 'string')
+                            ? feedback.testCase.testName
+                            : 'Unnamed Test',
                         successful: feedback.positive === true,
-                        message: feedback.detailText || '',
-                        type: feedback.testCase?.type || feedback.type,
+                        message: typeof feedback.detailText === 'string' ? feedback.detailText : '',
+                        type: (typeof feedback.testCase === 'object' && feedback.testCase !== null && 'type' in feedback.testCase)
+                            ? feedback.testCase.type
+                            : feedback.type,
                         credits: feedback.credits,
-                        visibility: feedback.testCase?.visibility
+                        visibility: (typeof feedback.testCase === 'object' && feedback.testCase !== null && 'visibility' in feedback.testCase)
+                            ? feedback.testCase.visibility
+                            : undefined
                     }));
 
                 logger.submission('[Test Results] Mapped test cases:', testCases.length, 'items');
