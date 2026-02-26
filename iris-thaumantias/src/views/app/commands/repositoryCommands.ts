@@ -922,7 +922,9 @@ export class RepositoryCommandModule {
         }
 
         this.workspaceChangeDebounce = setTimeout(() => {
-            void this.handleCheckRepositoryStatus(this.currentRepoContext);
+            if (this.currentRepoContext) {
+                void this.handleCheckRepositoryStatus(this.currentRepoContext);
+            }
         }, 500);
     }
 

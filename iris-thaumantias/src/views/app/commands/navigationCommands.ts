@@ -24,6 +24,7 @@ import type {
     CourseDashboardEntry,
     CourseDetailData,
     ExamSummary,
+    ExerciseDetailsResponse,
 } from '../../../types/apiResponses';
 
 interface CourseQuickPickItem extends vscode.QuickPickItem {
@@ -229,7 +230,9 @@ export class NavigationCommandModule {
 
     private async processCourseDetails(courseData: CourseDashboardEntry | CourseDashboardCourse): Promise<void> {
         try {
-            const course: CourseDashboardCourse | undefined = 'course' in courseData ? courseData.course : courseData;
+            const course: CourseDashboardCourse | undefined = 'course' in courseData
+                ? (courseData.course as CourseDashboardCourse | undefined)
+                : courseData;
 
             // Fetch exams for the course
             if (course?.id) {
@@ -244,7 +247,11 @@ export class NavigationCommandModule {
 
             // Convert to CourseDetailData format expected by state manager
             const courseDetailData: CourseDetailData = {
-                course: 'course' in courseData ? courseData.course! : courseData
+                course: ('course' in courseData ? courseData.course! : courseData) as CourseDashboardCourse & {
+                    exercises?: ExerciseDetail[];
+                    exams?: ExamSummary[];
+                    isArchived?: boolean;
+                }
             };
 
             this.context.appStateManager.showCourseDetail(courseDetailData);
@@ -510,7 +517,7 @@ export class NavigationCommandModule {
                 return;
             }
 
-            await this.context.actionHandler.openExerciseFullscreen(exerciseData);
+            await this.context.actionHandler.openExerciseFullscreen(exerciseData as ExerciseDetailsResponse);
         } catch (error: unknown) {
             logger.viewError('Error opening exercise in fullscreen:', error);
             vscode.window.showErrorMessage('Failed to open exercise in fullscreen mode');

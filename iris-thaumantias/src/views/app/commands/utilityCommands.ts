@@ -94,8 +94,8 @@ export class UtilityCommandModule {
     };
 
     private handleOpenSettings = async (message: WebviewToExtensionMessage): Promise<void> => {
-        const payload = getPayload<OpenSettingsCommand>(message);
-        const settingId = payload?.setting || 'Artemis';
+        const typedMessage = message as OpenSettingsCommand;
+        const settingId = typedMessage.payload?.setting || 'Artemis';
         await vscode.commands.executeCommand('workbench.action.openSettings', settingId);
     };
 

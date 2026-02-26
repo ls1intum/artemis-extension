@@ -561,9 +561,14 @@ export interface CourseDetailData {
  */
 export interface BuildLogParsedMessage {
     command: 'buildLogParsed';
-    error: string | null;
+    error: {
+        filePath: string;
+        line: number;
+        message: string;
+        column?: number;
+    } | null;
     participationId: number;
-    resultId: number;
+    resultId?: number;
 }
 
 /**
