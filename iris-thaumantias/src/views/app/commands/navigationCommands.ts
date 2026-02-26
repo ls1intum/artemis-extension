@@ -491,7 +491,15 @@ export class NavigationCommandModule {
                 return;
             }
 
-            const { courseId, examId } = examData;
+            // Extract courseId and examId from exam data (added as context fields)
+            const courseId = (examData as any).courseId;
+            const examId = (examData as any).examId;
+
+            if (typeof courseId !== 'number' || typeof examId !== 'number') {
+                logger.viewError('[EXAMMODE] Invalid exam context - missing courseId or examId');
+                return;
+            }
+
             logger.view(`[EXAMMODE] Reloading exam conduction for course ${courseId}, exam ${examId}`);
 
             const studentExam = await this.context.artemisApi.getOwnStudentExam(courseId, examId);

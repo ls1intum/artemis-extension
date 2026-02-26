@@ -56,7 +56,7 @@ export interface GitCredentialsInitMessage {
  */
 export interface GitCredentialsResultMessage {
     type: 'gitCredentialsResult';
-    status: 'success' | 'error' | 'warning';
+    status: 'success' | 'error' | 'warning' | 'info';
     message: string;
 }
 
@@ -548,9 +548,101 @@ export interface CourseDetailData {
     };
 }
 
+// ============================================================================
+// Legacy Command Messages (Extension → Webview)
+// These use 'command' field instead of 'type' for backwards compatibility
+// ============================================================================
+
+/**
+ * Build log parsed message with first error.
+ */
+export interface BuildLogParsedMessage {
+    command: 'buildLogParsed';
+    error: string | null;
+    participationId: number;
+    resultId: number;
+}
+
+/**
+ * Git identity information response.
+ */
+export interface GitIdentityInfoMessage {
+    command: 'gitIdentityInfo';
+    name: string;
+    email: string;
+}
+
+/**
+ * PlantUML diagram rendered successfully.
+ */
+export interface PlantUmlRenderedMessage {
+    command: 'plantUmlRendered';
+    index: number;
+    svg: string;
+}
+
+/**
+ * PlantUML diagram rendering error.
+ */
+export interface PlantUmlErrorMessage {
+    command: 'plantUmlError';
+    index: number;
+    error: string;
+}
+
+/**
+ * Repository cloning completed notice.
+ */
+export interface ShowClonedRepoNoticeMessage {
+    command: 'showClonedRepoNotice';
+    exerciseTitle: string;
+}
+
+/**
+ * Submission result (success or error).
+ */
+export interface SubmissionResultMessage {
+    command: 'submissionResult';
+    success: boolean;
+    error?: string;
+}
+
+/**
+ * Test results data for exercise.
+ */
+export interface TestResultsDataMessage {
+    command: 'testResultsData';
+    testCases: Array<{
+        testName?: string;
+        successful?: boolean;
+        message?: string;
+    }>;
+    error?: string;
+}
+
+/**
+ * Dirty pages status update (unsaved files).
+ */
+export interface UpdateDirtyPagesStatusMessage {
+    command: 'updateDirtyPagesStatus';
+    hasDirtyPages: boolean;
+    dirtyFileCount: number;
+    autoSaveEnabled: boolean;
+}
+
+/**
+ * Repository status update (Git connection and changes).
+ */
+export interface UpdateRepoStatusMessage {
+    command: 'updateRepoStatus';
+    isConnected: boolean;
+    hasChanges: boolean;
+    isGradedRepo: boolean;
+}
+
 /**
  * All messages that can be sent FROM extension host TO webview.
- * Discriminated by 'type' property.
+ * Discriminated by 'type' or 'command' property.
  */
 export type ExtensionToWebviewMessage =
     | GenericInitMessage
@@ -589,6 +681,15 @@ export type ExtensionToWebviewMessage =
     | IrisChatShowDisabledMessage
     | IrisChatHideDisabledMessage
     | IrisChatNoAiStatusMessage
+    | BuildLogParsedMessage
+    | GitIdentityInfoMessage
+    | PlantUmlRenderedMessage
+    | PlantUmlErrorMessage
+    | ShowClonedRepoNoticeMessage
+    | SubmissionResultMessage
+    | TestResultsDataMessage
+    | UpdateDirtyPagesStatusMessage
+    | UpdateRepoStatusMessage
     | { type: 'error'; payload: { message: string } };
 
 // ============================================================================

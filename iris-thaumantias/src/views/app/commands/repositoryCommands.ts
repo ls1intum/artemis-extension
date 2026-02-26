@@ -89,7 +89,19 @@ export class RepositoryCommandModule {
         const exercises: ExerciseSource[] = [];
         for (const courseData of coursesData.courses) {
             const courseExercises = courseData?.course?.exercises || courseData?.exercises || [];
-            exercises.push(...courseExercises);
+            // Map ExerciseDetail to ExerciseSource, filtering out invalid exercises
+            for (const ex of courseExercises) {
+                if (typeof ex.id === 'number' && ex.title) {
+                    exercises.push({
+                        id: ex.id,
+                        title: ex.title,
+                        shortName: ex.shortName,
+                        courseId: ex.course?.id,
+                        repositoryUri: undefined,
+                        studentParticipations: ex.studentParticipations
+                    });
+                }
+            }
         }
         return exercises;
     }
