@@ -7,6 +7,7 @@ import { ActiveContext } from '../types';
 import { checkWorkspaceFiles } from '../utils';
 import { StruggleContext } from './telemetry';
 import { logger, LogCategory } from './loggingService';
+import type { ExtensionToWebviewMessage } from '../shared/messageContracts';
 
 export class ChatMessageService {
     constructor(
@@ -14,7 +15,7 @@ export class ChatMessageService {
         private readonly _artemisApiService: ArtemisApiService | undefined,
         private readonly _websocketService: ArtemisWebsocketService | undefined,
         private readonly _getIrisSessionManager: () => IrisSessionManager | undefined,
-        private readonly _postMessage: (message: any) => void,
+        private readonly _postMessage: (message: ExtensionToWebviewMessage) => void,
         private readonly _initializeIrisSession: (context: ActiveContext) => Promise<void>,
         private readonly _postSnapshot: () => void
     ) { }
@@ -79,15 +80,16 @@ export class ChatMessageService {
             this._contextStore.incrementActiveSessionMessageCount();
             this._postSnapshot();
 
-        } catch (error: any) {
+        } catch (error: unknown) {
+            const errorMessage = error instanceof Error ? error.message : String(error);
             logger.error('Error sending chat message', LogCategory.IRIS_CHAT, error);
-            vscode.window.showErrorMessage(`Failed to send message: ${error.message}`);
+            vscode.window.showErrorMessage(`Failed to send message: ${errorMessage}`);
 
             this._postMessage({
-                command: 'addMessage',
+                type: 'addMessage',
                 message: {
-                    role: 'error',
-                    content: `Error: ${error.message}`,
+                    role: 'user',
+                    content: `Error: ${errorMessage}`,
                     timestamp: Date.now()
                 }
             });
@@ -204,16 +206,19 @@ export class ChatMessageService {
             }
 
             return uncommittedFiles;
-        } catch (error: any) {
+        } catch (error: unknown) {
             logger.error('Error collecting uncommitted files', LogCategory.IRIS_CHAT, error);
 
+            const errorMessage = error instanceof Error ? error.message : '';
+            const errorCode = (error as { code?: string }).code;
+
             // Show user-friendly error message based on error type
-            if (error.message?.includes('Git')) {
+            if (errorMessage.includes('Git')) {
                 vscode.window.showWarningMessage(
                     'Failed to collect uncommitted files from Git. Iris will only see your repository content.',
                     'OK'
                 );
-            } else if (error.code === 'ENOENT') {
+            } else if (errorCode === 'ENOENT') {
                 vscode.window.showWarningMessage(
                     'Some files could not be read. Iris might not have full context of your changes.',
                     'OK'

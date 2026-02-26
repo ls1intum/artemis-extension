@@ -3,6 +3,7 @@ import { ContextStore } from './contextStore';
 import { ArtemisApiService } from '../api';
 import { ActiveContext, ApiError, type IrisChatSession, type IrisChatMessage, type IrisSettingsResponse } from '../types';
 import { logger, LogCategory } from './loggingService';
+import type { ExtensionToWebviewMessage } from '../shared/messageContracts';
 
 export class ChatSessionService {
     private _contextLoadToken = 0;
@@ -10,7 +11,7 @@ export class ChatSessionService {
     constructor(
         private readonly _contextStore: ContextStore,
         private readonly _artemisApiService: ArtemisApiService | undefined,
-        private readonly _postMessage: (message: any) => void,
+        private readonly _postMessage: (message: ExtensionToWebviewMessage) => void,
         private readonly _onSessionLoaded: () => Promise<void>,
         private readonly _onCreateNewSession: () => void,
         private readonly _onPostSnapshot: () => void

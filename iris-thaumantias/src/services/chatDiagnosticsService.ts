@@ -3,6 +3,7 @@ import { ContextStore } from './contextStore';
 import { ArtemisApiService } from '../api';
 import { ExerciseRegistry } from './exerciseRegistry';
 import { logger, LogLevel } from './loggingService';
+import type { IrisChatSession } from '../types';
 
 export class ChatDiagnosticsService {
     constructor(
@@ -137,7 +138,7 @@ export class ChatDiagnosticsService {
             report += '🌐 FETCHING SESSIONS FROM ARTEMIS...\n\n';
 
             // Fetch session metadata first
-            let artemisSessionsMetadata: any[] = [];
+            let artemisSessionsMetadata: IrisChatSession[] = [];
             if (activeContext.type === 'course') {
                 artemisSessionsMetadata = await this._artemisApiService.getCourseChatSessions(activeContext.id);
             } else if (activeContext.type === 'exercise') {
@@ -147,7 +148,7 @@ export class ChatDiagnosticsService {
             }
 
             // Fetch messages for all sessions
-            const artemisSessionsListFromServer: any[] = await Promise.all(
+            const artemisSessionsListFromServer: IrisChatSession[] = await Promise.all(
                 artemisSessionsMetadata.map(async (session) => {
                     try {
                         const messages = await this._artemisApiService!.getChatMessages(session.id);
@@ -221,9 +222,10 @@ export class ChatDiagnosticsService {
             });
 
             vscode.window.showInformationMessage(`Found ${artemisSessionsListFromServer.length} session(s) on Artemis`);
-        } catch (error: any) {
+        } catch (error: unknown) {
+            const errorMessage = error instanceof Error ? error.message : String(error);
             logger.error('Error fetching debug session data:', undefined, error);
-            vscode.window.showErrorMessage(`Failed to fetch sessions from Artemis: ${error.message}`);
+            vscode.window.showErrorMessage(`Failed to fetch sessions from Artemis: ${errorMessage}`);
         }
     }
 }

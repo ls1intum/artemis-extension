@@ -4,13 +4,14 @@ import { ChatSessionService } from './chatSessionService';
 import { IrisSessionManager } from './irisSessionManager';
 import { ChatContextType, TrackedExercise } from '../types';
 import { logger, LogCategory } from './loggingService';
+import type { ExtensionToWebviewMessage } from '../shared/messageContracts';
 
 export class ChatContextManager {
     constructor(
         private readonly _contextStore: ContextStore,
         private readonly _chatSessionService: ChatSessionService,
         private readonly _getIrisSessionManager: () => IrisSessionManager | undefined,
-        private readonly _postMessage: (message: any) => void
+        private readonly _postMessage: (message: ExtensionToWebviewMessage) => void
     ) { }
 
     public handleContextSelection(
@@ -55,7 +56,7 @@ export class ChatContextManager {
         vscode.window.showInformationMessage(`${label} context set to: ${itemName}`);
 
         // Load all sessions for the new context
-        this._chatSessionService.loadAllSessionsForContext().catch((err: any) => {
+        this._chatSessionService.loadAllSessionsForContext().catch((err: unknown) => {
             logger.error('Error loading Iris sessions:', LogCategory.IRIS_CHAT, err);
         });
     }
@@ -81,7 +82,7 @@ export class ChatContextManager {
         this._clearChatMessages();
 
         // Load all sessions for the new context
-        this._chatSessionService.loadAllSessionsForContext().catch((err: any) => {
+        this._chatSessionService.loadAllSessionsForContext().catch((err: unknown) => {
             logger.error('Error loading Iris sessions:', LogCategory.IRIS_CHAT, err);
         });
     }
@@ -112,7 +113,7 @@ export class ChatContextManager {
         vscode.window.showInformationMessage(`Exercise context set to: ${exercise?.title ?? `Exercise ${exerciseId}`}`);
 
         // Load all sessions for the new context
-        this._chatSessionService.loadAllSessionsForContext().catch((err: any) => {
+        this._chatSessionService.loadAllSessionsForContext().catch((err: unknown) => {
             logger.error('Error loading Iris sessions:', LogCategory.IRIS_CHAT, err);
         });
     }
