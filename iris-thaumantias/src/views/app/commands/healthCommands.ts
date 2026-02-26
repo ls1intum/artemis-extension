@@ -1,5 +1,26 @@
 import type { CommandContext, CommandMap } from './types';
+import type { WebviewToExtensionMessage, PerformHealthChecksCommand } from '../../../shared/messageContracts';
 import { logger } from '../../../services/loggingService';
+
+// Helper to extract typed payload from message
+function getPayload<T extends WebviewToExtensionMessage & { payload: unknown }>(message: WebviewToExtensionMessage): T['payload'] {
+    return (message as T).payload;
+}
+
+// Health check result structure
+interface HealthCheckResult {
+    status: 'online' | 'offline' | 'unknown';
+    message: string;
+    endpoint: string;
+    httpStatus: number | null;
+    response: string | null;
+}
+
+interface HealthCheckResults {
+    serverReachability: HealthCheckResult;
+    apiAvailability: HealthCheckResult;
+    irisService: HealthCheckResult;
+}
 
 export class HealthCommandModule {
     constructor(private readonly context: CommandContext) { }
@@ -10,11 +31,11 @@ export class HealthCommandModule {
         };
     }
 
-    private handlePerformHealthChecks = async (message: any): Promise<void> => {
-        const serverUrl: string = message.serverUrl;
+    private handlePerformHealthChecks = async (message: WebviewToExtensionMessage): Promise<void> => {
+        const { serverUrl } = getPayload<PerformHealthChecksCommand>(message);
 
         // Simplified health checks - only meaningful ones
-        const results: any = {
+        const results: HealthCheckResults = {
             serverReachability: { status: 'unknown', message: 'Not checked', endpoint: serverUrl, httpStatus: null, response: null },
             apiAvailability: { status: 'unknown', message: 'Not checked', endpoint: `${serverUrl}/management/health`, httpStatus: null, response: null },
             irisService: { status: 'unknown', message: 'Not checked', endpoint: `${serverUrl}/management/info`, httpStatus: null, response: null }
@@ -34,13 +55,15 @@ export class HealthCommandModule {
                     httpStatus: reachabilityResponse.status,
                     response: `${reachabilityResponse.status} ${reachabilityResponse.statusText}`
                 };
-            } catch (error: any) {
+            } catch (error: unknown) {
+                const errorMessage = error instanceof Error ? error.message : 'Network error';
+                const isTimeout = error instanceof Error && error.name === 'TimeoutError';
                 results.serverReachability = {
                     status: 'offline',
-                    message: error.name === 'TimeoutError' ? 'Timeout' : 'Unreachable',
+                    message: isTimeout ? 'Timeout' : 'Unreachable',
                     endpoint: serverUrl,
                     httpStatus: null,
-                    response: error.message || 'Network error'
+                    response: errorMessage
                 };
             }
 
@@ -80,13 +103,15 @@ export class HealthCommandModule {
                         response: `${healthResponse.status} ${healthResponse.statusText}`
                     };
                 }
-            } catch (error: any) {
+            } catch (error: unknown) {
+                const errorMessage = error instanceof Error ? error.message : 'Network error';
+                const isTimeout = error instanceof Error && error.name === 'TimeoutError';
                 results.apiAvailability = {
                     status: 'offline',
-                    message: error.name === 'TimeoutError' ? 'Timeout' : 'Unavailable',
+                    message: isTimeout ? 'Timeout' : 'Unavailable',
                     endpoint: `${serverUrl}/management/health`,
                     httpStatus: null,
-                    response: error.message || 'Network error'
+                    response: errorMessage
                 };
             }
 
@@ -130,13 +155,15 @@ export class HealthCommandModule {
                         response: `${infoResponse.status} ${infoResponse.statusText}`
                     };
                 }
-            } catch (error: any) {
+            } catch (error: unknown) {
+                const errorMessage = error instanceof Error ? error.message : 'Network error';
+                const isTimeout = error instanceof Error && error.name === 'TimeoutError';
                 results.irisService = {
                     status: 'unknown',
-                    message: error.name === 'TimeoutError' ? 'Timeout' : 'Cannot check',
+                    message: isTimeout ? 'Timeout' : 'Cannot check',
                     endpoint: `${serverUrl}/management/info`,
                     httpStatus: null,
-                    response: error.message || 'Network error'
+                    response: errorMessage
                 };
             }
         } catch (error) {
