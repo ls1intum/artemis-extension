@@ -32,7 +32,7 @@ Full details: milestones/v1.0-ROADMAP.md
 - [x] **Phase 11: Bundle Optimization** - Bundle analyzer integration and tree-shaking verification (completed 2026-02-25)
 - [x] **Phase 12: TypeScript Strict Mode** - Zero compilation errors with strict mode enabled (completed 2026-02-26)
 - [x] **Phase 13: Component Test Suite** - Comprehensive tests for components, stores, and flows (completed 2026-02-27)
-- [ ] **Phase 14: Dependency Cleanup** - Remove unused deps and verify production security
+- [x] **Phase 14: Dependency Cleanup** - Remove unused deps and verify production security (completed 2026-02-27)
 - [x] **Phase 15: Command Handler Gap Closure** - Implement missing openExternalLink and openImagePreview handlers (completed 2026-02-25)
 
 ## Phase Details
@@ -208,7 +208,7 @@ Plans:
 | 11. Bundle Optimization | v1.1 | 4/4 | Complete | 2026-02-25 |
 | 12. TypeScript Strict Mode | v1.1 | 15/15 | Complete | 2026-02-26 |
 | 13. Component Test Suite | 8/8 | Complete    | 2026-02-27 | - |
-| 14. Dependency Cleanup | 2/3 | In Progress|  | - |
+| 14. Dependency Cleanup | 3/3 | Complete   | 2026-02-27 | - |
 | 15. Command Handler Gap Closure | v1.1 | 1/1 | Complete | 2026-02-25 |
 
 ---

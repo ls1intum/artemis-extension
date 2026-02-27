@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: Production Ready
 status: unknown
-last_updated: "2026-02-27T15:40:51.968Z"
+last_updated: "2026-02-27T15:50:00Z"
 progress:
   total_phases: 8
   completed_phases: 7
   total_plans: 38
-  completed_plans: 37
+  completed_plans: 38
 ---
 
 # Project State
@@ -23,10 +23,10 @@ See: .planning/PROJECT.md (updated 2026-02-25)
 ## Current Position
 
 Milestone: v1.1 Production Ready
-Phase: 14 (Dependency Cleanup & Security Audit) — IN PROGRESS
-Plan: 2 of N (14-01 COMPLETE — knip config, clsx to deps, @types/katex to devDeps, clean lock file; 14-02 COMPLETE — CSP hardening, crypto.randomBytes nonce, localResourceRoots narrowed, dead code deleted, regression test)
-Status: In Progress
-Last activity: 2026-02-27 — Executed 14-01 (CLEAN-01: knip.json dual-entry, clsx dependency placement fixed, @types/katex moved to devDeps, package-lock.json regenerated clean, 2 pre-existing TS errors fixed)
+Phase: 14 (Dependency Cleanup & Security Audit) — AWAITING HUMAN VERIFICATION
+Plan: 3 of 3 (14-01 COMPLETE, 14-02 COMPLETE, 14-03 Task 1 COMPLETE — awaiting Task 2 human verify: smoke test .vsix in clean VS Code)
+Status: Checkpoint:human-verify
+Last activity: 2026-02-27 — Executed 14-03 Task 1 (lint:src scoping fix, analyze:text script, smoke-test.sh, .vsix packaged 3.3 MB, 0 build errors, bundle 3.44 MB confirmed at baseline)
 
 Progress: [████████████████] 96% (v1.0: 7/7 complete, v1.1: 7/8 phases complete, 35/35 plans complete + Phase 14 in progress)
 
@@ -202,12 +202,16 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-27
-Stopped at: Completed 14-01-PLAN.md (CLEAN-01 complete — knip.json dual-entry, clsx to dependencies, @types/katex to devDeps, clean lock file, 2 pre-existing TS errors fixed)
-Resume with: /gsd:execute-phase 14 (continue Phase 14 plan 3+)
+Stopped at: 14-03 Task 2 checkpoint:human-verify — smoke-test.sh created, .vsix packaged (3.3 MB), awaiting clean environment verification
+Resume with: /gsd:execute-phase 14 (continue Phase 14 plan 3 after human verifies .vsix in clean VS Code profile)
 
 ### Decisions (Phase 14-02)
 - Rewrote JSDoc "no unsafe-inline or unsafe-eval" to "no relaxed directives, nonces only" to avoid tripping grep-based CSP regression tests that read entire source file
 - CSP directive documentation uses template literal variable notation in comment (shows structure, not forbidden strings)
+
+### Decisions (Phase 14-03)
+- lint:src script added to package.json; package script uses lint:src (not lint) — 229 pre-existing test-file ESLint errors blocked vsce package, production builds only need src/ linted
+- smoke-test.sh detects VS Code profile flags at runtime (--profile-temp vs --transient) for forward/backward compatibility
 
 ---
 
