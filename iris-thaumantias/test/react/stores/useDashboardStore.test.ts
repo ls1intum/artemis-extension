@@ -153,4 +153,114 @@ describe('useDashboardStore', () => {
 		expect(result.current.recentCourses).toHaveLength(2);
 		expect(result.current.recentCourses[0].courseData.course.title).toBe('Course with startDate');
 	});
+
+	it('setLoading sets the isLoading flag directly', () => {
+		const { result } = renderHook(() => useDashboardStore());
+
+		act(() => {
+			result.current.setLoading(true);
+		});
+
+		expect(result.current.isLoading).toBe(true);
+
+		act(() => {
+			result.current.setLoading(false);
+		});
+
+		expect(result.current.isLoading).toBe(false);
+	});
+
+	it('loadDashboard clears previous error state', () => {
+		const { result } = renderHook(() => useDashboardStore());
+		const mockVsCodeApi = createMockVsCodeApi();
+
+		act(() => {
+			result.current.setError('Previous error');
+		});
+
+		expect(result.current.error).toBe('Previous error');
+
+		act(() => {
+			result.current.loadDashboard(mockVsCodeApi);
+		});
+
+		expect(result.current.error).toBeNull();
+	});
+
+	it('setDashboardData clears previous error state', () => {
+		const { result } = renderHook(() => useDashboardStore());
+
+		act(() => {
+			result.current.setError('Some error');
+		});
+
+		act(() => {
+			result.current.setDashboardData([]);
+		});
+
+		expect(result.current.error).toBeNull();
+	});
+
+	it('setDashboardData with fewer than 3 courses keeps all', () => {
+		const { result } = renderHook(() => useDashboardStore());
+
+		const makeCourse = (title: string, startDate: string): RecentCourseNode => ({
+			courseData: { course: { title, startDate } },
+			exercises: [],
+		});
+
+		act(() => {
+			result.current.setDashboardData([
+				makeCourse('Course A', '2023-01-01'),
+				makeCourse('Course B', '2023-06-01'),
+			]);
+		});
+
+		expect(result.current.recentCourses).toHaveLength(2);
+	});
+
+	it('setDashboardData with empty array sets empty recent courses', () => {
+		const { result } = renderHook(() => useDashboardStore());
+
+		act(() => {
+			result.current.setDashboardData([]);
+		});
+
+		expect(result.current.recentCourses).toEqual([]);
+		expect(result.current.isLoading).toBe(false);
+	});
+
+	it('setError with null clears error', () => {
+		const { result } = renderHook(() => useDashboardStore());
+
+		act(() => {
+			result.current.setError('An error occurred');
+		});
+
+		act(() => {
+			result.current.setError(null);
+		});
+
+		expect(result.current.error).toBeNull();
+	});
+
+	it('workspace exercise update does not affect recent courses', () => {
+		const { result } = renderHook(() => useDashboardStore());
+
+		const makeCourse = (title: string, startDate: string): RecentCourseNode => ({
+			courseData: { course: { title, startDate } },
+			exercises: [],
+		});
+
+		act(() => {
+			result.current.setDashboardData([makeCourse('Course A', '2023-01-01')]);
+		});
+
+		act(() => {
+			result.current.setWorkspaceExercise({ id: 1, title: 'Exercise' });
+		});
+
+		expect(result.current.recentCourses).toHaveLength(1);
+		expect(result.current.workspaceExercise).toEqual({ id: 1, title: 'Exercise' });
+	});
 });
