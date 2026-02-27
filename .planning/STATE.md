@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: Production Ready
 status: unknown
-last_updated: "2026-02-27T14:15:00Z"
+last_updated: "2026-02-27T14:25:00Z"
 progress:
   total_phases: 7
   completed_phases: 6
   total_plans: 35
-  completed_plans: 33
+  completed_plans: 34
 ---
 
 # Project State
@@ -24,9 +24,9 @@ See: .planning/PROJECT.md (updated 2026-02-25)
 
 Milestone: v1.1 Production Ready
 Phase: 13 (Component Test Suite) — in progress
-Plan: 6 of 8 (13-06 COMPLETE)
+Plan: 7 of 8 (13-07 COMPLETE)
 Status: In Phase
-Last activity: 2026-02-27 — Executed 13-06 (8 remaining view tests: 112 tests — ExerciseDetailView, IrisChatView, ExamStartView, ExamConductionView, ExamExerciseDetailView, ServiceStatusView, GitCredentialsView, RecommendedExtensionsView)
+Last activity: 2026-02-27 — Executed 13-07 (5 flow test files: auth lifecycle, course navigation, navigation routing, exercise submission, Iris chat with streaming — 59 tests)
 
 Progress: [█████████████░░] 90% (v1.0: 7/7 complete, v1.1: 6/8 phases complete, 33/35 plans complete)
 
@@ -52,15 +52,16 @@ Progress: [█████████████░░] 90% (v1.0: 7/7 complet
 - Files modified: 115 (artemisWebviewProvider, messageContracts, ProblemStatement TSX/CSS, ExerciseDetailView, ExamExerciseDetailView, types, index.tsx, CourseDetailView CSS, package.json, .vscode-test.mjs, 23 test files with import path updates, webViewMessageHandler, extension, utilityCommands, esbuild.js, eslint.config.mjs, .gitignore, package-lock.json, CodeBlock.tsx, iconMap.ts, DashboardView.tsx, IconButton.tsx, ArtemisLogo.tsx, tsconfig.json, vitest.config renamed, appStateManager.test.ts, LoginView.test.tsx, MessageBubble.tsx, StreamingMessage.tsx, useAutoScroll.ts, useExamTimer.ts, streamdown.d.ts, apiResponses.ts, appStateManager.ts, commands/types.ts, commands/repositoryCommands.ts, commands/navigationCommands.ts, useChatStore.ts, useCourseDetailStore.ts, useExerciseDetailStore.ts, CourseDetailView.tsx, CourseListView.tsx, ExamConductionView.tsx, ExamStartView.tsx, LoginView.tsx, RecommendedExtensionsView.tsx, 10 service files, 3 hooks, 1 store, 6 shared components, artemisApi.ts, auth.ts, problemStatementProcessor.ts, workspaceFileChecker.ts, stomp.d.ts)
 - Files moved: 68 (test directory reorganization)
 - Tests added: 30 (Button: 12, useDashboardStore: 9, LoginView: 9)
-- Phase 13 execution: ~75 minutes (plans 1-6 of 8 complete)
+- Phase 13 execution: ~90 minutes (plans 1-7 of 8 complete)
 - Phase 13-01: 12 test files created, 64 tests (Badge, BackLink, Container, EmptyState, List, ListItem, Skeleton, SkeletonList, Breadcrumbs, ErrorMessage, ArtemisLogo, HelpPopup, TimerExpiredOverlay)
 - Phase 13-02: interactive component tests (IconButton, TextInput, Dropdown, SideMenu)
 - Phase 13-03: Zustand store tests — 9 store test files, 143 tests
 - Phase 13-04: 9 IrisChat sub-component test files, 103 tests (ChatInput, CodeBlock, MessageBubble, StreamingMessage, ThinkingIndicator, ChatMessageList, ContextSelector, ReferencedFiles, WelcomeState)
 - Phase 13-05: 7 test files, 103 tests (ScoreInfo, TestResults, ProblemStatement, SubmissionStatus, CourseListView, CourseDetailView, DashboardView)
 - Phase 13-06: 8 view test files, 112 tests (ExerciseDetailView, IrisChatView, ExamStartView, ExamConductionView, ExamExerciseDetailView, ServiceStatusView, GitCredentialsView, RecommendedExtensionsView)
-- Tests added (Phase 13-01 to 13-06): 525+ tests across shared components, stores, IrisChat sub-components, course/exercise views, and all remaining views
-- Remaining: Phase 13 plans 7-8 + Phase 14 (Dependency Cleanup)
+- Phase 13-07: 5 flow test files, 59 tests (auth lifecycle, courseNavigation, navigation routing, exerciseSubmission, irisChat with streaming) — TEST-03 complete
+- Tests added (Phase 13-01 to 13-07): 584+ tests across shared components, stores, IrisChat sub-components, course/exercise views, all remaining views, and integration flow tests
+- Remaining: Phase 13 plan 8 + Phase 14 (Dependency Cleanup)
 
 ## Accumulated Context
 
@@ -158,6 +159,9 @@ Recent decisions affecting v1.1 work:
 - [Phase 13-06]: HTML5 required attribute blocks native form submit in happy-dom — use fireEvent.submit(form) to bypass browser validation and reach React's onSubmit handler for empty-field validation tests
 - [Phase 13-06]: ExamConductionStore.setState merges — always include loading:false in test data helpers to avoid showing skeleton state
 - [Phase 13-06]: ExerciseList renders "Exercise 1" in both number span and title span — use getAllByText instead of getByText to avoid "Found multiple elements" error
+- [Phase 13-07]: ContextSelector uses recentExercises (not allExercises) when no search query — flow tests must populate recentExercises for context picker items to appear without typing
+- [Phase 13-07]: Store-driven streaming simulation — chatStreamChunk comes from WebSocket bridge (not window messages), so flow tests use store actions (startStreaming/appendStreamChunk/finishStreaming) directly
+- [Phase 13-07]: fake timers + userEvent.setup() deadlock pattern — separate userEvent calls (real timers) from fake timer blocks; use act() + store actions for streaming simulation
 
 ### Pending Todos
 
@@ -191,8 +195,8 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-27
-Stopped at: Completed 13-06-PLAN.md (8 remaining view tests — 112 tests across ExerciseDetailView, IrisChatView, ExamStartView, ExamConductionView, ExamExerciseDetailView, ServiceStatusView, GitCredentialsView, RecommendedExtensionsView)
-Resume with: /gsd:execute-phase 13 plan 07 (next pending plans)
+Stopped at: Completed 13-07-PLAN.md (5 flow test files: auth lifecycle, courseNavigation, navigation routing, exerciseSubmission, irisChat with streaming — 59 tests, TEST-03 complete)
+Resume with: /gsd:execute-phase 13 plan 08 (final plan in Phase 13)
 
 ---
 
