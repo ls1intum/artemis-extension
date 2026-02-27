@@ -169,7 +169,7 @@ describe('Message contracts: ExtensionToWebviewMessage types', () => {
 
         const withoutUrl = {
             type: 'serviceStatusInit' as const,
-            payload: {},
+            payload: {} as ServiceStatusInitMessage['payload'],
         } satisfies ServiceStatusInitMessage;
 
         expect(withUrl.payload.serverUrl).toBe('https://artemis.tum.de');

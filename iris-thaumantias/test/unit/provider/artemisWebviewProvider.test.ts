@@ -1,6 +1,7 @@
 import * as assert from 'assert';
 import * as vscode from 'vscode';
 import { ArtemisWebviewProvider } from '../../../src/provider/artemisWebviewProvider';
+import type { BuildErrorCodeLensProvider } from '../../../src/provider/buildErrorCodeLensProvider';
 import { MockExtensionContext } from '../mocks/vscodeMocks';
 import { AuthManager } from '../../../src/auth';
 import { ArtemisApiService } from '../../../src/api';
@@ -124,7 +125,7 @@ suite('ArtemisWebviewProvider Test Suite', () => {
     });
 
     test('should set build diagnostics', () => {
-        const codeLens = {};
+        const codeLens = {} as unknown as BuildErrorCodeLensProvider;
         provider.setBuildDiagnostics(codeLens);
     });
 
