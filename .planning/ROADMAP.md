@@ -142,10 +142,17 @@ Plans:
   2. Unit tests written for 9 Zustand stores (auth, courses, chat, etc.)
   3. Integration tests expanded for critical flows (course browsing, exercise submission, Iris chat)
   4. Test coverage reaches 70-80% overall, 90%+ on critical paths (auth, message contracts, submission)
-**Plans**: TBD
+**Plans**: 8 plans in 3 waves
 
 Plans:
-- [ ] TBD
+- [ ] 13-01: Simple/display shared component tests (Wave 1)
+- [ ] 13-02: Interactive shared component tests (Wave 1)
+- [ ] 13-03: Zustand store tests (Wave 1)
+- [ ] 13-04: IrisChat sub-component tests (Wave 1)
+- [ ] 13-05: ExerciseDetail + course/dashboard view tests (Wave 2)
+- [ ] 13-06: Remaining view tests (Wave 2)
+- [ ] 13-07: Critical flow integration tests (Wave 3)
+- [ ] 13-08: Error suite + coverage reporting (Wave 3)
 
 ### Phase 14: Dependency Cleanup & Security Audit
 **Goal**: Remove unused dependencies and verify production-ready security posture
