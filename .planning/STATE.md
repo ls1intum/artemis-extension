@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: Production Ready
 status: unknown
-last_updated: "2026-02-27T14:05:33.140Z"
+last_updated: "2026-02-27T14:12:07Z"
 progress:
   total_phases: 7
   completed_phases: 6
   total_plans: 35
-  completed_plans: 31
+  completed_plans: 32
 ---
 
 # Project State
@@ -24,11 +24,11 @@ See: .planning/PROJECT.md (updated 2026-02-25)
 
 Milestone: v1.1 Production Ready
 Phase: 13 (Component Test Suite) — in progress
-Plan: 4 of 8 (13-04 COMPLETE)
+Plan: 5 of 8 (13-05 COMPLETE)
 Status: In Phase
-Last activity: 2026-02-27 — Executed 13-04 (IrisChat sub-component tests: 9 test files, 103 tests)
+Last activity: 2026-02-27 — Executed 13-05 (ExerciseDetail sub-components + CourseList/CourseDetail/Dashboard view tests: 7 test files, 103 tests)
 
-Progress: [█████████████░░] 89% (v1.0: 7/7 complete, v1.1: 6/8 phases complete, 31/35 plans complete)
+Progress: [█████████████░░] 89% (v1.0: 7/7 complete, v1.1: 6/8 phases complete, 32/35 plans complete)
 
 ## Performance Metrics
 
@@ -52,13 +52,14 @@ Progress: [█████████████░░] 89% (v1.0: 7/7 complet
 - Files modified: 115 (artemisWebviewProvider, messageContracts, ProblemStatement TSX/CSS, ExerciseDetailView, ExamExerciseDetailView, types, index.tsx, CourseDetailView CSS, package.json, .vscode-test.mjs, 23 test files with import path updates, webViewMessageHandler, extension, utilityCommands, esbuild.js, eslint.config.mjs, .gitignore, package-lock.json, CodeBlock.tsx, iconMap.ts, DashboardView.tsx, IconButton.tsx, ArtemisLogo.tsx, tsconfig.json, vitest.config renamed, appStateManager.test.ts, LoginView.test.tsx, MessageBubble.tsx, StreamingMessage.tsx, useAutoScroll.ts, useExamTimer.ts, streamdown.d.ts, apiResponses.ts, appStateManager.ts, commands/types.ts, commands/repositoryCommands.ts, commands/navigationCommands.ts, useChatStore.ts, useCourseDetailStore.ts, useExerciseDetailStore.ts, CourseDetailView.tsx, CourseListView.tsx, ExamConductionView.tsx, ExamStartView.tsx, LoginView.tsx, RecommendedExtensionsView.tsx, 10 service files, 3 hooks, 1 store, 6 shared components, artemisApi.ts, auth.ts, problemStatementProcessor.ts, workspaceFileChecker.ts, stomp.d.ts)
 - Files moved: 68 (test directory reorganization)
 - Tests added: 30 (Button: 12, useDashboardStore: 9, LoginView: 9)
-- Phase 13 execution: ~25 minutes (plans 1-4 of 8 complete)
+- Phase 13 execution: ~40 minutes (plans 1-5 of 8 complete)
 - Phase 13-01: 12 test files created, 64 tests (Badge, BackLink, Container, EmptyState, List, ListItem, Skeleton, SkeletonList, Breadcrumbs, ErrorMessage, ArtemisLogo, HelpPopup, TimerExpiredOverlay)
 - Phase 13-02: interactive component tests (IconButton, TextInput, Dropdown, SideMenu)
 - Phase 13-03: Zustand store tests — 9 store test files, 143 tests
 - Phase 13-04: 9 IrisChat sub-component test files, 103 tests (ChatInput, CodeBlock, MessageBubble, StreamingMessage, ThinkingIndicator, ChatMessageList, ContextSelector, ReferencedFiles, WelcomeState)
-- Tests added (Phase 13-01 to 13-04): 310+ tests across shared components, stores, and IrisChat sub-components
-- Remaining: Phase 13 plans 5-8 + Phase 14 (Dependency Cleanup)
+- Phase 13-05: 7 test files, 103 tests (ScoreInfo, TestResults, ProblemStatement, SubmissionStatus, CourseListView, CourseDetailView, DashboardView)
+- Tests added (Phase 13-01 to 13-05): 413+ tests across shared components, stores, IrisChat sub-components, and course/exercise views
+- Remaining: Phase 13 plans 6-8 + Phase 14 (Dependency Cleanup)
 
 ## Accumulated Context
 
@@ -146,6 +147,11 @@ Recent decisions affecting v1.1 work:
 - [Phase 13-04]: CodeBlock tests structure-only (no Shiki token assertions) — all 27 Shiki lang/theme dynamic imports mocked
 - [Phase 13-04]: Mock use-stick-to-bottom with {current: null} refs — ESM package, refs don't affect DOM assertions
 - [Phase 13-04]: useStreamingMessage and useAutoScroll tested through components (no separate hook test files per CONTEXT.md decision)
+- [Phase 13-05]: ScoreInfo perfect score test uses getAllByText('100') — score value and max score are identical elements in DOM
+- [Phase 13-05]: CourseListView semester uses getAllByText — semester appears in both course badge and semester filter dropdown option
+- [Phase 13-05]: ProblemStatement mocks DOMPurify as passthrough and processProblemStatement as identity — isolates HTML rendering from sanitization pipeline in unit tests
+- [Phase 13-05]: DashboardView workspace exercise title must differ from section header "Current Workspace Exercise" to avoid ambiguous getByText
+- [Phase 13-05]: SubmissionStatus located in components/exercise/SubmissionStatus.tsx (not in ExerciseDetail components folder)
 
 ### Pending Todos
 
@@ -179,8 +185,8 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-27
-Stopped at: Completed 13-04-PLAN.md (IrisChat sub-component tests — 9 test files, 103 tests)
-Resume with: /gsd:execute-phase 13 plan 05 (next pending plans)
+Stopped at: Completed 13-05-PLAN.md (ExerciseDetail sub-components + CourseList/CourseDetail/Dashboard view tests — 7 test files, 103 tests)
+Resume with: /gsd:execute-phase 13 plan 06 (next pending plans)
 
 ---
 
