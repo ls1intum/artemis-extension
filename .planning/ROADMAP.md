@@ -164,10 +164,12 @@ Plans:
   3. Production .vsix tested in clean environment (all features functional)
   4. CSP nonce implementation verified (crypto.randomBytes usage confirmed, no inline scripts without nonce)
   5. Bundle size tracked against 3.44 MB accepted baseline — no regressions introduced
-**Plans**: TBD
+**Plans**: 3 plans in 2 waves
 
 Plans:
-- [ ] TBD
+- [ ] 14-01-PLAN.md — Dependency audit (knip analysis, unused dep removal, clsx/katex placement fix, npm audit, lock file regen)
+- [ ] 14-02-PLAN.md — CSP nonce hardening (crypto.randomBytes, CSP documentation, localResourceRoots tightening, dead code removal, regression test)
+- [ ] 14-03-PLAN.md — Production validation (vsce package, bundle size report, smoke test script, clean environment verification)
 
 ### Phase 15: Command Handler Gap Closure
 **Goal**: Implement missing extension command handlers for problem statement interactions
