@@ -21,7 +21,7 @@ export function getNonce(): string {
  * Generate CSP-compliant HTML for React webview.
  *
  * Creates a secure HTML shell with:
- * - Nonce-based Content Security Policy (no unsafe-inline or unsafe-eval)
+ * - Nonce-based Content Security Policy (no relaxed directives, nonces only)
  * - Default-src 'none' (deny all by default)
  * - Proper webview URI resolution for scripts and styles
  * - React mount point (#root)
