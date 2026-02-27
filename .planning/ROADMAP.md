@@ -208,7 +208,7 @@ Plans:
 | 11. Bundle Optimization | v1.1 | 4/4 | Complete | 2026-02-25 |
 | 12. TypeScript Strict Mode | v1.1 | 15/15 | Complete | 2026-02-26 |
 | 13. Component Test Suite | 8/8 | Complete    | 2026-02-27 | - |
-| 14. Dependency Cleanup | v1.1 | 0/? | Not started | - |
+| 14. Dependency Cleanup | 1/3 | In Progress|  | - |
 | 15. Command Handler Gap Closure | v1.1 | 1/1 | Complete | 2026-02-25 |
 
 ---

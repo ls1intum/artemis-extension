@@ -38,7 +38,7 @@ Requirements for v1.1 Production Ready. Each maps to roadmap phases.
 ### Dependency Cleanup & Security
 
 - [ ] **CLEAN-01**: Unused dependencies removed, misplaced deps corrected (e.g. clsx), production .vsix verified in clean environment
-- [ ] **CLEAN-02**: CSP nonce implementation verified (crypto.randomBytes usage), no inline scripts or styles without nonce
+- [x] **CLEAN-02**: CSP nonce implementation verified (crypto.randomBytes usage), no inline scripts or styles without nonce
 
 ## v1.2+ Requirements
 
@@ -91,7 +91,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | TEST-02 | Phase 13 | Complete |
 | TEST-03 | Phase 13 | Complete |
 | CLEAN-01 | Phase 14 | Pending |
-| CLEAN-02 | Phase 14 | Pending |
+| CLEAN-02 | Phase 14 | Complete |
 | UI-03 (integration) | Phase 15 | Pending |
 
 **Coverage:**

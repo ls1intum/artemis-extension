@@ -23,12 +23,12 @@ See: .planning/PROJECT.md (updated 2026-02-25)
 ## Current Position
 
 Milestone: v1.1 Production Ready
-Phase: 13 (Component Test Suite) — COMPLETE
-Plan: 8 of 8 (13-08 COMPLETE — Phase 13 COMPLETE)
-Status: Phase Complete
-Last activity: 2026-02-27 — Executed 13-08 (error suite 34 tests, exam timer flow 31 tests, message contracts 27 tests, coverage config — 92 tests, Phase 13 COMPLETE)
+Phase: 14 (Dependency Cleanup & Security Audit) — IN PROGRESS
+Plan: 2 of N (14-02 COMPLETE — CSP hardening, crypto.randomBytes nonce, localResourceRoots narrowed, dead code deleted, regression test)
+Status: In Progress
+Last activity: 2026-02-27 — Executed 14-02 (CLEAN-02: CSP nonce crypto.randomBytes, localResourceRoots dist/ least privilege, openFullscreenPanel dead code removed, 6 CSP regression tests)
 
-Progress: [████████████████] 95% (v1.0: 7/7 complete, v1.1: 7/8 phases complete, 35/35 plans complete)
+Progress: [████████████████] 96% (v1.0: 7/7 complete, v1.1: 7/8 phases complete, 35/35 plans complete + Phase 14 in progress)
 
 ## Performance Metrics
 
@@ -200,10 +200,14 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-27
-Stopped at: Completed 13-08-PLAN.md (Phase 13 COMPLETE — error suite, exam timer flow, message contracts, coverage config — 92 tests, TEST-03 COMPLETE)
-Resume with: /gsd:execute-phase 14 (Phase 14 Dependency Cleanup)
+Stopped at: Completed 14-02-PLAN.md (CLEAN-02 complete — crypto.randomBytes nonce, localResourceRoots narrowed to dist/, dead openFullscreenPanel deleted, 6 CSP regression tests passing)
+Resume with: /gsd:execute-phase 14 (continue Phase 14 plan 3+)
+
+### Decisions (Phase 14-02)
+- Rewrote JSDoc "no unsafe-inline or unsafe-eval" to "no relaxed directives, nonces only" to avoid tripping grep-based CSP regression tests that read entire source file
+- CSP directive documentation uses template literal variable notation in comment (shows structure, not forbidden strings)
 
 ---
 
 *Created: 2026-02-23 (v1.0)*
-*Updated: 2026-02-27 (Phase 13-01 executed — 12 component test files created, 64 tests passing; Phase 13-02 executed — 10 interactive/functional test files, 112 tests)*
+*Updated: 2026-02-27 (Phase 13-01 executed — 12 component test files created, 64 tests passing; Phase 13-02 executed — 10 interactive/functional test files, 112 tests; Phase 14-02 executed — CSP hardening, CLEAN-02 complete)*
