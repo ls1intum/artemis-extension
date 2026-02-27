@@ -602,25 +602,7 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
                     return;
                 }
 
-                // Bridge new typed message format to legacy command handler
-                const msgWithCommand = typedMessage as { type?: string; command?: string; payload?: unknown };
-                if (msgWithCommand.type === 'command' && msgWithCommand.command) {
-                    // Extract command and payload, delegate to existing handler
-                    const legacyMessage = {
-                        command: msgWithCommand.command,
-                        ...(msgWithCommand.payload as Record<string, unknown> || {})
-                    };
-                    this._messageHandler.handleMessage(legacyMessage as WebviewToExtensionMessage);
-                    return;
-                }
-
-                // Handle legacy format messages (for non-React views)
-                if (msgWithCommand.command) {
-                    this._messageHandler.handleMessage(message as WebviewToExtensionMessage);
-                    return;
-                }
-
-                // Handle other typed messages
+                // Forward commands to the message handler (preserving type/command/payload)
                 this._messageHandler.handleMessage(message as WebviewToExtensionMessage);
             },
             undefined,
@@ -904,12 +886,9 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
                 panel.title = `Exercise: ${typedMessage.title}`;
             }
 
-            // Forward all other messages (commands, legacy format) to the existing handler
+            // Forward all other messages to the existing handler
             // Use handleMessageWithSender so responses go back to THIS panel, not the sidebar
-            const legacyMessage = (typedMessage.type === 'command' && typedMessage.command)
-                ? { command: typedMessage.command, ...(typedMessage.payload as Record<string, unknown> || {}) }
-                : message;
-            this._messageHandler.handleMessageWithSender(legacyMessage as WebviewToExtensionMessage, (responseMessage: ExtensionToWebviewMessage) => {
+            this._messageHandler.handleMessageWithSender(message as WebviewToExtensionMessage, (responseMessage: ExtensionToWebviewMessage) => {
                 panel.webview.postMessage(responseMessage);
             });
         });
@@ -963,10 +942,7 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
             }
 
             // Forward all other messages via handleMessageWithSender
-            const legacyMessage = (typedMessage.type === 'command' && typedMessage.command)
-                ? { command: typedMessage.command, ...(typedMessage.payload as Record<string, unknown> || {}) }
-                : message;
-            this._messageHandler.handleMessageWithSender(legacyMessage as WebviewToExtensionMessage, (responseMessage: ExtensionToWebviewMessage) => {
+            this._messageHandler.handleMessageWithSender(message as WebviewToExtensionMessage, (responseMessage: ExtensionToWebviewMessage) => {
                 panel.webview.postMessage(responseMessage);
             });
         });
