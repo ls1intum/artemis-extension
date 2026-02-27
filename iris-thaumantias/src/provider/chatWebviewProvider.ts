@@ -193,7 +193,7 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
 
         webviewView.webview.options = {
             enableScripts: true,
-            localResourceRoots: [this._extensionUri],
+            localResourceRoots: [vscode.Uri.joinPath(this._extensionUri, 'dist')],
         };
 
         webviewView.webview.html = getReactWebviewHtml(webviewView.webview, this._extensionUri, 'irisChat');

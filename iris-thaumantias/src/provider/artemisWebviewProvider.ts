@@ -419,7 +419,7 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
             enableScripts: true,
 
             localResourceRoots: [
-                this._extensionUri
+                vscode.Uri.joinPath(this._extensionUri, 'dist')
             ]
         };
 
@@ -1084,59 +1084,6 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
     private isDeveloperMode(): boolean {
         const config = vscode.workspace.getConfiguration('artemis');
         return config.get<boolean>('developerMode', false);
-    }
-
-    private async openFullscreenPanel(options: {
-        viewId: string;
-        title: string;
-        detailHtml: () => string | Promise<string>;
-        cssInjections?: string[];
-        onDetect?: () => Record<string, unknown> | void;
-        onDispose?: (metadata?: Record<string, unknown>) => void;
-    }): Promise<void> {
-        try {
-            const panel = vscode.window.createWebviewPanel(
-                options.viewId,
-                options.title,
-                vscode.ViewColumn.One,
-                {
-                    enableScripts: true,
-                    retainContextWhenHidden: true,
-                    localResourceRoots: [this._extensionUri]
-                }
-            );
-
-            let fullscreenHtml = await options.detailHtml();
-            if (options.cssInjections && options.cssInjections.length > 0) {
-                const cssBlock = `
-                    <style>
-                        ${options.cssInjections.join('\n')}
-                    </style>
-                `;
-                fullscreenHtml = fullscreenHtml.replace('</head>', cssBlock + '</head>');
-            }
-
-            panel.webview.html = fullscreenHtml;
-
-            const metadata = options.onDetect?.() || undefined;
-
-            panel.onDidDispose(() => {
-                options.onDispose?.(metadata);
-            });
-
-            panel.webview.onDidReceiveMessage(
-                message => {
-                    this._messageHandler.handleMessageWithSender(message as WebviewToExtensionMessage, (responseMessage: ExtensionToWebviewMessage) => {
-                        panel.webview.postMessage(responseMessage);
-                    });
-                },
-                undefined,
-                []
-            );
-        } catch (error) {
-            logger.error(`Error opening ${options.viewId}`, LogCategory.VIEW, error);
-            vscode.window.showErrorMessage(`Failed to open ${options.title} in fullscreen mode`);
-        }
     }
 
     private _getServerUrl(): string {
