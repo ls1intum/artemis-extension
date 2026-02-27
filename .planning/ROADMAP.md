@@ -26,8 +26,8 @@ Full details: milestones/v1.0-ROADMAP.md
 
 **Milestone Goal:** Make the extension 100% production-ready with full type safety, UI polish, comprehensive testing, dependency cleanup, and architecture improvements.
 
-- [ ] **Phase 8: Architecture Review** - Audit codebase for anti-patterns and improvement opportunities
-- [ ] **Phase 9: UI Polish & Icons** - Lucide icon migration and fullscreen panel restoration
+- [x] **Phase 8: Architecture Review** - Audit codebase for anti-patterns and improvement opportunities (completed 2026-02-25)
+- [x] **Phase 9: UI Polish & Icons** - Lucide icon migration and fullscreen panel restoration (completed 2026-02-25)
 - [x] **Phase 10: Testing Infrastructure** - Vitest setup with React Testing Library and webview mocks (completed 2026-02-25)
 - [x] **Phase 11: Bundle Optimization** - Bundle analyzer integration and tree-shaking verification (completed 2026-02-25)
 - [x] **Phase 12: TypeScript Strict Mode** - Zero compilation errors with strict mode enabled (completed 2026-02-26)
@@ -64,9 +64,9 @@ Plans:
 **Plans**: 3 plans
 
 Plans:
-- [ ] 09-01-PLAN.md — Lucide icon system migration (iconMap.ts, ArtemisLogo.tsx, IconButton presets, all consumer migration)
-- [ ] 09-02-PLAN.md — Fullscreen panel support (createWebviewPanel for exercises and courses, responsive CSS)
-- [ ] 09-03-PLAN.md — Problem statement rendering (KaTeX math, PlantUML diagrams, comprehensive CSS, link/image handlers)
+- [x] 09-01-PLAN.md — Lucide icon system migration (iconMap.ts, ArtemisLogo.tsx, IconButton presets, all consumer migration) (completed 2026-02-25, 6 minutes)
+- [x] 09-02-PLAN.md — Fullscreen panel support (createWebviewPanel for exercises and courses, responsive CSS) (completed 2026-02-25, 3 minutes)
+- [x] 09-03-PLAN.md — Problem statement rendering (KaTeX math, PlantUML diagrams, comprehensive CSS, link/image handlers) (completed 2026-02-25, 4 minutes)
 
 ### Phase 10: Testing Infrastructure
 **Goal**: Establish comprehensive testing foundation with Vitest for React components
@@ -80,8 +80,8 @@ Plans:
 **Plans**: 2 plans
 
 Plans:
-- [ ] 10-01-PLAN.md — Vitest installation, configuration, test helpers, directory reorganization, npm script updates
-- [ ] 10-02-PLAN.md — Sample tests (Button, useDashboardStore, LoginView bridge) and helper README documentation
+- [x] 10-01-PLAN.md — Vitest installation, configuration, test helpers, directory reorganization, npm script updates
+- [x] 10-02-PLAN.md — Sample tests (Button, useDashboardStore, LoginView bridge) and helper README documentation
 
 ### Phase 11: Bundle Optimization
 **Goal**: Implement bundle analysis tooling and verify tree-shaking for optimized dependency bundling
@@ -125,13 +125,13 @@ Plans:
 - [x] 12-06-PLAN.md — (Gap closure) Eliminate any from extension host command handlers (partial: 4/8 files done)
 - [x] 12-07-PLAN.md — (Gap closure) Eliminate any from webview React views and shared modules (partial: stores done)
 - [x] 12-08-PLAN.md — (Gap closure) Fix webview provider and React view TypeScript compilation errors
-- [ ] 12-09-PLAN.md — (Gap closure) Fix type export conflicts and message contract gaps (foundation)
-- [ ] 12-10-PLAN.md — (Gap closure) Eliminate any from remaining 10 service files (72 ESLint errors)
-- [ ] 12-11-PLAN.md — (Gap closure) Eliminate any from remaining 3 command handler files (62 ESLint errors)
-- [ ] 12-12-PLAN.md — (Gap closure) Fix React view payload typing (13 view files, ~25 ESLint errors)
-- [ ] 12-13-PLAN.md — (Gap closure) Fix provider and command handler compilation errors (alignment)
-- [ ] 12-14-PLAN.md — (Gap closure) Fix api/auth/utils/types ESLint errors (56 errors)
-- [ ] 12-15-PLAN.md — (Gap closure) Fix React hooks/stores/shared component typing (10 files, ~12 ESLint errors)
+- [x] 12-09-PLAN.md — (Gap closure) Fix type export conflicts and message contract gaps (foundation)
+- [x] 12-10-PLAN.md — (Gap closure) Eliminate any from remaining 10 service files (72 ESLint errors)
+- [x] 12-11-PLAN.md — (Gap closure) Eliminate any from remaining 3 command handler files (62 ESLint errors)
+- [x] 12-12-PLAN.md — (Gap closure) Fix React view payload typing (13 view files, ~25 ESLint errors)
+- [x] 12-13-PLAN.md — (Gap closure) Fix provider and command handler compilation errors (alignment)
+- [x] 12-14-PLAN.md — (Gap closure) Fix api/auth/utils/types ESLint errors (56 errors)
+- [x] 12-15-PLAN.md — (Gap closure) Fix React hooks/stores/shared component typing (10 files, ~12 ESLint errors)
 
 ### Phase 13: Component Test Suite
 **Goal**: Comprehensive unit tests for React components, Zustand stores, and critical user flows
@@ -174,7 +174,7 @@ Plans:
 **Plans**: 1 plan
 
 Plans:
-- [ ] 15-01-PLAN.md — Implement openExternalLink and openImagePreview handlers with protocol validation, trusted domains, and image preview
+- [x] 15-01-PLAN.md — Implement openExternalLink and openImagePreview handlers with protocol validation, trusted domains, and image preview (completed 2026-02-25, 3.6 minutes)
 
 ## Progress
 
@@ -194,15 +194,15 @@ Plans:
 | 6. Iris Chat with Streaming | v1.0 | 3/3 | Complete | 2026-02-24 |
 | 7. Cleanup & Optimization | v1.0 | 4/4 | Complete | 2026-02-24 |
 | 8. Architecture Review | v1.1 | 2/2 | Complete | 2026-02-25 |
-| 9. UI Polish & Icons | v1.1 | 0/3 | Planned | - |
-| 10. Testing Infrastructure | 2/2 | Complete    | 2026-02-25 | - |
-| 11. Bundle Optimization | 4/4 | Complete    | 2026-02-25 | - |
-| 12. TypeScript Strict Mode | 15/15 | Complete    | 2026-02-26 | - |
+| 9. UI Polish & Icons | v1.1 | 3/3 | Complete | 2026-02-25 |
+| 10. Testing Infrastructure | v1.1 | 2/2 | Complete | 2026-02-25 |
+| 11. Bundle Optimization | v1.1 | 4/4 | Complete | 2026-02-25 |
+| 12. TypeScript Strict Mode | v1.1 | 15/15 | Complete | 2026-02-26 |
 | 13. Component Test Suite | v1.1 | 0/? | Not started | - |
 | 14. Dependency Cleanup | v1.1 | 0/? | Not started | - |
-| 15. Command Handler Gap Closure | 1/1 | Complete    | 2026-02-25 | - |
+| 15. Command Handler Gap Closure | v1.1 | 1/1 | Complete | 2026-02-25 |
 
 ---
 
 *Created: 2026-02-23 (v1.0)*
-*Updated: 2026-02-25 (Phase 8 complete — architecture audit delivered)*
+*Updated: 2026-02-27 (Tracking alignment — all completed phases marked)*
