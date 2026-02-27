@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: Production Ready
 status: unknown
-last_updated: "2026-02-27T14:45:59.109Z"
+last_updated: "2026-02-27T15:40:51.968Z"
 progress:
-  total_phases: 7
+  total_phases: 8
   completed_phases: 7
-  total_plans: 35
-  completed_plans: 35
+  total_plans: 38
+  completed_plans: 37
 ---
 
 # Project State
@@ -24,9 +24,9 @@ See: .planning/PROJECT.md (updated 2026-02-25)
 
 Milestone: v1.1 Production Ready
 Phase: 14 (Dependency Cleanup & Security Audit) — IN PROGRESS
-Plan: 2 of N (14-02 COMPLETE — CSP hardening, crypto.randomBytes nonce, localResourceRoots narrowed, dead code deleted, regression test)
+Plan: 2 of N (14-01 COMPLETE — knip config, clsx to deps, @types/katex to devDeps, clean lock file; 14-02 COMPLETE — CSP hardening, crypto.randomBytes nonce, localResourceRoots narrowed, dead code deleted, regression test)
 Status: In Progress
-Last activity: 2026-02-27 — Executed 14-02 (CLEAN-02: CSP nonce crypto.randomBytes, localResourceRoots dist/ least privilege, openFullscreenPanel dead code removed, 6 CSP regression tests)
+Last activity: 2026-02-27 — Executed 14-01 (CLEAN-01: knip.json dual-entry, clsx dependency placement fixed, @types/katex moved to devDeps, package-lock.json regenerated clean, 2 pre-existing TS errors fixed)
 
 Progress: [████████████████] 96% (v1.0: 7/7 complete, v1.1: 7/8 phases complete, 35/35 plans complete + Phase 14 in progress)
 
@@ -167,6 +167,8 @@ Recent decisions affecting v1.1 work:
 - [Phase 13-08]: Error boundary tested inline (React.Component class in test file) — no external library needed for basic fallback rendering verification
 - [Phase 13-08]: ExamTimer Worker tested via useExamTimer mock (same approach as Phase 13-02) — esbuild-plugin-inline-worker transforms are unavailable in Vitest SSR environment
 - [Phase 13-08]: MessageContracts tests use TypeScript satisfies for compile-time shape verification + isExtensionMessage/isWebviewMessage guards for runtime validation — catches contract drift at both build and test time
+- [Phase 14]: knip.json dual-entry config for VS Code extension (extension.ts + index.tsx)
+- [Phase 14]: Accept 3 low-severity vulns in @vscode/test-cli -> mocha -> diff chain (devDep only, fix requires breaking downgrade)
 
 ### Pending Todos
 
@@ -200,7 +202,7 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-27
-Stopped at: Completed 14-02-PLAN.md (CLEAN-02 complete — crypto.randomBytes nonce, localResourceRoots narrowed to dist/, dead openFullscreenPanel deleted, 6 CSP regression tests passing)
+Stopped at: Completed 14-01-PLAN.md (CLEAN-01 complete — knip.json dual-entry, clsx to dependencies, @types/katex to devDeps, clean lock file, 2 pre-existing TS errors fixed)
 Resume with: /gsd:execute-phase 14 (continue Phase 14 plan 3+)
 
 ### Decisions (Phase 14-02)
