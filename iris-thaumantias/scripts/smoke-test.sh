@@ -23,27 +23,14 @@ echo "[2/4] Bundle size report (webview):"
 npm run analyze:text 2>/dev/null || echo "  (run 'npm run package' first to generate metafile)"
 echo ""
 
-# Step 3: Install in clean profile
-echo "[3/4] Installing in clean VS Code profile..."
-# Try --profile-temp first (older VS Code), fall back to no special profile
-if code --help 2>/dev/null | grep -q "\-\-profile-temp"; then
-    code --profile-temp --install-extension "$VSIX"
-    echo ""
-    echo "[4/4] Launching VS Code with clean profile..."
-    code --profile-temp
-elif code --help 2>/dev/null | grep -q "\-\-transient"; then
-    code --transient --install-extension "$VSIX"
-    echo ""
-    echo "[4/4] Launching VS Code with transient profile..."
-    code --transient
-else
-    echo "  WARNING: Neither --profile-temp nor --transient flag available."
-    echo "  Install manually: code --install-extension $VSIX"
-    echo ""
-    echo "[4/4] Launching VS Code..."
-    code --install-extension "$VSIX"
-    code
-fi
+# Step 3: Install extension in IRIS profile
+echo "[3/4] Installing extension in IRIS profile..."
+code --profile IRIS --install-extension "$VSIX"
+echo ""
+
+# Step 4: Open a new window for testing
+echo "[4/4] Opening new VS Code window with IRIS profile..."
+code --profile IRIS --new-window .
 
 echo ""
 echo "=== Manual Verification Checklist ==="

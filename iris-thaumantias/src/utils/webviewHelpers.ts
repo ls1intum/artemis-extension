@@ -34,12 +34,10 @@ export function getNonce(): string {
 export function getReactWebviewHtml(webview: vscode.Webview, extensionUri: vscode.Uri, viewName?: string): string {
     const nonce = getNonce();
 
-    // Build URIs for React bundle and base CSS
+    // Build URIs for React bundle and CSS
+    // Note: base.css is bundled into webview-react.css via index.tsx import
     const scriptUri = webview.asWebviewUri(
         vscode.Uri.joinPath(extensionUri, 'dist', 'webview-react.js')
-    );
-    const styleUri = webview.asWebviewUri(
-        vscode.Uri.joinPath(extensionUri, 'dist', 'base.css')
     );
     const reactStyleUri = webview.asWebviewUri(
         vscode.Uri.joinPath(extensionUri, 'dist', 'webview-react.css')
@@ -62,7 +60,6 @@ export function getReactWebviewHtml(webview: vscode.Webview, extensionUri: vscod
     -->
     <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src ${webview.cspSource} https:; font-src ${webview.cspSource}; style-src ${webview.cspSource} 'nonce-${nonce}'; script-src 'nonce-${nonce}';">
     <title>Artemis</title>
-    <link rel="stylesheet" type="text/css" href="${styleUri}" nonce="${nonce}">
     <link rel="stylesheet" type="text/css" href="${reactStyleUri}" nonce="${nonce}">
 </head>
 <body>
