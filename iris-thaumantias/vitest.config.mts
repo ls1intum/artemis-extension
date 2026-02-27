@@ -11,10 +11,20 @@ export default defineConfig({
 		css: true,
 		coverage: {
 			provider: 'v8',
-			reporter: ['text', 'html', 'lcov'],
+			reporter: ['text', 'text-summary', 'html', 'lcov'],
 			reportsDirectory: './coverage/react',
-			include: ['src/views/webview/react/**/*.{ts,tsx}'],
-			exclude: ['**/*.test.{ts,tsx}', '**/*.d.ts', '**/index.ts', '**/types.ts'],
+			include: [
+				'src/views/webview/react/**/*.{ts,tsx}',
+			],
+			exclude: [
+				'**/*.test.{ts,tsx}',
+				'**/*.d.ts',
+				'**/index.ts',
+				'**/types.ts',
+				'src/views/webview/react/**/*.css.ts',
+			],
+			// Track only — do NOT fail builds (CONTEXT.md decision)
+			// thresholds: { /* intentionally not set */ }
 		},
 	},
 });
