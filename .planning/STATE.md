@@ -141,6 +141,11 @@ Recent decisions affecting v1.1 work:
 - [Phase 13-03]: useExamExerciseDetailStore only stores examContext; exerciseData and hideDeveloperTools are delegated to view layer
 - [Phase 13-02]: Mock useExamTimer hook via vi.mock instead of global Worker mock — esbuild-plugin-inline-worker import fails in Vitest SSR transform environment
 - [Phase 13-02]: SideMenu visibility is CSS-driven not conditional rendering — children always in DOM even when isOpen=false, tests account for this
+- [Phase 13-04]: Mock streamdown as JSX element factory in vi.mock — ESM-only package incompatible with Vitest without mocking
+- [Phase 13-04]: Use Object.defineProperty with writable+configurable flags for navigator.clipboard — Object.assign fails on read-only navigator properties in happy-dom
+- [Phase 13-04]: CodeBlock tests structure-only (no Shiki token assertions) — all 27 Shiki lang/theme dynamic imports mocked
+- [Phase 13-04]: Mock use-stick-to-bottom with {current: null} refs — ESM package, refs don't affect DOM assertions
+- [Phase 13-04]: useStreamingMessage and useAutoScroll tested through components (no separate hook test files per CONTEXT.md decision)
 
 ### Pending Todos
 
@@ -174,8 +179,8 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-27
-Stopped at: Completed 13-02-PLAN.md (interactive/functional component tests — 10 test files, 112 tests; also completed 13-03)
-Resume with: /gsd:execute-phase 13 (next pending plans)
+Stopped at: Completed 13-04-PLAN.md (IrisChat sub-component tests — 9 test files, 103 tests)
+Resume with: /gsd:execute-phase 13 plan 05 (next pending plans)
 
 ---
 
