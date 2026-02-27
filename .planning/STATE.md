@@ -1,14 +1,14 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.1
+milestone: v1.0
 milestone_name: Production Ready
-status: in-phase
-last_updated: "2026-02-27T14:02:00.000Z"
+status: unknown
+last_updated: "2026-02-27T14:05:33.140Z"
 progress:
-  total_phases: 8
+  total_phases: 7
   completed_phases: 6
   total_plans: 35
-  completed_plans: 28
+  completed_plans: 31
 ---
 
 # Project State
@@ -24,11 +24,11 @@ See: .planning/PROJECT.md (updated 2026-02-25)
 
 Milestone: v1.1 Production Ready
 Phase: 13 (Component Test Suite) — in progress
-Plan: 1 of 8 (13-01 COMPLETE)
+Plan: 4 of 8 (13-04 COMPLETE)
 Status: In Phase
-Last activity: 2026-02-27 — Executed 13-01 (simple and display component tests: 12 test files, 64 tests)
+Last activity: 2026-02-27 — Executed 13-04 (IrisChat sub-component tests: 9 test files, 103 tests)
 
-Progress: [████████████░░░] 82% (v1.0: 7/7 complete, v1.1: 6/8 phases complete, 28/35 plans complete)
+Progress: [█████████████░░] 89% (v1.0: 7/7 complete, v1.1: 6/8 phases complete, 31/35 plans complete)
 
 ## Performance Metrics
 
@@ -132,6 +132,12 @@ Recent decisions affecting v1.1 work:
 - [Phase 13-01]: For ListItem/Button disabled state: verify aria-disabled attribute rather than attempting userEvent.click (CSS pointer-events: none prevents click interaction)
 - [Phase 13-01]: SkeletonList count verified by counting aria-busy elements (3 per item: 1 circular + 2 content lines) — avoids CSS class name assertions
 - [Phase 13-01]: Breadcrumbs empty segments: component returns null, verified via container.firstChild === null
+- [Phase 13-03]: updateBuildStatus in useExerciseDetailStore uses findParticipationForResult — finds participation by existing result id; new result ids not in any participation are silently ignored (upsert-by-id semantics)
+- [Phase 13-03]: useNavigationStore abbreviateLabel truncates at 17 chars + '...' = 20-char max total; tests verify this boundary
+- [Phase 13-03]: useChatStore does not send postMessages directly — no postMessage assertions needed in store unit tests
+- [Phase 13-03]: useExamExerciseDetailStore only stores examContext; exerciseData and hideDeveloperTools are delegated to view layer
+- [Phase 13-02]: Mock useExamTimer hook via vi.mock instead of global Worker mock — esbuild-plugin-inline-worker import fails in Vitest SSR transform environment
+- [Phase 13-02]: SideMenu visibility is CSS-driven not conditional rendering — children always in DOM even when isOpen=false, tests account for this
 
 ### Pending Todos
 
@@ -165,8 +171,8 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-27
-Stopped at: Completed 13-01-PLAN.md (simple and display component tests — 12 files, 64 tests)
-Resume with: /gsd:execute-phase 13 plan 02 (complex components with store dependencies)
+Stopped at: Completed 13-03-PLAN.md (Zustand store tests — 9 store test files, 143 tests)
+Resume with: /gsd:execute-phase 13 plan 05 (next pending plan)
 
 ---
 

@@ -27,7 +27,7 @@ Requirements for v1.1 Production Ready. Each maps to roadmap phases.
 ### Testing
 
 - [x] **TEST-01**: Vitest + React Testing Library + happy-dom configured with VS Code API mocks and test:react script
-- [ ] **TEST-02**: Unit tests for shared React components (22 components) and Zustand stores (9 stores)
+- [x] **TEST-02**: Unit tests for shared React components (22 components) and Zustand stores (9 stores)
 - [ ] **TEST-03**: Expanded UI tests for critical flows (course browsing, exercise submission, Iris chat)
 
 ### Architecture Review
@@ -88,7 +88,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | TYPE-01 | Phase 12 | Complete |
 | TYPE-02 | Phase 12 | Complete |
 | TYPE-03 | Phase 12 | Complete |
-| TEST-02 | Phase 13 | Pending |
+| TEST-02 | Phase 13 | Complete |
 | TEST-03 | Phase 13 | Pending |
 | CLEAN-01 | Phase 14 | Pending |
 | CLEAN-02 | Phase 14 | Pending |
