@@ -148,6 +148,13 @@ Verify all 10 checklist items:
 - All 815 tests passing
 - Phase 14 complete pending human verification of .vsix in clean environment
 
+## Self-Check: PASSED
+
+- `iris-thaumantias/scripts/smoke-test.sh` — FOUND
+- `.planning/phases/14-dependency-cleanup-security-audit/14-03-SUMMARY.md` — FOUND
+- Commit `0e5eee5` (Task 1) — FOUND
+- Commit `e3f4a97` (metadata) — FOUND
+
 ---
 *Phase: 14-dependency-cleanup-security-audit*
 *Completed: 2026-02-27*
