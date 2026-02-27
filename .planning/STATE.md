@@ -1,9 +1,9 @@
 ---
 gsd_state_version: 1.0
 milestone: v1.2
-milestone_name: TBD
+milestone_name: E2E & Integration Testing
 status: planning
-last_updated: "2026-02-27T17:00:00Z"
+last_updated: "2026-02-27T18:00:00Z"
 progress:
   total_phases: 0
   completed_phases: 0
@@ -18,14 +18,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-02-27)
 
 **Core value:** Students can interact with Artemis courses, exercises, and the Iris AI tutor without leaving VS Code.
-**Current focus:** Planning next milestone (v1.2)
+**Current focus:** v1.2 E2E & Integration Testing — defining requirements
 
 ## Current Position
 
-Milestone: v1.1 Production Ready — SHIPPED 2026-02-27
-Next: v1.2 (not yet defined — run `/gsd:new-milestone`)
-Status: Between milestones
-Last activity: 2026-02-27 — v1.1 milestone archived
+Phase: Not started (defining requirements)
+Plan: —
+Status: Defining requirements
+Last activity: 2026-02-27 — Milestone v1.2 started
 
 Progress: v1.0 shipped (7 phases, 24 plans), v1.1 shipped (8 phases, 38 plans)
 
@@ -67,9 +67,9 @@ None.
 ## Session Continuity
 
 Last session: 2026-02-27
-Action: v1.1 milestone completed and archived. Start next milestone with `/gsd:new-milestone`.
+Action: v1.2 milestone started — defining requirements.
 
 ---
 
 *Created: 2026-02-23 (v1.0)*
-*Updated: 2026-02-27 (v1.1 milestone archived)*
+*Updated: 2026-02-27 (v1.2 milestone started)*

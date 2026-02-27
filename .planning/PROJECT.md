@@ -36,7 +36,15 @@ Students can interact with Artemis courses, exercises, and the Iris AI tutor wit
 
 ### Active
 
-(None — next milestone requirements defined via `/gsd:new-milestone`)
+## Current Milestone: v1.2 E2E & Integration Testing
+
+**Goal:** Comprehensive test coverage with integration tests for the extension↔webview bridge, full E2E tests for all 12 views in VS Code, and resolution of carried tech debt.
+
+**Target features:**
+- Integration tests for extension host ↔ webview message bridge and store hydration
+- E2E test infrastructure (framework research, VS Code test runner, CI)
+- E2E tests for all 12 webview views
+- Tech debt: WebSocket error propagation, state persistence, silent exam fetch errors, circular deps
 
 ### Out of Scope
 
@@ -162,4 +170,4 @@ Students can interact with Artemis courses, exercises, and the Iris AI tutor wit
 
 ---
 
-*Last updated: 2026-02-27 after v1.1 milestone*
+*Last updated: 2026-02-27 after v1.2 milestone start*
