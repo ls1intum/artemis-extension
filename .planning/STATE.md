@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: E2E & Integration Testing
 status: unknown
-last_updated: "2026-02-28T21:50:00Z"
+last_updated: "2026-02-28T22:00:00Z"
 progress:
   total_phases: 5
   completed_phases: 4
   total_plans: 17
-  completed_plans: 15
+  completed_plans: 16
 ---
 
 # Project State
@@ -23,11 +23,11 @@ See: .planning/PROJECT.md (updated 2026-02-28)
 ## Current Position
 
 Phase: 20 of 20 (E2E View Coverage, Interactions, Accessibility & Cleanup)
-Plan: 03 complete — 3/6 Phase 20 plans done
+Plan: 04 complete — 4/6 Phase 20 plans done
 Status: In progress
-Last activity: 2026-02-28 — 20-03 complete: 7 E2E smoke tests for ExamStart, ExamConduction, ExamExerciseDetail, IrisChat, ServiceStatus, GitCredentials, RecommendedExtensions — 12/12 view coverage achieved
+Last activity: 2026-02-28 — 20-04 complete: E2EX-01 Dashboard assertion added to login-flow test, E2EX-02 exercise submission → build progress interaction test created
 
-Progress: [█████░░░░░] 56% (v1.2, 12/17 plans done across phases 16-20) — v1.0 + v1.1 complete (15 phases, 62 plans)
+Progress: [██████░░░░] 59% (v1.2, 13/17 plans done across phases 16-20) — v1.0 + v1.1 complete (15 phases, 62 plans)
 
 ## Performance Metrics
 
@@ -54,6 +54,7 @@ Progress: [█████░░░░░] 56% (v1.2, 12/17 plans done across ph
 - Phase 20 Plan 01: ~2 min | 2 tasks | 4 files | axe-core injection helper (WCAG 2.1 AA) + knip dead-code tooling + E2EV-01 confirmed
 - Phase 20 Plan 02: ~5 min | 2 tasks | 4 files | 4 E2E smoke tests for Dashboard, CourseList, CourseDetail, ExerciseDetail (E2EV-02 through E2EV-05)
 - Phase 20 Plan 03: ~3 min | 2 tasks | 7 files | 7 E2E smoke tests for exam views + IrisChat + ServiceStatus + GitCredentials + RecommendedExtensions (E2EV-06 through E2EV-12) — 12/12 view coverage
+- Phase 20 Plan 04: ~5 min | 2 tasks | 2 files | E2EX-01 Dashboard heading assertion in login-flow test + E2EX-02 exercise submission → build progress interaction test (triple-gated skip)
 
 ## Accumulated Context
 
@@ -90,6 +91,9 @@ Progress: [█████░░░░░] 56% (v1.2, 12/17 plans done across ph
 - [Phase 20]: ExamStart/ExamConduction/ExamExerciseDetail tests skip at every navigation step — live exam required in CI would always produce pending status, not failure
 - [Phase 20]: IrisChat uses ActivityBar.getViewControl('Chat') — separate VS Code sidebar panel, not accessible via openArtemisView()
 - [Phase 20]: E2EV-10 remapped to GitCredentials, E2EV-11 to RecommendedExtensions — BuildFeedback/ProblemStatement are subcomponents, not standalone views
+- [Phase 20-04]: E2EX-01 uses waitForElement h1 CSS selector (not XPath) — h1 is standard semantic element; absence of form #username confirms Dashboard showing
+- [Phase 20-04]: E2EX-02 triple-gated skip — ARTEMIS_USER + ARTEMIS_PASS + ARTEMIS_EXERCISE_ID all required; sequential it() tests valid for Mocha interaction flows; graceful skip at each navigation step
+- [Phase 20-04]: E2EX-02 assert.ok on progressIndicator is the core assertion (not this.skip) — build progress is the required outcome, not optional
 
 ### Pending Todos
 
@@ -109,10 +113,10 @@ None.
 ## Session Continuity
 
 Last session: 2026-02-28
-Stopped at: Phase 20 Plan 03 complete — 7 E2E smoke tests for remaining views; 12/12 webview E2E coverage achieved. Exam views skip gracefully at every navigation step (live exam required). IrisChat uses ActivityBar separate panel. ServiceStatus asserts #serverUrl.
+Stopped at: Phase 20 Plan 04 complete — E2EX-01 Dashboard assertion in login-flow test, E2EX-02 exercise submission interaction test with triple-gated skip (ARTEMIS_EXERCISE_ID). 4/6 Phase 20 plans done.
 Resume file: None
 
 ---
 
 *Created: 2026-02-23 (v1.0)*
-*Updated: 2026-02-28 (20-03 complete)*
+*Updated: 2026-02-28 (20-04 complete)*

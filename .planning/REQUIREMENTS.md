@@ -37,8 +37,8 @@ Requirements for milestone v1.2: E2E & Integration Testing + Cleanup. Each maps 
 
 ### E2E Interaction Tests
 
-- [ ] **E2EX-01**: E2E interaction test for login flow — enter credentials, click login, verify authenticated state
-- [ ] **E2EX-02**: E2E interaction test for exercise submission flow — open exercise, submit, verify build progress
+- [x] **E2EX-01**: E2E interaction test for login flow — enter credentials, click login, verify authenticated state
+- [x] **E2EX-02**: E2E interaction test for exercise submission flow — open exercise, submit, verify build progress
 
 ### Accessibility
 
@@ -100,8 +100,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 | E2EV-10 | Phase 20 | Complete |
 | E2EV-11 | Phase 20 | Complete |
 | E2EV-12 | Phase 20 | Complete |
-| E2EX-01 | Phase 20 | Pending |
-| E2EX-02 | Phase 20 | Pending |
+| E2EX-01 | Phase 20 | Complete |
+| E2EX-02 | Phase 20 | Complete |
 | A11Y-01 | Phase 20 | Complete |
 | DEBT-01 | Phase 17 | Complete |
 | DEBT-02 | Phase 17 | Complete |
