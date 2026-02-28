@@ -2,13 +2,13 @@
 gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: E2E & Integration Testing
-status: planning
-last_updated: "2026-02-28T12:35:00Z"
+status: unknown
+last_updated: "2026-02-28T12:38:36.523Z"
 progress:
-  total_phases: 5
-  completed_phases: 0
+  total_phases: 1
+  completed_phases: 1
   total_plans: 3
-  completed_plans: 2
+  completed_plans: 3
 ---
 
 # Project State
@@ -23,11 +23,11 @@ See: .planning/PROJECT.md (updated 2026-02-28)
 ## Current Position
 
 Phase: 16 of 20 (Integration Test Infrastructure)
-Plan: 02 complete, 03 next
-Status: In progress
-Last activity: 2026-02-28 — 16-02 complete: fixture factories + bridge contract tests
+Plan: 03 complete — Phase 16 COMPLETE
+Status: In progress (Phase 17 next)
+Last activity: 2026-02-28 — 16-03 complete: removed redundant store resets, 876 tests order-independent
 
-Progress: [██░░░░░░░░] 20% (v1.2, 2/3 Phase 16 plans done) — v1.0 + v1.1 complete (15 phases, 62 plans)
+Progress: [███░░░░░░░] 30% (v1.2, 3/3 Phase 16 plans done) — v1.0 + v1.1 complete (15 phases, 62 plans)
 
 ## Performance Metrics
 
@@ -42,6 +42,7 @@ Progress: [██░░░░░░░░] 20% (v1.2, 2/3 Phase 16 plans done) �
 **v1.2 Milestone (In Progress):**
 - Phase 16 Plan 01: 7 min | 2 tasks | 3 files
 - Phase 16 Plan 02: ~3 min | 2 tasks | 14 files | 61 new tests (876 total)
+- Phase 16 Plan 03: 12 min | 2 tasks | 20 files | 876 tests passing order-independently
 
 ## Accumulated Context
 
@@ -53,6 +54,7 @@ Progress: [██░░░░░░░░] 20% (v1.2, 2/3 Phase 16 plans done) �
 - Store reset pattern: direct getState() reference (not structuredClone/JSON.parse) + setState(state, true) replace flag; configurable:true required on initial acquireVsCodeApi defineProperty for re-definition in beforeEach
 - Fixture factory pattern: Partial<XxxMessage['payload']> override parameter with spread after minimal defaults — return type annotation enforces shape, no type assertions needed
 - createGenericInitPayload takes view as required first arg (not override) because view is the state machine discriminator
+- [Phase 16]: Per-test default-state resets are redundant when global resetTestState() is wired: remove all beforeEach blocks whose sole purpose is resetting stores to initial values
 
 ### Pending Todos
 
@@ -72,10 +74,10 @@ None.
 ## Session Continuity
 
 Last session: 2026-02-28
-Stopped at: Phase 16 Plan 02 complete — fixture factories + bridge contract tests done. Next: 16-03.
+Stopped at: Phase 16 Plan 03 complete — all redundant store resets removed, 876/876 passing on two consecutive runs. Phase 16 COMPLETE. Next: Phase 17 (bridge message integration tests).
 Resume file: None
 
 ---
 
 *Created: 2026-02-23 (v1.0)*
-*Updated: 2026-02-28 (16-02 complete)*
+*Updated: 2026-02-28 (16-03 complete)*
