@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: E2E & Integration Testing
 status: unknown
-last_updated: "2026-02-28T19:51:15Z"
+last_updated: "2026-02-28T19:55:34.642Z"
 progress:
-  total_phases: 2
-  completed_phases: 2
+  total_phases: 3
+  completed_phases: 3
   total_plans: 9
-  completed_plans: 7
+  completed_plans: 9
 ---
 
 # Project State
@@ -47,7 +47,7 @@ Progress: [████░░░░░░] 40% (v1.2, 7/9 plans done across phas
 - Phase 17 Plan 02: ~3 min | 2 tasks | 2 files | 6 new tests (visibility listener + hide/show state persistence)
 - Phase 17 Plan 03: 3 min | 1 task | 1 file | 7 new tests (sender-swap + dispatch + error recovery)
 - Phase 18 Plan 01: 2 min | 2 tasks | 6 files | 0 new tests (circular dependency resolution via interface extraction, 880 total)
-- Phase 18 Plan 02: TBD
+- Phase 18 Plan 02: 4 min | 2 tasks | 4 files | 12 new tests (storeHydration flow, 892 total)
 - Phase 18 Plan 03: ~2 min | 2 tasks | 4 files | 4 new tests (exam fetch error visibility + retry flow, 880 total)
 
 ## Accumulated Context
@@ -70,6 +70,8 @@ Progress: [████░░░░░░] 40% (v1.2, 7/9 plans done across phas
 - [Phase 18-01]: IChatWebviewProvider reason parameter must be optional (reason?: string) to match concrete class's optional ChatContextReason default — TypeScript contravariance rejects narrow optional type satisfying required broad type
 - [Phase 18-01]: IArtemisWebviewProvider is intentionally empty — ProviderRegistry only stores/retrieves, no methods called through getter externally
 - [Phase 18-01]: getSelectedContext() must be in IChatWebviewProvider — called in extension.ts:284 through registry getter (missed by plan's grep)
+- [Phase 18-02]: Mock useExamTimer hook in storeHydration tests — esbuild-plugin-inline-worker Web Worker constructor fails in Vitest SSR; use vi.mock() same pattern as ExamTimer.test.tsx
+- [Phase 18-02]: Wrap render() in await act() for complex views (ExamConduction, ExamExerciseDetail, IrisChatView) — concurrent React work on mount causes 'Should not already be working' during cleanup
 
 ### Pending Todos
 
@@ -89,10 +91,10 @@ None.
 ## Session Continuity
 
 Last session: 2026-02-28
-Stopped at: Phase 18 Plan 01 complete — circular dependency cycles severed via IChatWebviewProvider + IArtemisWebviewProvider extraction to src/types/, ProviderRegistry now uses interfaces only, 0 madge cycles, 880 tests passing.
+Stopped at: Phase 18 Plan 02 complete — 12 storeHydration flow tests proving all Init message types hydrate their Zustand stores/local state correctly, 892 tests passing.
 Resume file: None
 
 ---
 
 *Created: 2026-02-23 (v1.0)*
-*Updated: 2026-02-28 (18-01 complete)*
+*Updated: 2026-02-28 (18-02 complete)*

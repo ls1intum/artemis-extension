@@ -45,7 +45,7 @@ Full details: milestones/v1.1-ROADMAP.md
 
 - [x] **Phase 16: Integration Test Infrastructure** — Shared test helpers, store reset, bridge handshake utilities, contract scaffolding (completed 2026-02-28)
 - [x] **Phase 17: Extension Host Bridge Tests** — Mocha host-side tests, WebSocket error propagation fix, state persistence fix (completed 2026-02-28)
-- [ ] **Phase 18: Webview Flow Test Completeness** — Vitest store hydration round-trips for all 12 views, circular dep fix, exam error fix
+- [x] **Phase 18: Webview Flow Test Completeness** — Vitest store hydration round-trips for all 12 views, circular dep fix, exam error fix (completed 2026-02-28)
 - [ ] **Phase 19: E2E Infrastructure & CI** — Framework decision documented, GitHub Actions workflow, screenshot-on-failure
 - [ ] **Phase 20: E2E View Coverage, Interactions, Accessibility & Cleanup** — All 12 view smoke tests, interaction tests, axe-core, migration-era code removal
 
@@ -136,7 +136,7 @@ Full details: milestones/v1.1-ROADMAP.md
 | 15. Command Handler Gap Closure | v1.1 | 1/1 | Complete | 2026-02-25 |
 | 16. Integration Test Infrastructure | 3/3 | Complete    | 2026-02-28 | - |
 | 17. Extension Host Bridge Tests | 3/3 | Complete    | 2026-02-28 | - |
-| 18. Webview Flow Test Completeness | 2/3 | In Progress|  | - |
+| 18. Webview Flow Test Completeness | 3/3 | Complete   | 2026-02-28 | - |
 | 19. E2E Infrastructure & CI | v1.2 | 0/TBD | Not started | - |
 | 20. E2E View Coverage & Cleanup | v1.2 | 0/TBD | Not started | - |
 
