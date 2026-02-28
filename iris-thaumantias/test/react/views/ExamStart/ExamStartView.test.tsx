@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ExamStartView } from '../../../../src/views/webview/react/views/ExamStart/ExamStartView';
 import { useExamStartStore } from '../../../../src/views/webview/react/stores/useExamStartStore';
@@ -254,5 +254,44 @@ describe('ExamStartView', () => {
 				command: 'backToCourseDetails',
 			})
 		);
+	});
+});
+
+describe('exam fetch error handling', () => {
+	it('displays error message when extension host sends error', async () => {
+		const mockApi = createMockVsCodeApi();
+		render(<ExamStartView vscodeApi={mockApi} />);
+
+		await act(async () => {
+			dispatchExtensionMessage({
+				type: 'error',
+				payload: { message: 'Failed to load exam: Network error' },
+			});
+		});
+
+		expect(screen.getByText('Failed to load exam: Network error')).toBeInTheDocument();
+		expect(screen.getByRole('button', { name: /Retry/i })).toBeInTheDocument();
+	});
+
+	it('clears error and re-sends ready on retry click', async () => {
+		const mockApi = createMockVsCodeApi();
+		render(<ExamStartView vscodeApi={mockApi} />);
+
+		await act(async () => {
+			dispatchExtensionMessage({
+				type: 'error',
+				payload: { message: 'Server error' },
+			});
+		});
+
+		expect(screen.getByText('Server error')).toBeInTheDocument();
+
+		await userEvent.click(screen.getByRole('button', { name: /Retry/i }));
+
+		// Ready message re-sent (first call is on mount, second is on retry)
+		const readyCalls = (mockApi.postMessage as any).mock.calls.filter(
+			(call: any[]) => call[0]?.type === 'ready'
+		);
+		expect(readyCalls.length).toBeGreaterThanOrEqual(2);
 	});
 });

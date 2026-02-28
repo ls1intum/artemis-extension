@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ExamConductionView } from '../../../../src/views/webview/react/views/ExamConduction/ExamConductionView';
 import { useExamConductionStore } from '../../../../src/views/webview/react/stores/useExamConductionStore';
@@ -184,5 +184,44 @@ describe('ExamConductionView', () => {
 		// ExamTimer renders a timer container div
 		const timerContainer = container.querySelector('[class*="timerContainer"]');
 		expect(timerContainer).toBeInTheDocument();
+	});
+});
+
+describe('exam fetch error handling', () => {
+	it('displays error message when extension host sends error', async () => {
+		const mockApi = createMockVsCodeApi();
+		render(<ExamConductionView vscodeApi={mockApi} />);
+
+		await act(async () => {
+			dispatchExtensionMessage({
+				type: 'error',
+				payload: { message: 'Network timeout' },
+			});
+		});
+
+		expect(screen.getByText('Network timeout')).toBeInTheDocument();
+		expect(screen.getByRole('button', { name: /Retry/i })).toBeInTheDocument();
+	});
+
+	it('clears error and re-sends ready on retry click', async () => {
+		const mockApi = createMockVsCodeApi();
+		render(<ExamConductionView vscodeApi={mockApi} />);
+
+		await act(async () => {
+			dispatchExtensionMessage({
+				type: 'error',
+				payload: { message: 'Failed to fetch exam data' },
+			});
+		});
+
+		expect(screen.getByText('Failed to fetch exam data')).toBeInTheDocument();
+
+		await userEvent.click(screen.getByRole('button', { name: /Retry/i }));
+
+		// Ready message re-sent (first call is on mount, second is on retry)
+		const readyCalls = (mockApi.postMessage as any).mock.calls.filter(
+			(call: any[]) => call[0]?.type === 'ready'
+		);
+		expect(readyCalls.length).toBeGreaterThanOrEqual(2);
 	});
 });
