@@ -1,817 +1,697 @@
-# Architecture Research: Production Readiness Integration
+# Architecture Research: E2E & Integration Testing Integration
 
-**Domain:** VS Code Extension Webview Architecture (Production Readiness)
-**Researched:** 2026-02-25
-**Confidence:** HIGH
-
-## Executive Summary
-
-This research focuses on how production readiness features (Lucide icons, bundle optimization, strict TypeScript, comprehensive testing) integrate with the existing React webview architecture. The extension uses a dual-target esbuild setup (CJS for extension host, IIFE for webviews) with React 18, Zustand stores, CSS Modules, and typed message contracts.
-
-**Key Findings:**
-- **Lucide migration** requires component-level imports, minimal architecture changes
-- **Bundle optimization** limited by IIFE format (code splitting unsupported), focus on tree-shaking
-- **Strict TypeScript** requires incremental migration with typescript-strict-plugin for selective enforcement
-- **Testing expansion** needs dual strategy: Vitest for React components, existing Mocha for extension host
-
-## Current Architecture
-
-### System Overview
-
-```
-┌────────────────────────────────────────────────────────────┐
-│                    Extension Host (Node.js)                 │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐      │
-│  │ Auth Service │  │ API Service  │  │   WebSocket  │      │
-│  └──────┬───────┘  └──────┬───────┘  └──────┬───────┘      │
-│         │                 │                 │              │
-│  ┌──────┴─────────────────┴─────────────────┴───────┐      │
-│  │           WebviewProvider (postMessage)          │      │
-│  └──────────────────────┬───────────────────────────┘      │
-├────────────────────────┴────────────────────────────────────┤
-│                  Message Bridge (nonce CSP)                 │
-├─────────────────────────────────────────────────────────────┤
-│                 React Webview (Browser IIFE)                │
-│  ┌──────────────────────────────────────────────────────┐   │
-│  │  ReactApp (view router) → 12 View Components        │   │
-│  │    ↓ reads from                                      │   │
-│  │  9 Zustand Stores (useChatStore, useDashboard...)   │   │
-│  │    ↓ render                                          │   │
-│  │  22 Shared Components (Button, ListItem, Badge...)  │   │
-│  └──────────────────────────────────────────────────────┘   │
-├─────────────────────────────────────────────────────────────┤
-│               Web Workers (exam timers, background)          │
-└─────────────────────────────────────────────────────────────┘
-```
-
-### Build Pipeline
-
-```
-esbuild.js (dual-target build)
-├── Extension Host Bundle (CJS)
-│   ├── Entry: src/extension.ts
-│   ├── Format: CommonJS (Node.js)
-│   ├── Platform: node
-│   ├── External: ['vscode']
-│   └── Output: dist/extension.js (665KB)
-│
-└── Webview Bundle (IIFE)
-    ├── Entry: src/views/webview/react/index.tsx
-    ├── Format: IIFE (browser)
-    ├── Platform: browser
-    ├── Plugins:
-    │   ├── cssModulesPlugin() → camelCase class names
-    │   └── inlineWorkerPlugin() → Web Worker bundling
-    └── Output: dist/webview-react.js (3.5MB) ← OPTIMIZATION TARGET
-```
-
-**Critical constraint:** IIFE format does NOT support code splitting in esbuild ([Issue #16](https://github.com/evanw/esbuild/issues/16)). Code splitting only works with ESM format.
-
-### Component Architecture
-
-| Layer | Count | Responsibilities | File Pattern |
-|-------|-------|------------------|--------------|
-| **Views** | 12 | Full-page UI, Zustand integration | `src/views/webview/react/views/{ViewName}/` |
-| **Stores** | 9 | State management, postMessage handlers | `src/views/webview/react/stores/use{Name}Store.ts` |
-| **Components** | 22 | Reusable UI primitives | `src/views/webview/react/components/{Name}/{Name}.tsx` |
-| **Message Contracts** | 1 | Typed extension ↔ webview messages | `src/shared/messageContracts.ts` |
-
-### Current Icon System
-
-**Custom SVG System:**
-- **File:** `src/utils/iconDefinitions.ts`
-- **Format:** Raw SVG strings in Record<string, string>
-- **Usage:** `dangerouslySetInnerHTML` in components
-- **Size impact:** All SVGs bundled regardless of usage
-
-**Partial Lucide Usage:**
-- Already imported in `DashboardView.tsx`
-- Package installed: `lucide-react@0.575.0`
-- Migration incomplete
-
-## Production Readiness Integration Points
-
-### 1. Lucide React Icon Migration
-
-**Architecture Changes: MINIMAL (component-level only)**
-
-#### What Changes
-- **Modified:** All components currently using `IconDefinitions.ts` or inline SVGs
-- **Removed:** `src/utils/iconDefinitions.ts` (entire file)
-- **Pattern change:** From `dangerouslySetInnerHTML` to `<LucideIcon />` component
-
-#### Bundle Size Impact
-- **Before:** All custom SVGs bundled (~50+ icons)
-- **After:** Only imported Lucide icons bundled (tree-shaking)
-- **Import pattern critical:**
-  ```typescript
-  // ✅ CORRECT (tree-shakeable)
-  import { Check, X, Menu } from 'lucide-react';
-
-  // ❌ WRONG (imports entire library)
-  import * as Icons from 'lucide-react';
-  ```
-
-**Source:** [Lucide React documentation](https://lucide.dev/guide/packages/lucide-react) confirms tree-shaking works with named imports. [2026 Bundle Analysis](https://medium.nkcroft.com/the-hidden-bundle-cost-of-react-icons-why-lucide-wins-in-2026-1ddb74c1a86c) shows Lucide outperforms react-icons by 60%+ with proper imports.
-
-#### Implementation Pattern
-
-**IconButton.tsx refactor:**
-```typescript
-// Before: Custom SVG
-<svg width="16" height="16">
-  <path d="M12 4L4 12M4 4L12 12" stroke="currentColor"/>
-</svg>
-
-// After: Lucide component
-import { X, Check, Menu } from 'lucide-react';
-
-<IconButton icon={<X size={16} />} ariaLabel="Close" />
-```
-
-**No store changes, no message contract changes, no build config changes.**
-
-#### New Components
-None. Lucide icons drop into existing `IconButton` component pattern.
-
-#### Modified Components
-- `Button.tsx`, `IconButton.tsx`, `BackLink.tsx`, `Dropdown.tsx`
-- All view files using icons (12 views)
-- Estimated: 30-40 file modifications
-
-#### Data Flow
-**Before:** IconDefinitions → dangerouslySetInnerHTML → DOM
-**After:** lucide-react → React component → DOM
-
-No state flow changes. Icons are presentational only.
+**Domain:** VS Code Extension — E2E and Integration Testing Layer
+**Researched:** 2026-02-28
+**Confidence:** HIGH (based on direct codebase inspection)
 
 ---
 
-### 2. Bundle Optimization (IIFE Constraints)
+## System Overview
 
-**Architecture Changes: BUILD CONFIG ONLY**
+The existing system splits across two runtime contexts connected by a postMessage bridge. The v1.2 test layer must span both contexts and the boundary between them.
 
-#### Code Splitting Limitation
-
-**Critical finding:** esbuild does NOT support code splitting for IIFE format. From [esbuild Issue #2144](https://github.com/evanw/esbuild/issues/2144): "splitting currently only works with the 'esm' format."
-
-**Impact:** Cannot split `webview-react.js` into route-based chunks while maintaining IIFE format required by VS Code webviews.
-
-**Alternative:** Switch to ESM format + dynamic imports. This requires:
-1. VS Code webview HTML changes (module scripts)
-2. Runtime module loader overhead
-3. Potential CSP complications
-
-**Recommendation:** Defer to DX-03 deferred work item. Not viable for v1.1.
-
-#### What IS Possible: Tree-Shaking Optimization
-
-**Modified:** `esbuild.js` only (build config)
-
-```javascript
-// Enhanced production build
-const webviewReactCtx = await esbuild.context({
-  // ... existing config
-  minify: production,
-  treeShaking: true,  // Explicit (already default)
-  metafile: true,     // Already present for analysis
-
-  // NEW: Bundle analyzer integration
-  plugins: [
-    inlineWorkerPlugin(),
-    cssModulesPlugin(),
-    {
-      name: 'bundle-analyzer',
-      setup(build) {
-        build.onEnd(async (result) => {
-          if (production && result.metafile) {
-            // Generate visual bundle analysis
-            const text = await esbuild.analyzeMetafile(result.metafile);
-            console.log(text);
-          }
-        });
-      }
-    },
-    esbuildProblemMatcherPlugin,
-  ],
-});
 ```
+┌──────────────────────────────────────────────────────────────────────┐
+│                      Extension Host (Node.js)                        │
+│                                                                      │
+│  ArtemisWebviewProvider    ChatWebviewProvider                       │
+│        │                         │                                  │
+│  AppStateManager           ContextStore                             │
+│  WebViewMessageHandler     ChatMessageService                       │
+│  ViewRouter (12 views)     ChatSessionService                       │
+│        │                         │                                  │
+│  ┌─────┴─────────────────────────┴──────────────────────────┐       │
+│  │          postMessage Bridge (typed discriminated unions)   │       │
+│  │          src/shared/messageContracts.ts                    │       │
+│  └─────────────────────────────┬──────────────────────────────┘      │
+├───────────────────────────────┴──────────────────────────────────────┤
+│                    React Webview (Browser IIFE)                      │
+│                                                                      │
+│  App.tsx (data-view router)                                         │
+│  ├── 12 View Components (one per AppState)                          │
+│  └── 9 Zustand Stores (one per feature domain)                      │
+│                                                                      │
+│  Message flow: extension postMessage → window.message → store action │
+│  Command flow: UI event → vscodeApi.postMessage → extension handler  │
+└──────────────────────────────────────────────────────────────────────┘
 
-**New npm script:**
-```json
-"analyze": "npx esbuild-visualizer --metadata=dist/meta.json --open"
+Testing Layers (new in v1.2):
+┌──────────────────────────────────────────────────────────────────────┐
+│  Layer 1: Integration Tests (Vitest, already partially exists)       │
+│  test/react/flows/*.flow.test.tsx — tests message bridge + stores    │
+│  Uses: dispatchExtensionMessage() + createMockVsCodeApi()            │
+├──────────────────────────────────────────────────────────────────────┤
+│  Layer 2: E2E — Extension Host Unit (Mocha + @vscode/test-cli)       │
+│  test/e2e/*.e2e.test.ts — integration against live Artemis API       │
+│  Uses: real fetch, real API, real Mocha suite/test runner            │
+├──────────────────────────────────────────────────────────────────────┤
+│  Layer 3: E2E — UI (vscode-extension-tester + Selenium/ChromeDriver) │
+│  test/e2e/ui/*.ui.test.ts — full VS Code window, real webviews       │
+│  Uses: VSBrowser, WebviewView, By.css, WebDriver                     │
+└──────────────────────────────────────────────────────────────────────┘
 ```
-
-Already exists in `package.json` line 184. Just needs documentation.
-
-#### What Gets Smaller
-
-| Category | Before | After | How |
-|----------|--------|-------|-----|
-| Lucide icons | N/A | Tree-shaken | Named imports only |
-| Unused Zustand features | Bundled | Tree-shaken | ESM imports |
-| React DevTools | Bundled (dev) | Excluded | `process.env.NODE_ENV` check |
-| CSS Modules unused classes | Bundled | Removed | cssModulesPlugin dead code elim |
-
-**Expected reduction:** 10-15% (350-525KB off 3.5MB) without code splitting.
-
-**Source:** [esbuild FAQ](https://esbuild.github.io/faq/) confirms tree-shaking works across formats. [Webpack vs esbuild 2026](https://www.mindfulchase.com/explore/troubleshooting-tips/build-bundling/troubleshooting-build,-plugin,-and-performance-issues-in-esbuild.html) shows minification + tree-shaking typically achieves 10-20% reduction.
-
-#### New Components
-- Bundle analyzer script (shell/npm script)
-- CI bundle size tracking (optional: store meta.json in git, diff on PR)
-
-#### Modified Components
-- `esbuild.js` (build config)
-- `package.json` (document existing `analyze` script)
-
-#### Data Flow
-No runtime data flow changes. This is build-time optimization only.
 
 ---
 
-### 3. Strict TypeScript Migration
+## Existing Test Infrastructure (Inventory)
 
-**Architecture Changes: COMPILER CONFIG + INCREMENTAL FILE UPDATES**
+The extension already has three test systems in place. v1.2 must expand them, not replace them.
 
-#### Current State
-```json
-// tsconfig.json
-{
-  "compilerOptions": {
-    "strict": true,  // Already enabled!
-    // But 10 pre-existing errors remain unfixed
-  }
-}
-```
+### Test Runner 1: Vitest (React / Integration)
 
-**Problem:** `strict: true` is enabled but not enforced. Errors exist in:
-- Legacy non-React code (pre-migration)
-- Extension host services (auth, API, WebSocket)
-- Message handlers (any-typed event objects)
+**Config:** `iris-thaumantias/vitest.config.mts`
+**Command:** `npm run test:react`
+**Scope:** `test/react/**/*.test.{ts,tsx}`
+**Environment:** happy-dom (browser simulation)
+**Coverage:** `src/views/webview/react/**/*.{ts,tsx}` (809 tests across 66 files as of v1.1)
 
-#### Incremental Migration Strategy
+**What already exists:**
+- `test/react/__helpers__/vitest.setup.ts` — global `acquireVsCodeApi` mock, cleanup
+- `test/react/__helpers__/vscodeApi.ts` — `createMockVsCodeApi()`, `dispatchExtensionMessage()`, `getPostMessageCalls()`
+- `test/react/__helpers__/renderWithProviders.tsx` — RTL render wrapper with vscodeApi injection
+- `test/react/flows/` — 8 integration flow tests covering auth, navigation, courses, exercises, exams, chat, errors, timers
+- `test/react/stores/` — 9 Zustand store unit tests
+- `test/react/components/` — component-level unit tests
+- `test/react/views/` — per-view tests for all 12 views
 
-**Pattern 1: Use typescript-strict-plugin for Selective Enforcement**
+### Test Runner 2: Mocha + @vscode/test-cli (Extension Host)
 
-**Install:**
-```bash
-npm install -D typescript-strict-plugin
-```
+**Config:** `iris-thaumantias/.vscode-test.mjs`
+**Command:** `npm run test:unit` / `npm run test:e2e`
+**Scope:** `out/test/unit/**/*.test.js` (unit) and `out/test/e2e/**/*.e2e.test.js` (e2e)
+**Environment:** Real VS Code process via @vscode/test-electron (spawns VS Code)
+**Compile step required:** `tsc -p . --outDir out` before running
 
-**tsconfig.json:**
-```json
-{
-  "compilerOptions": {
-    "strict": true,
-    "plugins": [
-      { "name": "typescript-plugin-css-modules" },
-      {
-        "name": "typescript-strict-plugin",
-        "paths": ["./src/views/webview/react/**/*"]  // Enforce in React code ONLY
-      }
-    ]
-  }
-}
-```
+**What already exists:**
+- `test/unit/mocks/vscodeMocks.ts` — `MockExtensionContext`, `MockSecretStorage`, `MockMemento`, `MockTextDocument`
+- `test/unit/auth/`, `test/unit/services/`, `test/unit/api/`, etc. — extension host unit tests
+- `test/e2e/uncommittedChanges.e2e.test.ts` — live API integration test (requires Artemis + Iris)
+- `test/e2e/run-e2e-tests.sh` — orchestration script (checks Artemis health, starts Iris, runs tests)
+- `.vscode-test.mjs` — defines two labels: `unit` (all except e2e) and `e2e` (60s timeout)
 
-**Effect:** New React code MUST be strict-compliant. Legacy code can be fixed incrementally.
+### Test Runner 3: vscode-extension-tester (UI/Selenium)
 
-**Source:** [TypeScript Strict Plugin](https://github.com/allegro/typescript-strict-plugin) allows per-directory strict enforcement. [2026 Migration Guide](https://oneuptime.com/blog/post/2026-02-20-typescript-strict-mode-guide/view) recommends incremental approach starting with new code.
+**Config:** `test/e2e/ui/run-tests.sh`
+**Command:** `npm run test:ui`
+**Scope:** `test/e2e/ui/*.ui.test.ts`
+**Environment:** Downloads VS Code + ChromeDriver, installs .vsix, runs Selenium
 
-#### Common Fixes Required
-
-**1. Implicit Any (noImplicitAny)**
-```typescript
-// Before
-function handleMessage(msg) {  // 'msg' is any
-  vscode.postMessage(msg);
-}
-
-// After
-function handleMessage(msg: WebviewToExtensionMessage) {
-  vscode.postMessage(msg);
-}
-```
-
-**2. Nullable Types (strictNullChecks)**
-```typescript
-// Before
-const session = sessions.find(s => s.id === id);
-session.messages = [];  // Error: session possibly undefined
-
-// After
-const session = sessions.find(s => s.id === id);
-if (session) {
-  session.messages = [];
-}
-// OR
-const session = sessions.find(s => s.id === id)!;  // Non-null assertion (use sparingly)
-```
-
-**3. Uninitialized Properties (strictPropertyInitialization)**
-```typescript
-// Before
-class MyService {
-  apiClient: ApiClient;  // Error: not initialized
-}
-
-// After
-class MyService {
-  apiClient: ApiClient | null = null;
-  // OR
-  apiClient!: ApiClient;  // Definite assignment assertion
-}
-```
-
-#### New Components
-- **TypeScript Strict Plugin** (dev dependency)
-- **Type guard utilities** (optional: `src/utils/typeGuards.ts`)
-
-#### Modified Components
-- `tsconfig.json` (add plugin config)
-- All files with TypeScript errors (10+ files)
-- Potentially: message handler files (5-10 files)
-
-#### Data Flow Changes
-**None at runtime.** Type annotations don't affect compiled JavaScript. This is compile-time only.
+**What already exists:**
+- `test/e2e/ui/setup.ts` — programmatic ExTester setup (downloadCode, downloadChromeDriver, installVsix)
+- `test/e2e/ui/helpers.ts` — `openArtemisView()`, `switchToWebviewFrame()`, `switchBackFromWebview()`, `waitForElement()`, `takeScreenshot()`, `getCredentials()`
+- `test/e2e/ui/login.ui.test.ts` — login form render tests (no credentials needed)
+- `test/e2e/ui/login-flow.ui.test.ts` — full login submit test (needs `ARTEMIS_USER`/`ARTEMIS_PASS` envvars)
+- `test/e2e/ui/screenshots/` — screenshot capture directory
 
 ---
 
-### 4. Comprehensive Testing Expansion
+## Integration Points: New Tests and Existing Architecture
 
-**Architecture Changes: NEW TESTING LAYER + TEST INFRASTRUCTURE**
+### Integration Point 1: Message Bridge — Webview Side
 
-#### Current Testing Setup
+**What it tests:** Extension sends a message, webview reacts correctly (correct view renders, correct store state, correct postMessage response).
 
-**Framework:** Mocha + @vscode/test-cli
-**Structure:**
-```
-test/
-├── ui/                   # vscode-extension-tester (Selenium)
-│   ├── login.ui.test.ts
-│   └── login-flow.ui.test.ts
-├── auth/                 # Unit tests (extension host)
-├── provider/             # Unit tests (extension host)
-└── utils/                # Unit tests (extension host)
-```
+**Mechanism:** `dispatchExtensionMessage()` helper dispatches a `MessageEvent` on `window`. Each view's message handler hook listens via `window.addEventListener('message', ...)`.
 
-**Config:** `.vscode-test.mjs` defines two test labels:
-- `unit` → All tests except e2e
-- `e2e` → Integration tests (requires Artemis server)
+**New tests live in:** `test/react/flows/` (already established pattern)
 
-**Gap:** No React component tests. 10,174 LOC of React code (22 components, 12 views) untested.
+**Anatomy of an integration test:**
 
-#### Dual Testing Strategy
-
-**Why Not Mocha for React?** Mocha runs in Node.js. React components need DOM. Options:
-1. **jsdom** (Node.js DOM simulation) — works but incomplete, missing Web APIs
-2. **happy-dom** (faster jsdom alternative) — same limitations
-3. **Vitest Browser Mode** (real browser) — full DOM + Web APIs
-
-**Recommendation:** Add Vitest for React components, keep Mocha for extension host.
-
-**Source:** [2026 Testing Trends](https://www.nucamp.co/blog/testing-in-2026-jest-react-testing-library-and-full-stack-testing-strategies) recommend Vitest for Vite/ESM projects. [VS Code Extension Testing Guide](https://devblogs.microsoft.com/ise/testing-vscode-extensions-with-typescript/) confirms official tools don't support webview testing.
-
-#### New Testing Architecture
-
-```
-Extension Testing (unchanged)
-├── Mocha (@vscode/test-cli)
-│   ├── Extension host unit tests
-│   ├── Integration tests (extension + VS Code APIs)
-│   └── UI tests (vscode-extension-tester)
-│
-└── NEW: React Component Testing
-    └── Vitest + React Testing Library
-        ├── Component unit tests (Button, ListItem, etc.)
-        ├── View integration tests (Dashboard, Chat, etc.)
-        └── Store tests (Zustand actions/selectors)
-```
-
-#### Implementation: Vitest Setup
-
-**Install:**
-```bash
-npm install -D vitest @testing-library/react @testing-library/user-event \
-  @vitest/ui jsdom @types/testing-library__react
-```
-
-**vitest.config.ts (new file):**
 ```typescript
-import { defineConfig } from 'vitest/config';
-import react from '@vitejs/plugin-react';
+// test/react/flows/someDomain.flow.test.tsx
+import { createMockVsCodeApi, dispatchExtensionMessage } from '../__helpers__/vscodeApi';
 
-export default defineConfig({
-  plugins: [react()],
-  test: {
-    globals: true,
-    environment: 'jsdom',
-    setupFiles: './test/react/setup.ts',
-    include: ['src/**/*.{test,spec}.{ts,tsx}'],
-    exclude: ['node_modules', 'dist', 'out', 'test/ui/**'],
-    coverage: {
-      provider: 'v8',
-      reporter: ['text', 'json', 'html'],
-      exclude: [
-        'node_modules/',
-        'test/',
-        '**/*.d.ts',
-        '**/*.config.*',
-        '**/mockData.ts',
-      ],
-    },
-  },
-  resolve: {
-    alias: {
-      '@': '/src',
-    },
-  },
-});
-```
+it('hydrates store from extension init message', async () => {
+    const mockApi = createMockVsCodeApi();
+    render(<SomeView vscodeApi={mockApi} />);
 
-**test/react/setup.ts (new file):**
-```typescript
-import '@testing-library/jest-dom';
-import { cleanup } from '@testing-library/react';
-import { afterEach, vi } from 'vitest';
-
-// Mock VS Code API
-global.acquireVsCodeApi = vi.fn(() => ({
-  postMessage: vi.fn(),
-  getState: vi.fn(),
-  setState: vi.fn(),
-}));
-
-// Cleanup after each test
-afterEach(() => {
-  cleanup();
-});
-```
-
-**package.json scripts:**
-```json
-{
-  "scripts": {
-    "test:react": "vitest",
-    "test:react:ui": "vitest --ui",
-    "test:react:coverage": "vitest --coverage",
-    "test:all": "npm run test:react && vscode-test"
-  }
-}
-```
-
-#### Example Component Test
-
-**Button.test.tsx (new file):**
-```typescript
-import { render, screen } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
-import { describe, it, expect, vi } from 'vitest';
-import { Button } from './Button';
-
-describe('Button', () => {
-  it('renders with correct text', () => {
-    render(<Button>Click me</Button>);
-    expect(screen.getByRole('button', { name: /click me/i })).toBeInTheDocument();
-  });
-
-  it('calls onClick handler when clicked', async () => {
-    const handleClick = vi.fn();
-    render(<Button onClick={handleClick}>Click me</Button>);
-
-    await userEvent.click(screen.getByRole('button'));
-    expect(handleClick).toHaveBeenCalledTimes(1);
-  });
-
-  it('disables button when disabled prop is true', () => {
-    render(<Button disabled>Click me</Button>);
-    expect(screen.getByRole('button')).toBeDisabled();
-  });
-});
-```
-
-#### Example Store Test
-
-**useChatStore.test.ts (new file):**
-```typescript
-import { renderHook, act } from '@testing-library/react';
-import { describe, it, expect } from 'vitest';
-import { useChatStore } from './useChatStore';
-
-describe('useChatStore', () => {
-  it('adds message to store', () => {
-    const { result } = renderHook(() => useChatStore());
-
-    act(() => {
-      result.current.addMessage({
-        localId: '123',
-        role: 'user',
-        content: 'Hello Iris',
-        timestamp: Date.now(),
-      });
+    // INBOUND: extension → webview
+    dispatchExtensionMessage({
+        type: 'someViewInit',
+        payload: { /* data matching the contract */ },
     });
 
-    expect(result.current.messages).toHaveLength(1);
-    expect(result.current.messages[0].content).toBe('Hello Iris');
-  });
+    // Assert: store hydrated, UI updated
+    await waitFor(() => expect(screen.getByText('expected content')).toBeInTheDocument());
 
-  it('clears all messages', () => {
-    const { result } = renderHook(() => useChatStore());
-
-    act(() => {
-      result.current.addMessage({ /* ... */ });
-      result.current.addMessage({ /* ... */ });
-      result.current.clearMessages();
-    });
-
-    expect(result.current.messages).toHaveLength(0);
-  });
+    // OUTBOUND: webview → extension (user action triggers postMessage)
+    await userEvent.click(screen.getByRole('button', { name: /action/i }));
+    expect(mockApi.postMessage).toHaveBeenCalledWith(
+        expect.objectContaining({ type: 'command', command: 'expectedCommand' })
+    );
 });
 ```
 
-#### New Components
+**What the v1.2 milestone needs to add here:**
+- Complete coverage of all 12 views (currently only some flows exist)
+- Store hydration verification for every `*Init` message type
+- Error state flows (what happens when extension sends an error message)
+- WebSocket update flows via `dispatchExtensionMessage({ type: 'websocketUpdate', ... })`
 
-| Component | Purpose | Location |
-|-----------|---------|----------|
-| `vitest.config.ts` | Vitest configuration | Root |
-| `test/react/setup.ts` | Test environment setup | test/react/ |
-| `*.test.tsx` files | Component tests | Colocated with components |
-| `*.test.ts` files (stores) | Store tests | Colocated with stores |
+### Integration Point 2: Message Bridge — Extension Host Side
 
-**Colocated pattern:**
-```
-src/views/webview/react/components/Button/
-├── Button.tsx
-├── Button.module.css
-└── Button.test.tsx  ← NEW
-```
+**What it tests:** Webview sends a command, extension host handler processes it correctly, correct `ExtensionToWebviewMessage` is sent back.
 
-#### Modified Components
-- `package.json` (add Vitest scripts and deps)
-- `.gitignore` (add `coverage/` directory)
-- CI config (run both Mocha and Vitest)
+**Mechanism:** `WebViewMessageHandler.handleMessageWithSender()` — already accepts a `sendResponse` callback for testable injection. The unit test sends a typed `WebviewToExtensionMessage` directly to the handler and captures the response callback invocations.
 
-#### Data Flow Changes
-**None.** Tests don't affect runtime. Vitest runs in separate process.
+**New tests live in:** `test/unit/` (Mocha, runs in real VS Code process)
 
----
+**Anatomy of an extension host handler test:**
 
-## Integration Dependencies and Build Order
-
-### Phase 1: Foundation (No Dependencies)
-1. **Lucide Migration** (icon system replacement)
-   - New: Install lucide-react (already installed)
-   - Modified: 30-40 component files
-   - Test: Visual regression (manual)
-   - Risk: LOW (presentational only)
-
-2. **TypeScript Strict Plugin** (incremental enforcement)
-   - New: Install typescript-strict-plugin
-   - Modified: tsconfig.json
-   - Test: `npm run check-types` passes
-   - Risk: LOW (no runtime changes)
-
-### Phase 2: Infrastructure (Depends on Phase 1)
-3. **Bundle Optimization** (build config)
-   - New: Bundle analyzer script
-   - Modified: esbuild.js
-   - Test: `npm run analyze`, measure bundle size
-   - Risk: LOW (build-time only)
-   - **Dependency:** Should follow Lucide migration to measure tree-shaking impact
-
-4. **Vitest Testing Setup** (new test layer)
-   - New: vitest.config.ts, test/react/setup.ts
-   - Modified: package.json (scripts, devDeps)
-   - Test: Run `npm run test:react` (empty suite passes)
-   - Risk: MEDIUM (new build tool, potential conflicts)
-
-### Phase 3: Implementation (Depends on Phase 2)
-5. **Fix TypeScript Errors** (incremental)
-   - New: Type guard utilities (optional)
-   - Modified: 10+ files with errors
-   - Test: `npm run check-types` zero errors
-   - Risk: MEDIUM (potential runtime behavior changes)
-   - **Dependency:** Requires strict plugin from Phase 1
-
-6. **Write React Component Tests** (test coverage)
-   - New: 50-100 test files
-   - Modified: None (tests only)
-   - Test: `npm run test:react:coverage` target 80%+
-   - Risk: LOW (no production code changes)
-   - **Dependency:** Requires Vitest setup from Phase 2
-
-### Parallel vs Sequential
-
-**Can be done in parallel:**
-- Lucide migration + TypeScript strict plugin (independent)
-- Bundle optimization + Vitest setup (different domains)
-
-**Must be sequential:**
-- Bundle optimization AFTER Lucide migration (to measure impact)
-- Component tests AFTER Vitest setup (infrastructure required)
-- TypeScript error fixes AFTER strict plugin (enforcement tool required)
-
-### Critical Path
-1. Lucide migration (foundation for bundle optimization)
-2. Bundle optimization (validate tree-shaking works)
-3. Vitest setup (foundation for testing)
-4. Component tests (quality gate)
-
-**Total estimated duration:** 2-3 weeks for all phases.
-
----
-
-## Anti-Patterns to Avoid
-
-### Anti-Pattern 1: Code Splitting with IIFE
-
-**What people try:** Enable `splitting: true` in esbuild config for IIFE format.
-
-**Why it fails:** esbuild only supports code splitting with ESM format. IIFE generates a single file by design.
-
-**Do this instead:** Accept single bundle OR switch to ESM format (requires webview HTML changes, CSP updates, module loader overhead). Recommend: defer to DX-03.
-
----
-
-### Anti-Pattern 2: Barrel Imports for Icons
-
-**What people do:**
 ```typescript
-import * as Icons from 'lucide-react';
-<Icons.Check />
+// test/unit/views/app/webViewMessageHandler.test.ts
+import { WebViewMessageHandler } from '../../../src/views/app/webViewMessageHandler';
+import { MockExtensionContext } from '../mocks/vscodeMocks';
+
+suite('WebViewMessageHandler', () => {
+    test('login command triggers auth and sends loginSuccess', async () => {
+        const mockAuthManager = { login: sinon.stub().resolves({ username: 'user1' }) };
+        const sentMessages: ExtensionToWebviewMessage[] = [];
+        const handler = new WebViewMessageHandler(/* inject mocks */);
+
+        await handler.handleMessageWithSender(
+            { type: 'command', command: 'login', payload: { username: 'u', password: 'p', rememberMe: false } },
+            (msg) => sentMessages.push(msg)
+        );
+
+        assert.ok(sentMessages.some(m => m.type === 'loginSuccess'));
+    });
+});
 ```
 
-**Why it's wrong:** Imports entire Lucide library (~50KB compressed). Tree-shaking fails with namespace imports.
+**Key insight:** `handleMessageWithSender` already accepts a `sendResponse` callback (line 77 of `webViewMessageHandler.ts`). This is the seam for integration testing without needing a real webview.
 
-**Do this instead:**
+### Integration Point 3: Store Hydration Completeness
+
+**What it tests:** Every `*Init` message (there are 12 view-specific init types) correctly hydrates its corresponding Zustand store.
+
+**Gap in v1.1:** Store tests exist for all 9 stores, but they test store actions directly. Integration-level tests that confirm the full pipeline (extension message → `window.dispatchEvent` → store action → React state update) are incomplete for some views.
+
+**New tests needed:**
+- `test/react/flows/courseNavigation.flow.test.tsx` — already exists, expand
+- `test/react/flows/examTimer.flow.test.tsx` — already exists (Web Worker timer tests)
+- Missing: `dashboard.flow.test.tsx`, `irisChat.flow.test.tsx` completeness
+- Each flow test should cover: init, error, loading, success, refresh
+
+### Integration Point 4: UI Tests (Selenium) — 12 Views
+
+**What it tests:** Each of the 12 views renders correctly in a real VS Code window with a real webview.
+
+**Mechanism:** `vscode-extension-tester` downloads VS Code + ChromeDriver, installs the packaged .vsix, launches VS Code, and drives it via Selenium WebDriver. `WebviewView.switchToFrame()` enters the webview iframe context.
+
+**Critical constraint:** UI tests require a pre-built .vsix. The test runner must compile the extension first (`npm run package`), then run UI tests. The `npm run test:ui` script calls `bash test/e2e/ui/run-tests.sh` which calls `extest setup-and-run`.
+
+**New tests live in:** `test/e2e/ui/` (alongside existing `login.ui.test.ts`)
+
+**Anatomy of a UI view test:**
+
 ```typescript
-import { Check, X, Menu } from 'lucide-react';
-<Check />
+// test/e2e/ui/dashboard.ui.test.ts
+import { VSBrowser, WebDriver } from 'vscode-extension-tester';
+import { openArtemisView, switchToWebviewFrame, waitForElement } from './helpers';
+
+describe('Dashboard UI Tests', function () {
+    let driver: WebDriver;
+
+    before(async function () {
+        this.timeout(30000);
+        driver = VSBrowser.instance.driver;
+        await VSBrowser.instance.waitForWorkbench();
+    });
+
+    it('renders dashboard with course list after login', async function () {
+        this.timeout(30000);
+        await openArtemisView();
+        await switchToWebviewFrame(driver);
+        // Assert dashboard-specific DOM elements
+        await waitForElement(driver, '[data-testid="dashboard-view"]');
+    });
+});
 ```
 
-**Source:** [Lucide React documentation](https://lucide.dev/guide/packages/lucide-react) explicitly warns against barrel imports.
+**Views that need UI tests (in order of auth dependency):**
+1. Login (already exists — `login.ui.test.ts`, `login-flow.ui.test.ts`)
+2. Dashboard, CourseList, CourseDetail (requires authenticated session)
+3. ExerciseDetail (requires course selection)
+4. ExamStart, ExamConduction, ExamExerciseDetail (requires exam enrollment)
+5. IrisChat (requires auth + Iris health)
+6. ServiceStatus, GitCredentials, RecommendedExtensions (utility views)
 
 ---
 
-### Anti-Pattern 3: Testing React Components with Mocha
+## Recommended Project Structure
 
-**What people do:** Try to use Mocha + jsdom for React component tests.
+The full test organization after v1.2:
 
-**Why it's wrong:**
-- jsdom incomplete (missing Web APIs like IntersectionObserver)
-- No React Testing Library integration
-- Slow compared to Vitest
-- Maintenance burden (two test frameworks)
+```
+iris-thaumantias/
+├── test/
+│   ├── __shared__/                  # (currently empty — reserve for cross-runner fixtures)
+│   │
+│   ├── react/                       # Vitest tests (webview context)
+│   │   ├── __helpers__/
+│   │   │   ├── vitest.setup.ts      # Global mocks, cleanup — EXISTS
+│   │   │   ├── vscodeApi.ts         # createMockVsCodeApi, dispatchExtensionMessage — EXISTS
+│   │   │   ├── renderWithProviders.tsx  # RTL render wrapper — EXISTS
+│   │   │   └── storeHelpers.ts      # NEW: resetAllStores(), seedStore() utilities
+│   │   │
+│   │   ├── flows/                   # Integration: full message-bridge roundtrips — EXPAND
+│   │   │   ├── auth.flow.test.tsx          # EXISTS (login/logout lifecycle)
+│   │   │   ├── courseNavigation.flow.test.tsx  # EXISTS (expand)
+│   │   │   ├── errors.flow.test.tsx        # EXISTS
+│   │   │   ├── examTimer.flow.test.tsx     # EXISTS
+│   │   │   ├── exerciseSubmission.flow.test.tsx  # EXISTS
+│   │   │   ├── irisChat.flow.test.tsx      # EXISTS (expand streaming, context switch)
+│   │   │   ├── messageContracts.test.ts    # EXISTS (contract drift detection)
+│   │   │   ├── navigation.flow.test.tsx    # EXISTS
+│   │   │   ├── dashboard.flow.test.tsx     # NEW: dashboard init + reload
+│   │   │   ├── websocket.flow.test.tsx     # NEW: disconnect/reconnect flows
+│   │   │   └── storeHydration.flow.test.tsx  # NEW: all 12 init messages → store state
+│   │   │
+│   │   ├── stores/                  # Zustand store unit tests — EXISTS (all 9)
+│   │   ├── components/              # Component unit tests — EXISTS
+│   │   ├── views/                   # Per-view tests — EXISTS (all 12)
+│   │   └── security/                # CSP/XSS tests — EXISTS
+│   │
+│   ├── unit/                        # Mocha tests (extension host context)
+│   │   ├── mocks/
+│   │   │   └── vscodeMocks.ts       # MockExtensionContext etc. — EXISTS
+│   │   ├── auth/                    # Auth unit tests — EXISTS
+│   │   ├── api/                     # API service tests — EXISTS
+│   │   ├── services/                # Service tests — EXISTS
+│   │   ├── provider/                # Provider tests — EXISTS
+│   │   ├── views/
+│   │   │   └── app/
+│   │   │       ├── webViewMessageHandler.test.ts  # NEW: handler integration
+│   │   │       ├── appStateManager.test.ts        # NEW: state machine transitions
+│   │   │       └── commands/                      # NEW: per-command-module tests
+│   │   └── struggle-detection/      # EXISTS
+│   │
+│   └── e2e/                         # E2E tests (two sub-layers)
+│       ├── uncommittedChanges.e2e.test.ts  # EXISTS (live API, Mocha runner)
+│       ├── run-e2e-tests.sh                # EXISTS
+│       │
+│       └── ui/                      # vscode-extension-tester (Selenium)
+│           ├── helpers.ts           # EXISTS (openArtemisView, switchToWebviewFrame, etc.)
+│           ├── setup.ts             # EXISTS (ExTester programmatic setup)
+│           ├── run-tests.sh         # EXISTS
+│           ├── screenshots/         # EXISTS (test artifact dir)
+│           │
+│           ├── login.ui.test.ts          # EXISTS
+│           ├── login-flow.ui.test.ts     # EXISTS
+│           │
+│           ├── dashboard.ui.test.ts      # NEW
+│           ├── courseList.ui.test.ts     # NEW
+│           ├── courseDetail.ui.test.ts   # NEW
+│           ├── exerciseDetail.ui.test.ts # NEW
+│           ├── examStart.ui.test.ts      # NEW
+│           ├── examConduction.ui.test.ts # NEW
+│           ├── irisChat.ui.test.ts       # NEW
+│           └── serviceStatus.ui.test.ts  # NEW (no auth required)
+```
 
-**Do this instead:** Use Vitest with jsdom or Vitest Browser Mode. Modern, fast, React-native.
+### Structure Rationale
 
-**Source:** [2026 Testing Strategies](https://www.nucamp.co/blog/testing-in-2026-jest-react-testing-library-and-full-stack-testing-strategies) show Vitest 10-20x faster than Jest/Mocha for React.
+- **`test/react/flows/`:** The message-bridge integration layer lives in Vitest because it tests the webview side. The `dispatchExtensionMessage()` helper is a complete substitute for the real VS Code postMessage — no VS Code process needed.
+- **`test/unit/views/app/`:** Extension host handler tests live in Mocha because they import `vscode` module and must run in a real VS Code process via `@vscode/test-electron`.
+- **`test/e2e/ui/`:** Selenium UI tests require the packaged `.vsix`. They run last (longest) and have external dependencies (VS Code download, ChromeDriver, env credentials).
+- **`test/__shared__/`:** Reserved for fixtures shared across Mocha and Vitest (e.g., typed API response fixtures, test data factories). Currently empty.
 
 ---
 
-### Anti-Pattern 4: Enabling All Strict Flags at Once
+## Architectural Patterns
 
-**What people do:**
-```json
-{
-  "strict": true,
-  "noImplicitAny": true,
-  "strictNullChecks": true,
-  // ... all flags enabled
+### Pattern 1: Sandwich Testing for Message Bridge
+
+**What:** Test the bridge from both sides independently, not together.
+
+**Webview side (Vitest):** Dispatch a `MessageEvent` directly on `window` and assert the React component re-renders correctly. No real VS Code process.
+
+**Extension side (Mocha):** Call `WebViewMessageHandler.handleMessageWithSender()` with a mock `sendResponse` callback and assert what messages were sent back. No real webview.
+
+**When to use:** All message bridge integration tests. The boundary is already designed for this — `handleMessageWithSender` was built with testability in mind.
+
+**Trade-off:** You don't test the literal `postMessage` call going through the VS Code IPC layer. That's acceptable — VS Code's own `postMessage` is not the thing being tested. The contracts (typed discriminated unions) are what matter.
+
+**Example (webview side):**
+```typescript
+// Inbound: extension → webview
+dispatchExtensionMessage({ type: 'dashboardInit', payload: { courses: [] } });
+await waitFor(() => expect(screen.getByTestId('dashboard-view')).toBeInTheDocument());
+
+// Outbound: webview → extension
+await userEvent.click(screen.getByText('Reload Courses'));
+expect(mockApi.postMessage).toHaveBeenCalledWith(
+    expect.objectContaining({ type: 'command', command: 'reloadCourses' })
+);
+```
+
+**Example (extension host side):**
+```typescript
+// Inbound: webview → extension
+const responses: ExtensionToWebviewMessage[] = [];
+await handler.handleMessageWithSender(
+    { type: 'command', command: 'reloadCourses' },
+    (msg) => responses.push(msg)
+);
+assert.ok(responses.some(r => r.type === 'courseListInit'));
+```
+
+---
+
+### Pattern 2: Store Reset Between Tests
+
+**What:** Zustand stores persist state across test cases because they are module-level singletons. Every integration test that exercises a store must reset it.
+
+**When to use:** All flow tests and store unit tests.
+
+**Implementation:** Call `useStore.setState(initialState)` in `beforeEach`. A shared helper is the right pattern.
+
+**Example:**
+```typescript
+// test/react/__helpers__/storeHelpers.ts  (NEW file)
+import { useExerciseDetailStore } from '../../../src/views/webview/react/stores/useExerciseDetailStore';
+import { useNavigationStore } from '../../../src/views/webview/react/stores/useNavigationStore';
+// ...import all 9 stores
+
+export function resetAllStores(): void {
+    useExerciseDetailStore.setState(useExerciseDetailStore.getInitialState());
+    useNavigationStore.setState({ breadcrumbs: [] });
+    // ... reset each store to its initial state
 }
 ```
 
-Then try to fix 100+ errors across entire codebase.
-
-**Why it's wrong:** Overwhelming. Blocks progress. High risk of introducing bugs in "quick fixes."
-
-**Do this instead:** Use typescript-strict-plugin to enforce strict mode only in new code (React components). Fix legacy code incrementally.
-
-**Source:** [Incremental Migration Guide](https://preetmishra.com/blog/migrating-to-typescript-strict-mode-at-an-early-stage-startup) recommends phased approach.
+**Existing pattern:** `navigation.flow.test.tsx` already does `useNavigationStore.setState({ breadcrumbs: [] })` in `beforeEach`. Extract this to a shared helper to avoid duplication across flow tests.
 
 ---
 
-### Anti-Pattern 5: Running All Tests in Single Process
+### Pattern 3: Mock Injection for Extension Host Tests
 
-**What people do:** Try to run Mocha extension tests + Vitest React tests in same process.
+**What:** `WebViewMessageHandler` and command modules depend on `AuthManager`, `ArtemisApiService`, `AppStateManager`, `ArtemisWebsocketService`. In unit tests, pass mock implementations through the constructor.
 
-**Why it's wrong:** Different environments (Node.js vs jsdom), different assertion libraries, different mocking strategies. Conflicts inevitable.
+**When to use:** All `test/unit/views/app/` tests.
 
-**Do this instead:** Separate test commands:
-```json
-{
-  "test:extension": "vscode-test --label unit",
-  "test:react": "vitest",
-  "test:all": "npm run test:react && npm run test:extension"
-}
+**Critical seam:** `WebViewMessageHandler.handleMessageWithSender(message, sendResponse)` was designed for this — the `sendResponse` callback overrides the normal `_sendMessage` function temporarily. Pass a spy function to capture sent messages.
+
+**Trade-off:** Each command module test needs mock objects for its full dependency tree. Use `sinon` stubs (already in devDeps) to create lightweight mocks without full mock objects.
+
+**Example:**
+```typescript
+import sinon from 'sinon';
+import { WebViewMessageHandler } from '../../../../src/views/app/webViewMessageHandler';
+
+test('login sends loginSuccess on valid credentials', async () => {
+    const fakeAuth = { login: sinon.stub().resolves({ username: 'user1' }) };
+    const fakeApi = { /* minimal interface */ } as any;
+    const fakeState = new AppStateManager(fakeApi as any);
+    const responses: ExtensionToWebviewMessage[] = [];
+
+    const handler = new WebViewMessageHandler(
+        fakeAuth as any, fakeApi as any, fakeState,
+        {} as any, undefined, undefined, new MockExtensionContext()
+    );
+
+    await handler.handleMessageWithSender(
+        { type: 'command', command: 'login', payload: { username: 'u', password: 'p', rememberMe: false } },
+        (msg) => responses.push(msg)
+    );
+
+    assert.ok(responses.some(r => r.type === 'loginSuccess' || r.type === 'showLoggedIn'));
+});
 ```
 
 ---
 
-## Scaling Considerations
+### Pattern 4: UI Test Preconditions via VS Code Commands
 
-| Scale | Architecture Adjustments |
-|-------|--------------------------|
-| **Current (v1.1)** | Single IIFE bundle (~3MB), Lucide tree-shaking, Vitest for React |
-| **v1.2-1.5** | Bundle size monitoring in CI, lazy-load heavy dependencies (Shiki, Streamdown) |
-| **v2.0+** | Consider ESM format + dynamic imports for route-based splitting (DX-03) |
+**What:** Selenium UI tests need the extension in a specific state (e.g., logged in) before testing a view. Use VS Code command palette via `Workbench.executeCommand()` to trigger state transitions without clicking through the UI.
 
-### When to Consider Code Splitting
+**When to use:** UI tests for views that require auth (Dashboard, CourseList, etc.).
 
-**Trigger:** Bundle size exceeds 5MB despite optimization.
+**Limitation:** The extension must expose commands that manipulate state (or accept test-mode env vars). Currently, login requires real credentials against a live Artemis server.
 
-**Approach:**
-1. Switch webview bundle format from IIFE to ESM
-2. Update webview HTML to use `<script type="module">`
-3. Add dynamic imports for route boundaries:
-   ```typescript
-   const DashboardView = lazy(() => import('./views/Dashboard'));
-   const ChatView = lazy(() => import('./views/IrisChat'));
-   ```
-4. Update CSP to allow module scripts
-5. Add loading fallback for Suspense boundaries
+**Pattern used in existing tests:**
+```typescript
+// login-flow.ui.test.ts (after() teardown)
+const workbench = new Workbench();
+await workbench.executeCommand('Logout from Artemis');
+```
 
-**Estimated impact:** 40-60% reduction in initial load (load only active view).
-
-**Complexity:** HIGH (requires CSP changes, webview provider updates, testing in multiple VS Code versions).
+**For authenticated views:** Tests must either (a) require `ARTEMIS_USER`/`ARTEMIS_PASS` env vars and skip if absent (`this.skip()`), or (b) inject a test auth token directly. Approach (a) matches the existing pattern in the codebase.
 
 ---
 
-## Summary: Integration Overview
+### Pattern 5: Contract Drift Detection
 
-### New Components Required
+**What:** A dedicated test file that imports every type from `messageContracts.ts` and verifies shape, type discriminators, and type guard behavior. Catches silent regressions when message types are modified.
 
-| Component | Type | Purpose | Size |
-|-----------|------|---------|------|
-| **vitest.config.ts** | Config | Vitest configuration | ~50 lines |
-| **test/react/setup.ts** | Setup | Test environment mocks | ~30 lines |
-| **Bundle analyzer script** | Script | Visualize bundle composition | ~20 lines |
-| **Component test files** | Tests | React component coverage | ~2000-5000 lines |
-| **Store test files** | Tests | Zustand store coverage | ~500-1000 lines |
+**Already implemented:** `test/react/flows/messageContracts.test.ts` covers all current contracts with `satisfies` operator checks and `isExtensionMessage`/`isWebviewMessage` guard tests.
 
-**Total new code:** ~3000-6000 lines (mostly tests).
+**Expansion needed for v1.2:** As new tech debt fixes add or modify contracts (WebSocket error propagation, state persistence), add corresponding contract tests before or alongside the implementation.
 
-### Modified Components
+---
 
-| Component | Changes | Impact |
-|-----------|---------|--------|
-| **esbuild.js** | Add bundle analyzer plugin | Build-time only |
-| **tsconfig.json** | Add typescript-strict-plugin | Compile-time only |
-| **package.json** | Add Vitest scripts/deps | Dev dependencies |
-| **30-40 component files** | Replace IconDefinitions with Lucide | Runtime (icons) |
-| **10+ files with TS errors** | Fix strict mode violations | Runtime (type safety) |
+## Data Flow: How Tests Interact with Production Code
 
-### Data Flow Changes
+### Integration Test Data Flow (Vitest)
 
-**Runtime data flow:** UNCHANGED
-- Lucide renders same as custom SVGs (just different source)
-- TypeScript annotations compile away
-- Tests run in separate process
+```
+Test code
+    │
+    ├── dispatchExtensionMessage({ type: 'dashboardInit', payload: {...} })
+    │       ↓
+    │   window.dispatchEvent(new MessageEvent('message', { data: message }))
+    │       ↓
+    │   View's useEffect → window.addEventListener('message', handler)
+    │       ↓
+    │   Store action (e.g., useDashboardStore.setData(payload))
+    │       ↓
+    │   React re-render
+    │       ↓
+    │   screen.getByTestId / waitFor assertions
+    │
+    └── userEvent.click(button)
+            ↓
+        React event handler
+            ↓
+        vscodeApi.postMessage({ type: 'command', command: 'reloadDashboard' })
+            ↓  (vscodeApi is the mock — postMessage is vi.fn())
+        expect(mockApi.postMessage).toHaveBeenCalledWith(...)
+```
 
-**Build-time data flow:** ENHANCED
-- Bundle analyzer provides visibility
-- Vitest adds component test layer
-- TypeScript strict plugin enforces quality
+### Extension Host Handler Test Data Flow (Mocha)
 
-### No Changes Required
+```
+Test code
+    │
+    ├── handler.handleMessageWithSender(
+    │       { type: 'command', command: 'login', payload: {...} },
+    │       (response) => capturedResponses.push(response)
+    │   )
+    │       ↓
+    │   commandHandlers.get('login')(message, context)
+    │       ↓
+    │   authManager.login(username, password)  ← stubbed
+    │       ↓
+    │   context.sendMessage({ type: 'loginSuccess', ... })
+    │       ↓  (sendMessage calls the injected sendResponse callback)
+    │   capturedResponses.push({ type: 'loginSuccess', ... })
+    │
+    └── assert.ok(capturedResponses.some(r => r.type === 'loginSuccess'))
+```
 
-- **Message contracts** (typed communication unchanged)
-- **Zustand stores** (state management unchanged)
-- **Extension host services** (auth, API, WebSocket unchanged)
-- **CSS Modules** (styling system unchanged)
-- **Web Workers** (background tasks unchanged)
-- **Webview provider** (postMessage bridge unchanged)
+### UI Test Data Flow (Selenium)
+
+```
+Test code
+    │
+    ├── VSBrowser.instance.waitForWorkbench()
+    │       ↓ (VS Code process is already running with .vsix installed)
+    │
+    ├── openArtemisView()
+    │       ↓
+    │   activityBar.getViewControl('Artemis').openView()
+    │       ↓ (VS Code shows the webview sidebar)
+    │
+    ├── switchToWebviewFrame(driver)
+    │       ↓
+    │   WebviewView.switchToFrame(5000)
+    │       ↓ (Selenium driver switches to the webview's iframe context)
+    │
+    ├── waitForElement(driver, '[data-testid="login-form"]')
+    │       ↓
+    │   driver.wait(until.elementLocated(By.css(...)), 10000)
+    │
+    └── assert.ok(element, 'element should be present')
+```
+
+---
+
+## Build Order and Compilation Dependencies
+
+This is the critical ordering constraint — each layer has different prerequisites.
+
+### Build Dependency Graph
+
+```
+npm run compile-tests (tsc → out/)
+    │
+    ├── required by: npm run test:unit (Mocha, extension host)
+    └── required by: npm run test:e2e (Mocha, live API e2e)
+
+npm run package (esbuild → dist/ + .vsix)
+    │
+    └── required by: npm run test:ui (vscode-extension-tester needs .vsix)
+
+npm run test:react (Vitest, no compilation needed — runs TS directly)
+    │
+    └── independent: runs without compile or package steps
+```
+
+### Execution Order in CI
+
+```
+Phase 1 (fastest, no external deps):
+  npm run test:react     ← Vitest, happy-dom, no VS Code
+  npm run check-types    ← TypeScript compilation check
+
+Phase 2 (requires VS Code process, no external Artemis):
+  npm run compile-tests  ← compile test/ to out/
+  npm run test:unit      ← Mocha + @vscode/test-electron, spawns VS Code
+
+Phase 3 (requires live Artemis + Iris):
+  npm run test:e2e       ← Mocha, live API calls
+
+Phase 4 (slowest — requires .vsix + VS Code download + Artemis):
+  npm run package        ← produces .vsix
+  npm run test:ui        ← vscode-extension-tester, downloads VS Code + ChromeDriver
+```
+
+**Rationale for this order:**
+- Fast feedback first — Vitest catches message bridge regressions in seconds
+- Extension host unit tests catch handler bugs before UI tests run
+- UI tests are the last resort — expensive to run, fragile (browser-based), require live server
+- E2E live-API tests are optional in CI (require Artemis to be running)
+
+---
+
+## Component Boundaries: New vs Existing
+
+### New Components Required for v1.2
+
+| Component | Type | Location | Purpose |
+|-----------|------|----------|---------|
+| `storeHelpers.ts` | Test utility | `test/react/__helpers__/` | `resetAllStores()`, `seedStore()` for deterministic test setup |
+| `webViewMessageHandler.test.ts` | Mocha test | `test/unit/views/app/` | Handler integration tests using mock injection |
+| `appStateManager.test.ts` | Mocha test | `test/unit/views/app/` | AppStateManager state machine transition tests |
+| `commands/*.test.ts` | Mocha tests | `test/unit/views/app/commands/` | Per-command-module unit tests (7 modules) |
+| `dashboard.flow.test.tsx` | Vitest test | `test/react/flows/` | Dashboard init + reload integration |
+| `websocket.flow.test.tsx` | Vitest test | `test/react/flows/` | WebSocket disconnect/reconnect flows |
+| `storeHydration.flow.test.tsx` | Vitest test | `test/react/flows/` | All 12 `*Init` messages → store state verification |
+| `{view}.ui.test.ts` (x8) | Mocha/Selenium | `test/e2e/ui/` | UI tests for 8 remaining views |
+
+### Existing Components: No Modification Required
+
+| Component | Why Unchanged |
+|-----------|---------------|
+| `src/shared/messageContracts.ts` | Test infrastructure is built around it; tests consume it, don't modify it |
+| `src/views/app/webViewMessageHandler.ts` | `handleMessageWithSender` seam already exists |
+| `src/views/webview/react/` (all views) | Tests exercise views as-is |
+| `esbuild.js` | Dual-target build unchanged; tests don't modify build |
+| `vitest.config.mts` | Only needs new test paths if flows add new top-level dirs |
+| `.vscode-test.mjs` | Already defines `unit` and `e2e` labels with correct globs |
+
+### Existing Components: Possible Minor Extension
+
+| Component | Potential Change | Reason |
+|-----------|-----------------|--------|
+| `test/react/__helpers__/vscodeApi.ts` | Add `getLastPostMessage()` convenience helper | Reduces boilerplate in flow tests |
+| `test/e2e/ui/helpers.ts` | Add `loginToArtemis()`, `waitForView()` helpers | UI tests for authenticated views need these |
+| `.vscode-test.mjs` | Add third label for `struggle-detection` if needed | Currently handled via separate script |
+| `package.json` scripts | Add `test:integration` alias for `test:react` flows only | Clearer naming for CI pipeline stages |
+
+---
+
+## Anti-Patterns
+
+### Anti-Pattern 1: Testing Both Sides of the Bridge in One Test
+
+**What people do:** Try to wire the real `WebViewMessageHandler` to a real Vitest webview context, making the test span both Node.js and browser environments.
+
+**Why it's wrong:** Vitest runs in happy-dom (not Node.js with VS Code APIs). The `vscode` module cannot be imported in Vitest. Any test that tries to import extension host code (which imports `vscode`) into Vitest will fail at import time.
+
+**Do this instead:** Test each side independently using the sandwich pattern. Vitest tests the webview reaction to messages. Mocha tests the extension handler reaction to commands. The message contract file (`messageContracts.ts`) is shared because it has no `vscode` imports.
+
+---
+
+### Anti-Pattern 2: Skipping Store Resets in Flow Tests
+
+**What people do:** Write multiple `it()` blocks in a flow test without resetting store state between them. A previous test's side effects bleed into the next.
+
+**Why it's wrong:** Zustand stores are module-level singletons. State from test A persists into test B. Tests pass in isolation but fail when run together. Hard to debug.
+
+**Do this instead:** Reset all stores in `beforeEach`. Create `storeHelpers.ts` with a `resetAllStores()` function. The existing flow tests already do this for specific stores — generalize the pattern.
+
+---
+
+### Anti-Pattern 3: UI Tests for Logic Already Covered by Integration Tests
+
+**What people do:** Write Selenium UI tests that verify the same assertions already in Vitest flow tests (e.g., "login form has username and password fields").
+
+**Why it's wrong:** UI tests are 50-100x slower, fragile (flaky on ChromeDriver timing), and require external infrastructure (VS Code download, .vsix build, sometimes a live server). Duplicating integration test assertions in UI tests gives no additional value.
+
+**Do this instead:** UI tests should cover things only testable in a real VS Code window:
+- Webview-to-VS Code context (activity bar appears, sidebar opens)
+- Frame switching behavior (can we actually enter the webview iframe?)
+- Screenshot capture for visual review
+- Authentication flows that touch real VS Code state (credentials stored in `SecretStorage`)
+
+---
+
+### Anti-Pattern 4: Hard-Coding Test Credentials
+
+**What people do:** Put `artemis_admin`/`artemis_admin` or real URLs directly in test files.
+
+**Why it's wrong:** Credentials leak in source control. Tests fail in CI where those credentials don't exist. Tests are environment-specific.
+
+**Do this instead:** Read from environment variables with `this.skip()` if absent (the existing pattern in `login-flow.ui.test.ts` and `helpers.ts` is correct). Use `ARTEMIS_USER`, `ARTEMIS_PASS`, `ARTEMIS_URL` env vars exclusively.
+
+---
+
+### Anti-Pattern 5: Running UI Tests Without a .vsix Build
+
+**What people do:** Run `npm run test:ui` without first running `npm run package`, expecting it to pick up source changes.
+
+**Why it's wrong:** `vscode-extension-tester` installs a `.vsix` file, not source files. Source changes are not reflected unless the extension is repackaged.
+
+**Do this instead:** Always sequence `npm run package` before `npm run test:ui`. In CI, make the UI test step depend on the package step. The `run-tests.sh` script should enforce this.
+
+---
+
+## Integration Points Summary Table
+
+| Test Layer | What It Tests | Runner | Needs VS Code | Needs Artemis | Compile Step |
+|------------|--------------|--------|--------------|---------------|-------------|
+| `test:react` (flow tests) | Message bridge → Zustand → React | Vitest | No | No | No |
+| `test:react` (store/component tests) | Individual stores and components | Vitest | No | No | No |
+| `test:unit` | Extension host handlers, services, auth | Mocha + test-electron | Yes (spawned) | No | Yes (tsc) |
+| `test:e2e` | Live API integration (uncommitted changes flow) | Mocha + test-electron | Yes (spawned) | Yes | Yes (tsc) |
+| `test:ui` | Full VS Code window, webview iframe, Selenium | vscode-extension-tester | Yes (downloaded) | Optional | Yes (.vsix) |
 
 ---
 
 ## Sources
 
-### Bundle Optimization
-- [esbuild API Documentation](https://esbuild.github.io/api/)
-- [Code splitting limitations - Issue #16](https://github.com/evanw/esbuild/issues/16)
-- [VS Code Extension Building Guide 2026](https://abdulkadersafi.com/blog/building-vs-code-extensions-in-2026-the-complete-modern-guide)
-- [Configuring VSCode Extensions with Webpack and React](https://medium.com/@captaincolinr/vscode-react-extension-guide-10ea25cb983f)
-
-### Lucide React
-- [Lucide React Documentation](https://lucide.dev/guide/packages/lucide-react)
-- [React Icon Libraries Bundle Size Analysis 2026](https://medium.nkcroft.com/the-hidden-bundle-cost-of-react-icons-why-lucide-wins-in-2026-1ddb74c1a86c)
-- [Best React Icon Libraries for 2026](https://mighil.com/best-react-icon-libraries)
-
-### TypeScript Strict Mode
-- [TypeScript Strict Mode Guide 2026](https://oneuptime.com/blog/post/2026-02-20-typescript-strict-mode-guide/view)
-- [TypeScript Strict Plugin](https://github.com/allegro/typescript-strict-plugin)
-- [Incremental Migration to Strict Mode](https://preetmishra.com/blog/migrating-to-typescript-strict-mode-at-an-early-stage-startup)
-- [Understanding TypeScript's Strict Compiler Option](https://betterstack.com/community/guides/scaling-nodejs/typescript-strict-option/)
-
-### Testing
-- [Vitest Component Testing Guide](https://vitest.dev/guide/browser/component-testing)
-- [Testing in 2026: Jest, React Testing Library, and Full Stack Strategies](https://www.nucamp.co/blog/testing-in-2026-jest-react-testing-library-and-full-stack-testing-strategies)
-- [VS Code Extension Testing Documentation](https://code.visualstudio.com/api/working-with-extensions/testing-extension)
-- [Complete Guide to VS Code Extension Testing](https://dev.to/sourishkrout/a-complete-guide-to-vs-code-extension-testing-268p)
-- [Using React in VS Code Webviews](https://www.kenmuse.com/blog/using-react-in-vs-code-webviews/)
+- Direct inspection: `iris-thaumantias/test/` directory (all existing test files)
+- Direct inspection: `iris-thaumantias/.vscode-test.mjs` (Mocha test runner config)
+- Direct inspection: `iris-thaumantias/vitest.config.mts` (Vitest config)
+- Direct inspection: `iris-thaumantias/src/views/app/webViewMessageHandler.ts` (handler seam at line 77)
+- Direct inspection: `iris-thaumantias/src/shared/messageContracts.ts` (contract types)
+- Direct inspection: `iris-thaumantias/package.json` (all test scripts and devDependencies)
+- [vscode-extension-tester documentation](https://github.com/redhat-developer/vscode-extension-tester) — Selenium-based UI testing for VS Code extensions
+- [@vscode/test-cli documentation](https://github.com/microsoft/vscode-test-cli) — official VS Code extension test runner
 
 ---
 
-*Architecture research for: Artemis Extension v1.1 Production Readiness*
-*Researched: 2026-02-25*
+*Architecture research for: Artemis Extension v1.2 E2E & Integration Testing*
+*Researched: 2026-02-28*

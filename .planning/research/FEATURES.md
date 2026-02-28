@@ -1,221 +1,246 @@
 # Feature Research
 
-**Domain:** Production-ready VS Code extension with React webviews
-**Researched:** 2026-02-25
+**Domain:** VS Code extension E2E and integration testing (React webviews with postMessage bridge)
+**Researched:** 2026-02-28
 **Confidence:** HIGH
+
+## Context
+
+This research is scoped to v1.2: adding E2E and integration tests to an existing VS Code extension with 12 React webview views, 809 unit/component tests (Vitest + RTL), and a typed postMessage bridge. The project already has:
+
+- `@vscode/test-cli` + `@vscode/test-electron` installed (unit test runner)
+- `vscode-extension-tester` v8.22 installed (Selenium-based UI automation)
+- `vitest` + `@testing-library/react` + `happy-dom` (component tests)
+- Flow tests in `test/react/flows/` (bridge mock + store hydration patterns)
+- Skeleton E2E tests under `test/e2e/ui/` (login view, login flow) — not wired to CI
+
+---
 
 ## Feature Landscape
 
-### Table Stakes (Users Expect These)
+### Table Stakes (Users/Maintainers Expect These)
 
-Features users assume exist in production-ready VS Code extensions. Missing these = product feels incomplete or unprofessional.
+Features expected from a mature, production VS Code extension test suite. Missing these = test infrastructure is considered incomplete for the domain.
 
 | Feature | Why Expected | Complexity | Notes |
 |---------|--------------|------------|-------|
-| Theme-aware icons | VS Code extensions must adapt to light/dark themes | LOW | Codicons (1000+ icons) handle theming automatically via CSS variables. Custom SVG icons require manual theme handling with `--vscode-*` CSS variables or `currentColor`. Lucide icons need explicit color prop binding to theme variables. |
-| Zero TypeScript errors | Production code shouldn't have compilation warnings | MEDIUM | **Already have 10 pre-existing errors** to fix. Requires enabling `strict: true` in tsconfig.json and eliminating all `any` types. VS Code API itself has some strict-mode compatibility issues (Issue #38649). Use `@typescript-eslint/no-explicit-any` ESLint rule to enforce. |
-| Reasonable bundle size | Large extensions slow VS Code startup and webview load | MEDIUM | **Current: 3.5MB webview bundle** (IIFE format). No official limits but Import Cost extension shows 70KB+ as heavy. esbuild with `minify: true` enables tree-shaking automatically. Code splitting difficult in webviews due to dynamic asset paths (Issue #93041). Target: <2MB for webview bundle. |
-| UI integration tests | Validates that real user workflows function correctly | MEDIUM | **Already have login-flow test** via vscode-extension-tester. WebdriverIO alternative offers more features. Must switch iframe context to test webview elements. Complement with unit/integration tests (test pyramid). |
-| Automated linting | Enforces code quality standards automatically | LOW | ESLint with `@typescript-eslint/recommended-type-checked` or `strict-type-checked` for production. Already have tooling, need to apply to all code and CI. |
-| Bundled extension | Required for VS Code Web (github.dev, vscode.dev) | LOW | **Already using esbuild**. Production build with `minify: true` yields smallest bundles. Extension must be bundled to work in web environments. |
+| Extension host integration tests | Standard for any VS Code extension using the VS Code API | MEDIUM | Run via `@vscode/test-electron` inside Extension Development Host with access to full `vscode.*` API. Already have `test/unit/` tests using this runner — integration tests follow the same pattern but exercise provider/bridge behavior instead of pure logic. |
+| postMessage bridge integration tests | The bridge is the core communication channel; all 12 views depend on it | MEDIUM | Existing flow tests in `test/react/flows/` already cover OUTBOUND (postMessage spy) and INBOUND (dispatchExtensionMessage) in Vitest/happy-dom. Gap: no host-side verification that AppStateManager actually calls `webview.postMessage()` with correct typed payloads. |
+| Store hydration tests | Zustand store initialization from bridge messages is critical to every view | MEDIUM | Already partly covered in flow tests (stores are hydrated via dispatchExtensionMessage). Gap: no tests verifying the full round-trip — extension host receives a command and hydrates store via postMessage response. |
+| E2E framework decision and setup | Every mature extension has a chosen E2E framework; ad-hoc Selenium scripts are not sufficient | HIGH | Two options exist for VS Code: `vscode-extension-tester` (Selenium, already installed, RedHat, lower-level) vs `wdio-vscode-service` (WebdriverIO, higher-level page objects, explicitly recommended by VS Code team for webview testing). Decision must precede all E2E test writing. |
+| E2E smoke tests for all 12 views | Verifies each view renders without crash and shows minimal expected UI | HIGH | Project has 12 views: Login, Dashboard, CourseList, CourseDetail, ExerciseDetail, ExamStart, ExamConduction, ExamExerciseDetail, IrisChat, BuildFeedback, ProblemStatement, ServiceStatus. Currently only Login is smoke tested. Webview tests require iframe context switching. |
+| CI integration for E2E | E2E tests not in CI are not real tests | MEDIUM | Linux CI requires `xvfb-run -a` wrapper. macOS/Windows run directly. `@vscode/test-cli` handles VS Code download/launch. Existing `test:unit` script uses `vscode-test`; E2E needs same runner plus xvfb setup. GitHub Actions matrix recommended. |
+| Test isolation (no shared state) | Tests that leak state cause false failures and intermittent CI | MEDIUM | Zustand stores persist across tests unless reset. Already handled in flow tests via `beforeEach` store resets. Must enforce same pattern in all integration/E2E tests. |
 
-### Differentiators (Competitive Advantage)
+### Differentiators (Valuable but Not Universal)
 
-Features that set production extensions apart. Not required, but valuable for quality perception.
+Features that distinguish a high-quality test suite. Not every VS Code extension has these, but they provide measurable confidence gains.
 
 | Feature | Value Proposition | Complexity | Notes |
 |---------|-------------------|------------|-------|
-| React component tests | Catches UI bugs before they reach users, enables confident refactoring | MEDIUM | Use Vitest (faster, native ESM, Vite-compatible) or Jest with React Testing Library. Test components in isolation using `render()` and query by user-visible text/roles. **Current trend:** Vitest overtaking Jest in satisfaction (State of JS 2024). Coverage target: 70-80% for production apps. |
-| Type-safe message contracts | Prevents runtime errors from webview-extension communication | LOW | **Already have discriminated unions** (v1.0). Maintain 100% - no loosening to `any`. Use `satisfies` operator for type narrowing. |
-| Consistent icon system | Professional, cohesive visual language | LOW | **Decision needed:** Standardize on Codicons (theme-native), Lucide React (1500+ icons, tree-shakable), or hybrid. Current: Custom inline SVG + Lucide just installed. Codicons preferred for VS Code-native look, Lucide for design consistency if custom UI. |
-| Optimized bundle analysis | Identifies bloat sources, tracks size over time | LOW | Use Import Cost extension during development or webpack-bundle-analyzer post-build. Track bundle size in CI to prevent regressions. **Current gap:** No bundle analysis tooling in place. |
-| CSP-compliant architecture | Security best practice for webviews | LOW | **Already compliant** (nonce-based CSP). Maintain: no inline scripts, styles must use nonce, all assets served via webview URI. |
-| 80%+ test coverage | Industry standard for production applications | MEDIUM-HIGH | Current: **UI smoke tests only**. Need: component unit tests (Vitest/Jest + RTL), integration tests (@vscode/test-electron), UI tests (vscode-extension-tester). Target: 70-80% coverage overall, higher for critical paths (exam timing, submission flow). |
+| Message bridge contract tests (host-side) | Verifies that AppStateManager sends the correct typed discriminated-union messages | HIGH | Extension host unit tests already exist but don't verify message payloads dispatched to webview. Test pattern: mock `vscode.Webview`, call extension host methods, assert `postMessage` called with correct typed payload. Requires Extension Development Host environment (`@vscode/test-electron`). |
+| WebSocket mock for integration tests | Enables testing STOMP/WebSocket-triggered store updates without a live server | HIGH | The WebSocket error propagation gap (HIGH tech debt) cannot be tested without this. Mock pattern: intercept `ArtemisWebsocketService` at the boundary, simulate `onMessage` callbacks, verify store updates. Already mocked in flow tests via `vi.mock()` — same pattern needed in host-side integration tests. |
+| State persistence tests (getState/setState) | Verifies that webview state is persisted correctly across hide/show panel cycles | MEDIUM | Known gap: no webview state persistence currently (MEDIUM tech debt). Integration test proves the absence, then drives the fix. Pattern: `createMockVsCodeApi({ getState: () => savedState })` already exists in flow tests. |
+| Exam timer Web Worker integration test | Verifies Worker message accuracy separate from component rendering | HIGH | Current examTimer.flow.test.tsx mocks `useExamTimer` because `esbuild-plugin-inline-worker` is unavailable in Vitest SSR. A proper integration test would exercise the actual Worker binary in a browser environment. Requires `@vscode/test-web` or a separate browser test environment — significant infrastructure cost. |
+| Screenshot capture on E2E test failure | Debugging aid for intermittent CI failures | LOW | `vscode-extension-tester` WebDriver already has `driver.takeScreenshot()`. Pattern exists in `test/e2e/ui/helpers.ts`. Wire to `afterEach` on failure automatically. |
+| Navigation flow E2E tests | Verifies breadcrumb routing across view transitions in real VS Code | HIGH | Current navigation.flow.test.tsx tests Zustand store in isolation. E2E version would click through views and verify URL/breadcrumb state — requires authenticated session setup which is complex in E2E context. |
+| Accessibility tests on webview DOM | axe-core assertions on rendered webview HTML | MEDIUM | Can run axe-core inside Vitest/happy-dom environment on each view's rendered output. `@testing-library/jest-dom` + `jest-axe` or `axe-core` directly. Not VS Code-specific — runs in Vitest layer. Catches missing ARIA roles, color contrast issues. |
+| CSP invariant tests | Verifies nonce-based CSP is not accidentally weakened | LOW | Already implemented in `test/react/security/csp.test.ts` as source file inspection. Approach is correct and complete. |
 
-### Anti-Features (Commonly Requested, Often Problematic)
+### Anti-Features (Avoid These)
 
-Features that seem good but create problems in VS Code extension context.
+Features that seem appropriate but introduce more cost than value in this specific VS Code extension context.
 
 | Feature | Why Requested | Why Problematic | Alternative |
 |---------|---------------|-----------------|-------------|
-| 100% TypeScript strict mode initially | "Best practice" to enable all strict flags | VS Code API has known incompatibilities with some strict options (strictNullChecks on Provider interfaces, noImplicitAny on test runner). Can block progress if adopted too early without mitigation strategy. | Enable `strict: true` but use `@ts-expect-error` with explanatory comments for VS Code API limitations. File types.d.ts augmentations where possible. Prioritize fixing application code first, then tackle API boundary issues. |
-| Code splitting for webviews | Reduces initial bundle size | Webview asset paths vary per machine; webpack requires static publicPath for dynamic imports. Workarounds exist but add complexity (Issue #93041). **Current: single IIFE bundle.** | Tree-shaking via esbuild (automatic with `minify: true`), lazy-load heavy dependencies (Shiki already does this), evaluate if 3.5MB → <2MB via minification + dead code elimination suffices before adding splitting complexity. |
-| 100% test coverage | "More tests = better quality" | Diminishing returns above 80%. Chasing 100% often tests implementation details rather than behavior. Critical for safety systems (aerospace, medical) but overkill for dev tools. | Target 70-80% overall with 90%+ on critical paths (authentication, exam timing, submission flow, WebSocket state). Use coverage reports to find gaps, not as a metric to game. |
-| Hot Module Replacement (HMR) | Faster development iteration | Requires significant build config changes, webview state management, and may not persist across HMR reloads. **Already deferred to DX-01.** | Current: full webview rebuild on change. Acceptable for v1.1. Revisit if iteration speed becomes major pain point after launch. |
-| Custom icon font | "Smaller bundle than SVGs" | Must handle theming manually, no tree-shaking (entire font loads), CORS/CSP complications in webviews, maintenance burden. | Use Codicons (built-in font, zero bundle cost) or Lucide React SVG components (tree-shakable, only imports used icons). Current custom inline SVGs should migrate to one of these. |
-| Aggressive bundle splitting | Theoretical optimal loading | Creating bundles <1KB causes network overhead that outweighs size savings. Over-splitting increases complexity. | Bundle strategically: one main chunk, separate heavy optional deps (syntax highlighters, charting if added). Don't split for splitting's sake. |
+| Full UI automation of all 12 views with credential login | "Test everything end-to-end like a real user" | Requires live Artemis server, real credentials in CI, network dependency, 3-5 minute run time. The existing login-flow.ui.test.ts already skips when credentials are absent. Fragile, slow, hard to debug. | Smoke tests verify view renders; integration tests verify bridge behavior; flow tests verify user interaction patterns. Reserve credential-based tests for manual/scheduled runs against staging, not PR CI. |
+| Visual regression / screenshot diffing | "Catch unintended UI changes" | Webviews render differently per OS, VS Code version, and theme. Screenshot diffing produces constant false positives in cross-platform CI. High maintenance. | CSS Modules + component tests (RTL) already prevent most CSS regressions. Use manual visual review for intentional design changes. |
+| Testing every Zustand store action in E2E | "Verify everything at the highest level" | E2E tests are 10-100x slower than Vitest tests. Store logic is already tested at unit/flow level. Duplicating at E2E layer adds maintenance with zero confidence gain. | Keep store tests in Vitest (fast, deterministic). E2E tests verify view-level behavior, not store internals. |
+| `@vscode/test-web` browser environment | "More coverage by testing web extension" | This extension uses Node.js APIs (file system, git) that are unavailable in web environment. Building a web-compatible version is not on the roadmap (constraint: IIFE bundle format). | Skip `@vscode/test-web`. Focus on `@vscode/test-electron` for host tests + `vscode-extension-tester` for UI E2E. |
+| Playwright for VS Code extension E2E | "Playwright is the modern E2E standard" | Playwright tests VS Code extensions via Electron automation, not via the VS Code extension test runner. This means no access to `vscode.*` API in tests. `wdio-vscode-service` or `vscode-extension-tester` (both WebDriver-based) are the only options that can interact with the VS Code workbench AND access VS Code APIs. Playwright is for testing web apps, not VS Code extensions. | Use `vscode-extension-tester` (already installed) or `wdio-vscode-service` for UI automation. Use `@vscode/test-electron` for extension host API access. |
+| 100% E2E coverage mirroring unit tests | "Every unit test scenario should also have an E2E test" | E2E tests are fundamentally different in purpose: verify integration contracts and critical paths, not cover every branch. Mirroring creates thousands of slow tests. | Test pyramid: unit/component tests (fast, many) > integration tests (medium) > E2E smoke tests (slow, few). Current 809 Vitest tests are the base. Integration + E2E add contract verification on top. |
+
+---
 
 ## Feature Dependencies
 
 ```
-Type-Safe Message Contracts (v1.0 ✓)
-    └──enables──> Zero TypeScript Errors (v1.1)
-                      └──blocked-by──> Fix 10 pre-existing errors first
+vscode-extension-tester (already installed v8.22)
+    └──enables──> E2E smoke tests for all 12 views
+                      └──requires──> iframe context switching (switchToWebviewFrame pattern)
+                      └──requires──> VS Code launch config pointing to built extension
+                      └──blocks──> CI integration (must work locally first)
 
-Bundled Extension (esbuild ✓)
-    └──enables──> Bundle Optimization (tree-shaking)
-                      └──enables──> Bundle Size Analysis
-    └──enables──> React Component Tests (need test env setup)
+@vscode/test-electron (already installed v2.5.2)
+    └──enables──> Extension host integration tests
+                      └──requires──> Compiled TypeScript output (out/ directory)
+                      └──enables──> Message bridge contract tests (host-side)
+                      └──enables──> WebSocket mock integration tests
+                      └──enables──> State persistence tests
 
-UI Integration Tests (vscode-extension-tester ✓)
-    ├──complements──> React Component Tests (test different layers)
-    └──requires──> Stable selectors (CSS classes, test IDs)
+Vitest flow tests (already exist: auth, exercise, exam, iris, navigation, errors)
+    └──pattern-reused-by──> New integration tests in @vscode/test-electron suite
+    └──complements──> E2E smoke tests (different test layers)
 
-Theme-Aware Icons
-    ├──option-A──> Codicons (built-in, zero config)
-    ├──option-B──> Lucide React + CSS var theming
-    └──conflicts──> Custom inline SVGs (current) - migrate one direction
+postMessage bridge (typed discriminated unions, v1.1 ✓)
+    └──tested-by──> Message bridge contract tests (host-side)
+    └──tested-by──> Existing flow tests (webview-side)
 
-Automated Linting (ESLint ✓)
-    └──enforces──> Zero TypeScript Errors
-    └──enforces──> No `any` types (@typescript-eslint/no-explicit-any)
+AppStateManager (extension host, 13 states)
+    └──tested-by──> Extension host integration tests
+    └──NOT tested by──> Vitest flow tests (those mock the bridge entirely)
+
+WebSocket/STOMP service (ArtemisWebsocketService)
+    └──mocked-by──> vi.mock() in flow tests (pattern exists)
+    └──needs──> Mock in host-side integration tests for WebSocket error propagation tests
+
+Exam Web Worker (esbuild-plugin-inline-worker)
+    └──blocked-in-vitest──> Worker binary not available in SSR transform
+    └──testable-via──> Real Extension Development Host (needs @vscode/test-electron integration)
+    └──currently-covered-by──> useExamTimer hook mock in examTimer.flow.test.tsx
 ```
 
 ### Dependency Notes
 
-- **Type-Safe Contracts enables Zero TS Errors:** Already have discriminated unions (v1.0), now need to fix existing 10 errors and enforce going forward. Can't achieve 100% type safety with unresolved errors.
-- **Bundled Extension enables Optimization:** esbuild's tree-shaking (`minify: true`) automatically removes dead code. Must be bundled first before optimization can occur.
-- **UI Tests complement Component Tests:** vscode-extension-tester tests full workflows (login, navigation), React Testing Library tests components in isolation. Different layers of test pyramid—both needed.
-- **Icon System conflicts:** Must choose between Codicons, Lucide, or hybrid. Current custom inline SVGs in IconDefinitions.ts should migrate to one consistent system. Mixing systems increases bundle size and maintenance.
-- **Linting enforces Standards:** ESLint with typescript-eslint recommended-type-checked preset automates enforcement of no `any` types and other type safety rules. Critical for maintaining quality as team scales.
+- **E2E tests require compiled output:** `vscode-extension-tester` launches VS Code with the extension loaded from `dist/`. Tests cannot run before `npm run compile`. The existing `test:e2e` script already chains `compile-tests && vscode-test`.
+- **Integration tests require Extension Development Host:** Any test needing `vscode.*` API runs via `@vscode/test-electron`, not Vitest. These are slower (VS Code launches) but have access to real extension host context.
+- **Flow tests and integration tests complement, not replace each other:** Flow tests (Vitest) are fast, cover interaction patterns with mocked bridge. Integration tests (`@vscode/test-electron`) are slower, verify the actual bridge + AppStateManager behavior.
+- **WebSocket mock pattern already established:** `vi.mock('../../../src/views/webview/react/hooks/useWebSocketUpdates', ...)` in exerciseSubmission.flow.test.tsx. Same pattern extends to host-side ArtemisWebsocketService mocking.
+- **vscode-extension-tester vs wdio-vscode-service decision blocks all E2E work:** Must choose before writing any view smoke tests. `vscode-extension-tester` is already installed but lower-level. `wdio-vscode-service` has explicit webview page objects. This is the first task of the milestone.
+
+---
+
+## Test Category Reference
+
+Specific to VS Code extension testing (not generic web testing):
+
+| Category | Runner | Speed | What It Verifies | Count Target |
+|----------|--------|-------|-----------------|--------------|
+| React component tests | Vitest + happy-dom | Fast (ms) | Rendering, props, user events | Already 809 |
+| React flow tests | Vitest + happy-dom | Fast (ms) | postMessage round-trips (mocked bridge) | Already ~50 |
+| Extension host unit tests | @vscode/test-electron | Medium (s) | Pure logic in extension host (no VS Code API) | Already ~30 |
+| Extension host integration tests | @vscode/test-electron | Medium (s) | AppStateManager + bridge dispatch + WebSocket mock | NEW: ~20-30 |
+| E2E webview smoke tests | vscode-extension-tester | Slow (10-30s/test) | Each view renders, minimal DOM present | NEW: ~12 (1 per view) |
+| E2E interaction tests | vscode-extension-tester | Slow | User flows in real VS Code | NEW: ~5-8 critical paths |
+| CI smoke tests (no credentials) | vscode-extension-tester | Slow | Extension loads, sidebar visible | NEW: entry gate |
+
+---
 
 ## MVP Definition
 
-### Launch With (v1.1 Production Ready)
+### Launch With (v1.2 Core)
 
-Minimum features to claim "production ready" status — what's needed to validate quality bar.
+Minimum testing coverage to claim "comprehensive E2E and integration testing" — the v1.2 milestone goal.
 
-- [x] **Theme-aware icon system** — Choose Codicons OR Lucide, eliminate custom inline SVGs. Dashboard ghost buttons need icons (already Lucide installed). Essential for professional appearance.
-- [ ] **Zero TypeScript errors** — Fix 10 pre-existing errors, enable `strict: true`, eliminate all `any` types. Can't ship "production ready" with compilation warnings.
-- [ ] **Bundle optimization** — 3.5MB → <2MB via minification, tree-shaking, lazy loading. Current size hurts webview load performance.
-- [ ] **Expanded UI test coverage** — Beyond login flow: course browsing, exercise submission, Iris chat basics. Validates critical user paths work.
-- [ ] **Automated quality gates** — ESLint strict mode in CI, bundle size tracking. Prevents regressions after launch.
+- [ ] **E2E framework decision** — Pick `vscode-extension-tester` (keep existing) or migrate to `wdio-vscode-service`. Essential prerequisite for all E2E work.
+- [ ] **Extension host integration tests** — Cover AppStateManager message dispatch: verify typed postMessage payloads sent to webview for each of the 13 state transitions. Uses `@vscode/test-electron`.
+- [ ] **Message bridge contract tests** — Mock `vscode.Webview`, call extension host handlers, assert correct discriminated-union message shapes. Prevents bridge contract drift.
+- [ ] **E2E smoke tests for all 12 views** — Each view: extension loads, sidebar opens, webview iframe accessible, minimal expected element visible. No credentials needed for pre-login views. ~12 tests.
+- [ ] **CI integration** — `test:e2e` job in GitHub Actions with xvfb-run on Linux. Separate from `test:react` (Vitest). Both must pass on PR.
+- [ ] **WebSocket error propagation integration test** — Tests the HIGH tech debt gap: ArtemisWebsocketService failure propagates to store error state (drives the fix).
+- [ ] **Store hydration round-trip test** — Extension host receives command → processes → dispatches postMessage → Zustand store hydrated. Verifies the full path not covered by flow tests.
 
-### Add After Validation (v1.2+)
+### Add After Core (v1.2 Extended)
 
-Features to add once v1.1 is stable and in use.
+Features to add once core integration infrastructure is working.
 
-- [ ] **React component test suite** — Unit tests for 22 shared components (Button, ListItem, IconButton, etc.). Trigger: After v1.1 ships, before adding new components. Enables confident refactoring.
-- [ ] **80% test coverage** — Comprehensive coverage across unit, integration, UI layers. Trigger: When adding major new features (e.g., new exam modes) that increase risk.
-- [ ] **Bundle size monitoring** — webpack-bundle-analyzer or Import Cost extension in CI. Trigger: After initial optimization, to track size over time and prevent regressions.
+- [ ] **State persistence integration tests** — Tests the MEDIUM tech debt: webview state survives panel hide/show via `getState`/`setState`. Drives the fix.
+- [ ] **E2E interaction tests for critical paths** — Auth flow (login button → loading → logged-in state transition visible in real VS Code), exercise submission flow (Start Exercise → Submit → build progress). ~5 tests.
+- [ ] **Accessibility assertions** — axe-core on rendered view DOM in Vitest layer. Add to each of the 12 view test files.
+- [ ] **Screenshot-on-failure** — Wire `takeScreenshot` to `afterEach` in E2E tests automatically when test fails.
 
-### Future Consideration (v2+)
+### Future Consideration (v1.3+)
 
-Features to defer until core quality is proven in production.
+Defer until core E2E infrastructure is proven stable.
 
-- [ ] **Code splitting for webviews** — Only if bundle remains >2MB after v1.1 optimization. Defer: High complexity, VS Code webview path issues (Issue #93041), may not be necessary if tree-shaking suffices.
-- [ ] **100% test coverage** — Diminishing returns above 80%. Defer: Industry standard is 70-80%, effort better spent on new features unless in regulated domain.
-- [ ] **Visual regression testing** — Screenshot comparison for UI consistency. Defer: Maintenance overhead high, manual review currently sufficient given React component architecture prevents most CSS regressions.
+- [ ] **Exam Web Worker real integration test** — Requires browser environment or custom Vitest worker plugin to test actual Worker binary. Complex infrastructure change. The hook mock provides sufficient coverage for now.
+- [ ] **Navigation flow E2E** — Clicking through Dashboard → CourseList → CourseDetail → ExerciseDetail in real VS Code. Requires authenticated state, complex setup. High value but high flakiness risk.
+- [ ] **Visual regression tests** — Defer indefinitely. Cross-platform rendering differences make this maintenance-heavy with low signal-to-noise ratio.
+
+---
 
 ## Feature Prioritization Matrix
 
-| Feature | User Value | Implementation Cost | Priority |
-|---------|------------|---------------------|----------|
-| Zero TypeScript errors | HIGH (eliminates runtime bugs) | MEDIUM (10 errors + strict mode) | **P1** |
-| Theme-aware icon system | HIGH (professional appearance) | LOW (migrate to Codicons/Lucide) | **P1** |
-| Bundle optimization | HIGH (faster webview load) | MEDIUM (analyze, tree-shake, lazy-load) | **P1** |
-| Expanded UI tests | HIGH (catches regressions) | MEDIUM (3-5 critical flows) | **P1** |
-| Automated quality gates | HIGH (prevents regressions) | LOW (CI integration) | **P1** |
-| React component tests | MEDIUM (refactoring confidence) | MEDIUM (22 components + setup) | **P2** |
-| 80% test coverage | MEDIUM (quality signal) | HIGH (unit + integration tests) | **P2** |
-| Bundle size monitoring | MEDIUM (trend tracking) | LOW (analyzer tooling) | **P2** |
-| Code splitting | LOW (marginal gains if <2MB) | HIGH (webpack config complexity) | **P3** |
-| 100% test coverage | LOW (diminishing returns) | HIGH (chase edge cases) | **P3** |
-| Visual regression tests | LOW (current arch prevents issues) | HIGH (infrastructure + maintenance) | **P3** |
+| Feature | Confidence Gain | Implementation Cost | Priority |
+|---------|----------------|---------------------|----------|
+| E2E framework decision | N/A (prerequisite) | LOW (research + config) | **P0** |
+| Extension host integration tests (bridge) | HIGH | MEDIUM | **P1** |
+| Message bridge contract tests | HIGH | MEDIUM | **P1** |
+| E2E smoke tests for all 12 views | HIGH | HIGH (iframe switching per view) | **P1** |
+| CI integration (xvfb + GitHub Actions) | HIGH | MEDIUM | **P1** |
+| WebSocket error propagation test | HIGH | HIGH (drives tech debt fix) | **P1** |
+| Store hydration round-trip test | HIGH | MEDIUM | **P1** |
+| State persistence integration test | MEDIUM | MEDIUM | **P2** |
+| E2E interaction tests (auth + submission) | MEDIUM | HIGH | **P2** |
+| Accessibility assertions (axe-core) | MEDIUM | LOW | **P2** |
+| Screenshot-on-failure | LOW | LOW | **P2** |
+| Exam Worker real integration test | LOW | HIGH | **P3** |
+| Navigation flow E2E | MEDIUM | HIGH (flakiness risk) | **P3** |
 
 **Priority key:**
-- **P1:** Must have for v1.1 "production ready" launch — table stakes
-- **P2:** Should have, add in v1.2 when stable — differentiators
-- **P3:** Nice to have, future consideration — optimize only if needed
+- P0: Must decide/complete before any other work begins
+- P1: Must have for v1.2 milestone completion
+- P2: Should have, add when P1 work is stable
+- P3: Nice to have, defer to v1.3+
 
-## Competitor Feature Analysis
+---
 
-Production-ready VS Code extensions with React webviews as reference points.
+## Existing Test Infrastructure Assessment
 
-| Feature | GitHub Copilot Chat | GitLens | Our Approach (Artemis) |
-|---------|---------------------|---------|------------------------|
-| Icon System | Codicons (native) | Codicons (native) | **Decision:** Migrate to Codicons for ghost buttons + migrate custom SVGs, or standardize on Lucide React for all UI. Hybrid increases bundle size. |
-| Bundle Size | Unknown (proprietary) | Unknown (proprietary) | **Target:** <2MB (currently 3.5MB). Use esbuild minify + tree-shaking + lazy Shiki. |
-| Type Safety | Assumed strict (Microsoft) | Assumed strict (commercial) | **Current:** 10 errors, `any` types exist. **Target:** `strict: true`, zero errors, `@typescript-eslint/no-explicit-any` enforced. |
-| Testing Strategy | Unknown (Microsoft internal) | Unknown (commercial) | **Current:** UI smoke tests. **Target:** UI (vscode-extension-tester) + component tests (Vitest + RTL) + integration tests. 70-80% coverage. |
-| Bundle Format | Likely split chunks | Single bundle (observed) | **Current:** Single IIFE. **Decision:** Stick with single bundle if optimization achieves <2MB; splitting adds complexity without clear value. |
-| Theme Integration | Native (Codicons, CSS vars) | Native (Codicons, CSS vars) | **Current:** Mix of custom SVGs + CSS variables + Lucide (just added). **Target:** Consistent system using `--vscode-*` CSS variables for colors. |
+What already exists and how new tests build on it.
 
-## Architecture Dependencies
+### Already Working (Do Not Change)
 
-Features depend on current v1.0 architecture (existing foundation).
+| Infrastructure | Location | Status |
+|----------------|----------|--------|
+| `createMockVsCodeApi()` | `test/react/__helpers__/vscodeApi.ts` | Solid mock for webview-side bridge testing |
+| `dispatchExtensionMessage()` | `test/react/__helpers__/vscodeApi.ts` | Simulates INBOUND messages in Vitest |
+| Zustand store reset pattern | `beforeEach` in all flow tests | Must be replicated in all new tests |
+| `switchToWebviewFrame()` helper | `test/e2e/ui/helpers.ts` | Works with vscode-extension-tester |
+| `takeScreenshot()` helper | `test/e2e/ui/helpers.ts` | Available for on-failure capture |
+| `.vscode-test.mjs` config | root | Labels: `unit` and `e2e`. Add `integration` label here. |
 
-### Already Built (v1.0 Foundation)
+### Gaps to Fill
 
-- **React 18.3.1 webviews** — All 12 views use React components
-- **22 shared components** — Button, ListItem, IconButton, Container, etc.
-- **Typed message contracts** — Discriminated unions for webview-extension communication
-- **CSS Modules** — Scoped styles, camelCase class names, VS Code CSS variables
-- **esbuild dual-target** — Node.js CJS (extension) + browser IIFE (webview)
-- **CSP-compliant** — Nonce-based Content Security Policy
-- **Custom SVG icons** — IconDefinitions.ts with inline SVG strings
+| Gap | Impact | Notes |
+|-----|--------|-------|
+| No host-side bridge contract tests | HIGH | AppStateManager → webview.postMessage never verified |
+| No WebSocket failure propagation tests | HIGH | Drives the HIGH tech debt fix in v1.2 |
+| Only 2 views have E2E smoke tests (Login only) | HIGH | 10 of 12 views have zero E2E coverage |
+| E2E tests not wired to CI | HIGH | `test:e2e` exists in package.json but not in CI workflow |
+| No store hydration round-trip (full path) | MEDIUM | Flow tests mock the bridge; integration tests must not |
 
-### v1.1 Must Build On
-
-- **Icon system consolidation** — Depends on: Current custom SVG system, Lucide just installed. Decision: Migrate all to one system (Codicons or Lucide).
-- **Bundle optimization** — Depends on: Current 3.5MB IIFE bundle, esbuild config. Must analyze before optimizing.
-- **Type safety enforcement** — Depends on: 10 pre-existing TypeScript errors must be fixed first, then enable strict mode.
-- **UI test expansion** — Depends on: Existing vscode-extension-tester setup, login-flow test. Expand to more critical paths.
-- **Component testing** — Depends on: No test framework for React components yet. Must add Vitest/Jest + React Testing Library setup.
-
-### v1.1 Must NOT Break
-
-- **Functionality parity** — All existing features work identically (core requirement)
-- **Exam timing accuracy** — Web Worker timers with absolute timestamps (critical path)
-- **Chat streaming smoothness** — RAF-based token buffering (critical UX)
-- **Theme compliance** — VS Code CSS variables must continue working (theme-aware)
-- **No backend changes** — Extension host services unchanged (constraint)
+---
 
 ## Sources
 
 ### Official Documentation
 
-- [VS Code Webview API Guide](https://code.visualstudio.com/api/extension-guides/webview) — Webview architecture, CSP, performance considerations
-- [VS Code Product Icon Reference](https://code.visualstudio.com/api/references/icons-in-labels) — Codicons usage, theme integration, custom icons
-- [VS Code Testing Extensions Guide](https://code.visualstudio.com/api/working-with-extensions/testing-extension) — Integration tests, @vscode/test-electron, Mocha
-- [VS Code Theme Color Reference](https://code.visualstudio.com/api/references/theme-color) — CSS variables for webviews, theme-aware styling
-- [VS Code Bundling Extensions Guide](https://code.visualstudio.com/api/working-with-extensions/bundling-extension) — esbuild configuration, tree-shaking
-- [esbuild API Documentation](https://esbuild.github.io/api/) — Minification, tree-shaking, bundle optimization
-- [TypeScript Compiler Options](https://www.typescriptlang.org/tsconfig/) — Strict mode flags, type checking options
-- [typescript-eslint no-explicit-any Rule](https://typescript-eslint.io/rules/no-explicit-any/) — Enforcing type safety, avoiding `any` types
+- [VS Code Testing Extensions](https://code.visualstudio.com/api/working-with-extensions/testing-extension) — `@vscode/test-cli`, `@vscode/test-electron`, Mocha, Extension Development Host (MEDIUM confidence — verified current)
+- [VS Code Continuous Integration](https://code.visualstudio.com/api/working-with-extensions/continuous-integration) — xvfb-run, GitHub Actions matrix, platform-specific setup (HIGH confidence — official docs)
+- [VS Code Webview API](https://code.visualstudio.com/api/extension-guides/webview) — postMessage, acquireVsCodeApi, iframe sandbox model (HIGH confidence — official docs)
 
-### Community Resources & Best Practices
+### Framework Documentation
 
-- [Building VS Code Extensions in 2026: The Complete Guide](https://abdulkadersafi.com/blog/building-vs-code-extensions-in-2026-the-complete-modern-guide) — Modern patterns: React, TypeScript strict, esbuild
-- [A Complete Guide to VS Code Extension Testing](https://dev.to/sourishkrout/a-complete-guide-to-vs-code-extension-testing-268p) — Test pyramid, vscode-extension-tester webview testing
-- [Using React in VS Code Webviews](https://www.kenmuse.com/blog/using-react-in-vs-code-webviews/) — React setup, bundling, CSP compliance
-- [A code-driven approach to theme your VS Code webview](https://www.eliostruyf.com/code-driven-approach-theme-vscode-webview/) — CSS variables, theme integration
-- [Vitest vs Jest 2026: Performance Benchmarks and Migration Guide](https://www.sitepoint.com/vitest-vs-jest-2026-migration-benchmark/) — Test framework comparison, modern tooling
-- [Testing in 2026: Jest, React Testing Library, and Full Stack Testing Strategies](https://www.nucamp.co/blog/testing-in-2026-jest-react-testing-library-and-full-stack-testing-strategies) — Test layering, coverage targets
+- [WebdriverIO VS Code Extension Testing](https://webdriver.io/docs/extension-testing/vscode-extensions/) — wdio-vscode-service, webview iframe switching via `getAllWebviews()`, page objects (MEDIUM confidence — verified current)
+- [wdio-vscode-service API](https://webdriverio-community.github.io/wdio-vscode-service/) — Page object classes: ActivityBar, WebviewView, etc. (MEDIUM confidence — verified current)
+- [vscode-extension-tester GitHub](https://github.com/redhat-developer/vscode-extension-tester) — Selenium-based, already installed in project (HIGH confidence — already used in project)
 
-### Tools & Libraries
+### Community Patterns
 
-- [vscode-extension-tester GitHub](https://github.com/redhat-developer/vscode-extension-tester) — Selenium-based UI testing for VS Code extensions
-- [Lucide Icons](https://lucide.dev/guide/) — 1500+ icons, tree-shakable, React components
-- [Lucide React Package](https://lucide.dev/guide/packages/lucide-react) — React integration, SVG components
-- [vscode-codicons GitHub](https://github.com/microsoft/vscode-codicons) — VS Code's icon library, 1000+ icons
-- [React Testing Library](https://testing-library.com/docs/react-testing-library/intro/) — Component testing, user-centric queries
-- [Vitest Guide](https://vitest.dev/guide/) — Fast test framework, native ESM, Vite-compatible
+- [A Complete Guide to VS Code Extension Testing](https://dev.to/sourishkrout/a-complete-guide-to-vs-code-extension-testing-268p) — Test pyramid, official packages lack webview support, WebdriverIO recommended (MEDIUM confidence — verified)
+- [Testing VSCode Extensions with TypeScript](https://devblogs.microsoft.com/ise/testing-vscode-extensions-with-typescript/) — Mock patterns, wrapper abstraction, vscode API mocking (MEDIUM confidence — Microsoft DevBlogs, authoritative)
+- [VS Code Extension Testing Discussion](https://github.com/microsoft/vscode-discussions/discussions/9) — Official guidance that @vscode/test-electron lacks webview support (MEDIUM confidence — from microsoft/vscode-discussions)
 
-### Code Quality & Coverage Standards
+### Project-Specific Findings (HIGH confidence — from codebase inspection)
 
-- [On Code Coverage: What It Is and Why It Matters](https://launchdarkly.com/blog/code-coverage-what-it-is-and-why-it-matters/) — Industry standards, 70-80% target
-- [What unit test coverage percentage should teams aim for?](https://www.techtarget.com/searchsoftwarequality/tip/What-unit-test-coverage-percentage-should-teams-aim-for) — 80% corporate standard
-- [Minimum Acceptable Code Coverage](https://www.bullseye.com/minimum.html) — Context-dependent targets, safety-critical vs general
-- [Avoiding anys with Linting and TypeScript](https://typescript-eslint.io/blog/avoiding-anys/) — Type safety enforcement strategies
-
-### Known Issues & Limitations
-
-- [VS Code Issue #93041: Split webpack bundles difficult in webviews](https://github.com/microsoft/vscode/issues/93041) — Dynamic asset path challenges
-- [VS Code Issue #38649: API not compatible with strict TypeScript options](https://github.com/microsoft/vscode/issues/38649) — Known strict mode limitations
-- [VS Code Issue #41785: Expose theme colors to webview via CSS variables](https://github.com/Microsoft/vscode/issues/41785) — Theme integration patterns
+- Existing `test/react/flows/` pattern: `createMockVsCodeApi` + `dispatchExtensionMessage` is the established integration test pattern for the webview side
+- `vscode-extension-tester` v8.22.0 already installed — no new dependency needed for Selenium-based E2E
+- `@vscode/test-cli` v0.0.12 + `@vscode/test-electron` v2.5.2 already installed — no new dependency needed for host tests
+- `test:e2e` script exists but only covers `out/test/e2e/**/*.e2e.test.js` — not wired to CI
+- Web Worker mocking constraint is documented in `examTimer.flow.test.tsx` comments — real Worker tests require browser environment
 
 ---
-*Feature research for: Production-ready VS Code extension with React webviews (Artemis)*
-*Researched: 2026-02-25*
-*Confidence: HIGH — Official docs, community best practices, industry standards verified*
+*Feature research for: VS Code extension E2E and integration testing (Artemis extension, v1.2 milestone)*
+*Researched: 2026-02-28*
+*Confidence: HIGH — Verified against official VS Code docs, project codebase inspection, and community sources*
