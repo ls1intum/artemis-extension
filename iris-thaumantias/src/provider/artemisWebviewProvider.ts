@@ -609,6 +609,27 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
             []
         );
 
+        // Handle visibility changes — resend data when panel becomes visible
+        const visibilityListener = webviewView.onDidChangeVisibility(() => {
+            if (webviewView.visible) {
+                void (async () => {
+                    // Check if auth expired while panel was hidden
+                    const hasAuth = await this._authManager.hasAuthCookie();
+                    const currentState = this._appStateManager.currentState;
+                    if (!hasAuth && currentState !== 'login') {
+                        logger.debug('Auth expired while panel was hidden, showing login', LogCategory.VIEW);
+                        this.hideLoadingAndSendServerUrl();
+                        return;
+                    }
+                    logger.debug('Sidebar webview became visible, resending view data...', LogCategory.VIEW);
+                    this.resendViewData();
+                })();
+            } else {
+                logger.debug('Sidebar webview became hidden', LogCategory.VIEW);
+            }
+        });
+        this._extensionContext.subscriptions.push(visibilityListener);
+
         // Listen for configuration changes to re-render when settings change
         vscode.workspace.onDidChangeConfiguration(event => {
             if (event.affectsConfiguration('artemis.developerMode')) {
