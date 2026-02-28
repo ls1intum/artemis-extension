@@ -10,3 +10,5 @@ export { createGitCredentialsPayload } from './gitCredentialsPayload';
 export { createRecommendedExtensionsPayload } from './recommendedExtensionsPayload';
 export { createLogoutPayload } from './logoutPayload';
 export { createGenericInitPayload } from './genericInitPayload';
+export { createLoginInitPayload } from './loginInitPayload';
+export { createIrisInitPayload } from './irisInitPayload';
