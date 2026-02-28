@@ -22,7 +22,7 @@ Requirements for milestone v1.2: E2E & Integration Testing + Cleanup. Each maps 
 
 ### E2E View Coverage
 
-- [ ] **E2EV-01**: E2E smoke test for Login view — renders, login form visible
+- [x] **E2EV-01**: E2E smoke test for Login view — renders, login form visible
 - [ ] **E2EV-02**: E2E smoke test for Dashboard view — renders, course cards visible
 - [ ] **E2EV-03**: E2E smoke test for CourseList view — renders, course list visible
 - [ ] **E2EV-04**: E2E smoke test for CourseDetail view — renders, exercise list visible
@@ -42,7 +42,7 @@ Requirements for milestone v1.2: E2E & Integration Testing + Cleanup. Each maps 
 
 ### Accessibility
 
-- [ ] **A11Y-01**: axe-core accessibility assertions on all 12 rendered view DOMs
+- [x] **A11Y-01**: axe-core accessibility assertions on all 12 rendered view DOMs
 
 ### Tech Debt
 
@@ -55,7 +55,7 @@ Requirements for milestone v1.2: E2E & Integration Testing + Cleanup. Each maps 
 
 - [ ] **CLEAN-01**: Remove all migration-era code — HTML string generation, coexistence router, migration shims from v1.0 React migration
 - [ ] **CLEAN-02**: Remove all legacy fallbacks — backward-compatibility paths, deprecated API wrappers, feature flags for old behavior
-- [ ] **CLEAN-03**: Remove unused exports, imports, files, and dead code paths (knip audit + manual review)
+- [x] **CLEAN-03**: Remove unused exports, imports, files, and dead code paths (knip audit + manual review)
 
 ## Future Requirements
 
@@ -88,7 +88,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | E2EI-01 | Phase 19 | Complete |
 | E2EI-02 | Phase 19 | Complete |
 | E2EI-03 | Phase 19 | Complete |
-| E2EV-01 | Phase 20 | Pending |
+| E2EV-01 | Phase 20 | Complete |
 | E2EV-02 | Phase 20 | Pending |
 | E2EV-03 | Phase 20 | Pending |
 | E2EV-04 | Phase 20 | Pending |
@@ -102,14 +102,14 @@ Which phases cover which requirements. Updated during roadmap creation.
 | E2EV-12 | Phase 20 | Pending |
 | E2EX-01 | Phase 20 | Pending |
 | E2EX-02 | Phase 20 | Pending |
-| A11Y-01 | Phase 20 | Pending |
+| A11Y-01 | Phase 20 | Complete |
 | DEBT-01 | Phase 17 | Complete |
 | DEBT-02 | Phase 17 | Complete |
 | DEBT-03 | Phase 18 | Complete |
 | DEBT-04 | Phase 18 | Complete |
 | CLEAN-01 | Phase 20 | Pending |
 | CLEAN-02 | Phase 20 | Pending |
-| CLEAN-03 | Phase 20 | Pending |
+| CLEAN-03 | Phase 20 | Complete |
 
 **Coverage:**
 - v1.2 requirements: 28 total

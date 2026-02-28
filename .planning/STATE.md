@@ -3,7 +3,7 @@ gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: E2E & Integration Testing
 status: unknown
-last_updated: "2026-02-28T20:41:30.492Z"
+last_updated: "2026-02-28T20:43:35Z"
 progress:
   total_phases: 4
   completed_phases: 4
@@ -18,16 +18,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-02-28)
 
 **Core value:** Students can interact with Artemis courses, exercises, and the Iris AI tutor without leaving VS Code.
-**Current focus:** v1.2 Phase 19 — E2E Infrastructure & CI
+**Current focus:** v1.2 Phase 20 — E2E View Coverage, Interactions, Accessibility & Cleanup
 
 ## Current Position
 
-Phase: 19 of 20 (E2E Infrastructure & CI)
-Plan: 02 complete — 2/2 Phase 19 plans done
+Phase: 20 of 20 (E2E View Coverage, Interactions, Accessibility & Cleanup)
+Plan: 01 complete — 1/6 Phase 20 plans done
 Status: In progress
-Last activity: 2026-02-28 — 19-02 complete: ADR 001 documenting E2E framework selection (vscode-extension-tester retained, wdio-vscode-service and Playwright rejected with rationale)
+Last activity: 2026-02-28 — 20-01 complete: axe-core injection helper + knip dead-code tooling installed as E2E test foundations
 
-Progress: [█████░░░░░] 50% (v1.2, 9/9 plans done across phases 16-19) — v1.0 + v1.1 complete (15 phases, 62 plans)
+Progress: [█████░░░░░] 50% (v1.2, 10/17 plans done across phases 16-20) — v1.0 + v1.1 complete (15 phases, 62 plans)
 
 ## Performance Metrics
 
@@ -51,6 +51,7 @@ Progress: [█████░░░░░] 50% (v1.2, 9/9 plans done across phas
 - Phase 18 Plan 03: ~2 min | 2 tasks | 4 files | 4 new tests (exam fetch error visibility + retry flow, 880 total)
 - Phase 19 Plan 01: ~2 min | 2 tasks | 6 files | GitHub Actions CI workflow + JUnit reporter config (mocha-junit-reporter installed)
 - Phase 19 Plan 02: ~1 min | 1 task | 1 file | ADR 001 E2E framework selection (vscode-extension-tester retained)
+- Phase 20 Plan 01: ~2 min | 2 tasks | 4 files | axe-core injection helper (WCAG 2.1 AA) + knip dead-code tooling + E2EV-01 confirmed
 
 ## Accumulated Context
 
@@ -77,6 +78,9 @@ Progress: [█████░░░░░] 50% (v1.2, 9/9 plans done across phas
 - [Phase 19-01]: dorny/test-reporter path must be workspace-root-relative (iris-thaumantias/reports/*.xml), not working-directory-relative — avoids missing artifact
 - [Phase 19-01]: compile-tests before test:unit in CI — Mocha consumes compiled JS from out/, not TypeScript source; mkdir -p reports before test runs prevents JUnit reporter failure
 - [Phase 19-02]: ADR scoped to E2E framework selection only — no broader test architecture overview; docs/adr/ directory established in iris-thaumantias for future ADRs
+- [Phase 20-01]: axe injection via cached AXE_SOURCE (module load time) + driver.executeScript + driver.executeAsyncScript with WCAG 2.1 AA tag set ['wcag2a','wcag2aa','wcag21a','wcag21aa']
+- [Phase 20-01]: path.resolve from __dirname needs 4 `..` not 3 — compiled output is at out/test/e2e/ui/, which is 4 levels from the package root
+- [Phase 20-01]: Existing knip.json (knip@5 schema, ignoreDependencies vscode, ignore esbuild.js) preserved — more complete than plan template; entry points match plan requirements
 
 ### Pending Todos
 
@@ -96,10 +100,10 @@ None.
 ## Session Continuity
 
 Last session: 2026-02-28
-Stopped at: Phase 19 Plan 01 complete — GitHub Actions CI workflow, JUnit reporter config for Vitest and Mocha, mocha-junit-reporter installed. Both phase 19 plans now complete.
+Stopped at: Phase 20 Plan 01 complete — axe-core injection helper (runAxeInCurrentFrame, WCAG 2.1 AA) + knip dead-code tooling installed. E2EV-01 confirmed covered by login.ui.test.ts.
 Resume file: None
 
 ---
 
 *Created: 2026-02-23 (v1.0)*
-*Updated: 2026-02-28 (19-01 complete)*
+*Updated: 2026-02-28 (20-01 complete)*
