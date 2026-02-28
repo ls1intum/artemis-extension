@@ -3,8 +3,14 @@
 
 import '@testing-library/jest-dom/vitest';
 import { cleanup } from '@testing-library/react';
-import { afterEach, vi } from 'vitest';
+import { afterEach, beforeEach, vi } from 'vitest';
 import { createMockVsCodeApi } from './vscodeApi';
+import { resetTestState } from './resetStores';
+
+// Reset all Zustand stores and VS Code API mock before each test
+beforeEach(() => {
+	resetTestState();
+});
 
 // Cleanup after each test
 afterEach(() => {
@@ -15,8 +21,9 @@ afterEach(() => {
 // Create default mock VS Code API
 const mockVsCodeApi = createMockVsCodeApi();
 
-// Define window.acquireVsCodeApi globally
+// Define window.acquireVsCodeApi globally — configurable:true so resetTestState() can redefine it each test
 Object.defineProperty(global.window, 'acquireVsCodeApi', {
 	writable: true,
+	configurable: true,
 	value: () => mockVsCodeApi,
 });
