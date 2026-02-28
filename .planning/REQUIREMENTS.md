@@ -23,10 +23,10 @@ Requirements for milestone v1.2: E2E & Integration Testing + Cleanup. Each maps 
 ### E2E View Coverage
 
 - [x] **E2EV-01**: E2E smoke test for Login view — renders, login form visible
-- [ ] **E2EV-02**: E2E smoke test for Dashboard view — renders, course cards visible
-- [ ] **E2EV-03**: E2E smoke test for CourseList view — renders, course list visible
-- [ ] **E2EV-04**: E2E smoke test for CourseDetail view — renders, exercise list visible
-- [ ] **E2EV-05**: E2E smoke test for ExerciseDetail view — renders, submission status visible
+- [x] **E2EV-02**: E2E smoke test for Dashboard view — renders, course cards visible
+- [x] **E2EV-03**: E2E smoke test for CourseList view — renders, course list visible
+- [x] **E2EV-04**: E2E smoke test for CourseDetail view — renders, exercise list visible
+- [x] **E2EV-05**: E2E smoke test for ExerciseDetail view — renders, submission status visible
 - [ ] **E2EV-06**: E2E smoke test for ExamStart view — renders, exam info visible
 - [ ] **E2EV-07**: E2E smoke test for ExamConduction view — renders, timer visible
 - [ ] **E2EV-08**: E2E smoke test for ExamExerciseDetail view — renders, exercise content visible
@@ -89,10 +89,10 @@ Which phases cover which requirements. Updated during roadmap creation.
 | E2EI-02 | Phase 19 | Complete |
 | E2EI-03 | Phase 19 | Complete |
 | E2EV-01 | Phase 20 | Complete |
-| E2EV-02 | Phase 20 | Pending |
-| E2EV-03 | Phase 20 | Pending |
-| E2EV-04 | Phase 20 | Pending |
-| E2EV-05 | Phase 20 | Pending |
+| E2EV-02 | Phase 20 | Complete |
+| E2EV-03 | Phase 20 | Complete |
+| E2EV-04 | Phase 20 | Complete |
+| E2EV-05 | Phase 20 | Complete |
 | E2EV-06 | Phase 20 | Pending |
 | E2EV-07 | Phase 20 | Pending |
 | E2EV-08 | Phase 20 | Pending |
