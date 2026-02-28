@@ -1,3 +1,4 @@
+// Covers E2EV-01: Login view smoke test
 import { VSBrowser, WebDriver } from 'vscode-extension-tester';
 import * as assert from 'assert';
 import {

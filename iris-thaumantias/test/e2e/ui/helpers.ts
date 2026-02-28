@@ -14,6 +14,13 @@ import {
 const PROJECT_ROOT = path.resolve(__dirname, '..', '..');
 const SCREENSHOTS_DIR = path.join(PROJECT_ROOT, 'test', 'ui', 'screenshots');
 
+// Cache axe source once — read at module load time.
+// At runtime __dirname is out/test/e2e/ui/ — four levels up reaches the package root.
+const AXE_SOURCE = fs.readFileSync(
+	path.resolve(__dirname, '..', '..', '..', '..', 'node_modules', 'axe-core', 'axe.min.js'),
+	'utf-8'
+);
+
 /**
  * Open the Artemis sidebar view by clicking its activity bar icon.
  * Returns the SideBarView once it is visible.
@@ -92,4 +99,26 @@ export async function takeScreenshot(driver: WebDriver, name: string): Promise<s
 
 	console.log(`Screenshot saved: ${filepath}`);
 	return filepath;
+}
+
+/**
+ * Run axe-core accessibility analysis inside the current webview iframe context.
+ * MUST be called AFTER switchToWebviewFrame() — injects axe into the active frame.
+ * Returns axe results with violations array. Zero violations = WCAG 2.1 AA compliant.
+ */
+export async function runAxeInCurrentFrame(
+	driver: WebDriver,
+): Promise<{ violations: Array<{ id: string; impact: string; description: string; nodes: unknown[] }> }> {
+	// Inject axe-core source into the current frame
+	await driver.executeScript(AXE_SOURCE);
+
+	// Run axe with WCAG 2.1 AA tags
+	const results = await driver.executeAsyncScript(`
+		var done = arguments[arguments.length - 1];
+		axe.run(document, {
+			runOnly: { type: 'tag', values: ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'] }
+		}).then(function(r) { done(r); })
+		  .catch(function(e) { done({ violations: [], error: e.message }); });
+	`);
+	return results as { violations: Array<{ id: string; impact: string; description: string; nodes: unknown[] }> };
 }
