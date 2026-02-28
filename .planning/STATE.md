@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: E2E & Integration Testing
 status: planning
-last_updated: "2026-02-28T00:00:00Z"
+last_updated: "2026-02-28T12:33:00Z"
 progress:
   total_phases: 5
   completed_phases: 0
-  total_plans: 0
-  completed_plans: 0
+  total_plans: 3
+  completed_plans: 1
 ---
 
 # Project State
@@ -23,11 +23,11 @@ See: .planning/PROJECT.md (updated 2026-02-28)
 ## Current Position
 
 Phase: 16 of 20 (Integration Test Infrastructure)
-Plan: — (not yet planned)
-Status: Ready to plan
-Last activity: 2026-02-28 — v1.2 roadmap created (5 phases, 28 requirements mapped)
+Plan: 01 complete, 02 next
+Status: In progress
+Last activity: 2026-02-28 — 16-01 complete: store reset + bridge handshake helper
 
-Progress: [░░░░░░░░░░] 0% (v1.2) — v1.0 + v1.1 complete (15 phases, 62 plans)
+Progress: [█░░░░░░░░░] 10% (v1.2, 1/3 Phase 16 plans done) — v1.0 + v1.1 complete (15 phases, 62 plans)
 
 ## Performance Metrics
 
@@ -40,7 +40,7 @@ Progress: [░░░░░░░░░░] 0% (v1.2) — v1.0 + v1.1 complete (1
 - Phase 12: ~110 min | Phase 13: ~115 min | Phase 14: ~20 min | Phase 15: 4 min
 
 **v1.2 Milestone (In Progress):**
-- No plans completed yet
+- Phase 16 Plan 01: 7 min | 2 tasks | 3 files
 
 ## Accumulated Context
 
@@ -49,6 +49,7 @@ Progress: [░░░░░░░░░░] 0% (v1.2) — v1.0 + v1.1 complete (1
 - Framework decision: keep `vscode-extension-tester` 8.22.0 — wdio-vscode-service has no sidebar webview iframe support; Playwright excluded (issue #22351)
 - Test architecture: sandwich testing — Vitest for webview side, Mocha + @vscode/test-electron for host side, vscode-extension-tester for Selenium UI
 - No new packages required — entire stack already installed
+- Store reset pattern: direct getState() reference (not structuredClone/JSON.parse) + setState(state, true) replace flag; configurable:true required on initial acquireVsCodeApi defineProperty for re-definition in beforeEach
 
 ### Pending Todos
 
@@ -56,9 +57,10 @@ None.
 
 ### Blockers/Concerns
 
-**Critical pitfalls to address in Phase 16 (must be solved before any bridge tests):**
-- postMessage dropped before webview listener ready — must simulate `ready` handshake in all bridge tests
-- Zustand store state leaks — `resetAllStores()` must be in `beforeEach` before any integration test is authored
+**Critical pitfalls (Phase 16-01 resolved two of these):**
+- ~~Zustand store state leaks~~ — RESOLVED: resetTestState() in global beforeEach (16-01)
+- ~~Bridge handshake helper missing~~ — RESOLVED: simulateHandshake() with act() wrapping (16-01)
+- postMessage dropped before webview listener ready — handled by simulateHandshake() pattern established in 16-01
 
 **Watch items (not blockers yet):**
 - Authenticated E2E test strategy — decide env-var credentials vs test-mode bypass at Phase 20 planning
@@ -67,10 +69,10 @@ None.
 ## Session Continuity
 
 Last session: 2026-02-28
-Stopped at: Roadmap created — ready to plan Phase 16.
+Stopped at: Phase 16 Plan 01 complete — store reset + bridge handshake helper done. Next: 16-02 (fixture factories + bridge contract tests).
 Resume file: None
 
 ---
 
 *Created: 2026-02-23 (v1.0)*
-*Updated: 2026-02-28 (v1.2 roadmap created)*
+*Updated: 2026-02-28 (16-01 complete)*

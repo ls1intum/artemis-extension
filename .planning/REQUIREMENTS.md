@@ -81,7 +81,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| INTG-01 | Phase 16 | Pending |
+| INTG-01 | Phase 16 | In Progress (16-01 done) |
 | INTG-02 | Phase 18 | Pending |
 | INTG-03 | Phase 17 | Pending |
 | INTG-04 | Phase 17 | Pending |
