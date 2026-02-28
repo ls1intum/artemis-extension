@@ -27,6 +27,11 @@ export function ExamStartView({ vscodeApi }: ExamStartViewProps) {
             if (typedMessage.type === 'examStartInit' && typedMessage.payload) {
                 setExamStartData(typedMessage.payload as Parameters<typeof setExamStartData>[0]);
             }
+
+            if (typedMessage.type === 'error' && typedMessage.payload) {
+                const errorPayload = typedMessage.payload as { message: string };
+                setError(errorPayload.message);
+            }
         };
 
         window.addEventListener('message', handleMessage);

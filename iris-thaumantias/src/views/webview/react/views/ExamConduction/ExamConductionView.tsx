@@ -34,6 +34,11 @@ export function ExamConductionView({ vscodeApi }: ExamConductionViewProps) {
             if (typedMessage.type === 'examConductionInit' && typedMessage.payload) {
                 store.setExamData(typedMessage.payload as Parameters<typeof store.setExamData>[0]);
             }
+
+            if (typedMessage.type === 'error' && typedMessage.payload) {
+                const errorPayload = typedMessage.payload as { message: string };
+                store.setError(errorPayload.message);
+            }
         };
 
         window.addEventListener('message', handleMessage);
@@ -66,7 +71,11 @@ export function ExamConductionView({ vscodeApi }: ExamConductionViewProps) {
             <div className={styles.examConduction}>
                 <ErrorMessage
                     error={store.error}
-                    onRetry={() => vscodeApi.postMessage({ type: 'ready' })}
+                    onRetry={() => {
+                        store.setError(null);
+                        store.setLoading(true);
+                        vscodeApi.postMessage({ type: 'ready' });
+                    }}
                 />
             </div>
         );
