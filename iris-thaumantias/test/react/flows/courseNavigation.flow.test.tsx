@@ -1,11 +1,10 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { CourseListView } from '../../../src/views/webview/react/views/CourseList/CourseListView';
 import { CourseDetailView } from '../../../src/views/webview/react/views/CourseDetail/CourseDetailView';
 import { useCourseListStore } from '../../../src/views/webview/react/stores/useCourseListStore';
 import { useCourseDetailStore } from '../../../src/views/webview/react/stores/useCourseDetailStore';
-import { useNavigationStore } from '../../../src/views/webview/react/stores/useNavigationStore';
 import { createMockVsCodeApi, dispatchExtensionMessage } from '../__helpers__/vscodeApi';
 import type { CourseData } from '../../../src/shared/messageContracts';
 
@@ -30,29 +29,6 @@ function makeCourseData(overrides: Partial<CourseData['course']> = {}): CourseDa
 }
 
 describe('Course Navigation Flow', () => {
-	beforeEach(() => {
-		useCourseListStore.setState({
-			courses: [],
-			archivedCourses: [],
-			archivedLoaded: false,
-			isLoading: false,
-			error: null,
-			searchTerm: '',
-			typeFilter: 'all',
-			semesterFilter: 'all',
-			sortBy: 'semester-desc',
-		});
-		useCourseDetailStore.setState({
-			courseData: null,
-			workspaceExerciseId: null,
-			isLoading: false,
-			error: null,
-			exerciseSearchTerm: '',
-			exerciseSortBy: 'id-desc',
-		});
-		useNavigationStore.setState({ breadcrumbs: [] });
-	});
-
 	describe('Course list -> course detail navigation', () => {
 		it('sends ready postMessage on CourseListView mount', () => {
 			const mockApi = createMockVsCodeApi();

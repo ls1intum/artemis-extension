@@ -300,20 +300,6 @@ describe('Error suite: ReconnectBanner', () => {
 // ============================================================================
 
 describe('Error suite: API error responses in views', () => {
-    beforeEach(() => {
-        useCourseListStore.setState({
-            courses: [],
-            archivedCourses: [],
-            archivedLoaded: false,
-            isLoading: false,
-            error: null,
-            searchTerm: '',
-            typeFilter: 'all',
-            semesterFilter: 'all',
-            sortBy: 'semester-desc',
-        });
-    });
-
     it('displays error message when store has an error', () => {
         useCourseListStore.setState({ error: 'Failed to load courses: Network error', isLoading: false });
         const mockApi = createMockVsCodeApi();

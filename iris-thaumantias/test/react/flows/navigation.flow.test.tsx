@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import { useNavigationStore } from '../../../src/views/webview/react/stores/useNavigationStore';
 
@@ -10,10 +10,6 @@ import { useNavigationStore } from '../../../src/views/webview/react/stores/useN
  * preservation and parameter carrythrough.
  */
 describe('Navigation Flow', () => {
-	beforeEach(() => {
-		useNavigationStore.setState({ breadcrumbs: [] });
-	});
-
 	describe('Multi-view navigation with history', () => {
 		it('builds breadcrumb history as views are pushed', () => {
 			const { result } = renderHook(() => useNavigationStore());
