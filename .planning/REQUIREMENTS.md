@@ -81,41 +81,41 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| INTG-01 | — | Pending |
-| INTG-02 | — | Pending |
-| INTG-03 | — | Pending |
-| INTG-04 | — | Pending |
-| E2EI-01 | — | Pending |
-| E2EI-02 | — | Pending |
-| E2EI-03 | — | Pending |
-| E2EV-01 | — | Pending |
-| E2EV-02 | — | Pending |
-| E2EV-03 | — | Pending |
-| E2EV-04 | — | Pending |
-| E2EV-05 | — | Pending |
-| E2EV-06 | — | Pending |
-| E2EV-07 | — | Pending |
-| E2EV-08 | — | Pending |
-| E2EV-09 | — | Pending |
-| E2EV-10 | — | Pending |
-| E2EV-11 | — | Pending |
-| E2EV-12 | — | Pending |
-| E2EX-01 | — | Pending |
-| E2EX-02 | — | Pending |
-| A11Y-01 | — | Pending |
-| DEBT-01 | — | Pending |
-| DEBT-02 | — | Pending |
-| DEBT-03 | — | Pending |
-| DEBT-04 | — | Pending |
-| CLEAN-01 | — | Pending |
-| CLEAN-02 | — | Pending |
-| CLEAN-03 | — | Pending |
+| INTG-01 | Phase 16 | Pending |
+| INTG-02 | Phase 18 | Pending |
+| INTG-03 | Phase 17 | Pending |
+| INTG-04 | Phase 17 | Pending |
+| E2EI-01 | Phase 19 | Pending |
+| E2EI-02 | Phase 19 | Pending |
+| E2EI-03 | Phase 19 | Pending |
+| E2EV-01 | Phase 20 | Pending |
+| E2EV-02 | Phase 20 | Pending |
+| E2EV-03 | Phase 20 | Pending |
+| E2EV-04 | Phase 20 | Pending |
+| E2EV-05 | Phase 20 | Pending |
+| E2EV-06 | Phase 20 | Pending |
+| E2EV-07 | Phase 20 | Pending |
+| E2EV-08 | Phase 20 | Pending |
+| E2EV-09 | Phase 20 | Pending |
+| E2EV-10 | Phase 20 | Pending |
+| E2EV-11 | Phase 20 | Pending |
+| E2EV-12 | Phase 20 | Pending |
+| E2EX-01 | Phase 20 | Pending |
+| E2EX-02 | Phase 20 | Pending |
+| A11Y-01 | Phase 20 | Pending |
+| DEBT-01 | Phase 17 | Pending |
+| DEBT-02 | Phase 17 | Pending |
+| DEBT-03 | Phase 18 | Pending |
+| DEBT-04 | Phase 18 | Pending |
+| CLEAN-01 | Phase 20 | Pending |
+| CLEAN-02 | Phase 20 | Pending |
+| CLEAN-03 | Phase 20 | Pending |
 
 **Coverage:**
 - v1.2 requirements: 28 total
-- Mapped to phases: 0
-- Unmapped: 28 (pending roadmap creation)
+- Mapped to phases: 28
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-02-28*
-*Last updated: 2026-02-28 after initial definition*
+*Last updated: 2026-02-28 — traceability updated after roadmap creation (v1.2, phases 16-20)*

@@ -4,6 +4,7 @@
 
 - ✅ **v1.0 React Webview Migration** — Phases 1-7 (shipped 2026-02-24)
 - ✅ **v1.1 Production Ready** — Phases 8-15 (shipped 2026-02-27)
+- 🚧 **v1.2 E2E & Integration Testing** — Phases 16-20 (in progress)
 
 ## Phases
 
@@ -38,6 +39,73 @@ Full details: milestones/v1.1-ROADMAP.md
 
 </details>
 
+### 🚧 v1.2 E2E & Integration Testing (In Progress)
+
+**Milestone Goal:** Comprehensive test coverage with integration tests for the extension host ↔ webview message bridge, full E2E smoke tests for all 12 views, and resolution of carried tech debt.
+
+- [ ] **Phase 16: Integration Test Infrastructure** — Shared test helpers, store reset, bridge handshake utilities, contract scaffolding
+- [ ] **Phase 17: Extension Host Bridge Tests** — Mocha host-side tests, WebSocket error propagation fix, state persistence fix
+- [ ] **Phase 18: Webview Flow Test Completeness** — Vitest store hydration round-trips for all 12 views, circular dep fix, exam error fix
+- [ ] **Phase 19: E2E Infrastructure & CI** — Framework decision documented, GitHub Actions workflow, screenshot-on-failure
+- [ ] **Phase 20: E2E View Coverage, Interactions, Accessibility & Cleanup** — All 12 view smoke tests, interaction tests, axe-core, migration-era code removal
+
+## Phase Details
+
+### Phase 16: Integration Test Infrastructure
+**Goal**: Shared test helpers exist that all subsequent integration and E2E tests can rely on — store state cannot leak between tests, and bridge handshake race conditions cannot silently corrupt test results
+**Depends on**: Nothing (first v1.2 phase)
+**Requirements**: INTG-01
+**Success Criteria** (what must be TRUE):
+  1. Running the full Vitest suite twice in sequence produces identical results — no order-dependent failures from Zustand store state leaking between tests
+  2. `resetAllStores()` is called automatically in `beforeEach` globally via `vitest.setup.ts` — no individual test file needs to call it
+  3. A shared bridge handshake helper exists that simulates the `ready` message before asserting bridge responses — no test needs to manage handshake timing manually
+  4. Bridge contract test scaffolding exists covering all 13 AppStateManager state transitions with typed payload shape verification
+**Plans**: TBD
+
+### Phase 17: Extension Host Bridge Tests
+**Goal**: The extension host side of the postMessage bridge is verified with Mocha tests running in a real VS Code process — WebSocket connection failures show error state instead of infinite loading, and webview state persists across panel hide/show
+**Depends on**: Phase 16
+**Requirements**: INTG-03, INTG-04, DEBT-01, DEBT-02
+**Success Criteria** (what must be TRUE):
+  1. A WebSocket connection failure causes the relevant Zustand store to enter error state — the user sees an error message, not an infinite loading spinner
+  2. Hiding and re-showing a webview panel restores the previous UI state — the user does not start from the loading screen again
+  3. `WebViewMessageHandler.handleMessageWithSender()` Mocha tests pass in `@vscode/test-electron` with sinon-injected stubs — the host-side bridge seam is verified without mocking the `vscode` module
+  4. All host-side integration tests run and pass in CI as part of the Mocha test phase before any Selenium tests run
+**Plans**: TBD
+
+### Phase 18: Webview Flow Test Completeness
+**Goal**: The webview side of the bridge has Vitest coverage for all 12 `*Init` message types verifying correct store hydration, circular import cycles are resolved, and silent exam fetch failures show an error to the user
+**Depends on**: Phase 16
+**Requirements**: INTG-02, DEBT-03, DEBT-04
+**Success Criteria** (what must be TRUE):
+  1. All 12 `*Init` message types have a passing `storeHydration.flow.test.tsx` test — dispatching each init message hydrates the correct Zustand store with the expected shape
+  2. Zero circular dependency cycles exist in the ProviderRegistry import graph — the 2 documented cycles are resolved
+  3. A failing exam fetch (network error, 4xx, 5xx) results in a visible error state in the ExamStart or ExamConduction view — the user is not left on a blank or perpetually loading screen
+**Plans**: TBD
+
+### Phase 19: E2E Infrastructure & CI
+**Goal**: A working GitHub Actions CI pipeline runs all test layers in order on Linux with Xvfb, the E2E framework decision is documented, and screenshots are captured automatically on test failure
+**Depends on**: Phase 17
+**Requirements**: E2EI-01, E2EI-02, E2EI-03
+**Success Criteria** (what must be TRUE):
+  1. A GitHub Actions push triggers a workflow that runs Vitest, then Mocha extension host tests, then Selenium E2E tests — all producing clear pass/fail output in CI
+  2. The CI workflow completes successfully on ubuntu-latest using `xvfb-run -a` with no manual display configuration needed
+  3. A failing E2E test automatically saves a screenshot as a CI artifact — the failure is debuggable without re-running locally
+  4. The E2E framework decision (vscode-extension-tester retained, wdio-vscode-service and Playwright excluded) is recorded with rationale — discoverable by future contributors
+**Plans**: TBD
+
+### Phase 20: E2E View Coverage, Interactions, Accessibility & Cleanup
+**Goal**: All 12 webview views have a passing E2E smoke test in CI, critical user interaction flows are verified end-to-end, every rendered view DOM passes axe-core accessibility checks, and all migration-era code is removed
+**Depends on**: Phase 19
+**Requirements**: E2EV-01, E2EV-02, E2EV-03, E2EV-04, E2EV-05, E2EV-06, E2EV-07, E2EV-08, E2EV-09, E2EV-10, E2EV-11, E2EV-12, E2EX-01, E2EX-02, A11Y-01, CLEAN-01, CLEAN-02, CLEAN-03
+**Success Criteria** (what must be TRUE):
+  1. Every one of the 12 webview views has a passing smoke test that opens the view in a real VS Code window and asserts the primary UI element is visible
+  2. The login flow E2E test enters credentials, clicks login, and asserts the authenticated Dashboard state is reached — verified in CI with env var credentials
+  3. The exercise submission E2E test opens an exercise, triggers submission, and asserts build progress feedback appears — the critical student workflow is verified end-to-end
+  4. All 12 rendered view DOMs pass axe-core accessibility assertions with zero WCAG violations
+  5. No HTML string generation, coexistence router code, migration shims, legacy fallbacks, or unused exports remain — `knip` reports zero unused exports after cleanup
+**Plans**: TBD
+
 ## Progress
 
 | Phase | Milestone | Plans Complete | Status | Completed |
@@ -57,8 +125,13 @@ Full details: milestones/v1.1-ROADMAP.md
 | 13. Component Test Suite | v1.1 | 8/8 | Complete | 2026-02-27 |
 | 14. Dependency Cleanup | v1.1 | 3/3 | Complete | 2026-02-27 |
 | 15. Command Handler Gap Closure | v1.1 | 1/1 | Complete | 2026-02-25 |
+| 16. Integration Test Infrastructure | v1.2 | 0/TBD | Not started | - |
+| 17. Extension Host Bridge Tests | v1.2 | 0/TBD | Not started | - |
+| 18. Webview Flow Test Completeness | v1.2 | 0/TBD | Not started | - |
+| 19. E2E Infrastructure & CI | v1.2 | 0/TBD | Not started | - |
+| 20. E2E View Coverage & Cleanup | v1.2 | 0/TBD | Not started | - |
 
 ---
 
 *Created: 2026-02-23 (v1.0)*
-*Updated: 2026-02-27 (v1.1 shipped)*
+*Updated: 2026-02-28 (v1.2 roadmap created)*
