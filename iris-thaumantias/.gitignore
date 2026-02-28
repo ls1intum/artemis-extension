@@ -23,6 +23,7 @@ dist/*.html
 
 # Test reports (generated per run)
 test/struggle-detection/reports/
+reports/
 
 # IDE
 .vscode-test/

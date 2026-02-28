@@ -10,6 +10,12 @@ export default defineConfig([
 		coverage: {
 			exclude: ['**/test/**', '**/out/test/**'],
 		},
+		mocha: {
+			reporter: 'mocha-junit-reporter',
+			reporterOptions: {
+				mochaFile: './reports/mocha-results.xml',
+			},
+		},
 	},
 	{
 		// E2E tests (requires running Artemis + Iris)

@@ -9,6 +9,10 @@ export default defineConfig({
 		setupFiles: ['./test/react/__helpers__/vitest.setup.ts'],
 		include: ['test/react/**/*.test.{ts,tsx}'],
 		css: true,
+		reporters: ['default', 'junit'],
+		outputFile: {
+			junit: './reports/vitest-results.xml',
+		},
 		coverage: {
 			provider: 'v8',
 			reporter: ['text', 'text-summary', 'html', 'lcov'],
