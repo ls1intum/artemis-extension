@@ -74,7 +74,10 @@ Full details: milestones/v1.1-ROADMAP.md
   2. Hiding and re-showing a webview panel restores the previous UI state — the user does not start from the loading screen again
   3. `WebViewMessageHandler.handleMessageWithSender()` Mocha tests pass in `@vscode/test-electron` with sinon-injected stubs — the host-side bridge seam is verified without mocking the `vscode` module
   4. All host-side integration tests run and pass in CI as part of the Mocha test phase before any Selenium tests run
-**Plans**: TBD
+**Plans**: 3 plans
+- [ ] 17-01-PLAN.md — WebSocket status bar refactor + reconnect getter + tests (DEBT-01, INTG-03)
+- [ ] 17-02-PLAN.md — Panel hide/show state persistence + onDidChangeVisibility + tests (DEBT-02, INTG-04)
+- [ ] 17-03-PLAN.md — handleMessageWithSender Mocha tests for bridge seam (INTG-03, INTG-04)
 
 ### Phase 18: Webview Flow Test Completeness
 **Goal**: The webview side of the bridge has Vitest coverage for all 12 `*Init` message types verifying correct store hydration, circular import cycles are resolved, and silent exam fetch failures show an error to the user
