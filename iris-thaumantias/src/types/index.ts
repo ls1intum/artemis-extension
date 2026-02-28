@@ -9,3 +9,5 @@ export type {
     TrackedCourse,
     TrackedExercise
 } from './context';
+export type { IChatWebviewProvider } from './IChatWebviewProvider';
+export type { IArtemisWebviewProvider } from './IArtemisWebviewProvider';

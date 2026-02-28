@@ -6,6 +6,7 @@ import {
     ContextSnapshot,
 } from '../types';
 import type { IrisChatMessage, IrisChatMessageContent } from '../types/apiResponses';
+import type { IChatWebviewProvider } from '../types/IChatWebviewProvider';
 import { getReactWebviewHtml } from '../utils/webviewHelpers';
 import { logger, LogLevel, LogCategory } from '../services/loggingService';
 import { ArtemisApiService } from '../api';
@@ -41,7 +42,7 @@ export interface ExerciseContextChangeEvent {
     exerciseRoot?: vscode.Uri;
 }
 
-export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.Disposable {
+export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.Disposable, IChatWebviewProvider {
     public static readonly viewType = 'iris.chatView';
 
     private _view?: vscode.WebviewView;

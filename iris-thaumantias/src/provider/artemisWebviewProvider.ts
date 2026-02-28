@@ -4,6 +4,7 @@ import { ArtemisApiService } from '../api';
 import { ArtemisWebsocketService } from '../services';
 import { logger, LogLevel, LogCategory } from '../services/loggingService';
 import { ProviderRegistry } from '../services/ProviderRegistry';
+import type { IArtemisWebviewProvider } from '../types/IArtemisWebviewProvider';
 import { CONFIG, VSCODE_CONFIG } from '../utils';
 import { AI_EXTENSIONS_BLOCKLIST } from '../utils/aiExtensionsBlocklist';
 import { getRecommendedExtensionsByCategory } from '../utils/recommendedExtensions';
@@ -19,7 +20,7 @@ import type { BuildErrorCodeLensProvider } from './buildErrorCodeLensProvider';
 import type { ExtensionToWebviewMessage, WebviewToExtensionMessage, CourseDetailData as CourseDetailPayload } from '../shared/messageContracts';
 import type { CourseDashboardEntry, ExerciseDetail, CourseDetailData, ExerciseDetailsResponse } from '../types/apiResponses';
 
-export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebViewActionHandler {
+export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebViewActionHandler, IArtemisWebviewProvider {
     public static readonly viewType = CONFIG.WEBVIEW.VIEW_TYPE;
 
     private _view?: vscode.WebviewView;
