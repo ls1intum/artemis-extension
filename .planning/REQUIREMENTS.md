@@ -9,7 +9,7 @@ Requirements for milestone v1.2: E2E & Integration Testing + Cleanup. Each maps 
 
 ### Integration Testing
 
-- [ ] **INTG-01**: Extension host bridge contract tests verify typed postMessage payloads for all 13 AppStateManager state transitions
+- [x] **INTG-01**: Extension host bridge contract tests verify typed postMessage payloads for all 13 AppStateManager state transitions
 - [ ] **INTG-02**: Store hydration round-trip tests verify extension host command → postMessage → Zustand store update for all 12 views
 - [ ] **INTG-03**: WebSocket error propagation test verifies connection failure propagates to store error state (not infinite loading)
 - [ ] **INTG-04**: State persistence tests verify webview state survives panel hide/show via getState/setState

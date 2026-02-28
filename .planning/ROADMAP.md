@@ -128,7 +128,7 @@ Full details: milestones/v1.1-ROADMAP.md
 | 13. Component Test Suite | v1.1 | 8/8 | Complete | 2026-02-27 |
 | 14. Dependency Cleanup | v1.1 | 3/3 | Complete | 2026-02-27 |
 | 15. Command Handler Gap Closure | v1.1 | 1/1 | Complete | 2026-02-25 |
-| 16. Integration Test Infrastructure | v1.2 | 1/3 | In Progress | - |
+| 16. Integration Test Infrastructure | 2/3 | In Progress|  | - |
 | 17. Extension Host Bridge Tests | v1.2 | 0/TBD | Not started | - |
 | 18. Webview Flow Test Completeness | v1.2 | 0/TBD | Not started | - |
 | 19. E2E Infrastructure & CI | v1.2 | 0/TBD | Not started | - |
