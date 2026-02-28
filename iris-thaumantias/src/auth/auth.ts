@@ -101,9 +101,7 @@ export class AuthManager {
             return artemisToken;
         }
 
-        // 3. Check old storage location (artemis-auth-cookie) - fallback for migration
-        const stored = await this.context.secrets.get(AuthManager.SECRET_KEY);
-        return stored || undefined;
+        return undefined;
     }
 
     public async getAuthHeaders(): Promise<Record<string, string>> {

@@ -84,7 +84,7 @@ export class NavigationCommandModule {
     private handleOpenRulesInEditor = async (message: WebviewToExtensionMessage): Promise<void> => {
         try {
             // Note: openRulesInEditor doesn't have a typed command interface yet
-            // This is a legacy command - extract text field with runtime check
+            // Extract text field with runtime type check
             const text = 'text' in message && typeof message.text === 'string' ? message.text : '';
             const document = await vscode.workspace.openTextDocument({
                 content: text,

@@ -487,7 +487,7 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
                         const coursesData = this._appStateManager.coursesData;
                         const courses = coursesData?.courses || [];
 
-                        // Build recent course nodes (same structure as legacy dashboard)
+                        // Build recent course nodes
                         const recentCourseNodes = courses.map((courseItem: CourseDashboardEntry) => {
                             const course = courseItem.course || courseItem;
                             const exercises = course.exercises || [];
@@ -985,12 +985,6 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
                     data: result
                 }
             });
-
-            // Also send legacy message for backward compatibility
-            this._view.webview.postMessage({
-                command: 'newResult',
-                result: result
-            });
         }
     }
 
@@ -1004,12 +998,6 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
                     updateType: 'newSubmission',
                     data: submission
                 }
-            });
-
-            // Also send legacy message for backward compatibility
-            this._view.webview.postMessage({
-                command: 'newSubmission',
-                submission: submission
             });
         }
     }
@@ -1042,14 +1030,6 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
                         buildTimingInfo: buildTimingInfo
                     }
                 }
-            });
-
-            // Also send legacy message for backward compatibility
-            this._view.webview.postMessage({
-                command: 'submissionProcessing',
-                state: state || 'BUILDING',
-                participationId: message.participationId,
-                buildTimingInfo: buildTimingInfo
             });
         }
     }
