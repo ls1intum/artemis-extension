@@ -46,7 +46,7 @@ Full details: milestones/v1.1-ROADMAP.md
 - [x] **Phase 16: Integration Test Infrastructure** — Shared test helpers, store reset, bridge handshake utilities, contract scaffolding (completed 2026-02-28)
 - [x] **Phase 17: Extension Host Bridge Tests** — Mocha host-side tests, WebSocket error propagation fix, state persistence fix (completed 2026-02-28)
 - [x] **Phase 18: Webview Flow Test Completeness** — Vitest store hydration round-trips for all 12 views, circular dep fix, exam error fix (completed 2026-02-28)
-- [ ] **Phase 19: E2E Infrastructure & CI** — Framework decision documented, GitHub Actions workflow, screenshot-on-failure
+- [x] **Phase 19: E2E Infrastructure & CI** — Framework decision documented (ADR 001), GitHub Actions workflow (completed 2026-02-28)
 - [ ] **Phase 20: E2E View Coverage, Interactions, Accessibility & Cleanup** — All 12 view smoke tests, interaction tests, axe-core, migration-era code removal
 
 ## Phase Details
@@ -103,7 +103,7 @@ Full details: milestones/v1.1-ROADMAP.md
   4. The E2E framework decision (vscode-extension-tester retained, wdio-vscode-service and Playwright excluded) is recorded with rationale — discoverable by future contributors
 **Plans**: 2 plans
 - [ ] 19-01-PLAN.md — CI workflow + JUnit reporting (E2EI-02, E2EI-03)
-- [ ] 19-02-PLAN.md — E2E framework ADR (E2EI-01)
+- [x] 19-02-PLAN.md — E2E framework ADR (E2EI-01) — complete 2026-02-28
 
 ### Phase 20: E2E View Coverage, Interactions, Accessibility & Cleanup
 **Goal**: All 12 webview views have a passing E2E smoke test in CI, critical user interaction flows are verified end-to-end, every rendered view DOM passes axe-core accessibility checks, and all migration-era code is removed
@@ -139,10 +139,10 @@ Full details: milestones/v1.1-ROADMAP.md
 | 16. Integration Test Infrastructure | 3/3 | Complete    | 2026-02-28 | - |
 | 17. Extension Host Bridge Tests | 3/3 | Complete    | 2026-02-28 | - |
 | 18. Webview Flow Test Completeness | 3/3 | Complete    | 2026-02-28 | - |
-| 19. E2E Infrastructure & CI | v1.2 | 0/2 | Not started | - |
+| 19. E2E Infrastructure & CI | v1.2 | 1/2 | In progress | - |
 | 20. E2E View Coverage & Cleanup | v1.2 | 0/TBD | Not started | - |
 
 ---
 
 *Created: 2026-02-23 (v1.0)*
-*Updated: 2026-02-28 (16-01 complete)*
+*Updated: 2026-02-28 (19-02 complete)*

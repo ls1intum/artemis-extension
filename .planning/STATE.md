@@ -3,7 +3,7 @@ gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: E2E & Integration Testing
 status: unknown
-last_updated: "2026-02-28T20:00:14.275Z"
+last_updated: "2026-02-28T20:35:53Z"
 progress:
   total_phases: 3
   completed_phases: 3
@@ -18,16 +18,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-02-28)
 
 **Core value:** Students can interact with Artemis courses, exercises, and the Iris AI tutor without leaving VS Code.
-**Current focus:** v1.2 Phase 18 — Webview Flow Test Completeness
+**Current focus:** v1.2 Phase 19 — E2E Infrastructure & CI
 
 ## Current Position
 
-Phase: 18 of 20 (Webview Flow Test Completeness)
-Plan: 03 complete — 3/? Phase 18 plans done
+Phase: 19 of 20 (E2E Infrastructure & CI)
+Plan: 02 complete — 2/2 Phase 19 plans done
 Status: In progress
-Last activity: 2026-02-28 — 18-03 complete: exam fetch error visibility wired in ExamStartView + ExamConductionView (4 new tests, 880 total)
+Last activity: 2026-02-28 — 19-02 complete: ADR 001 documenting E2E framework selection (vscode-extension-tester retained, wdio-vscode-service and Playwright rejected with rationale)
 
-Progress: [████░░░░░░] 40% (v1.2, 7/9 plans done across phases 16-18) — v1.0 + v1.1 complete (15 phases, 62 plans)
+Progress: [█████░░░░░] 50% (v1.2, 9/9 plans done across phases 16-19) — v1.0 + v1.1 complete (15 phases, 62 plans)
 
 ## Performance Metrics
 
@@ -49,6 +49,7 @@ Progress: [████░░░░░░] 40% (v1.2, 7/9 plans done across phas
 - Phase 18 Plan 01: 2 min | 2 tasks | 6 files | 0 new tests (circular dependency resolution via interface extraction, 880 total)
 - Phase 18 Plan 02: 4 min | 2 tasks | 4 files | 12 new tests (storeHydration flow, 892 total)
 - Phase 18 Plan 03: ~2 min | 2 tasks | 4 files | 4 new tests (exam fetch error visibility + retry flow, 880 total)
+- Phase 19 Plan 02: ~1 min | 1 task | 1 file | ADR 001 E2E framework selection (vscode-extension-tester retained)
 
 ## Accumulated Context
 
@@ -72,6 +73,7 @@ Progress: [████░░░░░░] 40% (v1.2, 7/9 plans done across phas
 - [Phase 18-01]: getSelectedContext() must be in IChatWebviewProvider — called in extension.ts:284 through registry getter (missed by plan's grep)
 - [Phase 18-02]: Mock useExamTimer hook in storeHydration tests — esbuild-plugin-inline-worker Web Worker constructor fails in Vitest SSR; use vi.mock() same pattern as ExamTimer.test.tsx
 - [Phase 18-02]: Wrap render() in await act() for complex views (ExamConduction, ExamExerciseDetail, IrisChatView) — concurrent React work on mount causes 'Should not already be working' during cleanup
+- [Phase 19-02]: ADR scoped to E2E framework selection only — no broader test architecture overview; docs/adr/ directory established in iris-thaumantias for future ADRs
 
 ### Pending Todos
 
@@ -91,10 +93,10 @@ None.
 ## Session Continuity
 
 Last session: 2026-02-28
-Stopped at: Phase 18 Plan 02 complete — 12 storeHydration flow tests proving all Init message types hydrate their Zustand stores/local state correctly, 892 tests passing.
+Stopped at: Phase 19 Plan 02 complete — ADR 001 created at iris-thaumantias/docs/adr/001-e2e-framework.md documenting E2E framework selection with full comparison table.
 Resume file: None
 
 ---
 
 *Created: 2026-02-23 (v1.0)*
-*Updated: 2026-02-28 (18-02 complete)*
+*Updated: 2026-02-28 (19-02 complete)*
