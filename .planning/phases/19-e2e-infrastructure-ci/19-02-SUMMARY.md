@@ -65,7 +65,7 @@ Each task was committed atomically:
 
 1. **Task 1: Create E2E framework ADR** - `7ea83a2` (docs)
 
-**Plan metadata:** (to be added via final commit)
+**Plan metadata:** `b7b4ea5` (docs: complete plan - SUMMARY, STATE, ROADMAP)
 
 ## Files Created/Modified
 
