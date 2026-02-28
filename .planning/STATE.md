@@ -3,7 +3,7 @@ gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: E2E & Integration Testing
 status: unknown
-last_updated: "2026-02-28T19:48:00.000Z"
+last_updated: "2026-02-28T19:51:15Z"
 progress:
   total_phases: 2
   completed_phases: 2
@@ -46,7 +46,7 @@ Progress: [████░░░░░░] 40% (v1.2, 7/9 plans done across phas
 - Phase 17 Plan 01: 22 min | 2 tasks | 5 files | 15 new tests (WebSocketStatusBar override rule + reconnect flash)
 - Phase 17 Plan 02: ~3 min | 2 tasks | 2 files | 6 new tests (visibility listener + hide/show state persistence)
 - Phase 17 Plan 03: 3 min | 1 task | 1 file | 7 new tests (sender-swap + dispatch + error recovery)
-- Phase 18 Plan 01: TBD
+- Phase 18 Plan 01: 2 min | 2 tasks | 6 files | 0 new tests (circular dependency resolution via interface extraction, 880 total)
 - Phase 18 Plan 02: TBD
 - Phase 18 Plan 03: ~2 min | 2 tasks | 4 files | 4 new tests (exam fetch error visibility + retry flow, 880 total)
 
@@ -67,6 +67,9 @@ Progress: [████░░░░░░] 40% (v1.2, 7/9 plans done across phas
 - [Phase 17-01]: Override visibility rule in _applyVisibility(): disconnect/reconnect always show; hide only when no pending flash timeout (avoids immediate hide before 2s flash completes)
 - [Phase 17-03]: Inject test handlers via `(handler as any).commandHandlers.set()` to test dispatch seam without triggering real command side effects; assert sender restoration via `(handler as any)._sendMessage` field access
 - [Phase 18-03]: ExamConductionView retry must call store.setError(null) + store.setLoading(true) before postMessage ready — original only sent ready signal, leaving the view stuck in error state
+- [Phase 18-01]: IChatWebviewProvider reason parameter must be optional (reason?: string) to match concrete class's optional ChatContextReason default — TypeScript contravariance rejects narrow optional type satisfying required broad type
+- [Phase 18-01]: IArtemisWebviewProvider is intentionally empty — ProviderRegistry only stores/retrieves, no methods called through getter externally
+- [Phase 18-01]: getSelectedContext() must be in IChatWebviewProvider — called in extension.ts:284 through registry getter (missed by plan's grep)
 
 ### Pending Todos
 
@@ -86,10 +89,10 @@ None.
 ## Session Continuity
 
 Last session: 2026-02-28
-Stopped at: Phase 18 Plan 03 complete — exam fetch error visibility wired in ExamStartView + ExamConductionView (error handler + retry fix + 4 tests, 880 total).
+Stopped at: Phase 18 Plan 01 complete — circular dependency cycles severed via IChatWebviewProvider + IArtemisWebviewProvider extraction to src/types/, ProviderRegistry now uses interfaces only, 0 madge cycles, 880 tests passing.
 Resume file: None
 
 ---
 
 *Created: 2026-02-23 (v1.0)*
-*Updated: 2026-02-28 (18-03 complete)*
+*Updated: 2026-02-28 (18-01 complete)*
