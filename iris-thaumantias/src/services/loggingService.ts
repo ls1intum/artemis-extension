@@ -472,6 +472,3 @@ class LoggingService {
 
 // Export singleton instance
 export const logger = LoggingService.getInstance();
-
-// Export class for testing purposes
-export { LoggingService };

@@ -13,7 +13,7 @@ import * as crypto from 'crypto';
  * - Be unique per HTML response (never reused or cached)
  * - Not appear in server logs or be sent back via postMessage
  */
-export function getNonce(): string {
+function getNonce(): string {
     return crypto.randomBytes(16).toString('hex');
 }
 

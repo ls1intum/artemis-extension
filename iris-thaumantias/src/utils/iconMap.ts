@@ -47,7 +47,7 @@ import type { LucideIcon } from 'lucide-react';
 /**
  * Typed icon map - all exercise and UI icons
  */
-export const ICONS = {
+const ICONS = {
   default: CircleDot,
   programming: Code2,
   quiz: CheckCircle,
@@ -92,7 +92,7 @@ export const ICONS = {
 /**
  * Type representing all available icon keys
  */
-export type IconKey = keyof typeof ICONS;
+type IconKey = keyof typeof ICONS;
 
 /**
  * Get an icon component by type string

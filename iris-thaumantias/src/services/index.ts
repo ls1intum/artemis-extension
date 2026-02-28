@@ -12,7 +12,7 @@ export { ContextStore } from './contextStore';
 export { ProviderRegistry } from './ProviderRegistry';
 export { ExerciseRegistry, type ExerciseRegistryEntry } from './exerciseRegistry';
 export { WebSocketStatusBarService } from './websocketStatusBar';
-export { logger, LogLevel, LogCategory, LoggingService } from './loggingService';
+export { logger, LogLevel, LogCategory } from './loggingService';
 export { NoAiDetectionService } from './noAiDetectionService';
 export { ConsentService, ConsentLevel } from './consentService';
 export {

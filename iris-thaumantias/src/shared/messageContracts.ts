@@ -552,8 +552,8 @@ export interface CourseDetailData {
 }
 
 // ============================================================================
-// Legacy Command Messages (Extension → Webview)
-// These use 'command' field instead of 'type' for backwards compatibility
+// Command Messages (Extension → Webview)
+// These use 'command' field instead of 'type'
 // ============================================================================
 
 /**
