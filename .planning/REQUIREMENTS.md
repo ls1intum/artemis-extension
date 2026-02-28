@@ -53,8 +53,8 @@ Requirements for milestone v1.2: E2E & Integration Testing + Cleanup. Each maps 
 
 ### Cleanup
 
-- [ ] **CLEAN-01**: Remove all migration-era code — HTML string generation, coexistence router, migration shims from v1.0 React migration
-- [ ] **CLEAN-02**: Remove all legacy fallbacks — backward-compatibility paths, deprecated API wrappers, feature flags for old behavior
+- [x] **CLEAN-01**: Remove all migration-era code — HTML string generation, coexistence router, migration shims from v1.0 React migration
+- [x] **CLEAN-02**: Remove all legacy fallbacks — backward-compatibility paths, deprecated API wrappers, feature flags for old behavior
 - [x] **CLEAN-03**: Remove unused exports, imports, files, and dead code paths (knip audit + manual review)
 
 ## Future Requirements
@@ -107,8 +107,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 | DEBT-02 | Phase 17 | Complete |
 | DEBT-03 | Phase 18 | Complete |
 | DEBT-04 | Phase 18 | Complete |
-| CLEAN-01 | Phase 20 | Pending |
-| CLEAN-02 | Phase 20 | Pending |
+| CLEAN-01 | Phase 20 | Complete |
+| CLEAN-02 | Phase 20 | Complete |
 | CLEAN-03 | Phase 20 | Complete |
 
 **Coverage:**

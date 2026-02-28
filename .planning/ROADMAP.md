@@ -47,7 +47,7 @@ Full details: milestones/v1.1-ROADMAP.md
 - [x] **Phase 17: Extension Host Bridge Tests** — Mocha host-side tests, WebSocket error propagation fix, state persistence fix (completed 2026-02-28)
 - [x] **Phase 18: Webview Flow Test Completeness** — Vitest store hydration round-trips for all 12 views, circular dep fix, exam error fix (completed 2026-02-28)
 - [x] **Phase 19: E2E Infrastructure & CI** — Framework decision documented (ADR 001), GitHub Actions workflow (completed 2026-02-28)
-- [ ] **Phase 20: E2E View Coverage, Interactions, Accessibility & Cleanup** — All 12 view smoke tests, interaction tests, axe-core, migration-era code removal
+- [x] **Phase 20: E2E View Coverage, Interactions, Accessibility & Cleanup** — All 12 view smoke tests, interaction tests, axe-core, migration-era code removal (completed 2026-02-28)
 
 ## Phase Details
 
@@ -146,7 +146,7 @@ Full details: milestones/v1.1-ROADMAP.md
 | 17. Extension Host Bridge Tests | 3/3 | Complete    | 2026-02-28 | - |
 | 18. Webview Flow Test Completeness | 3/3 | Complete    | 2026-02-28 | - |
 | 19. E2E Infrastructure & CI | 2/2 | Complete    | 2026-02-28 | - |
-| 20. E2E View Coverage & Cleanup | 5/6 | In Progress|  | - |
+| 20. E2E View Coverage & Cleanup | 6/6 | Complete   | 2026-02-28 | - |
 
 ---
 

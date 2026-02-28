@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: E2E & Integration Testing
 status: unknown
-last_updated: "2026-02-28T22:00:00Z"
+last_updated: "2026-02-28T22:11:58.516Z"
 progress:
   total_phases: 5
-  completed_phases: 4
+  completed_phases: 5
   total_plans: 17
-  completed_plans: 16
+  completed_plans: 17
 ---
 
 # Project State
@@ -23,11 +23,11 @@ See: .planning/PROJECT.md (updated 2026-02-28)
 ## Current Position
 
 Phase: 20 of 20 (E2E View Coverage, Interactions, Accessibility & Cleanup)
-Plan: 05 complete — 5/6 Phase 20 plans done
-Status: In progress
-Last activity: 2026-02-28 — 20-05 complete: WCAG 2.1 AA accessibility test suite for all 12 webview views (A11Y-01 satisfied)
+Plan: 06 complete — 6/6 Phase 20 plans done — PHASE COMPLETE
+Status: Complete
+Last activity: 2026-02-28 — 20-06 complete: Legacy cleanup — 3 backward-compat sends removed, auth fallback removed, knip audit done (CLEAN-01, CLEAN-02, CLEAN-03)
 
-Progress: [██████░░░░] 62% (v1.2, 14/17 plans done across phases 16-20) — v1.0 + v1.1 complete (15 phases, 62 plans)
+Progress: [██████████] 100% (v1.2, 17/17 plans done across phases 16-20) — v1.0 + v1.1 complete (15 phases, 62 plans)
 
 ## Performance Metrics
 
@@ -56,6 +56,7 @@ Progress: [██████░░░░] 62% (v1.2, 14/17 plans done across ph
 - Phase 20 Plan 03: ~3 min | 2 tasks | 7 files | 7 E2E smoke tests for exam views + IrisChat + ServiceStatus + GitCredentials + RecommendedExtensions (E2EV-06 through E2EV-12) — 12/12 view coverage
 - Phase 20 Plan 04: ~5 min | 2 tasks | 2 files | E2EX-01 Dashboard heading assertion in login-flow test + E2EX-02 exercise submission → build progress interaction test (triple-gated skip)
 - Phase 20 Plan 05: ~4 min | 1 task | 1 file | axe-core WCAG 2.1 AA accessibility suite — 12 individual it() blocks, Login pre-auth + 11 post-auth, assertNoAxeViolations helper (A11Y-01)
+- Phase 20 Plan 06: ~10 min | 2 tasks | 9 files modified + 6 deleted | 3 legacy postMessage sends removed, auth fallback removed, knip audit (CLEAN-01, CLEAN-02, CLEAN-03)
 
 ## Accumulated Context
 
@@ -98,6 +99,8 @@ Progress: [██████░░░░] 62% (v1.2, 14/17 plans done across ph
 - [Phase 20-05]: Login view must run pre-authentication using nested describe ordering — only way to reach Login DOM when suite also tests authenticated views
 - [Phase 20-05]: CourseList axe runs on whatever view is visible if Courses button not found — partial coverage better than skip for non-critical navigation gate
 - [Phase 20-05]: assertNoAxeViolations is a local helper (not exported from helpers.ts) — violation formatting logic is specific to accessibility suite
+- [Phase 20]: BuildLogParsedMessage and GitIdentityInfoMessage retained in ExtensionToWebviewMessage union — sent by extension commands even though no React consumer handles them
+- [Phase 20]: knip false positives documented: model class re-exports for tests, React Props types as API surface, service barrel re-exports — 18 remaining entries are acceptable
 
 ### Pending Todos
 
@@ -117,10 +120,10 @@ None.
 ## Session Continuity
 
 Last session: 2026-02-28
-Stopped at: Phase 20 Plan 05 complete — WCAG 2.1 AA accessibility test suite for all 12 webview views; A11Y-01 satisfied. 5/6 Phase 20 plans done.
+Stopped at: Phase 20 Plan 06 complete — Legacy cleanup complete. 6/6 Phase 20 plans done. v1.2 milestone COMPLETE (CLEAN-01, CLEAN-02, CLEAN-03 satisfied).
 Resume file: None
 
 ---
 
 *Created: 2026-02-23 (v1.0)*
-*Updated: 2026-02-28 (20-05 complete)*
+*Updated: 2026-02-28 (20-06 complete — v1.2 milestone complete)*
