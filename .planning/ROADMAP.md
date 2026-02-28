@@ -60,7 +60,10 @@ Full details: milestones/v1.1-ROADMAP.md
   2. `resetAllStores()` is called automatically in `beforeEach` globally via `vitest.setup.ts` — no individual test file needs to call it
   3. A shared bridge handshake helper exists that simulates the `ready` message before asserting bridge responses — no test needs to manage handshake timing manually
   4. Bridge contract test scaffolding exists covering all 13 AppStateManager state transitions with typed payload shape verification
-**Plans**: TBD
+**Plans**: 3 plans
+- [ ] 16-01-PLAN.md — Store reset infrastructure + handshake helper
+- [ ] 16-02-PLAN.md — Fixture factories + bridge contract tests
+- [ ] 16-03-PLAN.md — Cleanup redundant per-test store resets
 
 ### Phase 17: Extension Host Bridge Tests
 **Goal**: The extension host side of the postMessage bridge is verified with Mocha tests running in a real VS Code process — WebSocket connection failures show error state instead of infinite loading, and webview state persists across panel hide/show
@@ -125,7 +128,7 @@ Full details: milestones/v1.1-ROADMAP.md
 | 13. Component Test Suite | v1.1 | 8/8 | Complete | 2026-02-27 |
 | 14. Dependency Cleanup | v1.1 | 3/3 | Complete | 2026-02-27 |
 | 15. Command Handler Gap Closure | v1.1 | 1/1 | Complete | 2026-02-25 |
-| 16. Integration Test Infrastructure | v1.2 | 0/TBD | Not started | - |
+| 16. Integration Test Infrastructure | v1.2 | 0/3 | Planned | - |
 | 17. Extension Host Bridge Tests | v1.2 | 0/TBD | Not started | - |
 | 18. Webview Flow Test Completeness | v1.2 | 0/TBD | Not started | - |
 | 19. E2E Infrastructure & CI | v1.2 | 0/TBD | Not started | - |
