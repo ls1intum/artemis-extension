@@ -1,8 +1,11 @@
+import type { ActiveContext } from './context';
+
 /**
  * Minimal interface for ChatWebviewProvider as consumed by ProviderRegistry and its callers.
  * Extracted to sever the circular import: ProviderRegistry -> chatWebviewProvider -> services/index -> ProviderRegistry.
  */
 export interface IChatWebviewProvider {
+    getSelectedContext(): ActiveContext | null;
     updateDetectedExercise(
         exerciseTitle: string,
         exerciseId: number,

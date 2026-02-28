@@ -1,22 +1,22 @@
-import { ChatWebviewProvider } from '../provider/chatWebviewProvider';
-import { ArtemisWebviewProvider } from '../provider/artemisWebviewProvider';
+import type { IChatWebviewProvider } from '../types/IChatWebviewProvider';
+import type { IArtemisWebviewProvider } from '../types/IArtemisWebviewProvider';
 
 /**
  * Registry for managing extension-wide provider instances.
  * Replaces global state anti-pattern with a proper singleton registry.
  */
 export interface IProviderRegistry {
-    getChatWebviewProvider(): ChatWebviewProvider | undefined;
-    getArtemisWebviewProvider(): ArtemisWebviewProvider | undefined;
-    setChatWebviewProvider(provider: ChatWebviewProvider): void;
-    setArtemisWebviewProvider(provider: ArtemisWebviewProvider): void;
+    getChatWebviewProvider(): IChatWebviewProvider | undefined;
+    getArtemisWebviewProvider(): IArtemisWebviewProvider | undefined;
+    setChatWebviewProvider(provider: IChatWebviewProvider): void;
+    setArtemisWebviewProvider(provider: IArtemisWebviewProvider): void;
     reset(): void;
 }
 
 export class ProviderRegistry implements IProviderRegistry {
     private static instance: ProviderRegistry;
-    private chatProvider: ChatWebviewProvider | undefined;
-    private artemisProvider: ArtemisWebviewProvider | undefined;
+    private chatProvider: IChatWebviewProvider | undefined;
+    private artemisProvider: IArtemisWebviewProvider | undefined;
 
     private constructor() {
         // Private constructor enforces singleton pattern
@@ -29,19 +29,19 @@ export class ProviderRegistry implements IProviderRegistry {
         return ProviderRegistry.instance;
     }
 
-    public getChatWebviewProvider(): ChatWebviewProvider | undefined {
+    public getChatWebviewProvider(): IChatWebviewProvider | undefined {
         return this.chatProvider;
     }
 
-    public getArtemisWebviewProvider(): ArtemisWebviewProvider | undefined {
+    public getArtemisWebviewProvider(): IArtemisWebviewProvider | undefined {
         return this.artemisProvider;
     }
 
-    public setChatWebviewProvider(provider: ChatWebviewProvider): void {
+    public setChatWebviewProvider(provider: IChatWebviewProvider): void {
         this.chatProvider = provider;
     }
 
-    public setArtemisWebviewProvider(provider: ArtemisWebviewProvider): void {
+    public setArtemisWebviewProvider(provider: IArtemisWebviewProvider): void {
         this.artemisProvider = provider;
     }
 
@@ -58,7 +58,7 @@ export class ProviderRegistry implements IProviderRegistry {
      * Gets the chat provider or throws an error if not initialized.
      * Use this when the provider must be available.
      */
-    public requireChatWebviewProvider(): ChatWebviewProvider {
+    public requireChatWebviewProvider(): IChatWebviewProvider {
         const provider = this.getChatWebviewProvider();
         if (!provider) {
             throw new Error('ChatWebviewProvider not initialized. This is a programming error.');
@@ -70,7 +70,7 @@ export class ProviderRegistry implements IProviderRegistry {
      * Gets the artemis provider or throws an error if not initialized.
      * Use this when the provider must be available.
      */
-    public requireArtemisWebviewProvider(): ArtemisWebviewProvider {
+    public requireArtemisWebviewProvider(): IArtemisWebviewProvider {
         const provider = this.getArtemisWebviewProvider();
         if (!provider) {
             throw new Error('ArtemisWebviewProvider not initialized. This is a programming error.');
