@@ -146,7 +146,7 @@ Full details: milestones/v1.1-ROADMAP.md
 | 17. Extension Host Bridge Tests | 3/3 | Complete    | 2026-02-28 | - |
 | 18. Webview Flow Test Completeness | 3/3 | Complete    | 2026-02-28 | - |
 | 19. E2E Infrastructure & CI | 2/2 | Complete    | 2026-02-28 | - |
-| 20. E2E View Coverage & Cleanup | 2/6 | In Progress|  | - |
+| 20. E2E View Coverage & Cleanup | 3/6 | In Progress|  | - |
 
 ---
 
