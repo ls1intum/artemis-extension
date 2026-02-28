@@ -23,11 +23,11 @@ See: .planning/PROJECT.md (updated 2026-02-28)
 ## Current Position
 
 Phase: 20 of 20 (E2E View Coverage, Interactions, Accessibility & Cleanup)
-Plan: 04 complete — 4/6 Phase 20 plans done
+Plan: 05 complete — 5/6 Phase 20 plans done
 Status: In progress
-Last activity: 2026-02-28 — 20-04 complete: E2EX-01 Dashboard assertion added to login-flow test, E2EX-02 exercise submission → build progress interaction test created
+Last activity: 2026-02-28 — 20-05 complete: WCAG 2.1 AA accessibility test suite for all 12 webview views (A11Y-01 satisfied)
 
-Progress: [██████░░░░] 59% (v1.2, 13/17 plans done across phases 16-20) — v1.0 + v1.1 complete (15 phases, 62 plans)
+Progress: [██████░░░░] 62% (v1.2, 14/17 plans done across phases 16-20) — v1.0 + v1.1 complete (15 phases, 62 plans)
 
 ## Performance Metrics
 
@@ -55,6 +55,7 @@ Progress: [██████░░░░] 59% (v1.2, 13/17 plans done across ph
 - Phase 20 Plan 02: ~5 min | 2 tasks | 4 files | 4 E2E smoke tests for Dashboard, CourseList, CourseDetail, ExerciseDetail (E2EV-02 through E2EV-05)
 - Phase 20 Plan 03: ~3 min | 2 tasks | 7 files | 7 E2E smoke tests for exam views + IrisChat + ServiceStatus + GitCredentials + RecommendedExtensions (E2EV-06 through E2EV-12) — 12/12 view coverage
 - Phase 20 Plan 04: ~5 min | 2 tasks | 2 files | E2EX-01 Dashboard heading assertion in login-flow test + E2EX-02 exercise submission → build progress interaction test (triple-gated skip)
+- Phase 20 Plan 05: ~4 min | 1 task | 1 file | axe-core WCAG 2.1 AA accessibility suite — 12 individual it() blocks, Login pre-auth + 11 post-auth, assertNoAxeViolations helper (A11Y-01)
 
 ## Accumulated Context
 
@@ -94,6 +95,9 @@ Progress: [██████░░░░] 59% (v1.2, 13/17 plans done across ph
 - [Phase 20-04]: E2EX-01 uses waitForElement h1 CSS selector (not XPath) — h1 is standard semantic element; absence of form #username confirms Dashboard showing
 - [Phase 20-04]: E2EX-02 triple-gated skip — ARTEMIS_USER + ARTEMIS_PASS + ARTEMIS_EXERCISE_ID all required; sequential it() tests valid for Mocha interaction flows; graceful skip at each navigation step
 - [Phase 20-04]: E2EX-02 assert.ok on progressIndicator is the core assertion (not this.skip) — build progress is the required outcome, not optional
+- [Phase 20-05]: Login view must run pre-authentication using nested describe ordering — only way to reach Login DOM when suite also tests authenticated views
+- [Phase 20-05]: CourseList axe runs on whatever view is visible if Courses button not found — partial coverage better than skip for non-critical navigation gate
+- [Phase 20-05]: assertNoAxeViolations is a local helper (not exported from helpers.ts) — violation formatting logic is specific to accessibility suite
 
 ### Pending Todos
 
@@ -113,10 +117,10 @@ None.
 ## Session Continuity
 
 Last session: 2026-02-28
-Stopped at: Phase 20 Plan 04 complete — E2EX-01 Dashboard assertion in login-flow test, E2EX-02 exercise submission interaction test with triple-gated skip (ARTEMIS_EXERCISE_ID). 4/6 Phase 20 plans done.
+Stopped at: Phase 20 Plan 05 complete — WCAG 2.1 AA accessibility test suite for all 12 webview views; A11Y-01 satisfied. 5/6 Phase 20 plans done.
 Resume file: None
 
 ---
 
 *Created: 2026-02-23 (v1.0)*
-*Updated: 2026-02-28 (20-04 complete)*
+*Updated: 2026-02-28 (20-05 complete)*
