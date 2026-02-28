@@ -133,6 +133,14 @@ export class ArtemisWebsocketService {
     }
 
     /**
+     * Get the current number of reconnect attempts.
+     * Used by WebSocketStatusBarService to show live attempt counter.
+     */
+    public get reconnectAttempts(): number {
+        return this._reconnectAttempts;
+    }
+
+    /**
      * Attempt to ensure WebSocket connection
      * Returns true if connected, false otherwise
      */

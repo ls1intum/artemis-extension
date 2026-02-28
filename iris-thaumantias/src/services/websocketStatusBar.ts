@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import { ArtemisWebsocketService } from './artemisWebsocketService';
 import { VSCODE_CONFIG } from '../utils';
-import { logger, LogCategory } from './loggingService';
+import { logger } from './loggingService';
 
 /**
  * WebSocket connection status enumeration
@@ -41,13 +41,14 @@ interface WebSocketDebugInfo {
 
 /**
  * Service that manages a StatusBar item showing WebSocket connection status.
- * Only visible when developer mode is enabled via `artemis.developerMode` setting.
- * 
- * Features:
- * - Real-time status updates (Connected ✅ / Disconnected ❌ / Reconnecting 🔄)
- * - Detailed hover tooltip with connection info
- * - Quick Pick actions for connection management
- * - Debug info export to document or clipboard
+ *
+ * Visibility rules:
+ * - Override rule: ALWAYS shown when disconnected, gaveUp, or reconnecting
+ * - Normal state: shown when `artemis.showWebSocketStatusBar` is true OR developer mode is on
+ * - After reconnection with setting off: shown briefly (2s flash) then hidden
+ *
+ * This makes connection failures visible and actionable without cluttering the
+ * status bar during normal healthy operation.
  */
 export class WebSocketStatusBarService implements vscode.Disposable {
     private _statusBarItem: vscode.StatusBarItem;
@@ -57,7 +58,8 @@ export class WebSocketStatusBarService implements vscode.Disposable {
     private _currentStatus: WebSocketStatus = WebSocketStatus.Disconnected;
     private _lastError?: string;
     private _isDebugMode: boolean = false;
-    private _tooltipUpdateInterval?: ReturnType<typeof setInterval>;
+    private _showStatusBar: boolean = false;
+    private _reconnectHideTimeout?: ReturnType<typeof setTimeout>;
 
     /**
      * Command ID for the StatusBar item click action
@@ -82,15 +84,18 @@ export class WebSocketStatusBarService implements vscode.Disposable {
             )
         );
 
-        // Check initial debug mode state
-        this._updateDebugModeState();
+        // Check initial visibility settings
+        this._updateVisibilitySettings();
 
-        // Listen for configuration changes
+        // Listen for configuration changes (developerMode or showWebSocketStatusBar)
         this._disposables.push(
             vscode.workspace.onDidChangeConfiguration(event => {
-                if (event.affectsConfiguration(`${VSCODE_CONFIG.ARTEMIS_SECTION}.${VSCODE_CONFIG.DEVELOPER_MODE_KEY}`)) {
-                    this._log('Developer mode configuration changed');
-                    this._updateDebugModeState();
+                if (
+                    event.affectsConfiguration(`${VSCODE_CONFIG.ARTEMIS_SECTION}.${VSCODE_CONFIG.DEVELOPER_MODE_KEY}`) ||
+                    event.affectsConfiguration(`${VSCODE_CONFIG.ARTEMIS_SECTION}.${VSCODE_CONFIG.SHOW_WEBSOCKET_STATUS_BAR_KEY}`)
+                ) {
+                    this._log('Visibility configuration changed');
+                    this._updateVisibilitySettings();
                 }
             })
         );
@@ -104,35 +109,28 @@ export class WebSocketStatusBarService implements vscode.Disposable {
 
         // Initial status update
         this._updateStatusFromService();
-
-        // Update tooltip AND status bar text every 2 seconds to catch subscription changes
-        this._tooltipUpdateInterval = setInterval(() => {
-            if (this._isDebugMode) {
-                this._updateStatusBarItem();
-            }
-        }, 2000);
     }
 
     /**
-     * Check and update the developer mode state from configuration
+     * Check and update visibility settings from configuration.
+     * Reads both developerMode (for debug-level tooltip info) and
+     * showWebSocketStatusBar (for user-controlled normal-state visibility).
      */
-    private _updateDebugModeState(): void {
+    private _updateVisibilitySettings(): void {
         const config = vscode.workspace.getConfiguration(VSCODE_CONFIG.ARTEMIS_SECTION);
         this._isDebugMode = config.get<boolean>(VSCODE_CONFIG.DEVELOPER_MODE_KEY, false);
+        this._showStatusBar = config.get<boolean>(VSCODE_CONFIG.SHOW_WEBSOCKET_STATUS_BAR_KEY, false);
 
-        this._log(`Developer mode: ${this._isDebugMode}`);
+        this._log(`Developer mode: ${this._isDebugMode}, showStatusBar: ${this._showStatusBar}`);
 
-        if (this._isDebugMode) {
-            this._statusBarItem.show();
-        } else {
-            this._statusBarItem.hide();
-        }
+        // Re-apply current visibility based on updated settings
+        this._applyVisibility();
     }
 
     /**
      * Update status from WebSocket service state
      */
-    private async _updateStatusFromService(): Promise<void> {
+    private _updateStatusFromService(): void {
         const isConnected = this._websocketService.isConnected();
         const hasGivenUp = this._websocketService.hasGivenUp();
 
@@ -144,14 +142,15 @@ export class WebSocketStatusBarService implements vscode.Disposable {
             this._currentStatus = WebSocketStatus.Disconnected;
         }
 
-        await this._updateStatusBarItem();
+        this._updateStatusBarItem();
     }
 
     /**
      * Update status based on connection state callback
      */
-    private async _updateStatus(isConnected: boolean, wasEverConnected?: boolean): Promise<void> {
+    private _updateStatus(isConnected: boolean, wasEverConnected?: boolean): void {
         const hasGivenUp = this._websocketService.hasGivenUp();
+        const previousStatus = this._currentStatus;
 
         if (hasGivenUp) {
             this._currentStatus = WebSocketStatus.GaveUp;
@@ -165,20 +164,57 @@ export class WebSocketStatusBarService implements vscode.Disposable {
             this._currentStatus = WebSocketStatus.Disconnected;
         }
 
-        await this._updateStatusBarItem();
+        // Handle the reconnect flash: when transitioning FROM Reconnecting TO connected
+        // and the user setting is off, schedule a 2-second hide.
+        // Only applies when coming from Reconnecting state (not initial connect from Disconnected).
+        if (isConnected && !hasGivenUp && !this._showStatusBar && !this._isDebugMode) {
+            if (previousStatus === WebSocketStatus.Reconnecting) {
+                // Clear any existing timeout to avoid stacking
+                if (this._reconnectHideTimeout) {
+                    clearTimeout(this._reconnectHideTimeout);
+                }
+                this._reconnectHideTimeout = setTimeout(() => {
+                    this._reconnectHideTimeout = undefined;
+                    this._statusBarItem.hide();
+                }, 2000);
+            }
+        }
+
+        this._updateStatusBarItem();
+    }
+
+    /**
+     * Apply the visibility rule based on current status and settings.
+     *
+     * Override rule: disconnected/reconnecting/gaveUp states ALWAYS show, regardless of settings.
+     * Normal state: only show when showStatusBar or isDebugMode is true.
+     * Reconnect flash: if a hide timeout is pending (2s after reconnect), keep showing.
+     */
+    private _applyVisibility(): void {
+        const isDisconnected =
+            this._currentStatus === WebSocketStatus.Disconnected ||
+            this._currentStatus === WebSocketStatus.GaveUp;
+        const isReconnecting = this._currentStatus === WebSocketStatus.Reconnecting;
+
+        if (isDisconnected || isReconnecting) {
+            // Override rule: ALWAYS show
+            this._statusBarItem.show();
+        } else if (this._showStatusBar || this._isDebugMode) {
+            this._statusBarItem.show();
+        } else if (this._reconnectHideTimeout) {
+            // Reconnect flash in progress: keep showing until the timeout fires
+            this._statusBarItem.show();
+        } else {
+            this._statusBarItem.hide();
+        }
     }
 
     /**
      * Update the StatusBar item appearance based on current status
      */
-    private async _updateStatusBarItem(): Promise<void> {
-        if (!this._isDebugMode) {
-            return; // Don't update if not visible
-        }
-
-        // Get subscription count
-        const debugInfo = await this._websocketService.getDebugInfoAsync();
-        const subscriptionCount = debugInfo.subscriptionCount;
+    private _updateStatusBarItem(): void {
+        // Apply override/visibility rule first
+        this._applyVisibility();
 
         let icon: string;
         let text: string;
@@ -187,37 +223,39 @@ export class WebSocketStatusBarService implements vscode.Disposable {
         switch (this._currentStatus) {
             case WebSocketStatus.Connected:
                 icon = '$(plug)';
-                text = `WS: Connected (${subscriptionCount})`;
+                text = 'WS Connected';
                 backgroundColor = undefined;
                 break;
-            case WebSocketStatus.Reconnecting:
+            case WebSocketStatus.Reconnecting: {
+                const attempts = this._websocketService.reconnectAttempts;
                 icon = '$(sync~spin)';
-                text = `WS: Reconnecting... (${subscriptionCount})`;
+                text = `Reconnecting (${attempts}/20)...`;
                 backgroundColor = new vscode.ThemeColor('statusBarItem.warningBackground');
                 break;
+            }
             case WebSocketStatus.Connecting:
                 icon = '$(sync~spin)';
-                text = 'WS: Connecting...';
+                text = 'WS Connecting...';
                 backgroundColor = undefined;
                 break;
             case WebSocketStatus.GaveUp:
                 icon = '$(debug-disconnect)';
-                text = 'WS: Failed';
+                text = 'WS Disconnected';
                 backgroundColor = new vscode.ThemeColor('statusBarItem.errorBackground');
                 break;
             case WebSocketStatus.Disconnected:
             default:
                 icon = '$(debug-disconnect)';
-                text = 'WS: Disconnected';
-                backgroundColor = new vscode.ThemeColor('statusBarItem.warningBackground');
+                text = 'WS Disconnected';
+                backgroundColor = new vscode.ThemeColor('statusBarItem.errorBackground');
                 break;
         }
 
         this._statusBarItem.text = `${icon} ${text}`;
         this._statusBarItem.backgroundColor = backgroundColor;
 
-        // Update tooltip with detailed info
-        await this._updateTooltip();
+        // Update tooltip with detailed info (async, non-blocking)
+        void this._updateTooltip();
     }
 
     /**
@@ -245,51 +283,48 @@ export class WebSocketStatusBarService implements vscode.Disposable {
         const statusIcon = info.isConnected ? '✅' : info.connectionGaveUp ? '⛔' : '❌';
         const statusText = info.isConnected ? 'Connected' : info.connectionGaveUp ? 'Gave Up' : 'Disconnected';
 
-        md.appendMarkdown(`## WebSocket Debug Info\n\n`);
+        md.appendMarkdown(`## WebSocket Status\n\n`);
         md.appendMarkdown(`**Status:** ${statusIcon} ${statusText}\n\n`);
 
-        // Connection Details
-        md.appendMarkdown(`---\n\n`);
-        md.appendMarkdown(`**Connection Details:**\n`);
-        md.appendMarkdown(`- Client Active: ${info.clientActive ? 'Yes' : 'No'}\n`);
-        md.appendMarkdown(`- Client Connected: ${info.clientConnected ? 'Yes' : 'No'}\n`);
-        md.appendMarkdown(`- Was Ever Connected: ${info.wasConnectedOnce ? 'Yes' : 'No'}\n\n`);
+        if (this._isDebugMode) {
+            // Full debug info in developer mode
+            md.appendMarkdown(`---\n\n`);
+            md.appendMarkdown(`**Connection Details:**\n`);
+            md.appendMarkdown(`- Client Active: ${info.clientActive ? 'Yes' : 'No'}\n`);
+            md.appendMarkdown(`- Client Connected: ${info.clientConnected ? 'Yes' : 'No'}\n`);
+            md.appendMarkdown(`- Was Ever Connected: ${info.wasConnectedOnce ? 'Yes' : 'No'}\n\n`);
 
-        // Reconnection Info
-        md.appendMarkdown(`**Reconnection:**\n`);
-        md.appendMarkdown(`- Attempts: \`${info.reconnectAttempts}/${info.maxReconnectAttempts}\`\n`);
-        md.appendMarkdown(`- Current Delay: \`${info.currentReconnectDelay}ms\`\n`);
-        md.appendMarkdown(`- Gave Up: ${info.connectionGaveUp ? 'Yes ⛔' : 'No'}\n\n`);
+            md.appendMarkdown(`**Reconnection:**\n`);
+            md.appendMarkdown(`- Attempts: \`${info.reconnectAttempts}/${info.maxReconnectAttempts}\`\n`);
+            md.appendMarkdown(`- Current Delay: \`${info.currentReconnectDelay}ms\`\n`);
+            md.appendMarkdown(`- Gave Up: ${info.connectionGaveUp ? 'Yes ⛔' : 'No'}\n\n`);
 
-        // Subscriptions
-        md.appendMarkdown(`**Subscriptions:** (${info.subscriptionCount})\n`);
-        if (info.subscriptions.length > 0) {
-            info.subscriptions.forEach(sub => {
-                md.appendMarkdown(`- \`${sub}\`\n`);
-            });
-        } else {
-            md.appendMarkdown(`- *None*\n`);
-        }
-        md.appendMarkdown(`\n`);
+            md.appendMarkdown(`**Subscriptions:** (${info.subscriptionCount})\n`);
+            if (info.subscriptions.length > 0) {
+                info.subscriptions.forEach(sub => {
+                    md.appendMarkdown(`- \`${sub}\`\n`);
+                });
+            } else {
+                md.appendMarkdown(`- *None*\n`);
+            }
+            md.appendMarkdown(`\n`);
 
-        // Session & Server Info
-        md.appendMarkdown(`**Session:**\n`);
-        md.appendMarkdown(`- Session ID: \`${info.sessionId}\`\n`);
-        md.appendMarkdown(`- Callbacks: ${info.callbackCount}\n\n`);
+            md.appendMarkdown(`**Session:**\n`);
+            md.appendMarkdown(`- Session ID: \`${info.sessionId}\`\n`);
+            md.appendMarkdown(`- Callbacks: ${info.callbackCount}\n\n`);
 
-        md.appendMarkdown(`**Server:**\n`);
-        md.appendMarkdown(`- URL: \`${info.serverUrl}\`\n`);
-        md.appendMarkdown(`- WebSocket: \`${info.websocketUrl}\`\n\n`);
+            md.appendMarkdown(`**Server:**\n`);
+            md.appendMarkdown(`- URL: \`${info.serverUrl}\`\n`);
+            md.appendMarkdown(`- WebSocket: \`${info.websocketUrl}\`\n\n`);
 
-        // Authentication
-        md.appendMarkdown(`**Authentication:**\n`);
-        md.appendMarkdown(`- Has Cookie: ${info.hasCookie ? 'Yes ✅' : 'No ❌'}\n`);
-        md.appendMarkdown(`- Has JWT: ${info.hasJwtToken ? 'Yes ✅' : 'No ❌'}\n`);
-        if (info.cookiePreview) {
-            md.appendMarkdown(`- Cookie: \`${info.cookiePreview}\`\n`);
+            md.appendMarkdown(`**Authentication:**\n`);
+            md.appendMarkdown(`- Has Cookie: ${info.hasCookie ? 'Yes ✅' : 'No ❌'}\n`);
+            md.appendMarkdown(`- Has JWT: ${info.hasJwtToken ? 'Yes ✅' : 'No ❌'}\n`);
+            if (info.cookiePreview) {
+                md.appendMarkdown(`- Cookie: \`${info.cookiePreview}\`\n`);
+            }
         }
 
-        // Last error if any
         if (this._lastError) {
             md.appendMarkdown(`\n**Last Error:**\n`);
             md.appendMarkdown(`\`${this._lastError}\`\n`);
@@ -354,7 +389,7 @@ export class WebSocketStatusBarService implements vscode.Disposable {
 
         const selected = await vscode.window.showQuickPick(items, {
             placeHolder: 'WebSocket Actions',
-            title: 'WebSocket Debug Actions'
+            title: 'WebSocket Actions'
         });
 
         if (!selected) {
@@ -390,7 +425,7 @@ export class WebSocketStatusBarService implements vscode.Disposable {
             const errorMsg = error instanceof Error ? error.message : 'Unknown error';
             this._lastError = errorMsg;
             vscode.window.showErrorMessage(`WebSocket action failed: ${errorMsg}`);
-            await this._updateStatusBarItem();
+            this._updateStatusBarItem();
         }
     }
 
@@ -399,7 +434,7 @@ export class WebSocketStatusBarService implements vscode.Disposable {
      */
     private async _handleReconnect(): Promise<void> {
         this._currentStatus = WebSocketStatus.Connecting;
-        await this._updateStatusBarItem();
+        this._updateStatusBarItem();
 
         await vscode.window.withProgress({
             location: vscode.ProgressLocation.Notification,
@@ -409,10 +444,10 @@ export class WebSocketStatusBarService implements vscode.Disposable {
             await this._websocketService.connect();
         });
 
-        await this._updateStatusFromService();
+        this._updateStatusFromService();
 
         if (this._websocketService.isConnected()) {
-            vscode.window.showInformationMessage('✅ WebSocket connected');
+            vscode.window.showInformationMessage('WebSocket connected');
         }
     }
 
@@ -422,7 +457,7 @@ export class WebSocketStatusBarService implements vscode.Disposable {
     private async _handleDisconnect(): Promise<void> {
         await this._websocketService.disconnect();
         this._currentStatus = WebSocketStatus.Disconnected;
-        await this._updateStatusBarItem();
+        this._updateStatusBarItem();
         vscode.window.showInformationMessage('WebSocket disconnected');
     }
 
@@ -434,7 +469,7 @@ export class WebSocketStatusBarService implements vscode.Disposable {
         this._lastError = undefined;
 
         this._currentStatus = WebSocketStatus.Connecting;
-        await this._updateStatusBarItem();
+        this._updateStatusBarItem();
 
         await vscode.window.withProgress({
             location: vscode.ProgressLocation.Notification,
@@ -444,10 +479,10 @@ export class WebSocketStatusBarService implements vscode.Disposable {
             await this._websocketService.connect();
         });
 
-        await this._updateStatusFromService();
+        this._updateStatusFromService();
 
         if (this._websocketService.isConnected()) {
-            vscode.window.showInformationMessage('✅ WebSocket reset and connected');
+            vscode.window.showInformationMessage('WebSocket reset and connected');
         }
     }
 
@@ -569,10 +604,10 @@ export class WebSocketStatusBarService implements vscode.Disposable {
     public dispose(): void {
         this._log('Disposing WebSocket StatusBar service');
 
-        // Clear tooltip update interval
-        if (this._tooltipUpdateInterval) {
-            clearInterval(this._tooltipUpdateInterval);
-            this._tooltipUpdateInterval = undefined;
+        // Clear reconnect hide timeout
+        if (this._reconnectHideTimeout) {
+            clearTimeout(this._reconnectHideTimeout);
+            this._reconnectHideTimeout = undefined;
         }
 
         // Unsubscribe from connection state changes
