@@ -120,6 +120,21 @@ None - no external service configuration required.
 - All tests follow consistent credential-gated + graceful skip patterns
 - Ready for Plan 04 (interactions/accessibility testing) or Plan 05 (dead code cleanup via knip)
 
+## Self-Check: PASSED
+
+All created files confirmed to exist on disk. Both task commits confirmed in git log.
+
+- FOUND: iris-thaumantias/test/e2e/ui/exam-start.ui.test.ts
+- FOUND: iris-thaumantias/test/e2e/ui/exam-conduction.ui.test.ts
+- FOUND: iris-thaumantias/test/e2e/ui/exam-exercise-detail.ui.test.ts
+- FOUND: iris-thaumantias/test/e2e/ui/iris-chat.ui.test.ts
+- FOUND: iris-thaumantias/test/e2e/ui/service-status.ui.test.ts
+- FOUND: iris-thaumantias/test/e2e/ui/git-credentials.ui.test.ts
+- FOUND: iris-thaumantias/test/e2e/ui/recommended-extensions.ui.test.ts
+- FOUND: .planning/phases/20-e2e-view-coverage-interactions-accessibility-cleanup/20-03-SUMMARY.md
+- FOUND: 926fe14 (Task 1 commit)
+- FOUND: 605fc5b (Task 2 commit)
+
 ---
 *Phase: 20-e2e-view-coverage-interactions-accessibility-cleanup*
 *Completed: 2026-02-28*
