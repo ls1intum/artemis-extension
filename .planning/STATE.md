@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: E2E & Integration Testing
 status: unknown
-last_updated: "2026-02-28T12:42:44.748Z"
+last_updated: "2026-02-28T19:11:00Z"
 progress:
-  total_phases: 1
+  total_phases: 2
   completed_phases: 1
-  total_plans: 3
-  completed_plans: 3
+  total_plans: 6
+  completed_plans: 4
 ---
 
 # Project State
@@ -18,16 +18,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-02-28)
 
 **Core value:** Students can interact with Artemis courses, exercises, and the Iris AI tutor without leaving VS Code.
-**Current focus:** v1.2 Phase 16 — Integration Test Infrastructure
+**Current focus:** v1.2 Phase 17 — Extension Host Bridge Tests
 
 ## Current Position
 
-Phase: 16 of 20 (Integration Test Infrastructure)
-Plan: 03 complete — Phase 16 COMPLETE
-Status: In progress (Phase 17 next)
-Last activity: 2026-02-28 — 16-03 complete: removed redundant store resets, 876 tests order-independent
+Phase: 17 of 20 (Extension Host Bridge Tests)
+Plan: 03 complete — 3/3 Phase 17 plans done
+Status: In progress
+Last activity: 2026-02-28 — 17-03 complete: handleMessageWithSender tests (7 tests, sender-swap + dispatch + error recovery)
 
-Progress: [███░░░░░░░] 30% (v1.2, 3/3 Phase 16 plans done) — v1.0 + v1.1 complete (15 phases, 62 plans)
+Progress: [████░░░░░░] 40% (v1.2, 4/6 plans done across phases 16+17) — v1.0 + v1.1 complete (15 phases, 62 plans)
 
 ## Performance Metrics
 
@@ -43,6 +43,7 @@ Progress: [███░░░░░░░] 30% (v1.2, 3/3 Phase 16 plans done) �
 - Phase 16 Plan 01: 7 min | 2 tasks | 3 files
 - Phase 16 Plan 02: ~3 min | 2 tasks | 14 files | 61 new tests (876 total)
 - Phase 16 Plan 03: 12 min | 2 tasks | 20 files | 876 tests passing order-independently
+- Phase 17 Plan 03: 3 min | 1 task | 1 file | 7 new tests (sender-swap + dispatch + error recovery)
 
 ## Accumulated Context
 
@@ -55,6 +56,7 @@ Progress: [███░░░░░░░] 30% (v1.2, 3/3 Phase 16 plans done) �
 - Fixture factory pattern: Partial<XxxMessage['payload']> override parameter with spread after minimal defaults — return type annotation enforces shape, no type assertions needed
 - createGenericInitPayload takes view as required first arg (not override) because view is the state machine discriminator
 - [Phase 16]: Per-test default-state resets are redundant when global resetTestState() is wired: remove all beforeEach blocks whose sole purpose is resetting stores to initial values
+- [Phase 17-03]: Inject test handlers via `(handler as any).commandHandlers.set()` to test dispatch seam without triggering real command side effects; assert sender restoration via `(handler as any)._sendMessage` field access
 
 ### Pending Todos
 
@@ -74,10 +76,10 @@ None.
 ## Session Continuity
 
 Last session: 2026-02-28
-Stopped at: Phase 16 Plan 03 complete — all redundant store resets removed, 876/876 passing on two consecutive runs. Phase 16 COMPLETE. Next: Phase 17 (bridge message integration tests).
+Stopped at: Phase 17 Plan 03 complete — handleMessageWithSender tests (7 tests: sender-swap, dispatch routing, error recovery, module integration).
 Resume file: None
 
 ---
 
 *Created: 2026-02-23 (v1.0)*
-*Updated: 2026-02-28 (16-03 complete)*
+*Updated: 2026-02-28 (17-03 complete)*
