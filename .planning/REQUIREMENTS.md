@@ -16,7 +16,7 @@ Requirements for milestone v1.2: E2E & Integration Testing + Cleanup. Each maps 
 
 ### E2E Infrastructure
 
-- [ ] **E2EI-01**: E2E framework decision finalized (vscode-extension-tester vs wdio-vscode-service) with documented rationale
+- [x] **E2EI-01**: E2E framework decision finalized (vscode-extension-tester vs wdio-vscode-service) with documented rationale
 - [ ] **E2EI-02**: CI workflow runs all E2E tests on GitHub Actions with xvfb on Linux
 - [ ] **E2EI-03**: Screenshot captured automatically on E2E test failure for debugging
 
@@ -85,7 +85,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | INTG-02 | Phase 18 | Complete |
 | INTG-03 | Phase 17 | Complete |
 | INTG-04 | Phase 17 | Complete |
-| E2EI-01 | Phase 19 | Pending |
+| E2EI-01 | Phase 19 | Complete |
 | E2EI-02 | Phase 19 | Pending |
 | E2EI-03 | Phase 19 | Pending |
 | E2EV-01 | Phase 20 | Pending |
