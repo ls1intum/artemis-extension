@@ -115,7 +115,13 @@ Full details: milestones/v1.1-ROADMAP.md
   3. The exercise submission E2E test opens an exercise, triggers submission, and asserts build progress feedback appears — the critical student workflow is verified end-to-end
   4. All 12 rendered view DOMs pass axe-core accessibility assertions with zero WCAG violations
   5. No HTML string generation, coexistence router code, migration shims, legacy fallbacks, or unused exports remain — `knip` reports zero unused exports after cleanup
-**Plans**: TBD
+**Plans**: 6 plans
+- [ ] 20-01-PLAN.md — E2E infrastructure: install axe-core + knip, add axe helper, confirm E2EV-01 (E2EV-01, A11Y-01, CLEAN-03)
+- [ ] 20-02-PLAN.md — Smoke tests: Dashboard, CourseList, CourseDetail, ExerciseDetail (E2EV-02, E2EV-03, E2EV-04, E2EV-05)
+- [ ] 20-03-PLAN.md — Smoke tests: ExamStart, ExamConduction, ExamExerciseDetail, IrisChat, ServiceStatus, GitCredentials, RecommendedExtensions (E2EV-06, E2EV-07, E2EV-08, E2EV-09, E2EV-10, E2EV-11, E2EV-12)
+- [ ] 20-04-PLAN.md — Interaction tests: login flow + exercise submission (E2EX-01, E2EX-02)
+- [ ] 20-05-PLAN.md — Accessibility: axe-core WCAG 2.1 AA for all 12 views (A11Y-01)
+- [ ] 20-06-PLAN.md — Cleanup: remove legacy code, fallbacks, unused exports (CLEAN-01, CLEAN-02, CLEAN-03)
 
 ## Progress
 
@@ -140,7 +146,7 @@ Full details: milestones/v1.1-ROADMAP.md
 | 17. Extension Host Bridge Tests | 3/3 | Complete    | 2026-02-28 | - |
 | 18. Webview Flow Test Completeness | 3/3 | Complete    | 2026-02-28 | - |
 | 19. E2E Infrastructure & CI | 2/2 | Complete    | 2026-02-28 | - |
-| 20. E2E View Coverage & Cleanup | v1.2 | 0/TBD | Not started | - |
+| 20. E2E View Coverage & Cleanup | v1.2 | 0/6 | Not started | - |
 
 ---
 
