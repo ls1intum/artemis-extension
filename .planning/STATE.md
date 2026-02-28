@@ -49,6 +49,7 @@ Progress: [█████░░░░░] 50% (v1.2, 9/9 plans done across phas
 - Phase 18 Plan 01: 2 min | 2 tasks | 6 files | 0 new tests (circular dependency resolution via interface extraction, 880 total)
 - Phase 18 Plan 02: 4 min | 2 tasks | 4 files | 12 new tests (storeHydration flow, 892 total)
 - Phase 18 Plan 03: ~2 min | 2 tasks | 4 files | 4 new tests (exam fetch error visibility + retry flow, 880 total)
+- Phase 19 Plan 01: ~2 min | 2 tasks | 6 files | GitHub Actions CI workflow + JUnit reporter config (mocha-junit-reporter installed)
 - Phase 19 Plan 02: ~1 min | 1 task | 1 file | ADR 001 E2E framework selection (vscode-extension-tester retained)
 
 ## Accumulated Context
@@ -73,6 +74,8 @@ Progress: [█████░░░░░] 50% (v1.2, 9/9 plans done across phas
 - [Phase 18-01]: getSelectedContext() must be in IChatWebviewProvider — called in extension.ts:284 through registry getter (missed by plan's grep)
 - [Phase 18-02]: Mock useExamTimer hook in storeHydration tests — esbuild-plugin-inline-worker Web Worker constructor fails in Vitest SSR; use vi.mock() same pattern as ExamTimer.test.tsx
 - [Phase 18-02]: Wrap render() in await act() for complex views (ExamConduction, ExamExerciseDetail, IrisChatView) — concurrent React work on mount causes 'Should not already be working' during cleanup
+- [Phase 19-01]: dorny/test-reporter path must be workspace-root-relative (iris-thaumantias/reports/*.xml), not working-directory-relative — avoids missing artifact
+- [Phase 19-01]: compile-tests before test:unit in CI — Mocha consumes compiled JS from out/, not TypeScript source; mkdir -p reports before test runs prevents JUnit reporter failure
 - [Phase 19-02]: ADR scoped to E2E framework selection only — no broader test architecture overview; docs/adr/ directory established in iris-thaumantias for future ADRs
 
 ### Pending Todos
@@ -93,10 +96,10 @@ None.
 ## Session Continuity
 
 Last session: 2026-02-28
-Stopped at: Phase 19 Plan 02 complete — ADR 001 created at iris-thaumantias/docs/adr/001-e2e-framework.md documenting E2E framework selection with full comparison table.
+Stopped at: Phase 19 Plan 01 complete — GitHub Actions CI workflow, JUnit reporter config for Vitest and Mocha, mocha-junit-reporter installed. Both phase 19 plans now complete.
 Resume file: None
 
 ---
 
 *Created: 2026-02-23 (v1.0)*
-*Updated: 2026-02-28 (19-02 complete)*
+*Updated: 2026-02-28 (19-01 complete)*
