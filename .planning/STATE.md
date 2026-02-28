@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: E2E & Integration Testing
 status: unknown
-last_updated: "2026-02-28T19:11:48Z"
+last_updated: "2026-02-28T19:30:00Z"
 progress:
   total_phases: 2
   completed_phases: 1
   total_plans: 6
-  completed_plans: 5
+  completed_plans: 6
 ---
 
 # Project State
@@ -25,7 +25,7 @@ See: .planning/PROJECT.md (updated 2026-02-28)
 Phase: 17 of 20 (Extension Host Bridge Tests)
 Plan: 03 complete — 3/3 Phase 17 plans done
 Status: In progress
-Last activity: 2026-02-28 — 17-03 complete: handleMessageWithSender tests (7 tests, sender-swap + dispatch + error recovery)
+Last activity: 2026-02-28 — 17-01 complete: WebSocketStatusBar refactor (override rule + showWebSocketStatusBar setting + reconnectAttempts getter + 15 Mocha tests)
 
 Progress: [████░░░░░░] 40% (v1.2, 4/6 plans done across phases 16+17) — v1.0 + v1.1 complete (15 phases, 62 plans)
 
@@ -43,6 +43,7 @@ Progress: [████░░░░░░] 40% (v1.2, 4/6 plans done across phas
 - Phase 16 Plan 01: 7 min | 2 tasks | 3 files
 - Phase 16 Plan 02: ~3 min | 2 tasks | 14 files | 61 new tests (876 total)
 - Phase 16 Plan 03: 12 min | 2 tasks | 20 files | 876 tests passing order-independently
+- Phase 17 Plan 01: 22 min | 2 tasks | 5 files | 15 new tests (WebSocketStatusBar override rule + reconnect flash)
 - Phase 17 Plan 02: ~3 min | 2 tasks | 2 files | 6 new tests (visibility listener + hide/show state persistence)
 - Phase 17 Plan 03: 3 min | 1 task | 1 file | 7 new tests (sender-swap + dispatch + error recovery)
 
@@ -59,6 +60,8 @@ Progress: [████░░░░░░] 40% (v1.2, 4/6 plans done across phas
 - [Phase 16]: Per-test default-state resets are redundant when global resetTestState() is wired: remove all beforeEach blocks whose sole purpose is resetting stores to initial values
 - [Phase 17-02]: Use hasAuthCookie() not isAuthenticated() in visibility listener — AuthManager exposes hasAuthCookie() only; void IIFE pattern for async listener returning void
 - [Phase 17-02]: ControllableWebviewView + SpyWebview pattern established for hide/show visibility testing with message capture
+- [Phase 17-01]: Reconnect flash only fires on Reconnecting→Connected transition, not Disconnected→Connected (initial connect); prevents spurious 2s show/hide on first session
+- [Phase 17-01]: Override visibility rule in _applyVisibility(): disconnect/reconnect always show; hide only when no pending flash timeout (avoids immediate hide before 2s flash completes)
 - [Phase 17-03]: Inject test handlers via `(handler as any).commandHandlers.set()` to test dispatch seam without triggering real command side effects; assert sender restoration via `(handler as any)._sendMessage` field access
 
 ### Pending Todos
@@ -79,10 +82,10 @@ None.
 ## Session Continuity
 
 Last session: 2026-02-28
-Stopped at: Phase 17 Plan 02 complete — onDidChangeVisibility listener + 6 hide/show tests (ControllableWebviewView pattern). Phase 17 Plan 03 was previously completed.
+Stopped at: Phase 17 Plan 01 complete — WebSocketStatusBar refactored (override rule, reconnectAttempts getter, showWebSocketStatusBar setting, 15 Mocha tests).
 Resume file: None
 
 ---
 
 *Created: 2026-02-23 (v1.0)*
-*Updated: 2026-02-28 (17-03 complete)*
+*Updated: 2026-02-28 (17-01 complete)*
