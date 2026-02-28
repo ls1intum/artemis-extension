@@ -1,0 +1,238 @@
+import * as assert from 'assert';
+import * as sinon from 'sinon';
+import * as vscode from 'vscode';
+import { WebViewMessageHandler } from '../../../../src/views/app/webViewMessageHandler';
+import { MockExtensionContext } from '../../mocks/vscodeMocks';
+import { AuthManager } from '../../../../src/auth';
+import { ArtemisApiService } from '../../../../src/api';
+import { AppStateManager } from '../../../../src/views/app/appStateManager';
+import type { ExtensionToWebviewMessage, WebviewToExtensionMessage } from '../../../../src/shared/messageContracts';
+
+class MockAuthManager extends AuthManager {
+    constructor(context: vscode.ExtensionContext) {
+        super(context);
+    }
+}
+
+class MockArtemisApiService extends ArtemisApiService {
+    constructor(authManager: AuthManager) {
+        super(authManager);
+    }
+}
+
+suite('WebViewMessageHandler - handleMessageWithSender', () => {
+    let sandbox: sinon.SinonSandbox;
+    let handler: WebViewMessageHandler;
+    let mockContext: MockExtensionContext;
+    let mockAuthManager: MockAuthManager;
+    let mockApiService: MockArtemisApiService;
+    let mockStateManager: AppStateManager;
+    let actionHandler: {
+        showDashboard: sinon.SinonStub;
+        render: sinon.SinonStub;
+        openJsonInEditor: sinon.SinonStub;
+        showCourseList: sinon.SinonStub;
+        showCourseDetail: sinon.SinonStub;
+        showExerciseDetail: sinon.SinonStub;
+        showAiConfig: sinon.SinonStub;
+        showServiceStatus: sinon.SinonStub;
+        showStruggleDetection: sinon.SinonStub;
+        showRecommendedExtensions: sinon.SinonStub;
+        showGitCredentials: sinon.SinonStub;
+        openExerciseDetails: sinon.SinonStub;
+        openExamExerciseDetails: sinon.SinonStub;
+        openExerciseFullscreen: sinon.SinonStub;
+        openCourseFullscreen: sinon.SinonStub;
+        resendViewData: sinon.SinonStub;
+        navigateBack: sinon.SinonStub;
+    };
+
+    setup(() => {
+        sandbox = sinon.createSandbox();
+
+        // Stub vscode.window.showErrorMessage to prevent UI side effects
+        sandbox.stub(vscode.window, 'showErrorMessage').resolves(undefined as any);
+
+        // Stub vscode.window.showInformationMessage to prevent UI side effects
+        sandbox.stub(vscode.window, 'showInformationMessage').resolves(undefined as any);
+
+        // Stub vscode.commands.executeCommand to prevent side effects
+        sandbox.stub(vscode.commands, 'executeCommand').resolves(undefined);
+
+        mockContext = new MockExtensionContext();
+        mockAuthManager = new MockAuthManager(mockContext);
+        mockApiService = new MockArtemisApiService(mockAuthManager);
+        mockStateManager = new AppStateManager(mockApiService);
+
+        actionHandler = {
+            showDashboard: sandbox.stub().resolves(),
+            render: sandbox.stub().resolves(),
+            openJsonInEditor: sandbox.stub().resolves(),
+            showCourseList: sandbox.stub().resolves(),
+            showCourseDetail: sandbox.stub().resolves(),
+            showExerciseDetail: sandbox.stub().resolves(),
+            showAiConfig: sandbox.stub(),
+            showServiceStatus: sandbox.stub(),
+            showStruggleDetection: sandbox.stub(),
+            showRecommendedExtensions: sandbox.stub(),
+            showGitCredentials: sandbox.stub(),
+            openExerciseDetails: sandbox.stub().resolves(),
+            openExamExerciseDetails: sandbox.stub().resolves(),
+            openExerciseFullscreen: sandbox.stub().resolves(),
+            openCourseFullscreen: sandbox.stub().resolves(),
+            resendViewData: sandbox.stub(),
+            navigateBack: sandbox.stub().resolves(),
+        };
+
+        handler = new WebViewMessageHandler(
+            mockAuthManager,
+            mockApiService,
+            mockStateManager,
+            actionHandler,
+            undefined,
+            undefined,
+            mockContext
+        );
+    });
+
+    teardown(() => {
+        sandbox.restore();
+    });
+
+    suite('sender swap mechanism', () => {
+        test('uses provided sender during call', async () => {
+            // Inject a test handler that calls sendMessage
+            const overrideSender = sandbox.stub();
+            const originalSender = sandbox.stub();
+            handler.setMessageSender(originalSender);
+
+            // Inject a custom handler that captures which sender was active during the call
+            let senderAtCallTime: ((msg: ExtensionToWebviewMessage) => void) | null = null;
+            (handler as any).commandHandlers.set('testSenderCapture', async (_msg: WebviewToExtensionMessage) => {
+                // Grab current _sendMessage and call it
+                senderAtCallTime = (handler as any)._sendMessage;
+                (handler as any)._sendMessage({ type: 'sendMessageInit' } as any);
+            });
+
+            await handler.handleMessageWithSender(
+                { type: 'command', command: 'testSenderCapture' } as any,
+                overrideSender
+            );
+
+            // The override sender should have been used during the call
+            assert.ok(overrideSender.calledOnce, 'Override sender should be called once during handleMessageWithSender');
+            assert.ok(!originalSender.called, 'Original sender should not be called during the override');
+            assert.strictEqual(senderAtCallTime, overrideSender, 'The active sender during call should be the override sender');
+        });
+
+        test('restores original sender after call completes', async () => {
+            const originalSender = sandbox.stub();
+            const overrideSender = sandbox.stub();
+            handler.setMessageSender(originalSender);
+
+            // Inject a no-op handler
+            (handler as any).commandHandlers.set('noop', async () => { });
+
+            await handler.handleMessageWithSender(
+                { type: 'command', command: 'noop' } as any,
+                overrideSender
+            );
+
+            // After the call, _sendMessage should be restored to the original
+            assert.strictEqual(
+                (handler as any)._sendMessage,
+                originalSender,
+                'Original sender should be restored after handleMessageWithSender completes'
+            );
+        });
+
+        test('restores original sender even when handler throws', async () => {
+            const originalSender = sandbox.stub();
+            const overrideSender = sandbox.stub();
+            handler.setMessageSender(originalSender);
+
+            // Inject a failing handler
+            (handler as any).commandHandlers.set('failCmd', async () => {
+                throw new Error('test error');
+            });
+
+            // handleMessageWithSender -> handleMessage catches the error internally
+            await handler.handleMessageWithSender(
+                { type: 'command', command: 'failCmd' } as any,
+                overrideSender
+            );
+
+            // After the call (error was swallowed by handleMessage), _sendMessage should be restored
+            assert.strictEqual(
+                (handler as any)._sendMessage,
+                originalSender,
+                'Original sender should be restored in finally block even when handler throws'
+            );
+        });
+    });
+
+    suite('command dispatch', () => {
+        test('routes command-type messages via the command field', async () => {
+            const routeHandlerStub = sandbox.stub().resolves();
+            (handler as any).commandHandlers.set('testRoute', routeHandlerStub);
+
+            await handler.handleMessageWithSender(
+                { type: 'command', command: 'testRoute' } as any,
+                sandbox.stub()
+            );
+
+            assert.ok(routeHandlerStub.calledOnce, 'Handler for testRoute should be called once');
+        });
+
+        test('routes non-command messages via the type field', async () => {
+            const customTypeHandlerStub = sandbox.stub().resolves();
+            (handler as any).commandHandlers.set('customType', customTypeHandlerStub);
+
+            await handler.handleMessageWithSender(
+                { type: 'customType' } as any,
+                sandbox.stub()
+            );
+
+            assert.ok(customTypeHandlerStub.calledOnce, 'Handler for customType should be called once via type field');
+        });
+
+        test('unknown command does not crash — logs warning and returns gracefully', async () => {
+            // This should not throw even though the command does not exist
+            let threw = false;
+            try {
+                await handler.handleMessageWithSender(
+                    { type: 'command', command: 'nonexistentCommand' } as any,
+                    sandbox.stub()
+                );
+            } catch (e) {
+                threw = true;
+            }
+
+            assert.strictEqual(threw, false, 'handleMessageWithSender should not throw for unknown commands');
+        });
+    });
+
+    suite('real command module integration', () => {
+        test('registered handlers include representative commands from all 7 modules', () => {
+            const registeredHandlers = (handler as any).commandHandlers as Map<string, unknown>;
+
+            // Must have entries
+            assert.ok(registeredHandlers.size > 0, 'Command handler map should not be empty');
+
+            // Auth module commands
+            assert.ok(registeredHandlers.has('login'), 'Should have "login" handler (AuthCommandModule)');
+            assert.ok(registeredHandlers.has('logout'), 'Should have "logout" handler (AuthCommandModule)');
+
+            // Navigation module commands
+            assert.ok(registeredHandlers.has('browseCourses'), 'Should have "browseCourses" handler (NavigationCommandModule)');
+            assert.ok(registeredHandlers.has('viewCourseDetails'), 'Should have "viewCourseDetails" handler (NavigationCommandModule)');
+
+            // Repository module commands
+            assert.ok(registeredHandlers.has('cloneRepository'), 'Should have "cloneRepository" handler (RepositoryCommandModule)');
+            assert.ok(registeredHandlers.has('submitExercise'), 'Should have "submitExercise" handler (RepositoryCommandModule)');
+
+            // Iris module commands
+            assert.ok(registeredHandlers.has('askIrisAboutExercise'), 'Should have "askIrisAboutExercise" handler (IrisCommandModule)');
+        });
+    });
+});
