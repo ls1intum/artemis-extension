@@ -49,7 +49,7 @@ Requirements for milestone v1.2: E2E & Integration Testing + Cleanup. Each maps 
 - [x] **DEBT-01**: WebSocket error propagation — connection failure shows error state instead of infinite loading
 - [x] **DEBT-02**: State persistence — webview state persists across panel hide/show via getState/setState
 - [ ] **DEBT-03**: Circular dependencies — resolve 2 ProviderRegistry import cycles
-- [ ] **DEBT-04**: Silent exam fetch errors — exam fetch failures show error feedback to user
+- [x] **DEBT-04**: Silent exam fetch errors — exam fetch failures show error feedback to user
 
 ### Cleanup
 
@@ -106,7 +106,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | DEBT-01 | Phase 17 | Complete |
 | DEBT-02 | Phase 17 | Complete |
 | DEBT-03 | Phase 18 | Pending |
-| DEBT-04 | Phase 18 | Pending |
+| DEBT-04 | Phase 18 | Complete |
 | CLEAN-01 | Phase 20 | Pending |
 | CLEAN-02 | Phase 20 | Pending |
 | CLEAN-03 | Phase 20 | Pending |

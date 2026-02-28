@@ -136,7 +136,7 @@ Full details: milestones/v1.1-ROADMAP.md
 | 15. Command Handler Gap Closure | v1.1 | 1/1 | Complete | 2026-02-25 |
 | 16. Integration Test Infrastructure | 3/3 | Complete    | 2026-02-28 | - |
 | 17. Extension Host Bridge Tests | 3/3 | Complete    | 2026-02-28 | - |
-| 18. Webview Flow Test Completeness | v1.2 | 0/3 | Not started | - |
+| 18. Webview Flow Test Completeness | 1/3 | In Progress|  | - |
 | 19. E2E Infrastructure & CI | v1.2 | 0/TBD | Not started | - |
 | 20. E2E View Coverage & Cleanup | v1.2 | 0/TBD | Not started | - |
 

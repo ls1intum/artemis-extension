@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: E2E & Integration Testing
 status: unknown
-last_updated: "2026-02-28T19:20:14.485Z"
+last_updated: "2026-02-28T19:48:00.000Z"
 progress:
   total_phases: 2
   completed_phases: 2
-  total_plans: 6
-  completed_plans: 6
+  total_plans: 9
+  completed_plans: 7
 ---
 
 # Project State
@@ -18,16 +18,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-02-28)
 
 **Core value:** Students can interact with Artemis courses, exercises, and the Iris AI tutor without leaving VS Code.
-**Current focus:** v1.2 Phase 17 — Extension Host Bridge Tests
+**Current focus:** v1.2 Phase 18 — Webview Flow Test Completeness
 
 ## Current Position
 
-Phase: 17 of 20 (Extension Host Bridge Tests)
-Plan: 03 complete — 3/3 Phase 17 plans done
+Phase: 18 of 20 (Webview Flow Test Completeness)
+Plan: 03 complete — 3/? Phase 18 plans done
 Status: In progress
-Last activity: 2026-02-28 — 17-01 complete: WebSocketStatusBar refactor (override rule + showWebSocketStatusBar setting + reconnectAttempts getter + 15 Mocha tests)
+Last activity: 2026-02-28 — 18-03 complete: exam fetch error visibility wired in ExamStartView + ExamConductionView (4 new tests, 880 total)
 
-Progress: [████░░░░░░] 40% (v1.2, 4/6 plans done across phases 16+17) — v1.0 + v1.1 complete (15 phases, 62 plans)
+Progress: [████░░░░░░] 40% (v1.2, 7/9 plans done across phases 16-18) — v1.0 + v1.1 complete (15 phases, 62 plans)
 
 ## Performance Metrics
 
@@ -46,6 +46,9 @@ Progress: [████░░░░░░] 40% (v1.2, 4/6 plans done across phas
 - Phase 17 Plan 01: 22 min | 2 tasks | 5 files | 15 new tests (WebSocketStatusBar override rule + reconnect flash)
 - Phase 17 Plan 02: ~3 min | 2 tasks | 2 files | 6 new tests (visibility listener + hide/show state persistence)
 - Phase 17 Plan 03: 3 min | 1 task | 1 file | 7 new tests (sender-swap + dispatch + error recovery)
+- Phase 18 Plan 01: TBD
+- Phase 18 Plan 02: TBD
+- Phase 18 Plan 03: ~2 min | 2 tasks | 4 files | 4 new tests (exam fetch error visibility + retry flow, 880 total)
 
 ## Accumulated Context
 
@@ -63,6 +66,7 @@ Progress: [████░░░░░░] 40% (v1.2, 4/6 plans done across phas
 - [Phase 17-01]: Reconnect flash only fires on Reconnecting→Connected transition, not Disconnected→Connected (initial connect); prevents spurious 2s show/hide on first session
 - [Phase 17-01]: Override visibility rule in _applyVisibility(): disconnect/reconnect always show; hide only when no pending flash timeout (avoids immediate hide before 2s flash completes)
 - [Phase 17-03]: Inject test handlers via `(handler as any).commandHandlers.set()` to test dispatch seam without triggering real command side effects; assert sender restoration via `(handler as any)._sendMessage` field access
+- [Phase 18-03]: ExamConductionView retry must call store.setError(null) + store.setLoading(true) before postMessage ready — original only sent ready signal, leaving the view stuck in error state
 
 ### Pending Todos
 
@@ -82,10 +86,10 @@ None.
 ## Session Continuity
 
 Last session: 2026-02-28
-Stopped at: Phase 17 Plan 01 complete — WebSocketStatusBar refactored (override rule, reconnectAttempts getter, showWebSocketStatusBar setting, 15 Mocha tests).
+Stopped at: Phase 18 Plan 03 complete — exam fetch error visibility wired in ExamStartView + ExamConductionView (error handler + retry fix + 4 tests, 880 total).
 Resume file: None
 
 ---
 
 *Created: 2026-02-23 (v1.0)*
-*Updated: 2026-02-28 (17-01 complete)*
+*Updated: 2026-02-28 (18-03 complete)*
