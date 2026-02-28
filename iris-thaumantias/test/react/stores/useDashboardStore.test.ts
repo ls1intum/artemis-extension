@@ -1,18 +1,9 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import { useDashboardStore, RecentCourseNode } from '../../../src/views/webview/react/stores/useDashboardStore';
 import { createMockVsCodeApi } from '../__helpers__/vscodeApi';
 
 describe('useDashboardStore', () => {
-	beforeEach(() => {
-		useDashboardStore.setState({
-			recentCourses: [],
-			workspaceExercise: null,
-			isLoading: false,
-			error: null,
-		});
-	});
-
 	it('initializes with empty state', () => {
 		const { result } = renderHook(() => useDashboardStore());
 

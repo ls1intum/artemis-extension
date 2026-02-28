@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { CourseListView } from '../../../../src/views/webview/react/views/CourseList/CourseListView';
@@ -17,20 +17,6 @@ const makeCourseData = (overrides: Partial<CourseData['course']> = {}): CourseDa
 });
 
 describe('CourseListView', () => {
-	beforeEach(() => {
-		useCourseListStore.setState({
-			courses: [],
-			archivedCourses: [],
-			archivedLoaded: false,
-			isLoading: false,
-			error: null,
-			searchTerm: '',
-			typeFilter: 'all',
-			semesterFilter: 'all',
-			sortBy: 'semester-desc',
-		});
-	});
-
 	it('sends ready postMessage on mount', () => {
 		const mockApi = createMockVsCodeApi();
 		render(<CourseListView vscodeApi={mockApi} />);

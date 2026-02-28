@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { CourseDetailView } from '../../../../src/views/webview/react/views/CourseDetail/CourseDetailView';
@@ -19,17 +19,6 @@ const makeCourseDetailData = (overrides: Partial<CourseDetailData['course']> = {
 });
 
 describe('CourseDetailView', () => {
-	beforeEach(() => {
-		useCourseDetailStore.setState({
-			courseData: null,
-			workspaceExerciseId: null,
-			isLoading: false,
-			error: null,
-			exerciseSearchTerm: '',
-			exerciseSortBy: 'id-desc',
-		});
-	});
-
 	it('sends ready postMessage on mount', () => {
 		const mockApi = createMockVsCodeApi();
 		render(<CourseDetailView vscodeApi={mockApi} />);

@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import { useChatStore } from '../../../src/views/webview/react/stores/useChatStore';
 import type { ChatMessage, ChatContext, ReferencedFilesData } from '../../../src/views/webview/react/views/IrisChat/types';
@@ -24,30 +24,6 @@ const makeIrisState = (overrides: Partial<IrisChatStateMessage['state']> = {}): 
 });
 
 describe('useChatStore', () => {
-	beforeEach(() => {
-		useChatStore.setState({
-			context: null,
-			activeSessionId: null,
-			sessions: [],
-			recentExercises: [],
-			recentCourses: [],
-			allExercises: [],
-			allCourses: [],
-			messages: [],
-			streaming: {
-				isStreaming: false,
-				messageLocalId: null,
-				visibleChunks: [],
-			},
-			isLoading: false,
-			isWebSocketConnected: false,
-			disabledMessage: null,
-			isNoAiDetected: false,
-			referencedFiles: null,
-			showDiagnostics: false,
-		});
-	});
-
 	it('initializes with empty state', () => {
 		const { result } = renderHook(() => useChatStore());
 

@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { DashboardView } from '../../../../src/views/webview/react/views/Dashboard/DashboardView';
@@ -18,15 +18,6 @@ const makeCourseNode = (id: number, title: string, exercises: Array<{ id: number
 });
 
 describe('DashboardView', () => {
-	beforeEach(() => {
-		useDashboardStore.setState({
-			recentCourses: [],
-			workspaceExercise: null,
-			isLoading: false,
-			error: null,
-		});
-	});
-
 	it('sends ready postMessage on mount', () => {
 		const mockApi = createMockVsCodeApi();
 		render(<DashboardView vscodeApi={mockApi} />);

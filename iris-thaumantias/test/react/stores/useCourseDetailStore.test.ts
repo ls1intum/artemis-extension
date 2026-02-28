@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import { useCourseDetailStore } from '../../../src/views/webview/react/stores/useCourseDetailStore';
 import type { CourseDetailData, Exercise, Exam } from '../../../src/shared/messageContracts';
@@ -29,17 +29,6 @@ const makeExam = (overrides: Partial<Exam> = {}): Exam => ({
 });
 
 describe('useCourseDetailStore', () => {
-	beforeEach(() => {
-		useCourseDetailStore.setState({
-			courseData: null,
-			workspaceExerciseId: null,
-			isLoading: false,
-			error: null,
-			exerciseSearchTerm: '',
-			exerciseSortBy: 'id-desc',
-		});
-	});
-
 	it('initializes with null course and empty state', () => {
 		const { result } = renderHook(() => useCourseDetailStore());
 

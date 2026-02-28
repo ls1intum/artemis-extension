@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import { useExerciseDetailStore } from '../../../src/views/webview/react/stores/useExerciseDetailStore';
 import type { ExerciseDetailsResponse, ParticipationSummary, ResultSummary, SubmissionSummary } from '../../../src/types/apiResponses';
@@ -39,15 +39,6 @@ const makeSubmission = (overrides: Partial<SubmissionSummary> = {}): SubmissionS
 });
 
 describe('useExerciseDetailStore', () => {
-	beforeEach(() => {
-		useExerciseDetailStore.setState({
-			exerciseData: null,
-			hideDeveloperTools: false,
-			isLoading: false,
-			error: null,
-		});
-	});
-
 	it('initializes with null exercise and false hideDeveloperTools', () => {
 		const { result } = renderHook(() => useExerciseDetailStore());
 

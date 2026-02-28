@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import { useExamStartStore } from '../../../src/views/webview/react/stores/useExamStartStore';
 import type { StudentExam } from '../../../src/types/apiResponses';
@@ -17,16 +17,6 @@ const makeStudentExam = (overrides: Partial<StudentExam> = {}): StudentExam => (
 });
 
 describe('useExamStartStore', () => {
-	beforeEach(() => {
-		useExamStartStore.setState({
-			studentExam: null,
-			courseId: null,
-			examId: null,
-			loading: true,
-			error: null,
-		});
-	});
-
 	it('initializes with null exam and loading true', () => {
 		const { result } = renderHook(() => useExamStartStore());
 

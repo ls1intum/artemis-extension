@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import { useExamConductionStore } from '../../../src/views/webview/react/stores/useExamConductionStore';
 
@@ -14,20 +14,6 @@ const makeExamPayload = (overrides: Record<string, unknown> = {}) => ({
 });
 
 describe('useExamConductionStore', () => {
-	beforeEach(() => {
-		useExamConductionStore.setState({
-			studentExam: null,
-			courseId: null,
-			examId: null,
-			endTime: null,
-			startTime: null,
-			totalDuration: null,
-			workspaceExerciseId: null,
-			loading: true,
-			error: null,
-		});
-	});
-
 	it('initializes with null values and loading true', () => {
 		const { result } = renderHook(() => useExamConductionStore());
 

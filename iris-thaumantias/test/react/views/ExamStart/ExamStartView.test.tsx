@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ExamStartView } from '../../../../src/views/webview/react/views/ExamStart/ExamStartView';
@@ -40,16 +40,6 @@ function makeStudentExam(overrides: Record<string, unknown> = {}) {
 }
 
 describe('ExamStartView', () => {
-	beforeEach(() => {
-		useExamStartStore.setState({
-			studentExam: null,
-			courseId: null,
-			examId: null,
-			loading: true,
-			error: null,
-		});
-	});
-
 	it('sends ready postMessage on mount', () => {
 		const mockApi = createMockVsCodeApi();
 		render(<ExamStartView vscodeApi={mockApi} />);

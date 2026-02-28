@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ExerciseDetailView } from '../../../../src/views/webview/react/views/ExerciseDetail/ExerciseDetailView';
@@ -72,18 +72,6 @@ function makeExerciseDataWithParticipation(opts: { hasResult?: boolean; hasSubmi
 }
 
 describe('ExerciseDetailView', () => {
-	beforeEach(() => {
-		useExerciseDetailStore.setState({
-			exerciseData: null,
-			hideDeveloperTools: false,
-			isLoading: false,
-			error: null,
-		});
-		useNavigationStore.setState({
-			breadcrumbs: [],
-		});
-	});
-
 	it('sends ready postMessage on mount', () => {
 		const mockApi = createMockVsCodeApi();
 		render(<ExerciseDetailView vscodeApi={mockApi} />);

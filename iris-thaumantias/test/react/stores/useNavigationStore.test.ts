@@ -1,14 +1,8 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import { useNavigationStore } from '../../../src/views/webview/react/stores/useNavigationStore';
 
 describe('useNavigationStore', () => {
-	beforeEach(() => {
-		useNavigationStore.setState({
-			breadcrumbs: [],
-		});
-	});
-
 	it('initializes with empty breadcrumbs', () => {
 		const { result } = renderHook(() => useNavigationStore());
 

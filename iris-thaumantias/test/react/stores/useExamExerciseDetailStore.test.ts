@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import { useExamExerciseDetailStore } from '../../../src/views/webview/react/stores/useExamExerciseDetailStore';
 import type { StudentExam, ExerciseDetailsResponse } from '../../../src/types/apiResponses';
@@ -34,14 +34,6 @@ const makeExamContext = (overrides: Record<string, unknown> = {}) => ({
 });
 
 describe('useExamExerciseDetailStore', () => {
-	beforeEach(() => {
-		useExamExerciseDetailStore.setState({
-			examContext: null,
-			loading: true,
-			error: null,
-		});
-	});
-
 	it('initializes with null examContext and loading true', () => {
 		const { result } = renderHook(() => useExamExerciseDetailStore());
 

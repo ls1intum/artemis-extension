@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import { useCourseListStore } from '../../../src/views/webview/react/stores/useCourseListStore';
 import type { CourseData, ArchivedCourse } from '../../../src/shared/messageContracts';
@@ -21,20 +21,6 @@ const makeArchivedCourse = (overrides: Partial<ArchivedCourse> = {}): ArchivedCo
 });
 
 describe('useCourseListStore', () => {
-	beforeEach(() => {
-		useCourseListStore.setState({
-			courses: [],
-			archivedCourses: [],
-			archivedLoaded: false,
-			isLoading: false,
-			error: null,
-			searchTerm: '',
-			typeFilter: 'all',
-			semesterFilter: 'all',
-			sortBy: 'semester-desc',
-		});
-	});
-
 	it('initializes with empty state', () => {
 		const { result } = renderHook(() => useCourseListStore());
 

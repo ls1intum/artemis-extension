@@ -71,11 +71,7 @@ function makeExerciseDataWithParticipation() {
 
 describe('ExamExerciseDetailView', () => {
 	beforeEach(() => {
-		useExamExerciseDetailStore.setState({
-			examContext: null,
-			loading: true,
-			error: null,
-		});
+		// hideDeveloperTools: true is scenario-specific (non-default false) — must remain
 		useExerciseDetailStore.setState({
 			exerciseData: null,
 			hideDeveloperTools: true,
