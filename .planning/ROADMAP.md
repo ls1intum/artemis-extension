@@ -87,7 +87,10 @@ Full details: milestones/v1.1-ROADMAP.md
   1. All 12 `*Init` message types have a passing `storeHydration.flow.test.tsx` test — dispatching each init message hydrates the correct Zustand store with the expected shape
   2. Zero circular dependency cycles exist in the ProviderRegistry import graph — the 2 documented cycles are resolved
   3. A failing exam fetch (network error, 4xx, 5xx) results in a visible error state in the ExamStart or ExamConduction view — the user is not left on a blank or perpetually loading screen
-**Plans**: TBD
+**Plans**: 3 plans
+- [ ] 18-01-PLAN.md — Circular dependency fix: extract provider interfaces to src/types/ (DEBT-03)
+- [ ] 18-02-PLAN.md — Store hydration flow tests for all 12 Init message types (INTG-02)
+- [ ] 18-03-PLAN.md — Exam error UX: wire fetch error visibility in ExamStart/ExamConduction (DEBT-04)
 
 ### Phase 19: E2E Infrastructure & CI
 **Goal**: A working GitHub Actions CI pipeline runs all test layers in order on Linux with Xvfb, the E2E framework decision is documented, and screenshots are captured automatically on test failure
@@ -133,7 +136,7 @@ Full details: milestones/v1.1-ROADMAP.md
 | 15. Command Handler Gap Closure | v1.1 | 1/1 | Complete | 2026-02-25 |
 | 16. Integration Test Infrastructure | 3/3 | Complete    | 2026-02-28 | - |
 | 17. Extension Host Bridge Tests | 3/3 | Complete    | 2026-02-28 | - |
-| 18. Webview Flow Test Completeness | v1.2 | 0/TBD | Not started | - |
+| 18. Webview Flow Test Completeness | v1.2 | 0/3 | Not started | - |
 | 19. E2E Infrastructure & CI | v1.2 | 0/TBD | Not started | - |
 | 20. E2E View Coverage & Cleanup | v1.2 | 0/TBD | Not started | - |
 
