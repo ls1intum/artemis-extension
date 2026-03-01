@@ -140,6 +140,7 @@ export function ServiceStatusView({ vscodeApi }: ServiceStatusViewProps) {
                     >
                         <TextInput
                             id="serverUrl"
+                            label="Server URL"
                             type="text"
                             value={serverUrl}
                             onChange={() => {}} // No-op since it's disabled

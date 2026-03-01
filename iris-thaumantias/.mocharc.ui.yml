@@ -1,3 +1,6 @@
 timeout: 30000
 slow: 10000
-spec: out/test/ui/**/*.ui.test.js
+spec: out/test/e2e/ui/**/*.ui.test.js
+reporter: mocha-junit-reporter
+reporter-options:
+  toConsole: true
