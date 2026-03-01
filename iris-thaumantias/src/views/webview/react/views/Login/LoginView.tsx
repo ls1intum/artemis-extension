@@ -4,6 +4,7 @@ import { TextInput } from '../../components/TextInput';
 import { Button } from '../../components/Button';
 import { ServiceHealth, type ServiceInfo } from '../../components/ServiceHealth';
 import type { LoginViewProps, LoginPersistedState, LoginViewState, UserInfo } from './types';
+import styles from './LoginView.module.css';
 
 export function LoginView({ vscodeApi }: LoginViewProps) {
 	// Load persisted state
@@ -24,6 +25,17 @@ export function LoginView({ vscodeApi }: LoginViewProps) {
 	// Loading state
 	const [loadingMessage, setLoadingMessage] = useState('Checking authentication...');
 	const [loadingSubtext, setLoadingSubtext] = useState('Please wait while we verify your credentials');
+	const [loadingVisible, setLoadingVisible] = useState(false);
+	const [loadingHiding, setLoadingHiding] = useState(false);
+
+	// Map loading messages to subtexts
+	const loadingSubtexts: Record<string, string> = {
+		'Checking stored credentials...': 'Looking for saved authentication data',
+		'Validating authentication...': 'Verifying your login credentials',
+		'Loading user information...': 'Fetching your profile and preferences',
+		'Connecting to Artemis...': 'Establishing secure connection',
+		'Checking authentication...': 'Please wait while we verify your credentials',
+	};
 
 	// Logged-in state
 	const [userInfo, setUserInfo] = useState<UserInfo | null>(null);
@@ -63,22 +75,33 @@ export function LoginView({ vscodeApi }: LoginViewProps) {
 			switch (typedMessage.type) {
 				case 'showLoading': {
 					setViewState('loading');
+					setLoadingHiding(false);
+					setLoadingVisible(true);
 					const payload = typedMessage.payload as { message?: string } | undefined;
-					setLoadingMessage(payload?.message ?? 'Checking authentication...');
+					const showMsg = payload?.message ?? 'Checking authentication...';
+					setLoadingMessage(showMsg);
+					setLoadingSubtext(loadingSubtexts[showMsg] ?? 'Please wait while we process your request');
 					break;
 				}
 
 				case 'hideLoading':
 					if (viewState === 'loading') {
-						setViewState('form');
+						setLoadingHiding(true);
+						setTimeout(() => {
+							setLoadingVisible(false);
+							setLoadingHiding(false);
+							setViewState('form');
+							setLoadingMessage('');
+							setLoadingSubtext('');
+						}, 300);
 					}
-					setLoadingMessage('');
-					setLoadingSubtext('');
 					break;
 
 				case 'updateLoading': {
 					const payload = typedMessage.payload as { message?: string } | undefined;
-					setLoadingMessage(payload?.message ?? 'Processing...');
+					const updateMsg = payload?.message ?? 'Processing...';
+					setLoadingMessage(updateMsg);
+					setLoadingSubtext(loadingSubtexts[updateMsg] ?? 'Please wait while we process your request');
 					break;
 				}
 
@@ -244,46 +267,23 @@ export function LoginView({ vscodeApi }: LoginViewProps) {
 			</div>
 
 			{/* Loading indicator */}
-			{viewState === 'loading' && (
-				<div
-					style={{
-						marginBottom: '24px',
-						padding: '24px',
-						backgroundColor: 'var(--vscode-editor-background)',
-						border: '1px solid var(--vscode-widget-border)',
-						borderRadius: '4px',
-						textAlign: 'center',
-					}}
-				>
-					<style>
-						{`
-							@keyframes spin {
-								to { transform: rotate(360deg); }
-							}
-						`}
-					</style>
-					<div
-						style={{
-							margin: '0 auto 16px',
-							border: '3px solid var(--vscode-editor-foreground)',
-							borderTopColor: 'transparent',
-							borderRadius: '50%',
-							width: '32px',
-							height: '32px',
-							animation: 'spin 0.8s linear infinite',
-						}}
-					/>
-					<div style={{ color: 'var(--vscode-foreground)', fontSize: '14px', fontWeight: 500, marginBottom: '8px' }}>
-						{loadingMessage}
-					</div>
-					<div style={{ color: 'var(--vscode-descriptionForeground)', fontSize: '12px' }}>
-						{loadingSubtext}
+			{loadingVisible && (
+				<div className={`${styles.loadingIndicator} ${loadingHiding ? styles.loadingIndicatorHiding : ''}`}>
+					<div className={styles.loadingSpinner} />
+					<div className={styles.loadingContent}>
+						<div className={styles.loadingText}>
+							{loadingMessage.replace(/\.\.\.$/, '')}
+							<span className={styles.loadingDots} />
+						</div>
+						<div className={styles.loadingSubtext}>
+							{loadingSubtext}
+						</div>
 					</div>
 				</div>
 			)}
 
 			{/* Login form */}
-			{viewState === 'form' && (
+			{(viewState === 'form' || viewState === 'loading') && (
 				<Container
 					header={
 						<div>

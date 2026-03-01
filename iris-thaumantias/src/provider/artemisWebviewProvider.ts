@@ -865,14 +865,10 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
             const hasAuth = await this._authManager.hasAuthCookie();
             if (hasAuth) {
                 // Show loading indicator only when actually attempting auto-login
-                if (this._view) {
-                    this._view.webview.postMessage({ command: 'showLoading', message: 'Checking stored credentials...' });
-                }
+                this._postMessageSafe({ type: 'showLoading', payload: { message: 'Checking stored credentials...' } });
 
                 // Update loading message
-                if (this._view) {
-                    this._view.webview.postMessage({ command: 'updateLoading', message: 'Loading user information...' });
-                }
+                this._postMessageSafe({ type: 'updateLoading', payload: { message: 'Loading user information...' } });
 
                 // Try to get user info directly - this validates authentication implicitly
                 try {
@@ -1088,20 +1084,14 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
     }
 
     private postServerUrl(serverUrl?: string): void {
-        if (!this._view) {
-            return;
-        }
-        this._view.webview.postMessage({
-            command: 'setServerUrl',
-            serverUrl: serverUrl ?? this._getServerUrl()
+        this._postMessageSafe({
+            type: 'setServerUrl',
+            payload: { serverUrl: serverUrl ?? this._getServerUrl() }
         });
     }
 
     private hideLoadingAndSendServerUrl(): void {
-        if (!this._view) {
-            return;
-        }
-        this._view.webview.postMessage({ command: 'hideLoading' });
+        this._postMessageSafe({ type: 'hideLoading' });
         this.postServerUrl();
     }
 

@@ -1,0 +1,95 @@
+.loadingIndicator {
+    margin-bottom: 16px;
+    padding: 14px 16px;
+    background-color: var(--vscode-editor-background);
+    border: 1px solid var(--vscode-widget-border);
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    animation: slideDown 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+
+.loadingIndicatorHiding {
+    animation: slideUp 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
+}
+
+.loadingSpinner {
+    width: 18px;
+    height: 18px;
+    border: 2.5px solid var(--vscode-widget-border);
+    border-top-color: var(--vscode-focusBorder);
+    border-radius: 50%;
+    animation: spin 1.2s cubic-bezier(0.68, -0.55, 0.265, 1.55) infinite;
+    flex-shrink: 0;
+}
+
+.loadingContent {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.loadingText {
+    color: var(--vscode-foreground);
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.3px;
+    line-height: 1.2;
+}
+
+.loadingDots {
+    display: inline-block;
+    width: 20px;
+}
+
+.loadingDots::after {
+    content: '';
+    animation: dots 1.5s infinite;
+}
+
+.loadingSubtext {
+    color: var(--vscode-descriptionForeground);
+    font-size: 11px;
+    opacity: 0.8;
+    font-weight: 400;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+@keyframes dots {
+    0%, 20% { content: ''; }
+    25% { content: '.'; }
+    50% { content: '..'; }
+    75%, 100% { content: '...'; }
+}
+
+@keyframes slideDown {
+    0% {
+        opacity: 0;
+        transform: translateY(-15px) scale(0.95);
+    }
+    50% {
+        opacity: 0.7;
+        transform: translateY(-5px) scale(0.98);
+    }
+    100% {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+@keyframes slideUp {
+    0% {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+    100% {
+        opacity: 0;
+        transform: translateY(-10px) scale(0.95);
+    }
+}
