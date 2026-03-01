@@ -15,11 +15,20 @@ import type { WebViewActionHandler } from '../views/app/types';
 import { ViewActionService } from '../views/app/viewActionService';
 import { ViewRouter } from '../views/app/viewRouter';
 import { ExerciseRegistry } from '../services';
+import { detectWorkspaceExercise, type ExerciseSource } from '../services/workspaceDetectionService';
 import { WebSocketMessageHandler, ResultDTO, ProgrammingSubmission, ProgrammingSubmissionState, SubmissionProcessingMessage } from '../types';
 import type { BuildErrorCodeLensProvider } from './buildErrorCodeLensProvider';
+import type { TelemetryManager } from '../services/telemetry/telemetryManager';
 import type { ExtensionToWebviewMessage, WebviewToExtensionMessage, CourseDetailData as CourseDetailPayload } from '../shared/messageContracts';
 import type { CourseDashboardEntry, ExerciseDetail, CourseDetailData, ExerciseDetailsResponse } from '../types/apiResponses';
 
+/**
+ * Main webview provider for the Artemis sidebar panel.
+ *
+ * NOTE: This class (~1100 lines) coordinates view lifecycle, message routing,
+ * state sync, and service integration. A future refactor could extract
+ * render-data preparation into a dedicated ViewDataService.
+ */
 export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebViewActionHandler, IArtemisWebviewProvider {
     public static readonly viewType = CONFIG.WEBVIEW.VIEW_TYPE;
 
@@ -32,6 +41,7 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
     private _websocketService?: ArtemisWebsocketService;
     private _websocketHandler?: WebSocketMessageHandler;
     private _buildCodeLens?: BuildErrorCodeLensProvider;
+    private _telemetryManager?: TelemetryManager;
 
     // Ready-signal handshake state
     private _webviewReady = false;
@@ -71,6 +81,13 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
             this._websocketService,
             this._extensionContext
         );
+    }
+
+    /**
+     * Set the telemetry manager for struggle detection data
+     */
+    public setTelemetryManager(telemetryManager: TelemetryManager): void {
+        this._telemetryManager = telemetryManager;
     }
 
     /**
@@ -190,10 +207,9 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
                 return;
             }
 
-            const { detectWorkspaceExercise } = require('../services') as { detectWorkspaceExercise: (exercises: ExerciseDetail[]) => Promise<{ id?: number } | null> };
             const exercises = courseData.course?.exercises || [];
 
-            detectWorkspaceExercise(exercises).then((detectedExercise: { id?: number } | null) => {
+            detectWorkspaceExercise(exercises as ExerciseSource[]).then((detectedExercise: { id?: number } | null) => {
                 const workspaceExerciseId = detectedExercise?.id ?? null;
                 const config = vscode.workspace.getConfiguration('artemis');
                 const developerMode = config.get<boolean>('developerMode', false);
@@ -249,9 +265,8 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
             const totalDuration = (studentExam.workingTime || 0) * 1000;
 
             // Detect workspace exercise
-            const { detectWorkspaceExercise } = require('../services') as { detectWorkspaceExercise: (exercises: ExerciseDetail[]) => Promise<{ id?: number } | null> };
             const exercises = studentExam.exercises || [];
-            detectWorkspaceExercise(exercises).then((detectedExercise: { id?: number } | null) => {
+            detectWorkspaceExercise(exercises as ExerciseSource[]).then((detectedExercise: { id?: number } | null) => {
                 this._postMessageSafe({
                     type: 'examConductionInit',
                     payload: {
@@ -324,6 +339,22 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
                         totalDuration,
                     },
                     hideDeveloperTools: !developerMode,
+                },
+            });
+        } else if (currentState === 'ai-config') {
+            const aiExtensions = this._appStateManager.aiExtensions || [];
+            this._postMessageSafe({ type: 'aiConfigInit', payload: { aiExtensions } });
+        } else if (currentState === 'struggle-detection') {
+            const ctx = this._telemetryManager?.getStruggleContext();
+            this._postMessageSafe({
+                type: 'struggleDetectionInit',
+                payload: {
+                    isStruggling: ctx?.isStruggling ?? false,
+                    eq: ctx?.eq ?? 0,
+                    eqConfidence: ctx?.eqConfidence ?? 'insufficient',
+                    triggerType: ctx?.triggerType,
+                    recommendedAction: ctx?.recommendedAction ?? 'none',
+                    isEnabled: this._telemetryManager?.isEnabled() ?? false,
                 },
             });
         }
@@ -558,11 +589,10 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
                         }
 
                         // Detect workspace exercise ID asynchronously
-                        const { detectWorkspaceExercise } = require('../services') as { detectWorkspaceExercise: (exercises: ExerciseDetail[]) => Promise<{ id?: number } | null> };
                         const exercises = courseData.course?.exercises || [];
 
                         // Use non-blocking async call
-                        detectWorkspaceExercise(exercises).then((detectedExercise: { id?: number } | null) => {
+                        detectWorkspaceExercise(exercises as ExerciseSource[]).then((detectedExercise: { id?: number } | null) => {
                             const workspaceExerciseId = detectedExercise?.id ?? null;
 
                             // Read developer mode setting
@@ -598,6 +628,22 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
                                 exerciseData: exerciseData as ExerciseDetailsResponse,
                                 hideDeveloperTools: hideDeveloperTools
                             }
+                        });
+                    } else if (currentState === 'ai-config') {
+                        const aiExtensions = this._appStateManager.aiExtensions || [];
+                        this._postMessageSafe({ type: 'aiConfigInit', payload: { aiExtensions } });
+                    } else if (currentState === 'struggle-detection') {
+                        const ctx = this._telemetryManager?.getStruggleContext();
+                        this._postMessageSafe({
+                            type: 'struggleDetectionInit',
+                            payload: {
+                                isStruggling: ctx?.isStruggling ?? false,
+                                eq: ctx?.eq ?? 0,
+                                eqConfidence: ctx?.eqConfidence ?? 'insufficient',
+                                triggerType: ctx?.triggerType,
+                                recommendedAction: ctx?.recommendedAction ?? 'none',
+                                isEnabled: this._telemetryManager?.isEnabled() ?? false,
+                            },
                         });
                     }
                     return;

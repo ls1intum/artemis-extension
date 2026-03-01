@@ -11,6 +11,8 @@ import { ExamStartView } from './views/ExamStart';
 import { ExamConductionView } from './views/ExamConduction';
 import { ExamExerciseDetailView } from './views/ExamExerciseDetail';
 import { IrisChatView } from './views/IrisChat';
+import { AiConfigView } from './views/AiConfig';
+import { StruggleDetectionView } from './views/StruggleDetection';
 
 interface AppProps {
 	vscodeApi: VsCodeApi;
@@ -46,6 +48,10 @@ export function App({ vscodeApi }: AppProps) {
 			return <ExamExerciseDetailView vscodeApi={vscodeApi} />;
 		case 'irisChat':
 			return <IrisChatView vscodeApi={vscodeApi} />;
+		case 'aiConfig':
+			return <AiConfigView vscodeApi={vscodeApi} />;
+		case 'struggleDetection':
+			return <StruggleDetectionView vscodeApi={vscodeApi} />;
 		default:
 			return (
 				<div style={{ color: 'var(--vscode-foreground)', padding: '20px' }}>

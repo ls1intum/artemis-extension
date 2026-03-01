@@ -134,6 +134,9 @@ export async function activate(context: vscode.ExtensionContext) {
 	// Pass the CodeLens provider
 	artemisWebviewProvider.setBuildDiagnostics(buildErrorCodeLensProvider);
 
+	// Pass the telemetry manager for struggle detection view
+	artemisWebviewProvider.setTelemetryManager(telemetryManager);
+
 	context.subscriptions.push(
 		vscode.window.registerWebviewViewProvider(ArtemisWebviewProvider.viewType, artemisWebviewProvider)
 	);

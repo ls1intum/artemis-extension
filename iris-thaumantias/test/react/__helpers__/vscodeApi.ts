@@ -1,5 +1,5 @@
 import { vi } from 'vitest';
-import { VsCodeApi } from '../../../src/shared/messageContracts';
+import type { VsCodeApi, ExtensionToWebviewMessage } from '../../../src/shared/messageContracts';
 
 /**
  * Creates a mock VS Code API object for testing.
@@ -19,7 +19,7 @@ export function createMockVsCodeApi(overrides?: Partial<VsCodeApi>): VsCodeApi {
  * Dispatches a message event to simulate extension-to-webview communication.
  * @param message - The message payload to dispatch
  */
-export function dispatchExtensionMessage(message: Record<string, unknown>): void {
+export function dispatchExtensionMessage(message: ExtensionToWebviewMessage | Record<string, unknown>): void {
 	const messageEvent = new MessageEvent('message', { data: message });
 	window.dispatchEvent(messageEvent);
 }

@@ -114,6 +114,34 @@ export interface RecommendedExtensionsInitMessage {
 }
 
 /**
+ * AiConfig view initialization message.
+ */
+export interface AiConfigInitMessage {
+    type: 'aiConfigInit';
+    payload: {
+        aiExtensions: Array<{
+            id: string; name: string; publisher: string; version: string;
+            description: string; isInstalled: boolean; provider: string; providerColor: string;
+        }>;
+    };
+}
+
+/**
+ * StruggleDetection view initialization message.
+ */
+export interface StruggleDetectionInitMessage {
+    type: 'struggleDetectionInit';
+    payload: {
+        isStruggling: boolean;
+        eq: number;
+        eqConfidence: 'insufficient' | 'sufficient';
+        triggerType?: string;
+        recommendedAction: 'none' | 'subtle' | 'notification' | 'proactive';
+        isEnabled: boolean;
+    };
+}
+
+/**
  * Show loading indicator message.
  */
 export interface ShowLoadingMessage {
@@ -659,6 +687,8 @@ export type ExtensionToWebviewMessage =
     | ServiceStatusInitMessage
     | HealthCheckResultsMessage
     | RecommendedExtensionsInitMessage
+    | AiConfigInitMessage
+    | StruggleDetectionInitMessage
     | ShowLoadingMessage
     | HideLoadingMessage
     | UpdateLoadingMessage
@@ -1496,7 +1526,7 @@ export type WebviewToExtensionMessage =
 export function isExtensionMessage(msg: unknown): msg is ExtensionToWebviewMessage {
     return typeof msg === 'object' && msg !== null && 'type' in msg
         && typeof (msg as { type: unknown }).type === 'string'
-        && ['init', 'gitCredentialsInit', 'gitCredentialsResult', 'serviceStatusInit', 'healthCheckResults', 'recommendedExtensionsInit', 'showLoading', 'hideLoading', 'updateLoading', 'loginSuccess', 'loginError', 'logoutSuccess', 'showLoggedIn', 'setServerUrl', 'dashboardInit', 'workspaceExerciseDetected', 'courseListInit', 'archivedCoursesLoaded', 'courseDetailInit', 'exerciseDetailInit', 'examConductionInit', 'examStartInit', 'examExerciseDetailInit', 'websocketUpdate', 'websocketDisconnected', 'websocketConnected', 'updateIrisState', 'showContextPicker', 'addMessage', 'loadMessages', 'clearChatMessages', 'updateReferencedFiles', 'updateWebSocketStatus', 'showDisabledState', 'hideDisabledState', 'updateNoAiStatus', 'error'].includes((msg as { type: string }).type);
+        && ['init', 'gitCredentialsInit', 'gitCredentialsResult', 'serviceStatusInit', 'healthCheckResults', 'recommendedExtensionsInit', 'aiConfigInit', 'struggleDetectionInit', 'showLoading', 'hideLoading', 'updateLoading', 'loginSuccess', 'loginError', 'logoutSuccess', 'showLoggedIn', 'setServerUrl', 'dashboardInit', 'workspaceExerciseDetected', 'courseListInit', 'archivedCoursesLoaded', 'courseDetailInit', 'exerciseDetailInit', 'examConductionInit', 'examStartInit', 'examExerciseDetailInit', 'websocketUpdate', 'websocketDisconnected', 'websocketConnected', 'updateIrisState', 'showContextPicker', 'addMessage', 'loadMessages', 'clearChatMessages', 'updateReferencedFiles', 'updateWebSocketStatus', 'showDisabledState', 'hideDisabledState', 'updateNoAiStatus', 'error'].includes((msg as { type: string }).type);
 }
 
 /**
