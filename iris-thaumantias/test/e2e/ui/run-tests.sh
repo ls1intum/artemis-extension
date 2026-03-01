@@ -4,7 +4,7 @@ set -e
 # UI Test Runner for Artemis Extension
 # Compiles tests, builds extension VSIX, and runs Selenium-based UI tests.
 
-cd "$(dirname "$0")/../.."
+cd "$(dirname "$0")/../../.."
 
 # Load credentials from .env if present (never committed — listed in .gitignore)
 if [ -f .env ]; then
