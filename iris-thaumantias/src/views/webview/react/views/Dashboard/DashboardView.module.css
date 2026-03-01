@@ -129,27 +129,18 @@
     align-items: center;
     gap: 8px;
     padding: 8px 4px;
-    cursor: default;
+    cursor: pointer;
+    border: none;
+    background: none;
 }
 
 .courseHeader:hover {
     background: var(--vscode-list-hoverBackground);
 }
 
-.courseExpandButton {
-    background: none;
-    border: none;
-    padding: 0;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 16px;
-    height: 16px;
-    color: var(--vscode-foreground);
-}
-
 .courseExpandIcon {
+    flex-shrink: 0;
+    color: var(--vscode-foreground);
     transition: transform 0.2s ease;
 }
 
@@ -162,11 +153,6 @@
     font-size: 13px;
     font-weight: 500;
     color: var(--vscode-foreground);
-}
-
-.courseExerciseCount {
-    font-size: 12px;
-    color: var(--vscode-descriptionForeground);
 }
 
 .courseArrow {
@@ -200,10 +186,16 @@
     color: var(--vscode-foreground);
     display: flex;
     align-items: center;
+    gap: 8px;
 }
 
 .exerciseItem:hover {
     background: var(--vscode-list-hoverBackground);
+}
+
+.exerciseIcon {
+    flex-shrink: 0;
+    color: var(--vscode-descriptionForeground);
 }
 
 .exerciseTitle {

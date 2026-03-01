@@ -21,6 +21,8 @@ import GitBranch from 'lucide-react/dist/esm/icons/git-branch';
 import Bug from 'lucide-react/dist/esm/icons/bug';
 import LogOut from 'lucide-react/dist/esm/icons/log-out';
 import ChevronRight from 'lucide-react/dist/esm/icons/chevron-right';
+import { getIcon } from '../../../../../utils/iconMap';
+import SquareArrowOutUpRight from 'lucide-react/dist/esm/icons/square-arrow-out-up-right';
 import styles from './DashboardView.module.css';
 
 export function DashboardView({ vscodeApi }: DashboardViewProps) {
@@ -273,45 +275,53 @@ export function DashboardView({ vscodeApi }: DashboardViewProps) {
                                     key={course.id || index}
                                     className={`${styles.courseNode} ${isExpanded ? styles.isExpanded : ''}`}
                                 >
-                                    <div className={styles.courseHeader}>
-                                        <button
-                                            type="button"
-                                            className={styles.courseExpandButton}
-                                            onClick={() => toggleCourseExpanded(index)}
-                                            aria-label={isExpanded ? 'Collapse' : 'Expand'}
-                                        >
-                                            <ChevronRight size={12} className={styles.courseExpandIcon} />
-                                        </button>
+                                    <div
+                                        className={styles.courseHeader}
+                                        onClick={() => toggleCourseExpanded(index)}
+                                        role="button"
+                                        tabIndex={0}
+                                        onKeyDown={(e) => {
+                                            if (e.key === 'Enter' || e.key === ' ') {
+                                                e.preventDefault();
+                                                toggleCourseExpanded(index);
+                                            }
+                                        }}
+                                    >
+                                        <ChevronRight size={12} className={styles.courseExpandIcon} />
                                         <span className={styles.courseTitle}>{course.title}</span>
-                                        <span className={styles.courseExerciseCount}>
-                                            {course.exercises?.length || 0} exercises
-                                        </span>
                                         <button
                                             type="button"
                                             className={styles.courseArrow}
-                                            onClick={() => handleViewCourseDetails(courseNode)}
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                handleViewCourseDetails(courseNode);
+                                            }}
                                             aria-label="View course details"
                                         >
-                                            →
+                                            <SquareArrowOutUpRight size={14} />
                                         </button>
                                     </div>
 
                                     {isExpanded && exercises.length > 0 && (
                                         <div className={styles.courseExercises}>
-                                            {exercises.map((exercise) => (
-                                                <button
-                                                    key={exercise.id}
-                                                    type="button"
-                                                    className={styles.exerciseItem}
-                                                    onClick={() =>
-                                                        handleOpenExercise(exercise.id!, course.id || null)
-                                                    }
-                                                >
-                                                    <span className={styles.exerciseTitle}>
-                                                        {exercise.title}
-                                                    </span>
-                                                </button>
-                                            ))}
+                                            {exercises.map((exercise) => {
+                                                const ExerciseIcon = getIcon(exercise.type);
+                                                return (
+                                                    <button
+                                                        key={exercise.id}
+                                                        type="button"
+                                                        className={styles.exerciseItem}
+                                                        onClick={() =>
+                                                            handleOpenExercise(exercise.id!, course.id || null)
+                                                        }
+                                                    >
+                                                        <ExerciseIcon size={14} className={styles.exerciseIcon} />
+                                                        <span className={styles.exerciseTitle}>
+                                                            {exercise.title}
+                                                        </span>
+                                                    </button>
+                                                );
+                                            })}
                                         </div>
                                     )}
                                 </div>
