@@ -177,7 +177,7 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
     if (isLoading) {
         return (
             <div className={styles.exerciseDetailView}>
-                <BackLink onClick={handleBackToCourse}>← Back to Course</BackLink>
+                <BackLink onClick={handleBackToCourse}>Back to Course</BackLink>
                 <SkeletonList count={5} />
             </div>
         );
@@ -187,7 +187,7 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
     if (error) {
         return (
             <div className={styles.exerciseDetailView}>
-                <BackLink onClick={handleBackToCourse}>← Back to Course</BackLink>
+                <BackLink onClick={handleBackToCourse}>Back to Course</BackLink>
                 <ErrorMessage
                     error={error}
                     onRetry={handleReload}
@@ -200,7 +200,7 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
     if (!exerciseData || !exerciseData.exercise) {
         return (
             <div className={styles.exerciseDetailView}>
-                <BackLink onClick={handleBackToCourse}>← Back to Course</BackLink>
+                <BackLink onClick={handleBackToCourse}>Back to Course</BackLink>
                 <Container>
                     <div style={{ padding: '20px', textAlign: 'center' }}>
                         <p>No exercise data available.</p>
@@ -314,7 +314,7 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
             <ReconnectBanner />
 
             <div className={styles.backLinkContainer}>
-                <BackLink onClick={handleBackToCourse}>← Back to Course</BackLink>
+                <BackLink onClick={handleBackToCourse}>Back to Course</BackLink>
                 <div className={styles.controlButtons}>
                     <IconButton.Reload onClick={handleReload} title="Reload Exercise" />
                     <IconButton.Fullscreen onClick={handleFullscreen} title="Open in new tab" />

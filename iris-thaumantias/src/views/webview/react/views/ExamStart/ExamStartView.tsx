@@ -151,7 +151,7 @@ export function ExamStartView({ vscodeApi }: ExamStartViewProps) {
     if (loading) {
         return (
             <div className={styles.examStartView}>
-                <BackLink onClick={handleBackToCourse}>← Back to Course</BackLink>
+                <BackLink onClick={handleBackToCourse}>Back to Course</BackLink>
                 <SkeletonList count={5} />
             </div>
         );
@@ -161,7 +161,7 @@ export function ExamStartView({ vscodeApi }: ExamStartViewProps) {
     if (error) {
         return (
             <div className={styles.examStartView}>
-                <BackLink onClick={handleBackToCourse}>← Back to Course</BackLink>
+                <BackLink onClick={handleBackToCourse}>Back to Course</BackLink>
                 <ErrorMessage error={error} onRetry={handleRetry} />
             </div>
         );
@@ -171,7 +171,7 @@ export function ExamStartView({ vscodeApi }: ExamStartViewProps) {
     if (!studentExam || !studentExam.exam) {
         return (
             <div className={styles.examStartView}>
-                <BackLink onClick={handleBackToCourse}>← Back to Course</BackLink>
+                <BackLink onClick={handleBackToCourse}>Back to Course</BackLink>
                 <Container>
                     <p>No exam data available.</p>
                 </Container>
@@ -188,7 +188,7 @@ export function ExamStartView({ vscodeApi }: ExamStartViewProps) {
                 <TimerExpiredOverlay visible={showExpiredOverlay} onDismiss={() => setShowExpiredOverlay(false)} />
             )}
 
-            <BackLink onClick={handleBackToCourse}>← Back to Course</BackLink>
+            <BackLink onClick={handleBackToCourse}>Back to Course</BackLink>
 
             {/* Header Card */}
             <Container>

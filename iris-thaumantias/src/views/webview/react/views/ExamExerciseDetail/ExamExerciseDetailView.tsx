@@ -128,7 +128,7 @@ export function ExamExerciseDetailView({ vscodeApi }: ExamExerciseDetailViewProp
     if (loading) {
         return (
             <div className={styles.examExerciseDetailView}>
-                <BackLink onClick={handleBackToExam}>← Back to Exam</BackLink>
+                <BackLink onClick={handleBackToExam}>Back to Exam</BackLink>
                 <SkeletonList count={5} />
             </div>
         );
@@ -138,7 +138,7 @@ export function ExamExerciseDetailView({ vscodeApi }: ExamExerciseDetailViewProp
     if (error) {
         return (
             <div className={styles.examExerciseDetailView}>
-                <BackLink onClick={handleBackToExam}>← Back to Exam</BackLink>
+                <BackLink onClick={handleBackToExam}>Back to Exam</BackLink>
                 <ErrorMessage error={error} onRetry={handleRetry} />
             </div>
         );
@@ -148,7 +148,7 @@ export function ExamExerciseDetailView({ vscodeApi }: ExamExerciseDetailViewProp
     if (!exerciseData || !exerciseData.exercise || !examContext) {
         return (
             <div className={styles.examExerciseDetailView}>
-                <BackLink onClick={handleBackToExam}>← Back to Exam</BackLink>
+                <BackLink onClick={handleBackToExam}>Back to Exam</BackLink>
                 <Container>
                     <p>No exercise data available.</p>
                 </Container>
@@ -219,7 +219,7 @@ export function ExamExerciseDetailView({ vscodeApi }: ExamExerciseDetailViewProp
 
             {/* Timer Header */}
             <div className={styles.timerHeader}>
-                <BackLink onClick={handleBackToExam}>← Back to Exam</BackLink>
+                <BackLink onClick={handleBackToExam}>Back to Exam</BackLink>
                 {examContext.endTime && (
                     <ExamTimer
                         endTime={examContext.endTime}

@@ -98,7 +98,7 @@ describe('ExamExerciseDetailView', () => {
 		useExamExerciseDetailStore.setState({ loading: true });
 		const mockApi = createMockVsCodeApi();
 		render(<ExamExerciseDetailView vscodeApi={mockApi} />);
-		expect(screen.getByText('← Back to Exam')).toBeInTheDocument();
+		expect(screen.getByText('Back to Exam')).toBeInTheDocument();
 	});
 
 	it('shows error message when error is set', () => {
@@ -156,7 +156,7 @@ describe('ExamExerciseDetailView', () => {
 		const mockApi = createMockVsCodeApi();
 		render(<ExamExerciseDetailView vscodeApi={mockApi} />);
 
-		const backLink = screen.getByText('← Back to Exam');
+		const backLink = screen.getByText('Back to Exam');
 		await userEvent.click(backLink);
 
 		expect(mockApi.postMessage).toHaveBeenCalledWith(

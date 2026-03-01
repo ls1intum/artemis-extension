@@ -58,7 +58,7 @@ describe('ExamStartView', () => {
 		useExamStartStore.setState({ loading: true });
 		const mockApi = createMockVsCodeApi();
 		render(<ExamStartView vscodeApi={mockApi} />);
-		expect(screen.getByText('← Back to Course')).toBeInTheDocument();
+		expect(screen.getByText('Back to Course')).toBeInTheDocument();
 	});
 
 	it('shows error message when error is set', () => {
@@ -245,7 +245,7 @@ describe('ExamStartView', () => {
 		const mockApi = createMockVsCodeApi();
 		render(<ExamStartView vscodeApi={mockApi} />);
 
-		const backLink = screen.getByText('← Back to Course');
+		const backLink = screen.getByText('Back to Course');
 		await userEvent.click(backLink);
 
 		expect(mockApi.postMessage).toHaveBeenCalledWith(
