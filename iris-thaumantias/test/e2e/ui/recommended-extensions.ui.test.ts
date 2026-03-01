@@ -1,5 +1,6 @@
 // Covers E2EV-11: RecommendedExtensions view E2E smoke test
 // (E2EV-11 remapped from ProblemStatement — RecommendedExtensions is the 11th actual standalone view)
+import assert from 'assert';
 import { VSBrowser, WebDriver, Workbench, By, until } from 'vscode-extension-tester';
 import {
 	openArtemisView,
@@ -91,20 +92,20 @@ describe('RecommendedExtensions View UI Tests', function () {
 			return;
 		}
 
-		// Wait for any content container (heading, list element)
-		// Accept loading/empty state as valid — smoke test proves the view mounted
+		// Assert RecommendedExtensions content is visible (list, heading, or container)
+		let contentElement: Awaited<ReturnType<typeof driver.findElement>> | null = null;
 		try {
-			await driver.wait(
-				() =>
-					driver
-						.findElement(By.xpath('//ul | //ol | //h1 | //h2 | //section | //main'))
-						.then((el) => el)
-						.catch(() => null),
+			contentElement = await driver.wait(
+				until.elementLocated(By.xpath('//ul | //ol | //h1 | //h2 | //section | //main')),
 				8000,
 			);
 		} catch {
-			// Accept loading state
+			await takeScreenshot(driver, 'recommended-extensions-smoke');
+			this.skip();
+			return;
 		}
+
+		assert.ok(contentElement, 'RecommendedExtensions view content should be visible');
 
 		await takeScreenshot(driver, 'recommended-extensions-smoke');
 	});

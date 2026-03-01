@@ -1,5 +1,6 @@
 // Covers E2EV-10: GitCredentials view E2E smoke test
 // (E2EV-10 remapped from BuildFeedback — GitCredentials is the 10th actual standalone view)
+import assert from 'assert';
 import { VSBrowser, WebDriver, Workbench, By, until } from 'vscode-extension-tester';
 import {
 	openArtemisView,
@@ -91,20 +92,20 @@ describe('GitCredentials View UI Tests', function () {
 			return;
 		}
 
-		// Wait for GitCredentials content: form element or any input field
-		// Accept loading/empty state as valid — smoke test proves the view mounted
+		// Assert GitCredentials content is visible (form, input, or content container)
+		let contentElement: Awaited<ReturnType<typeof driver.findElement>> | null = null;
 		try {
-			await driver.wait(
-				() =>
-					driver
-						.findElement(By.xpath('//form | //input | //section | //main'))
-						.then((el) => el)
-						.catch(() => null),
+			contentElement = await driver.wait(
+				until.elementLocated(By.xpath('//form | //input | //section | //main')),
 				8000,
 			);
 		} catch {
-			// Accept loading state
+			await takeScreenshot(driver, 'git-credentials-smoke');
+			this.skip();
+			return;
 		}
+
+		assert.ok(contentElement, 'GitCredentials view content should be visible');
 
 		await takeScreenshot(driver, 'git-credentials-smoke');
 	});

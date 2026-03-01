@@ -31,8 +31,8 @@ Requirements for milestone v1.2: E2E & Integration Testing + Cleanup. Each maps 
 - [x] **E2EV-07**: E2E smoke test for ExamConduction view — renders, timer visible
 - [x] **E2EV-08**: E2E smoke test for ExamExerciseDetail view — renders, exercise content visible
 - [x] **E2EV-09**: E2E smoke test for IrisChat view — renders, chat input visible
-- [x] **E2EV-10**: E2E smoke test for BuildFeedback view — renders, build log visible
-- [x] **E2EV-11**: E2E smoke test for ProblemStatement view — renders, problem content visible
+- [x] **E2EV-10**: E2E smoke test for GitCredentials view — renders, content visible
+- [x] **E2EV-11**: E2E smoke test for RecommendedExtensions view — renders, content visible
 - [x] **E2EV-12**: E2E smoke test for ServiceStatus view — renders, status info visible
 
 ### E2E Interaction Tests
