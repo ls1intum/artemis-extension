@@ -2,7 +2,7 @@
 
 ## What This Is
 
-A VS Code extension that integrates with the Artemis learning platform, providing students with course browsing, exercise management, code submission, real-time build feedback, AI tutoring (Iris chat), and exam support — all within their editor. Uses React 18 components with Zustand state management, TypeScript strict mode, and 809 tests across 66 files.
+A VS Code extension that integrates with the Artemis learning platform, providing students with course browsing, exercise management, code submission, real-time build feedback, AI tutoring (Iris chat), and exam support — all within their editor. Uses React 18 components with Zustand state management, TypeScript strict mode, and comprehensive test coverage — integration tests for the extension host ↔ webview bridge, E2E smoke tests for all 12 views, and axe-core WCAG 2.1 AA accessibility verification.
 
 ## Core Value
 
@@ -33,18 +33,19 @@ Students can interact with Artemis courses, exercises, and the Iris AI tutor wit
 - ✓ Comprehensive testing — 809 tests (components, stores, flows) with Vitest + RTL + happy-dom — v1.1
 - ✓ Dependency cleanup — knip audit, CSP nonce hardening, production .vsix verified — v1.1
 - ✓ Architecture audit — Anti-patterns documented, tech debt cataloged, improvement priorities set — v1.1
+- ✓ Integration test infrastructure — Global store reset, bridge handshake helpers, typed fixture factories for 13 state transitions — v1.2
+- ✓ Extension host bridge tests — WebSocket error propagation, panel hide/show persistence, handleMessageWithSender Mocha tests — v1.2
+- ✓ Store hydration flow tests — Round-trip tests for all 12 Init message types — v1.2
+- ✓ Circular dependency resolution — Interface extraction for ProviderRegistry import cycles — v1.2
+- ✓ Exam fetch error visibility — Error state + retry flow for ExamStart/ExamConduction — v1.2
+- ✓ E2E infrastructure — GitHub Actions CI (Vitest + Mocha + JUnit), ADR 001 framework decision — v1.2
+- ✓ E2E view coverage — Smoke tests for all 12 views, login + submission interaction tests — v1.2
+- ✓ Accessibility — axe-core WCAG 2.1 AA assertions on all 12 rendered view DOMs — v1.2
+- ✓ Legacy cleanup — Migration-era code removed, knip audit, unused exports purged — v1.2
 
 ### Active
 
-## Current Milestone: v1.2 E2E & Integration Testing
-
-**Goal:** Comprehensive test coverage with integration tests for the extension↔webview bridge, full E2E tests for all 12 views in VS Code, and resolution of carried tech debt.
-
-**Target features:**
-- Integration tests for extension host ↔ webview message bridge and store hydration
-- E2E test infrastructure (framework research, VS Code test runner, CI)
-- E2E tests for all 12 webview views
-- Tech debt: WebSocket error propagation, state persistence, silent exam fetch errors, circular deps
+(None — milestone planning required)
 
 ### Out of Scope
 
@@ -59,9 +60,9 @@ Students can interact with Artemis courses, exercises, and the Iris AI tutor wit
 - **Codebase:** ~167K LOC TypeScript/TSX (source + tests), 12 React views, 22 shared components, 9 Zustand stores
 - **Architecture:** React 18 webviews with CSS Modules, esbuild dual-target build, typed message contracts (discriminated unions)
 - **Build artifacts:** extension.js (323KB CJS), webview-react.js (3.44MB IIFE, accepted baseline), webview-react.css (~74KB), .vsix (3.3 MB)
-- **Testing:** 809 tests in 66 files — Vitest + React Testing Library + happy-dom
-- **Known tech debt:** WebSocket error propagation (HIGH), state persistence (MEDIUM), circular deps (LOW), 229 test ESLint errors (intentional)
-- **Tech stack:** React 18.3.1, Zustand, esbuild, CSS Modules, Shiki (27 languages), KaTeX, Streamdown, Lucide, Web Workers
+- **Testing:** Vitest + RTL + happy-dom (unit/integration), Mocha + @vscode/test-electron (host-side), vscode-extension-tester + Selenium (E2E). CI via GitHub Actions (Vitest + Mocha + JUnit)
+- **Known tech debt:** 12 TS2345 type errors in storeHydration tests (runtime unaffected), `simulateHandshake` orphaned export, 229 test ESLint errors (intentional), 18 knip false-positive unused exports
+- **Tech stack:** React 18.3.1, Zustand, esbuild, CSS Modules, Shiki (27 languages), KaTeX, Streamdown, Lucide, Web Workers, axe-core
 
 ## Constraints
 
@@ -91,6 +92,12 @@ Students can interact with Artemis courses, exercises, and the Iris AI tutor wit
 | TypeScript strict incremental | 15 gap-closure plans vs big-bang — eliminated 934+ violations systematically | ✓ Good |
 | 3.44 MB bundle baseline | Shiki 2.36 MB + KaTeX 1.63 MB is architectural minimum for IIFE | ✓ Accepted |
 | knip for dependency analysis | Dual-entry config (extension.ts + index.tsx) for VS Code extension structure | ✓ Good |
+| vscode-extension-tester for E2E | wdio-vscode-service lacks sidebar webview iframe support; Playwright excluded (issue #22351) | ✓ Good |
+| Sandwich testing architecture | Vitest for webview, Mocha for host, Selenium for E2E — each layer tests its boundary | ✓ Good |
+| Interface extraction for circular deps | IChatWebviewProvider/IArtemisWebviewProvider in src/types/ — dependency inversion | ✓ Good |
+| Store reset via global beforeEach | resetTestState() with configurable:true on acquireVsCodeApi — zero order-dependent failures | ✓ Good |
+| Fixture factory pattern | Partial override parameter with spread after minimal defaults — type-safe, composable | ✓ Good |
+| E2E local-only (no CI Selenium) | Selenium + xvfb flakiness risk; CI runs Vitest + Mocha only | ✓ Accepted |
 
 ## Architecture Decisions
 
@@ -143,11 +150,14 @@ Students can interact with Artemis courses, exercises, and the Iris AI tutor wit
 
 | Item | Impact | Status |
 |------|--------|--------|
-| WebSocket error propagation | HIGH | Not implemented — users see infinite loading on connection failure |
-| State persistence (getState/setState) | MEDIUM | No webview state persistence, transient UI state lost on panel hide/show |
-| Circular dependencies (ProviderRegistry) | LOW | 2 cycles documented, not refactored |
+| ~~WebSocket error propagation~~ | ~~HIGH~~ | ✓ RESOLVED v1.2 — error state replaces infinite loading (Phase 17) |
+| ~~State persistence (getState/setState)~~ | ~~MEDIUM~~ | ✓ RESOLVED v1.2 — onDidChangeVisibility + resendViewData (Phase 17) |
+| ~~Circular dependencies (ProviderRegistry)~~ | ~~LOW~~ | ✓ RESOLVED v1.2 — interface extraction to src/types/ (Phase 18) |
 | Test file ESLint errors | LOW | 229 errors in test/ directory, intentional (mock patterns use any) |
 | STOMP library any boundaries | LOW | 2 justified suppressions at library boundary |
+| storeHydration type errors | LOW | 12 TS2345 compile-time errors (runtime unaffected, all 12 tests pass) |
+| simulateHandshake orphaned export | LOW | Exported in test helpers but never imported — consumers use inline pattern |
+| knip false-positive unused exports | LOW | 18 entries — barrel re-exports, React Props, test-consumed APIs |
 
 ### Data Caching Policy
 
@@ -170,4 +180,4 @@ Students can interact with Artemis courses, exercises, and the Iris AI tutor wit
 
 ---
 
-*Last updated: 2026-02-27 after v1.2 milestone start*
+*Last updated: 2026-03-01 after v1.2 milestone*

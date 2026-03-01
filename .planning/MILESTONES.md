@@ -1,5 +1,37 @@
 # Milestones
 
+## v1.2 E2E & Integration Testing (Shipped: 2026-03-01)
+
+**Started:** 2026-02-28 | **Shipped:** 2026-03-01
+**Phases:** 16-20 (5 phases, 17 plans)
+**Timeline:** 2 days execution (2026-02-28 → 2026-03-01), 114 commits
+**Lines changed:** +34,075 / -3,658 across 298 files
+
+**Key accomplishments:**
+- Built integration test infrastructure with global Zustand store reset, bridge handshake helpers, and typed fixture factories for all 13 state transitions
+- Added extension host bridge tests — WebSocket error propagation fix (error state replaces infinite loading), panel hide/show state persistence, handleMessageWithSender Mocha tests
+- Completed webview flow test coverage — circular dependency resolution, store hydration round-trip tests for all 12 Init message types, exam fetch error visibility
+- Established E2E infrastructure with GitHub Actions CI workflow (Vitest + Mocha + JUnit) and ADR 001 documenting framework decision
+- Created E2E smoke tests for all 12 views, login flow + exercise submission interaction tests, axe-core WCAG 2.1 AA accessibility suite
+- Removed all migration-era code, legacy fallbacks, and dead exports via knip audit
+
+**Audit:** 26/29 requirements fully satisfied, 3 partial (non-critical), 5/5 phases, 28/28 integration paths, 9/9 E2E flows — TECH DEBT (all functional, 13 documentation items)
+
+**Known Gaps:**
+- E2EV-10/E2EV-11: Smoke test files exist but originally lacked assert() calls (fixed in final commit)
+- CLEAN-03: 18 knip false-positive "unused exports" remain — further removal breaks compilation
+- CI workflow not yet confirmed via live GitHub Actions execution
+
+**Tech debt carried forward:**
+- 12 TS2345 compile-time type errors in storeHydration.flow.test.tsx (runtime unaffected)
+- `simulateHandshake` helper exported but never imported
+- 229 ESLint errors in test/ directory (intentional — test mocks use explicit any)
+- Legacy `{ command: 'showLoading'/'updateLoading' }` postMessage calls remain (intentional command-format)
+
+**Archives:** milestones/v1.2-ROADMAP.md, milestones/v1.2-REQUIREMENTS.md, milestones/v1.2-MILESTONE-AUDIT.md
+
+---
+
 ## v1.0 React Webview Migration (Shipped: 2026-02-24)
 
 **Started:** 2026-02-23 | **Shipped:** 2026-02-24

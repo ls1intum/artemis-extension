@@ -87,6 +87,55 @@
 
 ---
 
+## Milestone: v1.2 — E2E & Integration Testing
+
+**Shipped:** 2026-03-01
+**Phases:** 5 | **Plans:** 17
+
+### What Was Built
+- Integration test infrastructure: global store reset, handshake helpers, typed fixture factories for 13 state transitions
+- Extension host bridge tests: WebSocket error propagation fix, panel hide/show state persistence, handleMessageWithSender Mocha tests
+- Webview flow tests: circular dependency resolution, store hydration round-trips for all 12 Init messages, exam fetch error visibility
+- E2E infrastructure: GitHub Actions CI (Vitest + Mocha + JUnit), ADR 001 framework decision
+- E2E view coverage: smoke tests for all 12 views, login + exercise submission interaction tests
+- Accessibility: axe-core WCAG 2.1 AA assertions for all 12 rendered view DOMs
+- Legacy cleanup: migration-era code removed, knip audit, unused exports purged
+
+### What Worked
+- Sandwich testing architecture (Vitest / Mocha / Selenium) matched naturally to the extension's 3-layer architecture
+- Global store reset via resetTestState() in vitest.setup.ts eliminated order-dependent test failures across 876+ tests
+- Fixture factory pattern with Partial overrides was composable and type-safe — reused across phases 16, 17, 18
+- ADR format for E2E framework decision preserved rationale for future contributors
+- Milestone audit caught 3 partial requirements (E2EV-10/11 missing asserts, CLEAN-03 false positives) before archival
+
+### What Was Inefficient
+- ROADMAP.md plan checkmarks drifted again — plans 16-02, 16-03, 17-01 through 20-06 all showed `[ ]` despite being complete. Same issue as v1.1
+- Some SUMMARY.md frontmatter gaps (17-03, 18-03 missing requirements_completed) — VERIFICATION.md caught the actual status
+- storeHydration.flow.test.tsx has 12 TS2345 compile-time type errors that were accepted as runtime-safe — ideally would be fixed with proper generic fixtures
+- E2EV-10/E2EV-11 smoke tests initially shipped without assert() calls — caught by audit, fixed in final commit
+
+### Patterns Established
+- ControllableWebviewView + SpyWebview pattern for testing panel visibility state
+- Interface extraction to src/types/ for breaking circular import cycles
+- axe-core injection via cached AXE_SOURCE + driver.executeScript for E2E accessibility
+- Triple-gated skip pattern for data-dependent E2E interaction tests (credentials + navigation + data)
+- assertNoAxeViolations local helper with screenshot + descriptive violation message
+
+### Key Lessons
+1. ROADMAP plan checkmarks continue to drift — need automated sync or accept STATE.md as sole source of truth
+2. Milestone audit is essential — caught 3 gaps that would have shipped as silent-pass tests
+3. E2E tests in VS Code are inherently data-dependent — graceful skip at each navigation step prevents false failures
+4. Separation of test layers (unit / integration / E2E) maps cleanly to extension architecture layers
+
+### Cost Observations
+- 114 commits across 2 days (2026-02-28 → 2026-03-01)
+- +34,075 / -3,658 lines across 298 files
+- Average plan duration: ~5 min (comparable to v1.0)
+- Phase 17 Plan 01 was longest at 22 min (WebSocket status bar refactor with override visibility rules)
+- Phase 20 Plan 06 was second longest at ~10 min (legacy cleanup + knip audit across multiple files)
+
+---
+
 ## Cross-Milestone Trends
 
 ### Process Evolution
@@ -95,6 +144,7 @@
 |-----------|--------|-------|------------|
 | v1.0 | 7 | 24 | Established incremental migration pattern |
 | v1.1 | 8 | 38 | Added gap-closure planning, milestone audit gates |
+| v1.2 | 5 | 17 | Sandwich testing architecture, E2E infrastructure, milestone audit caught silent-pass tests |
 
 ### Cumulative Quality
 
@@ -102,9 +152,12 @@
 |-----------|-------|----------|-----------------|
 | v1.0 | 0 | N/A | 3 (TS errors, bundle, fullscreen) |
 | v1.1 | 809 | Tracked (no threshold) | 5 (WebSocket, state persistence, circular deps, test lint, STOMP boundary) |
+| v1.2 | 892+ (unit/integration) + 12 E2E + 12 a11y | 3-layer coverage | 4 (storeHydration types, orphaned export, test lint, knip false positives) |
 
 ### Top Lessons (Verified Across Milestones)
 
-1. Incremental approaches beat big-bang — validated in both v1.0 (view migration) and v1.1 (strict TypeScript)
-2. Audit/review before optimization prevents wasted effort — Phase 8 directed all v1.1 work
+1. Incremental approaches beat big-bang — validated in v1.0 (migration), v1.1 (strict TS), v1.2 (test layers)
+2. Audit/review before optimization prevents wasted effort — Phase 8 directed v1.1; milestone audit caught v1.2 gaps
 3. Scope estimation for type system and testing work is consistently 3-5x underestimated
+4. ROADMAP plan checkmarks drift consistently — verified across v1.1 and v1.2; STATE.md is the true source of truth
+5. Milestone audit is non-negotiable — caught stale REQUIREMENTS.md in v1.1, silent-pass tests in v1.2

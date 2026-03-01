@@ -114,3 +114,11 @@ Each task was committed atomically:
 ---
 *Phase: 17-extension-host-bridge-tests*
 *Completed: 2026-02-28*
+
+## Self-Check: PASSED
+
+- FOUND: iris-thaumantias/src/provider/artemisWebviewProvider.ts
+- FOUND: iris-thaumantias/test/unit/provider/artemisWebviewProvider.test.ts
+- FOUND: .planning/phases/17-extension-host-bridge-tests/17-02-SUMMARY.md
+- FOUND commit 7732a45 (feat: onDidChangeVisibility listener)
+- FOUND commit 123d05b (test: panel hide/show tests)

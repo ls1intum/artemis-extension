@@ -2,8 +2,8 @@
 gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: E2E & Integration Testing
-status: unknown
-last_updated: "2026-03-01T11:52:19.991Z"
+status: shipped
+last_updated: "2026-03-01T13:00:00.000Z"
 progress:
   total_phases: 5
   completed_phases: 5
@@ -15,19 +15,17 @@ progress:
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-02-28)
+See: .planning/PROJECT.md (updated 2026-03-01)
 
 **Core value:** Students can interact with Artemis courses, exercises, and the Iris AI tutor without leaving VS Code.
-**Current focus:** v1.2 Phase 20 — E2E View Coverage, Interactions, Accessibility & Cleanup
+**Current focus:** Planning next milestone
 
 ## Current Position
 
-Phase: 20 of 20 (E2E View Coverage, Interactions, Accessibility & Cleanup)
-Plan: 06 complete — 6/6 Phase 20 plans done — PHASE COMPLETE
-Status: Complete
-Last activity: 2026-02-28 — 20-06 complete: Legacy cleanup — 3 backward-compat sends removed, auth fallback removed, knip audit done (CLEAN-01, CLEAN-02, CLEAN-03)
+Milestone: v1.2 E2E & Integration Testing — SHIPPED 2026-03-01
+Status: Complete — archived to .planning/milestones/
 
-Progress: [██████████] 100% (v1.2, 17/17 plans done across phases 16-20) — v1.0 + v1.1 complete (15 phases, 62 plans)
+Progress: v1.0 (7 phases, 24 plans) + v1.1 (8 phases, 38 plans) + v1.2 (5 phases, 17 plans) = 20 phases, 79 plans total
 
 ## Performance Metrics
 
@@ -39,7 +37,7 @@ Progress: [██████████] 100% (v1.2, 17/17 plans done across p
 - Phase 8: 15 min | Phase 9: 7 min | Phase 10: 10 min | Phase 11: 16 min
 - Phase 12: ~110 min | Phase 13: ~115 min | Phase 14: ~20 min | Phase 15: 4 min
 
-**v1.2 Milestone (In Progress):**
+**v1.2 Milestone (Complete):**
 - Phase 16 Plan 01: 7 min | 2 tasks | 3 files
 - Phase 16 Plan 02: ~3 min | 2 tasks | 14 files | 61 new tests (876 total)
 - Phase 16 Plan 03: 12 min | 2 tasks | 20 files | 876 tests passing order-independently
@@ -119,11 +117,11 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-02-28
-Stopped at: Phase 20 Plan 06 complete — Legacy cleanup complete. 6/6 Phase 20 plans done. v1.2 milestone COMPLETE (CLEAN-01, CLEAN-02, CLEAN-03 satisfied).
+Last session: 2026-03-01
+Stopped at: v1.2 milestone archived and tagged. Next: `/gsd:new-milestone`
 Resume file: None
 
 ---
 
 *Created: 2026-02-23 (v1.0)*
-*Updated: 2026-02-28 (20-06 complete — v1.2 milestone complete)*
+*Updated: 2026-03-01 (v1.2 milestone shipped)*
