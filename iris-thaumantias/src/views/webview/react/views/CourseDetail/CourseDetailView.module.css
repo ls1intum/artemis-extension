@@ -7,20 +7,6 @@
     gap: var(--theme-view-gap);
 }
 
-/* Back Link and Controls */
-.backLinkContainer {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 8px;
-}
-
-.controls {
-    display: flex;
-    gap: 8px;
-    align-items: center;
-}
-
 /* Course Header */
 .courseStats {
     display: flex;

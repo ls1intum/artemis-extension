@@ -1,5 +1,11 @@
 /* BackLink Component - Navigation back link */
 
+.backLinkRow {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
 .backLink {
     display: inline-flex;
     align-items: center;
@@ -31,4 +37,10 @@
     flex-shrink: 0;
     width: 16px;
     height: 16px;
+}
+
+.actions {
+    display: flex;
+    gap: 8px;
+    align-items: center;
 }

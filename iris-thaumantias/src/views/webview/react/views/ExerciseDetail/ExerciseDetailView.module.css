@@ -5,18 +5,6 @@
   color: var(--vscode-foreground);
 }
 
-.backLinkContainer {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 8px;
-}
-
-.controlButtons {
-  display: flex;
-  gap: 8px;
-}
-
 /* Exercise Card (collapsible details element) */
 .exerciseCard {
   background: var(--vscode-editor-background);

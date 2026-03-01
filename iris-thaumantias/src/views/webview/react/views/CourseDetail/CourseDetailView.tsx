@@ -207,14 +207,13 @@ export function CourseDetailView({ vscodeApi }: CourseDetailViewProps) {
 
     return (
         <div className={styles.courseDetailContainer}>
-            <div className={styles.backLinkContainer}>
-                <BackLink onClick={handleBackToDashboard}>Back to Dashboard</BackLink>
-                <div className={styles.controls}>
+            <BackLink onClick={handleBackToDashboard} actions={
+                <>
                     <IconButton.Reload onClick={handleReload} loading={isLoading} />
                     <IconButton.Fullscreen onClick={handleFullscreen} />
                     <IconButton.Settings onClick={handleSettings} />
-                </div>
-            </div>
+                </>
+            }>Back to Dashboard</BackLink>
 
             {error && (
                 <ErrorMessage

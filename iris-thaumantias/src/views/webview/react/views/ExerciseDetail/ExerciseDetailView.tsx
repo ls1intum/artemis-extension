@@ -313,14 +313,13 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
         <div className={styles.exerciseDetailView}>
             <ReconnectBanner />
 
-            <div className={styles.backLinkContainer}>
-                <BackLink onClick={handleBackToCourse}>Back to Course</BackLink>
-                <div className={styles.controlButtons}>
+            <BackLink onClick={handleBackToCourse} actions={
+                <>
                     <IconButton.Reload onClick={handleReload} title="Reload Exercise" />
                     <IconButton.Fullscreen onClick={handleFullscreen} title="Open in new tab" />
                     <IconButton.Settings onClick={handleSettings} title="Settings" />
-                </div>
-            </div>
+                </>
+            }>Back to Course</BackLink>
 
             {/* Exercise Card */}
             <details className={styles.exerciseCard} open>

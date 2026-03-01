@@ -177,11 +177,12 @@ export function CourseListView({ vscodeApi }: CourseListViewProps) {
     if (isLoading && courses.length === 0) {
         return (
             <div className={styles.courseListContainer}>
-                <div className={styles.backLinkContainer}>
-                    <BackLink onClick={handleBackToDashboard}>Back to Dashboard</BackLink>
-                    <IconButton.Reload onClick={handleReloadCourses} title="Reload Courses" />
-                    <IconButton.Settings onClick={handleOpenSettings} title="Settings" />
-                </div>
+                <BackLink onClick={handleBackToDashboard} actions={
+                    <>
+                        <IconButton.Reload onClick={handleReloadCourses} title="Reload Courses" />
+                        <IconButton.Settings onClick={handleOpenSettings} title="Settings" />
+                    </>
+                }>Back to Dashboard</BackLink>
                 <SkeletonList count={5} />
             </div>
         );
@@ -191,11 +192,12 @@ export function CourseListView({ vscodeApi }: CourseListViewProps) {
     if (error) {
         return (
             <div className={styles.courseListContainer}>
-                <div className={styles.backLinkContainer}>
-                    <BackLink onClick={handleBackToDashboard}>Back to Dashboard</BackLink>
-                    <IconButton.Reload onClick={handleReloadCourses} title="Reload Courses" />
-                    <IconButton.Settings onClick={handleOpenSettings} title="Settings" />
-                </div>
+                <BackLink onClick={handleBackToDashboard} actions={
+                    <>
+                        <IconButton.Reload onClick={handleReloadCourses} title="Reload Courses" />
+                        <IconButton.Settings onClick={handleOpenSettings} title="Settings" />
+                    </>
+                }>Back to Dashboard</BackLink>
                 <ErrorMessage error={error} onRetry={handleReloadCourses} />
             </div>
         );
@@ -217,11 +219,12 @@ export function CourseListView({ vscodeApi }: CourseListViewProps) {
 
     return (
         <div className={styles.courseListContainer}>
-            <div className={styles.backLinkContainer}>
-                <BackLink onClick={handleBackToDashboard}>Back to Dashboard</BackLink>
-                <IconButton.Reload onClick={handleReloadCourses} title="Reload Courses" />
-                <IconButton.Settings onClick={handleOpenSettings} title="Settings" />
-            </div>
+            <BackLink onClick={handleBackToDashboard} actions={
+                <>
+                    <IconButton.Reload onClick={handleReloadCourses} title="Reload Courses" />
+                    <IconButton.Settings onClick={handleOpenSettings} title="Settings" />
+                </>
+            }>Back to Dashboard</BackLink>
 
             <PageHeader title="All Courses" subtitle="Browse and manage your enrolled courses" />
 
