@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useRef } from 'react';
-import DOMPurify from 'dompurify';
 import { Container } from '../../../components/Container';
 import { Button } from '../../../components/Button';
 import { processProblemStatement } from '../../../../../../utils/problemStatementProcessor';
@@ -97,32 +96,27 @@ export function ProblemStatement({
             const typedMessage = message as { command: string; index?: number; svg?: string };
 
             if (typedMessage.command === 'plantUmlRendered' && container) {
-                const element = container.querySelector(
+                const placeholder = container.querySelector(
                     `[data-plantuml-index="${typedMessage.index ?? ''}"]`
                 );
-                if (element && typeof typedMessage.svg === 'string') {
-                    element.innerHTML = DOMPurify.sanitize(typedMessage.svg, {
-                        ALLOWED_TAGS: ['svg', 'g', 'path', 'rect', 'circle', 'ellipse',
-                                      'line', 'polyline', 'polygon', 'text', 'tspan',
-                                      'defs', 'clipPath', 'use', 'style'],
-                        ALLOWED_ATTR: ['viewBox', 'width', 'height', 'fill', 'stroke',
-                                      'stroke-width', 'd', 'x', 'y', 'cx', 'cy', 'r',
-                                      'rx', 'ry', 'transform', 'class', 'id',
-                                      'font-size', 'font-family', 'text-anchor',
-                                      'dominant-baseline', 'points', 'x1', 'y1', 'x2', 'y2'],
-                    });
-                    element.classList.remove('plantuml-placeholder');
-                    element.classList.add('plantuml-rendered');
+                if (placeholder && placeholder.parentNode && typeof typedMessage.svg === 'string') {
+                    // Replace placeholder with new div — exactly like main
+                    const rendered = document.createElement('div');
+                    rendered.className = 'plantuml-rendered';
+                    rendered.innerHTML = typedMessage.svg;
+                    placeholder.parentNode.replaceChild(rendered, placeholder);
                 }
             }
 
             if (typedMessage.command === 'plantUmlError' && container) {
-                const element = container.querySelector(
+                const placeholder = container.querySelector(
                     `[data-plantuml-index="${typedMessage.index ?? ''}"]`
                 );
-                if (element) {
-                    element.textContent = 'Failed to render diagram';
-                    element.classList.add('plantuml-error');
+                if (placeholder && placeholder.parentNode) {
+                    const errorDiv = document.createElement('div');
+                    errorDiv.className = 'plantuml-error';
+                    errorDiv.textContent = `Error rendering PlantUML: ${(typedMessage as { error?: string }).error ?? 'Unknown error'}`;
+                    placeholder.parentNode.replaceChild(errorDiv, placeholder);
                 }
             }
         };

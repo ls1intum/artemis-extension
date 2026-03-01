@@ -133,10 +133,24 @@
     margin: 24px 0;
 }
 
-/* Task markers — bold + accent color per user decision */
+/* Artemis [task] markers — accent blue text */
 .problemStatement :global(.task-marker) {
-    font-weight: 700;
-    color: var(--vscode-testing-iconPassed);
+    font-weight: 600;
+    color: var(--vscode-textLink-foreground);
+}
+
+/* Remove list padding when it contains task markers */
+.problemStatement :is(ul, ol):has(:global(.task-marker)) {
+    padding-left: 0;
+}
+
+/* When a task-marker is inside a list item, outline the whole item (includes the number) */
+.problemStatement li:has(> :global(.task-marker)) {
+    color: var(--vscode-textLink-foreground);
+    border: 1px solid var(--vscode-textLink-foreground);
+    border-radius: 4px;
+    padding: 2px 8px;
+    list-style-position: inside;
 }
 
 /* PlantUML diagram containers */
@@ -155,12 +169,21 @@
 
 .problemStatement :global(.plantuml-rendered) {
     margin: 16px 0;
+    padding: 16px;
+    background: var(--vscode-editor-background);
+    border: 1px solid var(--vscode-sideBar-border);
+    border-radius: 8px;
+    overflow: visible;
     text-align: center;
+    display: flex;
+    justify-content: center;
+    align-items: center;
 }
 
 .problemStatement :global(.plantuml-rendered) svg {
     max-width: 100%;
-    height: auto;
+    height: auto !important;
+    width: auto !important;
 }
 
 .problemStatement :global(.plantuml-error) {

@@ -1,17 +1,45 @@
 import katex from 'katex';
 import DOMPurify from 'dompurify';
+import { marked } from 'marked';
+
+// Configure marked for synchronous parsing
+marked.use({ async: false });
 
 /**
- * Process problem statement HTML with KaTeX math rendering,
- * PlantUML placeholder marking, task marker highlighting,
- * and link/image attribute injection.
+ * Process problem statement with Markdown-to-HTML conversion,
+ * KaTeX math rendering, PlantUML placeholder marking,
+ * Artemis task rendering, and link/image attribute injection.
  */
-export function processProblemStatement(html: string): string {
-    if (!html) {
+export function processProblemStatement(input: string): string {
+    if (!input) {
         return '';
     }
 
-    // 1. Sanitize HTML first (allow safe tags for rich content)
+    // 1. Extract PlantUML blocks before Markdown parsing.
+    //    On main, @startuml...@enduml appeared as raw text (not in code fences),
+    //    so marked would split them across <p> tags. Extract them first.
+    let preprocessed = input.replace(
+        /@startuml[\s\S]*?@enduml/gi,
+        (match) => {
+            const encoded = encodeURIComponent(match.trim());
+            return `<div class="plantuml-placeholder" data-plantuml="${encoded}">Loading diagram...</div>`;
+        }
+    );
+
+    // 2. Convert Artemis [task] markers to HTML placeholders before Markdown parsing.
+    //    Patterns: [task][Title](testIds) or [task][Title]
+    //    Without this, marked interprets them as reference-style links.
+    preprocessed = preprocessed.replace(
+        /\[task\]\[([^\]]+)\](?:\(([^)]*)\))?/gi,
+        (_match, title: string) => {
+            return `<span class="task-marker">${title}</span>`;
+        }
+    );
+
+    // 3. Convert Markdown to HTML
+    const html = marked.parse(preprocessed, { async: false }) as string;
+
+    // 4. Sanitize HTML (allow safe tags for rich content)
     let processed = DOMPurify.sanitize(html, {
         ALLOWED_TAGS: [
             'p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
@@ -31,34 +59,18 @@ export function processProblemStatement(html: string): string {
         ]
     });
 
-    // 2. Replace block math ($$...$$) — process BEFORE inline to avoid conflict
+    // 5. Replace block math ($$...$$) — process BEFORE inline to avoid conflict
     processed = processed.replace(/\$\$([^$]+)\$\$/g, (_match: string, latex: string) => {
         return renderKaTeX(latex.trim(), true);
     });
 
-    // 3. Replace inline math ($...$) — single $ delimiters
+    // 6. Replace inline math ($...$) — single $ delimiters
     // Use negative lookbehind/lookahead to avoid matching $$ or escaped \$
     processed = processed.replace(/(?<!\$)\$(?!\$)([^$\n]+?)\$(?!\$)/g, (_match: string, latex: string) => {
         return renderKaTeX(latex.trim(), false);
     });
 
-    // 4. Mark PlantUML blocks for async rendering
-    // Artemis problem statements may contain <pre> blocks with @startuml...@enduml
-    processed = processed.replace(
-        /<pre[^>]*>(?:<code[^>]*>)?(@startuml[\s\S]*?@enduml)(?:<\/code>)?<\/pre>/gi,
-        (_match: string, plantUml: string, _offset: number) => {
-            const encoded = encodeURIComponent(plantUml.trim());
-            return `<div class="plantuml-placeholder" data-plantuml="${encoded}">Loading diagram...</div>`;
-        }
-    );
-
-    // 5. Highlight task markers: "Task N:" or "Subtask N:" patterns
-    processed = processed.replace(
-        /\b(Task\s+\d+(?:\.\d+)?|Subtask\s+\d+(?:\.\d+)?)\s*:/gi,
-        '<span class="task-marker">$1:</span>'
-    );
-
-    // 6. Add data attributes for link and image handling
+    // 7. Add data attributes for link and image handling
     // Links: add data-external-link for click interception
     processed = processed.replace(
         /<a\s+href="([^"]+)"/g,
