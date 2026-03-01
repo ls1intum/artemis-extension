@@ -1,8 +1,7 @@
 .exerciseDetailView {
   display: flex;
   flex-direction: column;
-  gap: 16px;
-  padding: 16px;
+  gap: var(--theme-view-gap);
   color: var(--vscode-foreground);
 }
 
@@ -148,7 +147,6 @@
     .exerciseDetailView {
         max-width: 900px;
         margin: 0 auto;
-        padding: 16px 24px;
     }
 
     .infoGrid {
@@ -159,7 +157,6 @@
 @media (min-width: 900px) {
     .exerciseDetailView {
         max-width: 1100px;
-        padding: 20px 32px;
     }
 
     .infoGrid {

@@ -108,7 +108,7 @@ export function ServiceStatusView({ vscodeApi }: ServiceStatusViewProps) {
         <>
             <BackLink onClick={handleBack}>Back to Dashboard</BackLink>
 
-            <div style={{ padding: '20px 20px 0 20px' }}>
+            <div>
                 {/* Header Card */}
                 <Container
                     header={

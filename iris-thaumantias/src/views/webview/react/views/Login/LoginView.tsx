@@ -232,7 +232,7 @@ export function LoginView({ vscodeApi }: LoginViewProps) {
 	};
 
 	return (
-		<div style={{ padding: '20px', maxWidth: '600px', margin: '0 auto' }}>
+		<div style={{ maxWidth: '600px', margin: '0 auto' }}>
 			{/* Header */}
 			<div style={{ marginBottom: '32px', textAlign: 'center' }}>
 				<h1 style={{ color: 'var(--vscode-foreground)', fontSize: '24px', marginBottom: '8px' }}>

@@ -52,8 +52,10 @@
   /* Layout & effects */
   --theme-button-shadow: none;
   --theme-button-shadow-hover: none;
-  --theme-container-padding: 16px;
+  --theme-container-padding: 10px;
   --theme-container-radius: 3px;
+  --theme-view-padding: 16px;
+  --theme-view-gap: 16px;
   --theme-element-spacing: 6px;
   --theme-form-spacing: 8px;
   --theme-box-shadow: none;
@@ -83,6 +85,7 @@
 
 body {
   margin: 0;
+  padding: 0;
   font-family: var(--theme-font-family, sans-serif);
   font-size: var(--theme-font-size, 13px);
   line-height: var(--theme-line-height, 1.4);
