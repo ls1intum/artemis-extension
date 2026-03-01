@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import type { ExtensionToWebviewMessage } from '../../../../../shared/messageContracts';
-import { BackLink, Container, Badge } from '../../components';
+import { BackLink, Container, Badge, PageHeader } from '../../components';
 import type { StruggleDetectionViewProps, StruggleData } from './types';
+import styles from './StruggleDetectionView.module.css';
 
 function getEqLevel(eq: number): { label: string; color: string } {
     if (eq < 0.15) {
@@ -104,30 +105,15 @@ export function StruggleDetectionView({ vscodeApi }: StruggleDetectionViewProps)
     const eqPercent = Math.min(Math.max(data.eq * 100, 0), 100);
 
     return (
-        <div>
+        <div className={styles.struggleDetectionView}>
             <BackLink onClick={handleBackToDashboard}>
                 Back to Dashboard
             </BackLink>
 
-            <Container className="header-container">
-                <div style={{ marginBottom: '16px' }}>
-                    <h1 style={{
-                        fontSize: '24px',
-                        fontWeight: 600,
-                        margin: '0 0 8px 0',
-                        color: 'var(--vscode-foreground)'
-                    }}>
-                        Struggle Detection
-                    </h1>
-                    <p style={{
-                        margin: 0,
-                        fontSize: '14px',
-                        color: 'var(--vscode-descriptionForeground)'
-                    }}>
-                        Monitors your development patterns to detect when you might need help.
-                    </p>
-                </div>
-            </Container>
+            <PageHeader
+                title="Struggle Detection"
+                subtitle="Monitors your development patterns to detect when you might need help."
+            />
 
             {/* EQ Score */}
             <Container

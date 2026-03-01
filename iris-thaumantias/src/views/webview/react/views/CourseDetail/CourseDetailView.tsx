@@ -17,6 +17,7 @@ import {
     ErrorMessage,
     AskIris,
     EmptyState,
+    PageHeader,
 } from '../../components';
 import type { DropdownOption } from '../../components';
 import styles from './CourseDetailView.module.css';
@@ -236,35 +237,26 @@ export function CourseDetailView({ vscodeApi }: CourseDetailViewProps) {
             {courseData && course && (
                 <>
                     {/* Course Header */}
-                    <Container className={styles.courseHeaderContainer}>
-                        <div
-                            className={styles.courseColorIndicator}
-                            style={{ backgroundColor: course.color || '#6c757d' }}
-                        />
-                        <div className={styles.courseHeader}>
-                            <div className={styles.courseTitleRow}>
-                                <h1 className={styles.courseTitle}>{course.title}</h1>
-                                {course.semester && <Badge variant="muted">{course.semester}</Badge>}
-                            </div>
-                            {course.description && (
-                                <p className={styles.courseDescription}>{course.description}</p>
-                            )}
-                            <div className={styles.courseStats}>
+                    <PageHeader
+                        title={course.title}
+                        subtitle={course.description}
+                    >
+                        <div className={styles.courseStats}>
+                            {course.semester && <Badge variant="muted">{course.semester}</Badge>}
+                            <span className={styles.statItem}>
+                                {course.exercises?.length || 0} exercises
+                            </span>
+                            {course.numberOfStudents !== undefined && (
                                 <span className={styles.statItem}>
-                                    {course.exercises?.length || 0} exercises
+                                    {course.numberOfStudents} students
                                 </span>
-                                {course.numberOfStudents !== undefined && (
-                                    <span className={styles.statItem}>
-                                        {course.numberOfStudents} students
-                                    </span>
-                                )}
-                                {course.instructorGroupName && (
-                                    <span className={styles.statItem}>{course.instructorGroupName}</span>
-                                )}
-                                <span className={styles.statItem}>ID: {course.id}</span>
-                            </div>
+                            )}
+                            {course.instructorGroupName && (
+                                <span className={styles.statItem}>{course.instructorGroupName}</span>
+                            )}
+                            <span className={styles.statItem}>ID: {course.id}</span>
                         </div>
-                    </Container>
+                    </PageHeader>
 
                     {/* Ask Iris Section */}
                     <div className={styles.irisSection}>

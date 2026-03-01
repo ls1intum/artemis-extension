@@ -4,7 +4,8 @@
  */
 
 import { useState, useEffect } from 'react';
-import { BackLink, Container, TextInput, Button } from '../../components';
+import { BackLink, Container, TextInput, Button, PageHeader } from '../../components';
+import styles from './GitCredentialsView.module.css';
 import type { GitCredentialsViewProps, GitCredentialsPersistedState } from './types';
 import type { GitCredentialsInitMessage, GitCredentialsResultMessage } from '../../../../../shared/messageContracts';
 
@@ -129,143 +130,101 @@ export function GitCredentialsView({ vscodeApi }: GitCredentialsViewProps) {
     } : {};
 
     return (
-        <>
+        <div className={styles.gitCredentialsView}>
             <BackLink onClick={handleBackClick}>Back to Dashboard</BackLink>
 
-            <div>
-                {/* Header Card */}
-                <Container
-                    header={
-                        <div>
-                            <div style={{ fontSize: '18px', fontWeight: 600, marginBottom: '4px' }}>
-                                Git Credentials Helper
-                            </div>
-                            <div style={{ fontSize: '13px', opacity: 0.8 }}>
-                                Connect Git with your Artemis account to push and pull without repeated prompts
-                            </div>
+            <PageHeader
+                title="Git Credentials Helper"
+                subtitle="Connect Git with your Artemis account to push and pull without repeated prompts"
+            />
+
+            <Container
+                header={<div className={styles.sectionTitle}>Why this matters</div>}
+                variant="muted"
+            >
+                <p style={{ margin: 0, fontSize: '13px', lineHeight: '1.5' }}>
+                    Git needs a name and email address for every commit. Without them, Artemis submissions fail with
+                    "Please tell me who you are." Use this helper to configure the Git identity that should be attached
+                    to your submissions.
+                </p>
+            </Container>
+
+            <Container
+                header={
+                    <div>
+                        <div className={styles.sectionTitle}>
+                            Configure Git author information
                         </div>
-                    }
-                    variant="default"
-                    padding="default"
-                    className="git-card-header"
-                >
-                    {/* Empty content - header only card */}
-                    <div />
-                </Container>
+                        <div style={{ fontSize: '12px', opacity: 0.8, marginTop: '4px' }}>
+                            Set the name and email Git will place on commits coming from this machine
+                        </div>
+                    </div>
+                }
+            >
+                <form onSubmit={handleSubmit}>
+                    <TextInput
+                        label="Git User Name"
+                        placeholder="e.g. Alex Example"
+                        type="text"
+                        value={name}
+                        onChange={setName}
+                        required
+                        fullWidth
+                    />
+                    <div style={{ marginTop: '12px' }}>
+                        <TextInput
+                            label="Git Email Address"
+                            placeholder="tum-login@tum.de"
+                            type="email"
+                            value={email}
+                            onChange={setEmail}
+                            required
+                            fullWidth
+                            hint="Tip: students usually use their TUM address."
+                        />
+                    </div>
+                    <div style={{ marginTop: '16px' }}>
+                        <Button type="submit" variant="primary">
+                            Save identity (global)
+                        </Button>
+                    </div>
 
-                {/* Info Card */}
-                <div style={{ marginTop: '16px' }}>
-                    <Container
-                        header={
-                            <div style={{ fontSize: '15px', fontWeight: 600 }}>
-                                Why this matters
-                            </div>
-                        }
-                        variant="muted"
-                        padding="default"
-                        className="git-card-info"
-                    >
-                        <p style={{ margin: 0, fontSize: '13px', lineHeight: '1.5' }}>
-                            Git needs a name and email address for every commit. Without them, Artemis submissions fail with
-                            "Please tell me who you are." Use this helper to configure the Git identity that should be attached
-                            to your submissions.
-                        </p>
-                    </Container>
-                </div>
+                    {statusMessage && (
+                        <div role="status" aria-live="polite" style={statusStyles}>
+                            {statusMessage}
+                        </div>
+                    )}
+                </form>
+            </Container>
 
-                {/* Form Card */}
-                <div style={{ marginTop: '16px' }}>
-                    <Container
-                        header={
-                            <div>
-                                <div style={{ fontSize: '15px', fontWeight: 600, marginBottom: '4px' }}>
-                                    Configure Git author information
-                                </div>
-                                <div style={{ fontSize: '12px', opacity: 0.8 }}>
-                                    Set the name and email Git will place on commits coming from this machine
-                                </div>
-                            </div>
-                        }
-                        variant="default"
-                        padding="default"
-                        className="git-card-form"
-                    >
-                        <form onSubmit={handleSubmit}>
-                            <TextInput
-                                label="Git User Name"
-                                placeholder="e.g. Alex Example"
-                                type="text"
-                                value={name}
-                                onChange={setName}
-                                required
-                                fullWidth
-                            />
-                            <div style={{ marginTop: '12px' }}>
-                                <TextInput
-                                    label="Git Email Address"
-                                    placeholder="tum-login@tum.de"
-                                    type="email"
-                                    value={email}
-                                    onChange={setEmail}
-                                    required
-                                    fullWidth
-                                    hint="Tip: students usually use their TUM address."
-                                />
-                            </div>
-                            <div style={{ marginTop: '16px' }}>
-                                <Button type="submit" variant="primary">
-                                    Save identity (global)
-                                </Button>
-                            </div>
-
-                            {statusMessage && (
-                                <div role="status" aria-live="polite" style={statusStyles}>
-                                    {statusMessage}
-                                </div>
-                            )}
-                        </form>
-                    </Container>
-                </div>
-
-                {/* Tips Card */}
-                <div style={{ marginTop: '16px', marginBottom: '20px' }}>
-                    <Container
-                        header={
-                            <div style={{ fontSize: '15px', fontWeight: 600 }}>
-                                Tips & Useful Commands
-                            </div>
-                        }
-                        variant="default"
-                        padding="default"
-                        className="git-card-tips"
-                    >
-                        <ul style={{ margin: 0, paddingLeft: '20px', fontSize: '13px', lineHeight: '1.7' }}>
-                            <li>
-                                View or change your Git identity manually:
-                                <div style={{ marginTop: '8px', display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                                    <Button
-                                        variant="secondary"
-                                        alignText="left"
-                                        onClick={() => handleCopyCommand('git config user.name')}
-                                    >
-                                        git config user.name
-                                    </Button>
-                                    <Button
-                                        variant="secondary"
-                                        alignText="left"
-                                        onClick={() => handleCopyCommand('git config user.email')}
-                                    >
-                                        git config user.email
-                                    </Button>
-                                </div>
-                            </li>
-                            <li>The form above saves your identity globally for all repositories on this computer.</li>
-                            <li>Git credentials (username/password or token) are managed separately via Git's credential helper.</li>
-                            <li>You can rerun this helper anytime if you change your preferred name or email.</li>
-                        </ul>
-                    </Container>
-                </div>
-            </div>
-        </>
+            <Container
+                header={<div className={styles.sectionTitle}>Tips & Useful Commands</div>}
+            >
+                <ul style={{ margin: 0, paddingLeft: '20px', fontSize: '13px', lineHeight: '1.7' }}>
+                    <li>
+                        View or change your Git identity manually:
+                        <div style={{ marginTop: '8px', display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                            <Button
+                                variant="secondary"
+                                alignText="left"
+                                onClick={() => handleCopyCommand('git config user.name')}
+                            >
+                                git config user.name
+                            </Button>
+                            <Button
+                                variant="secondary"
+                                alignText="left"
+                                onClick={() => handleCopyCommand('git config user.email')}
+                            >
+                                git config user.email
+                            </Button>
+                        </div>
+                    </li>
+                    <li>The form above saves your identity globally for all repositories on this computer.</li>
+                    <li>Git credentials (username/password or token) are managed separately via Git's credential helper.</li>
+                    <li>You can rerun this helper anytime if you change your preferred name or email.</li>
+                </ul>
+            </Container>
+        </div>
     );
 }

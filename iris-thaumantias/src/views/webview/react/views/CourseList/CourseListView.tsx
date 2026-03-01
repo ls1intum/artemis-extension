@@ -14,6 +14,7 @@ import {
     Badge,
     SkeletonList,
     ErrorMessage,
+    PageHeader,
 } from '../../components';
 import type { DropdownOption } from '../../components';
 import styles from './CourseListView.module.css';
@@ -222,15 +223,9 @@ export function CourseListView({ vscodeApi }: CourseListViewProps) {
                 <IconButton.Settings onClick={handleOpenSettings} title="Settings" />
             </div>
 
-            <Container
-                className={styles.headerContainer}
-                header={
-                    <div>
-                        <h2 className={styles.sectionTitle}>All Courses</h2>
-                        <p className={styles.sectionSubtitle}>Browse and manage your enrolled courses</p>
-                    </div>
-                }
-            >
+            <PageHeader title="All Courses" subtitle="Browse and manage your enrolled courses" />
+
+            <Container>
                 <div className={styles.searchContainer}>
                     <TextInput
                         type="search"

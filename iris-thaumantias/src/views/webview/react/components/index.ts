@@ -84,5 +84,8 @@ export type { ErrorMessageProps } from './ErrorMessage';
 export { EmptyState } from './EmptyState';
 export type { EmptyStateProps } from './EmptyState';
 
+export { PageHeader } from './PageHeader';
+export type { PageHeaderProps } from './PageHeader';
+
 // Icon components
 export { ArtemisLogo } from './icons';

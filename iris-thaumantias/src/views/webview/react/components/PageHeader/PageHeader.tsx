@@ -1,0 +1,19 @@
+import { ReactNode } from 'react';
+import { Container } from '../Container';
+import styles from './PageHeader.module.css';
+
+export interface PageHeaderProps {
+  title: string;
+  subtitle?: string;
+  children?: ReactNode;
+}
+
+export function PageHeader({ title, subtitle, children }: PageHeaderProps) {
+  return (
+    <Container>
+      <h1 className={styles.pageTitle}>{title}</h1>
+      {subtitle && <p className={styles.pageSubtitle}>{subtitle}</p>}
+      {children}
+    </Container>
+  );
+}

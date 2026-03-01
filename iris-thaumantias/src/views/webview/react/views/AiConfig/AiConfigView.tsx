@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import type { ExtensionToWebviewMessage } from '../../../../../shared/messageContracts';
-import { BackLink, Container, Badge } from '../../components';
+import { BackLink, Container, Badge, PageHeader } from '../../components';
 import type { AiConfigViewProps, AiExtensionItem } from './types';
+import styles from './AiConfigView.module.css';
 
 export function AiConfigView({ vscodeApi }: AiConfigViewProps) {
     const [extensions, setExtensions] = useState<AiExtensionItem[]>([]);
@@ -46,30 +47,15 @@ export function AiConfigView({ vscodeApi }: AiConfigViewProps) {
     const installedCount = extensions.filter(e => e.isInstalled).length;
 
     return (
-        <div>
+        <div className={styles.aiConfigView}>
             <BackLink onClick={handleBackToDashboard}>
                 Back to Dashboard
             </BackLink>
 
-            <Container className="header-container">
-                <div style={{ marginBottom: '16px' }}>
-                    <h1 style={{
-                        fontSize: '24px',
-                        fontWeight: 600,
-                        margin: '0 0 8px 0',
-                        color: 'var(--vscode-foreground)'
-                    }}>
-                        AI Extension Checker
-                    </h1>
-                    <p style={{
-                        margin: 0,
-                        fontSize: '14px',
-                        color: 'var(--vscode-descriptionForeground)'
-                    }}>
-                        Checks for AI-assisted coding extensions that may violate academic integrity policies.
-                    </p>
-                </div>
-
+            <PageHeader
+                title="AI Extension Checker"
+                subtitle="Checks for AI-assisted coding extensions that may violate academic integrity policies."
+            >
                 {isLoaded && extensions.length > 0 && (
                     <div style={{
                         padding: '12px 16px',
@@ -87,7 +73,7 @@ export function AiConfigView({ vscodeApi }: AiConfigViewProps) {
                         {installedCount} of {extensions.length} blocklisted extensions installed
                     </div>
                 )}
-            </Container>
+            </PageHeader>
 
             {isLoaded && Object.entries(groupedByProvider).map(([providerName, group]) => (
                 <Container

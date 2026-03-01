@@ -12,11 +12,13 @@ import type {
 import {
     BackLink,
     Container,
+    PageHeader,
     TextInput,
     Button,
     ServiceHealth,
 } from '../../components';
 import type { ServiceInfo } from '../../components/ServiceHealth/ServiceHealth';
+import styles from './ServiceStatusView.module.css';
 
 export function ServiceStatusView({ vscodeApi }: ServiceStatusViewProps) {
     // Restore persisted state (serverUrl only)
@@ -105,85 +107,51 @@ export function ServiceStatusView({ vscodeApi }: ServiceStatusViewProps) {
     }));
 
     return (
-        <>
+        <div className={styles.serviceStatusView}>
             <BackLink onClick={handleBack}>Back to Dashboard</BackLink>
 
-            <div>
-                {/* Header Card */}
-                <Container
-                    header={
-                        <div>
-                            <div style={{ fontSize: '18px', fontWeight: 600, marginBottom: '4px' }}>
-                                Service Status
-                            </div>
-                            <div style={{ fontSize: '13px', opacity: 0.8 }}>
-                                Real-time monitoring of Artemis services
-                            </div>
+            <PageHeader title="Service Status" subtitle="Real-time monitoring of Artemis services" />
+
+            <Container
+                header={<div className={styles.sectionTitle}>Connected Server</div>}
+            >
+                <TextInput
+                    id="serverUrl"
+                    label="Server URL"
+                    type="text"
+                    value={serverUrl}
+                    onChange={() => {}} // No-op since it's disabled
+                    disabled={true}
+                    fullWidth={true}
+                />
+            </Container>
+
+            <Container
+                header={
+                    <div>
+                        <div className={styles.sectionTitle}>Health Checks</div>
+                        <div style={{ fontSize: '12px', opacity: 0.8, marginTop: '4px' }}>
+                            Click on each service to see detailed information
                         </div>
-                    }
-                    variant="default"
-                    padding="default"
-                >
-                    <div />
-                </Container>
-
-                {/* Server Info Card */}
-                <div style={{ marginTop: '16px' }}>
-                    <Container
-                        header={
-                            <div style={{ fontSize: '15px', fontWeight: 600 }}>
-                                Connected Server
-                            </div>
-                        }
-                        variant="default"
-                        padding="default"
-                    >
-                        <TextInput
-                            id="serverUrl"
-                            label="Server URL"
-                            type="text"
-                            value={serverUrl}
-                            onChange={() => {}} // No-op since it's disabled
-                            disabled={true}
-                            fullWidth={true}
-                        />
-                    </Container>
-                </div>
-
-                {/* Health Checks Card */}
-                <div style={{ marginTop: '16px', marginBottom: '20px' }}>
-                    <Container
-                        header={
-                            <div>
-                                <div style={{ fontSize: '15px', fontWeight: 600, marginBottom: '4px' }}>
-                                    Health Checks
-                                </div>
-                                <div style={{ fontSize: '12px', opacity: 0.8 }}>
-                                    Click on each service to see detailed information
-                                </div>
-                            </div>
-                        }
-                        variant="default"
-                        padding="default"
-                    >
-                        {services.length > 0 ? (
-                            <ServiceHealth
-                                services={services}
-                                onRefresh={handleRefresh}
-                                isRefreshing={isChecking}
-                                lastCheckTime={lastCheckTime}
-                                showTitle={false}
-                                compact={false}
-                            />
-                        ) : (
-                            <div style={{ padding: '20px', textAlign: 'center', color: 'var(--vscode-descriptionForeground)' }}>
-                                {isChecking ? 'Performing health checks...' : 'No health check results available'}
-                            </div>
-                        )}
-                    </Container>
-                </div>
-            </div>
-        </>
+                    </div>
+                }
+            >
+                {services.length > 0 ? (
+                    <ServiceHealth
+                        services={services}
+                        onRefresh={handleRefresh}
+                        isRefreshing={isChecking}
+                        lastCheckTime={lastCheckTime}
+                        showTitle={false}
+                        compact={false}
+                    />
+                ) : (
+                    <div style={{ padding: '20px', textAlign: 'center', color: 'var(--vscode-descriptionForeground)' }}>
+                        {isChecking ? 'Performing health checks...' : 'No health check results available'}
+                    </div>
+                )}
+            </Container>
+        </div>
     );
 }
 

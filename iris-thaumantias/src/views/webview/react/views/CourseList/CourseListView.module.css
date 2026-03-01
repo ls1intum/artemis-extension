@@ -3,14 +3,12 @@
     flex-direction: row;
     align-items: center;
     gap: 0.5rem;
-    margin-bottom: 1rem;
 }
 
 .courseListContainer {
-}
-
-.headerContainer {
-    margin-bottom: 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: var(--theme-view-gap);
 }
 
 .searchContainer {

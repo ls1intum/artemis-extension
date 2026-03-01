@@ -22,47 +22,9 @@
 }
 
 /* Course Header */
-.courseHeaderContainer {
-    position: relative;
-}
-
-.courseColorIndicator {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 4px;
-    height: 100%;
-    border-radius: 4px 0 0 4px;
-}
-
-.courseHeader {
-    padding-left: 12px;
-}
-
-.courseTitleRow {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    flex-wrap: wrap;
-    margin-bottom: 8px;
-}
-
-.courseTitle {
-    font-size: 24px;
-    font-weight: 600;
-    color: var(--vscode-foreground);
-    margin: 0;
-}
-
-.courseDescription {
-    color: var(--vscode-descriptionForeground);
-    font-size: 14px;
-    line-height: 1.5;
-    margin: 0 0 12px 0;
-}
-
 .courseStats {
     display: flex;
+    align-items: center;
     gap: 16px;
     flex-wrap: wrap;
 }

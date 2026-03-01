@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { ExtensionToWebviewMessage } from '../../../../../shared/messageContracts';
-import { BackLink, Container, Button, Badge } from '../../components';
+import { BackLink, Container, Button, Badge, PageHeader } from '../../components';
+import styles from './RecommendedExtensionsView.module.css';
 import type { RecommendedExtensionsViewProps, ExtensionCategory, Extension, RecommendedExtensionsPersistedState } from './types';
 
 export function RecommendedExtensionsView({ vscodeApi }: RecommendedExtensionsViewProps) {
@@ -106,67 +107,51 @@ export function RecommendedExtensionsView({ vscodeApi }: RecommendedExtensionsVi
     }
 
     return (
-        <div className="recommended-container">
+        <div className={styles.recommendedExtensionsView}>
             <BackLink onClick={handleBackToDashboard}>
                 Back to Dashboard
             </BackLink>
 
-            {/* Header */}
-            <Container className="header-container">
-                <div style={{ marginBottom: '16px' }}>
-                    <h1 style={{
-                        fontSize: '24px',
-                        fontWeight: 600,
-                        margin: '0 0 8px 0',
-                        color: 'var(--vscode-foreground)'
-                    }}>
-                        Recommended Extensions
-                    </h1>
-                    <p style={{
-                        margin: 0,
-                        fontSize: '14px',
-                        color: 'var(--vscode-descriptionForeground)'
-                    }}>
-                        Improve your Artemis workflow with curated VS Code extensions.
-                    </p>
-                </div>
+            <PageHeader
+                title="Recommended Extensions"
+                subtitle="Improve your Artemis workflow with curated VS Code extensions."
+            />
 
-                {/* Filter controls */}
-                {isLoaded && categories.length > 0 && (
-                    <div style={{ marginTop: '20px' }}>
-                        <div style={{
-                            fontSize: '11px',
-                            fontWeight: 600,
-                            letterSpacing: '0.5px',
-                            color: 'var(--vscode-descriptionForeground)',
-                            marginBottom: '8px'
-                        }}>
-                            FILTER
-                        </div>
-                        <div style={{
-                            display: 'flex',
-                            gap: '8px',
-                            flexWrap: 'wrap'
-                        }}>
-                            <Button
-                                variant={selectedCategory === 'all' ? 'primary' : 'secondary'}
-                                onClick={() => handleCategoryFilter('all')}
-                            >
-                                All categories
-                            </Button>
-                            {categories.map(category => (
-                                <Button
-                                    key={category.id}
-                                    variant={selectedCategory === category.id ? 'primary' : 'secondary'}
-                                    onClick={() => handleCategoryFilter(category.id)}
-                                >
-                                    {category.name}
-                                </Button>
-                            ))}
-                        </div>
+            {/* Filter controls */}
+            {isLoaded && categories.length > 0 && (
+                <Container>
+                    <div style={{
+                        fontSize: '11px',
+                        fontWeight: 600,
+                        letterSpacing: '0.5px',
+                        color: 'var(--vscode-descriptionForeground)',
+                        marginBottom: '8px'
+                    }}>
+                        FILTER
                     </div>
-                )}
-            </Container>
+                    <div style={{
+                        display: 'flex',
+                        gap: '8px',
+                        flexWrap: 'wrap'
+                    }}>
+                        <Button
+                            variant={selectedCategory === 'all' ? 'primary' : 'secondary'}
+                            onClick={() => handleCategoryFilter('all')}
+                        >
+                            All categories
+                        </Button>
+                        {categories.map(category => (
+                            <Button
+                                key={category.id}
+                                variant={selectedCategory === category.id ? 'primary' : 'secondary'}
+                                onClick={() => handleCategoryFilter(category.id)}
+                            >
+                                {category.name}
+                            </Button>
+                        ))}
+                    </div>
+                </Container>
+            )}
 
             {/* Category sections */}
             {isLoaded && filteredCategories.map(category => (

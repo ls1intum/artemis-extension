@@ -1,0 +1,26 @@
+.serviceStatusView {
+    display: flex;
+    flex-direction: column;
+    gap: var(--theme-view-gap);
+}
+
+.pageTitle {
+    font-size: 24px;
+    font-weight: 600;
+    color: var(--vscode-foreground);
+    margin: 0;
+}
+
+.pageSubtitle {
+    color: var(--vscode-descriptionForeground);
+    font-size: 14px;
+    line-height: 1.5;
+    margin: 8px 0 0 0;
+}
+
+.sectionTitle {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--vscode-foreground);
+    margin: 0;
+}
