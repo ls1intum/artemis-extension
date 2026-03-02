@@ -8,6 +8,8 @@ import {
 import type { IrisChatMessage } from '../types/apiResponses';
 import type { IChatWebviewProvider } from '../types/IChatWebviewProvider';
 import { getReactWebviewHtml } from '../utils/webviewHelpers';
+import { ExtensionMsg } from '../shared/messageContracts';
+import type { ExtensionToWebviewMessage, ExtMsg } from '../shared/messageContracts';
 import { isWebviewMessage } from '../shared/messageContracts/typeGuards';
 import { extractIrisMessageContent } from '../utils/irisMessageUtils';
 import { logger, LogLevel, LogCategory } from '../services/loggingService';
@@ -64,7 +66,7 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
 
     // Ready-signal handshake state
     private _webviewReady = false;
-    private _pendingMessages: unknown[] = [];
+    private _pendingMessages: ExtensionToWebviewMessage[] = [];
 
     private readonly _onDidChangeExerciseContext = new vscode.EventEmitter<ExerciseContextChangeEvent>();
     public readonly onDidChangeExerciseContext = this._onDidChangeExerciseContext.event;
@@ -126,7 +128,7 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
 
         this._fileMonitorService.onDidUpdateFiles(update => {
             this._postMessageSafe({
-                type: 'updateReferencedFiles',
+                type: ExtensionMsg.UpdateReferencedFiles,
                 ...update
             });
         });
@@ -184,7 +186,7 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
     /**
      * Safely post a message to the webview, queuing it if the webview is not ready yet.
      */
-    private _postMessageSafe(message: unknown): void {
+    private _postMessageSafe(message: ExtensionToWebviewMessage): void {
         if (this._webviewReady && this._view) {
             this._view.webview.postMessage(message);
         } else {
@@ -299,9 +301,9 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
         };
     }
 
-    private _serializeSnapshot(snapshot: ContextSnapshot) {
+    private _serializeSnapshot(snapshot: ContextSnapshot): ExtMsg<'updateIrisState'>['state'] {
         return {
-            context: snapshot.activeContext,
+            context: snapshot.activeContext as ExtMsg<'updateIrisState'>['state']['context'],
             activeSessionId: snapshot.activeSession?.id ?? null,
             sessions: snapshot.sessions.map(session => this._serializeSession(session)),
             recentExercises: snapshot.recentExercises,
@@ -421,6 +423,17 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
         }
 
         const typedMessage = message as { type?: string; command?: string; payload?: Record<string, unknown> };
+
+        // Log error reports from webview ErrorBoundary
+        if (typedMessage.type === 'error') {
+            const errorPayload = typedMessage.payload;
+            logger.error('Chat webview ErrorBoundary crash report', LogCategory.IRIS_CHAT, {
+                message: errorPayload?.message,
+                stack: errorPayload?.stack,
+                componentStack: errorPayload?.componentStack,
+            });
+            return;
+        }
 
         // Handle React ready signal (sent as { type: 'ready' })
         if (typedMessage.type === 'ready') {
@@ -792,7 +805,7 @@ Iris can see files from your workspace (configurable in settings). Check the "Re
 
                     return {
                         id: msg.id,
-                        role: msg.sender === 'USER' ? 'user' : 'assistant',
+                        role: (msg.sender === 'USER' ? 'user' : 'assistant') as 'user' | 'assistant',
                         content: content,
                         timestamp: msg.sentAt ? new Date(msg.sentAt).getTime() : Date.now(),
                         helpful: (msg as { helpful?: boolean | null }).helpful // true, false, or null
@@ -827,7 +840,7 @@ Iris can see files from your workspace (configurable in settings). Check the "Re
         this._contextStore.clearAllSessions();
 
         // Clear chat UI
-        this._postMessageSafe({ type: 'clearChatMessages' });
+        this._postMessageSafe({ type: ExtensionMsg.ClearChatMessages });
 
         // Post updated snapshot
         this._postSnapshot();
@@ -958,7 +971,7 @@ Iris can see files from your workspace (configurable in settings). Check the "Re
         this._resetSessionStateForContextChange();
 
         // Clear messages immediately to avoid showing old context messages
-        this._postMessageSafe({ type: 'clearChatMessages' });
+        this._postMessageSafe({ type: ExtensionMsg.ClearChatMessages });
 
         vscode.window.showInformationMessage(`Course context set to: ${courseTitle}`);
 
@@ -1033,7 +1046,7 @@ Iris can see files from your workspace (configurable in settings). Check the "Re
         this._resetSessionStateForContextChange();
 
         // Clear messages immediately to avoid showing old context messages
-        this._postMessageSafe({ type: 'clearChatMessages' });
+        this._postMessageSafe({ type: ExtensionMsg.ClearChatMessages });
 
         vscode.window.showInformationMessage(`Exercise context set to: ${exerciseTitle}`);
 

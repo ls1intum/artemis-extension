@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from 'react';
-import { isExtensionMessage, postCommand } from '../../../../../shared/messageContracts';
+import { ExtensionMsg, isExtensionMessage, postCommand } from '../../../../../shared/messageContracts';
 import type { VsCodeApi } from '../../../../../shared/messageContracts';
 import { useChatStore } from '../../stores/useChatStore';
 import { ChatMessageList } from './components/ChatMessageList';
@@ -65,7 +65,7 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
             }
 
             switch (event.data.type) {
-                case 'updateIrisState': {
+                case ExtensionMsg.UpdateIrisState: {
                     store.setIrisState(event.data.state);
                     if (event.data.showDiagnostics !== undefined) {
                         store.setShowDiagnostics(event.data.showDiagnostics);
@@ -73,13 +73,13 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
                     break;
                 }
 
-                case 'showContextPicker': {
+                case ExtensionMsg.ShowContextPicker: {
                     store.setIrisState(event.data.state);
                     setForceContextPicker(true);
                     break;
                 }
 
-                case 'addMessage': {
+                case ExtensionMsg.AddMessage: {
                     const msg = event.data.message;
                     store.addMessage({
                         id: msg.id,
@@ -93,7 +93,7 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
                     break;
                 }
 
-                case 'loadMessages': {
+                case ExtensionMsg.LoadMessages: {
                     store.setMessages(event.data.messages.map((msg) => ({
                         id: msg.id,
                         localId: crypto.randomUUID(),
@@ -106,11 +106,11 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
                     break;
                 }
 
-                case 'clearChatMessages':
+                case ExtensionMsg.ClearChatMessages:
                     store.clearMessages();
                     break;
 
-                case 'updateReferencedFiles': {
+                case ExtensionMsg.UpdateReferencedFiles: {
                     store.setReferencedFiles({
                         includedFiles: event.data.includedFiles,
                         excludedFiles: event.data.excludedFiles,
@@ -119,21 +119,21 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
                     break;
                 }
 
-                case 'updateWebSocketStatus': {
+                case ExtensionMsg.UpdateWebSocketStatus: {
                     store.setWebSocketConnected(event.data.isConnected);
                     break;
                 }
 
-                case 'showDisabledState': {
+                case ExtensionMsg.ShowDisabledState: {
                     store.setDisabledMessage(event.data.message);
                     break;
                 }
 
-                case 'hideDisabledState':
+                case ExtensionMsg.HideDisabledState:
                     store.setDisabledMessage(null);
                     break;
 
-                case 'updateNoAiStatus': {
+                case ExtensionMsg.UpdateNoAiStatus: {
                     store.setNoAiDetected(event.data.isNoAiDetected);
                     break;
                 }

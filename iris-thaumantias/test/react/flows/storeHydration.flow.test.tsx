@@ -11,7 +11,7 @@ vi.mock('../../../src/views/webview/react/hooks/useExamTimer', () => ({
 import { GitCredentialsView } from '../../../src/views/webview/react/views/GitCredentials/GitCredentialsView';
 import { ServiceStatusView } from '../../../src/views/webview/react/views/ServiceStatus/ServiceStatusView';
 import { RecommendedExtensionsView } from '../../../src/views/webview/react/views/RecommendedExtensions/RecommendedExtensionsView';
-import { LoginView } from '../../../src/views/webview/react/views/Login/LoginView';
+
 import { DashboardView } from '../../../src/views/webview/react/views/Dashboard/DashboardView';
 import { CourseListView } from '../../../src/views/webview/react/views/CourseList/CourseListView';
 import { CourseDetailView } from '../../../src/views/webview/react/views/CourseDetail/CourseDetailView';
@@ -39,7 +39,6 @@ import {
     createGitCredentialsPayload,
     createServiceStatusPayload,
     createRecommendedExtensionsPayload,
-    createLoginInitPayload,
     createDashboardPayload,
     createCourseListPayload,
     createCourseDetailPayload,
@@ -146,27 +145,6 @@ describe('recommendedExtensionsInit hydrates RecommendedExtensionsView local sta
 // ============================================================================
 // 4. showLoggedIn → LoginView local state
 // ============================================================================
-
-describe('showLoggedIn hydrates LoginView local state', () => {
-    it('renders logged-in username and server URL after init message', async () => {
-        const mockApi = createMockVsCodeApi();
-        render(<LoginView vscodeApi={mockApi} />);
-
-        await act(async () => {
-            dispatchExtensionMessage(
-                createLoginInitPayload({
-                    userInfo: {
-                        username: 'testuser',
-                        serverUrl: 'https://artemis.example.com',
-                    },
-                }),
-            );
-        });
-
-        expect(screen.getByText('testuser')).toBeInTheDocument();
-        expect(screen.getByText('https://artemis.example.com')).toBeInTheDocument();
-    });
-});
 
 // ============================================================================
 // 5. dashboardInit → useDashboardStore
@@ -311,7 +289,7 @@ describe('examStartInit hydrates useExamStartStore', () => {
         const state = useExamStartStore.getState();
         expect(state.studentExam).not.toBeNull();
         expect(state.courseId).toBe(3);
-        expect(state.loading).toBe(false);
+        expect(state.isLoading).toBe(false);
     });
 });
 
@@ -345,7 +323,7 @@ describe('examConductionInit hydrates useExamConductionStore', () => {
         const state = useExamConductionStore.getState();
         expect(state.studentExam).not.toBeNull();
         expect(state.courseId).toBe(5);
-        expect(state.loading).toBe(false);
+        expect(state.isLoading).toBe(false);
     });
 });
 
@@ -382,7 +360,7 @@ describe('examExerciseDetailInit hydrates useExamExerciseDetailStore', () => {
         const state = useExamExerciseDetailStore.getState();
         expect(state.examContext).not.toBeNull();
         expect(state.examContext?.courseId).toBe(6);
-        expect(state.loading).toBe(false);
+        expect(state.isLoading).toBe(false);
     });
 });
 

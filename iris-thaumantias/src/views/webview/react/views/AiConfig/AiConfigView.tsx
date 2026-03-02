@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { isExtensionMessage, postCommand } from '../../../../../shared/messageContracts';
+import { ExtensionMsg, isExtensionMessage, postCommand } from '../../../../../shared/messageContracts';
 import { BackLink, Container, Badge, PageHeader, SkeletonList } from '../../components';
 import type { AiConfigViewProps, AiExtensionItem } from './types';
 import styles from './AiConfigView.module.css';
@@ -14,7 +14,7 @@ export function AiConfigView({ vscodeApi }: AiConfigViewProps) {
                 return;
             }
 
-            if (event.data.type === 'aiConfigInit') {
+            if (event.data.type === ExtensionMsg.AiConfigInit) {
                 setExtensions(event.data.aiExtensions);
                 setIsLoaded(true);
             }

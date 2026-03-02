@@ -29,6 +29,11 @@ export class AuthCommandModule {
 
             await this.context.updateAuthContext(true);
 
+            this.context.sendMessage({
+                type: ExtensionMsg.LoginSuccess,
+                username: user.login || username,
+            });
+
             vscode.window.showInformationMessage(`Successfully logged in to Artemis as ${user.login || username}`);
 
             await this.context.actionHandler.showDashboard({

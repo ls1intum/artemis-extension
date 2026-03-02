@@ -17,7 +17,7 @@ import {
     PageHeader,
 } from '../../components';
 import type { DropdownOption } from '../../components';
-import { isExtensionMessage, postCommand } from '../../../../../shared/messageContracts';
+import { ExtensionMsg, isExtensionMessage, postCommand } from '../../../../../shared/messageContracts';
 import styles from './CourseListView.module.css';
 
 export function CourseListView({ vscodeApi }: CourseListViewProps) {
@@ -57,7 +57,7 @@ export function CourseListView({ vscodeApi }: CourseListViewProps) {
 
         // Push breadcrumb
         pushBreadcrumb('Courses', 'course-list', () => {
-            vscodeApi.postMessage({ type: 'command', command: 'showAllCourses' });
+            postCommand(vscodeApi, 'showAllCourses');
         });
 
         // Listen for courseList messages
@@ -66,9 +66,9 @@ export function CourseListView({ vscodeApi }: CourseListViewProps) {
                 return;
             }
 
-            if (event.data.type === 'courseListInit') {
+            if (event.data.type === ExtensionMsg.CourseListInit) {
                 setCourses(event.data.courses ?? [], event.data.archivedCourses);
-            } else if (event.data.type === 'archivedCoursesLoaded') {
+            } else if (event.data.type === ExtensionMsg.ArchivedCoursesLoaded) {
                 setArchivedCourses(event.data.archivedCourses ?? []);
             }
         };

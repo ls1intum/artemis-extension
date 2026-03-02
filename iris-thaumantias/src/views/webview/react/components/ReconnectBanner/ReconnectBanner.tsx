@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { isExtensionMessage } from '../../../../../shared/messageContracts';
+import { ExtensionMsg, isExtensionMessage } from '../../../../../shared/messageContracts';
 import styles from './ReconnectBanner.module.css';
 
 export function ReconnectBanner() {
@@ -11,12 +11,14 @@ export function ReconnectBanner() {
                 return;
             }
 
-            if (event.data.type === 'websocketDisconnected') {
-                setIsVisible(true);
-            } else if (event.data.type === 'websocketConnected') {
-                setTimeout(() => {
-                    setIsVisible(false);
-                }, 2000);
+            if (event.data.type === ExtensionMsg.UpdateWebSocketStatus) {
+                if (!event.data.isConnected) {
+                    setIsVisible(true);
+                } else {
+                    setTimeout(() => {
+                        setIsVisible(false);
+                    }, 2000);
+                }
             }
         };
 

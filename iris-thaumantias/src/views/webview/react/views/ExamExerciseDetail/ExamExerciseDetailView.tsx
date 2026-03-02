@@ -21,12 +21,12 @@ import { ProblemStatement, ScoreInfo, TestResults } from '../ExerciseDetail/comp
 import type { ExamExerciseDetailViewProps } from './types';
 import type { ExerciseType } from '../../components/exercise/ParticipationActions';
 import type { BuildState } from '../../components/exercise/BuildProgress';
-import { isExtensionMessage, postCommand } from '../../../../../shared/messageContracts';
+import { ExtensionMsg, isExtensionMessage, postCommand } from '../../../../../shared/messageContracts';
 import { determineSubmissionStatus, determineParticipationStatus } from '../../utils/exerciseStatus';
 import styles from './ExamExerciseDetailView.module.css';
 
 export function ExamExerciseDetailView({ vscodeApi }: ExamExerciseDetailViewProps) {
-    const { examContext, loading: examLoading, error: examError, setExamExerciseData, setError } =
+    const { examContext, isLoading: examLoading, error: examError, setExamExerciseData, setError } =
         useExamExerciseDetailStore();
     const {
         exerciseData,
@@ -50,7 +50,7 @@ export function ExamExerciseDetailView({ vscodeApi }: ExamExerciseDetailViewProp
                 return;
             }
 
-            if (event.data.type === 'examExerciseDetailInit') {
+            if (event.data.type === ExtensionMsg.ExamExerciseDetailInit) {
                 setExerciseData(event.data.exerciseData, event.data.hideDeveloperTools);
                 setExamExerciseData(event.data as Parameters<typeof setExamExerciseData>[0]);
             }

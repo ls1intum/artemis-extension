@@ -3,11 +3,11 @@
  * Allows users to configure their Git identity (name and email) for commits.
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { BackLink, Container, TextInput, Button, PageHeader, SkeletonList } from '../../components';
 import styles from './GitCredentialsView.module.css';
 import type { GitCredentialsViewProps, GitCredentialsPersistedState } from './types';
-import { isExtensionMessage, postCommand } from '../../../../../shared/messageContracts';
+import { ExtensionMsg, isExtensionMessage, postCommand } from '../../../../../shared/messageContracts';
 
 export function GitCredentialsView({ vscodeApi }: GitCredentialsViewProps) {
     // Restore persisted state (form values only)
@@ -27,6 +27,9 @@ export function GitCredentialsView({ vscodeApi }: GitCredentialsViewProps) {
         vscodeApi.setState({ name, email });
     }, [name, email, vscodeApi]);
 
+    // Timer ref for status message auto-clear
+    const statusTimerRef = useRef<ReturnType<typeof setTimeout>>();
+
     // Message handler
     useEffect(() => {
         const handleMessage = (event: MessageEvent<unknown>) => {
@@ -35,7 +38,7 @@ export function GitCredentialsView({ vscodeApi }: GitCredentialsViewProps) {
             }
 
             switch (event.data.type) {
-                case 'gitCredentialsInit': {
+                case ExtensionMsg.GitCredentialsInit: {
                     if (event.data.currentName) {
                         setName(event.data.currentName);
                     }
@@ -45,18 +48,26 @@ export function GitCredentialsView({ vscodeApi }: GitCredentialsViewProps) {
                     setIsLoaded(true);
                     break;
                 }
-                case 'gitCredentialsResult': {
+                case ExtensionMsg.GitCredentialsResult: {
                     setStatusMessage(event.data.message);
                     setStatusType(event.data.status);
-                    // Clear status after 5 seconds
-                    const timer = setTimeout(() => setStatusMessage(''), 5000);
-                    return () => clearTimeout(timer);
+                    // Cancel previous timer and start a new one
+                    if (statusTimerRef.current) {
+                        clearTimeout(statusTimerRef.current);
+                    }
+                    statusTimerRef.current = setTimeout(() => setStatusMessage(''), 5000);
+                    break;
                 }
             }
         };
 
         window.addEventListener('message', handleMessage);
-        return () => window.removeEventListener('message', handleMessage);
+        return () => {
+            window.removeEventListener('message', handleMessage);
+            if (statusTimerRef.current) {
+                clearTimeout(statusTimerRef.current);
+            }
+        };
     }, []);
 
     // Request current git identity on mount

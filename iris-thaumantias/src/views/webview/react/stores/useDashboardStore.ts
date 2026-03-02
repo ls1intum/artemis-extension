@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { devtools } from 'zustand/middleware';
-import type { VsCodeApi, RecentCourseNode } from '../../../../shared/messageContracts';
+import { postCommand, type VsCodeApi, type RecentCourseNode } from '../../../../shared/messageContracts';
 
 export type { RecentCourseNode } from '../../../../shared/messageContracts';
 
@@ -28,10 +28,7 @@ export const useDashboardStore = create<DashboardState>()(
 
             loadDashboard: (vscodeApi: VsCodeApi) => {
                 set({ isLoading: true, error: null }, false, 'loadDashboard');
-                vscodeApi.postMessage({
-                    type: 'command',
-                    command: 'reloadDashboard',
-                });
+                postCommand(vscodeApi, 'reloadDashboard');
             },
 
             setDashboardData: (courses: RecentCourseNode[]) => {

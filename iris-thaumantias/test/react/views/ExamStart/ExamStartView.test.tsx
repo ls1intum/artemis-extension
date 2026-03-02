@@ -47,7 +47,7 @@ describe('ExamStartView', () => {
 	});
 
 	it('shows loading skeleton when loading is true', () => {
-		useExamStartStore.setState({ loading: true });
+		useExamStartStore.setState({ isLoading: true });
 		const mockApi = createMockVsCodeApi();
 		render(<ExamStartView vscodeApi={mockApi} />);
 		const busyElements = document.querySelectorAll('[aria-busy]');
@@ -55,28 +55,28 @@ describe('ExamStartView', () => {
 	});
 
 	it('shows back link during loading', () => {
-		useExamStartStore.setState({ loading: true });
+		useExamStartStore.setState({ isLoading: true });
 		const mockApi = createMockVsCodeApi();
 		render(<ExamStartView vscodeApi={mockApi} />);
 		expect(screen.getByText('Back to Course')).toBeInTheDocument();
 	});
 
 	it('shows error message when error is set', () => {
-		useExamStartStore.setState({ error: 'Failed to load exam', loading: false });
+		useExamStartStore.setState({ error: 'Failed to load exam', isLoading: false });
 		const mockApi = createMockVsCodeApi();
 		render(<ExamStartView vscodeApi={mockApi} />);
 		expect(screen.getByText('Failed to load exam')).toBeInTheDocument();
 	});
 
 	it('shows retry button on error', () => {
-		useExamStartStore.setState({ error: 'Failed to load exam', loading: false });
+		useExamStartStore.setState({ error: 'Failed to load exam', isLoading: false });
 		const mockApi = createMockVsCodeApi();
 		render(<ExamStartView vscodeApi={mockApi} />);
 		expect(screen.getByRole('button', { name: /retry/i })).toBeInTheDocument();
 	});
 
 	it('retry button sends ready postMessage', async () => {
-		useExamStartStore.setState({ error: 'Failed to load exam', loading: false });
+		useExamStartStore.setState({ error: 'Failed to load exam', isLoading: false });
 		const mockApi = createMockVsCodeApi();
 		render(<ExamStartView vscodeApi={mockApi} />);
 
@@ -87,7 +87,7 @@ describe('ExamStartView', () => {
 	});
 
 	it('shows no data message when studentExam is null and not loading', () => {
-		useExamStartStore.setState({ loading: false, studentExam: null });
+		useExamStartStore.setState({ isLoading: false, studentExam: null });
 		const mockApi = createMockVsCodeApi();
 		render(<ExamStartView vscodeApi={mockApi} />);
 		expect(screen.getByText('No exam data available.')).toBeInTheDocument();
@@ -116,7 +116,7 @@ describe('ExamStartView', () => {
 			studentExam: makeStudentExam() as never,
 			courseId: 10,
 			examId: 100,
-			loading: false,
+			isLoading: false,
 		});
 		const mockApi = createMockVsCodeApi();
 		render(<ExamStartView vscodeApi={mockApi} />);
@@ -128,7 +128,7 @@ describe('ExamStartView', () => {
 			studentExam: makeStudentExam({ workingTime: 3600 }) as never,
 			courseId: 10,
 			examId: 100,
-			loading: false,
+			isLoading: false,
 		});
 		const mockApi = createMockVsCodeApi();
 		render(<ExamStartView vscodeApi={mockApi} />);
@@ -140,7 +140,7 @@ describe('ExamStartView', () => {
 			studentExam: makeStudentExam() as never,
 			courseId: 10,
 			examId: 100,
-			loading: false,
+			isLoading: false,
 		});
 		const mockApi = createMockVsCodeApi();
 		render(<ExamStartView vscodeApi={mockApi} />);
@@ -152,7 +152,7 @@ describe('ExamStartView', () => {
 			studentExam: makeStudentExam() as never,
 			courseId: 10,
 			examId: 100,
-			loading: false,
+			isLoading: false,
 		});
 		const mockApi = createMockVsCodeApi();
 		render(<ExamStartView vscodeApi={mockApi} />);
@@ -164,7 +164,7 @@ describe('ExamStartView', () => {
 			studentExam: makeStudentExam() as never,
 			courseId: 10,
 			examId: 100,
-			loading: false,
+			isLoading: false,
 		});
 		const mockApi = createMockVsCodeApi();
 		render(<ExamStartView vscodeApi={mockApi} />);
@@ -185,7 +185,7 @@ describe('ExamStartView', () => {
 			studentExam: makeStudentExam() as never, // exam starts in future
 			courseId: 10,
 			examId: 100,
-			loading: false,
+			isLoading: false,
 		});
 		const mockApi = createMockVsCodeApi();
 		render(<ExamStartView vscodeApi={mockApi} />);
@@ -207,7 +207,7 @@ describe('ExamStartView', () => {
 			}) as never,
 			courseId: 10,
 			examId: 100,
-			loading: false,
+			isLoading: false,
 		});
 		const mockApi = createMockVsCodeApi();
 		render(<ExamStartView vscodeApi={mockApi} />);
@@ -228,7 +228,7 @@ describe('ExamStartView', () => {
 			}) as never,
 			courseId: 10,
 			examId: 100,
-			loading: false,
+			isLoading: false,
 		});
 		const mockApi = createMockVsCodeApi();
 		render(<ExamStartView vscodeApi={mockApi} />);
@@ -240,7 +240,7 @@ describe('ExamStartView', () => {
 			studentExam: makeStudentExam() as never,
 			courseId: 10,
 			examId: 100,
-			loading: false,
+			isLoading: false,
 		});
 		const mockApi = createMockVsCodeApi();
 		render(<ExamStartView vscodeApi={mockApi} />);

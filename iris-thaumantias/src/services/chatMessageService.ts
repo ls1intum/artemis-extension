@@ -7,6 +7,7 @@ import { ActiveContext } from '../types';
 import { checkWorkspaceFiles } from '../utils';
 import { StruggleContext } from './telemetry';
 import { logger, LogCategory } from './loggingService';
+import { ExtensionMsg } from '../shared/messageContracts';
 import type { ExtensionToWebviewMessage } from '../shared/messageContracts';
 
 export class ChatMessageService {
@@ -198,7 +199,7 @@ export class ChatMessageService {
                     .map(f => ({ path: f.path, reason: f.reason || 'Excluded' }));
 
                 this._postMessage({
-                    type: 'updateReferencedFiles',
+                    type: ExtensionMsg.UpdateReferencedFiles,
                     includedFiles: Array.from(uncommittedFiles.keys()),
                     excludedFiles: excludedFiles,
                     totalCount: result.totalCount

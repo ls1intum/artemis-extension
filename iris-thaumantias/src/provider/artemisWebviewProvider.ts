@@ -19,6 +19,7 @@ import { detectWorkspaceExercise, type ExerciseSource } from '../services/worksp
 import { WebSocketMessageHandler, ResultDTO, ProgrammingSubmission, ProgrammingSubmissionState, SubmissionProcessingMessage } from '../types';
 import type { BuildErrorCodeLensProvider } from './buildErrorCodeLensProvider';
 import type { TelemetryManager } from '../services/telemetry/telemetryManager';
+import { ExtensionMsg } from '../shared/messageContracts';
 import type { ExtensionToWebviewMessage, WebviewToExtensionMessage, CourseDetailData as CourseDetailPayload } from '../shared/messageContracts';
 import type { CourseDashboardEntry, ExerciseDetail, CourseDetailData, ExerciseDetailsResponse, ResultSummary, SubmissionSummary } from '../types/apiResponses';
 import { isWebviewMessage } from '../shared/messageContracts/typeGuards';
@@ -186,7 +187,7 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
             });
 
             this._postMessageSafe({
-                type: 'dashboardInit',
+                type: ExtensionMsg.DashboardInit,
                 courses: recentCourseNodes, workspaceExercise: undefined,
             });
         } else if (currentState === 'course-list') {
@@ -209,7 +210,7 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
             }));
 
             this._postMessageSafe({
-                type: 'courseListInit',
+                type: ExtensionMsg.CourseListInit,
                 courses: mappedCourses, archivedCourses,
             });
         } else if (currentState === 'course-detail') {
@@ -227,7 +228,7 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
                 const developerMode = config.get<boolean>('developerMode', false);
 
                 this._postMessageSafe({
-                    type: 'courseDetailInit',
+                    type: ExtensionMsg.CourseDetailInit,
                     courseData: courseData as CourseDetailPayload,
                     workspaceExerciseId: workspaceExerciseId,
                     hideDeveloperTools: !developerMode,
@@ -245,7 +246,7 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
             const developerMode = config.get<boolean>('developerMode', false);
 
             this._postMessageSafe({
-                type: 'exerciseDetailInit',
+                type: ExtensionMsg.ExerciseDetailInit,
                 exerciseData: exerciseData as ExerciseDetailsResponse,
                 hideDeveloperTools: !developerMode,
             });
@@ -276,7 +277,7 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
             const exercises = studentExam.exercises || [];
             detectWorkspaceExercise(exercises as ExerciseSource[]).then((detectedExercise: { id?: number } | null) => {
                 this._postMessageSafe({
-                    type: 'examConductionInit',
+                    type: ExtensionMsg.ExamConductionInit,
                     studentExam,
                     courseId: examData.courseId,
                     examId: examData.examId,
@@ -294,7 +295,7 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
             }
 
             this._postMessageSafe({
-                type: 'examStartInit',
+                type: ExtensionMsg.ExamStartInit,
                 studentExam: examData.studentExam,
                 courseId: examData.courseId,
                 examId: examData.examId,
@@ -331,7 +332,7 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
             const developerMode = config.get<boolean>('developerMode', false);
 
             this._postMessageSafe({
-                type: 'examExerciseDetailInit',
+                type: ExtensionMsg.ExamExerciseDetailInit,
                 exerciseData: exerciseData as ExerciseDetailsResponse,
                 examContext: {
                     courseId: examData.courseId,
@@ -345,11 +346,11 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
             });
         } else if (currentState === 'ai-config') {
             const aiExtensions = this._appStateManager.aiExtensions || [];
-            this._postMessageSafe({ type: 'aiConfigInit', aiExtensions });
+            this._postMessageSafe({ type: ExtensionMsg.AiConfigInit, aiExtensions });
         } else if (currentState === 'struggle-detection') {
             const ctx = this._telemetryManager?.getStruggleContext();
             this._postMessageSafe({
-                type: 'struggleDetectionInit',
+                type: ExtensionMsg.StruggleDetectionInit,
                 isStruggling: ctx?.isStruggling ?? false,
                 eq: ctx?.eq ?? 0,
                 eqConfidence: ctx?.eqConfidence ?? 'insufficient',
@@ -359,7 +360,7 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
             });
         } else if (currentState === 'service-status') {
             const serverUrl = this._appStateManager.userInfo?.serverUrl;
-            this._postMessageSafe({ type: 'serviceStatusInit', serverUrl });
+            this._postMessageSafe({ type: ExtensionMsg.ServiceStatusInit, serverUrl });
         } else if (currentState === 'recommended-extensions') {
             const categories = this._appStateManager.recommendedExtensions || [];
             const mappedCategories = categories.map(category => ({
@@ -369,9 +370,11 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
                     isInstalled: ext.isInstalled ?? false
                 }))
             }));
-            this._postMessageSafe({ type: 'recommendedExtensionsInit', categories: mappedCategories });
+            this._postMessageSafe({ type: ExtensionMsg.RecommendedExtensionsInit, categories: mappedCategories });
+        } else if (currentState === 'git-credentials') {
+            this._postMessageSafe({ type: ExtensionMsg.GitCredentialsInit });
         } else if (currentState === 'login') {
-            this._postMessageSafe({ type: 'setServerUrl', serverUrl: this._getServerUrl() });
+            this._postMessageSafe({ type: ExtensionMsg.SetServerUrl, serverUrl: this._getServerUrl() });
         }
     }
 
@@ -490,6 +493,17 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
                     return;
                 }
 
+                // Log error reports from webview ErrorBoundary
+                if (message.type === 'error') {
+                    const errorPayload = (message as { payload?: { message?: string; stack?: string; componentStack?: string } }).payload;
+                    logger.error('Webview ErrorBoundary crash report', LogCategory.VIEW, {
+                        message: errorPayload?.message,
+                        stack: errorPayload?.stack,
+                        componentStack: errorPayload?.componentStack,
+                    });
+                    return;
+                }
+
                 // Handle ready signal from React webview
                 if (message.type === 'ready') {
                     this._webviewReady = true;
@@ -511,7 +525,7 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
                 this._messageHandler.handleMessage(message);
             },
             undefined,
-            []
+            this._disposables
         );
 
         // Handle visibility changes — resend data when panel becomes visible
@@ -545,7 +559,7 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
     }
 
     public notifyLogout(): void {
-        this._postMessageSafe({ type: 'logoutSuccess' });
+        this._postMessageSafe({ type: ExtensionMsg.LogoutSuccess });
     }
 
     public refreshTheme(): void {
@@ -720,10 +734,10 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
             const hasAuth = await this._authManager.hasAuthCookie();
             if (hasAuth) {
                 // Show loading indicator only when actually attempting auto-login
-                this._postMessageSafe({ type: 'showLoading', message: 'Checking stored credentials...' });
+                this._postMessageSafe({ type: ExtensionMsg.ShowLoading, message: 'Checking stored credentials...' });
 
                 // Update loading message
-                this._postMessageSafe({ type: 'updateLoading', message: 'Loading user information...' });
+                this._postMessageSafe({ type: ExtensionMsg.UpdateLoading, message: 'Loading user information...' });
 
                 // Try to get user info directly - this validates authentication implicitly
                 try {
@@ -784,15 +798,20 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
         // Reuse the same React webview HTML with exerciseDetail view routing
         panel.webview.html = getReactWebviewHtml(panel.webview, this._extensionUri, 'exerciseDetail');
 
+        let disposed = false;
+        panel.onDidDispose(() => { disposed = true; });
+
         // Register message handler for the fullscreen panel
         panel.webview.onDidReceiveMessage(async (message: unknown) => {
+            if (disposed) return;
+
             // Narrow unknown message to typed object
             const typedMessage = message as { type?: string; title?: string; command?: string; payload?: unknown };
 
             // Handle 'ready' signal — send exercise data
             if (typedMessage.type === 'ready') {
                 panel.webview.postMessage({
-                    type: 'exerciseDetailInit',
+                    type: ExtensionMsg.ExerciseDetailInit,
                     exerciseData: exerciseData,
                     hideDeveloperTools: false,
                 });
@@ -806,7 +825,7 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
             // Forward all other messages to the existing handler
             // Use handleMessageWithSender so responses go back to THIS panel, not the sidebar
             this._messageHandler.handleMessageWithSender(message as WebviewToExtensionMessage, (responseMessage: ExtensionToWebviewMessage) => {
-                panel.webview.postMessage(responseMessage);
+                if (!disposed) panel.webview.postMessage(responseMessage);
             });
         });
 
@@ -830,7 +849,12 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
 
         panel.webview.html = getReactWebviewHtml(panel.webview, this._extensionUri, 'courseDetail');
 
+        let disposed = false;
+        panel.onDidDispose(() => { disposed = true; });
+
         panel.webview.onDidReceiveMessage(async (message: unknown) => {
+            if (disposed) return;
+
             // Narrow the unknown message to a typed object
             if (!message || typeof message !== 'object') {
                 return;
@@ -845,7 +869,7 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
                 const hideDeveloperTools = !developerMode;
 
                 panel.webview.postMessage({
-                    type: 'courseDetailInit',
+                    type: ExtensionMsg.CourseDetailInit,
                     courseData: courseData,
                     workspaceExerciseId: null,
                     hideDeveloperTools: hideDeveloperTools,
@@ -858,7 +882,7 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
 
             // Forward all other messages via handleMessageWithSender
             this._messageHandler.handleMessageWithSender(message as WebviewToExtensionMessage, (responseMessage: ExtensionToWebviewMessage) => {
-                panel.webview.postMessage(responseMessage);
+                if (!disposed) panel.webview.postMessage(responseMessage);
             });
         });
 
@@ -869,7 +893,7 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
 
     private _handleNewResult(result: ResultDTO): void {
         this._postMessageSafe({
-            type: 'websocketUpdate',
+            type: ExtensionMsg.WebsocketUpdate,
             updateType: 'newResult',
             data: result as unknown as ResultSummary,
         });
@@ -877,7 +901,7 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
 
     private _handleNewSubmission(submission: ProgrammingSubmission): void {
         this._postMessageSafe({
-            type: 'websocketUpdate',
+            type: ExtensionMsg.WebsocketUpdate,
             updateType: 'newSubmission',
             data: submission as unknown as SubmissionSummary,
         });
@@ -899,7 +923,7 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
         };
 
         this._postMessageSafe({
-            type: 'websocketUpdate',
+            type: ExtensionMsg.WebsocketUpdate,
             updateType: 'submissionProcessing',
             data: {
                 state: state || 'BUILDING',
@@ -918,13 +942,13 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
 
     private postServerUrl(serverUrl?: string): void {
         this._postMessageSafe({
-            type: 'setServerUrl',
+            type: ExtensionMsg.SetServerUrl,
             serverUrl: serverUrl ?? this._getServerUrl()
         });
     }
 
     private hideLoadingAndSendServerUrl(): void {
-        this._postMessageSafe({ type: 'hideLoading' });
+        this._postMessageSafe({ type: ExtensionMsg.HideLoading });
         this.postServerUrl();
     }
 

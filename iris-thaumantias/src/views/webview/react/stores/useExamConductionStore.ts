@@ -10,7 +10,7 @@ interface ExamConductionState {
     startTime: number | null;
     totalDuration: number | null;
     workspaceExerciseId: number | null;
-    loading: boolean;
+    isLoading: boolean;
     error: string | null;
 }
 
@@ -39,7 +39,7 @@ const initialState: ExamConductionState = {
     startTime: null,
     totalDuration: null,
     workspaceExerciseId: null,
-    loading: true,
+    isLoading: true,
     error: null,
 };
 
@@ -57,14 +57,14 @@ export const useExamConductionStore = create<ExamConductionStore>()(
                     startTime: payload.startTime,
                     totalDuration: payload.totalDuration,
                     workspaceExerciseId: payload.workspaceExerciseId,
-                    loading: false,
+                    isLoading: false,
                     error: null,
                 }, false, 'setExamData');
             },
 
-            setLoading: (loading) => set({ loading }, false, 'setLoading'),
+            setLoading: (loading) => set({ isLoading: loading }, false, 'setLoading'),
 
-            setError: (error) => set({ error, loading: false }, false, 'setError'),
+            setError: (error) => set({ error, isLoading: false }, false, 'setError'),
 
             reset: () => set(initialState, false, 'reset'),
         }),

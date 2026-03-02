@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { devtools } from 'zustand/middleware';
-import type { VsCodeApi, CourseDetailData, Exam, Exercise } from '../../../../shared/messageContracts';
+import { postCommand, type VsCodeApi, type CourseDetailData, type Exam, type Exercise } from '../../../../shared/messageContracts';
 import type { ExerciseDetail } from '../../../../types/apiResponses';
 
 interface CourseDetailState {
@@ -164,11 +164,7 @@ export const useCourseDetailStore = create<CourseDetailState>()(
 
             loadCourseDetail: (vscodeApi, courseId) => {
                 set({ isLoading: true, error: null }, false, 'loadCourseDetail');
-                vscodeApi.postMessage({
-                    type: 'command',
-                    command: 'reloadCourseDetail',
-                    payload: { courseId: courseId || 0 },
-                });
+                postCommand(vscodeApi, 'reloadCourseDetail', { courseId: courseId || 0 });
             },
 
             filteredExercises: () => {

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef } from 'react';
 import { Container } from '../../../components/Container';
 import { Button } from '../../../components/Button';
 import { processProblemStatement } from '../../../../../../utils/problemStatementProcessor';
+import { ExtensionMsg, postCommand } from '../../../../../../shared/messageContracts';
 import type { ProblemStatementProps } from '../types';
 import styles from './ProblemStatement.module.css';
 
@@ -34,11 +35,7 @@ export function ProblemStatement({
                 event.preventDefault();
                 const href = link.getAttribute('href');
                 if (href && vscodeApi) {
-                    vscodeApi.postMessage({
-                        type: 'command',
-                        command: 'openExternalLink',
-                        payload: { url: href },
-                    });
+                    postCommand(vscodeApi, 'openExternalLink', { url: href });
                 }
                 return;
             }
@@ -48,11 +45,7 @@ export function ProblemStatement({
             if (img) {
                 const src = img.getAttribute('src');
                 if (src && vscodeApi) {
-                    vscodeApi.postMessage({
-                        type: 'command',
-                        command: 'openImagePreview',
-                        payload: { uri: src },
-                    });
+                    postCommand(vscodeApi, 'openImagePreview', { uri: src });
                 }
                 return;
             }
@@ -78,11 +71,7 @@ export function ProblemStatement({
             const plantUml = decodeURIComponent(encoded);
             element.setAttribute('data-plantuml-index', String(index));
 
-            vscodeApi.postMessage({
-                type: 'command',
-                command: 'renderPlantUmlInline',
-                payload: { plantUml, index },
-            });
+            postCommand(vscodeApi, 'renderPlantUmlInline', { plantUml, index });
         });
 
         // Listen for rendered SVG responses
@@ -95,7 +84,7 @@ export function ProblemStatement({
 
             const typedMessage = message as { type: string; index?: number; svg?: string };
 
-            if (typedMessage.type === 'plantUmlRendered' && container) {
+            if (typedMessage.type === ExtensionMsg.PlantUmlRendered && container) {
                 const placeholder = container.querySelector(
                     `[data-plantuml-index="${typedMessage.index ?? ''}"]`
                 );
@@ -108,7 +97,7 @@ export function ProblemStatement({
                 }
             }
 
-            if (typedMessage.type === 'plantUmlError' && container) {
+            if (typedMessage.type === ExtensionMsg.PlantUmlError && container) {
                 const placeholder = container.querySelector(
                     `[data-plantuml-index="${typedMessage.index ?? ''}"]`
                 );

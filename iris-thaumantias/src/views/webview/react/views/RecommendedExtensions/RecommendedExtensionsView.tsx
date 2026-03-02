@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { isExtensionMessage, postCommand } from '../../../../../shared/messageContracts';
+import { ExtensionMsg, isExtensionMessage, postCommand } from '../../../../../shared/messageContracts';
 import { BackLink, Container, Button, Badge, PageHeader, SkeletonList } from '../../components';
 import styles from './RecommendedExtensionsView.module.css';
 import type { RecommendedExtensionsViewProps, ExtensionCategory, Extension, RecommendedExtensionsPersistedState } from './types';
@@ -31,7 +31,7 @@ export function RecommendedExtensionsView({ vscodeApi }: RecommendedExtensionsVi
                 return;
             }
 
-            if (event.data.type === 'recommendedExtensionsInit') {
+            if (event.data.type === ExtensionMsg.RecommendedExtensionsInit) {
                 setCategories(event.data.categories);
                 setIsLoaded(true);
             }

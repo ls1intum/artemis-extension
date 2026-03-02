@@ -1,18 +1,23 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import DOMPurify from 'dompurify';
 import { useExamStartStore } from '../../stores/useExamStartStore';
 import { useRelativeTime } from '../../hooks/useRelativeTime';
 import { useExamTimer } from '../../hooks/useExamTimer';
+import { useExtensionError } from '../../hooks/useExtensionError';
 import { ExamTimer } from '../../components/ExamTimer/ExamTimer';
 import { TimerExpiredOverlay } from '../../components/TimerExpiredOverlay/TimerExpiredOverlay';
 import { BackLink, Container, Button, SkeletonList, ErrorMessage, Badge } from '../../components';
 import type { ExamStartViewProps } from './types';
-import { isExtensionMessage, postCommand } from '../../../../../shared/messageContracts';
+import { ExtensionMsg, isExtensionMessage, postCommand } from '../../../../../shared/messageContracts';
 import styles from './ExamStartView.module.css';
 
 export function ExamStartView({ vscodeApi }: ExamStartViewProps) {
-    const { studentExam, courseId, examId, loading, error, setExamStartData, setError } = useExamStartStore();
+    const { studentExam, courseId, examId, isLoading, error, setExamStartData, setError } = useExamStartStore();
     const [showExpiredOverlay, setShowExpiredOverlay] = useState(false);
+
+    // Handle extension error messages
+    const handleError = useCallback((message: string) => setError(message), [setError]);
+    useExtensionError(handleError);
 
     // Load data on mount
     useEffect(() => {
@@ -21,12 +26,8 @@ export function ExamStartView({ vscodeApi }: ExamStartViewProps) {
                 return;
             }
 
-            if (event.data.type === 'examStartInit') {
+            if (event.data.type === ExtensionMsg.ExamStartInit) {
                 setExamStartData(event.data);
-            }
-
-            if (event.data.type === 'error') {
-                setError(event.data.message);
             }
         };
 
@@ -136,7 +137,7 @@ export function ExamStartView({ vscodeApi }: ExamStartViewProps) {
     }, [expired, hasStarted]);
 
     // Loading state
-    if (loading) {
+    if (isLoading) {
         return (
             <div className={styles.examStartView}>
                 <BackLink onClick={handleBackToCourse}>Back to Course</BackLink>

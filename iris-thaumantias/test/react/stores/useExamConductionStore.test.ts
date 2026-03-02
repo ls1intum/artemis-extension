@@ -24,7 +24,7 @@ describe('useExamConductionStore', () => {
 		expect(result.current.startTime).toBeNull();
 		expect(result.current.totalDuration).toBeNull();
 		expect(result.current.workspaceExerciseId).toBeNull();
-		expect(result.current.loading).toBe(true);
+		expect(result.current.isLoading).toBe(true);
 		expect(result.current.error).toBeNull();
 	});
 
@@ -43,7 +43,7 @@ describe('useExamConductionStore', () => {
 		expect(result.current.startTime).toBe(now);
 		expect(result.current.endTime).toBe(now + 3600000);
 		expect(result.current.totalDuration).toBe(3600);
-		expect(result.current.loading).toBe(false);
+		expect(result.current.isLoading).toBe(false);
 		expect(result.current.error).toBeNull();
 	});
 
@@ -74,13 +74,13 @@ describe('useExamConductionStore', () => {
 			result.current.setLoading(false);
 		});
 
-		expect(result.current.loading).toBe(false);
+		expect(result.current.isLoading).toBe(false);
 
 		act(() => {
 			result.current.setLoading(true);
 		});
 
-		expect(result.current.loading).toBe(true);
+		expect(result.current.isLoading).toBe(true);
 	});
 
 	it('setError sets error and stops loading', () => {
@@ -91,7 +91,7 @@ describe('useExamConductionStore', () => {
 		});
 
 		expect(result.current.error).toBe('Exam conduction failed');
-		expect(result.current.loading).toBe(false);
+		expect(result.current.isLoading).toBe(false);
 	});
 
 	it('setError can clear error with null', () => {
@@ -116,7 +116,7 @@ describe('useExamConductionStore', () => {
 		});
 
 		expect(result.current.studentExam).not.toBeNull();
-		expect(result.current.loading).toBe(false);
+		expect(result.current.isLoading).toBe(false);
 
 		act(() => {
 			result.current.reset();
@@ -129,7 +129,7 @@ describe('useExamConductionStore', () => {
 		expect(result.current.startTime).toBeNull();
 		expect(result.current.totalDuration).toBeNull();
 		expect(result.current.workspaceExerciseId).toBeNull();
-		expect(result.current.loading).toBe(true);
+		expect(result.current.isLoading).toBe(true);
 		expect(result.current.error).toBeNull();
 	});
 
@@ -152,25 +152,25 @@ describe('useExamConductionStore', () => {
 	it('loading state transitions: loading -> loaded', () => {
 		const { result } = renderHook(() => useExamConductionStore());
 
-		expect(result.current.loading).toBe(true);
+		expect(result.current.isLoading).toBe(true);
 
 		act(() => {
 			result.current.setExamData(makeExamPayload() as Parameters<typeof result.current.setExamData>[0]);
 		});
 
-		expect(result.current.loading).toBe(false);
+		expect(result.current.isLoading).toBe(false);
 	});
 
 	it('loading state transitions: loading -> error', () => {
 		const { result } = renderHook(() => useExamConductionStore());
 
-		expect(result.current.loading).toBe(true);
+		expect(result.current.isLoading).toBe(true);
 
 		act(() => {
 			result.current.setError('Server error');
 		});
 
-		expect(result.current.loading).toBe(false);
+		expect(result.current.isLoading).toBe(false);
 		expect(result.current.error).toBe('Server error');
 	});
 

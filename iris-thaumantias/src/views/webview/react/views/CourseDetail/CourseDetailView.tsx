@@ -2,7 +2,7 @@ import { useEffect } from 'react';
 import { useCourseDetailStore } from '../../stores/useCourseDetailStore';
 import { useNavigationStore } from '../../stores/useNavigationStore';
 import type { CourseDetailViewProps, CourseDetailPersistedState } from './types';
-import { isExtensionMessage, postCommand } from '../../../../../shared/messageContracts';
+import { ExtensionMsg, isExtensionMessage, postCommand } from '../../../../../shared/messageContracts';
 import type { Exercise, Exam } from '../../../../../shared/messageContracts';
 import { getIcon } from '../../../../../utils/iconMap';
 import {
@@ -62,7 +62,7 @@ export function CourseDetailView({ vscodeApi }: CourseDetailViewProps) {
                 return;
             }
 
-            if (event.data.type === 'courseDetailInit') {
+            if (event.data.type === ExtensionMsg.CourseDetailInit) {
                 setCourseData(event.data.courseData as Parameters<typeof setCourseData>[0], event.data.workspaceExerciseId as Parameters<typeof setCourseData>[1]);
 
                 // Push course breadcrumb

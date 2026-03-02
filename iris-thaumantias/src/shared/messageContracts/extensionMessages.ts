@@ -13,7 +13,6 @@ import type { CourseData, ArchivedCourse, CourseDetailData, RecentCourseNode } f
 /** All Extension->Webview message types (const object for string-literal compatibility) */
 export const ExtensionMsg = {
     // View initialization
-    Init: 'init',
     DashboardInit: 'dashboardInit',
     CourseListInit: 'courseListInit',
     CourseDetailInit: 'courseDetailInit',
@@ -31,7 +30,6 @@ export const ExtensionMsg = {
     LoginSuccess: 'loginSuccess',
     LoginError: 'loginError',
     LogoutSuccess: 'logoutSuccess',
-    ShowLoggedIn: 'showLoggedIn',
     SetServerUrl: 'setServerUrl',
 
     // Loading
@@ -45,8 +43,6 @@ export const ExtensionMsg = {
 
     // WebSocket
     WebsocketUpdate: 'websocketUpdate',
-    WebsocketDisconnected: 'websocketDisconnected',
-    WebsocketConnected: 'websocketConnected',
 
     // Iris Chat
     UpdateIrisState: 'updateIrisState',
@@ -85,7 +81,6 @@ export type ExtensionMsg = (typeof ExtensionMsg)[keyof typeof ExtensionMsg];
 /** Payload definitions for each Extension->Webview message */
 interface ExtensionMsgPayloads {
     // View initialization
-    init: { view: string; payload: Record<string, unknown> };
     dashboardInit: {
         courses: RecentCourseNode[];
         workspaceExercise?: {
@@ -175,12 +170,6 @@ interface ExtensionMsgPayloads {
     loginSuccess: { username: string };
     loginError: { error: string };
     logoutSuccess: undefined;
-    showLoggedIn: {
-        userInfo: {
-            username: string;
-            serverUrl: string;
-        };
-    };
     setServerUrl: { serverUrl: string };
 
     // Loading
@@ -200,8 +189,6 @@ interface ExtensionMsgPayloads {
         | { updateType: 'newResult'; data: ResultSummary }
         | { updateType: 'newSubmission'; data: SubmissionSummary }
         | { updateType: 'submissionProcessing'; data: { state: string; participationId: number; buildTimingInfo?: unknown } };
-    websocketDisconnected: undefined;
-    websocketConnected: undefined;
 
     // Iris Chat
     updateIrisState: {

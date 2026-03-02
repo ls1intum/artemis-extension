@@ -23,7 +23,7 @@ import LogOut from 'lucide-react/dist/esm/icons/log-out';
 import ChevronRight from 'lucide-react/dist/esm/icons/chevron-right';
 import { getIcon } from '../../../../../utils/iconMap';
 import SquareArrowOutUpRight from 'lucide-react/dist/esm/icons/square-arrow-out-up-right';
-import { isExtensionMessage, postCommand } from '../../../../../shared/messageContracts';
+import { ExtensionMsg, isExtensionMessage, postCommand } from '../../../../../shared/messageContracts';
 import styles from './DashboardView.module.css';
 
 export function DashboardView({ vscodeApi }: DashboardViewProps) {
@@ -48,7 +48,7 @@ export function DashboardView({ vscodeApi }: DashboardViewProps) {
                 return;
             }
 
-            if (event.data.type === 'dashboardInit') {
+            if (event.data.type === ExtensionMsg.DashboardInit) {
                 setDashboardData(event.data.courses ?? []);
                 if (event.data.workspaceExercise) {
                     setWorkspaceExercise({
@@ -56,7 +56,7 @@ export function DashboardView({ vscodeApi }: DashboardViewProps) {
                         title: event.data.workspaceExercise.title,
                     });
                 }
-            } else if (event.data.type === 'workspaceExerciseDetected') {
+            } else if (event.data.type === ExtensionMsg.WorkspaceExerciseDetected) {
                 if (typeof event.data.exerciseId === 'number' && typeof event.data.exerciseTitle === 'string') {
                     setWorkspaceExercise({
                         id: event.data.exerciseId,

@@ -249,8 +249,10 @@ export interface VsCodeApi {
 }
 
 /** Extract the command string from a webview message (command field for command-type, type otherwise). */
-export function getCommand(message: WebviewToExtensionMessage): string {
-    return message.type === 'command' ? (message as { type: 'command'; command: string }).command : message.type;
+export function getCommand(message: WebviewToExtensionMessage): WebviewCmd | 'ready' | 'updatePanelTitle' | 'error' {
+    return message.type === 'command'
+        ? (message as { type: 'command'; command: WebviewCmd }).command
+        : message.type;
 }
 
 /** Post a typed command from webview to extension. */
@@ -274,9 +276,14 @@ export function postCommand<K extends WebviewCmd>(
 /** Extract a specific command message type */
 export type WebCmd<T extends WebviewCmd> = Extract<WebviewToExtensionMessage, { command: T }>;
 
-/** Extract typed payload from a command message. */
+/** Extract typed payload from a command message. Throws if payload is missing. */
 export function getPayload<T extends WebviewToExtensionMessage & { payload?: unknown }>(
     message: WebviewToExtensionMessage
 ): T extends { payload?: infer P } ? Exclude<P, undefined> : never {
-    return (message as Record<string, unknown>).payload as ReturnType<typeof getPayload<T>>;
+    const raw = (message as Record<string, unknown>).payload;
+    if (raw === undefined) {
+        const cmd = (message as Record<string, unknown>).command ?? (message as Record<string, unknown>).type;
+        throw new Error(`Expected payload on message but got none (command=${String(cmd)})`);
+    }
+    return raw as ReturnType<typeof getPayload<T>>;
 }

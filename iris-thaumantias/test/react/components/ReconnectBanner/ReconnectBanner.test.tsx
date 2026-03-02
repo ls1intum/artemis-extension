@@ -2,8 +2,10 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, act } from '@testing-library/react';
 import { ReconnectBanner } from '../../../../src/views/webview/react/components/ReconnectBanner/ReconnectBanner';
 
-function dispatchWindowMessage(type: string) {
-	const event = new MessageEvent('message', { data: { type } });
+function dispatchWebSocketStatus(isConnected: boolean) {
+	const event = new MessageEvent('message', {
+		data: { type: 'updateWebSocketStatus', isConnected },
+	});
 	window.dispatchEvent(event);
 }
 
@@ -22,26 +24,26 @@ describe('ReconnectBanner', () => {
 		expect(screen.queryByText(/Reconnecting/)).not.toBeInTheDocument();
 	});
 
-	it('shows banner when websocketDisconnected message received', () => {
+	it('shows banner when updateWebSocketStatus(false) message received', () => {
 		render(<ReconnectBanner />);
 
 		act(() => {
-			dispatchWindowMessage('websocketDisconnected');
+			dispatchWebSocketStatus(false);
 		});
 
 		expect(screen.getByText(/Reconnecting to Artemis/)).toBeInTheDocument();
 	});
 
-	it('hides banner after 2 seconds when websocketConnected message received', () => {
+	it('hides banner after 2 seconds when updateWebSocketStatus(true) received', () => {
 		render(<ReconnectBanner />);
 
 		act(() => {
-			dispatchWindowMessage('websocketDisconnected');
+			dispatchWebSocketStatus(false);
 		});
 		expect(screen.getByText(/Reconnecting to Artemis/)).toBeInTheDocument();
 
 		act(() => {
-			dispatchWindowMessage('websocketConnected');
+			dispatchWebSocketStatus(true);
 		});
 		// Banner is still visible (will hide after 2s timeout)
 		expect(screen.getByText(/Reconnecting to Artemis/)).toBeInTheDocument();
@@ -57,16 +59,16 @@ describe('ReconnectBanner', () => {
 		render(<ReconnectBanner />);
 
 		act(() => {
-			dispatchWindowMessage('websocketDisconnected');
+			dispatchWebSocketStatus(false);
 		});
 		act(() => {
-			dispatchWindowMessage('websocketConnected');
+			dispatchWebSocketStatus(true);
 			vi.advanceTimersByTime(2000);
 		});
 		expect(screen.queryByText(/Reconnecting to Artemis/)).not.toBeInTheDocument();
 
 		act(() => {
-			dispatchWindowMessage('websocketDisconnected');
+			dispatchWebSocketStatus(false);
 		});
 		expect(screen.getByText(/Reconnecting to Artemis/)).toBeInTheDocument();
 	});
@@ -75,7 +77,8 @@ describe('ReconnectBanner', () => {
 		render(<ReconnectBanner />);
 
 		act(() => {
-			dispatchWindowMessage('someOtherCommand');
+			const event = new MessageEvent('message', { data: { type: 'someOtherCommand' } });
+			window.dispatchEvent(event);
 		});
 
 		expect(screen.queryByText(/Reconnecting/)).not.toBeInTheDocument();
@@ -85,10 +88,10 @@ describe('ReconnectBanner', () => {
 		render(<ReconnectBanner />);
 
 		act(() => {
-			dispatchWindowMessage('websocketDisconnected');
+			dispatchWebSocketStatus(false);
 		});
 		act(() => {
-			dispatchWindowMessage('websocketConnected');
+			dispatchWebSocketStatus(true);
 		});
 
 		// Advance only 1 second — banner should still be visible

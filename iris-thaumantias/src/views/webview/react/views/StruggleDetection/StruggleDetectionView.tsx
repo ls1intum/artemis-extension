@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { isExtensionMessage, postCommand } from '../../../../../shared/messageContracts';
+import { ExtensionMsg, isExtensionMessage, postCommand } from '../../../../../shared/messageContracts';
 import { BackLink, Container, Badge, PageHeader, SkeletonList } from '../../components';
 import type { StruggleDetectionViewProps, StruggleData } from './types';
 import styles from './StruggleDetectionView.module.css';
@@ -36,7 +36,7 @@ export function StruggleDetectionView({ vscodeApi }: StruggleDetectionViewProps)
                 return;
             }
 
-            if (event.data.type === 'struggleDetectionInit') {
+            if (event.data.type === ExtensionMsg.StruggleDetectionInit) {
                 const { type: _type, ...struggleData } = event.data;
 				setData(struggleData as StruggleData);
             }

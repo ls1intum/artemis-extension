@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useExamConductionStore } from '../../stores/useExamConductionStore';
 import type { ExamConductionViewProps } from './types';
 import { ExamTimer } from '../../components/ExamTimer/ExamTimer';
@@ -11,7 +11,8 @@ import { Container } from '../../components/Container/Container';
 import { PageHeader } from '../../components/PageHeader/PageHeader';
 import { Badge } from '../../components/Badge/Badge';
 import { IconButton } from '../../components/Button/IconButton';
-import { isExtensionMessage, postCommand } from '../../../../../shared/messageContracts';
+import { useExtensionError } from '../../hooks/useExtensionError';
+import { ExtensionMsg, isExtensionMessage, postCommand } from '../../../../../shared/messageContracts';
 import styles from './ExamConductionView.module.css';
 
 /**
@@ -21,6 +22,10 @@ export function ExamConductionView({ vscodeApi }: ExamConductionViewProps) {
     const store = useExamConductionStore();
     const [overlayDismissed, setOverlayDismissed] = useState(false);
 
+    // Handle extension error messages
+    const handleError = useCallback((message: string) => store.setError(message), [store]);
+    useExtensionError(handleError);
+
     // Message handler
     useEffect(() => {
         const handleMessage = (event: MessageEvent<unknown>) => {
@@ -28,12 +33,8 @@ export function ExamConductionView({ vscodeApi }: ExamConductionViewProps) {
                 return;
             }
 
-            if (event.data.type === 'examConductionInit') {
+            if (event.data.type === ExtensionMsg.ExamConductionInit) {
                 store.setExamData(event.data);
-            }
-
-            if (event.data.type === 'error') {
-                store.setError(event.data.message);
             }
         };
 
@@ -57,7 +58,7 @@ export function ExamConductionView({ vscodeApi }: ExamConductionViewProps) {
     };
 
     // Loading state
-    if (store.loading) {
+    if (store.isLoading) {
         return (
             <div className={styles.examConduction}>
                 <BackLink onClick={handleBackToCourse}>Back to Course</BackLink>

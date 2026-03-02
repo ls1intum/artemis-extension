@@ -4,7 +4,7 @@ import type {
     HealthCheckResult,
     ServiceStatusPersistedState,
 } from './types';
-import { isExtensionMessage, postCommand } from '../../../../../shared/messageContracts';
+import { ExtensionMsg, isExtensionMessage, postCommand } from '../../../../../shared/messageContracts';
 import {
     BackLink,
     Container,
@@ -35,7 +35,7 @@ export function ServiceStatusView({ vscodeApi }: ServiceStatusViewProps) {
             }
 
             switch (event.data.type) {
-                case 'serviceStatusInit': {
+                case ExtensionMsg.ServiceStatusInit: {
                     const url = event.data.serverUrl ?? '';
                     setServerUrl(url);
                     setIsLoaded(true);
@@ -46,7 +46,7 @@ export function ServiceStatusView({ vscodeApi }: ServiceStatusViewProps) {
                     }
                     break;
                 }
-                case 'healthCheckResults': {
+                case ExtensionMsg.HealthCheckResults: {
                     setHealthResults(event.data.results as Record<string, HealthCheckResult>);
                     setIsChecking(false);
                     setLastCheckTime(new Date());

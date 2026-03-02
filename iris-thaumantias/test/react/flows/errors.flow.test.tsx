@@ -210,8 +210,10 @@ describe('Error suite: ServiceHealth degraded states', () => {
 // ReconnectBanner connection loss and reconnect action tests
 // ============================================================================
 
-function dispatchWindowMessage(type: string) {
-    const event = new MessageEvent('message', { data: { type } });
+function dispatchWebSocketStatus(isConnected: boolean) {
+    const event = new MessageEvent('message', {
+        data: { type: 'updateWebSocketStatus', isConnected },
+    });
     window.dispatchEvent(event);
 }
 
@@ -225,11 +227,11 @@ describe('Error suite: ReconnectBanner', () => {
         vi.useRealTimers();
     });
 
-    it('shows ReconnectBanner on connection loss (websocketDisconnected)', () => {
+    it('shows ReconnectBanner on connection loss (updateWebSocketStatus false)', () => {
         render(<ReconnectBanner />);
 
         act(() => {
-            dispatchWindowMessage('websocketDisconnected');
+            dispatchWebSocketStatus(false);
         });
 
         expect(screen.getByText(/Reconnecting to Artemis/)).toBeInTheDocument();
@@ -239,12 +241,12 @@ describe('Error suite: ReconnectBanner', () => {
         render(<ReconnectBanner />);
 
         act(() => {
-            dispatchWindowMessage('websocketDisconnected');
+            dispatchWebSocketStatus(false);
         });
         expect(screen.getByText(/Reconnecting to Artemis/)).toBeInTheDocument();
 
         act(() => {
-            dispatchWindowMessage('websocketConnected');
+            dispatchWebSocketStatus(true);
             vi.advanceTimersByTime(2000);
         });
 
@@ -261,17 +263,17 @@ describe('Error suite: ReconnectBanner', () => {
 
         // First disconnect → reconnect cycle
         act(() => {
-            dispatchWindowMessage('websocketDisconnected');
+            dispatchWebSocketStatus(false);
         });
         act(() => {
-            dispatchWindowMessage('websocketConnected');
+            dispatchWebSocketStatus(true);
             vi.advanceTimersByTime(2000);
         });
         expect(screen.queryByText(/Reconnecting/)).not.toBeInTheDocument();
 
         // Second disconnect — banner should reappear
         act(() => {
-            dispatchWindowMessage('websocketDisconnected');
+            dispatchWebSocketStatus(false);
         });
         expect(screen.getByText(/Reconnecting to Artemis/)).toBeInTheDocument();
     });
@@ -280,10 +282,10 @@ describe('Error suite: ReconnectBanner', () => {
         render(<ReconnectBanner />);
 
         act(() => {
-            dispatchWindowMessage('websocketDisconnected');
+            dispatchWebSocketStatus(false);
         });
         act(() => {
-            dispatchWindowMessage('websocketConnected');
+            dispatchWebSocketStatus(true);
         });
 
         // Only 1 second passed — banner still visible

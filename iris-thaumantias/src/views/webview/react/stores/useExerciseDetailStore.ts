@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { devtools } from 'zustand/middleware';
-import type { VsCodeApi } from '../../../../shared/messageContracts';
+import { postCommand, type VsCodeApi } from '../../../../shared/messageContracts';
 import type {
     ExerciseDetailsResponse,
     ParticipationSummary,
@@ -105,11 +105,7 @@ export const useExerciseDetailStore = create<ExerciseDetailState>()(
 
             loadExerciseDetail: (vscodeApi, exerciseId) => {
                 set({ isLoading: true, error: null }, false, 'loadExerciseDetail');
-                vscodeApi.postMessage({
-                    type: 'command',
-                    command: 'reloadExerciseDetail',
-                    payload: { exerciseId },
-                });
+                postCommand(vscodeApi, 'reloadExerciseDetail', { exerciseId });
             },
 
             updateBuildStatus: (payload) => {

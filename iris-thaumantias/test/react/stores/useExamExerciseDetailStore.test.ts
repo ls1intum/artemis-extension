@@ -38,7 +38,7 @@ describe('useExamExerciseDetailStore', () => {
 		const { result } = renderHook(() => useExamExerciseDetailStore());
 
 		expect(result.current.examContext).toBeNull();
-		expect(result.current.loading).toBe(true);
+		expect(result.current.isLoading).toBe(true);
 		expect(result.current.error).toBeNull();
 	});
 
@@ -57,7 +57,7 @@ describe('useExamExerciseDetailStore', () => {
 		expect(result.current.examContext).toBeDefined();
 		expect(result.current.examContext?.courseId).toBe(5);
 		expect(result.current.examContext?.examId).toBe(50);
-		expect(result.current.loading).toBe(false);
+		expect(result.current.isLoading).toBe(false);
 		expect(result.current.error).toBeNull();
 	});
 
@@ -104,13 +104,13 @@ describe('useExamExerciseDetailStore', () => {
 			result.current.setLoading(false);
 		});
 
-		expect(result.current.loading).toBe(false);
+		expect(result.current.isLoading).toBe(false);
 
 		act(() => {
 			result.current.setLoading(true);
 		});
 
-		expect(result.current.loading).toBe(true);
+		expect(result.current.isLoading).toBe(true);
 	});
 
 	it('setError sets error and stops loading', () => {
@@ -121,7 +121,7 @@ describe('useExamExerciseDetailStore', () => {
 		});
 
 		expect(result.current.error).toBe('Failed to load exam exercise');
-		expect(result.current.loading).toBe(false);
+		expect(result.current.isLoading).toBe(false);
 	});
 
 	it('setError can clear error with null', () => {
@@ -141,7 +141,7 @@ describe('useExamExerciseDetailStore', () => {
 	it('loading state transitions: loading -> loaded', () => {
 		const { result } = renderHook(() => useExamExerciseDetailStore());
 
-		expect(result.current.loading).toBe(true);
+		expect(result.current.isLoading).toBe(true);
 
 		act(() => {
 			result.current.setExamExerciseData({
@@ -151,19 +151,19 @@ describe('useExamExerciseDetailStore', () => {
 			});
 		});
 
-		expect(result.current.loading).toBe(false);
+		expect(result.current.isLoading).toBe(false);
 	});
 
 	it('loading state transitions: loading -> error', () => {
 		const { result } = renderHook(() => useExamExerciseDetailStore());
 
-		expect(result.current.loading).toBe(true);
+		expect(result.current.isLoading).toBe(true);
 
 		act(() => {
 			result.current.setError('Network failure');
 		});
 
-		expect(result.current.loading).toBe(false);
+		expect(result.current.isLoading).toBe(false);
 		expect(result.current.error).toBe('Network failure');
 	});
 

@@ -6,7 +6,7 @@ interface ExamStartState {
     studentExam: StudentExam | null;
     courseId: number | null;
     examId: number | null;
-    loading: boolean;
+    isLoading: boolean;
     error: string | null;
 }
 
@@ -21,7 +21,7 @@ const initialState: ExamStartState = {
     studentExam: null,
     courseId: null,
     examId: null,
-    loading: true,
+    isLoading: true,
     error: null,
 };
 
@@ -35,13 +35,13 @@ export const useExamStartStore = create<ExamStartState & ExamStartActions>()(
                     studentExam: payload.studentExam,
                     courseId: payload.courseId,
                     examId: payload.examId,
-                    loading: false,
+                    isLoading: false,
                     error: null,
                 }, false, 'setExamStartData'),
 
-            setLoading: (loading) => set({ loading }, false, 'setLoading'),
+            setLoading: (loading) => set({ isLoading: loading }, false, 'setLoading'),
 
-            setError: (error) => set({ error, loading: false }, false, 'setError'),
+            setError: (error) => set({ error, isLoading: false }, false, 'setError'),
 
             reset: () => set(initialState, false, 'reset'),
         }),

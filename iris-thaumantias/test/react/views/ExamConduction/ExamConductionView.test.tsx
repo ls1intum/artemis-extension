@@ -29,7 +29,7 @@ function makeExamData(overrides: Record<string, unknown> = {}) {
 		startTime: now,
 		totalDuration: 3600000,
 		workspaceExerciseId: null,
-		loading: false,
+		isLoading: false,
 		error: null,
 		...overrides,
 	};
@@ -43,7 +43,7 @@ describe('ExamConductionView', () => {
 	});
 
 	it('shows loading skeleton when loading is true', () => {
-		useExamConductionStore.setState({ loading: true });
+		useExamConductionStore.setState({ isLoading: true });
 		const mockApi = createMockVsCodeApi();
 		render(<ExamConductionView vscodeApi={mockApi} />);
 		const busyElements = document.querySelectorAll('[aria-busy]');
@@ -51,14 +51,14 @@ describe('ExamConductionView', () => {
 	});
 
 	it('shows error message when error is set', () => {
-		useExamConductionStore.setState({ error: 'Failed to load exam', loading: false });
+		useExamConductionStore.setState({ error: 'Failed to load exam', isLoading: false });
 		const mockApi = createMockVsCodeApi();
 		render(<ExamConductionView vscodeApi={mockApi} />);
 		expect(screen.getByText('Failed to load exam')).toBeInTheDocument();
 	});
 
 	it('shows no data error when studentExam is null and not loading', () => {
-		useExamConductionStore.setState({ loading: false, studentExam: null });
+		useExamConductionStore.setState({ isLoading: false, studentExam: null });
 		const mockApi = createMockVsCodeApi();
 		render(<ExamConductionView vscodeApi={mockApi} />);
 		expect(screen.getByText('No exam data available')).toBeInTheDocument();

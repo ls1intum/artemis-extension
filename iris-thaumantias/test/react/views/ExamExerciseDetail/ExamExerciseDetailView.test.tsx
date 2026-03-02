@@ -87,7 +87,7 @@ describe('ExamExerciseDetailView', () => {
 	});
 
 	it('shows loading skeleton when loading', () => {
-		useExamExerciseDetailStore.setState({ loading: true });
+		useExamExerciseDetailStore.setState({ isLoading: true });
 		const mockApi = createMockVsCodeApi();
 		render(<ExamExerciseDetailView vscodeApi={mockApi} />);
 		const busyElements = document.querySelectorAll('[aria-busy]');
@@ -95,21 +95,21 @@ describe('ExamExerciseDetailView', () => {
 	});
 
 	it('shows back link during loading', () => {
-		useExamExerciseDetailStore.setState({ loading: true });
+		useExamExerciseDetailStore.setState({ isLoading: true });
 		const mockApi = createMockVsCodeApi();
 		render(<ExamExerciseDetailView vscodeApi={mockApi} />);
 		expect(screen.getByText('Back to Exam')).toBeInTheDocument();
 	});
 
 	it('shows error message when error is set', () => {
-		useExamExerciseDetailStore.setState({ error: 'Load failed', loading: false });
+		useExamExerciseDetailStore.setState({ error: 'Load failed', isLoading: false });
 		const mockApi = createMockVsCodeApi();
 		render(<ExamExerciseDetailView vscodeApi={mockApi} />);
 		expect(screen.getByText('Load failed')).toBeInTheDocument();
 	});
 
 	it('shows no data message when neither exercise nor examContext', () => {
-		useExamExerciseDetailStore.setState({ loading: false, examContext: null });
+		useExamExerciseDetailStore.setState({ isLoading: false, examContext: null });
 		useExerciseDetailStore.setState({ exerciseData: null, isLoading: false });
 		const mockApi = createMockVsCodeApi();
 		render(<ExamExerciseDetailView vscodeApi={mockApi} />);
@@ -135,7 +135,7 @@ describe('ExamExerciseDetailView', () => {
 	});
 
 	it('displays exercise title from stores', () => {
-		useExamExerciseDetailStore.setState({ examContext: makeExamContext() as never, loading: false });
+		useExamExerciseDetailStore.setState({ examContext: makeExamContext() as never, isLoading: false });
 		useExerciseDetailStore.setState({ exerciseData: makeExerciseData() as never, isLoading: false });
 		const mockApi = createMockVsCodeApi();
 		render(<ExamExerciseDetailView vscodeApi={mockApi} />);
@@ -143,7 +143,7 @@ describe('ExamExerciseDetailView', () => {
 	});
 
 	it('displays problem statement', () => {
-		useExamExerciseDetailStore.setState({ examContext: makeExamContext() as never, loading: false });
+		useExamExerciseDetailStore.setState({ examContext: makeExamContext() as never, isLoading: false });
 		useExerciseDetailStore.setState({ exerciseData: makeExerciseData() as never, isLoading: false });
 		const mockApi = createMockVsCodeApi();
 		render(<ExamExerciseDetailView vscodeApi={mockApi} />);
@@ -151,7 +151,7 @@ describe('ExamExerciseDetailView', () => {
 	});
 
 	it('back link sends backToExam postMessage', async () => {
-		useExamExerciseDetailStore.setState({ examContext: makeExamContext() as never, loading: false });
+		useExamExerciseDetailStore.setState({ examContext: makeExamContext() as never, isLoading: false });
 		useExerciseDetailStore.setState({ exerciseData: makeExerciseData() as never, isLoading: false });
 		const mockApi = createMockVsCodeApi();
 		render(<ExamExerciseDetailView vscodeApi={mockApi} />);
@@ -168,7 +168,7 @@ describe('ExamExerciseDetailView', () => {
 	});
 
 	it('shows submit button when participation exists', () => {
-		useExamExerciseDetailStore.setState({ examContext: makeExamContext() as never, loading: false });
+		useExamExerciseDetailStore.setState({ examContext: makeExamContext() as never, isLoading: false });
 		useExerciseDetailStore.setState({
 			exerciseData: makeExerciseDataWithParticipation() as never,
 			isLoading: false,
@@ -179,7 +179,7 @@ describe('ExamExerciseDetailView', () => {
 	});
 
 	it('submit button sends submitExercise postMessage', async () => {
-		useExamExerciseDetailStore.setState({ examContext: makeExamContext() as never, loading: false });
+		useExamExerciseDetailStore.setState({ examContext: makeExamContext() as never, isLoading: false });
 		useExerciseDetailStore.setState({
 			exerciseData: makeExerciseDataWithParticipation() as never,
 			isLoading: false,
@@ -200,7 +200,7 @@ describe('ExamExerciseDetailView', () => {
 	});
 
 	it('renders ExamTimer when examContext has endTime', () => {
-		useExamExerciseDetailStore.setState({ examContext: makeExamContext() as never, loading: false });
+		useExamExerciseDetailStore.setState({ examContext: makeExamContext() as never, isLoading: false });
 		useExerciseDetailStore.setState({ exerciseData: makeExerciseData() as never, isLoading: false });
 		const mockApi = createMockVsCodeApi();
 		const { container } = render(<ExamExerciseDetailView vscodeApi={mockApi} />);

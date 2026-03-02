@@ -4,7 +4,7 @@ import { TextInput } from '../../components/TextInput';
 import { Button } from '../../components/Button';
 import { ServiceHealth, type ServiceInfo } from '../../components/ServiceHealth';
 import type { LoginViewProps, LoginPersistedState, LoginViewState, UserInfo } from './types';
-import { isExtensionMessage, postCommand } from '../../../../../shared/messageContracts';
+import { ExtensionMsg, isExtensionMessage, postCommand } from '../../../../../shared/messageContracts';
 import { formatServiceName } from '../../utils/formatServiceName';
 import styles from './LoginView.module.css';
 
@@ -71,7 +71,7 @@ export function LoginView({ vscodeApi }: LoginViewProps) {
 			}
 
 			switch (event.data.type) {
-				case 'showLoading': {
+				case ExtensionMsg.ShowLoading: {
 					setViewState('loading');
 					setLoadingHiding(false);
 					setLoadingVisible(true);
@@ -81,7 +81,7 @@ export function LoginView({ vscodeApi }: LoginViewProps) {
 					break;
 				}
 
-				case 'hideLoading':
+				case ExtensionMsg.HideLoading:
 					if (viewState === 'loading') {
 						setLoadingHiding(true);
 						setTimeout(() => {
@@ -94,21 +94,21 @@ export function LoginView({ vscodeApi }: LoginViewProps) {
 					}
 					break;
 
-				case 'updateLoading': {
+				case ExtensionMsg.UpdateLoading: {
 					const updateMsg = event.data.message ?? 'Processing...';
 					setLoadingMessage(updateMsg);
 					setLoadingSubtext(loadingSubtexts[updateMsg] ?? 'Please wait while we process your request');
 					break;
 				}
 
-				case 'loginSuccess':
+				case ExtensionMsg.LoginSuccess:
 					setViewState('form'); // Dashboard transition handled by extension
 					setStatusMessage('');
 					setIsSubmitting(false);
 					setShowHealthChecks(false);
 					break;
 
-				case 'loginError': {
+				case ExtensionMsg.LoginError: {
 					setViewState('form');
 					setStatusMessage(event.data.error ?? 'Login failed');
 					setStatusType('error');
@@ -121,7 +121,7 @@ export function LoginView({ vscodeApi }: LoginViewProps) {
 					break;
 				}
 
-				case 'logoutSuccess':
+				case ExtensionMsg.LogoutSuccess:
 					setViewState('form');
 					setUserInfo(null);
 					setStatusMessage('You have been logged out.');
@@ -129,19 +129,12 @@ export function LoginView({ vscodeApi }: LoginViewProps) {
 					setShowHealthChecks(false);
 					break;
 
-				case 'showLoggedIn': {
-					setViewState('loggedIn');
-					setUserInfo(event.data.userInfo ?? null);
-					setShowHealthChecks(false);
-					break;
-				}
-
-				case 'setServerUrl': {
+				case ExtensionMsg.SetServerUrl: {
 					setServerUrl(event.data.serverUrl ?? '');
 					break;
 				}
 
-				case 'healthCheckResults': {
+				case ExtensionMsg.HealthCheckResults: {
 					// Convert health check results to ServiceInfo format
 					const services: ServiceInfo[] = Object.entries(event.data.results).map(([serviceName, data]) => ({
 						name: formatServiceName(serviceName),

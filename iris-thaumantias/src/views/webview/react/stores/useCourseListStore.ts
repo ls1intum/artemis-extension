@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { devtools } from 'zustand/middleware';
-import type { VsCodeApi, CourseData, ArchivedCourse } from '../../../../shared/messageContracts';
+import { postCommand, type VsCodeApi, type CourseData, type ArchivedCourse } from '../../../../shared/messageContracts';
 
 interface CourseListState {
     courses: CourseData[];
@@ -140,18 +140,12 @@ export const useCourseListStore = create<CourseListState>()(
 
             loadCourses: (vscodeApi) => {
                 set({ isLoading: true, error: null }, false, 'loadCourses');
-                vscodeApi.postMessage({
-                    type: 'command',
-                    command: 'reloadCourses',
-                });
+                postCommand(vscodeApi, 'reloadCourses');
             },
 
             loadArchivedCourses: (vscodeApi) => {
                 set({ isLoading: true }, false, 'loadArchivedCourses');
-                vscodeApi.postMessage({
-                    type: 'command',
-                    command: 'loadArchivedCourses',
-                });
+                postCommand(vscodeApi, 'loadArchivedCourses');
             },
 
             filteredCourses: () => {

@@ -13,6 +13,8 @@ export function isExtensionMessage(msg: unknown): msg is ExtensionToWebviewMessa
         && extensionMsgValues.has((msg as { type: string }).type);
 }
 
+// Manual set matching WebviewToExtensionMessage's non-command type variants
+// (ready, error, updatePanelTitle) plus the 'command' wrapper type.
 const webviewMsgTypes = new Set<string>(['ready', 'command', 'error', 'updatePanelTitle']);
 
 export function isWebviewMessage(msg: unknown): msg is WebviewToExtensionMessage {

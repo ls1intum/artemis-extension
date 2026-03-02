@@ -23,7 +23,7 @@ describe('useExamStartStore', () => {
 		expect(result.current.studentExam).toBeNull();
 		expect(result.current.courseId).toBeNull();
 		expect(result.current.examId).toBeNull();
-		expect(result.current.loading).toBe(true);
+		expect(result.current.isLoading).toBe(true);
 		expect(result.current.error).toBeNull();
 	});
 
@@ -42,7 +42,7 @@ describe('useExamStartStore', () => {
 		expect(result.current.studentExam).toEqual(studentExam);
 		expect(result.current.courseId).toBe(10);
 		expect(result.current.examId).toBe(100);
-		expect(result.current.loading).toBe(false);
+		expect(result.current.isLoading).toBe(false);
 		expect(result.current.error).toBeNull();
 	});
 
@@ -82,13 +82,13 @@ describe('useExamStartStore', () => {
 			result.current.setLoading(false);
 		});
 
-		expect(result.current.loading).toBe(false);
+		expect(result.current.isLoading).toBe(false);
 
 		act(() => {
 			result.current.setLoading(true);
 		});
 
-		expect(result.current.loading).toBe(true);
+		expect(result.current.isLoading).toBe(true);
 	});
 
 	it('setError sets error and stops loading', () => {
@@ -99,7 +99,7 @@ describe('useExamStartStore', () => {
 		});
 
 		expect(result.current.error).toBe('Failed to load exam');
-		expect(result.current.loading).toBe(false);
+		expect(result.current.isLoading).toBe(false);
 	});
 
 	it('setError can clear error with null', () => {
@@ -136,7 +136,7 @@ describe('useExamStartStore', () => {
 		expect(result.current.studentExam).toBeNull();
 		expect(result.current.courseId).toBeNull();
 		expect(result.current.examId).toBeNull();
-		expect(result.current.loading).toBe(true);
+		expect(result.current.isLoading).toBe(true);
 		expect(result.current.error).toBeNull();
 	});
 
@@ -170,7 +170,7 @@ describe('useExamStartStore', () => {
 	it('loading state transitions: loading -> loaded', () => {
 		const { result } = renderHook(() => useExamStartStore());
 
-		expect(result.current.loading).toBe(true);
+		expect(result.current.isLoading).toBe(true);
 
 		act(() => {
 			result.current.setExamStartData({
@@ -180,19 +180,19 @@ describe('useExamStartStore', () => {
 			});
 		});
 
-		expect(result.current.loading).toBe(false);
+		expect(result.current.isLoading).toBe(false);
 	});
 
 	it('loading state transitions: loading -> error', () => {
 		const { result } = renderHook(() => useExamStartStore());
 
-		expect(result.current.loading).toBe(true);
+		expect(result.current.isLoading).toBe(true);
 
 		act(() => {
 			result.current.setError('Exam fetch failed');
 		});
 
-		expect(result.current.loading).toBe(false);
+		expect(result.current.isLoading).toBe(false);
 		expect(result.current.error).toBe('Exam fetch failed');
 	});
 

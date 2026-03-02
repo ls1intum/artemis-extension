@@ -23,7 +23,6 @@ import {
     createGitCredentialsPayload,
     createRecommendedExtensionsPayload,
     createLogoutPayload,
-    createGenericInitPayload,
 } from '../fixtures';
 
 describe('Bridge Contracts', () => {
@@ -185,34 +184,7 @@ describe('Bridge Contracts', () => {
     });
 
     // =========================================================================
-    // 7. showAiConfig() → ai-config state → init (generic)
-    // =========================================================================
-
-    describe('ai-config (init generic)', () => {
-        it('has type discriminant "init"', () => {
-            const payload = createGenericInitPayload('ai-config');
-            expect(payload.type).toBe('init');
-        });
-
-        it('passes isExtensionMessage() type guard', () => {
-            const payload = createGenericInitPayload('ai-config');
-            expect(isExtensionMessage(payload)).toBe(true);
-        });
-
-        it('view is "ai-config"', () => {
-            const payload = createGenericInitPayload('ai-config');
-            expect(payload.view).toBe('ai-config');
-        });
-
-        it('payload is a Record object', () => {
-            const payload = createGenericInitPayload('ai-config');
-            expect(typeof payload.payload).toBe('object');
-            expect(payload.payload).not.toBeNull();
-        });
-    });
-
-    // =========================================================================
-    // 8. showServiceStatus() → service-status state → serviceStatusInit
+    // 7. showServiceStatus() → service-status state → serviceStatusInit
     // =========================================================================
 
     describe('service-status (serviceStatusInit)', () => {
@@ -234,33 +206,6 @@ describe('Bridge Contracts', () => {
         it('custom serverUrl flows through via overrides', () => {
             const payload = createServiceStatusPayload({ serverUrl: 'https://custom.artemis.tum.de' });
             expect(payload.serverUrl).toBe('https://custom.artemis.tum.de');
-        });
-    });
-
-    // =========================================================================
-    // 9. showStruggleDetection() → struggle-detection state → init (generic)
-    // =========================================================================
-
-    describe('struggle-detection (init generic)', () => {
-        it('has type discriminant "init"', () => {
-            const payload = createGenericInitPayload('struggle-detection');
-            expect(payload.type).toBe('init');
-        });
-
-        it('passes isExtensionMessage() type guard', () => {
-            const payload = createGenericInitPayload('struggle-detection');
-            expect(isExtensionMessage(payload)).toBe(true);
-        });
-
-        it('view is "struggle-detection"', () => {
-            const payload = createGenericInitPayload('struggle-detection');
-            expect(payload.view).toBe('struggle-detection');
-        });
-
-        it('payload is a Record object', () => {
-            const payload = createGenericInitPayload('struggle-detection');
-            expect(typeof payload.payload).toBe('object');
-            expect(payload.payload).not.toBeNull();
         });
     });
 

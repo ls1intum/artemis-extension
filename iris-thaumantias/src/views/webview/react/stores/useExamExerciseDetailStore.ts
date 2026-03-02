@@ -13,7 +13,7 @@ interface ExamContext {
 
 interface ExamExerciseDetailState {
     examContext: ExamContext | null;
-    loading: boolean;
+    isLoading: boolean;
     error: string | null;
 }
 
@@ -29,7 +29,7 @@ interface ExamExerciseDetailActions {
 
 const initialState: ExamExerciseDetailState = {
     examContext: null,
-    loading: true,
+    isLoading: true,
     error: null,
 };
 
@@ -41,13 +41,13 @@ export const useExamExerciseDetailStore = create<ExamExerciseDetailState & ExamE
             setExamExerciseData: (payload) =>
                 set({
                     examContext: payload.examContext,
-                    loading: false,
+                    isLoading: false,
                     error: null,
                 }, false, 'setExamExerciseData'),
 
-            setLoading: (loading) => set({ loading }, false, 'setLoading'),
+            setLoading: (loading) => set({ isLoading: loading }, false, 'setLoading'),
 
-            setError: (error) => set({ error, loading: false }, false, 'setError'),
+            setError: (error) => set({ error, isLoading: false }, false, 'setError'),
         }),
         {
             name: 'ExamExerciseDetailStore',
