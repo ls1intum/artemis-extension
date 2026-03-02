@@ -1,6 +1,6 @@
 import type { CommandContext, CommandMap } from './types';
 import { getPayload, ExtensionMsg, WebviewCmd } from '../../../shared/messageContracts';
-import type { WebviewToExtensionMessage, PerformHealthChecksCommand } from '../../../shared/messageContracts';
+import type { WebviewToExtensionMessage, WebCmd } from '../../../shared/messageContracts';
 import { logger } from '../../../services/loggingService';
 
 // Health check result structure
@@ -24,7 +24,7 @@ export class HealthCommandModule {
     }
 
     private handlePerformHealthChecks = async (message: WebviewToExtensionMessage): Promise<void> => {
-        const { serverUrl } = getPayload<PerformHealthChecksCommand>(message);
+        const { serverUrl } = getPayload<WebCmd<'performHealthChecks'>>(message);
 
         // Simplified health checks - only meaningful ones
         const results: HealthCheckResults = {

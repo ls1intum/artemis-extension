@@ -1,9 +1,9 @@
-import type { GenericInitMessage } from '../../../src/shared/messageContracts';
+import type { ExtMsg } from '../../../src/shared/messageContracts';
 
 export function createGenericInitPayload(
     view: string,
     overrides?: Record<string, unknown>,
-): GenericInitMessage {
+): ExtMsg<'init'> {
     return {
         type: 'init',
         view,

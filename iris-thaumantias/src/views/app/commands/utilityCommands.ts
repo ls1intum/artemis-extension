@@ -4,20 +4,7 @@ import type { CommandContext, CommandMap } from './types';
 import { getPayload, ExtensionMsg, WebviewCmd } from '../../../shared/messageContracts';
 import type {
     WebviewToExtensionMessage,
-    CopyToClipboardCommand,
-    OpenSettingsCommand,
-    SearchMarketplaceCommand,
-    OpenInEditorCommand,
-    OpenExternalLinkCommand,
-    OpenImagePreviewCommand,
-    AlertCommand,
-    ShowSubmissionDetailsCommand,
-    FetchTestResultsCommand,
-    OpenExerciseInBrowserCommand,
-    ViewBuildLogCommand,
-    GoToSourceErrorCommand,
-    FetchBuildLogsForErrorCommand,
-    WebviewLogCommand,
+    WebCmd,
 } from '../../../shared/messageContracts';
 import { BuildLogParser, normalizeRelativePath, extractErrorMessage } from '../../../utils';
 import { logger, LogLevel, LogCategory } from '../../../services/loggingService';
@@ -48,14 +35,14 @@ export class UtilityCommandModule {
     }
 
     private handleAlert = async (message: WebviewToExtensionMessage): Promise<void> => {
-        const payload = getPayload<AlertCommand>(message);
+        const payload = getPayload<WebCmd<'alert'>>(message);
         if (payload?.text) {
             vscode.window.showErrorMessage(payload.text);
         }
     };
 
     private handleOpenSettings = async (message: WebviewToExtensionMessage): Promise<void> => {
-        const payload = getPayload<OpenSettingsCommand>(message);
+        const payload = getPayload<WebCmd<'openSettings'>>(message);
         const settingId = payload?.setting || 'Artemis';
         await vscode.commands.executeCommand('workbench.action.openSettings', settingId);
     };
@@ -71,12 +58,12 @@ export class UtilityCommandModule {
     };
 
     private handleOpenInEditor = async (message: WebviewToExtensionMessage): Promise<void> => {
-        const payload = getPayload<OpenInEditorCommand>(message);
+        const payload = getPayload<WebCmd<'openInEditor'>>(message);
         await this.context.actionHandler.openJsonInEditor(payload.data);
     };
 
     private handleCopyToClipboard = async (message: WebviewToExtensionMessage): Promise<void> => {
-        const payload = getPayload<CopyToClipboardCommand>(message);
+        const payload = getPayload<WebCmd<'copyToClipboard'>>(message);
         if (typeof payload.text === 'string') {
             await vscode.env.clipboard.writeText(payload.text);
             vscode.window.showInformationMessage('Copied to clipboard');
@@ -84,14 +71,14 @@ export class UtilityCommandModule {
     };
 
     private handleSearchMarketplace = async (message: WebviewToExtensionMessage): Promise<void> => {
-        const payload = getPayload<SearchMarketplaceCommand>(message);
+        const payload = getPayload<WebCmd<'searchMarketplace'>>(message);
         if (payload.extensionId) {
             await vscode.commands.executeCommand('workbench.extensions.search', `@id:${payload.extensionId}`);
         }
     };
 
     private handleShowSubmissionDetails = async (message: WebviewToExtensionMessage): Promise<void> => {
-        const payload = getPayload<ShowSubmissionDetailsCommand>(message);
+        const payload = getPayload<WebCmd<'showSubmissionDetails'>>(message);
         const participationId = payload.participationId;
         const resultId = payload.resultId;
 
@@ -118,7 +105,7 @@ export class UtilityCommandModule {
     };
 
     private handleFetchTestResults = async (message: WebviewToExtensionMessage): Promise<void> => {
-        const payload = getPayload<FetchTestResultsCommand>(message);
+        const payload = getPayload<WebCmd<'fetchTestResults'>>(message);
         const participationId = payload.participationId;
         const resultId = payload.resultId;
 
@@ -189,7 +176,7 @@ export class UtilityCommandModule {
     };
 
     private handleOpenExerciseInBrowser = async (message: WebviewToExtensionMessage): Promise<void> => {
-        const payload = getPayload<OpenExerciseInBrowserCommand>(message);
+        const payload = getPayload<WebCmd<'openExerciseInBrowser'>>(message);
         const exerciseId = payload.exerciseId;
         const courseId = payload.courseId;
 
@@ -219,7 +206,7 @@ export class UtilityCommandModule {
     };
 
     private handleViewBuildLog = async (message: WebviewToExtensionMessage): Promise<void> => {
-        const payload = getPayload<ViewBuildLogCommand>(message);
+        const payload = getPayload<WebCmd<'viewBuildLog'>>(message);
         const participationId = payload.participationId;
         const resultId = payload.resultId;
 
@@ -292,7 +279,7 @@ export class UtilityCommandModule {
     };
 
     private handleGoToSourceError = async (message: WebviewToExtensionMessage): Promise<void> => {
-        const payload = getPayload<GoToSourceErrorCommand>(message);
+        const payload = getPayload<WebCmd<'goToSourceError'>>(message);
         const filePath: string = normalizeRelativePath(payload.filePath);
         const line = payload.line;
         const column = payload.column;
@@ -346,7 +333,7 @@ export class UtilityCommandModule {
     };
 
     private handleFetchBuildLogsForError = async (message: WebviewToExtensionMessage): Promise<void> => {
-        const payload = getPayload<FetchBuildLogsForErrorCommand>(message);
+        const payload = getPayload<WebCmd<'fetchBuildLogsForError'>>(message);
         const participationId = payload.participationId;
         const resultId = payload.resultId;
 
@@ -411,7 +398,7 @@ export class UtilityCommandModule {
      * Handles log messages from webview scripts
      */
     private handleWebviewLog = async (message: WebviewToExtensionMessage): Promise<void> => {
-        const payload = getPayload<WebviewLogCommand>(message);
+        const payload = getPayload<WebCmd<'webviewLog'>>(message);
         const { level, text } = payload;
         const logCategory = LogCategory.VIEW;
 
@@ -438,7 +425,7 @@ export class UtilityCommandModule {
     private handleOpenExternalLink = async (message: WebviewToExtensionMessage): Promise<void> => {
         try {
             // Input validation
-            const payload = getPayload<OpenExternalLinkCommand>(message);
+            const payload = getPayload<WebCmd<'openExternalLink'>>(message);
             const url = payload.url;
             if (!url || typeof url !== 'string') {
                 vscode.window.showErrorMessage('Invalid URL: missing or not a string');
@@ -501,7 +488,7 @@ export class UtilityCommandModule {
             }
         } catch (error: unknown) {
             logger.error('Open external link error:', LogCategory.VIEW, error);
-            const payload = getPayload<OpenExternalLinkCommand>(message);
+            const payload = getPayload<WebCmd<'openExternalLink'>>(message);
             const action = await vscode.window.showErrorMessage(
                 `Failed to open external link: ${extractErrorMessage(error)}`,
                 'Copy URL'
@@ -518,7 +505,7 @@ export class UtilityCommandModule {
     private handleOpenImagePreview = async (message: WebviewToExtensionMessage): Promise<void> => {
         try {
             // Input validation
-            const payload = getPayload<OpenImagePreviewCommand>(message);
+            const payload = getPayload<WebCmd<'openImagePreview'>>(message);
             const uri = payload.uri;
             if (!uri || typeof uri !== 'string') {
                 vscode.window.showErrorMessage('Invalid image URI: missing or not a string');
@@ -566,7 +553,7 @@ export class UtilityCommandModule {
             await vscode.env.openExternal(vscode.Uri.parse(uri));
         } catch (error: unknown) {
             logger.error('Open image preview error:', LogCategory.VIEW, error);
-            const payload = getPayload<OpenImagePreviewCommand>(message);
+            const payload = getPayload<WebCmd<'openImagePreview'>>(message);
             const action = await vscode.window.showErrorMessage(
                 `Failed to open image: ${extractErrorMessage(error)}`,
                 'Copy URL'

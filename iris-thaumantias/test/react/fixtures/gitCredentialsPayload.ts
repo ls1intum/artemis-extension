@@ -1,8 +1,8 @@
-import type { GitCredentialsInitMessage } from '../../../src/shared/messageContracts';
+import type { ExtMsg } from '../../../src/shared/messageContracts';
 
 export function createGitCredentialsPayload(
-    overrides?: Partial<Omit<GitCredentialsInitMessage, 'type'>>,
-): GitCredentialsInitMessage {
+    overrides?: Partial<Omit<ExtMsg<'gitCredentialsInit'>, 'type'>>,
+): ExtMsg<'gitCredentialsInit'> {
     return {
         type: 'gitCredentialsInit',
         currentName: 'Test User',

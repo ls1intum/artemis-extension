@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from 'react';
 import { isExtensionMessage, postCommand } from '../../../../../shared/messageContracts';
-import type { VsCodeApi, IrisChatStateMessage } from '../../../../../shared/messageContracts';
+import type { VsCodeApi } from '../../../../../shared/messageContracts';
 import { useChatStore } from '../../stores/useChatStore';
 import { ChatMessageList } from './components/ChatMessageList';
 import { ChatInput } from './components/ChatInput';

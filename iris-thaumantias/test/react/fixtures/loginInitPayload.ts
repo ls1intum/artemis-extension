@@ -1,8 +1,8 @@
-import type { ShowLoggedInMessage } from '../../../src/shared/messageContracts';
+import type { ExtMsg } from '../../../src/shared/messageContracts';
 
 export function createLoginInitPayload(
-    overrides?: Partial<Omit<ShowLoggedInMessage, 'type'>>,
-): ShowLoggedInMessage {
+    overrides?: Partial<Omit<ExtMsg<'showLoggedIn'>, 'type'>>,
+): ExtMsg<'showLoggedIn'> {
     return {
         type: 'showLoggedIn',
         userInfo: {

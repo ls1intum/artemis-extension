@@ -1,8 +1,8 @@
-import type { RecommendedExtensionsInitMessage } from '../../../src/shared/messageContracts';
+import type { ExtMsg } from '../../../src/shared/messageContracts';
 
 export function createRecommendedExtensionsPayload(
-    overrides?: Partial<Omit<RecommendedExtensionsInitMessage, 'type'>>,
-): RecommendedExtensionsInitMessage {
+    overrides?: Partial<Omit<ExtMsg<'recommendedExtensionsInit'>, 'type'>>,
+): ExtMsg<'recommendedExtensionsInit'> {
     return {
         type: 'recommendedExtensionsInit',
         categories: [],

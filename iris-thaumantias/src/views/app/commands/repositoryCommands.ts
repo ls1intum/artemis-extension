@@ -5,18 +5,7 @@ import type { CommandContext, CommandMap } from './types';
 import { getPayload, ExtensionMsg, WebviewCmd } from '../../../shared/messageContracts';
 import type {
     WebviewToExtensionMessage,
-    CheckRepositoryStatusCommand,
-    CloneRepositoryCommand,
-    SubmitExerciseCommand,
-    StartExerciseCommand,
-    StartPracticeCommand,
-    SaveGitIdentityCommand,
-    OpenRepositoryCommand,
-    ParticipateInExerciseCommand,
-    OpenClonedRepositoryCommand,
-    CopyCloneUrlCommand,
-    PullChangesCommand,
-    SaveGitCredentialsCommand,
+    WebCmd,
 } from '../../../shared/messageContracts';
 import { VSCODE_CONFIG, checkWorkspaceFiles, extractErrorMessage } from '../../../utils';
 import { detectWorkspaceExercise, normalizeRepositoryUrl, type ExerciseSource, GitService } from '../../../services';
@@ -162,7 +151,7 @@ export class RepositoryCommandModule {
     }
 
     private handleParticipateInExercise = async (message: WebviewToExtensionMessage): Promise<void> => {
-        const payload = getPayload<ParticipateInExerciseCommand>(message);
+        const payload = getPayload<WebCmd<'participateInExercise'>>(message);
         const exerciseId = payload.exerciseId;
         const exerciseTitle = payload.exerciseTitle;
 
@@ -273,7 +262,7 @@ export class RepositoryCommandModule {
     };
 
     private handleCloneRepository = async (message: WebviewToExtensionMessage): Promise<void> => {
-        const payload = getPayload<CloneRepositoryCommand>(message);
+        const payload = getPayload<WebCmd<'cloneRepository'>>(message);
         const { participationId, repositoryUri, exerciseTitle } = payload;
         const exerciseId = participationId; // Use participationId for tracking
 
@@ -473,7 +462,7 @@ export class RepositoryCommandModule {
     };
 
     private handleOpenClonedRepository = async (message: WebviewToExtensionMessage): Promise<void> => {
-        const payload = getPayload<OpenClonedRepositoryCommand>(message);
+        const payload = getPayload<WebCmd<'openClonedRepository'>>(message);
         const exerciseId = payload.exerciseId;
 
         try {
@@ -502,7 +491,7 @@ export class RepositoryCommandModule {
     };
 
     private handleCopyCloneUrl = async (message: WebviewToExtensionMessage): Promise<void> => {
-        const payload = getPayload<CopyCloneUrlCommand>(message);
+        const payload = getPayload<WebCmd<'copyCloneUrl'>>(message);
         const { participationId, repositoryUri } = payload;
 
         try {
@@ -525,7 +514,7 @@ export class RepositoryCommandModule {
     };
 
     private handlePullChanges = async (message: WebviewToExtensionMessage): Promise<void> => {
-        const payload = getPayload<PullChangesCommand>(message);
+        const payload = getPayload<WebCmd<'pullChanges'>>(message);
         const exerciseTitle = payload.exerciseTitle;
 
         try {
@@ -568,7 +557,7 @@ export class RepositoryCommandModule {
     };
 
     private handleSubmitExercise = async (message: WebviewToExtensionMessage): Promise<void> => {
-        const payload = getPayload<SubmitExerciseCommand>(message);
+        const payload = getPayload<WebCmd<'submitExercise'>>(message);
         const participationId = payload.participationId;
         const exerciseId = payload.exerciseId ?? 0;
         const exerciseTitle = payload.exerciseTitle ?? 'Exercise';
@@ -687,7 +676,7 @@ export class RepositoryCommandModule {
     }
 
     private handleSaveGitIdentity = async (message: WebviewToExtensionMessage): Promise<void> => {
-        const payload = getPayload<SaveGitIdentityCommand>(message);
+        const payload = getPayload<WebCmd<'saveGitIdentity'>>(message);
         const rawName = payload.name.trim();
         const rawEmail = payload.email.trim();
 
@@ -738,7 +727,7 @@ export class RepositoryCommandModule {
     };
 
     private handleSaveGitCredentials = async (message: WebviewToExtensionMessage): Promise<void> => {
-        const payload = getPayload<SaveGitCredentialsCommand>(message);
+        const payload = getPayload<WebCmd<'saveGitCredentials'>>(message);
         const rawUsername = typeof payload.username === 'string' ? payload.username.trim() : '';
         const rawToken = typeof payload.token === 'string' ? payload.token.trim() : '';
         const rawServerUrl = typeof payload.serverUrl === 'string' ? payload.serverUrl.trim() : '';
@@ -939,7 +928,7 @@ export class RepositoryCommandModule {
     }
 
     private handleStartPractice = async (message: WebviewToExtensionMessage): Promise<void> => {
-        const payload = getPayload<StartPracticeCommand>(message);
+        const payload = getPayload<WebCmd<'startPractice'>>(message);
         const exerciseId = payload.exerciseId;
         const exerciseTitle = payload.exerciseTitle ?? 'Exercise';
 
@@ -963,7 +952,7 @@ export class RepositoryCommandModule {
     };
 
     private handleStartExercise = async (message: WebviewToExtensionMessage): Promise<void> => {
-        const payload = getPayload<StartExerciseCommand>(message);
+        const payload = getPayload<WebCmd<'startExercise'>>(message);
         const exerciseId = payload.exerciseId;
 
         try {
@@ -983,7 +972,7 @@ export class RepositoryCommandModule {
     };
 
     private handleOpenRepository = async (message: WebviewToExtensionMessage): Promise<void> => {
-        const payload = getPayload<OpenRepositoryCommand>(message);
+        const payload = getPayload<WebCmd<'openRepository'>>(message);
         const repositoryUri = payload.repositoryUri;
 
         if (!repositoryUri) {

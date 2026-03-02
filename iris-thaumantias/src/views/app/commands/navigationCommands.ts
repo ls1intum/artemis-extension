@@ -7,18 +7,7 @@ import { logger } from '../../../services/loggingService';
 import { getPayload, ExtensionMsg, WebviewCmd } from '../../../shared/messageContracts';
 import type {
     WebviewToExtensionMessage,
-    OpenExamCommand,
-    OpenExamInBrowserCommand,
-    ViewCourseDetailsCommand,
-    OpenExerciseDetailsCommand,
-    OpenExamExerciseDetailsCommand,
-    ReloadCourseDetailCommand,
-    ReloadExerciseDetailCommand,
-    ViewArchivedCourseCommand,
-    OpenExerciseCommand,
-    RefreshExamCommand,
-    ReloadExamConductionCommand,
-    StartExamCommand,
+    WebCmd,
     ExerciseDetail,
 } from '../../../shared/messageContracts';
 import type {
@@ -73,9 +62,7 @@ export class NavigationCommandModule {
 
     private handleOpenRulesInEditor = async (message: WebviewToExtensionMessage): Promise<void> => {
         try {
-            // Note: openRulesInEditor doesn't have a typed command interface yet
-            // Extract text field with runtime type check
-            const text = 'text' in message && typeof message.text === 'string' ? message.text : '';
+            const { text } = getPayload<WebCmd<'openRulesInEditor'>>(message);
             const document = await vscode.workspace.openTextDocument({
                 content: text,
                 language: 'markdown'
@@ -89,7 +76,7 @@ export class NavigationCommandModule {
 
     private handleOpenExamInBrowser = async (message: WebviewToExtensionMessage): Promise<void> => {
         try {
-            const { courseId, examId } = getPayload<OpenExamInBrowserCommand>(message);
+            const { courseId, examId } = getPayload<WebCmd<'openExamInBrowser'>>(message);
             const serverUrl = this.context.appStateManager.userInfo?.serverUrl;
             if (serverUrl) {
                 const url = `${serverUrl}/courses/${courseId}/exams/${examId}`;
@@ -105,7 +92,7 @@ export class NavigationCommandModule {
 
     private handleOpenExam = async (message: WebviewToExtensionMessage): Promise<void> => {
         try {
-            const { courseId, examId } = getPayload<OpenExamCommand>(message);
+            const { courseId, examId } = getPayload<WebCmd<'openExam'>>(message);
             logger.view(`[EXAMMODE] Handling openExam for course ${courseId}, exam ${examId}`);
             const studentExam = await this.context.artemisApi.getOwnStudentExam(courseId, examId);
             logger.view(`[EXAMMODE] Fetched student exam:`, studentExam);
@@ -131,11 +118,11 @@ export class NavigationCommandModule {
 
 
     private handleStartExam = async (message: WebviewToExtensionMessage): Promise<void> => {
-        const payload = getPayload<StartExamCommand>(message);
+        const payload = getPayload<WebCmd<'startExam'>>(message);
         await this._startExamWithPayload(payload);
     };
 
-    private async _startExamWithPayload(payload: StartExamCommand['payload']): Promise<void> {
+    private async _startExamWithPayload(payload: WebCmd<'startExam'>['payload']): Promise<void> {
         try {
             const { courseId, examId, studentExamId } = payload;
             logger.view(`[EXAMMODE] Starting exam ${examId} for student exam ${studentExamId}`);
@@ -214,7 +201,7 @@ export class NavigationCommandModule {
     };
 
     private handleViewCourseDetails = async (message: WebviewToExtensionMessage): Promise<void> => {
-        const { courseData } = getPayload<ViewCourseDetailsCommand>(message);
+        const { courseData } = getPayload<WebCmd<'viewCourseDetails'>>(message);
         await this.processCourseDetails(courseData);
     };
 
@@ -295,12 +282,12 @@ export class NavigationCommandModule {
     };
 
     private handleOpenExerciseDetails = async (message: WebviewToExtensionMessage): Promise<void> => {
-        const { exerciseId } = getPayload<OpenExerciseDetailsCommand>(message);
+        const { exerciseId } = getPayload<WebCmd<'openExerciseDetails'>>(message);
         await this.context.actionHandler.openExerciseDetails(exerciseId);
     };
 
     private handleOpenExamExerciseDetails = async (message: WebviewToExtensionMessage): Promise<void> => {
-        const { exercise, exerciseIndex, courseId, examId } = getPayload<OpenExamExerciseDetailsCommand>(message);
+        const { exercise, exerciseIndex, courseId, examId } = getPayload<WebCmd<'openExamExerciseDetails'>>(message);
         await this.context.actionHandler.openExamExerciseDetails(exercise, exerciseIndex, courseId, examId);
     };
 
@@ -388,7 +375,7 @@ export class NavigationCommandModule {
 
     private handleReloadCourseDetail = async (message: WebviewToExtensionMessage): Promise<void> => {
         try {
-            const payload = getPayload<ReloadCourseDetailCommand>(message);
+            const payload = getPayload<WebCmd<'reloadCourseDetail'>>(message);
             const courseId = payload.courseId || this.context.appStateManager.currentCourseData?.course?.id;
             if (courseId) {
                 this.context.appStateManager.clearCurrentCourseData();
@@ -424,7 +411,7 @@ export class NavigationCommandModule {
 
     private handleReloadExerciseDetail = async (message: WebviewToExtensionMessage): Promise<void> => {
         try {
-            const payload = getPayload<ReloadExerciseDetailCommand>(message);
+            const payload = getPayload<WebCmd<'reloadExerciseDetail'>>(message);
             const currentData = this.context.appStateManager.currentExerciseData;
 
             // Extract exercise ID from various possible structures
@@ -453,7 +440,7 @@ export class NavigationCommandModule {
     };
 
     private handleViewArchivedCourse = async (message: WebviewToExtensionMessage): Promise<void> => {
-        const { courseId } = getPayload<ViewArchivedCourseCommand>(message);
+        const { courseId } = getPayload<WebCmd<'viewArchivedCourse'>>(message);
         try {
             vscode.window.showInformationMessage('Loading archived course details...');
 
@@ -466,7 +453,7 @@ export class NavigationCommandModule {
     };
 
     private handleOpenExercise = async (message: WebviewToExtensionMessage): Promise<void> => {
-        const { exerciseId } = getPayload<OpenExerciseCommand>(message);
+        const { exerciseId } = getPayload<WebCmd<'openExercise'>>(message);
 
         try {
             const coursesData = this.context.appStateManager.coursesData;
@@ -531,7 +518,7 @@ export class NavigationCommandModule {
 
     private handleRefreshExam = async (message: WebviewToExtensionMessage): Promise<void> => {
         try {
-            const { courseId, examId, studentExamId } = getPayload<RefreshExamCommand>(message);
+            const { courseId, examId, studentExamId } = getPayload<WebCmd<'refreshExam'>>(message);
             logger.view(`[EXAMMODE] Refreshing exam status for course ${courseId}, exam ${examId}`);
 
             const studentExam = await this.context.artemisApi.getOwnStudentExam(courseId, examId);

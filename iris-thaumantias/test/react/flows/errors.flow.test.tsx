@@ -210,8 +210,8 @@ describe('Error suite: ServiceHealth degraded states', () => {
 // ReconnectBanner connection loss and reconnect action tests
 // ============================================================================
 
-function dispatchWindowMessage(command: string) {
-    const event = new MessageEvent('message', { data: { command } });
+function dispatchWindowMessage(type: string) {
+    const event = new MessageEvent('message', { data: { type } });
     window.dispatchEvent(event);
 }
 

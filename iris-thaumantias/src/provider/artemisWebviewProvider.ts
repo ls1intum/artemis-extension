@@ -20,7 +20,8 @@ import { WebSocketMessageHandler, ResultDTO, ProgrammingSubmission, ProgrammingS
 import type { BuildErrorCodeLensProvider } from './buildErrorCodeLensProvider';
 import type { TelemetryManager } from '../services/telemetry/telemetryManager';
 import type { ExtensionToWebviewMessage, WebviewToExtensionMessage, CourseDetailData as CourseDetailPayload } from '../shared/messageContracts';
-import type { CourseDashboardEntry, ExerciseDetail, CourseDetailData, ExerciseDetailsResponse } from '../types/apiResponses';
+import type { CourseDashboardEntry, ExerciseDetail, CourseDetailData, ExerciseDetailsResponse, ResultSummary, SubmissionSummary } from '../types/apiResponses';
+import { isWebviewMessage } from '../shared/messageContracts/typeGuards';
 
 /**
  * Main webview provider for the Artemis sidebar panel.
@@ -29,7 +30,7 @@ import type { CourseDashboardEntry, ExerciseDetail, CourseDetailData, ExerciseDe
  * state sync, and service integration. A future refactor could extract
  * render-data preparation into a dedicated ViewDataService.
  */
-export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebViewActionHandler, IArtemisWebviewProvider {
+export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebViewActionHandler, IArtemisWebviewProvider, vscode.Disposable {
     public static readonly viewType = CONFIG.WEBVIEW.VIEW_TYPE;
 
     private _view?: vscode.WebviewView;
@@ -42,6 +43,7 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
     private _websocketHandler?: WebSocketMessageHandler;
     private _buildCodeLens?: BuildErrorCodeLensProvider;
     private _telemetryManager?: TelemetryManager;
+    private readonly _disposables: vscode.Disposable[] = [];
 
     // Ready-signal handshake state
     private _webviewReady = false;
@@ -81,6 +83,16 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
             this._websocketService,
             this._extensionContext
         );
+    }
+
+    public dispose(): void {
+        if (this._websocketService && this._websocketHandler) {
+            this._websocketService.unregisterMessageHandler(this._websocketHandler);
+        }
+        while (this._disposables.length > 0) {
+            const d = this._disposables.pop();
+            d?.dispose();
+        }
     }
 
     /**
@@ -474,11 +486,12 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
         // Handle messages from the webview using the message handler
         webviewView.webview.onDidReceiveMessage(
             (message: unknown) => {
-                // Narrow unknown to typed message
-                const typedMessage = message as { type?: string };
+                if (!isWebviewMessage(message)) {
+                    return;
+                }
 
                 // Handle ready signal from React webview
-                if (typedMessage.type === 'ready') {
+                if (message.type === 'ready') {
                     this._webviewReady = true;
                     // Flush any messages that were queued before ready
                     const pending = this._pendingMessages;
@@ -495,7 +508,7 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
                 }
 
                 // Forward commands to the message handler (preserving type/command/payload)
-                this._messageHandler.handleMessage(message as WebviewToExtensionMessage);
+                this._messageHandler.handleMessage(message);
             },
             undefined,
             []
@@ -520,7 +533,7 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
                 logger.debug('Sidebar webview became hidden', LogCategory.VIEW);
             }
         });
-        this._extensionContext.subscriptions.push(visibilityListener);
+        this._disposables.push(visibilityListener);
 
         // Listen for configuration changes to re-render when settings change
         const configListener = vscode.workspace.onDidChangeConfiguration(event => {
@@ -528,7 +541,7 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
                 this.render();
             }
         });
-        this._extensionContext.subscriptions.push(configListener);
+        this._disposables.push(configListener);
     }
 
     public notifyLogout(): void {
@@ -855,21 +868,19 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
     // WebSocket message handlers
 
     private _handleNewResult(result: ResultDTO): void {
-        // ResultDTO is structurally compatible with ResultSummary at runtime
         this._postMessageSafe({
             type: 'websocketUpdate',
             updateType: 'newResult',
-            data: result,
-        } as ExtensionToWebviewMessage);
+            data: result as unknown as ResultSummary,
+        });
     }
 
     private _handleNewSubmission(submission: ProgrammingSubmission): void {
-        // ProgrammingSubmission is structurally compatible with SubmissionSummary at runtime
         this._postMessageSafe({
             type: 'websocketUpdate',
             updateType: 'newSubmission',
-            data: submission,
-        } as ExtensionToWebviewMessage);
+            data: submission as unknown as SubmissionSummary,
+        });
     }
 
     private _handleSubmissionProcessing(message: SubmissionProcessingMessage): void {

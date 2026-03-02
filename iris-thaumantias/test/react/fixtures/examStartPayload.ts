@@ -1,8 +1,8 @@
-import type { ExamStartInitMessage } from '../../../src/shared/messageContracts';
+import type { ExtMsg } from '../../../src/shared/messageContracts';
 
 export function createExamStartPayload(
-    overrides?: Partial<Omit<ExamStartInitMessage, 'type'>>,
-): ExamStartInitMessage {
+    overrides?: Partial<Omit<ExtMsg<'examStartInit'>, 'type'>>,
+): ExtMsg<'examStartInit'> {
     return {
         type: 'examStartInit',
         studentExam: { id: 1 },

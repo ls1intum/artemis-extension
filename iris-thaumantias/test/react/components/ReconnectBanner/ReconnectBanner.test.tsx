@@ -2,8 +2,8 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, act } from '@testing-library/react';
 import { ReconnectBanner } from '../../../../src/views/webview/react/components/ReconnectBanner/ReconnectBanner';
 
-function dispatchWindowMessage(command: string) {
-	const event = new MessageEvent('message', { data: { command } });
+function dispatchWindowMessage(type: string) {
+	const event = new MessageEvent('message', { data: { type } });
 	window.dispatchEvent(event);
 }
 

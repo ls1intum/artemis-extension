@@ -13,7 +13,9 @@ export function isExtensionMessage(msg: unknown): msg is ExtensionToWebviewMessa
         && extensionMsgValues.has((msg as { type: string }).type);
 }
 
+const webviewMsgTypes = new Set<string>(['ready', 'command', 'error', 'updatePanelTitle']);
+
 export function isWebviewMessage(msg: unknown): msg is WebviewToExtensionMessage {
     return typeof msg === 'object' && msg !== null && 'type' in msg
-        && ['ready', 'command', 'error', 'updatePanelTitle'].includes((msg as { type: string }).type);
+        && webviewMsgTypes.has((msg as { type: string }).type);
 }

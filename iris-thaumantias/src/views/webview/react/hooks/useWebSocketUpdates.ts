@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import type { VsCodeApi, WebSocketUpdateMessage } from '../../../../shared/messageContracts';
+import type { VsCodeApi, ExtMsg } from '../../../../shared/messageContracts';
 import { useExerciseDetailStore } from '../stores/useExerciseDetailStore';
 
 /**
@@ -39,7 +39,7 @@ export function useWebSocketUpdates(vscodeApi: VsCodeApi): void {
         };
 
         const handleMessage = (event: MessageEvent<unknown>): void => {
-            const message = event.data as WebSocketUpdateMessage;
+            const message = event.data as ExtMsg<'websocketUpdate'>;
 
             // Filter for websocketUpdate messages
             if (message.type === 'websocketUpdate') {

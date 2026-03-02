@@ -1,8 +1,8 @@
-import type { ExamConductionInitMessage } from '../../../src/shared/messageContracts';
+import type { ExtMsg } from '../../../src/shared/messageContracts';
 
 export function createExamConductionPayload(
-    overrides?: Partial<Omit<ExamConductionInitMessage, 'type'>>,
-): ExamConductionInitMessage {
+    overrides?: Partial<Omit<ExtMsg<'examConductionInit'>, 'type'>>,
+): ExtMsg<'examConductionInit'> {
     const now = Date.now();
     return {
         type: 'examConductionInit',

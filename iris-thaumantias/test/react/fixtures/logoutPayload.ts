@@ -1,6 +1,6 @@
-import type { LogoutSuccessMessage } from '../../../src/shared/messageContracts';
+import type { ExtMsg } from '../../../src/shared/messageContracts';
 
-export function createLogoutPayload(): LogoutSuccessMessage {
+export function createLogoutPayload(): ExtMsg<'logoutSuccess'> {
     return {
         type: 'logoutSuccess',
     };

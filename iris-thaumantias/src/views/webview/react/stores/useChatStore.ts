@@ -8,7 +8,7 @@ import type {
     ReferencedFilesData,
     StreamingState
 } from '../views/IrisChat/types';
-import type { IrisChatStateMessage } from '../../../../shared/messageContracts';
+import type { ExtMsg } from '../../../../shared/messageContracts';
 
 interface ChatState {
     // Context
@@ -35,7 +35,7 @@ interface ChatState {
     showDiagnostics: boolean;
 
     // Actions
-    setIrisState: (state: IrisChatStateMessage['state']) => void;
+    setIrisState: (state: ExtMsg<'updateIrisState'>['state']) => void;
     setMessages: (messages: ChatMessage[]) => void;
     addMessage: (message: ChatMessage) => void;
     clearMessages: () => void;

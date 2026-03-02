@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { isExtensionMessage } from '../../../../../shared/messageContracts';
 import styles from './ReconnectBanner.module.css';
 
 export function ReconnectBanner() {
@@ -6,18 +7,13 @@ export function ReconnectBanner() {
 
     useEffect(() => {
         const handleMessage = (event: MessageEvent<unknown>) => {
-            const message = event.data;
-
-            if (typeof message !== 'object' || message === null || !('command' in message)) {
+            if (!isExtensionMessage(event.data)) {
                 return;
             }
 
-            const typedMessage = message as { command: string };
-
-            if (typedMessage.command === 'websocketDisconnected') {
+            if (event.data.type === 'websocketDisconnected') {
                 setIsVisible(true);
-            } else if (typedMessage.command === 'websocketConnected') {
-                // Dismiss banner 2 seconds after reconnect
+            } else if (event.data.type === 'websocketConnected') {
                 setTimeout(() => {
                     setIsVisible(false);
                 }, 2000);

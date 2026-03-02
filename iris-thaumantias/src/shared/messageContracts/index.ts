@@ -11,4 +11,3 @@ export * from './domainTypes';
 export * from './extensionMessages';
 export * from './webviewCommands';
 export * from './typeGuards';
-export * from './aliases';

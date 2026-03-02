@@ -1,8 +1,8 @@
-import type { IrisChatStateMessage } from '../../../src/shared/messageContracts';
+import type { ExtMsg } from '../../../src/shared/messageContracts';
 
 export function createIrisInitPayload(
-    overrides?: Partial<IrisChatStateMessage['state']>,
-): IrisChatStateMessage {
+    overrides?: Partial<ExtMsg<'updateIrisState'>['state']>,
+): ExtMsg<'updateIrisState'> {
     return {
         type: 'updateIrisState',
         state: {

@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import { useChatStore } from '../../../src/views/webview/react/stores/useChatStore';
 import type { ChatMessage, ChatContext, ReferencedFilesData } from '../../../src/views/webview/react/views/IrisChat/types';
-import type { IrisChatStateMessage } from '../../../src/shared/messageContracts';
+import type { ExtMsg } from '../../../src/shared/messageContracts';
 
 const makeMessage = (overrides: Partial<ChatMessage> = {}): ChatMessage => ({
 	localId: 'local-1',
@@ -12,7 +12,7 @@ const makeMessage = (overrides: Partial<ChatMessage> = {}): ChatMessage => ({
 	...overrides,
 });
 
-const makeIrisState = (overrides: Partial<IrisChatStateMessage['state']> = {}): IrisChatStateMessage['state'] => ({
+const makeIrisState = (overrides: Partial<ExtMsg<'updateIrisState'>['state']> = {}): ExtMsg<'updateIrisState'>['state'] => ({
 	context: null,
 	activeSessionId: null,
 	sessions: [],

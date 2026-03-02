@@ -125,6 +125,16 @@ export class ArtemisWebsocketService {
     }
 
     /**
+     * Unregister a previously registered message handler
+     */
+    public unregisterMessageHandler(handler: WebSocketMessageHandler): void {
+        const index = this._messageHandlers.indexOf(handler);
+        if (index !== -1) {
+            this._messageHandlers.splice(index, 1);
+        }
+    }
+
+    /**
      * Check if the WebSocket is currently connected
      * Also attempts to ensure connection is valid
      */

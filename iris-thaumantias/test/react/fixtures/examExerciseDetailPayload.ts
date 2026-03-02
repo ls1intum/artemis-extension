@@ -1,8 +1,8 @@
-import type { ExamExerciseDetailInitMessage } from '../../../src/shared/messageContracts';
+import type { ExtMsg } from '../../../src/shared/messageContracts';
 
 export function createExamExerciseDetailPayload(
-    overrides?: Partial<Omit<ExamExerciseDetailInitMessage, 'type'>>,
-): ExamExerciseDetailInitMessage {
+    overrides?: Partial<Omit<ExtMsg<'examExerciseDetailInit'>, 'type'>>,
+): ExtMsg<'examExerciseDetailInit'> {
     const now = Date.now();
     return {
         type: 'examExerciseDetailInit',

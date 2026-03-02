@@ -16,46 +16,8 @@ import { describe, it, expect } from 'vitest';
 import type {
     ExtensionToWebviewMessage,
     WebviewToExtensionMessage,
-    // Extension → Webview (typed)
-    LoginSuccessMessage,
-    LoginErrorMessage,
-    LogoutSuccessMessage,
-    ShowLoggedInMessage,
-    CourseListInitMessage,
-    CourseDetailInitMessage,
-    ExerciseDetailInitMessage,
-    ExamConductionInitMessage,
-    ExamStartInitMessage,
-    HealthCheckResultsMessage,
-    WebSocketDisconnectedMessage,
-    WebSocketConnectedMessage,
-    WebSocketUpdateMessage,
-    IrisChatStateMessage,
-    IrisChatAddMessage,
-    IrisChatLoadMessages,
-    DashboardInitMessage,
-    ServiceStatusInitMessage,
-    GitCredentialsInitMessage,
-    GitCredentialsResultMessage,
-    // Webview → Extension (typed)
-    ReadyMessage,
-    LoginCommand,
-    LogoutCommand,
-    ReloadCoursesCommand,
-    ReloadCourseDetailCommand,
-    ReloadExerciseDetailCommand,
-    ViewCourseDetailsCommand,
-    OpenExerciseDetailsCommand,
-    OpenExamCommand,
-    SendMessageCommand,
-    SelectChatContextCommand,
-    BackToDashboardCommand,
-    PerformHealthChecksCommand,
-    CloneRepositoryCommand,
-    SubmitExerciseCommand,
-    ErrorMessage,
-    ReconnectWebSocketCommand,
-    // Type guards
+    ExtMsg,
+    WebCmd,
 } from '../../../src/shared/messageContracts';
 import {
     isExtensionMessage,
@@ -71,7 +33,7 @@ describe('Message contracts: ExtensionToWebviewMessage types', () => {
         const msg = {
             type: 'loginSuccess' as const,
             username: 'testuser',
-        } satisfies LoginSuccessMessage;
+        } satisfies ExtMsg<'loginSuccess'>;
 
         expect(msg.type).toBe('loginSuccess');
         expect(msg.username).toBe('testuser');
@@ -81,7 +43,7 @@ describe('Message contracts: ExtensionToWebviewMessage types', () => {
         const msg = {
             type: 'loginError' as const,
             error: 'Invalid credentials',
-        } satisfies LoginErrorMessage;
+        } satisfies ExtMsg<'loginError'>;
 
         expect(msg.type).toBe('loginError');
         expect(msg.error).toBe('Invalid credentials');
@@ -90,7 +52,7 @@ describe('Message contracts: ExtensionToWebviewMessage types', () => {
     it('LogoutSuccessMessage has required type field', () => {
         const msg = {
             type: 'logoutSuccess' as const,
-        } satisfies LogoutSuccessMessage;
+        } satisfies ExtMsg<'logoutSuccess'>;
 
         expect(msg.type).toBe('logoutSuccess');
     });
@@ -102,7 +64,7 @@ describe('Message contracts: ExtensionToWebviewMessage types', () => {
                 username: 'student1',
                 serverUrl: 'https://artemis.tum.de',
             },
-        } satisfies ShowLoggedInMessage;
+        } satisfies ExtMsg<'showLoggedIn'>;
 
         expect(msg.userInfo.username).toBe('student1');
         expect(msg.userInfo.serverUrl).toBe('https://artemis.tum.de');
@@ -114,7 +76,7 @@ describe('Message contracts: ExtensionToWebviewMessage types', () => {
             courses: [
                 { course: { id: 1, title: 'Test Course' } },
             ],
-        } satisfies CourseListInitMessage;
+        } satisfies ExtMsg<'courseListInit'>;
 
         expect(msg.type).toBe('courseListInit');
         expect(Array.isArray(msg.courses)).toBe(true);
@@ -124,7 +86,7 @@ describe('Message contracts: ExtensionToWebviewMessage types', () => {
     it('WebSocketDisconnectedMessage has correct type discriminator', () => {
         const msg = {
             type: 'websocketDisconnected' as const,
-        } satisfies WebSocketDisconnectedMessage;
+        } satisfies ExtMsg<'websocketDisconnected'>;
 
         expect(msg.type).toBe('websocketDisconnected');
     });
@@ -132,7 +94,7 @@ describe('Message contracts: ExtensionToWebviewMessage types', () => {
     it('WebSocketConnectedMessage has correct type discriminator', () => {
         const msg = {
             type: 'websocketConnected' as const,
-        } satisfies WebSocketConnectedMessage;
+        } satisfies ExtMsg<'websocketConnected'>;
 
         expect(msg.type).toBe('websocketConnected');
     });
@@ -149,7 +111,7 @@ describe('Message contracts: ExtensionToWebviewMessage types', () => {
                     response: 'OK',
                 },
             },
-        } satisfies HealthCheckResultsMessage;
+        } satisfies ExtMsg<'healthCheckResults'>;
 
         expect(msg.type).toBe('healthCheckResults');
         expect(msg.results['artemisApi'].status).toBe('online');
@@ -159,11 +121,11 @@ describe('Message contracts: ExtensionToWebviewMessage types', () => {
         const withUrl = {
             type: 'serviceStatusInit' as const,
             serverUrl: 'https://artemis.tum.de',
-        } satisfies ServiceStatusInitMessage;
+        } satisfies ExtMsg<'serviceStatusInit'>;
 
         const withoutUrl = {
             type: 'serviceStatusInit' as const,
-        } as ServiceStatusInitMessage;
+        } as ExtMsg<'serviceStatusInit'>;
 
         expect(withUrl.serverUrl).toBe('https://artemis.tum.de');
         expect(withoutUrl.serverUrl).toBeUndefined();
@@ -174,7 +136,7 @@ describe('Message contracts: ExtensionToWebviewMessage types', () => {
             type: 'gitCredentialsInit' as const,
             currentName: 'John Doe',
             currentEmail: 'john@tum.de',
-        } satisfies GitCredentialsInitMessage;
+        } satisfies ExtMsg<'gitCredentialsInit'>;
 
         expect(msg.currentName).toBe('John Doe');
         expect(msg.currentEmail).toBe('john@tum.de');
@@ -185,7 +147,7 @@ describe('Message contracts: ExtensionToWebviewMessage types', () => {
             type: 'gitCredentialsResult' as const,
             status: 'success' as const,
             message: 'Git credentials saved successfully',
-        } satisfies GitCredentialsResultMessage;
+        } satisfies ExtMsg<'gitCredentialsResult'>;
 
         expect(success.status).toBe('success');
         expect(success.message).toBe('Git credentials saved successfully');
@@ -200,7 +162,7 @@ describe('Message contracts: ExtensionToWebviewMessage types', () => {
                 content: 'Hello, how can I help you?',
                 timestamp: 1_700_000_000_000,
             },
-        } satisfies IrisChatAddMessage;
+        } satisfies ExtMsg<'addMessage'>;
 
         expect(msg.type).toBe('addMessage');
         expect(msg.message.role).toBe('assistant');
@@ -216,7 +178,7 @@ describe('Message contracts: ExtensionToWebviewMessage types', () => {
                 successful: true,
                 completionDate: '2024-01-01T12:00:00Z',
             },
-        } satisfies WebSocketUpdateMessage;
+        } satisfies ExtMsg<'websocketUpdate'>;
 
         expect(msg.updateType).toBe('newResult');
     });
@@ -224,14 +186,14 @@ describe('Message contracts: ExtensionToWebviewMessage types', () => {
     it('ExamConductionInitMessage has all required timing fields', () => {
         const msg = {
             type: 'examConductionInit' as const,
-            studentExam: { id: 1, exam: { id: 10, course: { id: 100 } } } as ExamConductionInitMessage['studentExam'],
+            studentExam: { id: 1, exam: { id: 10, course: { id: 100 } } } as ExtMsg<'examConductionInit'>['studentExam'],
             courseId: 100,
             examId: 10,
             endTime: Date.now() + 60 * 60 * 1000,
             startTime: Date.now(),
             totalDuration: 60 * 60 * 1000,
             workspaceExerciseId: null,
-        } satisfies ExamConductionInitMessage;
+        } satisfies ExtMsg<'examConductionInit'>;
 
         expect(msg.courseId).toBe(100);
         expect(msg.examId).toBe(10);
@@ -249,7 +211,7 @@ describe('Message contracts: WebviewToExtensionMessage types', () => {
     it('ReadyMessage has type=ready', () => {
         const msg = {
             type: 'ready' as const,
-        } satisfies ReadyMessage;
+        } satisfies Extract<WebviewToExtensionMessage, { type: 'ready' }>;
 
         expect(msg.type).toBe('ready');
     });
@@ -263,7 +225,7 @@ describe('Message contracts: WebviewToExtensionMessage types', () => {
                 password: 'secret',
                 rememberMe: true,
             },
-        } satisfies LoginCommand;
+        } satisfies WebCmd<'login'>;
 
         expect(msg.command).toBe('login');
         expect(msg.payload.username).toBe('student1');
@@ -274,7 +236,7 @@ describe('Message contracts: WebviewToExtensionMessage types', () => {
         const msg = {
             type: 'command' as const,
             command: 'logout' as const,
-        } satisfies LogoutCommand;
+        } satisfies WebCmd<'logout'>;
 
         expect(msg.command).toBe('logout');
         expect('payload' in msg).toBe(false);
@@ -284,7 +246,7 @@ describe('Message contracts: WebviewToExtensionMessage types', () => {
         const msg = {
             type: 'command' as const,
             command: 'reloadCourses' as const,
-        } satisfies ReloadCoursesCommand;
+        } satisfies WebCmd<'reloadCourses'>;
 
         expect(msg.command).toBe('reloadCourses');
     });
@@ -298,7 +260,7 @@ describe('Message contracts: WebviewToExtensionMessage types', () => {
                     course: { id: 1, title: 'Test', shortName: 'T' },
                 },
             },
-        } satisfies ViewCourseDetailsCommand;
+        } satisfies WebCmd<'viewCourseDetails'>;
 
         expect(msg.command).toBe('viewCourseDetails');
         expect(msg.payload.courseData.course.id).toBe(1);
@@ -312,7 +274,7 @@ describe('Message contracts: WebviewToExtensionMessage types', () => {
                 examId: 42,
                 courseId: 100,
             },
-        } satisfies OpenExamCommand;
+        } satisfies WebCmd<'openExam'>;
 
         expect(msg.payload.examId).toBe(42);
         expect(msg.payload.courseId).toBe(100);
@@ -323,7 +285,7 @@ describe('Message contracts: WebviewToExtensionMessage types', () => {
             type: 'command' as const,
             command: 'sendMessage' as const,
             payload: { text: 'What is a for loop?' },
-        } satisfies SendMessageCommand;
+        } satisfies WebCmd<'sendMessage'>;
 
         expect(msg.payload.text).toBe('What is a for loop?');
     });
@@ -337,7 +299,7 @@ describe('Message contracts: WebviewToExtensionMessage types', () => {
                 itemId: 5,
                 itemName: 'Hello World Exercise',
             },
-        } satisfies SelectChatContextCommand;
+        } satisfies WebCmd<'selectChatContext'>;
 
         expect(msg.payload.context).toBe('exercise');
         expect(msg.payload.itemId).toBe(5);
@@ -347,7 +309,7 @@ describe('Message contracts: WebviewToExtensionMessage types', () => {
         const msg = {
             type: 'command' as const,
             command: 'backToDashboard' as const,
-        } satisfies BackToDashboardCommand;
+        } satisfies WebCmd<'backToDashboard'>;
 
         expect(msg.command).toBe('backToDashboard');
     });
@@ -357,7 +319,7 @@ describe('Message contracts: WebviewToExtensionMessage types', () => {
             type: 'command' as const,
             command: 'performHealthChecks' as const,
             payload: { serverUrl: 'https://artemis.tum.de' },
-        } satisfies PerformHealthChecksCommand;
+        } satisfies WebCmd<'performHealthChecks'>;
 
         expect(msg.payload.serverUrl).toBe('https://artemis.tum.de');
     });
@@ -371,7 +333,7 @@ describe('Message contracts: WebviewToExtensionMessage types', () => {
                 repositoryUri: 'https://github.com/repo.git',
                 exerciseTitle: 'Hello World',
             },
-        } satisfies CloneRepositoryCommand;
+        } satisfies WebCmd<'cloneRepository'>;
 
         expect(msg.payload.participationId).toBe(123);
         expect(msg.payload.repositoryUri).toBe('https://github.com/repo.git');
@@ -383,7 +345,7 @@ describe('Message contracts: WebviewToExtensionMessage types', () => {
             type: 'command' as const,
             command: 'submitExercise' as const,
             payload: { participationId: 456 },
-        } satisfies SubmitExerciseCommand;
+        } satisfies WebCmd<'submitExercise'>;
 
         expect(msg.payload.participationId).toBe(456);
     });
@@ -396,7 +358,7 @@ describe('Message contracts: WebviewToExtensionMessage types', () => {
                 stack: 'Error: ...',
                 componentStack: '    at ComponentName',
             },
-        } satisfies ErrorMessage;
+        } satisfies Extract<WebviewToExtensionMessage, { type: 'error' }>;
 
         expect(msg.type).toBe('error');
         expect(msg.payload.message).toBe('Uncaught error in component');
@@ -406,7 +368,7 @@ describe('Message contracts: WebviewToExtensionMessage types', () => {
         const msg = {
             type: 'command' as const,
             command: 'reconnectWebSocket' as const,
-        } satisfies ReconnectWebSocketCommand;
+        } satisfies WebCmd<'reconnectWebSocket'>;
 
         expect(msg.command).toBe('reconnectWebSocket');
     });

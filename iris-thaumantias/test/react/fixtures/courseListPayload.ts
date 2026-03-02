@@ -1,8 +1,8 @@
-import type { CourseListInitMessage, CourseData, ArchivedCourse } from '../../../src/shared/messageContracts';
+import type { ExtMsg, CourseData, ArchivedCourse } from '../../../src/shared/messageContracts';
 
 export function createCourseListPayload(
-    overrides?: Partial<Omit<CourseListInitMessage, 'type'>>,
-): CourseListInitMessage {
+    overrides?: Partial<Omit<ExtMsg<'courseListInit'>, 'type'>>,
+): ExtMsg<'courseListInit'> {
     return {
         type: 'courseListInit',
         courses: [] as CourseData[],

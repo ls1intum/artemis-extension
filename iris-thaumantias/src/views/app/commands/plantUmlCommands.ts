@@ -5,9 +5,7 @@ import type { CommandContext, CommandMap } from './types';
 import { getPayload, ExtensionMsg, WebviewCmd } from '../../../shared/messageContracts';
 import type {
     WebviewToExtensionMessage,
-    RenderPlantUmlInlineCommand,
-    RenderPlantUmlCommand,
-    OpenPlantUmlInNewTabCommand,
+    WebCmd,
 } from '../../../shared/messageContracts';
 
 export class PlantUmlCommandModule {
@@ -22,7 +20,7 @@ export class PlantUmlCommandModule {
     }
 
     private handleRenderPlantUml = async (message: WebviewToExtensionMessage): Promise<void> => {
-        const { plantUmlDiagrams, exerciseTitle } = getPayload<RenderPlantUmlCommand>(message);
+        const { plantUmlDiagrams, exerciseTitle } = getPayload<WebCmd<'renderPlantUml'>>(message);
 
         if (!plantUmlDiagrams || plantUmlDiagrams.length === 0) {
             vscode.window.showWarningMessage('No PlantUML diagrams found to render.');
@@ -50,7 +48,7 @@ export class PlantUmlCommandModule {
     };
 
     private handleRenderPlantUmlInline = async (message: WebviewToExtensionMessage): Promise<void> => {
-        const { plantUml, index } = getPayload<RenderPlantUmlInlineCommand>(message);
+        const { plantUml, index } = getPayload<WebCmd<'renderPlantUmlInline'>>(message);
 
         if (!plantUml) {
             this.context.sendMessage({
@@ -87,7 +85,7 @@ export class PlantUmlCommandModule {
     };
 
     private handleOpenPlantUmlInNewTab = async (message: WebviewToExtensionMessage): Promise<void> => {
-        const { plantUml, index } = getPayload<OpenPlantUmlInNewTabCommand>(message);
+        const { plantUml, index } = getPayload<WebCmd<'openPlantUmlInNewTab'>>(message);
 
         if (!plantUml) {
             vscode.window.showWarningMessage('No PlantUML content to open.');

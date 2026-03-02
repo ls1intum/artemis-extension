@@ -8,6 +8,7 @@ import {
 import type { IrisChatMessage } from '../types/apiResponses';
 import type { IChatWebviewProvider } from '../types/IChatWebviewProvider';
 import { getReactWebviewHtml } from '../utils/webviewHelpers';
+import { isWebviewMessage } from '../shared/messageContracts/typeGuards';
 import { extractIrisMessageContent } from '../utils/irisMessageUtils';
 import { logger, LogLevel, LogCategory } from '../services/loggingService';
 import { ArtemisApiService } from '../api';
@@ -415,7 +416,10 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
     }
 
     private _handleMessage(message: unknown): void {
-        // Narrow unknown to typed message
+        if (!isWebviewMessage(message)) {
+            return;
+        }
+
         const typedMessage = message as { type?: string; command?: string; payload?: Record<string, unknown> };
 
         // Handle React ready signal (sent as { type: 'ready' })

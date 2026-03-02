@@ -174,7 +174,7 @@ interface ExtensionMsgPayloads {
     // Auth
     loginSuccess: { username: string };
     loginError: { error: string };
-    logoutSuccess: {};
+    logoutSuccess: undefined;
     showLoggedIn: {
         userInfo: {
             username: string;
@@ -185,7 +185,7 @@ interface ExtensionMsgPayloads {
 
     // Loading
     showLoading: { message: string };
-    hideLoading: {};
+    hideLoading: undefined;
     updateLoading: { message: string };
 
     // Dashboard/Course
@@ -200,8 +200,8 @@ interface ExtensionMsgPayloads {
         | { updateType: 'newResult'; data: ResultSummary }
         | { updateType: 'newSubmission'; data: SubmissionSummary }
         | { updateType: 'submissionProcessing'; data: { state: string; participationId: number; buildTimingInfo?: unknown } };
-    websocketDisconnected: {};
-    websocketConnected: {};
+    websocketDisconnected: undefined;
+    websocketConnected: undefined;
 
     // Iris Chat
     updateIrisState: {
@@ -244,7 +244,7 @@ interface ExtensionMsgPayloads {
             helpful?: boolean | null;
         }>;
     };
-    clearChatMessages: {};
+    clearChatMessages: undefined;
     updateReferencedFiles: {
         includedFiles: string[];
         excludedFiles: Array<{ path: string; reason?: string }>;
@@ -252,7 +252,7 @@ interface ExtensionMsgPayloads {
     };
     updateWebSocketStatus: { isConnected: boolean };
     showDisabledState: { message: string };
-    hideDisabledState: {};
+    hideDisabledState: undefined;
     updateNoAiStatus: {
         isNoAiDetected: boolean;
         noAiFilePath?: string;
@@ -314,7 +314,9 @@ interface ExtensionMsgPayloads {
 
 /** Auto-generated discriminated union of all Extension->Webview messages */
 export type ExtensionToWebviewMessage = {
-    [K in ExtensionMsg]: { type: K } & ExtensionMsgPayloads[K]
+    [K in ExtensionMsg]: ExtensionMsgPayloads[K] extends undefined
+        ? { type: K }
+        : { type: K } & ExtensionMsgPayloads[K]
 }[ExtensionMsg];
 
 /** Extract a specific Extension->Webview message type */

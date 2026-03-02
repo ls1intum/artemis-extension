@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import type { CommandContext, CommandMap } from './types';
 import { getPayload, ExtensionMsg, WebviewCmd } from '../../../shared/messageContracts';
-import type { WebviewToExtensionMessage, LoginCommand } from '../../../shared/messageContracts';
+import type { WebviewToExtensionMessage, WebCmd } from '../../../shared/messageContracts';
 import { logger } from '../../../services/loggingService';
 
 export class AuthCommandModule {
@@ -15,7 +15,7 @@ export class AuthCommandModule {
     }
 
     private handleLogin = async (message: WebviewToExtensionMessage): Promise<void> => {
-        const payload = getPayload<LoginCommand>(message);
+        const payload = getPayload<WebCmd<'login'>>(message);
         const username = payload.username;
         const password = payload.password;
         const rememberMe = payload.rememberMe || false;

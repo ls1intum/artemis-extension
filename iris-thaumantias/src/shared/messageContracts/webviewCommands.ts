@@ -271,6 +271,9 @@ export function postCommand<K extends WebviewCmd>(
     }
 }
 
+/** Extract a specific command message type */
+export type WebCmd<T extends WebviewCmd> = Extract<WebviewToExtensionMessage, { command: T }>;
+
 /** Extract typed payload from a command message. */
 export function getPayload<T extends WebviewToExtensionMessage & { payload?: unknown }>(
     message: WebviewToExtensionMessage

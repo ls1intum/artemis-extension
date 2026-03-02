@@ -3,7 +3,7 @@ import { ProviderRegistry } from '../../../services/ProviderRegistry';
 import { logger, LogCategory } from '../../../services/loggingService';
 import type { CommandContext, CommandMap } from './types';
 import { getPayload, WebviewCmd } from '../../../shared/messageContracts';
-import type { WebviewToExtensionMessage, AskIrisAboutExerciseCommand, AskIrisAboutCourseCommand } from '../../../shared/messageContracts';
+import type { WebviewToExtensionMessage, WebCmd } from '../../../shared/messageContracts';
 
 export class IrisCommandModule {
     constructor(private readonly context: CommandContext) { }
@@ -23,7 +23,7 @@ export class IrisCommandModule {
             releaseDate,
             dueDate,
             courseId
-        } = getPayload<AskIrisAboutExerciseCommand>(message);
+        } = getPayload<WebCmd<'askIrisAboutExercise'>>(message);
 
         logger.debug('Button clicked with data:', LogCategory.IRIS_CHAT, {
             exerciseId,
@@ -70,7 +70,7 @@ export class IrisCommandModule {
     };
 
     private handleAskIrisAboutCourse = async (message: WebviewToExtensionMessage): Promise<void> => {
-        const { courseId, courseTitle, courseShortName } = getPayload<AskIrisAboutCourseCommand>(message);
+        const { courseId, courseTitle, courseShortName } = getPayload<WebCmd<'askIrisAboutCourse'>>(message);
 
         if (!courseId) {
             vscode.window.showWarningMessage('Unable to open Iris chat: missing course information.');
