@@ -115,7 +115,7 @@ export class NavigationCommandModule {
                 // If already started, go directly to conduction (to be implemented)
                 // For now, we can reuse the start exam logic which will fetch conduction details
                 const studentExamId = studentExam.id ?? 0;
-                await this.handleStartExam({ courseId, examId, studentExamId });
+                await this._startExamWithPayload({ courseId, examId, studentExamId });
             } else {
                 logger.view(`[EXAMMODE] Exam not started, showing start view`);
                 // Show start exam view
@@ -130,13 +130,13 @@ export class NavigationCommandModule {
     };
 
 
-    private handleStartExam = async (message: WebviewToExtensionMessage | StartExamCommand['payload']): Promise<void> => {
-        try {
-            // Handle both typed message and internal payload format
-            const payload = 'type' in message && message.type === 'command'
-                ? getPayload<StartExamCommand>(message)
-                : message as StartExamCommand['payload'];
+    private handleStartExam = async (message: WebviewToExtensionMessage): Promise<void> => {
+        const payload = getPayload<StartExamCommand>(message);
+        await this._startExamWithPayload(payload);
+    };
 
+    private async _startExamWithPayload(payload: StartExamCommand['payload']): Promise<void> {
+        try {
             const { courseId, examId, studentExamId } = payload;
             logger.view(`[EXAMMODE] Starting exam ${examId} for student exam ${studentExamId}`);
             const conductionDetails = await this.context.artemisApi.startStudentExam(courseId, examId, studentExamId);
@@ -151,7 +151,7 @@ export class NavigationCommandModule {
             logger.viewError('[EXAMMODE] Error starting exam:', error);
             vscode.window.showErrorMessage('Failed to start exam.');
         }
-    };
+    }
 
     private handleBrowseCourses = async (): Promise<void> => {
         try {
@@ -540,7 +540,7 @@ export class NavigationCommandModule {
                 logger.view(`[EXAMMODE] Exam started in browser, proceeding to conduction`);
                 // Proceed to conduction by fetching details
                 const effectiveStudentExamId = studentExamId || studentExam.id || 0;
-                await this.handleStartExam({ courseId, examId, studentExamId: effectiveStudentExamId });
+                await this._startExamWithPayload({ courseId, examId, studentExamId: effectiveStudentExamId });
             } else {
                 vscode.window.showInformationMessage('Exam has not been started yet. Please start it in the browser.');
             }

@@ -205,10 +205,6 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
         }
     }
 
-    private _handleIrisWebSocketMessage(data: unknown): void {
-        this._websocketMessageHandler.handleIrisWebSocketMessage(data);
-    }
-
     public resolveWebviewView(
         webviewView: vscode.WebviewView,
         _context: vscode.WebviewViewResolveContext,
@@ -837,10 +833,6 @@ Iris can see files from your workspace (configurable in settings). Check the "Re
 
     private async _handleReconnectWebSocket(): Promise<void> {
         await this._websocketMessageHandler.handleReconnectWebSocket();
-    }
-
-    private _updateWebSocketStatus(isConnected: boolean): void {
-        this._websocketMessageHandler.updateWebSocketStatus(isConnected);
     }
 
     private async _handleResetSessions(): Promise<void> {

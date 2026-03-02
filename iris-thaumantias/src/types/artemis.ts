@@ -5,7 +5,6 @@ export { ApiError, ArtemisUser, ArtemisCourse, ArtemisExercise, ArtemisResult, A
 export { IrisRateLimitInfo, IrisHealthStatus } from '../models/iris';
 export { BuildTimingInfo, ArtemisSubmission, ProgrammingSubmission, SubmissionProcessingMessage, ResultDTO, ProgrammingSubmissionState } from '../models/submissions';
 export { BuildLogEntry, ParsedBuildError } from '../models/build';
-export { WebviewMessage, LoginMessage, LogoutMessage, LoginSuccessMessage, LoginErrorMessage, LogoutSuccessMessage } from '../models/messages';
 
 // Callback interface — stays here (not identical to class WebSocketMessageHandler in services/)
 export interface WebSocketMessageHandler {

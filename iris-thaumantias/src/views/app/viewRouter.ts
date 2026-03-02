@@ -57,8 +57,10 @@ export class ViewRouter {
                 return 'examStart';
             case 'exam-conduction':
                 return 'examConduction';
-            default:
-                return state;
+            default: {
+                const _exhaustive: never = state;
+                throw new Error(`Unhandled app state: ${_exhaustive}`);
+            }
         }
     }
 }

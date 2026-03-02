@@ -185,27 +185,17 @@ export class RepositoryCommandModule {
         }
     };
 
-    private handleCheckRepositoryStatus = async (message: WebviewToExtensionMessage | RepoContext): Promise<void> => {
-        try {
-            // When called internally, it passes RepoContext directly
-            // When called from webview, message will have type/command but we need repo context from current state
-            let expectedRepoUrl: string;
-            let exerciseId: number;
+    private handleCheckRepositoryStatus = async (_message: WebviewToExtensionMessage): Promise<void> => {
+        if (this.currentRepoContext) {
+            await this._checkRepositoryStatusWithContext(this.currentRepoContext);
+        } else {
+            logger.submissionWarn('No repository context available');
+        }
+    };
 
-            if ('expectedRepoUrl' in message) {
-                // Internal call with RepoContext
-                expectedRepoUrl = message.expectedRepoUrl;
-                exerciseId = message.exerciseId;
-            } else {
-                // Webview message - use current repo context or current exercise data
-                if (this.currentRepoContext) {
-                    expectedRepoUrl = this.currentRepoContext.expectedRepoUrl;
-                    exerciseId = this.currentRepoContext.exerciseId;
-                } else {
-                    logger.submissionWarn('No repository context available');
-                    return;
-                }
-            }
+    private async _checkRepositoryStatusWithContext(repoContext: RepoContext): Promise<void> {
+        try {
+            const { expectedRepoUrl, exerciseId } = repoContext;
 
             const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
             let isConnected = false;
@@ -557,7 +547,7 @@ export class RepositoryCommandModule {
                     vscode.window.showInformationMessage(`Successfully pulled changes for "${exerciseTitle}".`);
 
                     if (this.currentRepoContext) {
-                        await this.handleCheckRepositoryStatus(this.currentRepoContext);
+                        await this._checkRepositoryStatusWithContext(this.currentRepoContext);
                     }
                 } catch (pullError: unknown) {
                     const errorMessage = pullError instanceof Error ? pullError.message : '';
@@ -886,7 +876,7 @@ export class RepositoryCommandModule {
 
         this.workspaceChangeDebounce = setTimeout(() => {
             if (this.currentRepoContext) {
-                void this.handleCheckRepositoryStatus(this.currentRepoContext);
+                void this._checkRepositoryStatusWithContext(this.currentRepoContext);
             }
         }, 500);
     }

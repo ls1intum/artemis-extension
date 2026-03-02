@@ -523,11 +523,12 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
         this._extensionContext.subscriptions.push(visibilityListener);
 
         // Listen for configuration changes to re-render when settings change
-        vscode.workspace.onDidChangeConfiguration(event => {
+        const configListener = vscode.workspace.onDidChangeConfiguration(event => {
             if (event.affectsConfiguration('artemis.developerMode')) {
                 this.render();
             }
         });
+        this._extensionContext.subscriptions.push(configListener);
     }
 
     public notifyLogout(): void {
