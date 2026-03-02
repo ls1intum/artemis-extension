@@ -3,6 +3,7 @@ import { Container } from '../../../components/Container';
 import { Button } from '../../../components/Button';
 import { processProblemStatement } from '../../../../../../utils/problemStatementProcessor';
 import { ExtensionMsg, postCommand } from '../../../../../../shared/messageContracts';
+import { isExtensionMessage } from '../../../../../../shared/messageContracts/typeGuards';
 import type { ProblemStatementProps } from '../types';
 import styles from './ProblemStatement.module.css';
 
@@ -76,35 +77,30 @@ export function ProblemStatement({
 
         // Listen for rendered SVG responses
         const handleMessage = (event: MessageEvent<unknown>) => {
+            if (!isExtensionMessage(event.data)) return;
             const message = event.data;
 
-            if (typeof message !== 'object' || message === null || !('type' in message)) {
-                return;
-            }
-
-            const typedMessage = message as { type: string; index?: number; svg?: string };
-
-            if (typedMessage.type === ExtensionMsg.PlantUmlRendered && container) {
+            if (message.type === ExtensionMsg.PlantUmlRendered && container) {
                 const placeholder = container.querySelector(
-                    `[data-plantuml-index="${typedMessage.index ?? ''}"]`
+                    `[data-plantuml-index="${message.index ?? ''}"]`
                 );
-                if (placeholder && placeholder.parentNode && typeof typedMessage.svg === 'string') {
+                if (placeholder && placeholder.parentNode && typeof message.svg === 'string') {
                     // Replace placeholder with new div — exactly like main
                     const rendered = document.createElement('div');
                     rendered.className = 'plantuml-rendered';
-                    rendered.innerHTML = typedMessage.svg;
+                    rendered.innerHTML = message.svg;
                     placeholder.parentNode.replaceChild(rendered, placeholder);
                 }
             }
 
-            if (typedMessage.type === ExtensionMsg.PlantUmlError && container) {
+            if (message.type === ExtensionMsg.PlantUmlError && container) {
                 const placeholder = container.querySelector(
-                    `[data-plantuml-index="${typedMessage.index ?? ''}"]`
+                    `[data-plantuml-index="${message.index ?? ''}"]`
                 );
                 if (placeholder && placeholder.parentNode) {
                     const errorDiv = document.createElement('div');
                     errorDiv.className = 'plantuml-error';
-                    errorDiv.textContent = `Error rendering PlantUML: ${(typedMessage as { error?: string }).error ?? 'Unknown error'}`;
+                    errorDiv.textContent = `Error rendering PlantUML: ${message.error ?? 'Unknown error'}`;
                     placeholder.parentNode.replaceChild(errorDiv, placeholder);
                 }
             }

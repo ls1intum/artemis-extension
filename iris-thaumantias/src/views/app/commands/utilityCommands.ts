@@ -262,14 +262,12 @@ export class UtilityCommandModule {
             });
 
             // Send parsed error back to webview so it can show "Go to Source" button
-            if (firstError) {
-                this.context.sendMessage({
-                    type: ExtensionMsg.BuildLogParsed,
-                    error: firstError,
-                    participationId: participationId,
-                    resultId: resultId
-                });
-            }
+            this.context.sendMessage({
+                type: ExtensionMsg.BuildLogParsed,
+                error: firstError,
+                participationId: participationId,
+                resultId: resultId
+            });
 
             vscode.window.showInformationMessage('Build log opened in editor');
         } catch (error: unknown) {

@@ -799,10 +799,9 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
         panel.webview.html = getReactWebviewHtml(panel.webview, this._extensionUri, 'exerciseDetail');
 
         let disposed = false;
-        panel.onDidDispose(() => { disposed = true; });
 
         // Register message handler for the fullscreen panel
-        panel.webview.onDidReceiveMessage(async (message: unknown) => {
+        const messageListener = panel.webview.onDidReceiveMessage(async (message: unknown) => {
             if (disposed) return;
 
             // Narrow unknown message to typed object
@@ -829,6 +828,11 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
             });
         });
 
+        panel.onDidDispose(() => {
+            disposed = true;
+            messageListener.dispose();
+        });
+
         // Track panel for cleanup
         this._extensionContext.subscriptions.push(panel);
     }
@@ -850,9 +854,8 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
         panel.webview.html = getReactWebviewHtml(panel.webview, this._extensionUri, 'courseDetail');
 
         let disposed = false;
-        panel.onDidDispose(() => { disposed = true; });
 
-        panel.webview.onDidReceiveMessage(async (message: unknown) => {
+        const messageListener = panel.webview.onDidReceiveMessage(async (message: unknown) => {
             if (disposed) return;
 
             // Narrow the unknown message to a typed object
@@ -886,24 +889,61 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
             });
         });
 
+        panel.onDidDispose(() => {
+            disposed = true;
+            messageListener.dispose();
+        });
+
         this._extensionContext.subscriptions.push(panel);
     }
 
     // WebSocket message handlers
 
     private _handleNewResult(result: ResultDTO): void {
+        const summary: ResultSummary = {
+            id: result.id,
+            completionDate: result.completionDate,
+            successful: result.successful,
+            score: result.score,
+            feedbacks: result.feedbacks?.map(f => ({
+                id: f.id,
+                text: f.text,
+                detailText: f.detailText,
+                credits: f.credits,
+                positive: f.positive,
+            })),
+        };
         this._postMessageSafe({
             type: ExtensionMsg.WebsocketUpdate,
             updateType: 'newResult',
-            data: result as unknown as ResultSummary,
+            data: summary,
         });
     }
 
     private _handleNewSubmission(submission: ProgrammingSubmission): void {
+        const summary: SubmissionSummary = {
+            id: submission.id,
+            submissionDate: submission.submissionDate,
+            buildFailed: submission.buildFailed,
+            commitHash: submission.commitHash,
+            results: submission.results?.map(r => ({
+                id: r.id,
+                completionDate: r.completionDate,
+                successful: r.successful,
+                score: r.score,
+                feedbacks: r.feedbacks?.map(f => ({
+                    id: f.id,
+                    text: f.text,
+                    detailText: f.detailText,
+                    credits: f.credits,
+                    positive: f.positive,
+                })),
+            })),
+        };
         this._postMessageSafe({
             type: ExtensionMsg.WebsocketUpdate,
             updateType: 'newSubmission',
-            data: submission as unknown as SubmissionSummary,
+            data: summary,
         });
     }
 

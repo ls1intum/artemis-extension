@@ -9,7 +9,7 @@ import type { IrisChatMessage } from '../types/apiResponses';
 import type { IChatWebviewProvider } from '../types/IChatWebviewProvider';
 import { getReactWebviewHtml } from '../utils/webviewHelpers';
 import { ExtensionMsg } from '../shared/messageContracts';
-import type { ExtensionToWebviewMessage, ExtMsg } from '../shared/messageContracts';
+import type { ExtensionToWebviewMessage, ExtMsg, WebviewToExtensionMessage } from '../shared/messageContracts';
 import { isWebviewMessage } from '../shared/messageContracts/typeGuards';
 import { extractIrisMessageContent } from '../utils/irisMessageUtils';
 import { logger, LogLevel, LogCategory } from '../services/loggingService';
@@ -169,7 +169,7 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
      */
     private _postNoAiStatus(isNoAiDetected: boolean): void {
         this._postMessageSafe({
-            type: 'updateNoAiStatus',
+            type: ExtensionMsg.UpdateNoAiStatus,
             isNoAiDetected,
             noAiFilePath: this._noAiDetectionService.noAiFilePath
         });
@@ -322,14 +322,14 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
         const showDiagnostics = config.get<boolean>('developerMode', false);
 
         this._postMessageSafe({
-            type: 'updateIrisState',
+            type: ExtensionMsg.UpdateIrisState,
             state: payload,
             showDiagnostics,
         });
 
         if (options.showContextPicker) {
             this._postMessageSafe({
-                type: 'showContextPicker',
+                type: ExtensionMsg.ShowContextPicker,
                 state: payload,
             });
         }
@@ -422,7 +422,7 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
             return;
         }
 
-        const typedMessage = message as { type?: string; command?: string; payload?: Record<string, unknown> };
+        const typedMessage = message as WebviewToExtensionMessage;
 
         // Log error reports from webview ErrorBoundary
         if (typedMessage.type === 'error') {
@@ -444,8 +444,11 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
             return;
         }
 
+        // Only command messages have command/payload properties
+        if (typedMessage.type !== 'command') return;
+
         // Extract payload — React sends { type: 'command', command: '...', payload: { ... } }
-        const payload = typedMessage.payload ?? {};
+        const payload = (typedMessage as { payload?: Record<string, unknown> }).payload ?? {};
 
         switch (typedMessage.command) {
             case 'sendMessage':
@@ -500,7 +503,11 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
                 const msgId = payload.messageId;
                 void this._handleMessageFeedback({
                     sessionId: typeof payload.sessionId === 'number' ? payload.sessionId : undefined,
-                    messageId: typeof msgId === 'number' ? msgId : typeof msgId === 'string' ? parseInt(msgId, 10) : undefined,
+                    messageId: typeof msgId === 'number'
+                        ? msgId
+                        : typeof msgId === 'string'
+                            ? (Number.isNaN(Number(msgId)) ? undefined : parseInt(msgId, 10))
+                            : undefined,
                     feedback: payload.feedback as string | undefined
                 }).catch(err => {
                     logger.error('Error handling message feedback', LogCategory.IRIS_CHAT, err);
@@ -683,7 +690,7 @@ Iris can see files from your workspace (configurable in settings). Check the "Re
             // Show disabled overlay when trying to send a message with Iris disabled
             const contextLabel = activeContext.type === 'course' ? 'course' : 'exercise';
             this._postMessageSafe({
-                type: 'showDisabledState',
+                type: ExtensionMsg.ShowDisabledState,
                 message: `Iris chat is not enabled for this ${contextLabel}. Please contact your instructor.`
             });
             return;
@@ -813,7 +820,7 @@ Iris can see files from your workspace (configurable in settings). Check the "Re
                 });
 
                 this._postMessageSafe({
-                    type: 'loadMessages',
+                    type: ExtensionMsg.LoadMessages,
                     messages: formattedMessages
                 });
                 logger.irisChat('Messages sent to webview');
