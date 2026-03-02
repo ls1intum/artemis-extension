@@ -439,33 +439,8 @@ export class RepositoryCommandModule {
 
             }
 
-            let vcsToken: string;
-            try {
-                vcsToken = await this.context.artemisApi.getOrCreateVcsAccessToken(participationId);
-            } catch (tokenErr) {
-                logger.submissionError('Failed to get participation token:', tokenErr);
-                vscode.window.showErrorMessage('Failed to obtain VCS access token for cloning.');
-                return;
-            }
-
-            let username = 'user';
-            try {
-                const currentUser = await this.context.artemisApi.getCurrentUser();
-                if (currentUser?.login) {
-                    username = currentUser.login;
-                }
-            } catch (userErr) {
-                logger.submissionWarn('Could not fetch current user, defaulting username:', userErr);
-            }
-
-            let cloneUrl: string;
-            try {
-                const url = new URL(repositoryUri);
-                url.username = username;
-                url.password = vcsToken;
-                cloneUrl = url.toString();
-            } catch (e) {
-                vscode.window.showErrorMessage('Invalid repository URL received from server.');
+            const cloneUrl = await this.buildAuthenticatedUrl(participationId, repositoryUri);
+            if (!cloneUrl) {
                 return;
             }
 
@@ -546,32 +521,13 @@ export class RepositoryCommandModule {
                 return;
             }
 
-            let vcsToken: string;
-            try {
-                vcsToken = await this.context.artemisApi.getOrCreateVcsAccessToken(participationId);
-            } catch (tokenErr) {
-                logger.submissionError('Failed to get participation token:', tokenErr);
-                vscode.window.showErrorMessage('Failed to obtain VCS access token.');
+            const authenticatedUrl = await this.buildAuthenticatedUrl(participationId, repositoryUri);
+            if (!authenticatedUrl) {
                 return;
             }
 
-            let username = 'user';
-            try {
-                const currentUser = await this.context.artemisApi.getCurrentUser();
-                if (currentUser?.login) {
-                    username = currentUser.login;
-                }
-            } catch { }
-
-            try {
-                const url = new URL(repositoryUri);
-                url.username = username;
-                url.password = vcsToken;
-                await vscode.env.clipboard.writeText(url.toString());
-                vscode.window.showInformationMessage('Clone URL (token) copied to clipboard.');
-            } catch {
-                vscode.window.showErrorMessage('Failed to construct clone URL.');
-            }
+            await vscode.env.clipboard.writeText(authenticatedUrl);
+            vscode.window.showInformationMessage('Clone URL (token) copied to clipboard.');
         } catch (error: unknown) {
             logger.submissionError('Copy clone URL error:', error);
             vscode.window.showErrorMessage('Failed to copy clone URL.');
