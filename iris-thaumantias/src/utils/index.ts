@@ -5,3 +5,5 @@ export * from './plantUmlProcessor';
 export * from './workspaceFileChecker';
 export * from './buildLogParser';
 export * from './pathUtils';
+export * from './errorUtils';
+export * from './irisMessageUtils';

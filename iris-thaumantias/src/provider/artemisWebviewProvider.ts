@@ -345,6 +345,21 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
                 recommendedAction: ctx?.recommendedAction ?? 'none',
                 isEnabled: this._telemetryManager?.isEnabled() ?? false,
             });
+        } else if (currentState === 'service-status') {
+            const serverUrl = this._appStateManager.userInfo?.serverUrl;
+            this._postMessageSafe({ type: 'serviceStatusInit', serverUrl });
+        } else if (currentState === 'recommended-extensions') {
+            const categories = this._appStateManager.recommendedExtensions || [];
+            const mappedCategories = categories.map(category => ({
+                ...category,
+                extensions: category.extensions.map(ext => ({
+                    ...ext,
+                    isInstalled: ext.isInstalled ?? false
+                }))
+            }));
+            this._postMessageSafe({ type: 'recommendedExtensionsInit', categories: mappedCategories });
+        } else if (currentState === 'login') {
+            this._postMessageSafe({ type: 'setServerUrl', serverUrl: this._getServerUrl() });
         }
     }
 
@@ -466,164 +481,16 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
                 if (typedMessage.type === 'ready') {
                     this._webviewReady = true;
                     // Flush any messages that were queued before ready
-                    this._pendingMessages.forEach(msg => {
+                    const pending = this._pendingMessages;
+                    this._pendingMessages = [];
+                    for (const msg of pending) {
                         if (this._view) {
                             this._view.webview.postMessage(msg);
                         }
-                    });
-                    this._pendingMessages = [];
+                    }
 
                     // Send initialization data for the current view
-                    const currentState = this._appStateManager.currentState;
-                    if (currentState === 'service-status') {
-                        const serverUrl = this._appStateManager.userInfo?.serverUrl;
-                        this._postMessageSafe({
-                            type: 'serviceStatusInit',
-                            serverUrl,
-                        });
-                    } else if (currentState === 'recommended-extensions') {
-                        const categories = this._appStateManager.recommendedExtensions || [];
-                        // Ensure isInstalled is boolean (not undefined)
-                        const mappedCategories = categories.map(category => ({
-                            ...category,
-                            extensions: category.extensions.map(ext => ({
-                                ...ext,
-                                isInstalled: ext.isInstalled ?? false
-                            }))
-                        }));
-                        this._postMessageSafe({
-                            type: 'recommendedExtensionsInit',
-                            categories: mappedCategories,
-                        });
-                    } else if (currentState === 'login') {
-                        // Send server URL to login view for health checks
-                        this._postMessageSafe({
-                            type: 'setServerUrl',
-                            serverUrl: this._getServerUrl(),
-                        });
-                    } else if (currentState === 'dashboard') {
-                        // Send dashboard data with recent courses
-                        const coursesData = this._appStateManager.coursesData;
-                        const courses = coursesData?.courses || [];
-
-                        // Build recent course nodes
-                        const recentCourseNodes = courses.map((courseItem: CourseDashboardEntry) => {
-                            const course = courseItem.course || courseItem;
-                            const exercises = course.exercises || [];
-
-                            // Get recent exercises (sorted by date)
-                            const recentExercises = exercises
-                                .filter((ex: ExerciseDetail) => ex.releaseDate || ex.startDate || ex.dueDate)
-                                .sort((a: ExerciseDetail, b: ExerciseDetail) => {
-                                    const aDate = a.releaseDate || a.startDate || a.dueDate || '';
-                                    const bDate = b.releaseDate || b.startDate || b.dueDate || '';
-                                    return bDate.localeCompare(aDate);
-                                });
-
-                            return {
-                                courseData: {
-                                    course: {
-                                        id: (course.id ?? 0) as number,
-                                        title: (course.title ?? 'Untitled Course') as string,
-                                        exercises: course.exercises,
-                                        startDate: course.startDate as string | undefined,
-                                        creationDate: course.startDate as string | undefined,
-                                    }
-                                },
-                                exercises: recentExercises
-                            };
-                        });
-
-                        this._postMessageSafe({
-                            type: 'dashboardInit',
-                            courses: recentCourseNodes,
-                            workspaceExercise: undefined,
-                        });
-                    } else if (currentState === 'course-list') {
-                        // Send course list data with active and archived courses
-                        const coursesData = this._appStateManager.coursesData;
-                        const courses = coursesData?.courses || [];
-                        const archivedCourses = this._appStateManager.archivedCoursesData || undefined;
-
-                        // Map CourseDashboardEntry to CourseData for message contract
-                        const mappedCourses = courses.map((entry: CourseDashboardEntry) => ({
-                            course: {
-                                id: entry.course?.id || 0,
-                                title: entry.course?.title || 'Untitled Course',
-                                description: entry.course?.description,
-                                semester: entry.course?.semester,
-                                color: entry.course?.color,
-                                exercises: entry.course?.exercises,
-                                numberOfStudents: entry.course?.numberOfStudents,
-                                instructorGroupName: entry.course?.instructorGroupName,
-                            }
-                        }));
-
-                        this._postMessageSafe({
-                            type: 'courseListInit',
-                            courses: mappedCourses,
-                            archivedCourses: archivedCourses,
-                        });
-                    } else if (currentState === 'course-detail') {
-                        // Send course detail data with exercises and exams
-                        const courseData = this._appStateManager.currentCourseData;
-                        if (!courseData) {
-                            logger.error('Course detail state missing course data', LogCategory.VIEW);
-                            return;
-                        }
-
-                        // Detect workspace exercise ID asynchronously
-                        const exercises = courseData.course?.exercises || [];
-
-                        // Use non-blocking async call
-                        detectWorkspaceExercise(exercises as ExerciseSource[]).then((detectedExercise: { id?: number } | null) => {
-                            const workspaceExerciseId = detectedExercise?.id ?? null;
-
-                            // Read developer mode setting
-                            const config = vscode.workspace.getConfiguration('artemis');
-                            const developerMode = config.get<boolean>('developerMode', false);
-                            const hideDeveloperTools = !developerMode;
-
-                            this._postMessageSafe({
-                                type: 'courseDetailInit',
-                                courseData: courseData as CourseDetailPayload,
-                                workspaceExerciseId: workspaceExerciseId,
-                                hideDeveloperTools: hideDeveloperTools,
-                            });
-                        });
-                    } else if (currentState === 'exercise-detail') {
-                        // Send exercise detail data
-                        const exerciseData = this._appStateManager.currentExerciseData;
-                        if (!exerciseData) {
-                            logger.error('Exercise detail state missing exercise data', LogCategory.VIEW);
-                            return;
-                        }
-
-                        // Read developer mode setting
-                        const config = vscode.workspace.getConfiguration('artemis');
-                        const developerMode = config.get<boolean>('developerMode', false);
-                        const hideDeveloperTools = !developerMode;
-
-                        this._postMessageSafe({
-                            type: 'exerciseDetailInit',
-                            exerciseData: exerciseData as ExerciseDetailsResponse,
-                            hideDeveloperTools: hideDeveloperTools,
-                        });
-                    } else if (currentState === 'ai-config') {
-                        const aiExtensions = this._appStateManager.aiExtensions || [];
-                        this._postMessageSafe({ type: 'aiConfigInit', aiExtensions });
-                    } else if (currentState === 'struggle-detection') {
-                        const ctx = this._telemetryManager?.getStruggleContext();
-                        this._postMessageSafe({
-                            type: 'struggleDetectionInit',
-                            isStruggling: ctx?.isStruggling ?? false,
-                            eq: ctx?.eq ?? 0,
-                            eqConfidence: ctx?.eqConfidence ?? 'insufficient',
-                            triggerType: ctx?.triggerType,
-                            recommendedAction: ctx?.recommendedAction ?? 'none',
-                            isEnabled: this._telemetryManager?.isEnabled() ?? false,
-                        });
-                    }
+                    this.resendViewData();
                     return;
                 }
 
@@ -664,11 +531,7 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
     }
 
     public notifyLogout(): void {
-        if (this._view) {
-            this._view.webview.postMessage({
-                command: 'logoutSuccess'
-            });
-        }
+        this._postMessageSafe({ type: 'logoutSuccess' });
     }
 
     public refreshTheme(): void {
@@ -976,7 +839,7 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
             }
 
             if (typedMessage.type === 'updatePanelTitle' && typeof typedMessage.title === 'string') {
-                panel.webview.postMessage(`Course: ${typedMessage.title}`);
+                panel.title = `Course: ${typedMessage.title}`;
             }
 
             // Forward all other messages via handleMessageWithSender
@@ -991,27 +854,21 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
     // WebSocket message handlers
 
     private _handleNewResult(result: ResultDTO): void {
-        // Forward to webview if it exists
-        if (this._view) {
-            // Send typed message for React views
-            this._view.webview.postMessage({
-                type: 'websocketUpdate',
-                updateType: 'newResult',
-                data: result,
-            });
-        }
+        // ResultDTO is structurally compatible with ResultSummary at runtime
+        this._postMessageSafe({
+            type: 'websocketUpdate',
+            updateType: 'newResult',
+            data: result,
+        } as ExtensionToWebviewMessage);
     }
 
     private _handleNewSubmission(submission: ProgrammingSubmission): void {
-        // Forward to webview if it exists
-        if (this._view) {
-            // Send typed message for React views
-            this._view.webview.postMessage({
-                type: 'websocketUpdate',
-                updateType: 'newSubmission',
-                data: submission,
-            });
-        }
+        // ProgrammingSubmission is structurally compatible with SubmissionSummary at runtime
+        this._postMessageSafe({
+            type: 'websocketUpdate',
+            updateType: 'newSubmission',
+            data: submission,
+        } as ExtensionToWebviewMessage);
     }
 
     private _handleSubmissionProcessing(message: SubmissionProcessingMessage): void {
@@ -1029,19 +886,15 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
             submissionDate: message.submissionDate
         };
 
-        // Forward to webview if it exists
-        if (this._view) {
-            // Send typed message for React views
-            this._view.webview.postMessage({
-                type: 'websocketUpdate',
-                updateType: 'submissionProcessing',
-                data: {
-                    state: state || 'BUILDING',
-                    participationId: message.participationId,
-                    buildTimingInfo: buildTimingInfo
-                }
-            });
-        }
+        this._postMessageSafe({
+            type: 'websocketUpdate',
+            updateType: 'submissionProcessing',
+            data: {
+                state: state || 'BUILDING',
+                participationId: message.participationId,
+                buildTimingInfo: buildTimingInfo
+            }
+        });
     }
 
     private async withServerUrl(

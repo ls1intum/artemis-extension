@@ -5,9 +5,10 @@ import {
     ChatContextType,
     ContextSnapshot,
 } from '../types';
-import type { IrisChatMessage, IrisChatMessageContent } from '../types/apiResponses';
+import type { IrisChatMessage } from '../types/apiResponses';
 import type { IChatWebviewProvider } from '../types/IChatWebviewProvider';
 import { getReactWebviewHtml } from '../utils/webviewHelpers';
+import { extractIrisMessageContent } from '../utils/irisMessageUtils';
 import { logger, LogLevel, LogCategory } from '../services/loggingService';
 import { ArtemisApiService } from '../api';
 import {
@@ -60,6 +61,10 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
     private _noAiDetectionService: NoAiDetectionService;
     private _currentExerciseId?: number;
 
+    // Ready-signal handshake state
+    private _webviewReady = false;
+    private _pendingMessages: unknown[] = [];
+
     private readonly _onDidChangeExerciseContext = new vscode.EventEmitter<ExerciseContextChangeEvent>();
     public readonly onDidChangeExerciseContext = this._onDidChangeExerciseContext.event;
 
@@ -76,7 +81,7 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
         this._chatSessionService = new ChatSessionService(
             this._contextStore,
             this._artemisApiService,
-            (message) => this._view?.webview.postMessage(message),
+            (message) => this._postMessageSafe(message),
             () => this._loadIrisMessages(),
             () => this.createNewSession(),
             () => this._postSnapshot()
@@ -86,7 +91,7 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
             this._artemisApiService,
             this._websocketService,
             () => this._irisSessionManager,
-            (message) => this._view?.webview.postMessage(message),
+            (message) => this._postMessageSafe(message),
             (context) => this._initializeIrisSession(context),
             () => this._postSnapshot()
         );
@@ -94,20 +99,20 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
             this._contextStore,
             this._chatSessionService,
             () => this._irisSessionManager,
-            (message) => this._view?.webview.postMessage(message)
+            (message) => this._postMessageSafe(message)
         );
         this._sessionManagementService = new SessionManagementService(
             this._contextStore,
             this._artemisApiService,
             () => this._irisSessionManager,
-            (message) => this._view?.webview.postMessage(message),
+            (message) => this._postMessageSafe(message),
             () => this._postSnapshot(),
             () => this._loadIrisMessages()
         );
         this._websocketMessageHandler = new WebSocketMessageHandler(
             this._websocketService,
             () => this._irisSessionManager,
-            (message) => this._view?.webview.postMessage(message)
+            (message) => this._postMessageSafe(message)
         );
 
         if (this._artemisApiService && this._websocketService) {
@@ -119,12 +124,10 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
         }
 
         this._fileMonitorService.onDidUpdateFiles(update => {
-            if (this._view) {
-                this._view.webview.postMessage({
-                    type: 'updateReferencedFiles',
-                    ...update
-                });
-            }
+            this._postMessageSafe({
+                type: 'updateReferencedFiles',
+                ...update
+            });
         });
 
         // Initialize .noai detection service
@@ -162,10 +165,7 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
      * Post .noai status to the webview
      */
     private _postNoAiStatus(isNoAiDetected: boolean): void {
-        if (!this._view) {
-            return;
-        }
-        this._view.webview.postMessage({
+        this._postMessageSafe({
             type: 'updateNoAiStatus',
             isNoAiDetected,
             noAiFilePath: this._noAiDetectionService.noAiFilePath
@@ -178,6 +178,31 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
             disposable?.dispose();
         }
         this._onDidChangeExerciseContext.dispose();
+    }
+
+    /**
+     * Safely post a message to the webview, queuing it if the webview is not ready yet.
+     */
+    private _postMessageSafe(message: unknown): void {
+        if (this._webviewReady && this._view) {
+            this._view.webview.postMessage(message);
+        } else {
+            this._pendingMessages.push(message);
+        }
+    }
+
+    /**
+     * Flush queued messages after webview signals ready.
+     */
+    private _flushPendingMessages(): void {
+        if (!this._view) {
+            return;
+        }
+        const pending = this._pendingMessages;
+        this._pendingMessages = [];
+        for (const msg of pending) {
+            this._view.webview.postMessage(msg);
+        }
     }
 
     private _handleIrisWebSocketMessage(data: unknown): void {
@@ -290,9 +315,6 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
     }
 
     private _postSnapshot(options: { showContextPicker?: boolean } = {}): void {
-        if (!this._view) {
-            return;
-        }
         const snapshot = this._contextStore.snapshot();
         const payload = this._serializeSnapshot(snapshot);
 
@@ -300,14 +322,14 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
         const config = vscode.workspace.getConfiguration('artemis');
         const showDiagnostics = config.get<boolean>('developerMode', false);
 
-        this._view.webview.postMessage({
+        this._postMessageSafe({
             type: 'updateIrisState',
             state: payload,
             showDiagnostics,
         });
 
         if (options.showContextPicker) {
-            this._view.webview.postMessage({
+            this._postMessageSafe({
                 type: 'showContextPicker',
                 state: payload,
             });
@@ -402,6 +424,8 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
 
         // Handle React ready signal (sent as { type: 'ready' })
         if (typedMessage.type === 'ready') {
+            this._webviewReady = true;
+            this._flushPendingMessages();
             this._postSnapshot();
             this._postNoAiStatus(this._noAiDetectionService.isNoAiEnabled);
             return;
@@ -644,13 +668,11 @@ Iris can see files from your workspace (configurable in settings). Check the "Re
         const isEnabled = await this._chatSessionService.checkAndLoadIrisSettings(activeContext);
         if (!isEnabled) {
             // Show disabled overlay when trying to send a message with Iris disabled
-            if (this._view) {
-                const contextLabel = activeContext.type === 'course' ? 'course' : 'exercise';
-                this._view.webview.postMessage({
-                    type: 'showDisabledState',
-                    message: `Iris chat is not enabled for this ${contextLabel}. Please contact your instructor.`
-                });
-            }
+            const contextLabel = activeContext.type === 'course' ? 'course' : 'exercise';
+            this._postMessageSafe({
+                type: 'showDisabledState',
+                message: `Iris chat is not enabled for this ${contextLabel}. Please contact your instructor.`
+            });
             return;
         }
 
@@ -755,26 +777,17 @@ Iris can see files from your workspace (configurable in settings). Check the "Re
                 });
             }
 
-            if (this._view && messages && messages.length > 0) {
+            if (messages && messages.length > 0) {
                 logger.irisChat('Sending messages to webview', messages);
 
                 const formattedMessages = messages.map((msg: IrisChatMessage) => {
-                    // Extract content from the message structure
-                    let content = '';
-                    if (msg.content && Array.isArray(msg.content) && msg.content.length > 0) {
-                        // Content is an array of content items
-                        content = msg.content.map((item: IrisChatMessageContent) => {
-                            if (item.textContent) {
-                                return item.textContent;
-                            }
-                            return item.toString?.() ?? String(item);
-                        }).join('\n');
-                    } else if (typeof msg.content === 'string') {
-                        content = msg.content;
-                    } else if (typeof (msg as { message?: string }).message === 'string') {
-                        content = (msg as { message: string }).message;
-                    } else {
-                        content = JSON.stringify(msg.content);
+                    // Extract content - try msg.content first, then fall back to msg.message
+                    let content = extractIrisMessageContent(msg.content);
+                    if (content === 'undefined' || content === 'null') {
+                        const legacyMsg = msg as { message?: string };
+                        if (typeof legacyMsg.message === 'string') {
+                            content = legacyMsg.message;
+                        }
                     }
 
                     return {
@@ -786,16 +799,11 @@ Iris can see files from your workspace (configurable in settings). Check the "Re
                     };
                 });
 
-                // Small delay to ensure webview is ready
-                setTimeout(() => {
-                    if (this._view) {
-                        this._view.webview.postMessage({
-                            type: 'loadMessages',
-                            messages: formattedMessages
-                        });
-                        logger.irisChat('Messages sent to webview');
-                    }
-                }, 100);
+                this._postMessageSafe({
+                    type: 'loadMessages',
+                    messages: formattedMessages
+                });
+                logger.irisChat('Messages sent to webview');
             } else {
                 logger.irisChat('No messages to load or view not ready');
             }
@@ -819,9 +827,7 @@ Iris can see files from your workspace (configurable in settings). Check the "Re
         this._contextStore.clearAllSessions();
 
         // Clear chat UI
-        if (this._view) {
-            this._view.webview.postMessage({ type: 'clearChatMessages' });
-        }
+        this._postMessageSafe({ type: 'clearChatMessages' });
 
         // Post updated snapshot
         this._postSnapshot();
@@ -843,6 +849,7 @@ Iris can see files from your workspace (configurable in settings). Check the "Re
 
     public refreshTheme(): void {
         if (this._view) {
+            this._webviewReady = false;
             this._view.webview.html = getReactWebviewHtml(this._view.webview, this._extensionUri, 'irisChat');
             this._postSnapshot();
         }
@@ -955,9 +962,7 @@ Iris can see files from your workspace (configurable in settings). Check the "Re
         this._resetSessionStateForContextChange();
 
         // Clear messages immediately to avoid showing old context messages
-        if (this._view) {
-            this._view.webview.postMessage({ type: 'clearChatMessages' });
-        }
+        this._postMessageSafe({ type: 'clearChatMessages' });
 
         vscode.window.showInformationMessage(`Course context set to: ${courseTitle}`);
 
@@ -1032,9 +1037,7 @@ Iris can see files from your workspace (configurable in settings). Check the "Re
         this._resetSessionStateForContextChange();
 
         // Clear messages immediately to avoid showing old context messages
-        if (this._view) {
-            this._view.webview.postMessage({ type: 'clearChatMessages' });
-        }
+        this._postMessageSafe({ type: 'clearChatMessages' });
 
         vscode.window.showInformationMessage(`Exercise context set to: ${exerciseTitle}`);
 

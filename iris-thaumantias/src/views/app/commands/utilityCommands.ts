@@ -19,7 +19,7 @@ import type {
     FetchBuildLogsForErrorCommand,
     WebviewLogCommand,
 } from '../../../shared/messageContracts';
-import { BuildLogParser, normalizeRelativePath } from '../../../utils';
+import { BuildLogParser, normalizeRelativePath, extractErrorMessage } from '../../../utils';
 import { logger, LogLevel, LogCategory } from '../../../services/loggingService';
 
 export class UtilityCommandModule {
@@ -111,7 +111,7 @@ export class UtilityCommandModule {
             }
         } catch (error: unknown) {
             logger.submissionError('Show submission details error:', error);
-            vscode.window.showErrorMessage(`Failed to fetch submission details: ${error instanceof Error ? error.message : 'Unknown error'}`);
+            vscode.window.showErrorMessage(`Failed to fetch submission details: ${extractErrorMessage(error)}`);
         }
     };
 
@@ -181,7 +181,7 @@ export class UtilityCommandModule {
             this.context.sendMessage({
                 type: 'testResultsData',
                 testCases: [],
-                error: error instanceof Error ? error.message : 'Unknown error'
+                error: extractErrorMessage(error)
             });
         }
     };
@@ -215,7 +215,7 @@ export class UtilityCommandModule {
             await vscode.env.openExternal(vscode.Uri.parse(exerciseUrl));
         } catch (error: unknown) {
             logger.viewError('Open exercise in browser error:', error);
-            vscode.window.showErrorMessage(`Failed to open exercise in browser: ${error instanceof Error ? error.message : 'Unknown error'}`);
+            vscode.window.showErrorMessage(`Failed to open exercise in browser: ${extractErrorMessage(error)}`);
         }
     };
 
@@ -288,7 +288,7 @@ export class UtilityCommandModule {
             vscode.window.showInformationMessage('Build log opened in editor');
         } catch (error: unknown) {
             logger.error('View build log error:', LogCategory.BUILD, error);
-            vscode.window.showErrorMessage(`Failed to fetch build log: ${error instanceof Error ? error.message : 'Unknown error'}`);
+            vscode.window.showErrorMessage(`Failed to fetch build log: ${extractErrorMessage(error)}`);
         }
     };
 
@@ -342,7 +342,7 @@ export class UtilityCommandModule {
             vscode.window.showInformationMessage(`Navigated to ${filePath}:${line}`);
         } catch (error: unknown) {
             logger.viewError('Go to source error:', error);
-            vscode.window.showErrorMessage(`Failed to navigate to source: ${error instanceof Error ? error.message : 'Unknown error'}`);
+            vscode.window.showErrorMessage(`Failed to navigate to source: ${extractErrorMessage(error)}`);
         }
     };
 
@@ -504,7 +504,7 @@ export class UtilityCommandModule {
             logger.error('Open external link error:', LogCategory.VIEW, error);
             const payload = getPayload<OpenExternalLinkCommand>(message);
             const action = await vscode.window.showErrorMessage(
-                `Failed to open external link: ${error instanceof Error ? error.message : 'Unknown error'}`,
+                `Failed to open external link: ${extractErrorMessage(error)}`,
                 'Copy URL'
             );
             if (action === 'Copy URL' && payload.url) {
@@ -569,7 +569,7 @@ export class UtilityCommandModule {
             logger.error('Open image preview error:', LogCategory.VIEW, error);
             const payload = getPayload<OpenImagePreviewCommand>(message);
             const action = await vscode.window.showErrorMessage(
-                `Failed to open image: ${error instanceof Error ? error.message : 'Unknown error'}`,
+                `Failed to open image: ${extractErrorMessage(error)}`,
                 'Copy URL'
             );
             if (action === 'Copy URL' && payload.uri) {

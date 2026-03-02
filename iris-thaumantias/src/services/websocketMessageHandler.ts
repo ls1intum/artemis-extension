@@ -1,8 +1,9 @@
 import * as vscode from 'vscode';
 import { ArtemisWebsocketService } from './artemisWebsocketService';
 import { IrisSessionManager } from './irisSessionManager';
-import type { IrisChatMessage, IrisChatMessageContent } from '../types/apiResponses';
+import type { IrisChatMessage } from '../types/apiResponses';
 import { logger, LogCategory } from './loggingService';
+import { extractIrisMessageContent } from '../utils/irisMessageUtils';
 import type { ExtensionToWebviewMessage } from '../shared/messageContracts';
 
 export class WebSocketMessageHandler {
@@ -22,19 +23,8 @@ export class WebSocketMessageHandler {
         if (typedData.type === 'MESSAGE' && typedData.message) {
             logger.websocket('📦 Processing MESSAGE type');
             // Extract content from the message
-            let content = '';
             const msg = typedData.message;
-
-            if (msg.content && Array.isArray(msg.content) && msg.content.length > 0) {
-                content = msg.content.map((item: IrisChatMessageContent) => {
-                    if (item.textContent) {
-                        return item.textContent;
-                    }
-                    return item.toString?.() ?? String(item);
-                }).join('\n');
-            } else if (typeof msg.content === 'string') {
-                content = msg.content;
-            }
+            const content = extractIrisMessageContent(msg.content);
 
             logger.websocket(`📝 Extracted content length: ${content.length} chars`);
             logger.websocket(`👤 Message sender: ${msg.sender}`);

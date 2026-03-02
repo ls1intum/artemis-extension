@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { processPlantUml } from '../../../utils';
+import { processPlantUml, extractErrorMessage } from '../../../utils';
 import { logger, LogCategory } from '../../../services/loggingService';
 import type { CommandContext, CommandMap } from './types';
 import { getPayload } from '../../../shared/messageContracts';
@@ -44,7 +44,7 @@ export class PlantUmlCommandModule {
             });
         } catch (error) {
             logger.plantUmlError('Render PlantUML error:', error);
-            const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+            const errorMsg = extractErrorMessage(error);
             vscode.window.showErrorMessage(`Failed to render PlantUML: ${errorMsg}`);
         }
     };
@@ -77,7 +77,7 @@ export class PlantUmlCommandModule {
             logger.plantUml(`✅ Inline PlantUML diagram ${index + 1} rendered successfully`);
         } catch (error) {
             logger.plantUmlError(`Render inline PlantUML error for diagram ${index + 1}:`, error);
-            const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+            const errorMsg = extractErrorMessage(error);
             this.context.sendMessage({
                 type: 'plantUmlError',
                 index: index,
@@ -101,7 +101,7 @@ export class PlantUmlCommandModule {
             await vscode.commands.executeCommand('artemis.renderPlantUmlFromWebview', processedPlantUml, `Diagram ${index + 1}`);
         } catch (error) {
             logger.plantUmlError(`Open PlantUML in new tab error for diagram ${index + 1}:`, error);
-            const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+            const errorMsg = extractErrorMessage(error);
             vscode.window.showErrorMessage(`Failed to open PlantUML diagram: ${errorMsg}`);
         }
     };

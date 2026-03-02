@@ -84,7 +84,7 @@ export const useChatStore = create<ChatState>()(
             setIrisState: (state) => {
                 set({
                     context: state.context ? {
-                        type: state.context.type as 'course' | 'exercise',
+                        type: state.context.type,
                         id: state.context.id,
                         title: state.context.title,
                         shortName: state.context.shortName,
@@ -94,7 +94,7 @@ export const useChatStore = create<ChatState>()(
                             || state.allExercises.find(ex => ex.id === state.context!.id)?.courseId
                             : undefined,
                         locked: state.context.locked,
-                        source: state.context.source as 'user-selected' | 'workspace-detected' | 'system-default',
+                        source: state.context.source,
                     } : null,
                     activeSessionId: state.activeSessionId,
                     sessions: state.sessions.map(s => ({

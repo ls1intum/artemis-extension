@@ -145,10 +145,10 @@ interface WebviewCmdPayloads {
     toggleFullscreen: undefined;
     cloneRepository: { participationId: number; repositoryUri: string; exerciseTitle: string };
     openRepository: { repositoryUri?: string };
-    submitExercise: { participationId: number };
+    submitExercise: { participationId: number; exerciseId?: number; exerciseTitle?: string; commitMessage?: string };
     triggerBuild: { participationId: number };
     startExercise: { exerciseId: number };
-    startPractice: { exerciseId: number };
+    startPractice: { exerciseId: number; exerciseTitle?: string };
     askIrisAboutExercise: { exerciseId: number; exerciseTitle: string; exerciseShortName?: string; releaseDate?: string; dueDate?: string; courseId?: number; courseTitle?: string; courseShortName?: string };
     checkRepositoryStatus: { showNotification?: boolean };
     detectWorkspaceExercise: undefined;
@@ -216,7 +216,7 @@ interface WebviewCmdPayloads {
     // Missing commands
     viewExercises: undefined;
     checkGrades: undefined;
-    openRulesInEditor: undefined;
+    openRulesInEditor: { text: string };
     renderPlantUml: { plantUmlDiagrams: string[]; exerciseTitle?: string };
     openPlantUmlInNewTab: { plantUml: string; index: number };
     clearBuildErrors: undefined;

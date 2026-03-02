@@ -221,7 +221,7 @@ describe('useExerciseDetailStore', () => {
 		const { result } = renderHook(() => useExerciseDetailStore());
 
 		act(() => {
-			result.current.updateSubmissionProcessing({ submissionId: 999 });
+			result.current.updateSubmissionProcessing({ state: 'BUILDING', participationId: 999 });
 		});
 
 		expect(result.current.exerciseData).toBeNull();
@@ -236,13 +236,13 @@ describe('useExerciseDetailStore', () => {
 		});
 
 		act(() => {
-			result.current.updateSubmissionProcessing({ submissionId: 555 });
+			result.current.updateSubmissionProcessing({ state: 'BUILDING', participationId: 555 });
 		});
 
 		// After processing, exerciseData should still be present (the deep clone persists)
 		expect(result.current.exerciseData).not.toBeNull();
-		const dataWithPending = result.current.exerciseData as ExerciseDetailsResponse & { pendingSubmission?: { submissionId: number } };
-		expect(dataWithPending.pendingSubmission?.submissionId).toBe(555);
+		const dataWithPending = result.current.exerciseData as ExerciseDetailsResponse & { pendingSubmission?: { state: string; participationId: number } };
+		expect(dataWithPending.pendingSubmission?.participationId).toBe(555);
 	});
 
 	it('state is fully reset in beforeEach — exercise data does not bleed between tests', () => {

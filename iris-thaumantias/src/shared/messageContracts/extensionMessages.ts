@@ -224,14 +224,14 @@ interface ExtensionMsgPayloads {
     websocketUpdate:
         | { updateType: 'newResult'; data: ResultSummary }
         | { updateType: 'newSubmission'; data: SubmissionSummary }
-        | { updateType: 'submissionProcessing'; data: { submissionId: number } };
+        | { updateType: 'submissionProcessing'; data: { state: string; participationId: number; buildTimingInfo?: unknown } };
     websocketDisconnected: {};
     websocketConnected: {};
 
     // Iris Chat
     updateIrisState: {
         state: {
-            context: { type: string; id: number; title: string; shortName?: string; locked: boolean; source: string } | null;
+            context: { type: 'course' | 'exercise'; id: number; title: string; shortName?: string; locked: boolean; source: 'user-selected' | 'workspace-detected' | 'system-default' } | null;
             activeSessionId: string | null;
             sessions: Array<{
                 id: string;

@@ -21,7 +21,7 @@ interface ExerciseDetailState {
     loadExerciseDetail: (vscodeApi: VsCodeApi, exerciseId: number) => void;
     updateBuildStatus: (payload: ResultSummary) => void;
     updateSubmission: (payload: SubmissionSummary) => void;
-    updateSubmissionProcessing: (payload: { submissionId: number }) => void;
+    updateSubmissionProcessing: (payload: { state: string; participationId: number; buildTimingInfo?: unknown }) => void;
 }
 
 /**
