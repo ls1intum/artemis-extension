@@ -35,45 +35,80 @@ export class UtilityCommandModule {
     }
 
     private handleAlert = async (message: WebviewToExtensionMessage): Promise<void> => {
-        const payload = getPayload<WebCmd<'alert'>>(message);
-        if (payload?.text) {
-            vscode.window.showErrorMessage(payload.text);
+        try {
+            const payload = getPayload<WebCmd<'alert'>>(message);
+            if (payload?.text) {
+                vscode.window.showErrorMessage(payload.text);
+            }
+        } catch (error: unknown) {
+            logger.error('Failed to show alert:', LogCategory.VIEW, error);
+            vscode.window.showErrorMessage(`Failed to show alert: ${extractErrorMessage(error)}`);
         }
     };
 
     private handleOpenSettings = async (message: WebviewToExtensionMessage): Promise<void> => {
-        const payload = getPayload<WebCmd<'openSettings'>>(message);
-        const settingId = payload?.setting || 'Artemis';
-        await vscode.commands.executeCommand('workbench.action.openSettings', settingId);
+        try {
+            const payload = getPayload<WebCmd<'openSettings'>>(message);
+            const settingId = payload?.setting || 'Artemis';
+            await vscode.commands.executeCommand('workbench.action.openSettings', settingId);
+        } catch (error: unknown) {
+            logger.error('Failed to open settings:', LogCategory.VIEW, error);
+            vscode.window.showErrorMessage(`Failed to open settings: ${extractErrorMessage(error)}`);
+        }
     };
 
     private handleOpenWebsite = async (): Promise<void> => {
-        const config = vscode.workspace.getConfiguration('artemis');
-        const serverUrl = config.get<string>('serverUrl', 'https://artemis.cit.tum.de');
-        await vscode.env.openExternal(vscode.Uri.parse(`${serverUrl}/courses`));
+        try {
+            const config = vscode.workspace.getConfiguration('artemis');
+            const serverUrl = config.get<string>('serverUrl', 'https://artemis.cit.tum.de');
+            await vscode.env.openExternal(vscode.Uri.parse(`${serverUrl}/courses`));
+        } catch (error: unknown) {
+            logger.error('Failed to open website:', LogCategory.VIEW, error);
+            vscode.window.showErrorMessage(`Failed to open website: ${extractErrorMessage(error)}`);
+        }
     };
 
     private handleOpenBugReport = async (): Promise<void> => {
-        await vscode.env.openExternal(vscode.Uri.parse('https://github.com/ls1intum/artemis-extension/issues'));
+        try {
+            await vscode.env.openExternal(vscode.Uri.parse('https://github.com/ls1intum/artemis-extension/issues'));
+        } catch (error: unknown) {
+            logger.error('Failed to open bug report page:', LogCategory.VIEW, error);
+            vscode.window.showErrorMessage(`Failed to open bug report page: ${extractErrorMessage(error)}`);
+        }
     };
 
     private handleOpenInEditor = async (message: WebviewToExtensionMessage): Promise<void> => {
-        const payload = getPayload<WebCmd<'openInEditor'>>(message);
-        await this.context.actionHandler.openJsonInEditor(payload.data);
+        try {
+            const payload = getPayload<WebCmd<'openInEditor'>>(message);
+            await this.context.actionHandler.openJsonInEditor(payload.data);
+        } catch (error: unknown) {
+            logger.error('Failed to open in editor:', LogCategory.VIEW, error);
+            vscode.window.showErrorMessage(`Failed to open in editor: ${extractErrorMessage(error)}`);
+        }
     };
 
     private handleCopyToClipboard = async (message: WebviewToExtensionMessage): Promise<void> => {
-        const payload = getPayload<WebCmd<'copyToClipboard'>>(message);
-        if (typeof payload.text === 'string') {
-            await vscode.env.clipboard.writeText(payload.text);
-            vscode.window.showInformationMessage('Copied to clipboard');
+        try {
+            const payload = getPayload<WebCmd<'copyToClipboard'>>(message);
+            if (typeof payload.text === 'string') {
+                await vscode.env.clipboard.writeText(payload.text);
+                vscode.window.showInformationMessage('Copied to clipboard');
+            }
+        } catch (error: unknown) {
+            logger.error('Failed to copy to clipboard:', LogCategory.VIEW, error);
+            vscode.window.showErrorMessage(`Failed to copy to clipboard: ${extractErrorMessage(error)}`);
         }
     };
 
     private handleSearchMarketplace = async (message: WebviewToExtensionMessage): Promise<void> => {
-        const payload = getPayload<WebCmd<'searchMarketplace'>>(message);
-        if (payload.extensionId) {
-            await vscode.commands.executeCommand('workbench.extensions.search', `@id:${payload.extensionId}`);
+        try {
+            const payload = getPayload<WebCmd<'searchMarketplace'>>(message);
+            if (payload.extensionId) {
+                await vscode.commands.executeCommand('workbench.extensions.search', `@id:${payload.extensionId}`);
+            }
+        } catch (error: unknown) {
+            logger.error('Failed to search marketplace:', LogCategory.VIEW, error);
+            vscode.window.showErrorMessage(`Failed to search marketplace: ${extractErrorMessage(error)}`);
         }
     };
 

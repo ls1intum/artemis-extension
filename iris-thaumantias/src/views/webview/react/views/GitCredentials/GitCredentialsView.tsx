@@ -48,6 +48,12 @@ export function GitCredentialsView({ vscodeApi }: GitCredentialsViewProps) {
                     setIsLoaded(true);
                     break;
                 }
+                case ExtensionMsg.GitIdentityInfo: {
+                    if (event.data.name) { setName(event.data.name); }
+                    if (event.data.email) { setEmail(event.data.email); }
+                    setIsLoaded(true);
+                    break;
+                }
                 case ExtensionMsg.GitCredentialsResult: {
                     setStatusMessage(event.data.message);
                     setStatusType(event.data.status);

@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import { ExtensionMsg } from '../../../../shared/messageContracts';
 import type { VsCodeApi, ExtMsg } from '../../../../shared/messageContracts';
 import { useExerciseDetailStore } from '../stores/useExerciseDetailStore';
 
@@ -42,7 +43,7 @@ export function useWebSocketUpdates(vscodeApi: VsCodeApi): void {
             const message = event.data as ExtMsg<'websocketUpdate'>;
 
             // Filter for websocketUpdate messages
-            if (message.type === 'websocketUpdate') {
+            if (message.type === ExtensionMsg.WebsocketUpdate) {
                 // Add to buffer - push update fields (now at root level) to preserve discriminated union
                 const { type: _type, ...updateData } = message;
                 bufferRef.current.push(updateData as WsUpdatePayload);

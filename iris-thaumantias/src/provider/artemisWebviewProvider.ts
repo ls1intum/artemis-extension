@@ -799,37 +799,53 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
         panel.webview.html = getReactWebviewHtml(panel.webview, this._extensionUri, 'exerciseDetail');
 
         let disposed = false;
+        let panelReady = false;
+        let pendingMessages: ExtensionToWebviewMessage[] = [];
+
+        const postSafe = (msg: ExtensionToWebviewMessage): void => {
+            if (panelReady && !disposed) {
+                panel.webview.postMessage(msg);
+            } else if (!disposed) {
+                pendingMessages.push(msg);
+            }
+        };
 
         // Register message handler for the fullscreen panel
         const messageListener = panel.webview.onDidReceiveMessage(async (message: unknown) => {
-            if (disposed) return;
+            if (disposed) { return; }
+            if (!isWebviewMessage(message)) { return; }
 
-            // Narrow unknown message to typed object
-            const typedMessage = message as { type?: string; title?: string; command?: string; payload?: unknown };
-
-            // Handle 'ready' signal — send exercise data
-            if (typedMessage.type === 'ready') {
-                panel.webview.postMessage({
+            if (message.type === 'ready') {
+                panelReady = true;
+                const pending = pendingMessages;
+                pendingMessages = [];
+                for (const msg of pending) {
+                    if (!disposed) { panel.webview.postMessage(msg); }
+                }
+                postSafe({
                     type: ExtensionMsg.ExerciseDetailInit,
                     exerciseData: exerciseData,
                     hideDeveloperTools: false,
                 });
+                return;
             }
 
-            // Handle title updates from the webview
-            if (typedMessage.type === 'updatePanelTitle' && typeof typedMessage.title === 'string') {
-                panel.title = `Exercise: ${typedMessage.title}`;
+            if (message.type === 'updatePanelTitle') {
+                panel.title = `Exercise: ${message.title}`;
+                return;
             }
 
-            // Forward all other messages to the existing handler
-            // Use handleMessageWithSender so responses go back to THIS panel, not the sidebar
-            this._messageHandler.handleMessageWithSender(message as WebviewToExtensionMessage, (responseMessage: ExtensionToWebviewMessage) => {
-                if (!disposed) panel.webview.postMessage(responseMessage);
-            });
+            if (message.type === 'command') {
+                this._messageHandler.handleMessageWithSender(
+                    message,
+                    (resp: ExtensionToWebviewMessage) => postSafe(resp)
+                );
+            }
         });
 
         panel.onDidDispose(() => {
             disposed = true;
+            pendingMessages = [];
             messageListener.dispose();
         });
 
@@ -854,43 +870,57 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
         panel.webview.html = getReactWebviewHtml(panel.webview, this._extensionUri, 'courseDetail');
 
         let disposed = false;
+        let panelReady = false;
+        let pendingMessages: ExtensionToWebviewMessage[] = [];
+
+        const postSafe = (msg: ExtensionToWebviewMessage): void => {
+            if (panelReady && !disposed) {
+                panel.webview.postMessage(msg);
+            } else if (!disposed) {
+                pendingMessages.push(msg);
+            }
+        };
 
         const messageListener = panel.webview.onDidReceiveMessage(async (message: unknown) => {
-            if (disposed) return;
+            if (disposed) { return; }
+            if (!isWebviewMessage(message)) { return; }
 
-            // Narrow the unknown message to a typed object
-            if (!message || typeof message !== 'object') {
+            if (message.type === 'ready') {
+                panelReady = true;
+                const pending = pendingMessages;
+                pendingMessages = [];
+                for (const msg of pending) {
+                    if (!disposed) { panel.webview.postMessage(msg); }
+                }
+
+                const config = vscode.workspace.getConfiguration('artemis');
+                const developerMode = config.get<boolean>('developerMode', false);
+
+                postSafe({
+                    type: ExtensionMsg.CourseDetailInit,
+                    courseData: courseData as CourseDetailPayload,
+                    workspaceExerciseId: null,
+                    hideDeveloperTools: !developerMode,
+                });
                 return;
             }
 
-            const typedMessage = message as { type?: string; title?: string; command?: string; payload?: unknown };
-
-            if (typedMessage.type === 'ready') {
-                // Read developer mode setting
-                const config = vscode.workspace.getConfiguration('artemis');
-                const developerMode = config.get<boolean>('developerMode', false);
-                const hideDeveloperTools = !developerMode;
-
-                panel.webview.postMessage({
-                    type: ExtensionMsg.CourseDetailInit,
-                    courseData: courseData,
-                    workspaceExerciseId: null,
-                    hideDeveloperTools: hideDeveloperTools,
-                });
+            if (message.type === 'updatePanelTitle') {
+                panel.title = `Course: ${message.title}`;
+                return;
             }
 
-            if (typedMessage.type === 'updatePanelTitle' && typeof typedMessage.title === 'string') {
-                panel.title = `Course: ${typedMessage.title}`;
+            if (message.type === 'command') {
+                this._messageHandler.handleMessageWithSender(
+                    message,
+                    (resp: ExtensionToWebviewMessage) => postSafe(resp)
+                );
             }
-
-            // Forward all other messages via handleMessageWithSender
-            this._messageHandler.handleMessageWithSender(message as WebviewToExtensionMessage, (responseMessage: ExtensionToWebviewMessage) => {
-                if (!disposed) panel.webview.postMessage(responseMessage);
-            });
         });
 
         panel.onDidDispose(() => {
             disposed = true;
+            pendingMessages = [];
             messageListener.dispose();
         });
 
