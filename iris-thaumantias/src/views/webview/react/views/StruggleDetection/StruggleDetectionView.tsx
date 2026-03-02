@@ -39,7 +39,8 @@ export function StruggleDetectionView({ vscodeApi }: StruggleDetectionViewProps)
 
             if (event.data.type === 'struggleDetectionInit') {
                 const initMsg = event.data as unknown as StruggleDetectionInitMessage;
-                setData(initMsg.payload);
+                const { type: _type, ...struggleData } = initMsg;
+				setData(struggleData as StruggleData);
             }
         };
 

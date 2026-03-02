@@ -31,13 +31,13 @@ export function ExamConductionView({ vscodeApi }: ExamConductionViewProps) {
 
             const typedMessage = event.data;
 
-            if (typedMessage.type === 'examConductionInit' && typedMessage.payload) {
-                store.setExamData(typedMessage.payload as Parameters<typeof store.setExamData>[0]);
+            if (typedMessage.type === 'examConductionInit') {
+                store.setExamData(typedMessage as unknown as Parameters<typeof store.setExamData>[0]);
             }
 
-            if (typedMessage.type === 'error' && typedMessage.payload) {
-                const errorPayload = typedMessage.payload as { message: string };
-                store.setError(errorPayload.message);
+            if (typedMessage.type === 'error') {
+                const errorMsg = typedMessage as unknown as { message: string };
+                store.setError(errorMsg.message);
             }
         };
 

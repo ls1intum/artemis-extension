@@ -227,9 +227,11 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
     };
 
     const handleFeedback = (messageId: string, feedback: 'positive' | 'negative') => {
+        const activeSession = store.sessions.find(s => s.id === store.activeSessionId);
         sendCommand('messageFeedback', {
+            sessionId: activeSession?.artemisSessionId,
             messageId,
-            feedback: feedback === 'positive' ? 'POSITIVE' : 'NEGATIVE',
+            feedback,
         });
     };
 

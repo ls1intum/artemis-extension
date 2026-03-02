@@ -66,11 +66,11 @@ export function CourseDetailView({ vscodeApi }: CourseDetailViewProps) {
 
             // Handle typed message format
             if (typedMessage.type === 'courseDetailInit') {
-                const payload = typedMessage.payload as { courseData?: { course?: { title?: string } }; workspaceExerciseId?: unknown } | undefined;
-                setCourseData(payload?.courseData as Parameters<typeof setCourseData>[0], payload?.workspaceExerciseId as Parameters<typeof setCourseData>[1]);
+                const cdMsg = typedMessage as { courseData?: { course?: { title?: string } }; workspaceExerciseId?: unknown };
+                setCourseData(cdMsg.courseData as Parameters<typeof setCourseData>[0], cdMsg.workspaceExerciseId as Parameters<typeof setCourseData>[1]);
 
                 // Push course breadcrumb
-                const courseTitle = payload?.courseData?.course?.title ?? 'Course';
+                const courseTitle = cdMsg.courseData?.course?.title ?? 'Course';
                 const abbreviatedTitle = courseTitle.length > 20 ? courseTitle.substring(0, 17) + '...' : courseTitle;
                 pushBreadcrumb(abbreviatedTitle, 'course-detail', () => {
                     // Current page, no action

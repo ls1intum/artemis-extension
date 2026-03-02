@@ -66,7 +66,7 @@ describe('Bridge Contracts', () => {
 
         it('payload.courses is an array', () => {
             const payload = createDashboardPayload();
-            expect(Array.isArray(payload.payload.courses)).toBe(true);
+            expect(Array.isArray(payload.courses)).toBe(true);
         });
 
         it('custom courses flow through via overrides', () => {
@@ -77,8 +77,8 @@ describe('Bridge Contracts', () => {
                 },
             ];
             const payload = createDashboardPayload({ courses: customCourses });
-            expect(payload.payload.courses).toHaveLength(1);
-            expect(payload.payload.courses[0].courseData.course.id).toBe(42);
+            expect(payload.courses).toHaveLength(1);
+            expect(payload.courses[0].courseData.course.id).toBe(42);
         });
     });
 
@@ -99,18 +99,18 @@ describe('Bridge Contracts', () => {
 
         it('payload.courses is an array', () => {
             const payload = createCourseListPayload();
-            expect(Array.isArray(payload.payload.courses)).toBe(true);
+            expect(Array.isArray(payload.courses)).toBe(true);
         });
 
         it('payload.archivedCourses is an array', () => {
             const payload = createCourseListPayload();
-            expect(Array.isArray(payload.payload.archivedCourses)).toBe(true);
+            expect(Array.isArray(payload.archivedCourses)).toBe(true);
         });
 
         it('custom courses flow through via overrides', () => {
             const customCourses = [{ course: { id: 7, title: 'Test Course' } }];
             const payload = createCourseListPayload({ courses: customCourses });
-            expect(payload.payload.courses[0].course.id).toBe(7);
+            expect(payload.courses[0].course.id).toBe(7);
         });
     });
 
@@ -131,20 +131,20 @@ describe('Bridge Contracts', () => {
 
         it('payload.courseData.course.id is a number', () => {
             const payload = createCourseDetailPayload();
-            expect(typeof payload.payload.courseData.course.id).toBe('number');
+            expect(typeof payload.courseData.course.id).toBe('number');
         });
 
         it('custom courseData flows through via overrides', () => {
             const payload = createCourseDetailPayload({
                 courseData: { course: { id: 99, title: 'Archived Course', isArchived: true } },
             });
-            expect(payload.payload.courseData.course.id).toBe(99);
-            expect(payload.payload.courseData.course.isArchived).toBe(true);
+            expect(payload.courseData.course.id).toBe(99);
+            expect(payload.courseData.course.isArchived).toBe(true);
         });
 
         it('hideDeveloperTools defaults to false', () => {
             const payload = createCourseDetailPayload();
-            expect(payload.payload.hideDeveloperTools).toBe(false);
+            expect(payload.hideDeveloperTools).toBe(false);
         });
     });
 
@@ -165,13 +165,13 @@ describe('Bridge Contracts', () => {
 
         it('payload.exerciseData is an object', () => {
             const payload = createExerciseDetailPayload();
-            expect(typeof payload.payload.exerciseData).toBe('object');
-            expect(payload.payload.exerciseData).not.toBeNull();
+            expect(typeof payload.exerciseData).toBe('object');
+            expect(payload.exerciseData).not.toBeNull();
         });
 
         it('payload.hideDeveloperTools is a boolean', () => {
             const payload = createExerciseDetailPayload();
-            expect(typeof payload.payload.hideDeveloperTools).toBe('boolean');
+            expect(typeof payload.hideDeveloperTools).toBe('boolean');
         });
 
         it('custom exerciseData flows through via overrides', () => {
@@ -179,8 +179,8 @@ describe('Bridge Contracts', () => {
                 exerciseData: { exercise: { id: 55, title: 'Custom Exercise' } },
                 hideDeveloperTools: true,
             });
-            expect(payload.payload.exerciseData.exercise?.id).toBe(55);
-            expect(payload.payload.hideDeveloperTools).toBe(true);
+            expect(payload.exerciseData.exercise?.id).toBe(55);
+            expect(payload.hideDeveloperTools).toBe(true);
         });
     });
 
@@ -228,12 +228,12 @@ describe('Bridge Contracts', () => {
 
         it('payload.serverUrl is a string', () => {
             const payload = createServiceStatusPayload();
-            expect(typeof payload.payload.serverUrl).toBe('string');
+            expect(typeof payload.serverUrl).toBe('string');
         });
 
         it('custom serverUrl flows through via overrides', () => {
             const payload = createServiceStatusPayload({ serverUrl: 'https://custom.artemis.tum.de' });
-            expect(payload.payload.serverUrl).toBe('https://custom.artemis.tum.de');
+            expect(payload.serverUrl).toBe('https://custom.artemis.tum.de');
         });
     });
 
@@ -281,7 +281,7 @@ describe('Bridge Contracts', () => {
 
         it('payload.categories is an array', () => {
             const payload = createRecommendedExtensionsPayload();
-            expect(Array.isArray(payload.payload.categories)).toBe(true);
+            expect(Array.isArray(payload.categories)).toBe(true);
         });
 
         it('custom categories flow through via overrides', () => {
@@ -294,8 +294,8 @@ describe('Bridge Contracts', () => {
                 },
             ];
             const payload = createRecommendedExtensionsPayload({ categories: customCategories });
-            expect(payload.payload.categories).toHaveLength(1);
-            expect(payload.payload.categories[0].id).toBe('java');
+            expect(payload.categories).toHaveLength(1);
+            expect(payload.categories[0].id).toBe('java');
         });
     });
 
@@ -316,12 +316,12 @@ describe('Bridge Contracts', () => {
 
         it('payload.currentName is a string', () => {
             const payload = createGitCredentialsPayload();
-            expect(typeof payload.payload.currentName).toBe('string');
+            expect(typeof payload.currentName).toBe('string');
         });
 
         it('payload.currentEmail is a string', () => {
             const payload = createGitCredentialsPayload();
-            expect(typeof payload.payload.currentEmail).toBe('string');
+            expect(typeof payload.currentEmail).toBe('string');
         });
 
         it('custom credentials flow through via overrides', () => {
@@ -329,8 +329,8 @@ describe('Bridge Contracts', () => {
                 currentName: 'Jane Doe',
                 currentEmail: 'jane@tum.de',
             });
-            expect(payload.payload.currentName).toBe('Jane Doe');
-            expect(payload.payload.currentEmail).toBe('jane@tum.de');
+            expect(payload.currentName).toBe('Jane Doe');
+            expect(payload.currentEmail).toBe('jane@tum.de');
         });
     });
 
@@ -351,24 +351,24 @@ describe('Bridge Contracts', () => {
 
         it('payload.studentExam is an object', () => {
             const payload = createExamStartPayload();
-            expect(typeof payload.payload.studentExam).toBe('object');
-            expect(payload.payload.studentExam).not.toBeNull();
+            expect(typeof payload.studentExam).toBe('object');
+            expect(payload.studentExam).not.toBeNull();
         });
 
         it('payload.courseId is a number', () => {
             const payload = createExamStartPayload();
-            expect(typeof payload.payload.courseId).toBe('number');
+            expect(typeof payload.courseId).toBe('number');
         });
 
         it('payload.examId is a number', () => {
             const payload = createExamStartPayload();
-            expect(typeof payload.payload.examId).toBe('number');
+            expect(typeof payload.examId).toBe('number');
         });
 
         it('custom exam data flows through via overrides', () => {
             const payload = createExamStartPayload({ courseId: 100, examId: 42 });
-            expect(payload.payload.courseId).toBe(100);
-            expect(payload.payload.examId).toBe(42);
+            expect(payload.courseId).toBe(100);
+            expect(payload.examId).toBe(42);
         });
     });
 
@@ -389,25 +389,25 @@ describe('Bridge Contracts', () => {
 
         it('payload.endTime is a number', () => {
             const payload = createExamConductionPayload();
-            expect(typeof payload.payload.endTime).toBe('number');
+            expect(typeof payload.endTime).toBe('number');
         });
 
         it('payload.totalDuration is a number', () => {
             const payload = createExamConductionPayload();
-            expect(typeof payload.payload.totalDuration).toBe('number');
+            expect(typeof payload.totalDuration).toBe('number');
         });
 
         it('payload.workspaceExerciseId is null by default', () => {
             const payload = createExamConductionPayload();
-            expect(payload.payload.workspaceExerciseId).toBeNull();
+            expect(payload.workspaceExerciseId).toBeNull();
         });
 
         it('custom timing data flows through via overrides', () => {
             const endTime = 1_800_000_000_000;
             const startTime = 1_800_000_000_000 - 3_600_000;
             const payload = createExamConductionPayload({ endTime, startTime, totalDuration: 3600 });
-            expect(payload.payload.endTime).toBe(endTime);
-            expect(payload.payload.startTime).toBe(startTime);
+            expect(payload.endTime).toBe(endTime);
+            expect(payload.startTime).toBe(startTime);
         });
     });
 
@@ -428,18 +428,18 @@ describe('Bridge Contracts', () => {
 
         it('payload.examContext.courseId is a number', () => {
             const payload = createExamExerciseDetailPayload();
-            expect(typeof payload.payload.examContext.courseId).toBe('number');
+            expect(typeof payload.examContext.courseId).toBe('number');
         });
 
         it('payload.examContext.examId is a number', () => {
             const payload = createExamExerciseDetailPayload();
-            expect(typeof payload.payload.examContext.examId).toBe('number');
+            expect(typeof payload.examContext.examId).toBe('number');
         });
 
         it('payload.exerciseData is an object', () => {
             const payload = createExamExerciseDetailPayload();
-            expect(typeof payload.payload.exerciseData).toBe('object');
-            expect(payload.payload.exerciseData).not.toBeNull();
+            expect(typeof payload.exerciseData).toBe('object');
+            expect(payload.exerciseData).not.toBeNull();
         });
 
         it('custom examContext data flows through via overrides', () => {
@@ -453,8 +453,8 @@ describe('Bridge Contracts', () => {
                     totalDuration: 7200,
                 },
             });
-            expect(payload.payload.examContext.courseId).toBe(200);
-            expect(payload.payload.examContext.examId).toBe(99);
+            expect(payload.examContext.courseId).toBe(200);
+            expect(payload.examContext.examId).toBe(99);
         });
     });
 

@@ -40,11 +40,11 @@ export function GitCredentialsView({ vscodeApi }: GitCredentialsViewProps) {
             switch (typedMessage.type) {
                 case 'gitCredentialsInit': {
                     const initMsg = typedMessage as GitCredentialsInitMessage;
-                    if (initMsg.payload.currentName) {
-                        setName(initMsg.payload.currentName);
+                    if (initMsg.currentName) {
+                        setName(initMsg.currentName);
                     }
-                    if (initMsg.payload.currentEmail) {
-                        setEmail(initMsg.payload.currentEmail);
+                    if (initMsg.currentEmail) {
+                        setEmail(initMsg.currentEmail);
                     }
                     setIsLoaded(true);
                     break;

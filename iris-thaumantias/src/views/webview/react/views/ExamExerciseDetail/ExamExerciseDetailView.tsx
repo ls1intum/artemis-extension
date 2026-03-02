@@ -52,13 +52,13 @@ export function ExamExerciseDetailView({ vscodeApi }: ExamExerciseDetailViewProp
 
             const typedMessage = event.data;
 
-            if (typedMessage.type === 'examExerciseDetailInit' && typedMessage.payload) {
-                const payload = typedMessage.payload as { exerciseData: unknown; examContext: unknown; hideDeveloperTools: unknown };
-                setExerciseData(payload.exerciseData as Parameters<typeof setExerciseData>[0], payload.hideDeveloperTools as boolean);
+            if (typedMessage.type === 'examExerciseDetailInit') {
+                const eedMsg = typedMessage as unknown as { exerciseData: unknown; examContext: unknown; hideDeveloperTools: unknown };
+                setExerciseData(eedMsg.exerciseData as Parameters<typeof setExerciseData>[0], eedMsg.hideDeveloperTools as boolean);
                 setExamExerciseData({
-                    exerciseData: payload.exerciseData,
-                    examContext: payload.examContext,
-                    hideDeveloperTools: payload.hideDeveloperTools,
+                    exerciseData: eedMsg.exerciseData,
+                    examContext: eedMsg.examContext,
+                    hideDeveloperTools: eedMsg.hideDeveloperTools,
                 } as Parameters<typeof setExamExerciseData>[0]);
             }
         };

@@ -1,14 +1,12 @@
 import type { ExerciseDetailInitMessage } from '../../../src/shared/messageContracts';
 
 export function createExerciseDetailPayload(
-    overrides?: Partial<ExerciseDetailInitMessage['payload']>,
+    overrides?: Partial<Omit<ExerciseDetailInitMessage, 'type'>>,
 ): ExerciseDetailInitMessage {
     return {
         type: 'exerciseDetailInit',
-        payload: {
-            exerciseData: { exercise: { id: 1, title: 'Test Exercise' } },
-            hideDeveloperTools: false,
-            ...overrides,
-        },
+        exerciseData: { exercise: { id: 1, title: 'Test Exercise' } },
+        hideDeveloperTools: false,
+        ...overrides,
     };
 }

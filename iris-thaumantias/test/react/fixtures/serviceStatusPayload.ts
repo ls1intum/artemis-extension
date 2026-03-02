@@ -1,13 +1,11 @@
 import type { ServiceStatusInitMessage } from '../../../src/shared/messageContracts';
 
 export function createServiceStatusPayload(
-    overrides?: Partial<ServiceStatusInitMessage['payload']>,
+    overrides?: Partial<Omit<ServiceStatusInitMessage, 'type'>>,
 ): ServiceStatusInitMessage {
     return {
         type: 'serviceStatusInit',
-        payload: {
-            serverUrl: 'https://artemis.example.com',
-            ...overrides,
-        },
+        serverUrl: 'https://artemis.example.com',
+        ...overrides,
     };
 }

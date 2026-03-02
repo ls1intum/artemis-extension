@@ -164,9 +164,7 @@ export class HealthCommandModule {
 
         this.context.sendMessage({
             type: 'healthCheckResults',
-            payload: {
-                results: results
-            }
+            results: results
         });
     };
 }

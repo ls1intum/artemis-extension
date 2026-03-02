@@ -12,7 +12,8 @@ export function useWebSocketUpdates(vscodeApi: VsCodeApi): void {
     const updateSubmission = useExerciseDetailStore((state) => state.updateSubmission);
     const updateSubmissionProcessing = useExerciseDetailStore((state) => state.updateSubmissionProcessing);
 
-    const bufferRef = useRef<Array<WebSocketUpdateMessage['payload']>>([]);
+    type WsUpdatePayload = { updateType: 'newResult'; data: Parameters<typeof updateBuildStatus>[0] } | { updateType: 'newSubmission'; data: Parameters<typeof updateSubmission>[0] } | { updateType: 'submissionProcessing'; data: Parameters<typeof updateSubmissionProcessing>[0] };
+    const bufferRef = useRef<Array<WsUpdatePayload>>([]);
     const rafIdRef = useRef<number | null>(null);
 
     useEffect(() => {
@@ -42,8 +43,9 @@ export function useWebSocketUpdates(vscodeApi: VsCodeApi): void {
 
             // Filter for websocketUpdate messages
             if (message.type === 'websocketUpdate') {
-                // Add to buffer - push entire payload to preserve discriminated union
-                bufferRef.current.push(message.payload);
+                // Add to buffer - push update fields (now at root level) to preserve discriminated union
+                const { type: _type, ...updateData } = message;
+                bufferRef.current.push(updateData as WsUpdatePayload);
 
                 // Schedule RAF flush if not already scheduled
                 if (rafIdRef.current === null) {

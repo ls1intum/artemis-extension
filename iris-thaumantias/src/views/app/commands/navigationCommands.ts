@@ -344,7 +344,7 @@ export class NavigationCommandModule {
             const archivedCourses = this.context.appStateManager.archivedCoursesData || [];
             this.context.sendMessage({
                 type: 'archivedCoursesLoaded',
-                payload: { archivedCourses }
+                archivedCourses
             });
 
             const archivedCount = archivedCourses.length;

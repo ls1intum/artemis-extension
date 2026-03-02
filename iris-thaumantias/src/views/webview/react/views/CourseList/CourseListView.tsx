@@ -70,11 +70,11 @@ export function CourseListView({ vscodeApi }: CourseListViewProps) {
 
             // Handle typed message format
             if (typedMessage.type === 'courseListInit') {
-                const payload = typedMessage.payload as { courses?: CourseData[]; archivedCourses?: ArchivedCourse[] } | undefined;
-                setCourses(payload?.courses ?? [], payload?.archivedCourses);
+                const clMsg = typedMessage as { courses?: CourseData[]; archivedCourses?: ArchivedCourse[] };
+                setCourses(clMsg.courses ?? [], clMsg.archivedCourses);
             } else if (typedMessage.type === 'archivedCoursesLoaded') {
-                const payload = typedMessage.payload as { archivedCourses?: ArchivedCourse[] } | undefined;
-                setArchivedCourses(payload?.archivedCourses ?? []);
+                const acMsg = typedMessage as { archivedCourses?: ArchivedCourse[] };
+                setArchivedCourses(acMsg.archivedCourses ?? []);
             }
         };
 

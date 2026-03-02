@@ -65,11 +65,11 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
 
             // Handle typed message format
             if (typedMessage.type === 'exerciseDetailInit') {
-                const payload = typedMessage.payload as { exerciseData?: unknown; hideDeveloperTools?: unknown } | undefined;
-                if (!payload) return;
+                const edMsg = typedMessage as { exerciseData?: unknown; hideDeveloperTools?: unknown };
+                if (!edMsg.exerciseData) return;
 
-                const exerciseData = payload.exerciseData as ExerciseDetailsResponse;
-                const hideDeveloperTools = typeof payload.hideDeveloperTools === 'boolean' ? payload.hideDeveloperTools : false;
+                const exerciseData = edMsg.exerciseData as ExerciseDetailsResponse;
+                const hideDeveloperTools = typeof edMsg.hideDeveloperTools === 'boolean' ? edMsg.hideDeveloperTools : false;
 
                 setExerciseData(exerciseData, hideDeveloperTools);
 

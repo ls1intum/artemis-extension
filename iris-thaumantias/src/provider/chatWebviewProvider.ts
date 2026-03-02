@@ -121,7 +121,7 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
         this._fileMonitorService.onDidUpdateFiles(update => {
             if (this._view) {
                 this._view.webview.postMessage({
-                    command: 'updateReferencedFiles',
+                    type: 'updateReferencedFiles',
                     ...update
                 });
             }
@@ -166,7 +166,7 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
             return;
         }
         this._view.webview.postMessage({
-            command: 'updateNoAiStatus',
+            type: 'updateNoAiStatus',
             isNoAiDetected,
             noAiFilePath: this._noAiDetectionService.noAiFilePath
         });
@@ -301,14 +301,14 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
         const showDiagnostics = config.get<boolean>('developerMode', false);
 
         this._view.webview.postMessage({
-            command: 'updateIrisState',
+            type: 'updateIrisState',
             state: payload,
             showDiagnostics,
         });
 
         if (options.showContextPicker) {
             this._view.webview.postMessage({
-                command: 'showContextPicker',
+                type: 'showContextPicker',
                 state: payload,
             });
         }
@@ -398,7 +398,7 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
 
     private _handleMessage(message: unknown): void {
         // Narrow unknown to typed message
-        const typedMessage = message as { type?: string; command?: string; context?: ChatContextType; itemId?: number; itemName?: string; itemShortName?: string; exerciseId?: number; courseId?: number; sessionId?: string; setting?: string; filePath?: string };
+        const typedMessage = message as { type?: string; command?: string; payload?: Record<string, unknown> };
 
         // Handle React ready signal (sent as { type: 'ready' })
         if (typedMessage.type === 'ready') {
@@ -407,35 +407,32 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
             return;
         }
 
+        // Extract payload — React sends { type: 'command', command: '...', payload: { ... } }
+        const payload = typedMessage.payload ?? {};
+
         switch (typedMessage.command) {
             case 'sendMessage':
-                // Proper error handling for async chat message handler
-                void this._handleChatMessage({ text: (typedMessage as { text?: string }).text }).catch(err => {
+                void this._handleChatMessage({ text: payload.text as string | undefined }).catch(err => {
                     logger.error('Error handling chat message', LogCategory.IRIS_CHAT, err);
                     vscode.window.showErrorMessage('Failed to send message. Please try again.');
                 });
                 break;
-            case 'selectChatContext':
-                if (typedMessage.context && typeof typedMessage.itemId === 'number' && typeof typedMessage.itemName === 'string') {
-                    this._handleContextSelection(typedMessage.context, typedMessage.itemId, typedMessage.itemName, typedMessage.itemShortName);
+            case 'selectChatContext': {
+                const context = payload.context as ChatContextType | undefined;
+                const itemId = payload.itemId as number | undefined;
+                const itemName = payload.itemName as string | undefined;
+                const itemShortName = payload.itemShortName as string | undefined;
+                if (context && typeof itemId === 'number' && typeof itemName === 'string') {
+                    this._handleContextSelection(context, itemId, itemName, itemShortName);
                 }
                 break;
-            case 'selectExerciseContext': // Legacy
-                if (typeof typedMessage.exerciseId === 'number') {
-                    this._handleExerciseSelection(typedMessage.exerciseId);
-                }
-                break;
-            case 'selectCourseContext': // Legacy
-                if (typeof typedMessage.courseId === 'number') {
-                    this._handleCourseSelection(typedMessage.courseId);
-                }
-                break;
+            }
             case 'createNewSession':
                 this.createNewSession();
                 break;
             case 'switchSession':
-                if (typeof typedMessage.sessionId === 'string') {
-                    this.switchToSession(typedMessage.sessionId);
+                if (typeof payload.sessionId === 'string') {
+                    this.switchToSession(payload.sessionId);
                 }
                 break;
             case 'switchContext':
@@ -462,29 +459,25 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
             case 'reconnectWebSocket':
                 this._handleReconnectWebSocket();
                 break;
-            case 'chatViewReady':
-                this._postSnapshot();
-                // Post .noai status when webview is ready
-                this._postNoAiStatus(this._noAiDetectionService.isNoAiEnabled);
-                break;
-            case 'messageFeedback':
-                // Proper error handling for async feedback handler
+            case 'messageFeedback': {
+                const msgId = payload.messageId;
                 void this._handleMessageFeedback({
-                    sessionId: typeof typedMessage.sessionId === 'string' ? parseInt(typedMessage.sessionId, 10) : undefined,
-                    messageId: (typedMessage as { messageId?: number }).messageId,
-                    feedback: (typedMessage as { feedback?: string }).feedback
+                    sessionId: typeof payload.sessionId === 'number' ? payload.sessionId : undefined,
+                    messageId: typeof msgId === 'number' ? msgId : typeof msgId === 'string' ? parseInt(msgId, 10) : undefined,
+                    feedback: payload.feedback as string | undefined
                 }).catch(err => {
                     logger.error('Error handling message feedback', LogCategory.IRIS_CHAT, err);
                 });
                 break;
+            }
             case 'openSettings':
-                if (typeof typedMessage.setting === 'string') {
-                    vscode.commands.executeCommand('workbench.action.openSettings', typedMessage.setting);
+                if (typeof payload.setting === 'string') {
+                    vscode.commands.executeCommand('workbench.action.openSettings', payload.setting);
                 }
                 break;
             case 'openFile':
-                if (typeof typedMessage.filePath === 'string') {
-                    this._handleOpenFile(typedMessage.filePath);
+                if (typeof payload.filePath === 'string') {
+                    this._handleOpenFile(payload.filePath);
                 }
                 break;
             case 'openHelpPopup':
@@ -629,13 +622,6 @@ Iris can see files from your workspace (configurable in settings). Check the "Re
         }
     }
 
-    private _handleCourseSelection(courseId: number): void {
-        this._chatContextManager.handleCourseSelection(courseId);
-    }
-
-    private _handleExerciseSelection(exerciseId: number): void {
-        this._chatContextManager.handleExerciseSelection(exerciseId);
-    }
 
 
 
@@ -661,7 +647,7 @@ Iris can see files from your workspace (configurable in settings). Check the "Re
             if (this._view) {
                 const contextLabel = activeContext.type === 'course' ? 'course' : 'exercise';
                 this._view.webview.postMessage({
-                    command: 'showDisabledState',
+                    type: 'showDisabledState',
                     message: `Iris chat is not enabled for this ${contextLabel}. Please contact your instructor.`
                 });
             }
@@ -804,7 +790,7 @@ Iris can see files from your workspace (configurable in settings). Check the "Re
                 setTimeout(() => {
                     if (this._view) {
                         this._view.webview.postMessage({
-                            command: 'loadMessages',
+                            type: 'loadMessages',
                             messages: formattedMessages
                         });
                         logger.irisChat('Messages sent to webview');
@@ -834,7 +820,7 @@ Iris can see files from your workspace (configurable in settings). Check the "Re
 
         // Clear chat UI
         if (this._view) {
-            this._view.webview.postMessage({ command: 'clearChatMessages' });
+            this._view.webview.postMessage({ type: 'clearChatMessages' });
         }
 
         // Post updated snapshot
@@ -970,7 +956,7 @@ Iris can see files from your workspace (configurable in settings). Check the "Re
 
         // Clear messages immediately to avoid showing old context messages
         if (this._view) {
-            this._view.webview.postMessage({ command: 'clearChatMessages' });
+            this._view.webview.postMessage({ type: 'clearChatMessages' });
         }
 
         vscode.window.showInformationMessage(`Course context set to: ${courseTitle}`);
@@ -1047,7 +1033,7 @@ Iris can see files from your workspace (configurable in settings). Check the "Re
 
         // Clear messages immediately to avoid showing old context messages
         if (this._view) {
-            this._view.webview.postMessage({ command: 'clearChatMessages' });
+            this._view.webview.postMessage({ type: 'clearChatMessages' });
         }
 
         vscode.window.showInformationMessage(`Exercise context set to: ${exerciseTitle}`);

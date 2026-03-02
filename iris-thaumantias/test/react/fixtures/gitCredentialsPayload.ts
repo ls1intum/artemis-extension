@@ -1,14 +1,12 @@
 import type { GitCredentialsInitMessage } from '../../../src/shared/messageContracts';
 
 export function createGitCredentialsPayload(
-    overrides?: Partial<GitCredentialsInitMessage['payload']>,
+    overrides?: Partial<Omit<GitCredentialsInitMessage, 'type'>>,
 ): GitCredentialsInitMessage {
     return {
         type: 'gitCredentialsInit',
-        payload: {
-            currentName: 'Test User',
-            currentEmail: 'test@example.com',
-            ...overrides,
-        },
+        currentName: 'Test User',
+        currentEmail: 'test@example.com',
+        ...overrides,
     };
 }

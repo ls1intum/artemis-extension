@@ -40,7 +40,9 @@ function MessageBubbleComponent({
     }, [message.timestamp]);
 
     const handleFeedback = (feedback: 'positive' | 'negative') => {
-        onFeedback(message.localId, feedback);
+        if (message.id !== undefined) {
+            onFeedback(String(message.id), feedback);
+        }
     };
 
     const hasFeedback = message.helpful !== undefined && message.helpful !== null;

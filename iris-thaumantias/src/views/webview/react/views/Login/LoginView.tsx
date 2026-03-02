@@ -77,8 +77,7 @@ export function LoginView({ vscodeApi }: LoginViewProps) {
 					setViewState('loading');
 					setLoadingHiding(false);
 					setLoadingVisible(true);
-					const payload = typedMessage.payload as { message?: string } | undefined;
-					const showMsg = payload?.message ?? 'Checking authentication...';
+					const showMsg = (typedMessage as { message?: string }).message ?? 'Checking authentication...';
 					setLoadingMessage(showMsg);
 					setLoadingSubtext(loadingSubtexts[showMsg] ?? 'Please wait while we process your request');
 					break;
@@ -98,8 +97,7 @@ export function LoginView({ vscodeApi }: LoginViewProps) {
 					break;
 
 				case 'updateLoading': {
-					const payload = typedMessage.payload as { message?: string } | undefined;
-					const updateMsg = payload?.message ?? 'Processing...';
+					const updateMsg = (typedMessage as { message?: string }).message ?? 'Processing...';
 					setLoadingMessage(updateMsg);
 					setLoadingSubtext(loadingSubtexts[updateMsg] ?? 'Please wait while we process your request');
 					break;
@@ -114,8 +112,8 @@ export function LoginView({ vscodeApi }: LoginViewProps) {
 
 				case 'loginError': {
 					setViewState('form');
-					const payload = typedMessage.payload as { error?: string } | undefined;
-					setStatusMessage(payload?.error ?? 'Login failed');
+					const msg = typedMessage as { type: 'loginError'; error?: string };
+					setStatusMessage(msg.error ?? 'Login failed');
 					setStatusType('error');
 					setIsSubmitting(false);
 					setShowHealthChecks(true);
@@ -136,21 +134,21 @@ export function LoginView({ vscodeApi }: LoginViewProps) {
 
 				case 'showLoggedIn': {
 					setViewState('loggedIn');
-					const payload = typedMessage.payload as { userInfo?: UserInfo } | undefined;
-					setUserInfo(payload?.userInfo ?? null);
+					const userInfoVal = (typedMessage as { userInfo?: UserInfo }).userInfo ?? null;
+					setUserInfo(userInfoVal);
 					setShowHealthChecks(false);
 					break;
 				}
 
 				case 'setServerUrl': {
-					const payload = typedMessage.payload as { serverUrl?: string } | undefined;
-					setServerUrl(payload?.serverUrl ?? '');
+					const serverUrlVal = (typedMessage as { serverUrl?: string }).serverUrl ?? '';
+					setServerUrl(serverUrlVal);
 					break;
 				}
 
 				case 'healthCheckResults': {
 					// Convert health check results to ServiceInfo format
-					const payload = typedMessage.payload as {
+					const results = (typedMessage as {
 						results?: Record<string, {
 							status: string;
 							message: string;
@@ -158,9 +156,7 @@ export function LoginView({ vscodeApi }: LoginViewProps) {
 							httpStatus: number | null;
 							response: string | null;
 						}>;
-					} | undefined;
-
-					const results = payload?.results ?? {};
+					}).results ?? {};
 					const services: ServiceInfo[] = Object.entries(results).map(([serviceName, data]) => ({
 						name: formatServiceName(serviceName),
 						status: data.status as 'online' | 'offline' | 'checking' | 'unknown',

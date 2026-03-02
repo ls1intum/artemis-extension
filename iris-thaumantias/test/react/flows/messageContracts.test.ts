@@ -70,21 +70,21 @@ describe('Message contracts: ExtensionToWebviewMessage types', () => {
     it('LoginSuccessMessage has required type and payload fields', () => {
         const msg = {
             type: 'loginSuccess' as const,
-            payload: { username: 'testuser' },
+            username: 'testuser',
         } satisfies LoginSuccessMessage;
 
         expect(msg.type).toBe('loginSuccess');
-        expect(msg.payload.username).toBe('testuser');
+        expect(msg.username).toBe('testuser');
     });
 
-    it('LoginErrorMessage has required type and payload.error fields', () => {
+    it('LoginErrorMessage has required type and error fields', () => {
         const msg = {
             type: 'loginError' as const,
-            payload: { error: 'Invalid credentials' },
+            error: 'Invalid credentials',
         } satisfies LoginErrorMessage;
 
         expect(msg.type).toBe('loginError');
-        expect(msg.payload.error).toBe('Invalid credentials');
+        expect(msg.error).toBe('Invalid credentials');
     });
 
     it('LogoutSuccessMessage has required type field', () => {
@@ -98,31 +98,27 @@ describe('Message contracts: ExtensionToWebviewMessage types', () => {
     it('ShowLoggedInMessage has required payload.userInfo shape', () => {
         const msg = {
             type: 'showLoggedIn' as const,
-            payload: {
-                userInfo: {
-                    username: 'student1',
-                    serverUrl: 'https://artemis.tum.de',
-                },
+            userInfo: {
+                username: 'student1',
+                serverUrl: 'https://artemis.tum.de',
             },
         } satisfies ShowLoggedInMessage;
 
-        expect(msg.payload.userInfo.username).toBe('student1');
-        expect(msg.payload.userInfo.serverUrl).toBe('https://artemis.tum.de');
+        expect(msg.userInfo.username).toBe('student1');
+        expect(msg.userInfo.serverUrl).toBe('https://artemis.tum.de');
     });
 
     it('CourseListInitMessage has required payload.courses array', () => {
         const msg = {
             type: 'courseListInit' as const,
-            payload: {
-                courses: [
-                    { course: { id: 1, title: 'Test Course' } },
-                ],
-            },
+            courses: [
+                { course: { id: 1, title: 'Test Course' } },
+            ],
         } satisfies CourseListInitMessage;
 
         expect(msg.type).toBe('courseListInit');
-        expect(Array.isArray(msg.payload.courses)).toBe(true);
-        expect(msg.payload.courses[0].course.id).toBe(1);
+        expect(Array.isArray(msg.courses)).toBe(true);
+        expect(msg.courses[0].course.id).toBe(1);
     });
 
     it('WebSocketDisconnectedMessage has correct type discriminator', () => {
@@ -144,49 +140,44 @@ describe('Message contracts: ExtensionToWebviewMessage types', () => {
     it('HealthCheckResultsMessage has required payload.results record shape', () => {
         const msg = {
             type: 'healthCheckResults' as const,
-            payload: {
-                results: {
-                    artemisApi: {
-                        status: 'online',
-                        message: 'Connected',
-                        endpoint: 'https://artemis.tum.de/api',
-                        httpStatus: 200,
-                        response: 'OK',
-                    },
+            results: {
+                artemisApi: {
+                    status: 'online',
+                    message: 'Connected',
+                    endpoint: 'https://artemis.tum.de/api',
+                    httpStatus: 200,
+                    response: 'OK',
                 },
             },
         } satisfies HealthCheckResultsMessage;
 
         expect(msg.type).toBe('healthCheckResults');
-        expect(msg.payload.results['artemisApi'].status).toBe('online');
+        expect(msg.results['artemisApi'].status).toBe('online');
     });
 
     it('ServiceStatusInitMessage has optional payload.serverUrl field', () => {
         const withUrl = {
             type: 'serviceStatusInit' as const,
-            payload: { serverUrl: 'https://artemis.tum.de' },
+            serverUrl: 'https://artemis.tum.de',
         } satisfies ServiceStatusInitMessage;
 
         const withoutUrl = {
             type: 'serviceStatusInit' as const,
-            payload: {} as ServiceStatusInitMessage['payload'],
-        } satisfies ServiceStatusInitMessage;
+        } as ServiceStatusInitMessage;
 
-        expect(withUrl.payload.serverUrl).toBe('https://artemis.tum.de');
-        expect(withoutUrl.payload.serverUrl).toBeUndefined();
+        expect(withUrl.serverUrl).toBe('https://artemis.tum.de');
+        expect(withoutUrl.serverUrl).toBeUndefined();
     });
 
     it('GitCredentialsInitMessage has optional currentName and currentEmail fields', () => {
         const msg = {
             type: 'gitCredentialsInit' as const,
-            payload: {
-                currentName: 'John Doe',
-                currentEmail: 'john@tum.de',
-            },
+            currentName: 'John Doe',
+            currentEmail: 'john@tum.de',
         } satisfies GitCredentialsInitMessage;
 
-        expect(msg.payload.currentName).toBe('John Doe');
-        expect(msg.payload.currentEmail).toBe('john@tum.de');
+        expect(msg.currentName).toBe('John Doe');
+        expect(msg.currentEmail).toBe('john@tum.de');
     });
 
     it('GitCredentialsResultMessage has status and message fields', () => {
@@ -219,38 +210,34 @@ describe('Message contracts: ExtensionToWebviewMessage types', () => {
     it('WebSocketUpdateMessage discriminates on updateType for newResult', () => {
         const msg = {
             type: 'websocketUpdate' as const,
-            payload: {
-                updateType: 'newResult' as const,
-                data: {
-                    id: 1,
-                    successful: true,
-                    completionDate: '2024-01-01T12:00:00Z',
-                },
+            updateType: 'newResult' as const,
+            data: {
+                id: 1,
+                successful: true,
+                completionDate: '2024-01-01T12:00:00Z',
             },
         } satisfies WebSocketUpdateMessage;
 
-        expect(msg.payload.updateType).toBe('newResult');
+        expect(msg.updateType).toBe('newResult');
     });
 
     it('ExamConductionInitMessage has all required timing fields', () => {
         const msg = {
             type: 'examConductionInit' as const,
-            payload: {
-                studentExam: { id: 1, exam: { id: 10, course: { id: 100 } } } as ExamConductionInitMessage['payload']['studentExam'],
-                courseId: 100,
-                examId: 10,
-                endTime: Date.now() + 60 * 60 * 1000,
-                startTime: Date.now(),
-                totalDuration: 60 * 60 * 1000,
-                workspaceExerciseId: null,
-            },
+            studentExam: { id: 1, exam: { id: 10, course: { id: 100 } } } as ExamConductionInitMessage['studentExam'],
+            courseId: 100,
+            examId: 10,
+            endTime: Date.now() + 60 * 60 * 1000,
+            startTime: Date.now(),
+            totalDuration: 60 * 60 * 1000,
+            workspaceExerciseId: null,
         } satisfies ExamConductionInitMessage;
 
-        expect(msg.payload.courseId).toBe(100);
-        expect(msg.payload.examId).toBe(10);
-        expect(typeof msg.payload.endTime).toBe('number');
-        expect(typeof msg.payload.startTime).toBe('number');
-        expect(typeof msg.payload.totalDuration).toBe('number');
+        expect(msg.courseId).toBe(100);
+        expect(msg.examId).toBe(10);
+        expect(typeof msg.endTime).toBe('number');
+        expect(typeof msg.startTime).toBe('number');
+        expect(typeof msg.totalDuration).toBe('number');
     });
 });
 
@@ -419,7 +406,6 @@ describe('Message contracts: WebviewToExtensionMessage types', () => {
         const msg = {
             type: 'command' as const,
             command: 'reconnectWebSocket' as const,
-            payload: {},
         } satisfies ReconnectWebSocketCommand;
 
         expect(msg.command).toBe('reconnectWebSocket');
@@ -432,12 +418,12 @@ describe('Message contracts: WebviewToExtensionMessage types', () => {
 
 describe('Message contracts: type guards', () => {
     it('isExtensionMessage accepts valid extension→webview message', () => {
-        const msg = { type: 'loginSuccess', payload: { username: 'test' } };
+        const msg = { type: 'loginSuccess', username: 'test' };
         expect(isExtensionMessage(msg)).toBe(true);
     });
 
     it('isExtensionMessage accepts courseListInit message', () => {
-        const msg = { type: 'courseListInit', payload: { courses: [] } };
+        const msg = { type: 'courseListInit', courses: [] };
         expect(isExtensionMessage(msg)).toBe(true);
     });
 
@@ -523,20 +509,18 @@ describe('Message contracts: runtime shape validation', () => {
         // Spot-check that key types are assignable to the union
         const loginSuccess: ExtensionToWebviewMessage = {
             type: 'loginSuccess',
-            payload: { username: 'test' },
+            username: 'test',
         };
         const courseList: ExtensionToWebviewMessage = {
             type: 'courseListInit',
-            payload: { courses: [] },
+            courses: [],
         };
         const wsDisconnected: ExtensionToWebviewMessage = {
             type: 'websocketDisconnected',
         };
         const dashboardInit: ExtensionToWebviewMessage = {
             type: 'dashboardInit',
-            payload: {
-                courses: [],
-            },
+            courses: [],
         };
 
         expect(loginSuccess.type).toBe('loginSuccess');
@@ -582,12 +566,12 @@ describe('Message contracts: runtime shape validation', () => {
 
         const successResponse: ExtensionToWebviewMessage = {
             type: 'loginSuccess',
-            payload: { username: 'student@tum.de' },
+            username: 'student@tum.de',
         };
 
         const errorResponse: ExtensionToWebviewMessage = {
             type: 'loginError',
-            payload: { error: 'Invalid credentials' },
+            error: 'Invalid credentials',
         };
 
         expect(loginMsg).toMatchObject({ type: 'command', command: 'login' });
@@ -604,16 +588,14 @@ describe('Message contracts: runtime shape validation', () => {
 
         const courseListResponse: ExtensionToWebviewMessage = {
             type: 'courseListInit',
-            payload: {
-                courses: [
-                    { course: { id: 1, title: 'Algorithms & Data Structures' } },
-                ],
-            },
+            courses: [
+                { course: { id: 1, title: 'Algorithms & Data Structures' } },
+            ],
         };
 
         expect(reloadCmd).toMatchObject({ command: 'reloadCourses' });
         expect(courseListResponse).toMatchObject({ type: 'courseListInit' });
-        expect(Array.isArray(courseListResponse.payload.courses)).toBe(true);
+        expect(Array.isArray(courseListResponse.courses)).toBe(true);
     });
 
     it('postMessage payload shapes satisfy contract for exam flow', () => {
@@ -644,15 +626,13 @@ describe('Message contracts: runtime shape validation', () => {
         // CourseListInitMessage.archivedCourses is optional
         const withArchived: ExtensionToWebviewMessage = {
             type: 'courseListInit',
-            payload: {
-                courses: [],
-                archivedCourses: [{ id: 1, title: 'Old Course' }],
-            },
+            courses: [],
+            archivedCourses: [{ id: 1, title: 'Old Course' }],
         };
 
         const withoutArchived: ExtensionToWebviewMessage = {
             type: 'courseListInit',
-            payload: { courses: [] },
+            courses: [],
         };
 
         // Both are valid — optional fields work correctly

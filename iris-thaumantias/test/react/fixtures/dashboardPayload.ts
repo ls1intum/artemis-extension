@@ -1,14 +1,12 @@
 import type { DashboardInitMessage } from '../../../src/shared/messageContracts';
 
 export function createDashboardPayload(
-    overrides?: Partial<DashboardInitMessage['payload']>,
+    overrides?: Partial<Omit<DashboardInitMessage, 'type'>>,
 ): DashboardInitMessage {
     return {
         type: 'dashboardInit',
-        payload: {
-            courses: [],
-            workspaceExercise: undefined,
-            ...overrides,
-        },
+        courses: [],
+        workspaceExercise: undefined,
+        ...overrides,
     };
 }

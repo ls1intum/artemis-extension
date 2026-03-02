@@ -87,7 +87,7 @@ export const WebviewCmd = {
     DebugSessions: 'debugSessions',
     OpenHelpPopup: 'openHelpPopup',
 
-    // Inline commands (previously only in union)
+    // Inline commands
     Alert: 'alert',
     ShowSubmissionDetails: 'showSubmissionDetails',
     FetchTestResults: 'fetchTestResults',
@@ -103,7 +103,6 @@ export const WebviewCmd = {
     StartExam: 'startExam',
     RenderPlantUmlInline: 'renderPlantUmlInline',
 
-    // Missing commands (handled by backend but previously had no contract)
     ViewExercises: 'viewExercises',
     CheckGrades: 'checkGrades',
     OpenRulesInEditor: 'openRulesInEditor',
@@ -192,7 +191,7 @@ interface WebviewCmdPayloads {
     switchContext: undefined;
     resetChatSessions: undefined;
     reconnectWebSocket: undefined;
-    messageFeedback: { sessionId: number; messageId: number; feedback: 'positive' | 'negative' };
+    messageFeedback: { sessionId: number; messageId: number | string; feedback: 'positive' | 'negative' };
     openFile: { filePath: string };
     openDiagnostics: undefined;
     debugSessions: undefined;

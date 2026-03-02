@@ -1,16 +1,14 @@
 import type { ShowLoggedInMessage } from '../../../src/shared/messageContracts';
 
 export function createLoginInitPayload(
-    overrides?: Partial<ShowLoggedInMessage['payload']>,
+    overrides?: Partial<Omit<ShowLoggedInMessage, 'type'>>,
 ): ShowLoggedInMessage {
     return {
         type: 'showLoggedIn',
-        payload: {
-            userInfo: {
-                username: 'testuser',
-                serverUrl: 'https://artemis.example.com',
-            },
-            ...overrides,
+        userInfo: {
+            username: 'testuser',
+            serverUrl: 'https://artemis.example.com',
         },
+        ...overrides,
     };
 }

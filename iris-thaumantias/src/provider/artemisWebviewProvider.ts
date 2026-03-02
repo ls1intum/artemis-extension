@@ -175,7 +175,7 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
 
             this._postMessageSafe({
                 type: 'dashboardInit',
-                payload: { courses: recentCourseNodes, workspaceExercise: undefined },
+                courses: recentCourseNodes, workspaceExercise: undefined,
             });
         } else if (currentState === 'course-list') {
             const coursesData = this._appStateManager.coursesData;
@@ -198,7 +198,7 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
 
             this._postMessageSafe({
                 type: 'courseListInit',
-                payload: { courses: mappedCourses, archivedCourses },
+                courses: mappedCourses, archivedCourses,
             });
         } else if (currentState === 'course-detail') {
             const courseData = this._appStateManager.currentCourseData;
@@ -216,11 +216,9 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
 
                 this._postMessageSafe({
                     type: 'courseDetailInit',
-                    payload: {
-                        courseData: courseData as CourseDetailPayload,
-                        workspaceExerciseId: workspaceExerciseId,
-                        hideDeveloperTools: !developerMode,
-                    },
+                    courseData: courseData as CourseDetailPayload,
+                    workspaceExerciseId: workspaceExerciseId,
+                    hideDeveloperTools: !developerMode,
                 });
             });
         } else if (currentState === 'exercise-detail') {
@@ -236,10 +234,8 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
 
             this._postMessageSafe({
                 type: 'exerciseDetailInit',
-                payload: {
-                    exerciseData: exerciseData as ExerciseDetailsResponse,
-                    hideDeveloperTools: !developerMode,
-                },
+                exerciseData: exerciseData as ExerciseDetailsResponse,
+                hideDeveloperTools: !developerMode,
             });
         } else if (currentState === 'exam-conduction') {
             const examData = this._appStateManager.currentExamData;
@@ -269,15 +265,13 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
             detectWorkspaceExercise(exercises as ExerciseSource[]).then((detectedExercise: { id?: number } | null) => {
                 this._postMessageSafe({
                     type: 'examConductionInit',
-                    payload: {
-                        studentExam,
-                        courseId: examData.courseId,
-                        examId: examData.examId,
-                        endTime,
-                        startTime,
-                        totalDuration,
-                        workspaceExerciseId: detectedExercise?.id ?? null,
-                    },
+                    studentExam,
+                    courseId: examData.courseId,
+                    examId: examData.examId,
+                    endTime,
+                    startTime,
+                    totalDuration,
+                    workspaceExerciseId: detectedExercise?.id ?? null,
                 });
             });
         } else if (currentState === 'exam-start') {
@@ -289,11 +283,9 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
 
             this._postMessageSafe({
                 type: 'examStartInit',
-                payload: {
-                    studentExam: examData.studentExam,
-                    courseId: examData.courseId,
-                    examId: examData.examId,
-                },
+                studentExam: examData.studentExam,
+                courseId: examData.courseId,
+                examId: examData.examId,
             });
         } else if (currentState === 'exam-exercise-detail') {
             const exerciseData = this._appStateManager.currentExerciseData;
@@ -328,34 +320,30 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
 
             this._postMessageSafe({
                 type: 'examExerciseDetailInit',
-                payload: {
-                    exerciseData: exerciseData as ExerciseDetailsResponse,
-                    examContext: {
-                        courseId: examData.courseId,
-                        examId: examData.examId,
-                        studentExam,
-                        endTime,
-                        startTime,
-                        totalDuration,
-                    },
-                    hideDeveloperTools: !developerMode,
+                exerciseData: exerciseData as ExerciseDetailsResponse,
+                examContext: {
+                    courseId: examData.courseId,
+                    examId: examData.examId,
+                    studentExam,
+                    endTime,
+                    startTime,
+                    totalDuration,
                 },
+                hideDeveloperTools: !developerMode,
             });
         } else if (currentState === 'ai-config') {
             const aiExtensions = this._appStateManager.aiExtensions || [];
-            this._postMessageSafe({ type: 'aiConfigInit', payload: { aiExtensions } });
+            this._postMessageSafe({ type: 'aiConfigInit', aiExtensions });
         } else if (currentState === 'struggle-detection') {
             const ctx = this._telemetryManager?.getStruggleContext();
             this._postMessageSafe({
                 type: 'struggleDetectionInit',
-                payload: {
-                    isStruggling: ctx?.isStruggling ?? false,
-                    eq: ctx?.eq ?? 0,
-                    eqConfidence: ctx?.eqConfidence ?? 'insufficient',
-                    triggerType: ctx?.triggerType,
-                    recommendedAction: ctx?.recommendedAction ?? 'none',
-                    isEnabled: this._telemetryManager?.isEnabled() ?? false,
-                },
+                isStruggling: ctx?.isStruggling ?? false,
+                eq: ctx?.eq ?? 0,
+                eqConfidence: ctx?.eqConfidence ?? 'insufficient',
+                triggerType: ctx?.triggerType,
+                recommendedAction: ctx?.recommendedAction ?? 'none',
+                isEnabled: this._telemetryManager?.isEnabled() ?? false,
             });
         }
     }
@@ -491,7 +479,7 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
                         const serverUrl = this._appStateManager.userInfo?.serverUrl;
                         this._postMessageSafe({
                             type: 'serviceStatusInit',
-                            payload: { serverUrl }
+                            serverUrl,
                         });
                     } else if (currentState === 'recommended-extensions') {
                         const categories = this._appStateManager.recommendedExtensions || [];
@@ -505,13 +493,13 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
                         }));
                         this._postMessageSafe({
                             type: 'recommendedExtensionsInit',
-                            payload: { categories: mappedCategories }
+                            categories: mappedCategories,
                         });
                     } else if (currentState === 'login') {
                         // Send server URL to login view for health checks
                         this._postMessageSafe({
                             type: 'setServerUrl',
-                            payload: { serverUrl: this._getServerUrl() }
+                            serverUrl: this._getServerUrl(),
                         });
                     } else if (currentState === 'dashboard') {
                         // Send dashboard data with recent courses
@@ -548,10 +536,8 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
 
                         this._postMessageSafe({
                             type: 'dashboardInit',
-                            payload: {
-                                courses: recentCourseNodes,
-                                workspaceExercise: undefined  // Will be set by workspace detection
-                            }
+                            courses: recentCourseNodes,
+                            workspaceExercise: undefined,
                         });
                     } else if (currentState === 'course-list') {
                         // Send course list data with active and archived courses
@@ -575,10 +561,8 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
 
                         this._postMessageSafe({
                             type: 'courseListInit',
-                            payload: {
-                                courses: mappedCourses,
-                                archivedCourses: archivedCourses
-                            }
+                            courses: mappedCourses,
+                            archivedCourses: archivedCourses,
                         });
                     } else if (currentState === 'course-detail') {
                         // Send course detail data with exercises and exams
@@ -602,11 +586,9 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
 
                             this._postMessageSafe({
                                 type: 'courseDetailInit',
-                                payload: {
-                                    courseData: courseData as CourseDetailPayload,
-                                    workspaceExerciseId: workspaceExerciseId,
-                                    hideDeveloperTools: hideDeveloperTools
-                                }
+                                courseData: courseData as CourseDetailPayload,
+                                workspaceExerciseId: workspaceExerciseId,
+                                hideDeveloperTools: hideDeveloperTools,
                             });
                         });
                     } else if (currentState === 'exercise-detail') {
@@ -624,26 +606,22 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
 
                         this._postMessageSafe({
                             type: 'exerciseDetailInit',
-                            payload: {
-                                exerciseData: exerciseData as ExerciseDetailsResponse,
-                                hideDeveloperTools: hideDeveloperTools
-                            }
+                            exerciseData: exerciseData as ExerciseDetailsResponse,
+                            hideDeveloperTools: hideDeveloperTools,
                         });
                     } else if (currentState === 'ai-config') {
                         const aiExtensions = this._appStateManager.aiExtensions || [];
-                        this._postMessageSafe({ type: 'aiConfigInit', payload: { aiExtensions } });
+                        this._postMessageSafe({ type: 'aiConfigInit', aiExtensions });
                     } else if (currentState === 'struggle-detection') {
                         const ctx = this._telemetryManager?.getStruggleContext();
                         this._postMessageSafe({
                             type: 'struggleDetectionInit',
-                            payload: {
-                                isStruggling: ctx?.isStruggling ?? false,
-                                eq: ctx?.eq ?? 0,
-                                eqConfidence: ctx?.eqConfidence ?? 'insufficient',
-                                triggerType: ctx?.triggerType,
-                                recommendedAction: ctx?.recommendedAction ?? 'none',
-                                isEnabled: this._telemetryManager?.isEnabled() ?? false,
-                            },
+                            isStruggling: ctx?.isStruggling ?? false,
+                            eq: ctx?.eq ?? 0,
+                            eqConfidence: ctx?.eqConfidence ?? 'insufficient',
+                            triggerType: ctx?.triggerType,
+                            recommendedAction: ctx?.recommendedAction ?? 'none',
+                            isEnabled: this._telemetryManager?.isEnabled() ?? false,
                         });
                     }
                     return;
@@ -865,10 +843,10 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
             const hasAuth = await this._authManager.hasAuthCookie();
             if (hasAuth) {
                 // Show loading indicator only when actually attempting auto-login
-                this._postMessageSafe({ type: 'showLoading', payload: { message: 'Checking stored credentials...' } });
+                this._postMessageSafe({ type: 'showLoading', message: 'Checking stored credentials...' });
 
                 // Update loading message
-                this._postMessageSafe({ type: 'updateLoading', payload: { message: 'Loading user information...' } });
+                this._postMessageSafe({ type: 'updateLoading', message: 'Loading user information...' });
 
                 // Try to get user info directly - this validates authentication implicitly
                 try {
@@ -938,10 +916,8 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
             if (typedMessage.type === 'ready') {
                 panel.webview.postMessage({
                     type: 'exerciseDetailInit',
-                    payload: {
-                        exerciseData: exerciseData,
-                        hideDeveloperTools: false,
-                    }
+                    exerciseData: exerciseData,
+                    hideDeveloperTools: false,
                 });
             }
 
@@ -993,11 +969,9 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
 
                 panel.webview.postMessage({
                     type: 'courseDetailInit',
-                    payload: {
-                        courseData: courseData,
-                        workspaceExerciseId: null,
-                        hideDeveloperTools: hideDeveloperTools
-                    }
+                    courseData: courseData,
+                    workspaceExerciseId: null,
+                    hideDeveloperTools: hideDeveloperTools,
                 });
             }
 
@@ -1022,10 +996,8 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
             // Send typed message for React views
             this._view.webview.postMessage({
                 type: 'websocketUpdate',
-                payload: {
-                    updateType: 'newResult',
-                    data: result
-                }
+                updateType: 'newResult',
+                data: result,
             });
         }
     }
@@ -1036,10 +1008,8 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
             // Send typed message for React views
             this._view.webview.postMessage({
                 type: 'websocketUpdate',
-                payload: {
-                    updateType: 'newSubmission',
-                    data: submission
-                }
+                updateType: 'newSubmission',
+                data: submission,
             });
         }
     }
@@ -1064,13 +1034,11 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
             // Send typed message for React views
             this._view.webview.postMessage({
                 type: 'websocketUpdate',
-                payload: {
-                    updateType: 'submissionProcessing',
-                    data: {
-                        state: state || 'BUILDING',
-                        participationId: message.participationId,
-                        buildTimingInfo: buildTimingInfo
-                    }
+                updateType: 'submissionProcessing',
+                data: {
+                    state: state || 'BUILDING',
+                    participationId: message.participationId,
+                    buildTimingInfo: buildTimingInfo
                 }
             });
         }
@@ -1086,7 +1054,7 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
     private postServerUrl(serverUrl?: string): void {
         this._postMessageSafe({
             type: 'setServerUrl',
-            payload: { serverUrl: serverUrl ?? this._getServerUrl() }
+            serverUrl: serverUrl ?? this._getServerUrl()
         });
     }
 

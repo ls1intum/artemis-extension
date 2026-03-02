@@ -23,13 +23,13 @@ export function ExamStartView({ vscodeApi }: ExamStartViewProps) {
 
             const typedMessage = event.data;
 
-            if (typedMessage.type === 'examStartInit' && typedMessage.payload) {
-                setExamStartData(typedMessage.payload as Parameters<typeof setExamStartData>[0]);
+            if (typedMessage.type === 'examStartInit') {
+                setExamStartData(typedMessage as unknown as Parameters<typeof setExamStartData>[0]);
             }
 
-            if (typedMessage.type === 'error' && typedMessage.payload) {
-                const errorPayload = typedMessage.payload as { message: string };
-                setError(errorPayload.message);
+            if (typedMessage.type === 'error') {
+                const errorMsg = typedMessage as unknown as { message: string };
+                setError(errorMsg.message);
             }
         };
 

@@ -52,20 +52,20 @@ export function DashboardView({ vscodeApi }: DashboardViewProps) {
 
             // Handle typed message format
             if (typedMessage.type === 'dashboardInit') {
-                const payload = typedMessage.payload as { courses?: RecentCourseNode[]; workspaceExercise?: { id: number; title: string } } | undefined;
-                setDashboardData(payload?.courses ?? []);
-                if (payload?.workspaceExercise) {
+                const dashMsg = typedMessage as { courses?: RecentCourseNode[]; workspaceExercise?: { id: number; title: string } };
+                setDashboardData(dashMsg.courses ?? []);
+                if (dashMsg.workspaceExercise) {
                     setWorkspaceExercise({
-                        id: payload.workspaceExercise.id,
-                        title: payload.workspaceExercise.title,
+                        id: dashMsg.workspaceExercise.id,
+                        title: dashMsg.workspaceExercise.title,
                     });
                 }
             } else if (typedMessage.type === 'workspaceExerciseDetected') {
-                const payload = typedMessage.payload as { exerciseId?: number; exerciseTitle?: string } | null;
-                if (payload && typeof payload.exerciseId === 'number' && typeof payload.exerciseTitle === 'string') {
+                const msg = typedMessage as { type: 'workspaceExerciseDetected'; exerciseId?: number | null; exerciseTitle?: string | null };
+                if (typeof msg.exerciseId === 'number' && typeof msg.exerciseTitle === 'string') {
                     setWorkspaceExercise({
-                        id: payload.exerciseId,
-                        title: payload.exerciseTitle,
+                        id: msg.exerciseId,
+                        title: msg.exerciseTitle,
                     });
                 } else {
                     setWorkspaceExercise(null);

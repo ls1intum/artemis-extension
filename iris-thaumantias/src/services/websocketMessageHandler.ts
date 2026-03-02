@@ -3,12 +3,13 @@ import { ArtemisWebsocketService } from './artemisWebsocketService';
 import { IrisSessionManager } from './irisSessionManager';
 import type { IrisChatMessage, IrisChatMessageContent } from '../types/apiResponses';
 import { logger, LogCategory } from './loggingService';
+import type { ExtensionToWebviewMessage } from '../shared/messageContracts';
 
 export class WebSocketMessageHandler {
     constructor(
         private readonly _websocketService: ArtemisWebsocketService | undefined,
         private readonly _getIrisSessionManager: () => IrisSessionManager | undefined,
-        private readonly _postMessage: (message: { command: string; message?: unknown; isConnected?: boolean }) => void
+        private readonly _postMessage: (message: ExtensionToWebviewMessage) => void
     ) { }
 
     public handleIrisWebSocketMessage(data: unknown): void {
@@ -42,7 +43,7 @@ export class WebSocketMessageHandler {
             if (msg.sender !== 'USER' && content) {
                 logger.websocket('🤖 Sending assistant message to webview (this should hide thinking indicator)');
                 this._postMessage({
-                    command: 'addMessage',
+                    type: 'addMessage',
                     message: {
                         id: msg.id,
                         role: 'assistant',
@@ -104,7 +105,7 @@ export class WebSocketMessageHandler {
 
     private _updateWebSocketStatus(isConnected: boolean): void {
         this._postMessage({
-            command: 'updateWebSocketStatus',
+            type: 'updateWebSocketStatus',
             isConnected: isConnected
         });
     }

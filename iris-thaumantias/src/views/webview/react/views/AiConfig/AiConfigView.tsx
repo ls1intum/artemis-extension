@@ -17,7 +17,7 @@ export function AiConfigView({ vscodeApi }: AiConfigViewProps) {
 
             if (event.data.type === 'aiConfigInit') {
                 const initMsg = event.data as unknown as AiConfigInitMessage;
-                setExtensions(initMsg.payload.aiExtensions);
+                setExtensions(initMsg.aiExtensions);
                 setIsLoaded(true);
             }
         };

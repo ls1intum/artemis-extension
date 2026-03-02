@@ -89,13 +89,13 @@ export function ProblemStatement({
         const handleMessage = (event: MessageEvent<unknown>) => {
             const message = event.data;
 
-            if (typeof message !== 'object' || message === null || !('command' in message)) {
+            if (typeof message !== 'object' || message === null || !('type' in message)) {
                 return;
             }
 
-            const typedMessage = message as { command: string; index?: number; svg?: string };
+            const typedMessage = message as { type: string; index?: number; svg?: string };
 
-            if (typedMessage.command === 'plantUmlRendered' && container) {
+            if (typedMessage.type === 'plantUmlRendered' && container) {
                 const placeholder = container.querySelector(
                     `[data-plantuml-index="${typedMessage.index ?? ''}"]`
                 );
@@ -108,7 +108,7 @@ export function ProblemStatement({
                 }
             }
 
-            if (typedMessage.command === 'plantUmlError' && container) {
+            if (typedMessage.type === 'plantUmlError' && container) {
                 const placeholder = container.querySelector(
                     `[data-plantuml-index="${typedMessage.index ?? ''}"]`
                 );

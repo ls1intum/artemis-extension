@@ -44,7 +44,7 @@ export function ServiceStatusView({ vscodeApi }: ServiceStatusViewProps) {
             switch (typedMessage.type) {
                 case 'serviceStatusInit': {
                     const initMsg = typedMessage as ServiceStatusInitMessage;
-                    const url = initMsg.payload.serverUrl ?? '';
+                    const url = initMsg.serverUrl ?? '';
                     setServerUrl(url);
                     setIsLoaded(true);
                     // Trigger health check if we have a server URL
@@ -60,7 +60,7 @@ export function ServiceStatusView({ vscodeApi }: ServiceStatusViewProps) {
                 }
                 case 'healthCheckResults': {
                     const resultsMsg = typedMessage as HealthCheckResultsMessage;
-                    setHealthResults(resultsMsg.payload.results as Record<string, HealthCheckResult>);
+                    setHealthResults(resultsMsg.results as Record<string, HealthCheckResult>);
                     setIsChecking(false);
                     setLastCheckTime(new Date());
                     break;

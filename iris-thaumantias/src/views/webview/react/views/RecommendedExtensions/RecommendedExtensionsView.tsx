@@ -34,7 +34,7 @@ export function RecommendedExtensionsView({ vscodeApi }: RecommendedExtensionsVi
 
             if (event.data.type === 'recommendedExtensionsInit') {
                 const initMsg = event.data as unknown as RecommendedExtensionsInitMessage;
-                setCategories(initMsg.payload.categories);
+                setCategories(initMsg.categories);
                 setIsLoaded(true);
             }
         };
