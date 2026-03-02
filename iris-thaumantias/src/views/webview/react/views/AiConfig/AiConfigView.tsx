@@ -1,8 +1,7 @@
 import { useEffect, useState } from 'react';
-import type { AiConfigInitMessage } from '../../../../../shared/messageContracts';
+import { isExtensionMessage, postCommand } from '../../../../../shared/messageContracts';
 import { BackLink, Container, Badge, PageHeader, SkeletonList } from '../../components';
 import type { AiConfigViewProps, AiExtensionItem } from './types';
-import { isTypedMessage } from '../../utils/messageValidation';
 import styles from './AiConfigView.module.css';
 
 export function AiConfigView({ vscodeApi }: AiConfigViewProps) {
@@ -11,13 +10,12 @@ export function AiConfigView({ vscodeApi }: AiConfigViewProps) {
 
     useEffect(() => {
         const handleMessage = (event: MessageEvent<unknown>) => {
-            if (!isTypedMessage(event.data)) {
+            if (!isExtensionMessage(event.data)) {
                 return;
             }
 
             if (event.data.type === 'aiConfigInit') {
-                const initMsg = event.data as unknown as AiConfigInitMessage;
-                setExtensions(initMsg.aiExtensions);
+                setExtensions(event.data.aiExtensions);
                 setIsLoaded(true);
             }
         };
@@ -27,10 +25,7 @@ export function AiConfigView({ vscodeApi }: AiConfigViewProps) {
     }, []);
 
     const handleBackToDashboard = () => {
-        vscodeApi.postMessage({
-            type: 'command',
-            command: 'backToDashboard'
-        });
+        postCommand(vscodeApi, 'backToDashboard');
     };
 
     if (!isLoaded) {

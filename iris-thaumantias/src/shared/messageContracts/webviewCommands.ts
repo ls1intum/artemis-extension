@@ -253,6 +253,24 @@ export function getCommand(message: WebviewToExtensionMessage): string {
     return message.type === 'command' ? (message as { type: 'command'; command: string }).command : message.type;
 }
 
+/** Post a typed command from webview to extension. */
+export function postCommand<K extends WebviewCmd>(
+    vscodeApi: VsCodeApi,
+    command: K,
+    ...args: WebviewCmdPayloads[K] extends undefined
+        ? []
+        : {} extends WebviewCmdPayloads[K]
+            ? [payload?: WebviewCmdPayloads[K]]
+            : [payload: WebviewCmdPayloads[K]]
+): void {
+    const payload = args[0];
+    if (payload !== undefined) {
+        vscodeApi.postMessage({ type: 'command', command, payload } as WebviewToExtensionMessage);
+    } else {
+        vscodeApi.postMessage({ type: 'command', command } as WebviewToExtensionMessage);
+    }
+}
+
 /** Extract typed payload from a command message. */
 export function getPayload<T extends WebviewToExtensionMessage & { payload?: unknown }>(
     message: WebviewToExtensionMessage
