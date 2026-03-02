@@ -248,6 +248,11 @@ export interface VsCodeApi {
     setState<T = unknown>(state: T): void;
 }
 
+/** Extract the command string from a webview message (command field for command-type, type otherwise). */
+export function getCommand(message: WebviewToExtensionMessage): string {
+    return message.type === 'command' ? (message as { type: 'command'; command: string }).command : message.type;
+}
+
 /** Extract typed payload from a command message. */
 export function getPayload<T extends WebviewToExtensionMessage & { payload?: unknown }>(
     message: WebviewToExtensionMessage

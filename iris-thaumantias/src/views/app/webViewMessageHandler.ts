@@ -6,6 +6,7 @@ import { ArtemisWebsocketService } from '../../services';
 import { AppStateManager } from './appStateManager';
 import type { WebViewActionHandler } from './types';
 import type { CommandContext, CommandHandler } from './commands/types';
+import { getCommand } from '../../shared/messageContracts';
 import type { WebviewToExtensionMessage, ExtensionToWebviewMessage } from '../../shared/messageContracts';
 import type { BuildErrorCodeLensProvider } from '../../provider/buildErrorCodeLensProvider';
 import { AuthCommandModule } from './commands/authCommands';
@@ -27,6 +28,7 @@ export class WebViewMessageHandler {
     private readonly commandHandlers: Map<string, CommandHandler> = new Map();
     private readonly repositoryModule: RepositoryCommandModule;
     private _websocketService?: ArtemisWebsocketService;
+    private _senderQueue: Promise<void> = Promise.resolve();
 
     constructor(
         private readonly authManager: AuthManager,
@@ -73,25 +75,28 @@ export class WebViewMessageHandler {
 
     /**
      * Process a message received from the webview, temporarily overriding the message sender.
+     * Serialized via promise queue to prevent concurrent calls from corrupting the sender.
      */
-    public async handleMessageWithSender(message: WebviewToExtensionMessage, sendResponse: (message: ExtensionToWebviewMessage) => void): Promise<void> {
-        const originalSender = this._sendMessage;
-        this._sendMessage = sendResponse;
-
-        try {
-            await this.handleMessage(message);
-        } finally {
-            this._sendMessage = originalSender;
-        }
+    public handleMessageWithSender(message: WebviewToExtensionMessage, sendResponse: (message: ExtensionToWebviewMessage) => void): Promise<void> {
+        const task = this._senderQueue.then(async () => {
+            const originalSender = this._sendMessage;
+            this._sendMessage = sendResponse;
+            try {
+                await this.handleMessage(message);
+            } finally {
+                this._sendMessage = originalSender;
+            }
+        });
+        this._senderQueue = task.catch(() => { /* keep chain alive */ });
+        return task;
     }
 
     /**
      * Process a message received from the webview.
      */
     public async handleMessage(message: WebviewToExtensionMessage): Promise<void> {
+        const command = getCommand(message);
         try {
-            // Extract command from message (discriminated union with 'type' and optional 'command')
-            const command = message.type === 'command' ? (message as { type: 'command'; command: string }).command : message.type;
             const handler = this.commandHandlers.get(command);
             if (!handler) {
                 logger.warn(`Unknown message command: ${command}`, LogCategory.VIEW);
@@ -101,7 +106,6 @@ export class WebViewMessageHandler {
             await handler(message);
         } catch (error) {
             logger.error('Error handling message:', LogCategory.VIEW, error);
-            const command = message.type === 'command' ? (message as { type: 'command'; command: string }).command : message.type;
             vscode.window.showErrorMessage(`Error processing command: ${command}`);
         }
     }

@@ -146,6 +146,52 @@ suite('WebViewMessageHandler - handleMessageWithSender', () => {
             );
         });
 
+        test('serializes concurrent calls so senders do not interleave', async () => {
+            const originalSender = sandbox.stub();
+            const senderA = sandbox.stub();
+            const senderB = sandbox.stub();
+            handler.setMessageSender(originalSender);
+
+            // Track which sender was active during each handler
+            const activeSenders: string[] = [];
+            let resolveA: () => void;
+            const blockA = new Promise<void>(r => { resolveA = r; });
+
+            (handler as any).commandHandlers.set('slowCmd', async () => {
+                activeSenders.push((handler as any)._sendMessage === senderA ? 'A' : 'B');
+                await blockA;
+                activeSenders.push((handler as any)._sendMessage === senderA ? 'A' : 'B');
+            });
+            (handler as any).commandHandlers.set('fastCmd', async () => {
+                activeSenders.push((handler as any)._sendMessage === senderB ? 'B' : 'A');
+            });
+
+            // Start both concurrently
+            const promiseA = handler.handleMessageWithSender(
+                { type: 'command', command: 'slowCmd' } as any,
+                senderA
+            );
+            const promiseB = handler.handleMessageWithSender(
+                { type: 'command', command: 'fastCmd' } as any,
+                senderB
+            );
+
+            // Unblock A
+            resolveA!();
+            await Promise.all([promiseA, promiseB]);
+
+            // A should run fully before B starts (serialized)
+            assert.deepStrictEqual(activeSenders, ['A', 'A', 'B'],
+                'Calls should be serialized: A runs to completion, then B');
+
+            // Original sender restored
+            assert.strictEqual(
+                (handler as any)._sendMessage,
+                originalSender,
+                'Original sender should be restored after both calls'
+            );
+        });
+
         test('restores original sender even when handler throws', async () => {
             const originalSender = sandbox.stub();
             const overrideSender = sandbox.stub();
