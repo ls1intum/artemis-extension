@@ -118,8 +118,13 @@ export class NavigationCommandModule {
 
 
     private handleStartExam = async (message: WebviewToExtensionMessage): Promise<void> => {
-        const payload = getPayload<WebCmd<'startExam'>>(message);
-        await this._startExamWithPayload(payload);
+        try {
+            const payload = getPayload<WebCmd<'startExam'>>(message);
+            await this._startExamWithPayload(payload);
+        } catch (error: unknown) {
+            logger.viewError('[EXAMMODE] Error starting exam:', error);
+            vscode.window.showErrorMessage('Failed to start exam.');
+        }
     };
 
     private async _startExamWithPayload(payload: WebCmd<'startExam'>['payload']): Promise<void> {
@@ -140,7 +145,7 @@ export class NavigationCommandModule {
         }
     }
 
-    private handleBrowseCourses = async (): Promise<void> => {
+    private handleBrowseCourses = async (_message: WebviewToExtensionMessage): Promise<void> => {
         try {
             vscode.window.showInformationMessage('Loading courses...');
 
@@ -178,7 +183,7 @@ export class NavigationCommandModule {
         }
     };
 
-    private handleViewExercises = async (): Promise<void> => {
+    private handleViewExercises = async (_message: WebviewToExtensionMessage): Promise<void> => {
         try {
             vscode.window.showInformationMessage('This feature will show exercises in a future update.');
         } catch (error: unknown) {
@@ -187,7 +192,7 @@ export class NavigationCommandModule {
         }
     };
 
-    private handleCheckGrades = async (): Promise<void> => {
+    private handleCheckGrades = async (_message: WebviewToExtensionMessage): Promise<void> => {
         try {
             vscode.window.showInformationMessage('This feature will show grades in a future update.');
         } catch (error: unknown) {
@@ -196,13 +201,18 @@ export class NavigationCommandModule {
         }
     };
 
-    private handleShowAllCourses = async (): Promise<void> => {
+    private handleShowAllCourses = async (_message: WebviewToExtensionMessage): Promise<void> => {
         await this.context.actionHandler.showCourseList();
     };
 
     private handleViewCourseDetails = async (message: WebviewToExtensionMessage): Promise<void> => {
-        const { courseData } = getPayload<WebCmd<'viewCourseDetails'>>(message);
-        await this.processCourseDetails(courseData);
+        try {
+            const { courseData } = getPayload<WebCmd<'viewCourseDetails'>>(message);
+            await this.processCourseDetails(courseData);
+        } catch (error: unknown) {
+            logger.viewError('View course details error:', error);
+            vscode.window.showErrorMessage('Error viewing course details');
+        }
     };
 
     private async processCourseDetails(courseData: CourseDashboardEntry | CourseDashboardCourse): Promise<void> {
@@ -274,7 +284,7 @@ export class NavigationCommandModule {
         }
     }
 
-    private handleBackToDashboard = async (): Promise<void> => {
+    private handleBackToDashboard = async (_message: WebviewToExtensionMessage): Promise<void> => {
         const userInfo = this.context.appStateManager.userInfo;
         if (userInfo) {
             await this.context.actionHandler.showDashboard(userInfo);
@@ -282,46 +292,56 @@ export class NavigationCommandModule {
     };
 
     private handleOpenExerciseDetails = async (message: WebviewToExtensionMessage): Promise<void> => {
-        const { exerciseId } = getPayload<WebCmd<'openExerciseDetails'>>(message);
-        await this.context.actionHandler.openExerciseDetails(exerciseId);
+        try {
+            const { exerciseId } = getPayload<WebCmd<'openExerciseDetails'>>(message);
+            await this.context.actionHandler.openExerciseDetails(exerciseId);
+        } catch (error: unknown) {
+            logger.viewError('Open exercise details error:', error);
+            vscode.window.showErrorMessage('Error opening exercise details');
+        }
     };
 
     private handleOpenExamExerciseDetails = async (message: WebviewToExtensionMessage): Promise<void> => {
-        const { exercise, exerciseIndex, courseId, examId } = getPayload<WebCmd<'openExamExerciseDetails'>>(message);
-        await this.context.actionHandler.openExamExerciseDetails(exercise, exerciseIndex, courseId, examId);
+        try {
+            const { exercise, exerciseIndex, courseId, examId } = getPayload<WebCmd<'openExamExerciseDetails'>>(message);
+            await this.context.actionHandler.openExamExerciseDetails(exercise, exerciseIndex, courseId, examId);
+        } catch (error: unknown) {
+            logger.viewError('Open exam exercise details error:', error);
+            vscode.window.showErrorMessage('Error opening exam exercise details');
+        }
     };
 
-    private handleBackToCourseDetails = async (): Promise<void> => {
+    private handleBackToCourseDetails = async (_message: WebviewToExtensionMessage): Promise<void> => {
         this.context.appStateManager.backToCourseDetails();
         this.context.actionHandler.render();
     };
 
-    private handleBackToExam = async (): Promise<void> => {
+    private handleBackToExam = async (_message: WebviewToExtensionMessage): Promise<void> => {
         this.context.appStateManager.backToExam();
         this.context.actionHandler.render();
     };
 
-    private handleShowAiConfig = async (): Promise<void> => {
+    private handleShowAiConfig = async (_message: WebviewToExtensionMessage): Promise<void> => {
         this.context.actionHandler.showAiConfig();
     };
 
-    private handleShowServiceStatus = async (): Promise<void> => {
+    private handleShowServiceStatus = async (_message: WebviewToExtensionMessage): Promise<void> => {
         this.context.actionHandler.showServiceStatus();
     };
 
-    private handleShowStruggleDetection = async (): Promise<void> => {
+    private handleShowStruggleDetection = async (_message: WebviewToExtensionMessage): Promise<void> => {
         this.context.actionHandler.showStruggleDetection();
     };
 
-    private handleShowRecommendedExtensions = async (): Promise<void> => {
+    private handleShowRecommendedExtensions = async (_message: WebviewToExtensionMessage): Promise<void> => {
         this.context.actionHandler.showRecommendedExtensions();
     };
 
-    private handleShowGitCredentials = async (): Promise<void> => {
+    private handleShowGitCredentials = async (_message: WebviewToExtensionMessage): Promise<void> => {
         this.context.actionHandler.showGitCredentials();
     };
 
-    private handleLoadArchivedCourses = async (): Promise<void> => {
+    private handleLoadArchivedCourses = async (_message: WebviewToExtensionMessage): Promise<void> => {
         try {
             vscode.window.showInformationMessage('Loading archived courses...');
 
@@ -346,7 +366,7 @@ export class NavigationCommandModule {
         }
     };
 
-    private handleReloadCourses = async (): Promise<void> => {
+    private handleReloadCourses = async (_message: WebviewToExtensionMessage): Promise<void> => {
         try {
             this.context.appStateManager.clearCoursesData();
             await this.context.appStateManager.showCourseList();
@@ -358,7 +378,7 @@ export class NavigationCommandModule {
         }
     };
 
-    private handleReloadDashboard = async (): Promise<void> => {
+    private handleReloadDashboard = async (_message: WebviewToExtensionMessage): Promise<void> => {
         try {
             this.context.appStateManager.clearDashboardData();
             const userInfo = this.context.appStateManager.userInfo;
@@ -486,7 +506,7 @@ export class NavigationCommandModule {
         }
     };
 
-    private handleToggleFullscreen = async (): Promise<void> => {
+    private handleToggleFullscreen = async (_message: WebviewToExtensionMessage): Promise<void> => {
         try {
             const exerciseData = this.context.appStateManager.currentExerciseData;
             if (!exerciseData) {
@@ -501,7 +521,7 @@ export class NavigationCommandModule {
         }
     };
 
-    private handleToggleCourseFullscreen = async (): Promise<void> => {
+    private handleToggleCourseFullscreen = async (_message: WebviewToExtensionMessage): Promise<void> => {
         try {
             const courseData = this.context.appStateManager.currentCourseData;
             if (!courseData) {

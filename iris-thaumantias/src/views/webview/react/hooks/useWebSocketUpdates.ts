@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
-import { ExtensionMsg } from '../../../../shared/messageContracts';
-import type { VsCodeApi, ExtMsg } from '../../../../shared/messageContracts';
+import { ExtensionMsg, isExtensionMessage } from '../../../../shared/messageContracts';
+import type { VsCodeApi } from '../../../../shared/messageContracts';
 import { useExerciseDetailStore } from '../stores/useExerciseDetailStore';
 
 /**
@@ -40,18 +40,16 @@ export function useWebSocketUpdates(vscodeApi: VsCodeApi): void {
         };
 
         const handleMessage = (event: MessageEvent<unknown>): void => {
-            const message = event.data as ExtMsg<'websocketUpdate'>;
+            if (!isExtensionMessage(event.data)) { return; }
+            if (event.data.type !== ExtensionMsg.WebsocketUpdate) { return; }
 
-            // Filter for websocketUpdate messages
-            if (message.type === ExtensionMsg.WebsocketUpdate) {
-                // Add to buffer - push update fields (now at root level) to preserve discriminated union
-                const { type: _type, ...updateData } = message;
-                bufferRef.current.push(updateData as WsUpdatePayload);
+            // Add to buffer - push update fields (now at root level) to preserve discriminated union
+            const { type: _type, ...updateData } = event.data;
+            bufferRef.current.push(updateData as WsUpdatePayload);
 
-                // Schedule RAF flush if not already scheduled
-                if (rafIdRef.current === null) {
-                    rafIdRef.current = requestAnimationFrame(flushBuffer);
-                }
+            // Schedule RAF flush if not already scheduled
+            if (rafIdRef.current === null) {
+                rafIdRef.current = requestAnimationFrame(flushBuffer);
             }
         };
 

@@ -27,6 +27,3 @@ root.render(
 		<App vscodeApi={vscode} />
 	</ErrorBoundary>
 );
-
-// Signal readiness to extension host
-vscode.postMessage({ type: 'ready' });

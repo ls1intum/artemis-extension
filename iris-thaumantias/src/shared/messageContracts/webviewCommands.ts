@@ -280,10 +280,9 @@ export type WebCmd<T extends WebviewCmd> = Extract<WebviewToExtensionMessage, { 
 export function getPayload<T extends WebviewToExtensionMessage & { payload?: unknown }>(
     message: WebviewToExtensionMessage
 ): T extends { payload?: infer P } ? Exclude<P, undefined> : never {
-    const raw = (message as Record<string, unknown>).payload;
-    if (raw === undefined) {
-        const cmd = (message as Record<string, unknown>).command ?? (message as Record<string, unknown>).type;
+    if (!('payload' in message) || (message as { payload?: unknown }).payload === undefined) {
+        const cmd = 'command' in message ? (message as { command: string }).command : message.type;
         throw new Error(`Expected payload on message but got none (command=${String(cmd)})`);
     }
-    return raw as ReturnType<typeof getPayload<T>>;
+    return (message as { payload: unknown }).payload as ReturnType<typeof getPayload<T>>;
 }

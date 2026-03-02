@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import type { VsCodeApi } from '../../../shared/messageContracts';
 import { GitCredentialsView } from './views/GitCredentials';
 import { ServiceStatusView } from './views/ServiceStatus';
@@ -22,6 +23,15 @@ interface AppProps {
 export function App({ vscodeApi }: AppProps) {
 	// Read the view name from the root element's data-view attribute
 	const viewName = document.getElementById('root')?.getAttribute('data-view');
+
+	// Signal readiness to extension host after mount.
+	// Views that need initialization data (Dashboard, CourseList, etc.) send their
+	// own ready signal in useEffect; this serves as fallback for views that don't
+	// (Login, AiConfig, GitCredentials, etc.). Duplicate ready signals are harmless
+	// since providers treat ready as idempotent (set flag + flush).
+	useEffect(() => {
+		vscodeApi.postMessage({ type: 'ready' });
+	}, [vscodeApi]);
 
 	const view = (() => {
 		switch (viewName) {

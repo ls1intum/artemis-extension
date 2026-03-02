@@ -215,6 +215,8 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
     ) {
         logger.websocket('Iris Chat webview being resolved/loaded');
         this._view = webviewView;
+        this._webviewReady = false;
+        this._pendingMessages = [];
 
         webviewView.webview.options = {
             enableScripts: true,
@@ -439,8 +441,6 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
         if (typedMessage.type === 'ready') {
             this._webviewReady = true;
             this._flushPendingMessages();
-            this._postSnapshot();
-            this._postNoAiStatus(this._noAiDetectionService.isNoAiEnabled);
             return;
         }
 
@@ -866,6 +866,7 @@ Iris can see files from your workspace (configurable in settings). Check the "Re
     public refreshTheme(): void {
         if (this._view) {
             this._webviewReady = false;
+            this._pendingMessages = [];
             this._view.webview.html = getReactWebviewHtml(this._view.webview, this._extensionUri, 'irisChat');
             this._postSnapshot();
         }

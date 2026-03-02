@@ -15,15 +15,14 @@ export class AuthCommandModule {
     }
 
     private handleLogin = async (message: WebviewToExtensionMessage): Promise<void> => {
-        const payload = getPayload<WebCmd<'login'>>(message);
-        const username = payload.username;
-        const password = payload.password;
-        const rememberMe = payload.rememberMe || false;
-
-        const config = vscode.workspace.getConfiguration('artemis');
-        const serverUrl = config.get<string>('serverUrl', 'https://artemis.tum.de');
-
         try {
+            const payload = getPayload<WebCmd<'login'>>(message);
+            const username = payload.username;
+            const password = payload.password;
+            const rememberMe = payload.rememberMe || false;
+
+            const config = vscode.workspace.getConfiguration('artemis');
+            const serverUrl = config.get<string>('serverUrl', 'https://artemis.tum.de');
             await this.context.artemisApi.authenticate(username, password, rememberMe);
             const user = await this.context.artemisApi.getCurrentUser();
 
@@ -53,7 +52,7 @@ export class AuthCommandModule {
         }
     };
 
-    private handleLogout = async (): Promise<void> => {
+    private handleLogout = async (_message: WebviewToExtensionMessage): Promise<void> => {
         try {
             await this.context.authManager.clear();
             await this.context.updateAuthContext(false);

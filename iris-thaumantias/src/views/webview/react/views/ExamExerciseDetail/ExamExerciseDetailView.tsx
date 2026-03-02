@@ -103,7 +103,7 @@ export function ExamExerciseDetailView({ vscodeApi }: ExamExerciseDetailViewProp
 
     const handleRetry = () => {
         setError(null);
-        vscodeApi.postMessage({ type: 'ready' } as Parameters<typeof vscodeApi.postMessage>[0]);
+        vscodeApi.postMessage({ type: 'ready' });
     };
 
     const loading = examLoading || exerciseLoading;

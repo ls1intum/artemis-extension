@@ -37,7 +37,7 @@ export class UtilityCommandModule {
     private handleAlert = async (message: WebviewToExtensionMessage): Promise<void> => {
         try {
             const payload = getPayload<WebCmd<'alert'>>(message);
-            if (payload?.text) {
+            if (payload.text) {
                 vscode.window.showErrorMessage(payload.text);
             }
         } catch (error: unknown) {
@@ -57,7 +57,7 @@ export class UtilityCommandModule {
         }
     };
 
-    private handleOpenWebsite = async (): Promise<void> => {
+    private handleOpenWebsite = async (_message: WebviewToExtensionMessage): Promise<void> => {
         try {
             const config = vscode.workspace.getConfiguration('artemis');
             const serverUrl = config.get<string>('serverUrl', 'https://artemis.cit.tum.de');
@@ -68,7 +68,7 @@ export class UtilityCommandModule {
         }
     };
 
-    private handleOpenBugReport = async (): Promise<void> => {
+    private handleOpenBugReport = async (_message: WebviewToExtensionMessage): Promise<void> => {
         try {
             await vscode.env.openExternal(vscode.Uri.parse('https://github.com/ls1intum/artemis-extension/issues'));
         } catch (error: unknown) {
@@ -113,11 +113,10 @@ export class UtilityCommandModule {
     };
 
     private handleShowSubmissionDetails = async (message: WebviewToExtensionMessage): Promise<void> => {
-        const payload = getPayload<WebCmd<'showSubmissionDetails'>>(message);
-        const participationId = payload.participationId;
-        const resultId = payload.resultId;
-
         try {
+            const payload = getPayload<WebCmd<'showSubmissionDetails'>>(message);
+            const participationId = payload.participationId;
+            const resultId = payload.resultId;
             if (!participationId || !resultId) {
                 vscode.window.showErrorMessage('Cannot fetch submission details: missing participation or result ID.');
                 return;
@@ -140,11 +139,10 @@ export class UtilityCommandModule {
     };
 
     private handleFetchTestResults = async (message: WebviewToExtensionMessage): Promise<void> => {
-        const payload = getPayload<WebCmd<'fetchTestResults'>>(message);
-        const participationId = payload.participationId;
-        const resultId = payload.resultId;
-
         try {
+            const payload = getPayload<WebCmd<'fetchTestResults'>>(message);
+            const participationId = payload.participationId;
+            const resultId = payload.resultId;
             if (!participationId || !resultId) {
                 this.context.sendMessage({
                     type: ExtensionMsg.TestResultsData,
@@ -211,16 +209,15 @@ export class UtilityCommandModule {
     };
 
     private handleOpenExerciseInBrowser = async (message: WebviewToExtensionMessage): Promise<void> => {
-        const payload = getPayload<WebCmd<'openExerciseInBrowser'>>(message);
-        const exerciseId = payload.exerciseId;
-        const courseId = payload.courseId;
-
-        if (!exerciseId) {
-            vscode.window.showErrorMessage('Cannot open exercise: missing exercise ID');
-            return;
-        }
-
         try {
+            const payload = getPayload<WebCmd<'openExerciseInBrowser'>>(message);
+            const exerciseId = payload.exerciseId;
+            const courseId = payload.courseId;
+
+            if (!exerciseId) {
+                vscode.window.showErrorMessage('Cannot open exercise: missing exercise ID');
+                return;
+            }
             // Get the server URL from configuration
             const config = vscode.workspace.getConfiguration('artemis');
             const serverUrl = config.get<string>('serverUrl', 'https://artemis.cit.tum.de');
@@ -241,11 +238,10 @@ export class UtilityCommandModule {
     };
 
     private handleViewBuildLog = async (message: WebviewToExtensionMessage): Promise<void> => {
-        const payload = getPayload<WebCmd<'viewBuildLog'>>(message);
-        const participationId = payload.participationId;
-        const resultId = payload.resultId;
-
         try {
+            const payload = getPayload<WebCmd<'viewBuildLog'>>(message);
+            const participationId = payload.participationId;
+            const resultId = payload.resultId;
             if (!participationId) {
                 vscode.window.showErrorMessage('Cannot fetch build log: missing participation ID.');
                 return;
@@ -312,12 +308,11 @@ export class UtilityCommandModule {
     };
 
     private handleGoToSourceError = async (message: WebviewToExtensionMessage): Promise<void> => {
-        const payload = getPayload<WebCmd<'goToSourceError'>>(message);
-        const filePath: string = normalizeRelativePath(payload.filePath);
-        const line = payload.line;
-        const column = payload.column;
-
         try {
+            const payload = getPayload<WebCmd<'goToSourceError'>>(message);
+            const filePath: string = normalizeRelativePath(payload.filePath);
+            const line = payload.line;
+            const column = payload.column;
             if (!filePath) {
                 vscode.window.showErrorMessage('Cannot navigate to source: missing file path.');
                 return;
@@ -366,11 +361,10 @@ export class UtilityCommandModule {
     };
 
     private handleFetchBuildLogsForError = async (message: WebviewToExtensionMessage): Promise<void> => {
-        const payload = getPayload<WebCmd<'fetchBuildLogsForError'>>(message);
-        const participationId = payload.participationId;
-        const resultId = payload.resultId;
-
         try {
+            const payload = getPayload<WebCmd<'fetchBuildLogsForError'>>(message);
+            const participationId = payload.participationId;
+            const resultId = payload.resultId;
             if (!participationId) {
                 logger.error('Cannot fetch build logs for error: missing participation ID.', LogCategory.BUILD);
                 return;
@@ -412,7 +406,7 @@ export class UtilityCommandModule {
         }
     };
 
-    private handleClearBuildErrors = async (): Promise<void> => {
+    private handleClearBuildErrors = async (_message: WebviewToExtensionMessage): Promise<void> => {
         try {
             logger.info('🧹 Clearing CodeLens build errors...', LogCategory.BUILD);
 
@@ -431,24 +425,28 @@ export class UtilityCommandModule {
      * Handles log messages from webview scripts
      */
     private handleWebviewLog = async (message: WebviewToExtensionMessage): Promise<void> => {
-        const payload = getPayload<WebCmd<'webviewLog'>>(message);
-        const { level, text } = payload;
-        const logCategory = LogCategory.VIEW;
+        try {
+            const payload = getPayload<WebCmd<'webviewLog'>>(message);
+            const { level, text } = payload;
+            const logCategory = LogCategory.VIEW;
 
-        switch (level) {
-            case 'error':
-                logger.error(text, logCategory, payload.error);
-                break;
-            case 'warn':
-                logger.warn(text, logCategory);
-                break;
-            case 'debug':
-                logger.debug(text, logCategory);
-                break;
-            case 'info':
-            default:
-                logger.info(text, logCategory);
-                break;
+            switch (level) {
+                case 'error':
+                    logger.error(text, logCategory, payload.error);
+                    break;
+                case 'warn':
+                    logger.warn(text, logCategory);
+                    break;
+                case 'debug':
+                    logger.debug(text, logCategory);
+                    break;
+                case 'info':
+                default:
+                    logger.info(text, logCategory);
+                    break;
+            }
+        } catch (error: unknown) {
+            logger.error('Failed to process webview log:', LogCategory.VIEW, error);
         }
     };
 
@@ -456,10 +454,11 @@ export class UtilityCommandModule {
      * Handle opening external links with trusted domain confirmation
      */
     private handleOpenExternalLink = async (message: WebviewToExtensionMessage): Promise<void> => {
+        let url: string | undefined;
         try {
             // Input validation
             const payload = getPayload<WebCmd<'openExternalLink'>>(message);
-            const url = payload.url;
+            url = payload.url;
             if (!url || typeof url !== 'string') {
                 vscode.window.showErrorMessage('Invalid URL: missing or not a string');
                 return;
@@ -521,13 +520,12 @@ export class UtilityCommandModule {
             }
         } catch (error: unknown) {
             logger.error('Open external link error:', LogCategory.VIEW, error);
-            const payload = getPayload<WebCmd<'openExternalLink'>>(message);
             const action = await vscode.window.showErrorMessage(
                 `Failed to open external link: ${extractErrorMessage(error)}`,
                 'Copy URL'
             );
-            if (action === 'Copy URL' && payload.url) {
-                await vscode.env.clipboard.writeText(payload.url);
+            if (action === 'Copy URL' && url) {
+                await vscode.env.clipboard.writeText(url);
             }
         }
     };
@@ -536,10 +534,11 @@ export class UtilityCommandModule {
      * Handle opening image previews (data URIs or remote URLs)
      */
     private handleOpenImagePreview = async (message: WebviewToExtensionMessage): Promise<void> => {
+        let uri: string | undefined;
         try {
             // Input validation
             const payload = getPayload<WebCmd<'openImagePreview'>>(message);
-            const uri = payload.uri;
+            uri = payload.uri;
             if (!uri || typeof uri !== 'string') {
                 vscode.window.showErrorMessage('Invalid image URI: missing or not a string');
                 return;
@@ -586,13 +585,12 @@ export class UtilityCommandModule {
             await vscode.env.openExternal(vscode.Uri.parse(uri));
         } catch (error: unknown) {
             logger.error('Open image preview error:', LogCategory.VIEW, error);
-            const payload = getPayload<WebCmd<'openImagePreview'>>(message);
             const action = await vscode.window.showErrorMessage(
                 `Failed to open image: ${extractErrorMessage(error)}`,
                 'Copy URL'
             );
-            if (action === 'Copy URL' && payload.uri) {
-                await vscode.env.clipboard.writeText(payload.uri);
+            if (action === 'Copy URL' && uri) {
+                await vscode.env.clipboard.writeText(uri);
             }
         }
     };

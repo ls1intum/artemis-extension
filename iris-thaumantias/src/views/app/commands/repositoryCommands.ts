@@ -101,7 +101,7 @@ export class RepositoryCommandModule {
         return true;
     }
 
-    private handleDetectWorkspaceExercise = async (): Promise<void> => {
+    private handleDetectWorkspaceExercise = async (_message: WebviewToExtensionMessage): Promise<void> => {
         try {
             const exercises = this.flattenExercisesFromCourses();
             const detected = await detectWorkspaceExercise(exercises);
@@ -151,11 +151,10 @@ export class RepositoryCommandModule {
     }
 
     private handleParticipateInExercise = async (message: WebviewToExtensionMessage): Promise<void> => {
-        const payload = getPayload<WebCmd<'participateInExercise'>>(message);
-        const exerciseId = payload.exerciseId;
-        const exerciseTitle = payload.exerciseTitle;
-
         try {
+            const payload = getPayload<WebCmd<'participateInExercise'>>(message);
+            const exerciseId = payload.exerciseId;
+            const exerciseTitle = payload.exerciseTitle;
             vscode.window.showInformationMessage('Starting exercise participation...');
             const participation = await this.context.artemisApi.startExerciseParticipation(exerciseId);
 
@@ -169,7 +168,7 @@ export class RepositoryCommandModule {
         } catch (error: unknown) {
             logger.submissionError('Failed to start exercise participation:', error);
             vscode.window.showErrorMessage(
-                `Failed to start participation in "${exerciseTitle}": ${extractErrorMessage(error)}`
+                `Failed to start exercise participation: ${extractErrorMessage(error)}`
             );
         }
     };
@@ -262,11 +261,10 @@ export class RepositoryCommandModule {
     };
 
     private handleCloneRepository = async (message: WebviewToExtensionMessage): Promise<void> => {
-        const payload = getPayload<WebCmd<'cloneRepository'>>(message);
-        const { participationId, repositoryUri, exerciseTitle } = payload;
-        const exerciseId = participationId; // Use participationId for tracking
-
         try {
+            const payload = getPayload<WebCmd<'cloneRepository'>>(message);
+            const { participationId, repositoryUri, exerciseTitle } = payload;
+            const exerciseId = participationId; // Use participationId for tracking
             if (!participationId || !repositoryUri) {
                 vscode.window.showErrorMessage('Cannot clone: missing participation or repository URL.');
                 return;
@@ -462,10 +460,9 @@ export class RepositoryCommandModule {
     };
 
     private handleOpenClonedRepository = async (message: WebviewToExtensionMessage): Promise<void> => {
-        const payload = getPayload<WebCmd<'openClonedRepository'>>(message);
-        const exerciseId = payload.exerciseId;
-
         try {
+            const payload = getPayload<WebCmd<'openClonedRepository'>>(message);
+            const exerciseId = payload.exerciseId;
             const repoInfo = this.clonedRepositories.get(exerciseId);
 
             if (!repoInfo) {
@@ -491,10 +488,9 @@ export class RepositoryCommandModule {
     };
 
     private handleCopyCloneUrl = async (message: WebviewToExtensionMessage): Promise<void> => {
-        const payload = getPayload<WebCmd<'copyCloneUrl'>>(message);
-        const { participationId, repositoryUri } = payload;
-
         try {
+            const payload = getPayload<WebCmd<'copyCloneUrl'>>(message);
+            const { participationId, repositoryUri } = payload;
             if (!participationId || !repositoryUri) {
                 vscode.window.showErrorMessage('Cannot copy URL: missing participation or repository URL.');
                 return;
@@ -514,10 +510,9 @@ export class RepositoryCommandModule {
     };
 
     private handlePullChanges = async (message: WebviewToExtensionMessage): Promise<void> => {
-        const payload = getPayload<WebCmd<'pullChanges'>>(message);
-        const exerciseTitle = payload.exerciseTitle;
-
         try {
+            const payload = getPayload<WebCmd<'pullChanges'>>(message);
+            const exerciseTitle = payload.exerciseTitle;
             const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
             if (!workspaceFolder) {
                 vscode.window.showErrorMessage('No workspace folder open. Please open the exercise repository first.');
@@ -557,23 +552,22 @@ export class RepositoryCommandModule {
     };
 
     private handleSubmitExercise = async (message: WebviewToExtensionMessage): Promise<void> => {
-        const payload = getPayload<WebCmd<'submitExercise'>>(message);
-        const participationId = payload.participationId;
-        const exerciseId = payload.exerciseId ?? 0;
-        const exerciseTitle = payload.exerciseTitle ?? 'Exercise';
-        const commitMessage = payload.commitMessage;
-        const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
-        if (!workspaceFolder) {
-            const errorText = 'Open the exercise repository in VS Code before submitting.';
-            vscode.window.showErrorMessage(errorText);
-            this.context.sendMessage({ type: ExtensionMsg.SubmissionResult, success: false, error: errorText });
-            return;
-        }
-
-        this.currentWorkspacePath = workspaceFolder.uri.fsPath;
-        const cwd = workspaceFolder.uri.fsPath;
-
         try {
+            const payload = getPayload<WebCmd<'submitExercise'>>(message);
+            const participationId = payload.participationId;
+            const exerciseId = payload.exerciseId ?? 0;
+            const exerciseTitle = payload.exerciseTitle ?? 'Exercise';
+            const commitMessage = payload.commitMessage;
+            const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+            if (!workspaceFolder) {
+                const errorText = 'Open the exercise repository in VS Code before submitting.';
+                vscode.window.showErrorMessage(errorText);
+                this.context.sendMessage({ type: ExtensionMsg.SubmissionResult, success: false, error: errorText });
+                return;
+            }
+
+            this.currentWorkspacePath = workspaceFolder.uri.fsPath;
+            const cwd = workspaceFolder.uri.fsPath;
             await vscode.window.withProgress({
                 location: vscode.ProgressLocation.Notification,
                 title: `Submitting "${exerciseTitle}"...`,
@@ -676,10 +670,6 @@ export class RepositoryCommandModule {
     }
 
     private handleSaveGitIdentity = async (message: WebviewToExtensionMessage): Promise<void> => {
-        const payload = getPayload<WebCmd<'saveGitIdentity'>>(message);
-        const rawName = payload.name.trim();
-        const rawEmail = payload.email.trim();
-
         const sendResult = (status: 'success' | 'error' | 'warning' | 'info', text: string) => {
             this.context.sendMessage({
                 type: ExtensionMsg.GitCredentialsResult,
@@ -687,20 +677,22 @@ export class RepositoryCommandModule {
                 message: text
             });
         };
-
-        if (!rawName) {
-            sendResult('warning', 'Name cannot be empty.');
-            vscode.window.showErrorMessage('Please provide a name before saving your Git identity.');
-            return;
-        }
-
-        if (!rawEmail || !/\S+@\S+\.\S+/.test(rawEmail)) {
-            sendResult('warning', 'Enter a valid email address.');
-            vscode.window.showErrorMessage('Please provide a valid email address before saving your Git identity.');
-            return;
-        }
-
         try {
+            const payload = getPayload<WebCmd<'saveGitIdentity'>>(message);
+            const rawName = payload.name.trim();
+            const rawEmail = payload.email.trim();
+
+            if (!rawName) {
+                sendResult('warning', 'Name cannot be empty.');
+                vscode.window.showErrorMessage('Please provide a name before saving your Git identity.');
+                return;
+            }
+
+            if (!rawEmail || !/\S+@\S+\.\S+/.test(rawEmail)) {
+                sendResult('warning', 'Enter a valid email address.');
+                vscode.window.showErrorMessage('Please provide a valid email address before saving your Git identity.');
+                return;
+            }
             await this.gitService.setGlobalIdentity({ name: rawName, email: rawEmail });
             sendResult('success', 'Git identity saved globally.');
             vscode.window.showInformationMessage('Git author information saved globally.');
@@ -712,7 +704,7 @@ export class RepositoryCommandModule {
         }
     };
 
-    private handleRequestGitIdentity = async (): Promise<void> => {
+    private handleRequestGitIdentity = async (_message: WebviewToExtensionMessage): Promise<void> => {
         const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
         const cwd = workspaceFolder?.uri.fsPath ?? process.cwd();
 
@@ -727,15 +719,9 @@ export class RepositoryCommandModule {
     };
 
     private handleSaveGitCredentials = async (message: WebviewToExtensionMessage): Promise<void> => {
-        const payload = getPayload<WebCmd<'saveGitCredentials'>>(message);
-        const rawUsername = typeof payload.username === 'string' ? payload.username.trim() : '';
-        const rawToken = typeof payload.token === 'string' ? payload.token.trim() : '';
-        const rawServerUrl = typeof payload.serverUrl === 'string' ? payload.serverUrl.trim() : '';
-
-        const config = vscode.workspace.getConfiguration(VSCODE_CONFIG.ARTEMIS_SECTION);
-        const configuredServerUrl = config.get<string>(VSCODE_CONFIG.SERVER_URL_KEY, 'https://artemis.cit.tum.de');
-        const serverUrl = rawServerUrl || configuredServerUrl;
-
+        let rawUsername: string;
+        let rawToken: string;
+        let serverUrl: string;
         const sendResult = (status: 'success' | 'error' | 'warning' | 'info', text: string) => {
             this.context.sendMessage({
                 type: ExtensionMsg.GitCredentialsResult,
@@ -743,6 +729,19 @@ export class RepositoryCommandModule {
                 message: text
             });
         };
+        try {
+            const payload = getPayload<WebCmd<'saveGitCredentials'>>(message);
+            rawUsername = typeof payload.username === 'string' ? payload.username.trim() : '';
+            rawToken = typeof payload.token === 'string' ? payload.token.trim() : '';
+            const rawServerUrl = typeof payload.serverUrl === 'string' ? payload.serverUrl.trim() : '';
+            const config = vscode.workspace.getConfiguration(VSCODE_CONFIG.ARTEMIS_SECTION);
+            const configuredServerUrl = config.get<string>(VSCODE_CONFIG.SERVER_URL_KEY, 'https://artemis.cit.tum.de');
+            serverUrl = rawServerUrl || configuredServerUrl;
+        } catch (error: unknown) {
+            logger.submissionError('Failed to parse saveGitCredentials payload:', error);
+            sendResult('error', 'Invalid message payload.');
+            return;
+        }
 
         if (!rawUsername) {
             sendResult('warning', 'Username is required.');
@@ -928,11 +927,10 @@ export class RepositoryCommandModule {
     }
 
     private handleStartPractice = async (message: WebviewToExtensionMessage): Promise<void> => {
-        const payload = getPayload<WebCmd<'startPractice'>>(message);
-        const exerciseId = payload.exerciseId;
-        const exerciseTitle = payload.exerciseTitle ?? 'Exercise';
-
         try {
+            const payload = getPayload<WebCmd<'startPractice'>>(message);
+            const exerciseId = payload.exerciseId;
+            const exerciseTitle = payload.exerciseTitle ?? 'Exercise';
             vscode.window.showInformationMessage('Starting practice mode...');
             const participation = await this.context.artemisApi.startPracticeParticipation(exerciseId);
 
@@ -946,16 +944,15 @@ export class RepositoryCommandModule {
         } catch (error: unknown) {
             logger.submissionError('Failed to start practice participation:', error);
             vscode.window.showErrorMessage(
-                `Failed to start practice mode for "${exerciseTitle}": ${extractErrorMessage(error)}`
+                `Failed to start practice mode: ${extractErrorMessage(error)}`
             );
         }
     };
 
     private handleStartExercise = async (message: WebviewToExtensionMessage): Promise<void> => {
-        const payload = getPayload<WebCmd<'startExercise'>>(message);
-        const exerciseId = payload.exerciseId;
-
         try {
+            const payload = getPayload<WebCmd<'startExercise'>>(message);
+            const exerciseId = payload.exerciseId;
             vscode.window.showInformationMessage('Starting exercise...');
             const participation = await this.context.artemisApi.startExerciseParticipation(exerciseId);
 
@@ -972,15 +969,14 @@ export class RepositoryCommandModule {
     };
 
     private handleOpenRepository = async (message: WebviewToExtensionMessage): Promise<void> => {
-        const payload = getPayload<WebCmd<'openRepository'>>(message);
-        const repositoryUri = payload.repositoryUri;
-
-        if (!repositoryUri) {
-            vscode.window.showWarningMessage('No repository URL available.');
-            return;
-        }
-
         try {
+            const payload = getPayload<WebCmd<'openRepository'>>(message);
+            const repositoryUri = payload.repositoryUri;
+
+            if (!repositoryUri) {
+                vscode.window.showWarningMessage('No repository URL available.');
+                return;
+            }
             // Try to open the repository folder if it's already cloned in the workspace
             const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
             if (workspaceFolder) {

@@ -145,6 +145,7 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
         if (this._view) {
             // Reset ready state since re-render reloads the webview
             this._webviewReady = false;
+            this._pendingMessages = [];
             this._view.webview.html = await this._viewRouter.getHtml();
         }
     }
@@ -507,14 +508,7 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
                 // Handle ready signal from React webview
                 if (message.type === 'ready') {
                     this._webviewReady = true;
-                    // Flush any messages that were queued before ready
-                    const pending = this._pendingMessages;
-                    this._pendingMessages = [];
-                    for (const msg of pending) {
-                        if (this._view) {
-                            this._view.webview.postMessage(msg);
-                        }
-                    }
+                    this._flushPendingMessages();
 
                     // Send initialization data for the current view
                     this.resendViewData();
@@ -1030,6 +1024,17 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
     private _getServerUrl(): string {
         const config = vscode.workspace.getConfiguration(VSCODE_CONFIG.ARTEMIS_SECTION);
         return config.get<string>(VSCODE_CONFIG.SERVER_URL_KEY, CONFIG.ARTEMIS_SERVER_URL_DEFAULT);
+    }
+
+    private _flushPendingMessages(): void {
+        if (!this._view) {
+            return;
+        }
+        const pending = this._pendingMessages;
+        this._pendingMessages = [];
+        for (const msg of pending) {
+            this._view.webview.postMessage(msg);
+        }
     }
 
     /**
