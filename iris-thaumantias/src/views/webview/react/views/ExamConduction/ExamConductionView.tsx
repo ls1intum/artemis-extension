@@ -56,10 +56,18 @@ export function ExamConductionView({ vscodeApi }: ExamConductionViewProps) {
         window.scrollTo(0, 0);
     }, []);
 
+    const handleBackToCourse = () => {
+        vscodeApi.postMessage({
+            type: 'command',
+            command: 'backToCourseDetails',
+        });
+    };
+
     // Loading state
     if (store.loading) {
         return (
             <div className={styles.examConduction}>
+                <BackLink onClick={handleBackToCourse}>Back to Course</BackLink>
                 <SkeletonList count={5} />
             </div>
         );
@@ -69,6 +77,7 @@ export function ExamConductionView({ vscodeApi }: ExamConductionViewProps) {
     if (store.error) {
         return (
             <div className={styles.examConduction}>
+                <BackLink onClick={handleBackToCourse}>Back to Course</BackLink>
                 <ErrorMessage
                     error={store.error}
                     onRetry={() => {
@@ -85,6 +94,7 @@ export function ExamConductionView({ vscodeApi }: ExamConductionViewProps) {
     if (!store.studentExam || !store.courseId || !store.examId) {
         return (
             <div className={styles.examConduction}>
+                <BackLink onClick={handleBackToCourse}>Back to Course</BackLink>
                 <ErrorMessage
                     error="No exam data available"
                     onRetry={() => vscodeApi.postMessage({ type: 'ready' })}
@@ -148,12 +158,7 @@ export function ExamConductionView({ vscodeApi }: ExamConductionViewProps) {
 
     return (
         <div className={styles.examConduction}>
-            <BackLink
-                onClick={() => vscodeApi.postMessage({
-                    type: 'command',
-                    command: 'backToCourseDetails',
-                })}
-            >
+            <BackLink onClick={handleBackToCourse}>
                 Back to Course
             </BackLink>
 

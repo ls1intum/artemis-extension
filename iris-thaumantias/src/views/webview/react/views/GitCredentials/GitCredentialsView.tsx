@@ -4,7 +4,7 @@
  */
 
 import { useState, useEffect } from 'react';
-import { BackLink, Container, TextInput, Button, PageHeader } from '../../components';
+import { BackLink, Container, TextInput, Button, PageHeader, SkeletonList } from '../../components';
 import styles from './GitCredentialsView.module.css';
 import type { GitCredentialsViewProps, GitCredentialsPersistedState } from './types';
 import type { GitCredentialsInitMessage, GitCredentialsResultMessage } from '../../../../../shared/messageContracts';
@@ -14,6 +14,9 @@ export function GitCredentialsView({ vscodeApi }: GitCredentialsViewProps) {
     const previousState = vscodeApi.getState<GitCredentialsPersistedState>();
     const [name, setName] = useState(previousState?.name || '');
     const [email, setEmail] = useState(previousState?.email || '');
+
+    // Loading state
+    const [isLoaded, setIsLoaded] = useState(false);
 
     // Transient state (NOT persisted)
     const [statusMessage, setStatusMessage] = useState('');
@@ -44,6 +47,7 @@ export function GitCredentialsView({ vscodeApi }: GitCredentialsViewProps) {
                     if (initMsg.payload.currentEmail) {
                         setEmail(initMsg.payload.currentEmail);
                     }
+                    setIsLoaded(true);
                     break;
                 }
                 case 'gitCredentialsResult': {
@@ -108,6 +112,15 @@ export function GitCredentialsView({ vscodeApi }: GitCredentialsViewProps) {
             command: 'backToDashboard'
         });
     };
+
+    if (!isLoaded) {
+        return (
+            <div className={styles.gitCredentialsView}>
+                <BackLink onClick={handleBackClick}>Back to Dashboard</BackLink>
+                <SkeletonList count={3} />
+            </div>
+        );
+    }
 
     // Status message styles
     const statusStyles: React.CSSProperties = statusMessage ? {

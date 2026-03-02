@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { ExtensionToWebviewMessage } from '../../../../../shared/messageContracts';
-import { BackLink, Container, Button, Badge, PageHeader } from '../../components';
+import { BackLink, Container, Button, Badge, PageHeader, SkeletonList } from '../../components';
 import styles from './RecommendedExtensionsView.module.css';
 import type { RecommendedExtensionsViewProps, ExtensionCategory, Extension, RecommendedExtensionsPersistedState } from './types';
 
@@ -76,10 +76,22 @@ export function RecommendedExtensionsView({ vscodeApi }: RecommendedExtensionsVi
         ? categories
         : categories.filter(cat => cat.id === selectedCategory);
 
-    // Empty state
-    if (isLoaded && categories.length === 0) {
+    // Loading state
+    if (!isLoaded) {
         return (
-            <div>
+            <div className={styles.recommendedExtensionsView}>
+                <BackLink onClick={handleBackToDashboard}>
+                    Back to Dashboard
+                </BackLink>
+                <SkeletonList count={5} />
+            </div>
+        );
+    }
+
+    // Empty state
+    if (categories.length === 0) {
+        return (
+            <div className={styles.recommendedExtensionsView}>
                 <BackLink onClick={handleBackToDashboard}>
                     Back to Dashboard
                 </BackLink>

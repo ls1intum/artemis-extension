@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { ExtensionToWebviewMessage } from '../../../../../shared/messageContracts';
-import { BackLink, Container, Badge, PageHeader } from '../../components';
+import { BackLink, Container, Badge, PageHeader, SkeletonList } from '../../components';
 import type { AiConfigViewProps, AiExtensionItem } from './types';
 import styles from './AiConfigView.module.css';
 
@@ -34,6 +34,17 @@ export function AiConfigView({ vscodeApi }: AiConfigViewProps) {
             command: 'backToDashboard'
         });
     };
+
+    if (!isLoaded) {
+        return (
+            <div className={styles.aiConfigView}>
+                <BackLink onClick={handleBackToDashboard}>
+                    Back to Dashboard
+                </BackLink>
+                <SkeletonList count={5} />
+            </div>
+        );
+    }
 
     // Group extensions by provider
     const groupedByProvider = extensions.reduce<Record<string, { color: string; extensions: AiExtensionItem[] }>>((acc, ext) => {

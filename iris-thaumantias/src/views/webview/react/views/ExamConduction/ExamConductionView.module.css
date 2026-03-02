@@ -1,4 +1,7 @@
 .examConduction {
+    display: flex;
+    flex-direction: column;
+    gap: var(--theme-view-gap);
 }
 
 .actionButtons {

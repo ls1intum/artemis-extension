@@ -1,4 +1,7 @@
 .examExerciseDetailView {
+    display: flex;
+    flex-direction: column;
+    gap: var(--theme-view-gap);
     max-width: 1200px;
     margin: 0 auto;
 }

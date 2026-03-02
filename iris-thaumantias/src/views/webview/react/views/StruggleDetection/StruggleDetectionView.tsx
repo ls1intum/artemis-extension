@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { ExtensionToWebviewMessage } from '../../../../../shared/messageContracts';
-import { BackLink, Container, Badge, PageHeader } from '../../components';
+import { BackLink, Container, Badge, PageHeader, SkeletonList } from '../../components';
 import type { StruggleDetectionViewProps, StruggleData } from './types';
 import styles from './StruggleDetectionView.module.css';
 
@@ -58,22 +58,18 @@ export function StruggleDetectionView({ vscodeApi }: StruggleDetectionViewProps)
 
     if (!data) {
         return (
-            <div>
+            <div className={styles.struggleDetectionView}>
                 <BackLink onClick={handleBackToDashboard}>
                     Back to Dashboard
                 </BackLink>
-                <Container variant="muted">
-                    <div style={{ padding: '40px 20px', textAlign: 'center', color: 'var(--vscode-descriptionForeground)' }}>
-                        Loading struggle detection data...
-                    </div>
-                </Container>
+                <SkeletonList count={5} />
             </div>
         );
     }
 
     if (!data.isEnabled) {
         return (
-            <div>
+            <div className={styles.struggleDetectionView}>
                 <BackLink onClick={handleBackToDashboard}>
                     Back to Dashboard
                 </BackLink>

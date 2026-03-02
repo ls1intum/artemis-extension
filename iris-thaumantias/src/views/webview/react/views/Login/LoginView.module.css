@@ -1,3 +1,11 @@
+.loginView {
+    display: flex;
+    flex-direction: column;
+    gap: var(--theme-view-gap);
+    max-width: 600px;
+    margin: 0 auto;
+}
+
 .loadingIndicator {
     margin-bottom: 16px;
     padding: 14px 16px;

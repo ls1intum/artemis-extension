@@ -175,7 +175,48 @@ export function CourseDetailView({ vscodeApi }: CourseDetailViewProps) {
         { value: 'points-desc', label: 'Points High-Low' },
     ];
 
-    const course = courseData?.course;
+    const backLinkActions = (
+        <>
+            <IconButton.Reload onClick={handleReload} loading={isLoading} />
+            <IconButton.Fullscreen onClick={handleFullscreen} />
+            <IconButton.Settings onClick={handleSettings} />
+        </>
+    );
+
+    // Loading state (no data yet)
+    if (isLoading && !courseData) {
+        return (
+            <div className={styles.courseDetailContainer}>
+                <BackLink onClick={handleBackToDashboard} actions={backLinkActions}>Back to Dashboard</BackLink>
+                <SkeletonList count={5} />
+            </div>
+        );
+    }
+
+    // Error state
+    if (error) {
+        return (
+            <div className={styles.courseDetailContainer}>
+                <BackLink onClick={handleBackToDashboard} actions={backLinkActions}>Back to Dashboard</BackLink>
+                <ErrorMessage error={error} onRetry={handleReload} />
+            </div>
+        );
+    }
+
+    // Empty state
+    if (!courseData || !courseData.course) {
+        return (
+            <div className={styles.courseDetailContainer}>
+                <BackLink onClick={handleBackToDashboard} actions={backLinkActions}>Back to Dashboard</BackLink>
+                <EmptyState
+                    title="No course selected"
+                    message="Select a course to view its details"
+                />
+            </div>
+        );
+    }
+
+    const course = courseData.course;
     const exercises = filteredExercises();
     const exams = sortedExams();
 
@@ -207,196 +248,168 @@ export function CourseDetailView({ vscodeApi }: CourseDetailViewProps) {
 
     return (
         <div className={styles.courseDetailContainer}>
-            <BackLink onClick={handleBackToDashboard} actions={
-                <>
-                    <IconButton.Reload onClick={handleReload} loading={isLoading} />
-                    <IconButton.Fullscreen onClick={handleFullscreen} />
-                    <IconButton.Settings onClick={handleSettings} />
-                </>
-            }>Back to Dashboard</BackLink>
+            <BackLink onClick={handleBackToDashboard} actions={backLinkActions}>Back to Dashboard</BackLink>
 
-            {error && (
-                <ErrorMessage
-                    error={error}
-                    onRetry={handleReload}
+            {/* Course Header */}
+            <PageHeader
+                title={course.title}
+                subtitle={course.description}
+            >
+                <div className={styles.courseStats}>
+                    {course.semester && <Badge variant="muted">{course.semester}</Badge>}
+                    <span className={styles.statItem}>
+                        {course.exercises?.length || 0} exercises
+                    </span>
+                    {course.numberOfStudents !== undefined && (
+                        <span className={styles.statItem}>
+                            {course.numberOfStudents} students
+                        </span>
+                    )}
+                    {course.instructorGroupName && (
+                        <span className={styles.statItem}>{course.instructorGroupName}</span>
+                    )}
+                    <span className={styles.statItem}>ID: {course.id}</span>
+                </div>
+            </PageHeader>
+
+            {/* Ask Iris Section */}
+            <div className={styles.irisSection}>
+                <AskIris
+                    label="Ask Iris about this course"
+                    onClick={handleAskIris}
                 />
-            )}
+            </div>
 
-            {isLoading && !courseData && (
-                <SkeletonList count={5} />
-            )}
-
-            {!isLoading && !courseData && !error && (
-                <EmptyState
-                    title="No course selected"
-                    message="Select a course to view its details"
-                />
-            )}
-
-            {courseData && course && (
-                <>
-                    {/* Course Header */}
-                    <PageHeader
-                        title={course.title}
-                        subtitle={course.description}
-                    >
-                        <div className={styles.courseStats}>
-                            {course.semester && <Badge variant="muted">{course.semester}</Badge>}
-                            <span className={styles.statItem}>
-                                {course.exercises?.length || 0} exercises
-                            </span>
-                            {course.numberOfStudents !== undefined && (
-                                <span className={styles.statItem}>
-                                    {course.numberOfStudents} students
-                                </span>
-                            )}
-                            {course.instructorGroupName && (
-                                <span className={styles.statItem}>{course.instructorGroupName}</span>
-                            )}
-                            <span className={styles.statItem}>ID: {course.id}</span>
+            {/* Exams Section */}
+            {exams.length > 0 && (
+                <Container
+                    header={
+                        <div className={styles.sectionHeader}>
+                            <h2 className={styles.sectionTitle}>Exams</h2>
+                            <Badge variant="muted">{exams.length.toString()}</Badge>
                         </div>
-                    </PageHeader>
+                    }
+                >
+                    <div className={styles.examList}>
+                        {exams.map((exam: Exam) => {
+                            const now = new Date().getTime();
+                            const start = exam.startDate ? new Date(exam.startDate).getTime() : 0;
+                            const end = exam.endDate ? new Date(exam.endDate).getTime() : 0;
+                            const isActive = now >= start && now <= end;
 
-                    {/* Ask Iris Section */}
-                    <div className={styles.irisSection}>
-                        <AskIris
-                            label="Ask Iris about this course"
-                            onClick={handleAskIris}
+                            return (
+                                <ListItem
+                                    key={exam.id}
+                                    className={styles.examItem}
+                                    onClick={() => handleOpenExam(exam.id, course.id)}
+                                    selected={isActive}
+                                >
+                                    <div className={styles.examHeader}>
+                                        <span className={styles.examTitle}>{exam.title || 'Untitled Exam'}</span>
+                                        {isActive && <Badge variant="info">Active</Badge>}
+                                    </div>
+                                    <div className={styles.examInfo}>
+                                        <span>{formatDateTime(exam.startDate)} - {formatDateTime(exam.endDate)}</span>
+                                    </div>
+                                </ListItem>
+                            );
+                        })}
+                    </div>
+                </Container>
+            )}
+
+            {/* Exercises Section */}
+            <Container
+                header={
+                    <div className={styles.sectionHeader}>
+                        <h2 className={styles.sectionTitle}>Exercises</h2>
+                        <Badge variant="muted">{(course.exercises?.length || 0).toString()}</Badge>
+                    </div>
+                }
+            >
+                <div className={styles.exerciseSearch}>
+                    <div className={styles.searchInputWrapper}>
+                        <TextInput
+                            type="search"
+                            placeholder="Search exercises..."
+                            value={exerciseSearchTerm}
+                            onChange={setExerciseSearchTerm}
                         />
                     </div>
+                    <Dropdown
+                        value={exerciseSortBy}
+                        options={sortOptions}
+                        onChange={setExerciseSortBy}
+                    />
+                </div>
 
-                    {/* Exams Section */}
-                    {exams.length > 0 && (
-                        <Container
-                            header={
-                                <div className={styles.sectionHeader}>
-                                    <h2 className={styles.sectionTitle}>Exams</h2>
-                                    <Badge variant="muted">{exams.length.toString()}</Badge>
-                                </div>
+                {exercises.length === 0 && exerciseSearchTerm && (
+                    <div className={styles.noExercisesFound}>
+                        No exercises found matching your search
+                    </div>
+                )}
+
+                {exercises.length === 0 && !exerciseSearchTerm && (
+                    <div className={styles.noExercises}>
+                        {course.isArchived
+                            ? 'No exercises available for this archived course'
+                            : 'No exercises available'}
+                    </div>
+                )}
+
+                {exercises.length > 0 && (
+                    <div className={styles.exercisesList}>
+                        {exercises.map((exercise: Exercise) => {
+                            const isWorkspaceExercise = exercise.id === workspaceExerciseId;
+                            interface ExerciseWithPoints {
+                                maxPoints?: number;
                             }
-                        >
-                            <div className={styles.examList}>
-                                {exams.map((exam: Exam) => {
-                                    const now = new Date().getTime();
-                                    const start = exam.startDate ? new Date(exam.startDate).getTime() : 0;
-                                    const end = exam.endDate ? new Date(exam.endDate).getTime() : 0;
-                                    const isActive = now >= start && now <= end;
+                            const points = (exercise as ExerciseWithPoints).maxPoints || 0;
 
-                                    return (
-                                        <ListItem
-                                            key={exam.id}
-                                            className={styles.examItem}
-                                            onClick={() => handleOpenExam(exam.id, course.id)}
-                                            selected={isActive}
-                                        >
-                                            <div className={styles.examHeader}>
-                                                <span className={styles.examTitle}>{exam.title || 'Untitled Exam'}</span>
-                                                {isActive && <Badge variant="info">Active</Badge>}
-                                            </div>
-                                            <div className={styles.examInfo}>
-                                                <span>{formatDateTime(exam.startDate)} - {formatDateTime(exam.endDate)}</span>
-                                            </div>
-                                        </ListItem>
-                                    );
-                                })}
-                            </div>
-                        </Container>
-                    )}
+                            return (
+                                <ListItem
+                                    key={exercise.id}
+                                    className={styles.exerciseItem}
+                                    onClick={() => handleOpenExercise(exercise.id!)}
+                                    selected={isWorkspaceExercise}
+                                >
+                                    <div className={styles.exerciseHeader}>
+                                        <span className={styles.exerciseTypeIcon}>
+                                            {(() => {
+                                                const ExerciseIcon = getIcon(exercise.type);
+                                                return <ExerciseIcon size={16} />;
+                                            })()}
+                                        </span>
+                                        <span className={styles.exerciseTitle}>
+                                            {exercise.title || 'Untitled Exercise'}
+                                        </span>
+                                        {isWorkspaceExercise && (
+                                            <Badge variant="info">Open</Badge>
+                                        )}
+                                    </div>
+                                    <div className={styles.exerciseInfo}>
+                                        <span>Due: {formatDate(exercise.dueDate)}</span>
+                                        <span>{points} {points === 1 ? 'point' : 'points'}</span>
+                                    </div>
+                                </ListItem>
+                            );
+                        })}
+                    </div>
+                )}
+            </Container>
 
-                    {/* Exercises Section */}
-                    <Container
-                        header={
-                            <div className={styles.sectionHeader}>
-                                <h2 className={styles.sectionTitle}>Exercises</h2>
-                                <Badge variant="muted">{(course.exercises?.length || 0).toString()}</Badge>
-                            </div>
-                        }
-                    >
-                        <div className={styles.exerciseSearch}>
-                            <div className={styles.searchInputWrapper}>
-                                <TextInput
-                                    type="search"
-                                    placeholder="Search exercises..."
-                                    value={exerciseSearchTerm}
-                                    onChange={setExerciseSearchTerm}
-                                />
-                            </div>
-                            <Dropdown
-                                value={exerciseSortBy}
-                                options={sortOptions}
-                                onChange={setExerciseSortBy}
-                            />
-                        </div>
-
-                        {exercises.length === 0 && exerciseSearchTerm && (
-                            <div className={styles.noExercisesFound}>
-                                No exercises found matching your search
-                            </div>
-                        )}
-
-                        {exercises.length === 0 && !exerciseSearchTerm && (
-                            <div className={styles.noExercises}>
-                                {course.isArchived
-                                    ? 'No exercises available for this archived course'
-                                    : 'No exercises available'}
-                            </div>
-                        )}
-
-                        {exercises.length > 0 && (
-                            <div className={styles.exercisesList}>
-                                {exercises.map((exercise: Exercise) => {
-                                    const isWorkspaceExercise = exercise.id === workspaceExerciseId;
-                                    interface ExerciseWithPoints {
-                                        maxPoints?: number;
-                                    }
-                                    const points = (exercise as ExerciseWithPoints).maxPoints || 0;
-
-                                    return (
-                                        <ListItem
-                                            key={exercise.id}
-                                            className={styles.exerciseItem}
-                                            onClick={() => handleOpenExercise(exercise.id!)}
-                                            selected={isWorkspaceExercise}
-                                        >
-                                            <div className={styles.exerciseHeader}>
-                                                <span className={styles.exerciseTypeIcon}>
-                                                    {(() => {
-                                                        const ExerciseIcon = getIcon(exercise.type);
-                                                        return <ExerciseIcon size={16} />;
-                                                    })()}
-                                                </span>
-                                                <span className={styles.exerciseTitle}>
-                                                    {exercise.title || 'Untitled Exercise'}
-                                                </span>
-                                                {isWorkspaceExercise && (
-                                                    <Badge variant="info">Open</Badge>
-                                                )}
-                                            </div>
-                                            <div className={styles.exerciseInfo}>
-                                                <span>Due: {formatDate(exercise.dueDate)}</span>
-                                                <span>{points} {points === 1 ? 'point' : 'points'}</span>
-                                            </div>
-                                        </ListItem>
-                                    );
-                                })}
-                            </div>
-                        )}
-                    </Container>
-
-                    {/* Developer Tools (conditional) */}
-                    {showDeveloperTools && (
-                        <Container>
-                            <div className={styles.actionButtons}>
-                                <Button onClick={handleOpenRawJSON} variant="secondary">
-                                    Open Raw JSON
-                                </Button>
-                                <Button onClick={handleCopyCourseData} variant="secondary">
-                                    Copy Course Data
-                                </Button>
-                            </div>
-                        </Container>
-                    )}
-                </>
+            {/* Developer Tools (conditional) */}
+            {showDeveloperTools && (
+                <Container>
+                    <div className={styles.actionButtons}>
+                        <Button onClick={handleOpenRawJSON} variant="secondary">
+                            Open Raw JSON
+                        </Button>
+                        <Button onClick={handleCopyCourseData} variant="secondary">
+                            Copy Course Data
+                        </Button>
+                    </div>
+                </Container>
             )}
         </div>
     );

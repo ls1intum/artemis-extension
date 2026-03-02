@@ -4,11 +4,22 @@ import userEvent from '@testing-library/user-event';
 import { ServiceStatusView } from '../../../../src/views/webview/react/views/ServiceStatus/ServiceStatusView';
 import { createMockVsCodeApi, dispatchExtensionMessage } from '../../__helpers__/vscodeApi';
 
+/** Dispatch serviceStatusInit so the view transitions past the loading skeleton. */
+function initView(serverUrl = '') {
+	dispatchExtensionMessage({
+		type: 'serviceStatusInit',
+		payload: { serverUrl },
+	});
+}
+
 describe('ServiceStatusView', () => {
-	it('renders the Service Status header', () => {
+	it('renders the Service Status header', async () => {
 		const mockApi = createMockVsCodeApi();
 		render(<ServiceStatusView vscodeApi={mockApi} />);
-		expect(screen.getByText('Service Status')).toBeInTheDocument();
+		initView();
+		await waitFor(() => {
+			expect(screen.getByText('Service Status')).toBeInTheDocument();
+		});
 	});
 
 	it('renders back link to Dashboard', () => {
@@ -32,20 +43,20 @@ describe('ServiceStatusView', () => {
 		);
 	});
 
-	it('shows "No health check results available" when no results', () => {
+	it('shows "No health check results available" when no results', async () => {
 		const mockApi = createMockVsCodeApi();
 		render(<ServiceStatusView vscodeApi={mockApi} />);
-		expect(screen.getByText('No health check results available')).toBeInTheDocument();
+		initView();
+		await waitFor(() => {
+			expect(screen.getByText('No health check results available')).toBeInTheDocument();
+		});
 	});
 
 	it('shows server URL when serviceStatusInit message received', async () => {
 		const mockApi = createMockVsCodeApi();
 		render(<ServiceStatusView vscodeApi={mockApi} />);
 
-		dispatchExtensionMessage({
-			type: 'serviceStatusInit',
-			payload: { serverUrl: 'https://artemis.example.com' },
-		});
+		initView('https://artemis.example.com');
 
 		await waitFor(() => {
 			const serverInput = screen.getByDisplayValue('https://artemis.example.com');
@@ -57,10 +68,7 @@ describe('ServiceStatusView', () => {
 		const mockApi = createMockVsCodeApi();
 		render(<ServiceStatusView vscodeApi={mockApi} />);
 
-		dispatchExtensionMessage({
-			type: 'serviceStatusInit',
-			payload: { serverUrl: 'https://artemis.example.com' },
-		});
+		initView('https://artemis.example.com');
 
 		await waitFor(() => {
 			expect(mockApi.postMessage).toHaveBeenCalledWith(
@@ -76,6 +84,7 @@ describe('ServiceStatusView', () => {
 	it('shows health check results after healthCheckResults message', async () => {
 		const mockApi = createMockVsCodeApi();
 		render(<ServiceStatusView vscodeApi={mockApi} />);
+		initView();
 
 		dispatchExtensionMessage({
 			type: 'healthCheckResults',
@@ -95,10 +104,7 @@ describe('ServiceStatusView', () => {
 		const mockApi = createMockVsCodeApi();
 		render(<ServiceStatusView vscodeApi={mockApi} />);
 
-		dispatchExtensionMessage({
-			type: 'serviceStatusInit',
-			payload: { serverUrl: 'https://artemis.test.com' },
-		});
+		initView('https://artemis.test.com');
 
 		await waitFor(() => {
 			expect(mockApi.setState).toHaveBeenCalledWith(
@@ -107,12 +113,15 @@ describe('ServiceStatusView', () => {
 		});
 	});
 
-	it('restores persisted serverUrl from getState', () => {
+	it('restores persisted serverUrl from getState', async () => {
 		const mockApi = createMockVsCodeApi({
 			getState: <T = unknown>() => ({ serverUrl: 'https://saved-server.com' }) as T | undefined,
 		});
 		render(<ServiceStatusView vscodeApi={mockApi} />);
-		const serverInput = screen.getByDisplayValue('https://saved-server.com');
-		expect(serverInput).toBeInTheDocument();
+		initView('https://saved-server.com');
+		await waitFor(() => {
+			const serverInput = screen.getByDisplayValue('https://saved-server.com');
+			expect(serverInput).toBeInTheDocument();
+		});
 	});
 });

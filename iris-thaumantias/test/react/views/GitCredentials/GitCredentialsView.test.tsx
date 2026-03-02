@@ -4,11 +4,25 @@ import userEvent from '@testing-library/user-event';
 import { GitCredentialsView } from '../../../../src/views/webview/react/views/GitCredentials/GitCredentialsView';
 import { createMockVsCodeApi, dispatchExtensionMessage } from '../../__helpers__/vscodeApi';
 
+/** Dispatch gitCredentialsInit so the view transitions past the loading skeleton. */
+function initView(overrides?: { currentName?: string; currentEmail?: string }) {
+	dispatchExtensionMessage({
+		type: 'gitCredentialsInit',
+		payload: {
+			currentName: overrides?.currentName ?? '',
+			currentEmail: overrides?.currentEmail ?? '',
+		},
+	});
+}
+
 describe('GitCredentialsView', () => {
-	it('renders the Git Credentials Helper header', () => {
+	it('renders the Git Credentials Helper header', async () => {
 		const mockApi = createMockVsCodeApi();
 		render(<GitCredentialsView vscodeApi={mockApi} />);
-		expect(screen.getByText('Git Credentials Helper')).toBeInTheDocument();
+		initView();
+		await waitFor(() => {
+			expect(screen.getByText('Git Credentials Helper')).toBeInTheDocument();
+		});
 	});
 
 	it('renders back link to Dashboard', () => {
@@ -32,11 +46,14 @@ describe('GitCredentialsView', () => {
 		);
 	});
 
-	it('renders name and email input fields', () => {
+	it('renders name and email input fields', async () => {
 		const mockApi = createMockVsCodeApi();
 		render(<GitCredentialsView vscodeApi={mockApi} />);
-		expect(screen.getByLabelText(/git user name/i)).toBeInTheDocument();
-		expect(screen.getByLabelText(/git email address/i)).toBeInTheDocument();
+		initView();
+		await waitFor(() => {
+			expect(screen.getByLabelText(/git user name/i)).toBeInTheDocument();
+			expect(screen.getByLabelText(/git email address/i)).toBeInTheDocument();
+		});
 	});
 
 	it('sends requestGitIdentity on mount', () => {
@@ -53,6 +70,11 @@ describe('GitCredentialsView', () => {
 	it('submitting form sends saveGitIdentity postMessage', async () => {
 		const mockApi = createMockVsCodeApi();
 		render(<GitCredentialsView vscodeApi={mockApi} />);
+		initView();
+
+		await waitFor(() => {
+			expect(screen.getByLabelText(/git user name/i)).toBeInTheDocument();
+		});
 
 		await userEvent.type(screen.getByLabelText(/git user name/i), 'Alex Example');
 		await userEvent.type(screen.getByLabelText(/git email address/i), 'alex@example.com');
@@ -70,6 +92,11 @@ describe('GitCredentialsView', () => {
 	it('shows warning when name is empty on submit', async () => {
 		const mockApi = createMockVsCodeApi();
 		const { container } = render(<GitCredentialsView vscodeApi={mockApi} />);
+		initView();
+
+		await waitFor(() => {
+			expect(container.querySelector('form')).toBeInTheDocument();
+		});
 
 		// Use fireEvent.submit to bypass HTML5 native form validation in happy-dom
 		const form = container.querySelector('form') as HTMLFormElement;
@@ -83,6 +110,11 @@ describe('GitCredentialsView', () => {
 	it('shows warning when email is empty on submit', async () => {
 		const mockApi = createMockVsCodeApi();
 		const { container } = render(<GitCredentialsView vscodeApi={mockApi} />);
+		initView();
+
+		await waitFor(() => {
+			expect(screen.getByLabelText(/git user name/i)).toBeInTheDocument();
+		});
 
 		await userEvent.type(screen.getByLabelText(/git user name/i), 'Alex Example');
 
@@ -99,10 +131,7 @@ describe('GitCredentialsView', () => {
 		const mockApi = createMockVsCodeApi();
 		render(<GitCredentialsView vscodeApi={mockApi} />);
 
-		dispatchExtensionMessage({
-			type: 'gitCredentialsInit',
-			payload: { currentName: 'John Doe', currentEmail: 'john@example.com' },
-		});
+		initView({ currentName: 'John Doe', currentEmail: 'john@example.com' });
 
 		await waitFor(() => {
 			const nameInput = screen.getByLabelText(/git user name/i) as HTMLInputElement;
@@ -115,6 +144,7 @@ describe('GitCredentialsView', () => {
 	it('shows success status from gitCredentialsResult message', async () => {
 		const mockApi = createMockVsCodeApi();
 		render(<GitCredentialsView vscodeApi={mockApi} />);
+		initView();
 
 		dispatchExtensionMessage({
 			type: 'gitCredentialsResult',
@@ -127,21 +157,29 @@ describe('GitCredentialsView', () => {
 		});
 	});
 
-	it('restores persisted name and email from getState', () => {
+	it('restores persisted name and email from getState', async () => {
 		const mockApi = createMockVsCodeApi({
 			getState: <T = unknown>() => ({ name: 'Saved User', email: 'saved@example.com' }) as T | undefined,
 		});
 		render(<GitCredentialsView vscodeApi={mockApi} />);
+		initView();
 
-		const nameInput = screen.getByLabelText(/git user name/i) as HTMLInputElement;
-		const emailInput = screen.getByLabelText(/git email address/i) as HTMLInputElement;
-		expect(nameInput.value).toBe('Saved User');
-		expect(emailInput.value).toBe('saved@example.com');
+		await waitFor(() => {
+			const nameInput = screen.getByLabelText(/git user name/i) as HTMLInputElement;
+			const emailInput = screen.getByLabelText(/git email address/i) as HTMLInputElement;
+			expect(nameInput.value).toBe('Saved User');
+			expect(emailInput.value).toBe('saved@example.com');
+		});
 	});
 
 	it('copy command button sends copyToClipboard postMessage', async () => {
 		const mockApi = createMockVsCodeApi();
 		render(<GitCredentialsView vscodeApi={mockApi} />);
+		initView();
+
+		await waitFor(() => {
+			expect(screen.getByRole('button', { name: /git config user.name/i })).toBeInTheDocument();
+		});
 
 		const copyButton = screen.getByRole('button', { name: /git config user.name/i });
 		await userEvent.click(copyButton);

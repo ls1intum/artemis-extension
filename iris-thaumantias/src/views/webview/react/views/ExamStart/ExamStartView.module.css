@@ -1,4 +1,7 @@
 .examStartView {
+    display: flex;
+    flex-direction: column;
+    gap: var(--theme-view-gap);
     max-width: 800px;
     margin: 0 auto;
 }

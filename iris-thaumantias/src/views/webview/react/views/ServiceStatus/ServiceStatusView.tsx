@@ -16,6 +16,7 @@ import {
     TextInput,
     Button,
     ServiceHealth,
+    SkeletonList,
 } from '../../components';
 import type { ServiceInfo } from '../../components/ServiceHealth/ServiceHealth';
 import styles from './ServiceStatusView.module.css';
@@ -25,6 +26,7 @@ export function ServiceStatusView({ vscodeApi }: ServiceStatusViewProps) {
     const persistedState = vscodeApi.getState<ServiceStatusPersistedState>();
     const [serverUrl, setServerUrl] = useState<string>(persistedState?.serverUrl || '');
     const [healthResults, setHealthResults] = useState<Record<string, HealthCheckResult>>({});
+    const [isLoaded, setIsLoaded] = useState(false);
     const [isChecking, setIsChecking] = useState<boolean>(false);
     const [lastCheckTime, setLastCheckTime] = useState<Date | undefined>(undefined);
 
@@ -44,6 +46,7 @@ export function ServiceStatusView({ vscodeApi }: ServiceStatusViewProps) {
                     const initMsg = typedMessage as ServiceStatusInitMessage;
                     const url = initMsg.payload.serverUrl ?? '';
                     setServerUrl(url);
+                    setIsLoaded(true);
                     // Trigger health check if we have a server URL
                     if (url) {
                         setIsChecking(true);
@@ -95,6 +98,15 @@ export function ServiceStatusView({ vscodeApi }: ServiceStatusViewProps) {
             });
         }
     };
+
+    if (!isLoaded) {
+        return (
+            <div className={styles.serviceStatusView}>
+                <BackLink onClick={handleBack}>Back to Dashboard</BackLink>
+                <SkeletonList count={5} />
+            </div>
+        );
+    }
 
     // Map health results to ServiceHealth component format
     const services: ServiceInfo[] = Object.entries(healthResults).map(([name, result]) => ({
