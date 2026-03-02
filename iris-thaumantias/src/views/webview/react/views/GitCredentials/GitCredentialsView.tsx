@@ -8,6 +8,7 @@ import { BackLink, Container, TextInput, Button, PageHeader, SkeletonList } from
 import styles from './GitCredentialsView.module.css';
 import type { GitCredentialsViewProps, GitCredentialsPersistedState } from './types';
 import type { GitCredentialsInitMessage, GitCredentialsResultMessage } from '../../../../../shared/messageContracts';
+import { isTypedMessage } from '../../utils/messageValidation';
 
 export function GitCredentialsView({ vscodeApi }: GitCredentialsViewProps) {
     // Restore persisted state (form values only)
@@ -30,13 +31,11 @@ export function GitCredentialsView({ vscodeApi }: GitCredentialsViewProps) {
     // Message handler
     useEffect(() => {
         const handleMessage = (event: MessageEvent<unknown>) => {
-            const message = event.data;
-
-            if (typeof message !== 'object' || message === null || !('type' in message)) {
+            if (!isTypedMessage(event.data)) {
                 return;
             }
 
-            const typedMessage = message as { type: string };
+            const typedMessage = event.data;
 
             switch (typedMessage.type) {
                 case 'gitCredentialsInit': {

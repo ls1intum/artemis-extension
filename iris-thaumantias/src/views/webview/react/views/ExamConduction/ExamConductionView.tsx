@@ -11,7 +11,8 @@ import { Container } from '../../components/Container/Container';
 import { PageHeader } from '../../components/PageHeader/PageHeader';
 import { Badge } from '../../components/Badge/Badge';
 import { IconButton } from '../../components/Button/IconButton';
-import type { ExtensionToWebviewMessage, ExerciseDetail } from '../../../../../shared/messageContracts';
+import type { ExerciseDetail } from '../../../../../shared/messageContracts';
+import { isTypedMessage } from '../../utils/messageValidation';
 import styles from './ExamConductionView.module.css';
 
 /**
@@ -24,13 +25,11 @@ export function ExamConductionView({ vscodeApi }: ExamConductionViewProps) {
     // Message handler
     useEffect(() => {
         const handleMessage = (event: MessageEvent<unknown>) => {
-            const message = event.data;
-
-            if (typeof message !== 'object' || message === null || !('type' in message)) {
+            if (!isTypedMessage(event.data)) {
                 return;
             }
 
-            const typedMessage = message as { type: string; payload?: unknown };
+            const typedMessage = event.data;
 
             if (typedMessage.type === 'examConductionInit' && typedMessage.payload) {
                 store.setExamData(typedMessage.payload as Parameters<typeof store.setExamData>[0]);

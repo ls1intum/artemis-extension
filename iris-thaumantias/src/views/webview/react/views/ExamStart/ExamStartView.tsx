@@ -7,6 +7,7 @@ import { ExamTimer } from '../../components/ExamTimer/ExamTimer';
 import { TimerExpiredOverlay } from '../../components/TimerExpiredOverlay/TimerExpiredOverlay';
 import { BackLink, Container, Button, SkeletonList, ErrorMessage, Badge } from '../../components';
 import type { ExamStartViewProps } from './types';
+import { isTypedMessage } from '../../utils/messageValidation';
 import styles from './ExamStartView.module.css';
 
 export function ExamStartView({ vscodeApi }: ExamStartViewProps) {
@@ -16,13 +17,11 @@ export function ExamStartView({ vscodeApi }: ExamStartViewProps) {
     // Load data on mount
     useEffect(() => {
         const handleMessage = (event: MessageEvent<unknown>) => {
-            const message = event.data;
-
-            if (typeof message !== 'object' || message === null || !('type' in message)) {
+            if (!isTypedMessage(event.data)) {
                 return;
             }
 
-            const typedMessage = message as { type: string; payload?: unknown };
+            const typedMessage = event.data;
 
             if (typedMessage.type === 'examStartInit' && typedMessage.payload) {
                 setExamStartData(typedMessage.payload as Parameters<typeof setExamStartData>[0]);

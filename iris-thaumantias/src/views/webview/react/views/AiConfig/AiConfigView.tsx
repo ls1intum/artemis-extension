@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
-import type { ExtensionToWebviewMessage } from '../../../../../shared/messageContracts';
+import type { AiConfigInitMessage } from '../../../../../shared/messageContracts';
 import { BackLink, Container, Badge, PageHeader, SkeletonList } from '../../components';
 import type { AiConfigViewProps, AiExtensionItem } from './types';
+import { isTypedMessage } from '../../utils/messageValidation';
 import styles from './AiConfigView.module.css';
 
 export function AiConfigView({ vscodeApi }: AiConfigViewProps) {
@@ -10,16 +11,13 @@ export function AiConfigView({ vscodeApi }: AiConfigViewProps) {
 
     useEffect(() => {
         const handleMessage = (event: MessageEvent<unknown>) => {
-            const message: unknown = event.data;
-
-            if (typeof message !== 'object' || message === null || !('type' in message)) {
+            if (!isTypedMessage(event.data)) {
                 return;
             }
 
-            const typedMessage = message as ExtensionToWebviewMessage;
-
-            if ('type' in typedMessage && typedMessage.type === 'aiConfigInit') {
-                setExtensions(typedMessage.payload.aiExtensions);
+            if (event.data.type === 'aiConfigInit') {
+                const initMsg = event.data as unknown as AiConfigInitMessage;
+                setExtensions(initMsg.payload.aiExtensions);
                 setIsLoaded(true);
             }
         };

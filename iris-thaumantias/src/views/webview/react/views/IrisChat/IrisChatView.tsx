@@ -6,6 +6,7 @@ import { ChatInput } from './components/ChatInput';
 import { ContextSelector } from './components/ContextSelector';
 import { ReferencedFiles } from './components/ReferencedFiles';
 import clsx from 'clsx';
+import { isTypedMessage } from '../../utils/messageValidation';
 import styles from './IrisChatView.module.css';
 
 interface IrisChatViewProps {
@@ -59,14 +60,11 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
     // Message listener - handles messages from extension (uses legacy format with message.command)
     useEffect(() => {
         const handler = (event: MessageEvent<unknown>) => {
-            const message = event.data;
-
-            // Type guard for extension messages
-            if (typeof message !== 'object' || message === null || !('type' in message)) {
+            if (!isTypedMessage(event.data)) {
                 return;
             }
 
-            const typedMessage = message as Record<string, unknown>;
+            const typedMessage = event.data;
 
             switch (typedMessage.type) {
                 case 'updateIrisState': {

@@ -23,6 +23,7 @@ import LogOut from 'lucide-react/dist/esm/icons/log-out';
 import ChevronRight from 'lucide-react/dist/esm/icons/chevron-right';
 import { getIcon } from '../../../../../utils/iconMap';
 import SquareArrowOutUpRight from 'lucide-react/dist/esm/icons/square-arrow-out-up-right';
+import { isTypedMessage } from '../../utils/messageValidation';
 import styles from './DashboardView.module.css';
 
 export function DashboardView({ vscodeApi }: DashboardViewProps) {
@@ -43,13 +44,11 @@ export function DashboardView({ vscodeApi }: DashboardViewProps) {
     useEffect(() => {
         // Listen for dashboard messages
         const handleMessage = (event: MessageEvent<unknown>) => {
-            const message = event.data;
-
-            if (typeof message !== 'object' || message === null || !('type' in message)) {
+            if (!isTypedMessage(event.data)) {
                 return;
             }
 
-            const typedMessage = message as Record<string, unknown> & { type: string };
+            const typedMessage = event.data;
 
             // Handle typed message format
             if (typedMessage.type === 'dashboardInit') {

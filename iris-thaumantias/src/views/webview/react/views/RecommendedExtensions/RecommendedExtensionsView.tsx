@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
-import type { ExtensionToWebviewMessage } from '../../../../../shared/messageContracts';
+import type { RecommendedExtensionsInitMessage } from '../../../../../shared/messageContracts';
 import { BackLink, Container, Button, Badge, PageHeader, SkeletonList } from '../../components';
 import styles from './RecommendedExtensionsView.module.css';
 import type { RecommendedExtensionsViewProps, ExtensionCategory, Extension, RecommendedExtensionsPersistedState } from './types';
+import { isTypedMessage } from '../../utils/messageValidation';
 
 export function RecommendedExtensionsView({ vscodeApi }: RecommendedExtensionsViewProps) {
     const [categories, setCategories] = useState<ExtensionCategory[]>([]);
@@ -33,17 +34,13 @@ export function RecommendedExtensionsView({ vscodeApi }: RecommendedExtensionsVi
     // Message handler
     useEffect(() => {
         const handleMessage = (event: MessageEvent<unknown>) => {
-            const message: unknown = event.data;
-
-            // Type guard
-            if (typeof message !== 'object' || message === null || !('type' in message)) {
+            if (!isTypedMessage(event.data)) {
                 return;
             }
 
-            const typedMessage = message as ExtensionToWebviewMessage;
-
-            if ('type' in typedMessage && typedMessage.type === 'recommendedExtensionsInit') {
-                setCategories(typedMessage.payload.categories);
+            if (event.data.type === 'recommendedExtensionsInit') {
+                const initMsg = event.data as unknown as RecommendedExtensionsInitMessage;
+                setCategories(initMsg.payload.categories);
                 setIsLoaded(true);
             }
         };

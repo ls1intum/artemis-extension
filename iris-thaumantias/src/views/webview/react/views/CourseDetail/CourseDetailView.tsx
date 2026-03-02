@@ -20,6 +20,8 @@ import {
     PageHeader,
 } from '../../components';
 import type { DropdownOption } from '../../components';
+import { isTypedMessage } from '../../utils/messageValidation';
+import { formatDate, formatDateTime } from '../../utils/formatDate';
 import styles from './CourseDetailView.module.css';
 
 export function CourseDetailView({ vscodeApi }: CourseDetailViewProps) {
@@ -56,13 +58,11 @@ export function CourseDetailView({ vscodeApi }: CourseDetailViewProps) {
 
         // Listen for courseDetailInit messages
         const handleMessage = (event: MessageEvent<unknown>) => {
-            const message = event.data;
-
-            if (typeof message !== 'object' || message === null || !('type' in message)) {
+            if (!isTypedMessage(event.data)) {
                 return;
             }
 
-            const typedMessage = message as Record<string, unknown> & { type: string };
+            const typedMessage = event.data;
 
             // Handle typed message format
             if (typedMessage.type === 'courseDetailInit') {
@@ -235,16 +235,6 @@ export function CourseDetailView({ vscodeApi }: CourseDetailViewProps) {
         return now >= start && now <= end;
     });
 
-
-    const formatDate = (dateString?: string): string => {
-        if (!dateString) return 'No date';
-        return new Date(dateString).toLocaleDateString();
-    };
-
-    const formatDateTime = (dateString?: string): string => {
-        if (!dateString) return 'No date';
-        return new Date(dateString).toLocaleString();
-    };
 
     return (
         <div className={styles.courseDetailContainer}>

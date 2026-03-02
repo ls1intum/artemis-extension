@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
-import type { ExtensionToWebviewMessage } from '../../../../../shared/messageContracts';
+import type { StruggleDetectionInitMessage } from '../../../../../shared/messageContracts';
 import { BackLink, Container, Badge, PageHeader, SkeletonList } from '../../components';
 import type { StruggleDetectionViewProps, StruggleData } from './types';
+import { isTypedMessage } from '../../utils/messageValidation';
 import styles from './StruggleDetectionView.module.css';
 
 function getEqLevel(eq: number): { label: string; color: string } {
@@ -32,16 +33,13 @@ export function StruggleDetectionView({ vscodeApi }: StruggleDetectionViewProps)
 
     useEffect(() => {
         const handleMessage = (event: MessageEvent<unknown>) => {
-            const message: unknown = event.data;
-
-            if (typeof message !== 'object' || message === null || !('type' in message)) {
+            if (!isTypedMessage(event.data)) {
                 return;
             }
 
-            const typedMessage = message as ExtensionToWebviewMessage;
-
-            if ('type' in typedMessage && typedMessage.type === 'struggleDetectionInit') {
-                setData(typedMessage.payload);
+            if (event.data.type === 'struggleDetectionInit') {
+                const initMsg = event.data as unknown as StruggleDetectionInitMessage;
+                setData(initMsg.payload);
             }
         };
 

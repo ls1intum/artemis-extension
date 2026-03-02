@@ -17,6 +17,7 @@ import {
     PageHeader,
 } from '../../components';
 import type { DropdownOption } from '../../components';
+import { isTypedMessage } from '../../utils/messageValidation';
 import styles from './CourseListView.module.css';
 
 export function CourseListView({ vscodeApi }: CourseListViewProps) {
@@ -61,13 +62,11 @@ export function CourseListView({ vscodeApi }: CourseListViewProps) {
 
         // Listen for courseList messages
         const handleMessage = (event: MessageEvent<unknown>) => {
-            const message = event.data;
-
-            if (typeof message !== 'object' || message === null || !('type' in message)) {
+            if (!isTypedMessage(event.data)) {
                 return;
             }
 
-            const typedMessage = message as Record<string, unknown> & { type: string };
+            const typedMessage = event.data;
 
             // Handle typed message format
             if (typedMessage.type === 'courseListInit') {

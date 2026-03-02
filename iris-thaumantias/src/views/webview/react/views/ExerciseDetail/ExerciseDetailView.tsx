@@ -22,9 +22,11 @@ import {
     BuildProgress,
 } from '../../components/exercise';
 import { ProblemStatement, ScoreInfo, TestResults } from './components';
-import type { SubmissionStatusType } from '../../components/exercise/SubmissionStatus';
-import type { ExerciseType, ParticipationStatusType } from '../../components/exercise/ParticipationActions';
+import type { ExerciseType } from '../../components/exercise/ParticipationActions';
 import type { BuildState } from '../../components/exercise/BuildProgress';
+import { isTypedMessage } from '../../utils/messageValidation';
+import { determineSubmissionStatus, determineParticipationStatus } from '../../utils/exerciseStatus';
+import { formatDate } from '../../utils/formatDate';
 import styles from './ExerciseDetailView.module.css';
 
 export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
@@ -55,13 +57,11 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
 
         // Listen for exerciseDetailInit messages
         const handleMessage = (event: MessageEvent<unknown>) => {
-            const message = event.data;
-
-            if (typeof message !== 'object' || message === null) {
+            if (!isTypedMessage(event.data)) {
                 return;
             }
 
-            const typedMessage = message as Record<string, unknown>;
+            const typedMessage = event.data;
 
             // Handle typed message format
             if (typedMessage.type === 'exerciseDetailInit') {
@@ -229,32 +229,10 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
     const pendingSubmission = exerciseData.pendingSubmission;
 
     // Determine submission status
-    let submissionStatus: SubmissionStatusType = 'no-submission';
-    if (pendingSubmission) {
-        submissionStatus = 'building';
-    } else if (latestResult) {
-        const score = latestResult.score ?? 0;
-        const maxScore = exercise.maxPoints ?? 0;
-        if (latestResult.successful || score >= maxScore * 0.8) {
-            submissionStatus = 'success';
-        } else if (score > 0) {
-            submissionStatus = 'partial';
-        } else {
-            submissionStatus = 'failed';
-        }
-    }
+    const submissionStatus = determineSubmissionStatus(pendingSubmission, latestResult, exercise.maxPoints ?? 0);
 
     // Determine participation status
-    let participationStatus: ParticipationStatusType = 'not-started';
-    if (hasParticipation) {
-        if (latestResult) {
-            participationStatus = 'graded';
-        } else if (latestSubmission) {
-            participationStatus = 'submitted';
-        } else {
-            participationStatus = 'in-progress';
-        }
-    }
+    const participationStatus = determineParticipationStatus(hasParticipation, latestResult, latestSubmission);
 
     // Build progress status
     let buildStatus: BuildState = 'idle';
@@ -360,7 +338,7 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
                         <div className={styles.infoItem}>
                             <div className={styles.infoLabel}>Release Date</div>
                             <div className={styles.infoValue}>
-                                {releaseDate ? new Date(releaseDate).toLocaleDateString() : 'N/A'}
+                                {releaseDate ? formatDate(releaseDate) : 'N/A'}
                             </div>
                         </div>
                         <div className={styles.infoItem}>

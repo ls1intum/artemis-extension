@@ -4,6 +4,8 @@ import { TextInput } from '../../components/TextInput';
 import { Button } from '../../components/Button';
 import { ServiceHealth, type ServiceInfo } from '../../components/ServiceHealth';
 import type { LoginViewProps, LoginPersistedState, LoginViewState, UserInfo } from './types';
+import { isTypedMessage } from '../../utils/messageValidation';
+import { formatServiceName } from '../../utils/formatServiceName';
 import styles from './LoginView.module.css';
 
 export function LoginView({ vscodeApi }: LoginViewProps) {
@@ -64,13 +66,11 @@ export function LoginView({ vscodeApi }: LoginViewProps) {
 	// Message handler for extension-to-webview messages
 	useEffect(() => {
 		const messageHandler = (event: MessageEvent<unknown>) => {
-			const message = event.data;
-
-			if (typeof message !== 'object' || message === null || !('type' in message)) {
+			if (!isTypedMessage(event.data)) {
 				return;
 			}
 
-			const typedMessage = message as Record<string, unknown> & { type: string };
+			const typedMessage = event.data;
 
 			switch (typedMessage.type) {
 				case 'showLoading': {
@@ -180,14 +180,6 @@ export function LoginView({ vscodeApi }: LoginViewProps) {
 		window.addEventListener('message', messageHandler);
 		return () => window.removeEventListener('message', messageHandler);
 	}, [viewState, serverUrl]);
-
-	// Format service name from camelCase to Title Case
-	const formatServiceName = (name: string): string => {
-		return name
-			.replace(/([A-Z])/g, ' $1')
-			.replace(/^./, (str) => str.toUpperCase())
-			.trim();
-	};
 
 	// Perform health checks
 	const performHealthChecks = () => {

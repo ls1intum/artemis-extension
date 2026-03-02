@@ -19,6 +19,8 @@ import {
     SkeletonList,
 } from '../../components';
 import type { ServiceInfo } from '../../components/ServiceHealth/ServiceHealth';
+import { isTypedMessage } from '../../utils/messageValidation';
+import { formatServiceName } from '../../utils/formatServiceName';
 import styles from './ServiceStatusView.module.css';
 
 export function ServiceStatusView({ vscodeApi }: ServiceStatusViewProps) {
@@ -33,13 +35,11 @@ export function ServiceStatusView({ vscodeApi }: ServiceStatusViewProps) {
     // Handle messages from extension
     useEffect(() => {
         const messageHandler = (event: MessageEvent<unknown>) => {
-            const message = event.data;
-
-            if (typeof message !== 'object' || message === null || !('type' in message)) {
+            if (!isTypedMessage(event.data)) {
                 return;
             }
 
-            const typedMessage = message as { type: string };
+            const typedMessage = event.data;
 
             switch (typedMessage.type) {
                 case 'serviceStatusInit': {
@@ -165,15 +165,4 @@ export function ServiceStatusView({ vscodeApi }: ServiceStatusViewProps) {
             </Container>
         </div>
     );
-}
-
-/**
- * Format service name from camelCase to Title Case.
- */
-function formatServiceName(name: string): string {
-    // Convert camelCase to spaces: "serverReachability" -> "Server Reachability"
-    return name
-        .replace(/([A-Z])/g, ' $1')
-        .replace(/^./, (str) => str.toUpperCase())
-        .trim();
 }
