@@ -1,8 +1,7 @@
 import { useEffect, useState } from 'react';
-import type { StruggleDetectionInitMessage } from '../../../../../shared/messageContracts';
+import { isExtensionMessage, postCommand } from '../../../../../shared/messageContracts';
 import { BackLink, Container, Badge, PageHeader, SkeletonList } from '../../components';
 import type { StruggleDetectionViewProps, StruggleData } from './types';
-import { isTypedMessage } from '../../utils/messageValidation';
 import styles from './StruggleDetectionView.module.css';
 
 function getEqLevel(eq: number): { label: string; color: string } {
@@ -33,13 +32,12 @@ export function StruggleDetectionView({ vscodeApi }: StruggleDetectionViewProps)
 
     useEffect(() => {
         const handleMessage = (event: MessageEvent<unknown>) => {
-            if (!isTypedMessage(event.data)) {
+            if (!isExtensionMessage(event.data)) {
                 return;
             }
 
             if (event.data.type === 'struggleDetectionInit') {
-                const initMsg = event.data as unknown as StruggleDetectionInitMessage;
-                const { type: _type, ...struggleData } = initMsg;
+                const { type: _type, ...struggleData } = event.data;
 				setData(struggleData as StruggleData);
             }
         };
@@ -49,10 +47,7 @@ export function StruggleDetectionView({ vscodeApi }: StruggleDetectionViewProps)
     }, []);
 
     const handleBackToDashboard = () => {
-        vscodeApi.postMessage({
-            type: 'command',
-            command: 'backToDashboard'
-        });
+        postCommand(vscodeApi, 'backToDashboard');
     };
 
     if (!data) {

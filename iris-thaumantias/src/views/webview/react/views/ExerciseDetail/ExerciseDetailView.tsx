@@ -24,7 +24,7 @@ import {
 import { ProblemStatement, ScoreInfo, TestResults } from './components';
 import type { ExerciseType } from '../../components/exercise/ParticipationActions';
 import type { BuildState } from '../../components/exercise/BuildProgress';
-import { isTypedMessage } from '../../utils/messageValidation';
+import { isExtensionMessage, postCommand } from '../../../../../shared/messageContracts';
 import { determineSubmissionStatus, determineParticipationStatus } from '../../utils/exerciseStatus';
 import { formatDate } from '../../utils/formatDate';
 import styles from './ExerciseDetailView.module.css';
@@ -52,36 +52,29 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
         // Clear breadcrumbs and rebuild
         clearBreadcrumbs();
         pushBreadcrumb('Dashboard', 'dashboard', () => {
-            vscodeApi.postMessage({ type: 'command', command: 'backToDashboard' });
+            postCommand(vscodeApi, 'backToDashboard');
         });
 
         // Listen for exerciseDetailInit messages
         const handleMessage = (event: MessageEvent<unknown>) => {
-            if (!isTypedMessage(event.data)) {
+            if (!isExtensionMessage(event.data)) {
                 return;
             }
 
-            const typedMessage = event.data;
+            if (event.data.type === 'exerciseDetailInit') {
+                if (!event.data.exerciseData) return;
 
-            // Handle typed message format
-            if (typedMessage.type === 'exerciseDetailInit') {
-                const edMsg = typedMessage as { exerciseData?: unknown; hideDeveloperTools?: unknown };
-                if (!edMsg.exerciseData) return;
-
-                const exerciseData = edMsg.exerciseData as ExerciseDetailsResponse;
-                const hideDeveloperTools = typeof edMsg.hideDeveloperTools === 'boolean' ? edMsg.hideDeveloperTools : false;
-
-                setExerciseData(exerciseData, hideDeveloperTools);
+                setExerciseData(event.data.exerciseData, event.data.hideDeveloperTools);
 
                 // Push breadcrumbs: Dashboard > CourseName > ExerciseName
-                const exercise = exerciseData?.exercise;
+                const exercise = event.data.exerciseData?.exercise;
                 const courseName = exercise?.course?.title ?? 'Course';
                 const exerciseTitle = exercise?.title ?? 'Exercise';
                 const abbreviatedCourse = courseName.length > 20 ? courseName.substring(0, 17) + '...' : courseName;
                 const abbreviatedExercise = exerciseTitle.length > 20 ? exerciseTitle.substring(0, 17) + '...' : exerciseTitle;
 
                 pushBreadcrumb(abbreviatedCourse, 'course-detail', () => {
-                    vscodeApi.postMessage({ type: 'command', command: 'backToCourseDetails' });
+                    postCommand(vscodeApi, 'backToCourseDetails');
                 });
 
                 pushBreadcrumb(abbreviatedExercise, 'exercise-detail', () => {
@@ -111,7 +104,7 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
     }, [error, autoRetried, exerciseData, loadExerciseDetail, vscodeApi]);
 
     const handleBackToCourse = () => {
-        vscodeApi.postMessage({ type: 'command', command: 'backToCourseDetails' });
+        postCommand(vscodeApi, 'backToCourseDetails');
     };
 
     const handleReload = () => {
@@ -122,46 +115,34 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
     };
 
     const handleFullscreen = () => {
-        vscodeApi.postMessage({ type: 'command', command: 'toggleFullscreen' });
+        postCommand(vscodeApi, 'toggleFullscreen');
     };
 
     const handleSettings = () => {
-        vscodeApi.postMessage({ type: 'command', command: 'openSettings' });
+        postCommand(vscodeApi, 'openSettings');
     };
 
     const handleCheckRepositoryStatus = () => {
-        vscodeApi.postMessage({
-            type: 'command',
-            command: 'checkRepositoryStatus',
-            payload: { showNotification: true },
-        });
+        postCommand(vscodeApi, 'checkRepositoryStatus', { showNotification: true });
     };
 
     const handleAskIris = () => {
         const exercise = exerciseData?.exercise;
         if (exercise && exercise.id !== undefined && exercise.title !== undefined) {
-            vscodeApi.postMessage({
-                type: 'command',
-                command: 'askIrisAboutExercise',
-                payload: {
-                    exerciseId: exercise.id,
-                    exerciseTitle: exercise.title,
-                    exerciseShortName: exercise.shortName,
-                    courseId: exercise.course?.id,
-                    courseTitle: exercise.course?.title,
-                    courseShortName: exercise.course?.shortName,
-                },
+            postCommand(vscodeApi, 'askIrisAboutExercise', {
+                exerciseId: exercise.id,
+                exerciseTitle: exercise.title,
+                exerciseShortName: exercise.shortName,
+                courseId: exercise.course?.id,
+                courseTitle: exercise.course?.title,
+                courseShortName: exercise.course?.shortName,
             });
         }
     };
 
     const handleOpenRawJSON = () => {
         if (exerciseData) {
-            vscodeApi.postMessage({
-                type: 'command',
-                command: 'openInEditor',
-                payload: { data: exerciseData },
-            });
+            postCommand(vscodeApi, 'openInEditor', { data: exerciseData });
         }
     };
 
@@ -369,55 +350,31 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
                     canSubmit={hasParticipation && isProgramming}
                     onStart={() => {
                         if (exercise.id === undefined) return;
-                        vscodeApi.postMessage({
-                            type: 'command',
-                            command: 'startExercise',
-                            payload: { exerciseId: exercise.id },
-                        });
+                        postCommand(vscodeApi, 'startExercise', { exerciseId: exercise.id });
                     }}
                     onSubmit={() => {
                         if (participationId) {
-                            vscodeApi.postMessage({
-                                type: 'command',
-                                command: 'submitExercise',
-                                payload: { participationId },
-                            });
+                            postCommand(vscodeApi, 'submitExercise', { participationId });
                         }
                     }}
                     onClone={() => {
                         if (participationId && repositoryUri) {
-                            vscodeApi.postMessage({
-                                type: 'command',
-                                command: 'cloneRepository',
-                                payload: {
-                                    participationId,
-                                    repositoryUri,
-                                    exerciseTitle: exercise.title || 'Exercise',
-                                },
+                            postCommand(vscodeApi, 'cloneRepository', {
+                                participationId,
+                                repositoryUri,
+                                exerciseTitle: exercise.title || 'Exercise',
                             });
                         }
                     }}
                     onOpenRepository={() => {
-                        vscodeApi.postMessage({
-                            type: 'command',
-                            command: 'openRepository',
-                            payload: { repositoryUri },
-                        });
+                        postCommand(vscodeApi, 'openRepository', { repositoryUri });
                     }}
                     onStartPractice={() => {
                         if (exercise.id === undefined) return;
-                        vscodeApi.postMessage({
-                            type: 'command',
-                            command: 'startPractice',
-                            payload: { exerciseId: exercise.id },
-                        });
+                        postCommand(vscodeApi, 'startPractice', { exerciseId: exercise.id });
                     }}
                     onOpenInBrowser={() => {
-                        // Open in browser command
-                        vscodeApi.postMessage({
-                            type: 'command',
-                            command: 'openWebsite',
-                        });
+                        postCommand(vscodeApi, 'openWebsite');
                     }}
                 />
 

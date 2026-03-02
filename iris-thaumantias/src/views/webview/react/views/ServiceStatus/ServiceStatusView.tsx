@@ -4,11 +4,7 @@ import type {
     HealthCheckResult,
     ServiceStatusPersistedState,
 } from './types';
-import type {
-    ExtensionToWebviewMessage,
-    ServiceStatusInitMessage,
-    HealthCheckResultsMessage,
-} from '../../../../../shared/messageContracts';
+import { isExtensionMessage, postCommand } from '../../../../../shared/messageContracts';
 import {
     BackLink,
     Container,
@@ -19,7 +15,6 @@ import {
     SkeletonList,
 } from '../../components';
 import type { ServiceInfo } from '../../components/ServiceHealth/ServiceHealth';
-import { isTypedMessage } from '../../utils/messageValidation';
 import { formatServiceName } from '../../utils/formatServiceName';
 import styles from './ServiceStatusView.module.css';
 
@@ -35,32 +30,24 @@ export function ServiceStatusView({ vscodeApi }: ServiceStatusViewProps) {
     // Handle messages from extension
     useEffect(() => {
         const messageHandler = (event: MessageEvent<unknown>) => {
-            if (!isTypedMessage(event.data)) {
+            if (!isExtensionMessage(event.data)) {
                 return;
             }
 
-            const typedMessage = event.data;
-
-            switch (typedMessage.type) {
+            switch (event.data.type) {
                 case 'serviceStatusInit': {
-                    const initMsg = typedMessage as ServiceStatusInitMessage;
-                    const url = initMsg.serverUrl ?? '';
+                    const url = event.data.serverUrl ?? '';
                     setServerUrl(url);
                     setIsLoaded(true);
                     // Trigger health check if we have a server URL
                     if (url) {
                         setIsChecking(true);
-                        vscodeApi.postMessage({
-                            type: 'command',
-                            command: 'performHealthChecks',
-                            payload: { serverUrl: url },
-                        });
+                        postCommand(vscodeApi, 'performHealthChecks', { serverUrl: url });
                     }
                     break;
                 }
                 case 'healthCheckResults': {
-                    const resultsMsg = typedMessage as HealthCheckResultsMessage;
-                    setHealthResults(resultsMsg.results as Record<string, HealthCheckResult>);
+                    setHealthResults(event.data.results as Record<string, HealthCheckResult>);
                     setIsChecking(false);
                     setLastCheckTime(new Date());
                     break;
@@ -81,21 +68,14 @@ export function ServiceStatusView({ vscodeApi }: ServiceStatusViewProps) {
 
     // Handle back navigation
     const handleBack = () => {
-        vscodeApi.postMessage({
-            type: 'command',
-            command: 'backToDashboard',
-        });
+        postCommand(vscodeApi, 'backToDashboard');
     };
 
     // Handle refresh
     const handleRefresh = () => {
         if (serverUrl) {
             setIsChecking(true);
-            vscodeApi.postMessage({
-                type: 'command',
-                command: 'performHealthChecks',
-                payload: { serverUrl },
-            });
+            postCommand(vscodeApi, 'performHealthChecks', { serverUrl });
         }
     };
 

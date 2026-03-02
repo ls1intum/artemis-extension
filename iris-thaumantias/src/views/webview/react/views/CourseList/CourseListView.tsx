@@ -17,7 +17,7 @@ import {
     PageHeader,
 } from '../../components';
 import type { DropdownOption } from '../../components';
-import { isTypedMessage } from '../../utils/messageValidation';
+import { isExtensionMessage, postCommand } from '../../../../../shared/messageContracts';
 import styles from './CourseListView.module.css';
 
 export function CourseListView({ vscodeApi }: CourseListViewProps) {
@@ -62,19 +62,14 @@ export function CourseListView({ vscodeApi }: CourseListViewProps) {
 
         // Listen for courseList messages
         const handleMessage = (event: MessageEvent<unknown>) => {
-            if (!isTypedMessage(event.data)) {
+            if (!isExtensionMessage(event.data)) {
                 return;
             }
 
-            const typedMessage = event.data;
-
-            // Handle typed message format
-            if (typedMessage.type === 'courseListInit') {
-                const clMsg = typedMessage as { courses?: CourseData[]; archivedCourses?: ArchivedCourse[] };
-                setCourses(clMsg.courses ?? [], clMsg.archivedCourses);
-            } else if (typedMessage.type === 'archivedCoursesLoaded') {
-                const acMsg = typedMessage as { archivedCourses?: ArchivedCourse[] };
-                setArchivedCourses(acMsg.archivedCourses ?? []);
+            if (event.data.type === 'courseListInit') {
+                setCourses(event.data.courses ?? [], event.data.archivedCourses);
+            } else if (event.data.type === 'archivedCoursesLoaded') {
+                setArchivedCourses(event.data.archivedCourses ?? []);
             }
         };
 
@@ -145,27 +140,19 @@ export function CourseListView({ vscodeApi }: CourseListViewProps) {
     };
 
     const handleBackToDashboard = () => {
-        vscodeApi.postMessage({ type: 'command', command: 'backToDashboard' });
+        postCommand(vscodeApi, 'backToDashboard');
     };
 
     const handleOpenSettings = () => {
-        vscodeApi.postMessage({ type: 'command', command: 'openSettings' });
+        postCommand(vscodeApi, 'openSettings');
     };
 
     const handleViewCourseDetails = (courseData: CourseData) => {
-        vscodeApi.postMessage({
-            type: 'command',
-            command: 'viewCourseDetails',
-            payload: { courseData: courseData.course as unknown as CourseDashboardCourse },
-        });
+        postCommand(vscodeApi, 'viewCourseDetails', { courseData: courseData.course as unknown as CourseDashboardCourse });
     };
 
     const handleViewArchivedCourse = (courseId: number) => {
-        vscodeApi.postMessage({
-            type: 'command',
-            command: 'viewArchivedCourse',
-            payload: { courseId },
-        });
+        postCommand(vscodeApi, 'viewArchivedCourse', { courseId });
     };
 
     const handleClearFilters = () => {

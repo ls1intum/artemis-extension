@@ -4,7 +4,7 @@ import { TextInput } from '../../components/TextInput';
 import { Button } from '../../components/Button';
 import { ServiceHealth, type ServiceInfo } from '../../components/ServiceHealth';
 import type { LoginViewProps, LoginPersistedState, LoginViewState, UserInfo } from './types';
-import { isTypedMessage } from '../../utils/messageValidation';
+import { isExtensionMessage, postCommand } from '../../../../../shared/messageContracts';
 import { formatServiceName } from '../../utils/formatServiceName';
 import styles from './LoginView.module.css';
 
@@ -66,18 +66,16 @@ export function LoginView({ vscodeApi }: LoginViewProps) {
 	// Message handler for extension-to-webview messages
 	useEffect(() => {
 		const messageHandler = (event: MessageEvent<unknown>) => {
-			if (!isTypedMessage(event.data)) {
+			if (!isExtensionMessage(event.data)) {
 				return;
 			}
 
-			const typedMessage = event.data;
-
-			switch (typedMessage.type) {
+			switch (event.data.type) {
 				case 'showLoading': {
 					setViewState('loading');
 					setLoadingHiding(false);
 					setLoadingVisible(true);
-					const showMsg = (typedMessage as { message?: string }).message ?? 'Checking authentication...';
+					const showMsg = event.data.message ?? 'Checking authentication...';
 					setLoadingMessage(showMsg);
 					setLoadingSubtext(loadingSubtexts[showMsg] ?? 'Please wait while we process your request');
 					break;
@@ -97,7 +95,7 @@ export function LoginView({ vscodeApi }: LoginViewProps) {
 					break;
 
 				case 'updateLoading': {
-					const updateMsg = (typedMessage as { message?: string }).message ?? 'Processing...';
+					const updateMsg = event.data.message ?? 'Processing...';
 					setLoadingMessage(updateMsg);
 					setLoadingSubtext(loadingSubtexts[updateMsg] ?? 'Please wait while we process your request');
 					break;
@@ -112,8 +110,7 @@ export function LoginView({ vscodeApi }: LoginViewProps) {
 
 				case 'loginError': {
 					setViewState('form');
-					const msg = typedMessage as { type: 'loginError'; error?: string };
-					setStatusMessage(msg.error ?? 'Login failed');
+					setStatusMessage(event.data.error ?? 'Login failed');
 					setStatusType('error');
 					setIsSubmitting(false);
 					setShowHealthChecks(true);
@@ -134,30 +131,19 @@ export function LoginView({ vscodeApi }: LoginViewProps) {
 
 				case 'showLoggedIn': {
 					setViewState('loggedIn');
-					const userInfoVal = (typedMessage as { userInfo?: UserInfo }).userInfo ?? null;
-					setUserInfo(userInfoVal);
+					setUserInfo(event.data.userInfo ?? null);
 					setShowHealthChecks(false);
 					break;
 				}
 
 				case 'setServerUrl': {
-					const serverUrlVal = (typedMessage as { serverUrl?: string }).serverUrl ?? '';
-					setServerUrl(serverUrlVal);
+					setServerUrl(event.data.serverUrl ?? '');
 					break;
 				}
 
 				case 'healthCheckResults': {
 					// Convert health check results to ServiceInfo format
-					const results = (typedMessage as {
-						results?: Record<string, {
-							status: string;
-							message: string;
-							endpoint: string;
-							httpStatus: number | null;
-							response: string | null;
-						}>;
-					}).results ?? {};
-					const services: ServiceInfo[] = Object.entries(results).map(([serviceName, data]) => ({
+					const services: ServiceInfo[] = Object.entries(event.data.results).map(([serviceName, data]) => ({
 						name: formatServiceName(serviceName),
 						status: data.status as 'online' | 'offline' | 'checking' | 'unknown',
 						message: data.message ?? '',
@@ -181,11 +167,7 @@ export function LoginView({ vscodeApi }: LoginViewProps) {
 	const performHealthChecks = () => {
 		if (!serverUrl) return;
 		setIsHealthChecking(true);
-		vscodeApi.postMessage({
-			type: 'command',
-			command: 'performHealthChecks',
-			payload: { serverUrl },
-		});
+		postCommand(vscodeApi, 'performHealthChecks', { serverUrl });
 	};
 
 	// Handle form submission
@@ -202,44 +184,28 @@ export function LoginView({ vscodeApi }: LoginViewProps) {
 		setStatusMessage('');
 		setIsSubmitting(true);
 
-		vscodeApi.postMessage({
-			type: 'command',
-			command: 'login',
-			payload: {
-				username: trimmedUsername,
-				password,
-				rememberMe,
-			},
+		postCommand(vscodeApi, 'login', {
+			username: trimmedUsername,
+			password,
+			rememberMe,
 		});
 	};
 
 	// Handle quick links
 	const handleOpenWebsite = () => {
-		vscodeApi.postMessage({
-			type: 'command',
-			command: 'openWebsite',
-		});
+		postCommand(vscodeApi, 'openWebsite');
 	};
 
 	const handleOpenSettings = () => {
-		vscodeApi.postMessage({
-			type: 'command',
-			command: 'openSettings',
-		});
+		postCommand(vscodeApi, 'openSettings');
 	};
 
 	const handleLogout = () => {
-		vscodeApi.postMessage({
-			type: 'command',
-			command: 'logout',
-		});
+		postCommand(vscodeApi, 'logout');
 	};
 
 	const handleBrowseCourses = () => {
-		vscodeApi.postMessage({
-			type: 'command',
-			command: 'browseCourses',
-		});
+		postCommand(vscodeApi, 'browseCourses');
 	};
 
 	return (

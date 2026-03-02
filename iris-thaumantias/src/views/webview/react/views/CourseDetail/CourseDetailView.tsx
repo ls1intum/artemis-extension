@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { useCourseDetailStore } from '../../stores/useCourseDetailStore';
 import { useNavigationStore } from '../../stores/useNavigationStore';
 import type { CourseDetailViewProps, CourseDetailPersistedState } from './types';
+import { isExtensionMessage, postCommand } from '../../../../../shared/messageContracts';
 import type { Exercise, Exam } from '../../../../../shared/messageContracts';
 import { getIcon } from '../../../../../utils/iconMap';
 import {
@@ -20,7 +21,6 @@ import {
     PageHeader,
 } from '../../components';
 import type { DropdownOption } from '../../components';
-import { isTypedMessage } from '../../utils/messageValidation';
 import { formatDate, formatDateTime } from '../../utils/formatDate';
 import styles from './CourseDetailView.module.css';
 
@@ -53,24 +53,20 @@ export function CourseDetailView({ vscodeApi }: CourseDetailViewProps) {
         // Clear breadcrumbs and rebuild
         clearBreadcrumbs();
         pushBreadcrumb('Dashboard', 'dashboard', () => {
-            vscodeApi.postMessage({ type: 'command', command: 'backToDashboard' });
+            postCommand(vscodeApi, 'backToDashboard');
         });
 
         // Listen for courseDetailInit messages
         const handleMessage = (event: MessageEvent<unknown>) => {
-            if (!isTypedMessage(event.data)) {
+            if (!isExtensionMessage(event.data)) {
                 return;
             }
 
-            const typedMessage = event.data;
-
-            // Handle typed message format
-            if (typedMessage.type === 'courseDetailInit') {
-                const cdMsg = typedMessage as { courseData?: { course?: { title?: string } }; workspaceExerciseId?: unknown };
-                setCourseData(cdMsg.courseData as Parameters<typeof setCourseData>[0], cdMsg.workspaceExerciseId as Parameters<typeof setCourseData>[1]);
+            if (event.data.type === 'courseDetailInit') {
+                setCourseData(event.data.courseData as Parameters<typeof setCourseData>[0], event.data.workspaceExerciseId as Parameters<typeof setCourseData>[1]);
 
                 // Push course breadcrumb
-                const courseTitle = cdMsg.courseData?.course?.title ?? 'Course';
+                const courseTitle = event.data.courseData?.course?.title ?? 'Course';
                 const abbreviatedTitle = courseTitle.length > 20 ? courseTitle.substring(0, 17) + '...' : courseTitle;
                 pushBreadcrumb(abbreviatedTitle, 'course-detail', () => {
                     // Current page, no action
@@ -96,7 +92,7 @@ export function CourseDetailView({ vscodeApi }: CourseDetailViewProps) {
     }, [exerciseSearchTerm, exerciseSortBy, vscodeApi]);
 
     const handleBackToDashboard = () => {
-        vscodeApi.postMessage({ type: 'command', command: 'backToDashboard' });
+        postCommand(vscodeApi, 'backToDashboard');
     };
 
     const handleReload = () => {
@@ -106,60 +102,40 @@ export function CourseDetailView({ vscodeApi }: CourseDetailViewProps) {
     };
 
     const handleFullscreen = () => {
-        vscodeApi.postMessage({ type: 'command', command: 'toggleCourseFullscreen' });
+        postCommand(vscodeApi, 'toggleCourseFullscreen');
     };
 
     const handleSettings = () => {
-        vscodeApi.postMessage({ type: 'command', command: 'openSettings' });
+        postCommand(vscodeApi, 'openSettings');
     };
 
     const handleOpenExercise = (exerciseId: number) => {
-        vscodeApi.postMessage({
-            type: 'command',
-            command: 'openExerciseDetails',
-            payload: { exerciseId },
-        });
+        postCommand(vscodeApi, 'openExerciseDetails', { exerciseId });
     };
 
     const handleOpenExam = (examId: number, courseId: number) => {
-        vscodeApi.postMessage({
-            type: 'command',
-            command: 'openExam',
-            payload: { examId, courseId },
-        });
+        postCommand(vscodeApi, 'openExam', { examId, courseId });
     };
 
     const handleAskIris = () => {
         if (courseData?.course) {
-            vscodeApi.postMessage({
-                type: 'command',
-                command: 'askIrisAboutCourse',
-                payload: {
-                    courseId: courseData.course.id,
-                    courseTitle: courseData.course.title,
-                    courseShortName: courseData.course.shortName,
-                },
+            postCommand(vscodeApi, 'askIrisAboutCourse', {
+                courseId: courseData.course.id,
+                courseTitle: courseData.course.title,
+                courseShortName: courseData.course.shortName,
             });
         }
     };
 
     const handleOpenRawJSON = () => {
         if (courseData) {
-            vscodeApi.postMessage({
-                type: 'command',
-                command: 'openInEditor',
-                payload: { data: courseData as unknown as Record<string, unknown> },
-            });
+            postCommand(vscodeApi, 'openInEditor', { data: courseData as unknown as Record<string, unknown> });
         }
     };
 
     const handleCopyCourseData = () => {
         if (courseData) {
-            vscodeApi.postMessage({
-                type: 'command',
-                command: 'copyToClipboard',
-                payload: { text: JSON.stringify(courseData, null, 2) },
-            });
+            postCommand(vscodeApi, 'copyToClipboard', { text: JSON.stringify(courseData, null, 2) });
         }
     };
 

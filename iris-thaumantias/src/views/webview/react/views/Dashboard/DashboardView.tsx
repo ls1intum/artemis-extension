@@ -23,7 +23,7 @@ import LogOut from 'lucide-react/dist/esm/icons/log-out';
 import ChevronRight from 'lucide-react/dist/esm/icons/chevron-right';
 import { getIcon } from '../../../../../utils/iconMap';
 import SquareArrowOutUpRight from 'lucide-react/dist/esm/icons/square-arrow-out-up-right';
-import { isTypedMessage } from '../../utils/messageValidation';
+import { isExtensionMessage, postCommand } from '../../../../../shared/messageContracts';
 import styles from './DashboardView.module.css';
 
 export function DashboardView({ vscodeApi }: DashboardViewProps) {
@@ -44,28 +44,23 @@ export function DashboardView({ vscodeApi }: DashboardViewProps) {
     useEffect(() => {
         // Listen for dashboard messages
         const handleMessage = (event: MessageEvent<unknown>) => {
-            if (!isTypedMessage(event.data)) {
+            if (!isExtensionMessage(event.data)) {
                 return;
             }
 
-            const typedMessage = event.data;
-
-            // Handle typed message format
-            if (typedMessage.type === 'dashboardInit') {
-                const dashMsg = typedMessage as { courses?: RecentCourseNode[]; workspaceExercise?: { id: number; title: string } };
-                setDashboardData(dashMsg.courses ?? []);
-                if (dashMsg.workspaceExercise) {
+            if (event.data.type === 'dashboardInit') {
+                setDashboardData(event.data.courses ?? []);
+                if (event.data.workspaceExercise) {
                     setWorkspaceExercise({
-                        id: dashMsg.workspaceExercise.id,
-                        title: dashMsg.workspaceExercise.title,
+                        id: event.data.workspaceExercise.id,
+                        title: event.data.workspaceExercise.title,
                     });
                 }
-            } else if (typedMessage.type === 'workspaceExerciseDetected') {
-                const msg = typedMessage as { type: 'workspaceExerciseDetected'; exerciseId?: number | null; exerciseTitle?: string | null };
-                if (typeof msg.exerciseId === 'number' && typeof msg.exerciseTitle === 'string') {
+            } else if (event.data.type === 'workspaceExerciseDetected') {
+                if (typeof event.data.exerciseId === 'number' && typeof event.data.exerciseTitle === 'string') {
                     setWorkspaceExercise({
-                        id: msg.exerciseId,
-                        title: msg.exerciseTitle,
+                        id: event.data.exerciseId,
+                        title: event.data.exerciseTitle,
                     });
                 } else {
                     setWorkspaceExercise(null);
@@ -86,96 +81,55 @@ export function DashboardView({ vscodeApi }: DashboardViewProps) {
     };
 
     const handleShowAllCourses = () => {
-        vscodeApi.postMessage({
-            type: 'command',
-            command: 'showAllCourses',
-        });
+        postCommand(vscodeApi, 'showAllCourses');
     };
 
     const handleViewCourseDetails = (courseData: RecentCourseNode) => {
-        vscodeApi.postMessage({
-            type: 'command',
-            command: 'viewCourseDetails',
-            payload: { courseData: courseData as unknown as CourseDashboardCourse },
-        });
+        postCommand(vscodeApi, 'viewCourseDetails', { courseData: courseData as unknown as CourseDashboardCourse });
     };
 
     const handleOpenExercise = (exerciseId: number, courseId?: number | null) => {
-        vscodeApi.postMessage({
-            type: 'command',
-            command: 'openExercise',
-            payload: { exerciseId, courseId },
-        });
+        postCommand(vscodeApi, 'openExercise', { exerciseId, courseId });
     };
 
     const handleOpenWebsite = () => {
-        vscodeApi.postMessage({
-            type: 'command',
-            command: 'openWebsite',
-        });
+        postCommand(vscodeApi, 'openWebsite');
     };
 
     const handleBrowseCourses = () => {
-        vscodeApi.postMessage({
-            type: 'command',
-            command: 'browseCourses',
-        });
+        postCommand(vscodeApi, 'browseCourses');
     };
 
     const handleOpenSettings = () => {
-        vscodeApi.postMessage({
-            type: 'command',
-            command: 'openSettings',
-        });
+        postCommand(vscodeApi, 'openSettings');
     };
 
     const handleShowAiConfig = () => {
-        vscodeApi.postMessage({
-            type: 'command',
-            command: 'showAiConfig',
-        });
+        postCommand(vscodeApi, 'showAiConfig');
     };
 
     const handleShowRecommendedExtensions = () => {
-        vscodeApi.postMessage({
-            type: 'command',
-            command: 'showRecommendedExtensions',
-        });
+        postCommand(vscodeApi, 'showRecommendedExtensions');
     };
 
     const handleShowServiceStatus = () => {
-        vscodeApi.postMessage({
-            type: 'command',
-            command: 'showServiceStatus',
-        });
+        postCommand(vscodeApi, 'showServiceStatus');
     };
 
     const handleShowGitCredentials = () => {
-        vscodeApi.postMessage({
-            type: 'command',
-            command: 'showGitCredentials',
-        });
+        postCommand(vscodeApi, 'showGitCredentials');
     };
 
     const handleShowStruggleDetection = () => {
-        vscodeApi.postMessage({
-            type: 'command',
-            command: 'showStruggleDetection',
-        });
+        postCommand(vscodeApi, 'showStruggleDetection');
     };
 
     const handleOpenBugReport = () => {
-        vscodeApi.postMessage({
-            type: 'command',
-            command: 'openBugReport',
-        });
+        postCommand(vscodeApi, 'openBugReport');
     };
 
     const handleLogout = () => {
-        vscodeApi.postMessage({
-            type: 'command',
-            command: 'logout',
-        });
+        postCommand(vscodeApi, 'logout');
     };
 
     const toggleCourseExpanded = (index: number) => {

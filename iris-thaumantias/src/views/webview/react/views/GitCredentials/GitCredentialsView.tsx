@@ -7,8 +7,7 @@ import { useState, useEffect } from 'react';
 import { BackLink, Container, TextInput, Button, PageHeader, SkeletonList } from '../../components';
 import styles from './GitCredentialsView.module.css';
 import type { GitCredentialsViewProps, GitCredentialsPersistedState } from './types';
-import type { GitCredentialsInitMessage, GitCredentialsResultMessage } from '../../../../../shared/messageContracts';
-import { isTypedMessage } from '../../utils/messageValidation';
+import { isExtensionMessage, postCommand } from '../../../../../shared/messageContracts';
 
 export function GitCredentialsView({ vscodeApi }: GitCredentialsViewProps) {
     // Restore persisted state (form values only)
@@ -31,28 +30,24 @@ export function GitCredentialsView({ vscodeApi }: GitCredentialsViewProps) {
     // Message handler
     useEffect(() => {
         const handleMessage = (event: MessageEvent<unknown>) => {
-            if (!isTypedMessage(event.data)) {
+            if (!isExtensionMessage(event.data)) {
                 return;
             }
 
-            const typedMessage = event.data;
-
-            switch (typedMessage.type) {
+            switch (event.data.type) {
                 case 'gitCredentialsInit': {
-                    const initMsg = typedMessage as GitCredentialsInitMessage;
-                    if (initMsg.currentName) {
-                        setName(initMsg.currentName);
+                    if (event.data.currentName) {
+                        setName(event.data.currentName);
                     }
-                    if (initMsg.currentEmail) {
-                        setEmail(initMsg.currentEmail);
+                    if (event.data.currentEmail) {
+                        setEmail(event.data.currentEmail);
                     }
                     setIsLoaded(true);
                     break;
                 }
                 case 'gitCredentialsResult': {
-                    const resultMsg = typedMessage as GitCredentialsResultMessage;
-                    setStatusMessage(resultMsg.message);
-                    setStatusType(resultMsg.status);
+                    setStatusMessage(event.data.message);
+                    setStatusType(event.data.status);
                     // Clear status after 5 seconds
                     const timer = setTimeout(() => setStatusMessage(''), 5000);
                     return () => clearTimeout(timer);
@@ -66,7 +61,7 @@ export function GitCredentialsView({ vscodeApi }: GitCredentialsViewProps) {
 
     // Request current git identity on mount
     useEffect(() => {
-        vscodeApi.postMessage({ type: 'command', command: 'requestGitIdentity' });
+        postCommand(vscodeApi, 'requestGitIdentity');
     }, [vscodeApi]);
 
     const handleSubmit = (e: React.FormEvent) => {
@@ -90,26 +85,15 @@ export function GitCredentialsView({ vscodeApi }: GitCredentialsViewProps) {
         setStatusMessage('Saving...');
         setStatusType('info');
 
-        vscodeApi.postMessage({
-            type: 'command',
-            command: 'saveGitIdentity',
-            payload: { name: trimmedName, email: trimmedEmail }
-        });
+        postCommand(vscodeApi, 'saveGitIdentity', { name: trimmedName, email: trimmedEmail });
     };
 
     const handleCopyCommand = (command: string) => {
-        vscodeApi.postMessage({
-            type: 'command',
-            command: 'copyToClipboard',
-            payload: { text: command }
-        });
+        postCommand(vscodeApi, 'copyToClipboard', { text: command });
     };
 
     const handleBackClick = () => {
-        vscodeApi.postMessage({
-            type: 'command',
-            command: 'backToDashboard'
-        });
+        postCommand(vscodeApi, 'backToDashboard');
     };
 
     if (!isLoaded) {

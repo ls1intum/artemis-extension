@@ -11,8 +11,8 @@ import { Container } from '../../components/Container/Container';
 import { PageHeader } from '../../components/PageHeader/PageHeader';
 import { Badge } from '../../components/Badge/Badge';
 import { IconButton } from '../../components/Button/IconButton';
+import { isExtensionMessage, postCommand } from '../../../../../shared/messageContracts';
 import type { ExerciseDetail } from '../../../../../shared/messageContracts';
-import { isTypedMessage } from '../../utils/messageValidation';
 import styles from './ExamConductionView.module.css';
 
 /**
@@ -25,19 +25,16 @@ export function ExamConductionView({ vscodeApi }: ExamConductionViewProps) {
     // Message handler
     useEffect(() => {
         const handleMessage = (event: MessageEvent<unknown>) => {
-            if (!isTypedMessage(event.data)) {
+            if (!isExtensionMessage(event.data)) {
                 return;
             }
 
-            const typedMessage = event.data;
-
-            if (typedMessage.type === 'examConductionInit') {
-                store.setExamData(typedMessage as unknown as Parameters<typeof store.setExamData>[0]);
+            if (event.data.type === 'examConductionInit') {
+                store.setExamData(event.data);
             }
 
-            if (typedMessage.type === 'error') {
-                const errorMsg = typedMessage as unknown as { message: string };
-                store.setError(errorMsg.message);
+            if (event.data.type === 'error') {
+                store.setError(event.data.message);
             }
         };
 
@@ -57,10 +54,7 @@ export function ExamConductionView({ vscodeApi }: ExamConductionViewProps) {
     }, []);
 
     const handleBackToCourse = () => {
-        vscodeApi.postMessage({
-            type: 'command',
-            command: 'backToCourseDetails',
-        });
+        postCommand(vscodeApi, 'backToCourseDetails');
     };
 
     // Loading state
@@ -125,35 +119,24 @@ export function ExamConductionView({ vscodeApi }: ExamConductionViewProps) {
     const showOverlay = timerExpired && !overlayDismissed;
 
     const handleExerciseClick = (exerciseIndex: number) => {
-        vscodeApi.postMessage({
-            type: 'command',
-            command: 'openExamExerciseDetails',
-            payload: {
-                exercise: exercises[exerciseIndex] as unknown as ExerciseDetail,
-                exerciseIndex,
-                courseId: store.courseId!,
-                examId: store.examId!,
-            },
+        postCommand(vscodeApi, 'openExamExerciseDetails', {
+            exercise: exercises[exerciseIndex] as unknown as ExerciseDetail,
+            exerciseIndex,
+            courseId: store.courseId!,
+            examId: store.examId!,
         });
     };
 
     const handleOpenInBrowser = () => {
-        vscodeApi.postMessage({
-            type: 'command',
-            command: 'openExamInBrowser',
-            payload: {
-                courseId: store.courseId!,
-                examId: store.examId!,
-            },
+        postCommand(vscodeApi, 'openExamInBrowser', {
+            courseId: store.courseId!,
+            examId: store.examId!,
         });
     };
 
     const handleReload = () => {
         store.setLoading(true);
-        vscodeApi.postMessage({
-            type: 'command',
-            command: 'reloadExamConduction',
-        });
+        postCommand(vscodeApi, 'reloadExamConduction');
     };
 
     return (

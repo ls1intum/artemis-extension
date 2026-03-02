@@ -7,7 +7,7 @@ import { ExamTimer } from '../../components/ExamTimer/ExamTimer';
 import { TimerExpiredOverlay } from '../../components/TimerExpiredOverlay/TimerExpiredOverlay';
 import { BackLink, Container, Button, SkeletonList, ErrorMessage, Badge } from '../../components';
 import type { ExamStartViewProps } from './types';
-import { isTypedMessage } from '../../utils/messageValidation';
+import { isExtensionMessage, postCommand } from '../../../../../shared/messageContracts';
 import styles from './ExamStartView.module.css';
 
 export function ExamStartView({ vscodeApi }: ExamStartViewProps) {
@@ -17,19 +17,16 @@ export function ExamStartView({ vscodeApi }: ExamStartViewProps) {
     // Load data on mount
     useEffect(() => {
         const handleMessage = (event: MessageEvent<unknown>) => {
-            if (!isTypedMessage(event.data)) {
+            if (!isExtensionMessage(event.data)) {
                 return;
             }
 
-            const typedMessage = event.data;
-
-            if (typedMessage.type === 'examStartInit') {
-                setExamStartData(typedMessage as unknown as Parameters<typeof setExamStartData>[0]);
+            if (event.data.type === 'examStartInit') {
+                setExamStartData(event.data);
             }
 
-            if (typedMessage.type === 'error') {
-                const errorMsg = typedMessage as unknown as { message: string };
-                setError(errorMsg.message);
+            if (event.data.type === 'error') {
+                setError(event.data.message);
             }
         };
 
@@ -108,29 +105,21 @@ export function ExamStartView({ vscodeApi }: ExamStartViewProps) {
     };
 
     const handleBackToCourse = () => {
-        vscodeApi.postMessage({ type: 'command', command: 'backToCourseDetails' });
+        postCommand(vscodeApi, 'backToCourseDetails');
     };
 
     const handleOpenInBrowser = () => {
         if (courseId && examId) {
-            vscodeApi.postMessage({
-                type: 'command',
-                command: 'openExamInBrowser',
-                payload: { courseId, examId },
-            });
+            postCommand(vscodeApi, 'openExamInBrowser', { courseId, examId });
         }
     };
 
     const handleEnterOrRefresh = () => {
         if (courseId && examId && studentExam?.id) {
-            vscodeApi.postMessage({
-                type: 'command',
-                command: 'refreshExam',
-                payload: {
-                    courseId,
-                    examId,
-                    studentExamId: studentExam.id,
-                },
+            postCommand(vscodeApi, 'refreshExam', {
+                courseId,
+                examId,
+                studentExamId: studentExam.id,
             });
         }
     };

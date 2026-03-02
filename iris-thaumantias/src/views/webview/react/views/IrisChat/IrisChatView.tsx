@@ -1,4 +1,5 @@
 import { useEffect, useState, useRef } from 'react';
+import { isExtensionMessage, postCommand } from '../../../../../shared/messageContracts';
 import type { VsCodeApi, IrisChatStateMessage } from '../../../../../shared/messageContracts';
 import { useChatStore } from '../../stores/useChatStore';
 import { ChatMessageList } from './components/ChatMessageList';
@@ -6,7 +7,6 @@ import { ChatInput } from './components/ChatInput';
 import { ContextSelector } from './components/ContextSelector';
 import { ReferencedFiles } from './components/ReferencedFiles';
 import clsx from 'clsx';
-import { isTypedMessage } from '../../utils/messageValidation';
 import styles from './IrisChatView.module.css';
 
 interface IrisChatViewProps {
@@ -57,78 +57,52 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
         previousContextId.current = currentId ?? null;
     }, [store.context?.id]);
 
-    // Message listener - handles messages from extension (uses legacy format with message.command)
+    // Message listener - handles messages from extension
     useEffect(() => {
         const handler = (event: MessageEvent<unknown>) => {
-            if (!isTypedMessage(event.data)) {
+            if (!isExtensionMessage(event.data)) {
                 return;
             }
 
-            const typedMessage = event.data;
-
-            switch (typedMessage.type) {
+            switch (event.data.type) {
                 case 'updateIrisState': {
-                    const stateMsg = typedMessage as { type: 'updateIrisState'; state: unknown; showDiagnostics?: unknown };
-                    if (stateMsg.state && typeof stateMsg.state === 'object') {
-                        store.setIrisState(stateMsg.state as IrisChatStateMessage['state']);
-                    }
-                    // Extract showDiagnostics flag if present
-                    if (typeof stateMsg.showDiagnostics === 'boolean') {
-                        store.setShowDiagnostics(stateMsg.showDiagnostics);
+                    store.setIrisState(event.data.state);
+                    if (event.data.showDiagnostics !== undefined) {
+                        store.setShowDiagnostics(event.data.showDiagnostics);
                     }
                     break;
                 }
 
                 case 'showContextPicker': {
-                    const pickerMsg = typedMessage as { type: 'showContextPicker'; state: unknown };
-                    if (pickerMsg.state && typeof pickerMsg.state === 'object') {
-                        store.setIrisState(pickerMsg.state as IrisChatStateMessage['state']);
-                    }
+                    store.setIrisState(event.data.state);
                     setForceContextPicker(true);
                     break;
                 }
 
                 case 'addMessage': {
-                    const addMsg = typedMessage as { type: 'addMessage'; message?: unknown };
-                    if (addMsg.message && typeof addMsg.message === 'object') {
-                        const msg = addMsg.message as { id?: number; role?: unknown; content?: unknown; timestamp?: unknown; helpful?: unknown };
-                        if ((msg.role === 'user' || msg.role === 'assistant') && typeof msg.content === 'string' && typeof msg.timestamp === 'number') {
-                            store.addMessage({
-                                id: msg.id,
-                                localId: crypto.randomUUID(),
-                                role: msg.role,
-                                content: msg.content,
-                                timestamp: msg.timestamp,
-                                helpful: typeof msg.helpful === 'boolean' ? msg.helpful : null,
-                                status: 'sent',
-                            });
-                        }
-                    }
+                    const msg = event.data.message;
+                    store.addMessage({
+                        id: msg.id,
+                        localId: crypto.randomUUID(),
+                        role: msg.role,
+                        content: msg.content,
+                        timestamp: msg.timestamp,
+                        helpful: msg.helpful ?? null,
+                        status: 'sent',
+                    });
                     break;
                 }
 
                 case 'loadMessages': {
-                    const loadMsg = typedMessage as { type: 'loadMessages'; messages?: unknown };
-                    if (Array.isArray(loadMsg.messages)) {
-                        store.setMessages(loadMsg.messages.map((m: unknown) => {
-                            if (typeof m !== 'object' || m === null) {
-                                return null;
-                            }
-                            const msg = m as { id?: number; role?: unknown; content?: unknown; timestamp?: unknown; helpful?: unknown };
-                            if ((msg.role === 'user' || msg.role === 'assistant') && typeof msg.content === 'string' && typeof msg.timestamp === 'number') {
-                                return {
-                                    id: msg.id,
-                                    localId: crypto.randomUUID(),
-                                    role: msg.role as 'user' | 'assistant', // Type guard confirms it's one of these
-                                    content: msg.content,
-                                    timestamp: msg.timestamp,
-                                    helpful: typeof msg.helpful === 'boolean' ? msg.helpful : null,
-                                    status: 'sent' as const,
-                                };
-                            }
-                            return null;
-                        }).filter((msg): msg is NonNullable<typeof msg> => msg !== null));
-                    }
+                    store.setMessages(event.data.messages.map((msg) => ({
+                        id: msg.id,
+                        localId: crypto.randomUUID(),
+                        role: msg.role,
+                        content: msg.content,
+                        timestamp: msg.timestamp,
+                        helpful: msg.helpful ?? null,
+                        status: 'sent' as const,
+                    })));
                     break;
                 }
 
@@ -137,32 +111,21 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
                     break;
 
                 case 'updateReferencedFiles': {
-                    const filesMsg = typedMessage as { type: 'updateReferencedFiles'; includedFiles?: unknown; excludedFiles?: unknown; totalCount?: unknown };
                     store.setReferencedFiles({
-                        includedFiles: Array.isArray(filesMsg.includedFiles) ? filesMsg.includedFiles.filter((f): f is string => typeof f === 'string') : [],
-                        excludedFiles: Array.isArray(filesMsg.excludedFiles)
-                            ? filesMsg.excludedFiles.filter((f: unknown): f is { path: string; reason?: string } => {
-                                return typeof f === 'object' && f !== null && 'path' in f && typeof (f as Record<string, unknown>).path === 'string';
-                            })
-                            : [],
-                        totalCount: typeof filesMsg.totalCount === 'number' ? filesMsg.totalCount : 0,
+                        includedFiles: event.data.includedFiles,
+                        excludedFiles: event.data.excludedFiles,
+                        totalCount: event.data.totalCount,
                     });
                     break;
                 }
 
                 case 'updateWebSocketStatus': {
-                    const wsMsg = typedMessage as { type: 'updateWebSocketStatus'; isConnected?: unknown };
-                    if (typeof wsMsg.isConnected === 'boolean') {
-                        store.setWebSocketConnected(wsMsg.isConnected);
-                    }
+                    store.setWebSocketConnected(event.data.isConnected);
                     break;
                 }
 
                 case 'showDisabledState': {
-                    const disMsg = typedMessage as { type: 'showDisabledState'; message?: unknown };
-                    if (typeof disMsg.message === 'string') {
-                        store.setDisabledMessage(disMsg.message);
-                    }
+                    store.setDisabledMessage(event.data.message);
                     break;
                 }
 
@@ -171,10 +134,7 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
                     break;
 
                 case 'updateNoAiStatus': {
-                    const noAiMsg = typedMessage as { type: 'updateNoAiStatus'; isNoAiDetected?: unknown };
-                    if (typeof noAiMsg.isNoAiDetected === 'boolean') {
-                        store.setNoAiDetected(noAiMsg.isNoAiDetected);
-                    }
+                    store.setNoAiDetected(event.data.isNoAiDetected);
                     break;
                 }
             }
@@ -198,15 +158,6 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
         });
     }, [forceContextPicker, vscodeApi]);
 
-    // Command dispatch helpers
-    const sendCommand = (command: string, payload?: Record<string, unknown>) => {
-        vscodeApi.postMessage({
-            type: 'command',
-            command,
-            payload: payload || {},
-        } as VsCodeApi extends { postMessage(message: infer M): void } ? M : never);
-    };
-
     const handleSendMessage = (text: string) => {
         const localId = crypto.randomUUID();
 
@@ -223,48 +174,48 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
         store.startStreaming(localId + '-response');
 
         // Send to extension
-        sendCommand('sendMessage', { text });
+        postCommand(vscodeApi, 'sendMessage', { text });
     };
 
     const handleFeedback = (messageId: string, feedback: 'positive' | 'negative') => {
         const activeSession = store.sessions.find(s => s.id === store.activeSessionId);
-        sendCommand('messageFeedback', {
-            sessionId: activeSession?.artemisSessionId,
-            messageId,
+        postCommand(vscodeApi, 'messageFeedback', {
+            sessionId: activeSession?.artemisSessionId as number,
+            messageId: messageId as unknown as number | string,
             feedback,
         });
     };
 
     const handleOpenFile = (path: string) => {
-        sendCommand('openFile', { filePath: path });
+        postCommand(vscodeApi, 'openFile', { filePath: path });
     };
 
     const handleResetSessions = () => {
         setSideMenuOpen(false);
-        sendCommand('resetChatSessions');
+        postCommand(vscodeApi, 'resetChatSessions');
     };
 
     const handleOpenHelp = () => {
         setSideMenuOpen(false);
-        sendCommand('openHelpPopup');
+        postCommand(vscodeApi, 'openHelpPopup');
     };
 
     const handleOpenDiagnostics = () => {
         setSideMenuOpen(false);
-        sendCommand('openDiagnostics');
+        postCommand(vscodeApi, 'openDiagnostics');
     };
 
     const handleDebugSessions = () => {
         setSideMenuOpen(false);
-        sendCommand('debugSessions');
+        postCommand(vscodeApi, 'debugSessions');
     };
 
     const handleOpenSettings = (setting?: string) => {
-        sendCommand('openSettings', setting ? { setting } : {});
+        postCommand(vscodeApi, 'openSettings', setting ? { setting } : {});
     };
 
     const handleReconnectWebSocket = () => {
-        sendCommand('reconnectWebSocket');
+        postCommand(vscodeApi, 'reconnectWebSocket');
     };
 
     // Check if chat is disabled
@@ -394,17 +345,17 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
                     allExercises={store.allExercises}
                     allCourses={store.allCourses}
                     onSelectContext={(type, id, title, shortName) => {
-                        sendCommand('selectChatContext', { context: type, itemId: id, itemName: title, itemShortName: shortName });
+                        postCommand(vscodeApi, 'selectChatContext', { context: type, itemId: id, itemName: title, itemShortName: shortName });
                         setForceContextPicker(false);
                     }}
                     onSelectSession={(sessionId) => {
-                        sendCommand('switchSession', { sessionId });
+                        postCommand(vscodeApi, 'switchSession', { sessionId });
                     }}
                     onCreateNewSession={() => {
-                        sendCommand('createNewSession');
+                        postCommand(vscodeApi, 'createNewSession');
                     }}
                     onSwitchToWorkspace={() => {
-                        sendCommand('switchToWorkspaceContext');
+                        postCommand(vscodeApi, 'switchToWorkspaceContext');
                         setForceContextPicker(false);
                     }}
                     onSwitchContext={() => {

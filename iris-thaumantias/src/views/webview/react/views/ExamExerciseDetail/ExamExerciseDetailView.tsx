@@ -21,7 +21,7 @@ import { ProblemStatement, ScoreInfo, TestResults } from '../ExerciseDetail/comp
 import type { ExamExerciseDetailViewProps } from './types';
 import type { ExerciseType } from '../../components/exercise/ParticipationActions';
 import type { BuildState } from '../../components/exercise/BuildProgress';
-import { isTypedMessage } from '../../utils/messageValidation';
+import { isExtensionMessage, postCommand } from '../../../../../shared/messageContracts';
 import { determineSubmissionStatus, determineParticipationStatus } from '../../utils/exerciseStatus';
 import styles from './ExamExerciseDetailView.module.css';
 
@@ -46,20 +46,13 @@ export function ExamExerciseDetailView({ vscodeApi }: ExamExerciseDetailViewProp
     // Load data on mount
     useEffect(() => {
         const handleMessage = (event: MessageEvent<unknown>) => {
-            if (!isTypedMessage(event.data)) {
+            if (!isExtensionMessage(event.data)) {
                 return;
             }
 
-            const typedMessage = event.data;
-
-            if (typedMessage.type === 'examExerciseDetailInit') {
-                const eedMsg = typedMessage as unknown as { exerciseData: unknown; examContext: unknown; hideDeveloperTools: unknown };
-                setExerciseData(eedMsg.exerciseData as Parameters<typeof setExerciseData>[0], eedMsg.hideDeveloperTools as boolean);
-                setExamExerciseData({
-                    exerciseData: eedMsg.exerciseData,
-                    examContext: eedMsg.examContext,
-                    hideDeveloperTools: eedMsg.hideDeveloperTools,
-                } as Parameters<typeof setExamExerciseData>[0]);
+            if (event.data.type === 'examExerciseDetailInit') {
+                setExerciseData(event.data.exerciseData, event.data.hideDeveloperTools);
+                setExamExerciseData(event.data as Parameters<typeof setExamExerciseData>[0]);
             }
         };
 
@@ -98,7 +91,7 @@ export function ExamExerciseDetailView({ vscodeApi }: ExamExerciseDetailViewProp
     }, [examContext]);
 
     const handleBackToExam = () => {
-        vscodeApi.postMessage({ type: 'command', command: 'backToExam' });
+        postCommand(vscodeApi, 'backToExam');
     };
 
     const handleReload = () => {
@@ -110,7 +103,7 @@ export function ExamExerciseDetailView({ vscodeApi }: ExamExerciseDetailViewProp
 
     const handleRetry = () => {
         setError(null);
-        vscodeApi.postMessage({ type: 'ready' });
+        vscodeApi.postMessage({ type: 'ready' } as Parameters<typeof vscodeApi.postMessage>[0]);
     };
 
     const loading = examLoading || exerciseLoading;
@@ -212,48 +205,28 @@ export function ExamExerciseDetailView({ vscodeApi }: ExamExerciseDetailViewProp
                     isExamExercise={true}
                     onStart={() => {
                         if (exercise.id === undefined) return;
-                        vscodeApi.postMessage({
-                            type: 'command',
-                            command: 'startExercise',
-                            payload: { exerciseId: exercise.id },
-                        });
+                        postCommand(vscodeApi, 'startExercise', { exerciseId: exercise.id });
                     }}
                     onSubmit={() => {
                         if (participationId) {
-                            vscodeApi.postMessage({
-                                type: 'command',
-                                command: 'submitExercise',
-                                payload: { participationId },
-                            });
+                            postCommand(vscodeApi, 'submitExercise', { participationId });
                         }
                     }}
                     onClone={() => {
                         if (participationId && repositoryUri) {
-                            vscodeApi.postMessage({
-                                type: 'command',
-                                command: 'cloneRepository',
-                                payload: {
-                                    participationId,
-                                    repositoryUri,
-                                    exerciseTitle: exercise.title || 'Exercise',
-                                },
+                            postCommand(vscodeApi, 'cloneRepository', {
+                                participationId,
+                                repositoryUri,
+                                exerciseTitle: exercise.title || 'Exercise',
                             });
                         }
                     }}
                     onOpenRepository={() => {
-                        vscodeApi.postMessage({
-                            type: 'command',
-                            command: 'openRepository',
-                            payload: { repositoryUri },
-                        });
+                        postCommand(vscodeApi, 'openRepository', { repositoryUri });
                     }}
                     onStartPractice={() => {
                         if (exercise.id === undefined) return;
-                        vscodeApi.postMessage({
-                            type: 'command',
-                            command: 'startPractice',
-                            payload: { exerciseId: exercise.id },
-                        });
+                        postCommand(vscodeApi, 'startPractice', { exerciseId: exercise.id });
                     }}
                 />
 

@@ -1,9 +1,8 @@
 import { useEffect, useState } from 'react';
-import type { RecommendedExtensionsInitMessage } from '../../../../../shared/messageContracts';
+import { isExtensionMessage, postCommand } from '../../../../../shared/messageContracts';
 import { BackLink, Container, Button, Badge, PageHeader, SkeletonList } from '../../components';
 import styles from './RecommendedExtensionsView.module.css';
 import type { RecommendedExtensionsViewProps, ExtensionCategory, Extension, RecommendedExtensionsPersistedState } from './types';
-import { isTypedMessage } from '../../utils/messageValidation';
 
 export function RecommendedExtensionsView({ vscodeApi }: RecommendedExtensionsViewProps) {
     const [categories, setCategories] = useState<ExtensionCategory[]>([]);
@@ -28,13 +27,12 @@ export function RecommendedExtensionsView({ vscodeApi }: RecommendedExtensionsVi
     // Message handler
     useEffect(() => {
         const handleMessage = (event: MessageEvent<unknown>) => {
-            if (!isTypedMessage(event.data)) {
+            if (!isExtensionMessage(event.data)) {
                 return;
             }
 
             if (event.data.type === 'recommendedExtensionsInit') {
-                const initMsg = event.data as unknown as RecommendedExtensionsInitMessage;
-                setCategories(initMsg.categories);
+                setCategories(event.data.categories);
                 setIsLoaded(true);
             }
         };
@@ -44,10 +42,7 @@ export function RecommendedExtensionsView({ vscodeApi }: RecommendedExtensionsVi
     }, []);
 
     const handleBackToDashboard = () => {
-        vscodeApi.postMessage({
-            type: 'command',
-            command: 'backToDashboard'
-        });
+        postCommand(vscodeApi, 'backToDashboard');
     };
 
     const handleCategoryFilter = (categoryId: string) => {
@@ -55,11 +50,7 @@ export function RecommendedExtensionsView({ vscodeApi }: RecommendedExtensionsVi
     };
 
     const handleViewInMarketplace = (extensionId: string) => {
-        vscodeApi.postMessage({
-            type: 'command',
-            command: 'searchMarketplace',
-            payload: { extensionId }
-        });
+        postCommand(vscodeApi, 'searchMarketplace', { extensionId });
     };
 
     // Filter categories based on selection
