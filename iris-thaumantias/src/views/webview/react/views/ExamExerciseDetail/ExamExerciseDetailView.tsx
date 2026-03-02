@@ -11,6 +11,7 @@ import {
     ErrorMessage,
     ReconnectBanner,
 } from '../../components';
+import { PageHeader } from '../../components/PageHeader/PageHeader';
 import {
     SubmissionStatus,
     ParticipationActions,
@@ -230,9 +231,7 @@ export function ExamExerciseDetailView({ vscodeApi }: ExamExerciseDetailViewProp
             </div>
 
             {/* Exercise Title */}
-            <div className={styles.exerciseTitle}>
-                <h2>{exercise.title}</h2>
-            </div>
+            <PageHeader title={exercise.title || 'Exercise'} />
 
             {/* Participation Section */}
             <Container id="participation-section">

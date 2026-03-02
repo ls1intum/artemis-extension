@@ -15,16 +15,6 @@
     border-bottom: 1px solid var(--vscode-panel-border);
 }
 
-.exerciseTitle {
-    margin-bottom: 1rem;
-}
-
-.exerciseTitle h2 {
-    margin: 0;
-    font-size: 1.5rem;
-    font-weight: 600;
-}
-
 @media (max-width: 768px) {
     .timerHeader {
         flex-direction: column;

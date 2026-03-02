@@ -3,24 +3,3 @@
     flex-direction: column;
     gap: var(--theme-view-gap);
 }
-
-.actionButtons {
-    display: flex;
-    gap: 8px;
-    justify-content: flex-end;
-    margin-bottom: 16px;
-}
-
-.examHeader {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    margin-bottom: 8px;
-}
-
-.examTitle {
-    margin: 0;
-    font-size: 24px;
-    font-weight: 600;
-    color: var(--vscode-foreground);
-}
