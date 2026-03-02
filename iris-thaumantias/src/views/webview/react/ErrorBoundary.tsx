@@ -1,10 +1,5 @@
 import React from 'react';
-
-interface VsCodeApi {
-	postMessage(message: unknown): void;
-	getState(): unknown;
-	setState(state: unknown): void;
-}
+import type { VsCodeApi } from '../../../shared/messageContracts';
 
 interface ErrorBoundaryProps {
 	children: React.ReactNode;
@@ -37,7 +32,7 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
 			payload: {
 				message: error.message,
 				stack: error.stack,
-				componentStack: errorInfo.componentStack,
+				componentStack: errorInfo.componentStack ?? undefined,
 			},
 		});
 	}

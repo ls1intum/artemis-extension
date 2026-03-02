@@ -12,7 +12,6 @@ import { PageHeader } from '../../components/PageHeader/PageHeader';
 import { Badge } from '../../components/Badge/Badge';
 import { IconButton } from '../../components/Button/IconButton';
 import { isExtensionMessage, postCommand } from '../../../../../shared/messageContracts';
-import type { ExerciseDetail } from '../../../../../shared/messageContracts';
 import styles from './ExamConductionView.module.css';
 
 /**
@@ -97,22 +96,9 @@ export function ExamConductionView({ vscodeApi }: ExamConductionViewProps) {
         );
     }
 
-    interface ExamData {
-        exam?: {
-            testExam?: boolean;
-            title?: string;
-        };
-        exercises?: Array<{
-            id: number;
-            title?: string;
-            type?: string;
-            maxPoints?: number;
-        }>;
-    }
-    const studentExam = store.studentExam as ExamData;
-    const exam = studentExam.exam || {};
+    const studentExam = store.studentExam;
     const exercises = studentExam.exercises || [];
-    const isTestExam = exam.testExam === true;
+    const isTestExam = (studentExam.exam as Record<string, unknown> | undefined)?.testExam === true;
 
     // Check if timer expired
     const timerExpired = store.endTime ? Date.now() >= store.endTime : false;
@@ -120,7 +106,7 @@ export function ExamConductionView({ vscodeApi }: ExamConductionViewProps) {
 
     const handleExerciseClick = (exerciseIndex: number) => {
         postCommand(vscodeApi, 'openExamExerciseDetails', {
-            exercise: exercises[exerciseIndex] as unknown as ExerciseDetail,
+            exercise: exercises[exerciseIndex],
             exerciseIndex,
             courseId: store.courseId!,
             examId: store.examId!,
@@ -171,7 +157,7 @@ export function ExamConductionView({ vscodeApi }: ExamConductionViewProps) {
                 />
             )}
 
-            <PageHeader title={exam.title || 'Exam'}>
+            <PageHeader title={studentExam.exam?.title || 'Exam'}>
                 {isTestExam && (
                     <Badge variant="warning">Test Exam</Badge>
                 )}

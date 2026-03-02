@@ -7,7 +7,7 @@ export type { ExerciseDetail } from '../../types/apiResponses';
 
 export interface CourseData {
     course: {
-        id: number;
+        id?: number;
         title: string;
         description?: string;
         semester?: string;
@@ -15,7 +15,14 @@ export interface CourseData {
         exercises?: Exercise[];
         numberOfStudents?: number;
         instructorGroupName?: string;
+        startDate?: string;
+        creationDate?: string;
     };
+}
+
+export interface RecentCourseNode {
+    courseData: CourseData;
+    exercises: Exercise[];
 }
 
 export interface Exercise {

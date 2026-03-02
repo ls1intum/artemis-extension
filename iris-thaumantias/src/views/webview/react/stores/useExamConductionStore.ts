@@ -1,8 +1,9 @@
 import { create } from 'zustand';
 import { devtools } from 'zustand/middleware';
+import type { StudentExam } from '../../../../types/apiResponses';
 
 interface ExamConductionState {
-    studentExam: unknown | null;
+    studentExam: StudentExam | null;
     courseId: number | null;
     examId: number | null;
     endTime: number | null;
@@ -15,7 +16,7 @@ interface ExamConductionState {
 
 interface ExamConductionActions {
     setExamData: (payload: {
-        studentExam: unknown;
+        studentExam: StudentExam;
         courseId: number;
         examId: number;
         endTime: number;

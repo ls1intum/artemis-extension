@@ -1,17 +1,11 @@
 import { ListItem } from '../../../components/ListItem/ListItem';
 import { Badge } from '../../../components/Badge/Badge';
 import { getIcon } from '../../../../../../utils/iconMap';
+import type { ExerciseDetail } from '../../../../../../shared/messageContracts';
 import styles from './ExerciseList.module.css';
 
-interface Exercise {
-    id: number;
-    title?: string;
-    type?: string;
-    maxPoints?: number;
-}
-
 interface ExerciseListProps {
-    exercises: Exercise[];
+    exercises: ExerciseDetail[];
     workspaceExerciseId: number | null;
     onExerciseClick: (index: number) => void;
 }

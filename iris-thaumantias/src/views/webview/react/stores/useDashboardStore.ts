@@ -1,30 +1,8 @@
 import { create } from 'zustand';
 import { devtools } from 'zustand/middleware';
-import type { VsCodeApi } from '../../../../shared/messageContracts';
+import type { VsCodeApi, RecentCourseNode } from '../../../../shared/messageContracts';
 
-export interface Exercise {
-    id?: number;
-    title?: string;
-    type?: string;
-    releaseDate?: string;
-    startDate?: string;
-    dueDate?: string;
-}
-
-export interface CourseData {
-    course: {
-        id?: number;
-        title: string;
-        exercises?: Exercise[];
-        startDate?: string;
-        creationDate?: string;
-    };
-}
-
-export interface RecentCourseNode {
-    courseData: CourseData;
-    exercises: Exercise[];
-}
+export type { RecentCourseNode } from '../../../../shared/messageContracts';
 
 interface DashboardState {
     recentCourses: RecentCourseNode[];

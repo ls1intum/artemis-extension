@@ -8,7 +8,7 @@ import type {
     ResultSummary,
     SubmissionSummary,
 } from '../../types/apiResponses';
-import type { CourseData, ArchivedCourse, CourseDetailData } from './domainTypes';
+import type { CourseData, ArchivedCourse, CourseDetailData, RecentCourseNode } from './domainTypes';
 
 /** All Extension->Webview message types (const object for string-literal compatibility) */
 export const ExtensionMsg = {
@@ -87,32 +87,7 @@ interface ExtensionMsgPayloads {
     // View initialization
     init: { view: string; payload: Record<string, unknown> };
     dashboardInit: {
-        courses: Array<{
-            courseData: {
-                course: {
-                    id?: number;
-                    title: string;
-                    exercises?: Array<{
-                        id?: number;
-                        title?: string;
-                        type?: string;
-                        releaseDate?: string;
-                        startDate?: string;
-                        dueDate?: string;
-                    }>;
-                    startDate?: string;
-                    creationDate?: string;
-                };
-            };
-            exercises: Array<{
-                id?: number;
-                title?: string;
-                type?: string;
-                releaseDate?: string;
-                startDate?: string;
-                dueDate?: string;
-            }>;
-        }>;
+        courses: RecentCourseNode[];
         workspaceExercise?: {
             id: number;
             title: string;
