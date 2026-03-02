@@ -115,10 +115,8 @@ describe('Exercise Submission Flow', () => {
 
 		dispatchExtensionMessage({
 			type: 'exerciseDetailInit',
-			payload: {
-				exerciseData: makeExerciseData(),
-				hideDeveloperTools: false,
-			},
+			exerciseData: makeExerciseData(),
+			hideDeveloperTools: false,
 		});
 
 		await waitFor(() => {
@@ -132,10 +130,8 @@ describe('Exercise Submission Flow', () => {
 
 		dispatchExtensionMessage({
 			type: 'exerciseDetailInit',
-			payload: {
-				exerciseData: makeExerciseData(),
-				hideDeveloperTools: false,
-			},
+			exerciseData: makeExerciseData(),
+			hideDeveloperTools: false,
 		});
 
 		await waitFor(() => {
@@ -153,10 +149,8 @@ describe('Exercise Submission Flow', () => {
 
 		dispatchExtensionMessage({
 			type: 'exerciseDetailInit',
-			payload: {
-				exerciseData: makeExerciseData(),
-				hideDeveloperTools: false,
-			},
+			exerciseData: makeExerciseData(),
+			hideDeveloperTools: false,
 		});
 
 		await waitFor(() => {
@@ -182,10 +176,8 @@ describe('Exercise Submission Flow', () => {
 		// Simulate exercise with participation (started)
 		dispatchExtensionMessage({
 			type: 'exerciseDetailInit',
-			payload: {
-				exerciseData: makeExerciseDataWithParticipation(),
-				hideDeveloperTools: false,
-			},
+			exerciseData: makeExerciseDataWithParticipation(),
+			hideDeveloperTools: false,
 		});
 
 		await waitFor(() => {
@@ -200,10 +192,8 @@ describe('Exercise Submission Flow', () => {
 
 		dispatchExtensionMessage({
 			type: 'exerciseDetailInit',
-			payload: {
-				exerciseData: makeExerciseDataWithParticipation(),
-				hideDeveloperTools: false,
-			},
+			exerciseData: makeExerciseDataWithParticipation(),
+			hideDeveloperTools: false,
 		});
 
 		await waitFor(() => {
@@ -234,10 +224,8 @@ describe('Exercise Submission Flow', () => {
 
 		dispatchExtensionMessage({
 			type: 'exerciseDetailInit',
-			payload: {
-				exerciseData: dataWithPending,
-				hideDeveloperTools: false,
-			},
+			exerciseData: dataWithPending,
+			hideDeveloperTools: false,
 		});
 
 		await waitFor(() => {
@@ -259,10 +247,8 @@ describe('Exercise Submission Flow', () => {
 		// Step 1: Load exercise with participation (already started)
 		dispatchExtensionMessage({
 			type: 'exerciseDetailInit',
-			payload: {
-				exerciseData: makeExerciseDataWithParticipation(),
-				hideDeveloperTools: false,
-			},
+			exerciseData: makeExerciseDataWithParticipation(),
+			hideDeveloperTools: false,
 		});
 
 		await waitFor(() => {
@@ -288,13 +274,11 @@ describe('Exercise Submission Flow', () => {
 
 		dispatchExtensionMessage({
 			type: 'exerciseDetailInit',
-			payload: {
-				exerciseData: {
-					...makeExerciseDataWithParticipation(),
-					pendingSubmission: { submissionId: 500 },
-				},
-				hideDeveloperTools: false,
+			exerciseData: {
+				...makeExerciseDataWithParticipation(),
+				pendingSubmission: { submissionId: 500 },
 			},
+			hideDeveloperTools: false,
 		});
 
 		await vi.advanceTimersByTimeAsync(100);
@@ -302,10 +286,8 @@ describe('Exercise Submission Flow', () => {
 		// Step 4: Simulate build complete with results
 		dispatchExtensionMessage({
 			type: 'exerciseDetailInit',
-			payload: {
-				exerciseData: makeExerciseDataWithResults(),
-				hideDeveloperTools: false,
-			},
+			exerciseData: makeExerciseDataWithResults(),
+			hideDeveloperTools: false,
 		});
 
 		await vi.advanceTimersByTimeAsync(100);
@@ -326,10 +308,8 @@ describe('Exercise Submission Flow', () => {
 
 		dispatchExtensionMessage({
 			type: 'exerciseDetailInit',
-			payload: {
-				exerciseData: makeExerciseDataWithResults(),
-				hideDeveloperTools: false,
-			},
+			exerciseData: makeExerciseDataWithResults(),
+			hideDeveloperTools: false,
 		});
 
 		await waitFor(() => {

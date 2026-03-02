@@ -45,9 +45,7 @@ describe('CourseListView', () => {
 
 		dispatchExtensionMessage({
 			type: 'courseListInit',
-			payload: {
-				courses: [makeCourseData({ title: 'Algorithms', id: 1 })],
-			},
+			courses: [makeCourseData({ title: 'Algorithms', id: 1 })],
 		});
 
 		await waitFor(() => {
@@ -61,9 +59,7 @@ describe('CourseListView', () => {
 
 		dispatchExtensionMessage({
 			type: 'courseListInit',
-			payload: {
-				courses: [makeCourseData({ title: 'Software Engineering', semester: 'WS24/25', id: 2 })],
-			},
+			courses: [makeCourseData({ title: 'Software Engineering', semester: 'WS24/25', id: 2 })],
 		});
 
 		await waitFor(() => {
@@ -80,9 +76,7 @@ describe('CourseListView', () => {
 
 		dispatchExtensionMessage({
 			type: 'courseListInit',
-			payload: {
-				courses: [makeCourseData({ title: 'Click Me Course', id: 42 })],
-			},
+			courses: [makeCourseData({ title: 'Click Me Course', id: 42 })],
 		});
 
 		await waitFor(() => {
@@ -105,7 +99,7 @@ describe('CourseListView', () => {
 
 		dispatchExtensionMessage({
 			type: 'courseListInit',
-			payload: { courses: [] },
+			courses: [],
 		});
 
 		await waitFor(() => {
@@ -144,19 +138,17 @@ describe('CourseListView', () => {
 
 		dispatchExtensionMessage({
 			type: 'courseListInit',
-			payload: {
-				courses: [
-					makeCourseData({
-						title: 'Course with Exercises',
-						id: 10,
-						exercises: [
-							{ id: 1, title: 'Ex1' },
-							{ id: 2, title: 'Ex2' },
-							{ id: 3, title: 'Ex3' },
-						],
-					}),
-				],
-			},
+			courses: [
+				makeCourseData({
+					title: 'Course with Exercises',
+					id: 10,
+					exercises: [
+						{ id: 1, title: 'Ex1' },
+						{ id: 2, title: 'Ex2' },
+						{ id: 3, title: 'Ex3' },
+					],
+				}),
+			],
 		});
 
 		await waitFor(() => {
@@ -170,7 +162,7 @@ describe('CourseListView', () => {
 
 		dispatchExtensionMessage({
 			type: 'courseListInit',
-			payload: { courses: [makeCourseData({ id: 1 })] },
+			courses: [makeCourseData({ id: 1 })],
 		});
 
 		await waitFor(() => {
@@ -184,12 +176,10 @@ describe('CourseListView', () => {
 
 		dispatchExtensionMessage({
 			type: 'courseListInit',
-			payload: {
-				courses: [
-					makeCourseData({ title: 'Algorithms', id: 1 }),
-					makeCourseData({ title: 'Biology 101', id: 2 }),
-				],
-			},
+			courses: [
+				makeCourseData({ title: 'Algorithms', id: 1 }),
+				makeCourseData({ title: 'Biology 101', id: 2 }),
+			],
 		});
 
 		await waitFor(() => {
@@ -211,7 +201,7 @@ describe('CourseListView', () => {
 
 		dispatchExtensionMessage({
 			type: 'courseListInit',
-			payload: { courses: [makeCourseData({ id: 1 })] },
+			courses: [makeCourseData({ id: 1 })],
 		});
 
 		await waitFor(() => {
@@ -225,7 +215,7 @@ describe('CourseListView', () => {
 
 		dispatchExtensionMessage({
 			type: 'courseListInit',
-			payload: { courses: [makeCourseData({ id: 1 })] },
+			courses: [makeCourseData({ id: 1 })],
 		});
 
 		await waitFor(() => {

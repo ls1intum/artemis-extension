@@ -57,7 +57,7 @@ suite('ChatContextManager Test Suite', () => {
             assert.strictEqual(snapshot.activeContext.shortName, 'EX123');
             assert.strictEqual(snapshot.activeContext.source, 'user-selected');
 
-            assert.ok(postMessageSpy.calledWith({ command: 'clearChatMessages' }));
+            assert.ok(postMessageSpy.calledWith({ type: 'clearChatMessages' }));
             assert.ok(showInformationMessageStub.calledWith('Exercise context set to: Test Exercise'));
             assert.ok(chatSessionService.loadAllSessionsForContext.calledOnce);
         });
@@ -72,7 +72,7 @@ suite('ChatContextManager Test Suite', () => {
             assert.strictEqual(snapshot.activeContext.title, 'Test Course');
             assert.strictEqual(snapshot.activeContext.shortName, 'CS101');
 
-            assert.ok(postMessageSpy.calledWith({ command: 'clearChatMessages' }));
+            assert.ok(postMessageSpy.calledWith({ type: 'clearChatMessages' }));
             assert.ok(showInformationMessageStub.calledWith('Course context set to: Test Course'));
         });
 
@@ -118,7 +118,7 @@ suite('ChatContextManager Test Suite', () => {
         test('should clear chat messages on context change', () => {
             chatContextManager.handleContextSelection('exercise', 123, 'Test Exercise');
 
-            assert.ok(postMessageSpy.calledWith({ command: 'clearChatMessages' }));
+            assert.ok(postMessageSpy.calledWith({ type: 'clearChatMessages' }));
         });
 
         test('should handle lecture context selection', () => {
@@ -156,7 +156,7 @@ suite('ChatContextManager Test Suite', () => {
             assert.strictEqual(snapshot.activeContext.id, 101);
             assert.strictEqual(snapshot.activeContext.source, 'user-selected');
 
-            assert.ok(postMessageSpy.calledWith({ command: 'clearChatMessages' }));
+            assert.ok(postMessageSpy.calledWith({ type: 'clearChatMessages' }));
             assert.ok(chatSessionService.loadAllSessionsForContext.calledOnce);
         });
 
@@ -203,7 +203,7 @@ suite('ChatContextManager Test Suite', () => {
             assert.strictEqual(snapshot.activeContext.id, 123);
             assert.strictEqual(snapshot.activeContext.source, 'user-selected');
 
-            assert.ok(postMessageSpy.calledWith({ command: 'clearChatMessages' }));
+            assert.ok(postMessageSpy.calledWith({ type: 'clearChatMessages' }));
             assert.ok(showInformationMessageStub.called);
             assert.ok(chatSessionService.loadAllSessionsForContext.calledOnce);
         });
@@ -465,7 +465,7 @@ suite('ChatContextManager Test Suite', () => {
 
             // Should clear twice
             const clearCalls = postMessageSpy.getCalls().filter(
-                call => call.args[0].command === 'clearChatMessages'
+                call => call.args[0].type === 'clearChatMessages'
             );
             assert.strictEqual(clearCalls.length, 2);
         });

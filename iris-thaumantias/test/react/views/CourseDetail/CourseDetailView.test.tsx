@@ -52,9 +52,7 @@ describe('CourseDetailView', () => {
 
 		dispatchExtensionMessage({
 			type: 'courseDetailInit',
-			payload: {
-				courseData: makeCourseDetailData({ title: 'Advanced Algorithms', id: 10 }),
-			},
+			courseData: makeCourseDetailData({ title: 'Advanced Algorithms', id: 10 }),
 		});
 
 		await waitFor(() => {
@@ -68,13 +66,11 @@ describe('CourseDetailView', () => {
 
 		dispatchExtensionMessage({
 			type: 'courseDetailInit',
-			payload: {
-				courseData: makeCourseDetailData({
-					title: 'My Course',
-					description: 'This is a detailed description',
-					id: 5,
-				}),
-			},
+			courseData: makeCourseDetailData({
+				title: 'My Course',
+				description: 'This is a detailed description',
+				id: 5,
+			}),
 		});
 
 		await waitFor(() => {
@@ -88,16 +84,14 @@ describe('CourseDetailView', () => {
 
 		dispatchExtensionMessage({
 			type: 'courseDetailInit',
-			payload: {
-				courseData: makeCourseDetailData({
-					title: 'Course With Exercises',
-					id: 1,
-					exercises: [
-						{ id: 101, title: 'Exercise One', type: 'programming' },
-						{ id: 102, title: 'Exercise Two', type: 'quiz' },
-					],
-				}),
-			},
+			courseData: makeCourseDetailData({
+				title: 'Course With Exercises',
+				id: 1,
+				exercises: [
+					{ id: 101, title: 'Exercise One', type: 'programming' },
+					{ id: 102, title: 'Exercise Two', type: 'quiz' },
+				],
+			}),
 		});
 
 		await waitFor(() => {
@@ -112,13 +106,11 @@ describe('CourseDetailView', () => {
 
 		dispatchExtensionMessage({
 			type: 'courseDetailInit',
-			payload: {
-				courseData: makeCourseDetailData({
-					title: 'Course',
-					id: 1,
-					exercises: [{ id: 999, title: 'Clickable Exercise', type: 'programming' }],
-				}),
-			},
+			courseData: makeCourseDetailData({
+				title: 'Course',
+				id: 1,
+				exercises: [{ id: 999, title: 'Clickable Exercise', type: 'programming' }],
+			}),
 		});
 
 		await waitFor(() => {
@@ -164,9 +156,7 @@ describe('CourseDetailView', () => {
 
 		dispatchExtensionMessage({
 			type: 'courseDetailInit',
-			payload: {
-				courseData: makeCourseDetailData({ title: 'Empty Course', id: 1, exercises: [] }),
-			},
+			courseData: makeCourseDetailData({ title: 'Empty Course', id: 1, exercises: [] }),
 		});
 
 		await waitFor(() => {
@@ -180,20 +170,18 @@ describe('CourseDetailView', () => {
 
 		dispatchExtensionMessage({
 			type: 'courseDetailInit',
-			payload: {
-				courseData: makeCourseDetailData({
-					title: 'Course With Exam',
-					id: 1,
-					exams: [
-						{
-							id: 201,
-							title: 'Midterm Exam',
-							startDate: '2025-06-15T09:00:00Z',
-							endDate: '2025-06-15T12:00:00Z',
-						},
-					],
-				}),
-			},
+			courseData: makeCourseDetailData({
+				title: 'Course With Exam',
+				id: 1,
+				exams: [
+					{
+						id: 201,
+						title: 'Midterm Exam',
+						startDate: '2025-06-15T09:00:00Z',
+						endDate: '2025-06-15T12:00:00Z',
+					},
+				],
+			}),
 		});
 
 		await waitFor(() => {
@@ -207,20 +195,18 @@ describe('CourseDetailView', () => {
 
 		dispatchExtensionMessage({
 			type: 'courseDetailInit',
-			payload: {
-				courseData: makeCourseDetailData({
-					title: 'Course',
-					id: 5,
-					exams: [
-						{
-							id: 300,
-							title: 'Final Exam',
-							startDate: '2025-07-01T10:00:00Z',
-							endDate: '2025-07-01T13:00:00Z',
-						},
-					],
-				}),
-			},
+			courseData: makeCourseDetailData({
+				title: 'Course',
+				id: 5,
+				exams: [
+					{
+						id: 300,
+						title: 'Final Exam',
+						startDate: '2025-07-01T10:00:00Z',
+						endDate: '2025-07-01T13:00:00Z',
+					},
+				],
+			}),
 		});
 
 		await waitFor(() => {
@@ -244,9 +230,7 @@ describe('CourseDetailView', () => {
 
 		dispatchExtensionMessage({
 			type: 'courseDetailInit',
-			payload: {
-				courseData: makeCourseDetailData({ title: 'Course', id: 1, semester: 'WS24/25' }),
-			},
+			courseData: makeCourseDetailData({ title: 'Course', id: 1, semester: 'WS24/25' }),
 		});
 
 		await waitFor(() => {
@@ -260,16 +244,14 @@ describe('CourseDetailView', () => {
 
 		dispatchExtensionMessage({
 			type: 'courseDetailInit',
-			payload: {
-				courseData: makeCourseDetailData({
-					title: 'Course',
-					id: 1,
-					exercises: [
-						{ id: 1, title: 'Sorting Algorithm', type: 'programming' },
-						{ id: 2, title: 'Graph Theory', type: 'quiz' },
-					],
-				}),
-			},
+			courseData: makeCourseDetailData({
+				title: 'Course',
+				id: 1,
+				exercises: [
+					{ id: 1, title: 'Sorting Algorithm', type: 'programming' },
+					{ id: 2, title: 'Graph Theory', type: 'quiz' },
+				],
+			}),
 		});
 
 		await waitFor(() => {

@@ -8,7 +8,7 @@ import { createMockVsCodeApi, dispatchExtensionMessage } from '../../__helpers__
 function initView(serverUrl = '') {
 	dispatchExtensionMessage({
 		type: 'serviceStatusInit',
-		payload: { serverUrl },
+		serverUrl,
 	});
 }
 
@@ -88,10 +88,8 @@ describe('ServiceStatusView', () => {
 
 		dispatchExtensionMessage({
 			type: 'healthCheckResults',
-			payload: {
-				results: {
-					serverReachability: { status: 'online', message: 'OK', endpoint: '/health', httpStatus: 200, response: null },
-				},
+			results: {
+				serverReachability: { status: 'online', message: 'OK', endpoint: '/health', httpStatus: 200, response: null },
 			},
 		});
 

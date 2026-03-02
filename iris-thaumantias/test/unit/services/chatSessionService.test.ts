@@ -395,10 +395,10 @@ suite('ChatSessionService Test Suite', () => {
             await chatSessionService.loadAllSessionsForContext();
 
             assert.ok(postMessageSpy.calledWith(
-                sinon.match({ command: 'clearChatMessages' })
+                sinon.match({ type: 'clearChatMessages' })
             ));
             assert.ok(postMessageSpy.calledWith(
-                sinon.match({ command: 'showDisabledState' })
+                sinon.match({ type: 'showDisabledState' })
             ));
         });
 
@@ -658,7 +658,7 @@ suite('ChatSessionService Test Suite', () => {
             await chatSessionService.loadAllSessionsForContext();
 
             assert.ok(postMessageSpy.calledWith(
-                sinon.match({ command: 'hideDisabledState' })
+                sinon.match({ type: 'hideDisabledState' })
             ));
         });
     });

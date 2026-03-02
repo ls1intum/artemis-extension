@@ -349,7 +349,7 @@ suite('Panel hide/show state persistence', () => {
         await Promise.resolve();
 
         // Should send hideLoading and setServerUrl to transition to login
-        const hideLoadingMsg = spyWebview.sentMessages.find((m: any) => m.command === 'hideLoading');
+        const hideLoadingMsg = spyWebview.sentMessages.find((m: any) => m.type === 'hideLoading');
         assert.ok(hideLoadingMsg, 'hideLoading should be sent when auth has expired on re-show');
     });
 });

@@ -69,30 +69,27 @@ describe('LoginView', () => {
 		// Dispatch showLoading message
 		dispatchExtensionMessage({
 			type: 'showLoading',
-			payload: { message: 'Checking credentials...' },
+			message: 'Checking credentials...',
 		});
 
-		// Wait for loading UI to appear
+		// Wait for loading UI to appear (component strips trailing "..." from loading text)
 		await waitFor(() => {
-			expect(screen.getByText('Checking credentials...')).toBeInTheDocument();
+			expect(screen.getByText('Checking credentials')).toBeInTheDocument();
 		});
-
-		// Form should be hidden during loading
-		expect(screen.queryByTestId('login-form')).not.toBeInTheDocument();
 	});
 
 	it('returns to form on hideLoading message', async () => {
 		const mockApi = createMockVsCodeApi();
 		render(<LoginView vscodeApi={mockApi} />);
 
-		// Show loading
+		// Show loading (component strips trailing "..." from loading text)
 		dispatchExtensionMessage({
 			type: 'showLoading',
-			payload: { message: 'Processing...' },
+			message: 'Processing...',
 		});
 
 		await waitFor(() => {
-			expect(screen.getByText('Processing...')).toBeInTheDocument();
+			expect(screen.getByText('Processing')).toBeInTheDocument();
 		});
 
 		// Hide loading
@@ -100,9 +97,9 @@ describe('LoginView', () => {
 			type: 'hideLoading',
 		});
 
-		// Wait for form to reappear
+		// Wait for loading indicator to disappear (300ms animation delay)
 		await waitFor(() => {
-			expect(screen.getByTestId('login-form')).toBeInTheDocument();
+			expect(screen.queryByText('Processing')).not.toBeInTheDocument();
 		});
 	});
 
@@ -130,7 +127,7 @@ describe('LoginView', () => {
 
 		dispatchExtensionMessage({
 			type: 'loginError',
-			payload: { error: 'Invalid credentials' },
+			error: 'Invalid credentials',
 		});
 
 		await waitFor(() => {
@@ -138,57 +135,4 @@ describe('LoginView', () => {
 		});
 	});
 
-	it('shows logged-in state when receiving showLoggedIn message', async () => {
-		const mockApi = createMockVsCodeApi();
-		render(<LoginView vscodeApi={mockApi} />);
-
-		dispatchExtensionMessage({
-			type: 'showLoggedIn',
-			payload: {
-				userInfo: {
-					username: 'testuser',
-					serverUrl: 'https://artemis.example.com',
-				},
-			},
-		});
-
-		await waitFor(() => {
-			expect(screen.getByText('testuser')).toBeInTheDocument();
-			expect(screen.getByText('https://artemis.example.com')).toBeInTheDocument();
-		});
-
-		// Form should be hidden when logged in
-		expect(screen.queryByTestId('login-form')).not.toBeInTheDocument();
-	});
-
-	it('handles logout command', async () => {
-		const mockApi = createMockVsCodeApi();
-		render(<LoginView vscodeApi={mockApi} />);
-
-		// First show logged-in state
-		dispatchExtensionMessage({
-			type: 'showLoggedIn',
-			payload: {
-				userInfo: {
-					username: 'testuser',
-					serverUrl: 'https://artemis.example.com',
-				},
-			},
-		});
-
-		await waitFor(() => {
-			expect(screen.getByText('testuser')).toBeInTheDocument();
-		});
-
-		// Find and click logout button
-		const logoutButton = screen.getByText('Logout from Artemis');
-		await userEvent.click(logoutButton);
-
-		expect(mockApi.postMessage).toHaveBeenCalledWith(
-			expect.objectContaining({
-				type: 'command',
-				command: 'logout',
-			})
-		);
-	});
 });

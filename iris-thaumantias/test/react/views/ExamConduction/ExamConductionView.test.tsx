@@ -70,7 +70,7 @@ describe('ExamConductionView', () => {
 
 		dispatchExtensionMessage({
 			type: 'examConductionInit',
-			payload: makeExamData(),
+			...makeExamData(),
 		});
 
 		await waitFor(() => {
@@ -195,7 +195,7 @@ describe('exam fetch error handling', () => {
 		await act(async () => {
 			dispatchExtensionMessage({
 				type: 'error',
-				payload: { message: 'Network timeout' },
+				message: 'Network timeout',
 			});
 		});
 
@@ -210,7 +210,7 @@ describe('exam fetch error handling', () => {
 		await act(async () => {
 			dispatchExtensionMessage({
 				type: 'error',
-				payload: { message: 'Failed to fetch exam data' },
+				message: 'Failed to fetch exam data',
 			});
 		});
 

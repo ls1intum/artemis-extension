@@ -58,9 +58,7 @@ describe('DashboardView', () => {
 
 		dispatchExtensionMessage({
 			type: 'dashboardInit',
-			payload: {
-				courses: [makeCourseNode(1, 'Algorithms and Data Structures')],
-			},
+			courses: [makeCourseNode(1, 'Algorithms and Data Structures')],
 		});
 
 		await waitFor(() => {
@@ -74,12 +72,10 @@ describe('DashboardView', () => {
 
 		dispatchExtensionMessage({
 			type: 'dashboardInit',
-			payload: {
-				courses: [
-					makeCourseNode(1, 'Course Alpha'),
-					makeCourseNode(2, 'Course Beta'),
-				],
-			},
+			courses: [
+				makeCourseNode(1, 'Course Alpha'),
+				makeCourseNode(2, 'Course Beta'),
+			],
 		});
 
 		await waitFor(() => {
@@ -108,14 +104,12 @@ describe('DashboardView', () => {
 
 		dispatchExtensionMessage({
 			type: 'dashboardInit',
-			payload: {
-				courses: [
-					makeCourseNode(1, 'My Course', [
-						{ id: 10, title: 'Exercise One' },
-						{ id: 11, title: 'Exercise Two' },
-					]),
-				],
-			},
+			courses: [
+				makeCourseNode(1, 'My Course', [
+					{ id: 10, title: 'Exercise One' },
+					{ id: 11, title: 'Exercise Two' },
+				]),
+			],
 		});
 
 		await waitFor(() => {
@@ -133,11 +127,9 @@ describe('DashboardView', () => {
 
 		dispatchExtensionMessage({
 			type: 'dashboardInit',
-			payload: {
-				courses: [
-					makeCourseNode(1, 'My Course', [{ id: 42, title: 'Clickable Exercise' }]),
-				],
-			},
+			courses: [
+				makeCourseNode(1, 'My Course', [{ id: 42, title: 'Clickable Exercise' }]),
+			],
 		});
 
 		await waitFor(() => {
@@ -161,9 +153,7 @@ describe('DashboardView', () => {
 
 		dispatchExtensionMessage({
 			type: 'dashboardInit',
-			payload: {
-				courses: [makeCourseNode(7, 'Navigate Course')],
-			},
+			courses: [makeCourseNode(7, 'Navigate Course')],
 		});
 
 		await waitFor(() => {
@@ -187,10 +177,8 @@ describe('DashboardView', () => {
 
 		dispatchExtensionMessage({
 			type: 'dashboardInit',
-			payload: {
-				courses: [],
-				workspaceExercise: { id: 55, title: 'My Active Exercise' },
-			},
+			courses: [],
+			workspaceExercise: { id: 55, title: 'My Active Exercise' },
 		});
 
 		await waitFor(() => {
@@ -207,7 +195,8 @@ describe('DashboardView', () => {
 
 		dispatchExtensionMessage({
 			type: 'workspaceExerciseDetected',
-			payload: { exerciseId: 88, exerciseTitle: 'Detected Exercise' },
+			exerciseId: 88,
+			exerciseTitle: 'Detected Exercise',
 		});
 
 		await waitFor(() => {
@@ -221,10 +210,8 @@ describe('DashboardView', () => {
 
 		dispatchExtensionMessage({
 			type: 'dashboardInit',
-			payload: {
-				courses: [],
-				workspaceExercise: { id: 77, title: 'Open This Exercise' },
-			},
+			courses: [],
+			workspaceExercise: { id: 77, title: 'Open This Exercise' },
 		});
 
 		await waitFor(() => {

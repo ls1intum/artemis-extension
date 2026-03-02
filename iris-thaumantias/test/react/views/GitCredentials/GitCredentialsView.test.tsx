@@ -8,10 +8,8 @@ import { createMockVsCodeApi, dispatchExtensionMessage } from '../../__helpers__
 function initView(overrides?: { currentName?: string; currentEmail?: string }) {
 	dispatchExtensionMessage({
 		type: 'gitCredentialsInit',
-		payload: {
-			currentName: overrides?.currentName ?? '',
-			currentEmail: overrides?.currentEmail ?? '',
-		},
+		currentName: overrides?.currentName ?? '',
+		currentEmail: overrides?.currentEmail ?? '',
 	});
 }
 

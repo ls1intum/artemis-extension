@@ -43,12 +43,10 @@ describe('Course Navigation Flow', () => {
 			// INBOUND: simulate course data from extension
 			dispatchExtensionMessage({
 				type: 'courseListInit',
-				payload: {
-					courses: [
-						makeCourseData({ id: 1, title: 'Algorithms', semester: 'WS24/25' }),
-						makeCourseData({ id: 2, title: 'Data Structures', semester: 'SS25' }),
-					],
-				},
+				courses: [
+					makeCourseData({ id: 1, title: 'Algorithms', semester: 'WS24/25' }),
+					makeCourseData({ id: 2, title: 'Data Structures', semester: 'SS25' }),
+				],
 			});
 
 			await waitFor(() => {
@@ -65,9 +63,7 @@ describe('Course Navigation Flow', () => {
 			// Load courses via message
 			dispatchExtensionMessage({
 				type: 'courseListInit',
-				payload: {
-					courses: [makeCourseData({ id: 10, title: 'Software Engineering', semester: 'SS25' })],
-				},
+				courses: [makeCourseData({ id: 10, title: 'Software Engineering', semester: 'SS25' })],
 			});
 
 			await waitFor(() => {
@@ -143,19 +139,17 @@ describe('Course Navigation Flow', () => {
 			// INBOUND: simulate course detail data from extension
 			dispatchExtensionMessage({
 				type: 'courseDetailInit',
-				payload: {
-					courseData: {
-						course: {
-							id: 1,
-							title: 'Advanced Algorithms',
-							semester: 'SS25',
-							description: 'Advanced course description',
-							exercises: [
-								{ id: 101, title: 'Binary Search', type: 'programming' },
-								{ id: 102, title: 'Quick Sort', type: 'programming' },
-							],
-							exams: [],
-						},
+				courseData: {
+					course: {
+						id: 1,
+						title: 'Advanced Algorithms',
+						semester: 'SS25',
+						description: 'Advanced course description',
+						exercises: [
+							{ id: 101, title: 'Binary Search', type: 'programming' },
+							{ id: 102, title: 'Quick Sort', type: 'programming' },
+						],
+						exams: [],
 					},
 				},
 			});
@@ -175,17 +169,15 @@ describe('Course Navigation Flow', () => {
 			// Load course detail
 			dispatchExtensionMessage({
 				type: 'courseDetailInit',
-				payload: {
-					courseData: {
-						course: {
-							id: 1,
-							title: 'Test Course',
-							semester: 'SS25',
-							exercises: [
-								{ id: 200, title: 'Unique Exercise Title', type: 'programming' },
-							],
-							exams: [],
-						},
+				courseData: {
+					course: {
+						id: 1,
+						title: 'Test Course',
+						semester: 'SS25',
+						exercises: [
+							{ id: 200, title: 'Unique Exercise Title', type: 'programming' },
+						],
+						exams: [],
 					},
 				},
 			});

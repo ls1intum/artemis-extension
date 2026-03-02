@@ -51,7 +51,7 @@ describe('RecommendedExtensionsView', () => {
 
 		dispatchExtensionMessage({
 			type: 'recommendedExtensionsInit',
-			payload: { categories: [] },
+			categories: [],
 		});
 
 		await waitFor(() => {
@@ -66,7 +66,7 @@ describe('RecommendedExtensionsView', () => {
 		const category = makeCategory();
 		dispatchExtensionMessage({
 			type: 'recommendedExtensionsInit',
-			payload: { categories: [category] },
+			categories: [category],
 		});
 
 		await waitFor(() => {
@@ -80,7 +80,7 @@ describe('RecommendedExtensionsView', () => {
 
 		dispatchExtensionMessage({
 			type: 'recommendedExtensionsInit',
-			payload: { categories: [makeCategory()] },
+			categories: [makeCategory()],
 		});
 
 		await waitFor(() => {
@@ -94,7 +94,7 @@ describe('RecommendedExtensionsView', () => {
 
 		dispatchExtensionMessage({
 			type: 'recommendedExtensionsInit',
-			payload: { categories: [makeCategory()] },
+			categories: [makeCategory()],
 		});
 
 		await waitFor(() => {
@@ -119,7 +119,7 @@ describe('RecommendedExtensionsView', () => {
 
 		dispatchExtensionMessage({
 			type: 'recommendedExtensionsInit',
-			payload: { categories: [category] },
+			categories: [category],
 		});
 
 		await waitFor(() => {
@@ -133,7 +133,7 @@ describe('RecommendedExtensionsView', () => {
 
 		dispatchExtensionMessage({
 			type: 'recommendedExtensionsInit',
-			payload: { categories: [makeCategory()] },
+			categories: [makeCategory()],
 		});
 
 		await waitFor(() => {
@@ -157,12 +157,10 @@ describe('RecommendedExtensionsView', () => {
 
 		dispatchExtensionMessage({
 			type: 'recommendedExtensionsInit',
-			payload: {
-				categories: [
-					makeCategory({ id: 'cat1', name: 'Category 1' }),
-					makeCategory({ id: 'cat2', name: 'Category 2', extensions: [] }),
-				],
-			},
+			categories: [
+				makeCategory({ id: 'cat1', name: 'Category 1' }),
+				makeCategory({ id: 'cat2', name: 'Category 2', extensions: [] }),
+			],
 		});
 
 		await waitFor(() => {
@@ -177,16 +175,14 @@ describe('RecommendedExtensionsView', () => {
 
 		dispatchExtensionMessage({
 			type: 'recommendedExtensionsInit',
-			payload: {
-				categories: [
-					makeCategory({ id: 'cat1', name: 'Category 1', extensions: [
-						{ id: 'ext1', name: 'Ext One', publisher: 'P', description: 'D', reason: 'R', isInstalled: false },
-					]}),
-					makeCategory({ id: 'cat2', name: 'Category 2', extensions: [
-						{ id: 'ext2', name: 'Ext Two', publisher: 'P', description: 'D', reason: 'R', isInstalled: false },
-					]}),
-				],
-			},
+			categories: [
+				makeCategory({ id: 'cat1', name: 'Category 1', extensions: [
+					{ id: 'ext1', name: 'Ext One', publisher: 'P', description: 'D', reason: 'R', isInstalled: false },
+				]}),
+				makeCategory({ id: 'cat2', name: 'Category 2', extensions: [
+					{ id: 'ext2', name: 'Ext Two', publisher: 'P', description: 'D', reason: 'R', isInstalled: false },
+				]}),
+			],
 		});
 
 		await waitFor(() => {
@@ -207,7 +203,7 @@ describe('RecommendedExtensionsView', () => {
 
 		dispatchExtensionMessage({
 			type: 'recommendedExtensionsInit',
-			payload: { categories: [makeCategory()] },
+			categories: [makeCategory()],
 		});
 
 		await waitFor(() => {
@@ -233,7 +229,7 @@ describe('RecommendedExtensionsView', () => {
 
 		dispatchExtensionMessage({
 			type: 'recommendedExtensionsInit',
-			payload: { categories: [category] },
+			categories: [category],
 		});
 
 		await waitFor(() => {

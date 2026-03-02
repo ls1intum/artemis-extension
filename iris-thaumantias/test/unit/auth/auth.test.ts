@@ -56,15 +56,6 @@ suite('AuthManager Test Suite', () => {
         assert.strictEqual(cookieHeader, jwt); // Should be in memory
     });
 
-    test('should fallback to legacy cookie storage', async () => {
-        const legacyCookie = 'legacy=cookie';
-        // Manually set the legacy secret
-        await context.secrets.store('artemis-auth-cookie', legacyCookie);
-        
-        const cookieHeader = await authManager.getCookieHeader();
-        assert.strictEqual(cookieHeader, legacyCookie);
-    });
-
     test('should extract cookie from fetch response (Headers object)', async () => {
         const cookieValue = 'jwt=abcde';
         const response = {

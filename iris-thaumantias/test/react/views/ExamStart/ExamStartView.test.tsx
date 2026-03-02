@@ -99,11 +99,9 @@ describe('ExamStartView', () => {
 
 		dispatchExtensionMessage({
 			type: 'examStartInit',
-			payload: {
-				studentExam: makeStudentExam(),
-				courseId: 10,
-				examId: 100,
-			},
+			studentExam: makeStudentExam(),
+			courseId: 10,
+			examId: 100,
 		});
 
 		await waitFor(() => {
@@ -265,7 +263,7 @@ describe('exam fetch error handling', () => {
 		await act(async () => {
 			dispatchExtensionMessage({
 				type: 'error',
-				payload: { message: 'Failed to load exam: Network error' },
+				message: 'Failed to load exam: Network error',
 			});
 		});
 
@@ -280,7 +278,7 @@ describe('exam fetch error handling', () => {
 		await act(async () => {
 			dispatchExtensionMessage({
 				type: 'error',
-				payload: { message: 'Server error' },
+				message: 'Server error',
 			});
 		});
 

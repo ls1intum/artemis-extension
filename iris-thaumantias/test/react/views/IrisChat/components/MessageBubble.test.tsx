@@ -179,7 +179,7 @@ describe('MessageBubble', () => {
 
 	it('calls onFeedback with positive when helpful button clicked', async () => {
 		const onFeedback = vi.fn();
-		const message = makeMessage({ role: 'assistant', content: 'Help.' });
+		const message = makeMessage({ id: 1, role: 'assistant', content: 'Help.' });
 		const { container } = render(
 			<MessageBubble
 				message={message}
@@ -195,12 +195,12 @@ describe('MessageBubble', () => {
 		const helpfulButton = screen.getByRole('button', { name: 'Helpful' });
 		await userEvent.click(helpfulButton);
 
-		expect(onFeedback).toHaveBeenCalledWith('msg-1', 'positive');
+		expect(onFeedback).toHaveBeenCalledWith('1', 'positive');
 	});
 
 	it('calls onFeedback with negative when not helpful button clicked', async () => {
 		const onFeedback = vi.fn();
-		const message = makeMessage({ role: 'assistant', content: 'Help.' });
+		const message = makeMessage({ id: 1, role: 'assistant', content: 'Help.' });
 		const { container } = render(
 			<MessageBubble
 				message={message}
@@ -216,7 +216,7 @@ describe('MessageBubble', () => {
 		const notHelpfulButton = screen.getByRole('button', { name: 'Not helpful' });
 		await userEvent.click(notHelpfulButton);
 
-		expect(onFeedback).toHaveBeenCalledWith('msg-1', 'negative');
+		expect(onFeedback).toHaveBeenCalledWith('1', 'negative');
 	});
 
 	it('renders Streamdown in static mode for non-streaming assistant messages', () => {

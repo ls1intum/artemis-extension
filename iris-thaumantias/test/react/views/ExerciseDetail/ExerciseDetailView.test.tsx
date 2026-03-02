@@ -113,12 +113,10 @@ describe('ExerciseDetailView', () => {
 
 		dispatchExtensionMessage({
 			type: 'exerciseDetailInit',
-			payload: {
-				exerciseData: makeExerciseData().exercise
-					? makeExerciseData()
-					: {},
-				hideDeveloperTools: false,
-			},
+			exerciseData: makeExerciseData().exercise
+				? makeExerciseData()
+				: {},
+			hideDeveloperTools: false,
 		});
 
 		await waitFor(() => {

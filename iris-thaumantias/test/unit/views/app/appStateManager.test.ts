@@ -45,9 +45,11 @@ class MockArtemisApiService extends ArtemisApiService {
         this.getExerciseDetailsCalled = true;
         this.lastExerciseId = exerciseId;
         return {
-            id: exerciseId,
-            title: 'Test Exercise',
-            type: 'programming'
+            exercise: {
+                id: exerciseId,
+                title: 'Test Exercise',
+                type: 'programming'
+            }
         };
     }
 }
