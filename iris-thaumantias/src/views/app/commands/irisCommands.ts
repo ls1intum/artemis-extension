@@ -2,12 +2,8 @@ import * as vscode from 'vscode';
 import { ProviderRegistry } from '../../../services/ProviderRegistry';
 import { logger, LogCategory } from '../../../services/loggingService';
 import type { CommandContext, CommandMap } from './types';
+import { getPayload } from '../../../shared/messageContracts';
 import type { WebviewToExtensionMessage, AskIrisAboutExerciseCommand, AskIrisAboutCourseCommand } from '../../../shared/messageContracts';
-
-// Helper to extract typed payload from message
-function getPayload<T extends WebviewToExtensionMessage & { payload: unknown }>(message: WebviewToExtensionMessage): T['payload'] {
-    return (message as T).payload;
-}
 
 export class IrisCommandModule {
     constructor(private readonly context: CommandContext) { }

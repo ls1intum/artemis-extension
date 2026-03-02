@@ -2,23 +2,13 @@ import * as vscode from 'vscode';
 import { processPlantUml } from '../../../utils';
 import { logger, LogCategory } from '../../../services/loggingService';
 import type { CommandContext, CommandMap } from './types';
-import type { WebviewToExtensionMessage, RenderPlantUmlInlineCommand } from '../../../shared/messageContracts';
-
-// Helper to extract typed payload from message
-function getPayload<T extends WebviewToExtensionMessage & { payload: unknown }>(message: WebviewToExtensionMessage): T['payload'] {
-    return (message as T).payload;
-}
-
-// Internal payload interfaces for untyped commands
-interface RenderPlantUmlPayload {
-    plantUmlDiagrams: string[];
-    exerciseTitle?: string;
-}
-
-interface OpenPlantUmlInNewTabPayload {
-    plantUml: string;
-    index: number;
-}
+import { getPayload } from '../../../shared/messageContracts';
+import type {
+    WebviewToExtensionMessage,
+    RenderPlantUmlInlineCommand,
+    RenderPlantUmlCommand,
+    OpenPlantUmlInNewTabCommand,
+} from '../../../shared/messageContracts';
 
 export class PlantUmlCommandModule {
     constructor(private readonly context: CommandContext) { }
@@ -32,9 +22,7 @@ export class PlantUmlCommandModule {
     }
 
     private handleRenderPlantUml = async (message: WebviewToExtensionMessage): Promise<void> => {
-        const payload = message as unknown as RenderPlantUmlPayload;
-        const plantUmlDiagrams: string[] = payload.plantUmlDiagrams;
-        const exerciseTitle: string | undefined = payload.exerciseTitle;
+        const { plantUmlDiagrams, exerciseTitle } = getPayload<RenderPlantUmlCommand>(message);
 
         if (!plantUmlDiagrams || plantUmlDiagrams.length === 0) {
             vscode.window.showWarningMessage('No PlantUML diagrams found to render.');
@@ -66,7 +54,7 @@ export class PlantUmlCommandModule {
 
         if (!plantUml) {
             this.context.sendMessage({
-                command: 'plantUmlError',
+                type: 'plantUmlError',
                 index: index,
                 error: 'No PlantUML content provided'
             });
@@ -81,7 +69,7 @@ export class PlantUmlCommandModule {
             const svg = await this.context.artemisApi.renderPlantUmlToSvg(processedPlantUml, isDarkTheme);
 
             this.context.sendMessage({
-                command: 'plantUmlRendered',
+                type: 'plantUmlRendered',
                 index: index,
                 svg: svg
             });
@@ -91,7 +79,7 @@ export class PlantUmlCommandModule {
             logger.plantUmlError(`Render inline PlantUML error for diagram ${index + 1}:`, error);
             const errorMsg = error instanceof Error ? error.message : 'Unknown error';
             this.context.sendMessage({
-                command: 'plantUmlError',
+                type: 'plantUmlError',
                 index: index,
                 error: errorMsg
             });
@@ -99,9 +87,7 @@ export class PlantUmlCommandModule {
     };
 
     private handleOpenPlantUmlInNewTab = async (message: WebviewToExtensionMessage): Promise<void> => {
-        const payload = message as unknown as OpenPlantUmlInNewTabPayload;
-        const plantUml: string = payload.plantUml;
-        const index: number = payload.index;
+        const { plantUml, index } = getPayload<OpenPlantUmlInNewTabCommand>(message);
 
         if (!plantUml) {
             vscode.window.showWarningMessage('No PlantUML content to open.');

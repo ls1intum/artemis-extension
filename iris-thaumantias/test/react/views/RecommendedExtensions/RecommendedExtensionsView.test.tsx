@@ -45,17 +45,6 @@ describe('RecommendedExtensionsView', () => {
 		);
 	});
 
-	it('sends requestRecommendedExtensions on mount', () => {
-		const mockApi = createMockVsCodeApi();
-		render(<RecommendedExtensionsView vscodeApi={mockApi} />);
-		expect(mockApi.postMessage).toHaveBeenCalledWith(
-			expect.objectContaining({
-				type: 'command',
-				command: 'requestRecommendedExtensions',
-			})
-		);
-	});
-
 	it('shows empty state when recommendedExtensionsInit received with empty categories', async () => {
 		const mockApi = createMockVsCodeApi();
 		render(<RecommendedExtensionsView vscodeApi={mockApi} />);

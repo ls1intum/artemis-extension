@@ -16,12 +16,6 @@ export function RecommendedExtensionsView({ vscodeApi }: RecommendedExtensionsVi
         if (persistedState?.selectedCategory) {
             setSelectedCategory(persistedState.selectedCategory);
         }
-
-        // Request initial data
-        vscodeApi.postMessage({
-            type: 'command',
-            command: 'requestRecommendedExtensions'
-        });
     }, [vscodeApi]);
 
     // Persist selectedCategory changes

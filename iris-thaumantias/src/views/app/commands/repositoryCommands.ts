@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
 import type { CommandContext, CommandMap } from './types';
+import { getPayload } from '../../../shared/messageContracts';
 import type {
     WebviewToExtensionMessage,
     CheckRepositoryStatusCommand,
@@ -11,40 +12,15 @@ import type {
     StartPracticeCommand,
     SaveGitIdentityCommand,
     OpenRepositoryCommand,
+    ParticipateInExerciseCommand,
+    OpenClonedRepositoryCommand,
+    CopyCloneUrlCommand,
+    PullChangesCommand,
+    SaveGitCredentialsCommand,
 } from '../../../shared/messageContracts';
 import { VSCODE_CONFIG, checkWorkspaceFiles } from '../../../utils';
 import { detectWorkspaceExercise, normalizeRepositoryUrl, type ExerciseSource, GitService } from '../../../services';
 import { logger } from '../../../services/loggingService';
-
-// Helper to extract typed payload from command messages
-function getPayload<T extends WebviewToExtensionMessage & { payload: unknown }>(message: WebviewToExtensionMessage): T['payload'] {
-    return (message as T).payload;
-}
-
-// Internal payload types for commands without typed contracts
-interface ParticipateInExercisePayload {
-    exerciseId: number;
-    exerciseTitle: string;
-}
-
-interface OpenClonedRepositoryPayload {
-    exerciseId: number;
-}
-
-interface CopyCloneUrlPayload {
-    participationId: number;
-    repositoryUri: string;
-}
-
-interface PullChangesPayload {
-    exerciseTitle: string;
-}
-
-interface SaveGitCredentialsPayload {
-    username?: string;
-    token?: string;
-    serverUrl?: string;
-}
 
 interface RepoContext {
     expectedRepoUrl: string;
@@ -102,14 +78,14 @@ export class RepositoryCommandModule {
             const detected = await detectWorkspaceExercise(exercises);
 
             this.context.sendMessage({
-                command: 'workspaceExerciseDetected',
+                type: 'workspaceExerciseDetected',
                 exerciseId: detected?.id ?? null,
                 exerciseTitle: detected?.title ?? null
             });
         } catch (error: unknown) {
             logger.submissionWarn('Error detecting workspace exercise:', error);
             this.context.sendMessage({
-                command: 'workspaceExerciseDetected',
+                type: 'workspaceExerciseDetected',
                 exerciseId: null,
                 exerciseTitle: null
             });
@@ -146,7 +122,7 @@ export class RepositoryCommandModule {
     }
 
     private handleParticipateInExercise = async (message: WebviewToExtensionMessage): Promise<void> => {
-        const payload = getPayload<{ type: 'command'; command: 'participateInExercise'; payload: ParticipateInExercisePayload }>(message);
+        const payload = getPayload<ParticipateInExerciseCommand>(message);
         const exerciseId = payload.exerciseId;
         const exerciseTitle = payload.exerciseTitle;
 
@@ -255,7 +231,7 @@ export class RepositoryCommandModule {
             }
 
             this.context.sendMessage({
-                command: 'updateRepoStatus',
+                type: 'updateRepoStatus',
                 isConnected: isConnected,
                 hasChanges: hasChanges,
                 isGradedRepo: isGradedRepo
@@ -476,7 +452,7 @@ export class RepositoryCommandModule {
 
             setTimeout(() => {
                 this.context.sendMessage({
-                    command: 'showClonedRepoNotice',
+                    type: 'showClonedRepoNotice',
                     exerciseTitle: exerciseTitle
                 });
             }, 2000);
@@ -495,7 +471,7 @@ export class RepositoryCommandModule {
     };
 
     private handleOpenClonedRepository = async (message: WebviewToExtensionMessage): Promise<void> => {
-        const payload = getPayload<{ type: 'command'; command: 'openClonedRepository'; payload: OpenClonedRepositoryPayload }>(message);
+        const payload = getPayload<OpenClonedRepositoryCommand>(message);
         const exerciseId = payload.exerciseId;
 
         try {
@@ -524,7 +500,7 @@ export class RepositoryCommandModule {
     };
 
     private handleCopyCloneUrl = async (message: WebviewToExtensionMessage): Promise<void> => {
-        const payload = getPayload<{ type: 'command'; command: 'copyCloneUrl'; payload: CopyCloneUrlPayload }>(message);
+        const payload = getPayload<CopyCloneUrlCommand>(message);
         const { participationId, repositoryUri } = payload;
 
         try {
@@ -566,7 +542,7 @@ export class RepositoryCommandModule {
     };
 
     private handlePullChanges = async (message: WebviewToExtensionMessage): Promise<void> => {
-        const payload = getPayload<{ type: 'command'; command: 'pullChanges'; payload: PullChangesPayload }>(message);
+        const payload = getPayload<PullChangesCommand>(message);
         const exerciseTitle = payload.exerciseTitle;
 
         try {
@@ -624,7 +600,7 @@ export class RepositoryCommandModule {
         if (!workspaceFolder) {
             const errorText = 'Open the exercise repository in VS Code before submitting.';
             vscode.window.showErrorMessage(errorText);
-            this.context.sendMessage({ command: 'submissionResult', success: false, error: errorText });
+            this.context.sendMessage({ type: 'submissionResult', success: false, error: errorText });
             return;
         }
 
@@ -680,7 +656,7 @@ export class RepositoryCommandModule {
             });
 
             vscode.window.showInformationMessage(`Successfully submitted "${exerciseTitle}".`);
-            this.context.sendMessage({ command: 'submissionResult', success: true });
+            this.context.sendMessage({ type: 'submissionResult', success: true });
 
             // Ensure WebSocket is connected to receive real-time result updates
             if (this.context.websocketService && !this.context.websocketService.isConnected()) {
@@ -700,7 +676,7 @@ export class RepositoryCommandModule {
                 vscode.window.showErrorMessage(errorMessage);
             }
 
-            this.context.sendMessage({ command: 'submissionResult', success: false, error: errorMessage });
+            this.context.sendMessage({ type: 'submissionResult', success: false, error: errorMessage });
         }
     };
 
@@ -740,7 +716,7 @@ export class RepositoryCommandModule {
 
         const sendResult = (status: 'success' | 'error' | 'warning' | 'info', text: string) => {
             this.context.sendMessage({
-                command: 'gitCredentialsResult',
+                type: 'gitCredentialsResult',
                 status,
                 message: text
             });
@@ -778,14 +754,14 @@ export class RepositoryCommandModule {
         const email = await this.getGitConfigValue('user.email', cwd);
 
         this.context.sendMessage({
-            command: 'gitIdentityInfo',
+            type: 'gitIdentityInfo',
             name: name ?? '',
             email: email ?? ''
         });
     };
 
     private handleSaveGitCredentials = async (message: WebviewToExtensionMessage): Promise<void> => {
-        const payload = getPayload<{ type: 'command'; command: 'saveGitCredentials'; payload: SaveGitCredentialsPayload }>(message);
+        const payload = getPayload<SaveGitCredentialsCommand>(message);
         const rawUsername = typeof payload.username === 'string' ? payload.username.trim() : '';
         const rawToken = typeof payload.token === 'string' ? payload.token.trim() : '';
         const rawServerUrl = typeof payload.serverUrl === 'string' ? payload.serverUrl.trim() : '';
@@ -796,7 +772,7 @@ export class RepositoryCommandModule {
 
         const sendResult = (status: 'success' | 'error' | 'warning' | 'info', text: string) => {
             this.context.sendMessage({
-                command: 'gitCredentialsResult',
+                type: 'gitCredentialsResult',
                 status,
                 message: text
             });
@@ -944,7 +920,7 @@ export class RepositoryCommandModule {
 
         if (!showWarning) {
             this.context.sendMessage({
-                command: 'updateDirtyPagesStatus',
+                type: 'updateDirtyPagesStatus',
                 hasDirtyPages: false,
                 dirtyFileCount: 0,
                 autoSaveEnabled: false
@@ -978,7 +954,7 @@ export class RepositoryCommandModule {
         const autoSave = config.get<string>('autoSave', 'off');
 
         this.context.sendMessage({
-            command: 'updateDirtyPagesStatus',
+            type: 'updateDirtyPagesStatus',
             hasDirtyPages: hasDirtyPages,
             dirtyFileCount: dirtyDocuments.length,
             autoSaveEnabled: autoSave !== 'off'

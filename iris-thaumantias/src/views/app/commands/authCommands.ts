@@ -1,12 +1,8 @@
 import * as vscode from 'vscode';
 import type { CommandContext, CommandMap } from './types';
+import { getPayload } from '../../../shared/messageContracts';
 import type { WebviewToExtensionMessage, LoginCommand } from '../../../shared/messageContracts';
 import { logger } from '../../../services/loggingService';
-
-// Helper to extract typed payload from command messages
-function getPayload<T extends WebviewToExtensionMessage & { payload: unknown }>(message: WebviewToExtensionMessage): T['payload'] {
-    return (message as T).payload;
-}
 
 export class AuthCommandModule {
     constructor(private readonly context: CommandContext) { }
@@ -46,7 +42,7 @@ export class AuthCommandModule {
             vscode.window.showErrorMessage(friendlyError);
 
             this.context.sendMessage({
-                command: 'loginError',
+                type: 'loginError',
                 error: friendlyError
             });
         }

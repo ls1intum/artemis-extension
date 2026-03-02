@@ -113,14 +113,6 @@ export function ExamExerciseDetailView({ vscodeApi }: ExamExerciseDetailViewProp
         vscodeApi.postMessage({ type: 'ready' });
     };
 
-    const handleDownloadFile = (url: string, filename: string) => {
-        vscodeApi.postMessage({
-            type: 'command',
-            command: 'downloadFile',
-            payload: { url, filename },
-        });
-    };
-
     const loading = examLoading || exerciseLoading;
     const error = examError || exerciseError;
 
@@ -290,7 +282,6 @@ export function ExamExerciseDetailView({ vscodeApi }: ExamExerciseDetailViewProp
             <ProblemStatement
                 markdown={problemStatementHtml}
                 downloadLinks={downloadLinks}
-                onDownload={handleDownloadFile}
                 vscodeApi={vscodeApi}
             />
 

@@ -155,14 +155,6 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
         }
     };
 
-    const handleDownloadFile = (url: string, filename: string) => {
-        vscodeApi.postMessage({
-            type: 'command',
-            command: 'downloadFile',
-            payload: { url, filename },
-        });
-    };
-
     const handleOpenRawJSON = () => {
         if (exerciseData) {
             vscodeApi.postMessage({
@@ -462,7 +454,6 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
             <ProblemStatement
                 markdown={problemStatementHtml}
                 downloadLinks={downloadLinks}
-                onDownload={handleDownloadFile}
                 vscodeApi={vscodeApi}
             />
 

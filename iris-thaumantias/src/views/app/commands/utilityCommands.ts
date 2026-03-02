@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import * as crypto from 'crypto';
 import type { CommandContext, CommandMap } from './types';
+import { getPayload } from '../../../shared/messageContracts';
 import type {
     WebviewToExtensionMessage,
     CopyToClipboardCommand,
@@ -9,57 +10,17 @@ import type {
     OpenInEditorCommand,
     OpenExternalLinkCommand,
     OpenImagePreviewCommand,
+    AlertCommand,
+    ShowSubmissionDetailsCommand,
+    FetchTestResultsCommand,
+    OpenExerciseInBrowserCommand,
+    ViewBuildLogCommand,
+    GoToSourceErrorCommand,
+    FetchBuildLogsForErrorCommand,
+    WebviewLogCommand,
 } from '../../../shared/messageContracts';
 import { BuildLogParser, normalizeRelativePath } from '../../../utils';
 import { logger, LogLevel, LogCategory } from '../../../services/loggingService';
-
-// Helper to extract typed payload from command messages
-function getPayload<T extends WebviewToExtensionMessage & { payload: unknown }>(message: WebviewToExtensionMessage): T['payload'] {
-    return (message as T).payload;
-}
-
-// Internal payload types for commands without full contracts
-interface AlertPayload {
-    text: string;
-}
-
-interface ShowSubmissionDetailsPayload {
-    participationId: number;
-    resultId: number;
-}
-
-interface FetchTestResultsPayload {
-    participationId: number;
-    resultId: number;
-}
-
-interface OpenExerciseInBrowserPayload {
-    exerciseId: number;
-    courseId?: number;
-}
-
-interface ViewBuildLogPayload {
-    participationId: number;
-    resultId?: number;
-}
-
-interface GoToSourceErrorPayload {
-    filePath: string;
-    line: number;
-    column?: number;
-}
-
-interface FetchBuildLogsForErrorPayload {
-    participationId: number;
-    resultId?: number;
-}
-
-interface WebviewLogPayload {
-    level: string;
-    text: string;
-    category: string;
-    error?: unknown;
-}
 
 export class UtilityCommandModule {
     constructor(private readonly context: CommandContext) { }
@@ -87,7 +48,7 @@ export class UtilityCommandModule {
     }
 
     private handleAlert = async (message: WebviewToExtensionMessage): Promise<void> => {
-        const payload = getPayload<{ type: 'command'; command: 'alert'; payload: AlertPayload }>(message);
+        const payload = getPayload<AlertCommand>(message);
         if (payload?.text) {
             vscode.window.showErrorMessage(payload.text);
         }
@@ -128,7 +89,7 @@ export class UtilityCommandModule {
     };
 
     private handleShowSubmissionDetails = async (message: WebviewToExtensionMessage): Promise<void> => {
-        const payload = getPayload<{ type: 'command'; command: 'showSubmissionDetails'; payload: ShowSubmissionDetailsPayload }>(message);
+        const payload = getPayload<ShowSubmissionDetailsCommand>(message);
         const participationId = payload.participationId;
         const resultId = payload.resultId;
 
@@ -155,14 +116,14 @@ export class UtilityCommandModule {
     };
 
     private handleFetchTestResults = async (message: WebviewToExtensionMessage): Promise<void> => {
-        const payload = getPayload<{ type: 'command'; command: 'fetchTestResults'; payload: FetchTestResultsPayload }>(message);
+        const payload = getPayload<FetchTestResultsCommand>(message);
         const participationId = payload.participationId;
         const resultId = payload.resultId;
 
         try {
             if (!participationId || !resultId) {
                 this.context.sendMessage({
-                    command: 'testResultsData',
+                    type: 'testResultsData',
                     testCases: [],
                     error: 'Missing participation or result ID'
                 });
@@ -205,20 +166,20 @@ export class UtilityCommandModule {
                 logger.submission('[Test Results] Mapped test cases:', testCases.length, 'items');
 
                 this.context.sendMessage({
-                    command: 'testResultsData',
+                    type: 'testResultsData',
                     testCases: testCases
                 });
             } else {
                 logger.submission('[Test Results] No feedbacks found in result details');
                 this.context.sendMessage({
-                    command: 'testResultsData',
+                    type: 'testResultsData',
                     testCases: []
                 });
             }
         } catch (error: unknown) {
             logger.submissionError('Fetch test results error:', error);
             this.context.sendMessage({
-                command: 'testResultsData',
+                type: 'testResultsData',
                 testCases: [],
                 error: error instanceof Error ? error.message : 'Unknown error'
             });
@@ -226,7 +187,7 @@ export class UtilityCommandModule {
     };
 
     private handleOpenExerciseInBrowser = async (message: WebviewToExtensionMessage): Promise<void> => {
-        const payload = getPayload<{ type: 'command'; command: 'openExerciseInBrowser'; payload: OpenExerciseInBrowserPayload }>(message);
+        const payload = getPayload<OpenExerciseInBrowserCommand>(message);
         const exerciseId = payload.exerciseId;
         const courseId = payload.courseId;
 
@@ -259,7 +220,7 @@ export class UtilityCommandModule {
     };
 
     private handleViewBuildLog = async (message: WebviewToExtensionMessage): Promise<void> => {
-        const payload = getPayload<{ type: 'command'; command: 'viewBuildLog'; payload: ViewBuildLogPayload }>(message);
+        const payload = getPayload<ViewBuildLogCommand>(message);
         const participationId = payload.participationId;
         const resultId = payload.resultId;
 
@@ -317,7 +278,7 @@ export class UtilityCommandModule {
             // Send parsed error back to webview so it can show "Go to Source" button
             if (firstError) {
                 this.context.sendMessage({
-                    command: 'buildLogParsed',
+                    type: 'buildLogParsed',
                     error: firstError,
                     participationId: participationId,
                     resultId: resultId
@@ -332,7 +293,7 @@ export class UtilityCommandModule {
     };
 
     private handleGoToSourceError = async (message: WebviewToExtensionMessage): Promise<void> => {
-        const payload = getPayload<{ type: 'command'; command: 'goToSourceError'; payload: GoToSourceErrorPayload }>(message);
+        const payload = getPayload<GoToSourceErrorCommand>(message);
         const filePath: string = normalizeRelativePath(payload.filePath);
         const line = payload.line;
         const column = payload.column;
@@ -386,7 +347,7 @@ export class UtilityCommandModule {
     };
 
     private handleFetchBuildLogsForError = async (message: WebviewToExtensionMessage): Promise<void> => {
-        const payload = getPayload<{ type: 'command'; command: 'fetchBuildLogsForError'; payload: FetchBuildLogsForErrorPayload }>(message);
+        const payload = getPayload<FetchBuildLogsForErrorCommand>(message);
         const participationId = payload.participationId;
         const resultId = payload.resultId;
 
@@ -418,7 +379,7 @@ export class UtilityCommandModule {
                 }
 
                 this.context.sendMessage({
-                    command: 'buildLogParsed',
+                    type: 'buildLogParsed',
                     error: firstError,
                     participationId: participationId,
                     resultId: resultId
@@ -451,7 +412,7 @@ export class UtilityCommandModule {
      * Handles log messages from webview scripts
      */
     private handleWebviewLog = async (message: WebviewToExtensionMessage): Promise<void> => {
-        const payload = getPayload<{ type: 'command'; command: 'webviewLog'; payload: WebviewLogPayload }>(message);
+        const payload = getPayload<WebviewLogCommand>(message);
         const { level, text, category } = payload;
         const logCategory = LogCategory.VIEW;
 

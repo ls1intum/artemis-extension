@@ -1,11 +1,7 @@
 import type { CommandContext, CommandMap } from './types';
+import { getPayload } from '../../../shared/messageContracts';
 import type { WebviewToExtensionMessage, PerformHealthChecksCommand } from '../../../shared/messageContracts';
 import { logger } from '../../../services/loggingService';
-
-// Helper to extract typed payload from message
-function getPayload<T extends WebviewToExtensionMessage & { payload: unknown }>(message: WebviewToExtensionMessage): T['payload'] {
-    return (message as T).payload;
-}
 
 // Health check result structure
 interface HealthCheckResult {

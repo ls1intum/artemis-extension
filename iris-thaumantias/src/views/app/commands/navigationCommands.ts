@@ -4,6 +4,7 @@ import { ProviderRegistry } from '../../../services/ProviderRegistry';
 import { ExamErrorHandler } from '../../../services/examErrorHandler';
 import type { CommandContext, CommandMap } from './types';
 import { logger } from '../../../services/loggingService';
+import { getPayload } from '../../../shared/messageContracts';
 import type {
     WebviewToExtensionMessage,
     OpenExamCommand,
@@ -17,6 +18,7 @@ import type {
     OpenExerciseCommand,
     RefreshExamCommand,
     ReloadExamConductionCommand,
+    StartExamCommand,
     ExerciseDetail,
 } from '../../../shared/messageContracts';
 import type {
@@ -29,18 +31,6 @@ import type {
 
 interface CourseQuickPickItem extends vscode.QuickPickItem {
     courseData: CourseDashboardEntry;
-}
-
-// Helper to extract typed payload from command messages
-function getPayload<T extends WebviewToExtensionMessage & { payload: unknown }>(message: WebviewToExtensionMessage): T['payload'] {
-    return (message as T).payload;
-}
-
-// Internal message types for commands without typed contracts
-interface StartExamPayload {
-    courseId: number;
-    examId: number;
-    studentExamId: number;
 }
 
 export class NavigationCommandModule {
@@ -140,12 +130,12 @@ export class NavigationCommandModule {
     };
 
 
-    private handleStartExam = async (message: WebviewToExtensionMessage | StartExamPayload): Promise<void> => {
+    private handleStartExam = async (message: WebviewToExtensionMessage | StartExamCommand['payload']): Promise<void> => {
         try {
             // Handle both typed message and internal payload format
             const payload = 'type' in message && message.type === 'command'
-                ? getPayload<{ type: 'command'; command: 'startExam'; payload: StartExamPayload }>(message)
-                : message as StartExamPayload;
+                ? getPayload<StartExamCommand>(message)
+                : message as StartExamCommand['payload'];
 
             const { courseId, examId, studentExamId } = payload;
             logger.view(`[EXAMMODE] Starting exam ${examId} for student exam ${studentExamId}`);
