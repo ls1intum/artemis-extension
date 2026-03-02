@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import type { CommandContext, CommandMap } from './types';
-import { getPayload } from '../../../shared/messageContracts';
+import { getPayload, ExtensionMsg, WebviewCmd } from '../../../shared/messageContracts';
 import type { WebviewToExtensionMessage, LoginCommand } from '../../../shared/messageContracts';
 import { logger } from '../../../services/loggingService';
 
@@ -9,8 +9,8 @@ export class AuthCommandModule {
 
     public getHandlers(): CommandMap {
         return {
-            login: this.handleLogin,
-            logout: this.handleLogout,
+            [WebviewCmd.Login]: this.handleLogin,
+            [WebviewCmd.Logout]: this.handleLogout,
         };
     }
 
@@ -42,7 +42,7 @@ export class AuthCommandModule {
             vscode.window.showErrorMessage(friendlyError);
 
             this.context.sendMessage({
-                type: 'loginError',
+                type: ExtensionMsg.LoginError,
                 error: friendlyError
             });
         }

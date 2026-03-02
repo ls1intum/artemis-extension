@@ -4,7 +4,7 @@ import { ProviderRegistry } from '../../../services/ProviderRegistry';
 import { ExamErrorHandler } from '../../../services/examErrorHandler';
 import type { CommandContext, CommandMap } from './types';
 import { logger } from '../../../services/loggingService';
-import { getPayload } from '../../../shared/messageContracts';
+import { getPayload, ExtensionMsg, WebviewCmd } from '../../../shared/messageContracts';
 import type {
     WebviewToExtensionMessage,
     OpenExamCommand,
@@ -38,36 +38,36 @@ export class NavigationCommandModule {
 
     public getHandlers(): CommandMap {
         return {
-            browseCourses: this.handleBrowseCourses,
-            viewExercises: this.handleViewExercises,
-            checkGrades: this.handleCheckGrades,
-            showAllCourses: this.handleShowAllCourses,
-            viewCourseDetails: this.handleViewCourseDetails,
-            backToDashboard: this.handleBackToDashboard,
-            openExerciseDetails: this.handleOpenExerciseDetails,
-            openExamExerciseDetails: this.handleOpenExamExerciseDetails,
-            backToCourseDetails: this.handleBackToCourseDetails,
-            backToExam: this.handleBackToExam,
-            showAiConfig: this.handleShowAiConfig,
-            showServiceStatus: this.handleShowServiceStatus,
-            showStruggleDetection: this.handleShowStruggleDetection,
-            showRecommendedExtensions: this.handleShowRecommendedExtensions,
-            showGitCredentials: this.handleShowGitCredentials,
-            loadArchivedCourses: this.handleLoadArchivedCourses,
-            reloadCourses: this.handleReloadCourses,
-            reloadDashboard: this.handleReloadDashboard,
-            reloadCourseDetail: this.handleReloadCourseDetail,
-            reloadExerciseDetail: this.handleReloadExerciseDetail,
-            viewArchivedCourse: this.handleViewArchivedCourse,
-            openExercise: this.handleOpenExercise,
-            toggleFullscreen: this.handleToggleFullscreen,
-            toggleCourseFullscreen: this.handleToggleCourseFullscreen,
-            openExam: this.handleOpenExam,
-            startExam: this.handleStartExam,
-            refreshExam: this.handleRefreshExam,
-            reloadExamConduction: this.handleReloadExamConduction,
-            openExamInBrowser: this.handleOpenExamInBrowser,
-            openRulesInEditor: this.handleOpenRulesInEditor,
+            [WebviewCmd.BrowseCourses]: this.handleBrowseCourses,
+            [WebviewCmd.ViewExercises]: this.handleViewExercises,
+            [WebviewCmd.CheckGrades]: this.handleCheckGrades,
+            [WebviewCmd.ShowAllCourses]: this.handleShowAllCourses,
+            [WebviewCmd.ViewCourseDetails]: this.handleViewCourseDetails,
+            [WebviewCmd.BackToDashboard]: this.handleBackToDashboard,
+            [WebviewCmd.OpenExerciseDetails]: this.handleOpenExerciseDetails,
+            [WebviewCmd.OpenExamExerciseDetails]: this.handleOpenExamExerciseDetails,
+            [WebviewCmd.BackToCourseDetails]: this.handleBackToCourseDetails,
+            [WebviewCmd.BackToExam]: this.handleBackToExam,
+            [WebviewCmd.ShowAiConfig]: this.handleShowAiConfig,
+            [WebviewCmd.ShowServiceStatus]: this.handleShowServiceStatus,
+            [WebviewCmd.ShowStruggleDetection]: this.handleShowStruggleDetection,
+            [WebviewCmd.ShowRecommendedExtensions]: this.handleShowRecommendedExtensions,
+            [WebviewCmd.ShowGitCredentials]: this.handleShowGitCredentials,
+            [WebviewCmd.LoadArchivedCourses]: this.handleLoadArchivedCourses,
+            [WebviewCmd.ReloadCourses]: this.handleReloadCourses,
+            [WebviewCmd.ReloadDashboard]: this.handleReloadDashboard,
+            [WebviewCmd.ReloadCourseDetail]: this.handleReloadCourseDetail,
+            [WebviewCmd.ReloadExerciseDetail]: this.handleReloadExerciseDetail,
+            [WebviewCmd.ViewArchivedCourse]: this.handleViewArchivedCourse,
+            [WebviewCmd.OpenExercise]: this.handleOpenExercise,
+            [WebviewCmd.ToggleFullscreen]: this.handleToggleFullscreen,
+            [WebviewCmd.ToggleCourseFullscreen]: this.handleToggleCourseFullscreen,
+            [WebviewCmd.OpenExam]: this.handleOpenExam,
+            [WebviewCmd.StartExam]: this.handleStartExam,
+            [WebviewCmd.RefreshExam]: this.handleRefreshExam,
+            [WebviewCmd.ReloadExamConduction]: this.handleReloadExamConduction,
+            [WebviewCmd.OpenExamInBrowser]: this.handleOpenExamInBrowser,
+            [WebviewCmd.OpenRulesInEditor]: this.handleOpenRulesInEditor,
         };
     }
 
@@ -343,7 +343,7 @@ export class NavigationCommandModule {
             // Send typed message for React views
             const archivedCourses = this.context.appStateManager.archivedCoursesData || [];
             this.context.sendMessage({
-                type: 'archivedCoursesLoaded',
+                type: ExtensionMsg.ArchivedCoursesLoaded,
                 archivedCourses
             });
 

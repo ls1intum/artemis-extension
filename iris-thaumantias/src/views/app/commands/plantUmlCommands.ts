@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 import { processPlantUml, extractErrorMessage } from '../../../utils';
 import { logger, LogCategory } from '../../../services/loggingService';
 import type { CommandContext, CommandMap } from './types';
-import { getPayload } from '../../../shared/messageContracts';
+import { getPayload, ExtensionMsg, WebviewCmd } from '../../../shared/messageContracts';
 import type {
     WebviewToExtensionMessage,
     RenderPlantUmlInlineCommand,
@@ -15,9 +15,9 @@ export class PlantUmlCommandModule {
 
     public getHandlers(): CommandMap {
         return {
-            renderPlantUml: this.handleRenderPlantUml,
-            renderPlantUmlInline: this.handleRenderPlantUmlInline,
-            openPlantUmlInNewTab: this.handleOpenPlantUmlInNewTab,
+            [WebviewCmd.RenderPlantUml]: this.handleRenderPlantUml,
+            [WebviewCmd.RenderPlantUmlInline]: this.handleRenderPlantUmlInline,
+            [WebviewCmd.OpenPlantUmlInNewTab]: this.handleOpenPlantUmlInNewTab,
         };
     }
 
@@ -54,7 +54,7 @@ export class PlantUmlCommandModule {
 
         if (!plantUml) {
             this.context.sendMessage({
-                type: 'plantUmlError',
+                type: ExtensionMsg.PlantUmlError,
                 index: index,
                 error: 'No PlantUML content provided'
             });
@@ -69,7 +69,7 @@ export class PlantUmlCommandModule {
             const svg = await this.context.artemisApi.renderPlantUmlToSvg(processedPlantUml, isDarkTheme);
 
             this.context.sendMessage({
-                type: 'plantUmlRendered',
+                type: ExtensionMsg.PlantUmlRendered,
                 index: index,
                 svg: svg
             });
@@ -79,7 +79,7 @@ export class PlantUmlCommandModule {
             logger.plantUmlError(`Render inline PlantUML error for diagram ${index + 1}:`, error);
             const errorMsg = extractErrorMessage(error);
             this.context.sendMessage({
-                type: 'plantUmlError',
+                type: ExtensionMsg.PlantUmlError,
                 index: index,
                 error: errorMsg
             });

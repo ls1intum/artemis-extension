@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
 import type { CommandContext, CommandMap } from './types';
-import { getPayload } from '../../../shared/messageContracts';
+import { getPayload, ExtensionMsg, WebviewCmd } from '../../../shared/messageContracts';
 import type {
     WebviewToExtensionMessage,
     CheckRepositoryStatusCommand,
@@ -81,21 +81,21 @@ export class RepositoryCommandModule {
 
     public getHandlers(): CommandMap {
         return {
-            detectWorkspaceExercise: this.handleDetectWorkspaceExercise,
-            participateInExercise: this.handleParticipateInExercise,
-            checkRepositoryStatus: this.handleCheckRepositoryStatus,
-            cloneRepository: this.handleCloneRepository,
-            openClonedRepository: this.handleOpenClonedRepository,
-            copyCloneUrl: this.handleCopyCloneUrl,
-            pullChanges: this.handlePullChanges,
-            submitExercise: this.handleSubmitExercise,
-            saveGitCredentials: this.handleSaveGitCredentials,
-            saveGitIdentity: this.handleSaveGitIdentity,
-            requestGitIdentity: this.handleRequestGitIdentity,
-            startPractice: this.handleStartPractice,
-            startExercise: this.handleStartExercise,
-            openRepository: this.handleOpenRepository,
-            triggerBuild: this.handleTriggerBuild,
+            [WebviewCmd.DetectWorkspaceExercise]: this.handleDetectWorkspaceExercise,
+            [WebviewCmd.ParticipateInExercise]: this.handleParticipateInExercise,
+            [WebviewCmd.CheckRepositoryStatus]: this.handleCheckRepositoryStatus,
+            [WebviewCmd.CloneRepository]: this.handleCloneRepository,
+            [WebviewCmd.OpenClonedRepository]: this.handleOpenClonedRepository,
+            [WebviewCmd.CopyCloneUrl]: this.handleCopyCloneUrl,
+            [WebviewCmd.PullChanges]: this.handlePullChanges,
+            [WebviewCmd.SubmitExercise]: this.handleSubmitExercise,
+            [WebviewCmd.SaveGitCredentials]: this.handleSaveGitCredentials,
+            [WebviewCmd.SaveGitIdentity]: this.handleSaveGitIdentity,
+            [WebviewCmd.RequestGitIdentity]: this.handleRequestGitIdentity,
+            [WebviewCmd.StartPractice]: this.handleStartPractice,
+            [WebviewCmd.StartExercise]: this.handleStartExercise,
+            [WebviewCmd.OpenRepository]: this.handleOpenRepository,
+            [WebviewCmd.TriggerBuild]: this.handleTriggerBuild,
         };
     }
 
@@ -118,14 +118,14 @@ export class RepositoryCommandModule {
             const detected = await detectWorkspaceExercise(exercises);
 
             this.context.sendMessage({
-                type: 'workspaceExerciseDetected',
+                type: ExtensionMsg.WorkspaceExerciseDetected,
                 exerciseId: detected?.id ?? null,
                 exerciseTitle: detected?.title ?? null
             });
         } catch (error: unknown) {
             logger.submissionWarn('Error detecting workspace exercise:', error);
             this.context.sendMessage({
-                type: 'workspaceExerciseDetected',
+                type: ExtensionMsg.WorkspaceExerciseDetected,
                 exerciseId: null,
                 exerciseTitle: null
             });
@@ -271,7 +271,7 @@ export class RepositoryCommandModule {
             }
 
             this.context.sendMessage({
-                type: 'updateRepoStatus',
+                type: ExtensionMsg.UpdateRepoStatus,
                 isConnected: isConnected,
                 hasChanges: hasChanges,
                 isGradedRepo: isGradedRepo
@@ -464,7 +464,7 @@ export class RepositoryCommandModule {
 
             setTimeout(() => {
                 this.context.sendMessage({
-                    type: 'showClonedRepoNotice',
+                    type: ExtensionMsg.ShowClonedRepoNotice,
                     exerciseTitle: exerciseTitle
                 });
             }, 2000);
@@ -587,7 +587,7 @@ export class RepositoryCommandModule {
         if (!workspaceFolder) {
             const errorText = 'Open the exercise repository in VS Code before submitting.';
             vscode.window.showErrorMessage(errorText);
-            this.context.sendMessage({ type: 'submissionResult', success: false, error: errorText });
+            this.context.sendMessage({ type: ExtensionMsg.SubmissionResult, success: false, error: errorText });
             return;
         }
 
@@ -643,7 +643,7 @@ export class RepositoryCommandModule {
             });
 
             vscode.window.showInformationMessage(`Successfully submitted "${exerciseTitle}".`);
-            this.context.sendMessage({ type: 'submissionResult', success: true });
+            this.context.sendMessage({ type: ExtensionMsg.SubmissionResult, success: true });
 
             // Ensure WebSocket is connected to receive real-time result updates
             if (this.context.websocketService && !this.context.websocketService.isConnected()) {
@@ -663,7 +663,7 @@ export class RepositoryCommandModule {
                 vscode.window.showErrorMessage(errorMessage);
             }
 
-            this.context.sendMessage({ type: 'submissionResult', success: false, error: errorMessage });
+            this.context.sendMessage({ type: ExtensionMsg.SubmissionResult, success: false, error: errorMessage });
         }
     };
 
@@ -703,7 +703,7 @@ export class RepositoryCommandModule {
 
         const sendResult = (status: 'success' | 'error' | 'warning' | 'info', text: string) => {
             this.context.sendMessage({
-                type: 'gitCredentialsResult',
+                type: ExtensionMsg.GitCredentialsResult,
                 status,
                 message: text
             });
@@ -741,7 +741,7 @@ export class RepositoryCommandModule {
         const email = await this.getGitConfigValue('user.email', cwd);
 
         this.context.sendMessage({
-            type: 'gitIdentityInfo',
+            type: ExtensionMsg.GitIdentityInfo,
             name: name ?? '',
             email: email ?? ''
         });
@@ -759,7 +759,7 @@ export class RepositoryCommandModule {
 
         const sendResult = (status: 'success' | 'error' | 'warning' | 'info', text: string) => {
             this.context.sendMessage({
-                type: 'gitCredentialsResult',
+                type: ExtensionMsg.GitCredentialsResult,
                 status,
                 message: text
             });
@@ -907,7 +907,7 @@ export class RepositoryCommandModule {
 
         if (!showWarning) {
             this.context.sendMessage({
-                type: 'updateDirtyPagesStatus',
+                type: ExtensionMsg.UpdateDirtyPagesStatus,
                 hasDirtyPages: false,
                 dirtyFileCount: 0,
                 autoSaveEnabled: false
@@ -941,7 +941,7 @@ export class RepositoryCommandModule {
         const autoSave = config.get<string>('autoSave', 'off');
 
         this.context.sendMessage({
-            type: 'updateDirtyPagesStatus',
+            type: ExtensionMsg.UpdateDirtyPagesStatus,
             hasDirtyPages: hasDirtyPages,
             dirtyFileCount: dirtyDocuments.length,
             autoSaveEnabled: autoSave !== 'off'

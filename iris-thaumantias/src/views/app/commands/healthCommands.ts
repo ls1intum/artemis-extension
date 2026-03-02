@@ -1,5 +1,5 @@
 import type { CommandContext, CommandMap } from './types';
-import { getPayload } from '../../../shared/messageContracts';
+import { getPayload, ExtensionMsg, WebviewCmd } from '../../../shared/messageContracts';
 import type { WebviewToExtensionMessage, PerformHealthChecksCommand } from '../../../shared/messageContracts';
 import { logger } from '../../../services/loggingService';
 
@@ -19,7 +19,7 @@ export class HealthCommandModule {
 
     public getHandlers(): CommandMap {
         return {
-            performHealthChecks: this.handlePerformHealthChecks,
+            [WebviewCmd.PerformHealthChecks]: this.handlePerformHealthChecks,
         };
     }
 
@@ -163,7 +163,7 @@ export class HealthCommandModule {
         }
 
         this.context.sendMessage({
-            type: 'healthCheckResults',
+            type: ExtensionMsg.HealthCheckResults,
             results: results
         });
     };

@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 import { ProviderRegistry } from '../../../services/ProviderRegistry';
 import { logger, LogCategory } from '../../../services/loggingService';
 import type { CommandContext, CommandMap } from './types';
-import { getPayload } from '../../../shared/messageContracts';
+import { getPayload, WebviewCmd } from '../../../shared/messageContracts';
 import type { WebviewToExtensionMessage, AskIrisAboutExerciseCommand, AskIrisAboutCourseCommand } from '../../../shared/messageContracts';
 
 export class IrisCommandModule {
@@ -10,8 +10,8 @@ export class IrisCommandModule {
 
     public getHandlers(): CommandMap {
         return {
-            askIrisAboutExercise: this.handleAskIrisAboutExercise,
-            askIrisAboutCourse: this.handleAskIrisAboutCourse,
+            [WebviewCmd.AskIrisAboutExercise]: this.handleAskIrisAboutExercise,
+            [WebviewCmd.AskIrisAboutCourse]: this.handleAskIrisAboutCourse,
         };
     }
 

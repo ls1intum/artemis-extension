@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import * as crypto from 'crypto';
 import type { CommandContext, CommandMap } from './types';
-import { getPayload } from '../../../shared/messageContracts';
+import { getPayload, ExtensionMsg, WebviewCmd } from '../../../shared/messageContracts';
 import type {
     WebviewToExtensionMessage,
     CopyToClipboardCommand,
@@ -27,23 +27,23 @@ export class UtilityCommandModule {
 
     public getHandlers(): CommandMap {
         return {
-            alert: this.handleAlert,
-            openSettings: this.handleOpenSettings,
-            openWebsite: this.handleOpenWebsite,
-            openBugReport: this.handleOpenBugReport,
-            openInEditor: this.handleOpenInEditor,
-            copyToClipboard: this.handleCopyToClipboard,
-            searchMarketplace: this.handleSearchMarketplace,
-            showSubmissionDetails: this.handleShowSubmissionDetails,
-            fetchTestResults: this.handleFetchTestResults,
-            openExerciseInBrowser: this.handleOpenExerciseInBrowser,
-            viewBuildLog: this.handleViewBuildLog,
-            goToSourceError: this.handleGoToSourceError,
-            fetchBuildLogsForError: this.handleFetchBuildLogsForError,
-            clearBuildErrors: this.handleClearBuildErrors,
-            webviewLog: this.handleWebviewLog,
-            openExternalLink: this.handleOpenExternalLink,
-            openImagePreview: this.handleOpenImagePreview,
+            [WebviewCmd.Alert]: this.handleAlert,
+            [WebviewCmd.OpenSettings]: this.handleOpenSettings,
+            [WebviewCmd.OpenWebsite]: this.handleOpenWebsite,
+            [WebviewCmd.OpenBugReport]: this.handleOpenBugReport,
+            [WebviewCmd.OpenInEditor]: this.handleOpenInEditor,
+            [WebviewCmd.CopyToClipboard]: this.handleCopyToClipboard,
+            [WebviewCmd.SearchMarketplace]: this.handleSearchMarketplace,
+            [WebviewCmd.ShowSubmissionDetails]: this.handleShowSubmissionDetails,
+            [WebviewCmd.FetchTestResults]: this.handleFetchTestResults,
+            [WebviewCmd.OpenExerciseInBrowser]: this.handleOpenExerciseInBrowser,
+            [WebviewCmd.ViewBuildLog]: this.handleViewBuildLog,
+            [WebviewCmd.GoToSourceError]: this.handleGoToSourceError,
+            [WebviewCmd.FetchBuildLogsForError]: this.handleFetchBuildLogsForError,
+            [WebviewCmd.ClearBuildErrors]: this.handleClearBuildErrors,
+            [WebviewCmd.WebviewLog]: this.handleWebviewLog,
+            [WebviewCmd.OpenExternalLink]: this.handleOpenExternalLink,
+            [WebviewCmd.OpenImagePreview]: this.handleOpenImagePreview,
         };
     }
 
@@ -55,13 +55,15 @@ export class UtilityCommandModule {
     };
 
     private handleOpenSettings = async (message: WebviewToExtensionMessage): Promise<void> => {
-        const typedMessage = message as OpenSettingsCommand;
-        const settingId = typedMessage.payload?.setting || 'Artemis';
+        const payload = getPayload<OpenSettingsCommand>(message);
+        const settingId = payload?.setting || 'Artemis';
         await vscode.commands.executeCommand('workbench.action.openSettings', settingId);
     };
 
     private handleOpenWebsite = async (): Promise<void> => {
-        await vscode.env.openExternal(vscode.Uri.parse('https://artemis.tum.de/courses'));
+        const config = vscode.workspace.getConfiguration('artemis');
+        const serverUrl = config.get<string>('serverUrl', 'https://artemis.cit.tum.de');
+        await vscode.env.openExternal(vscode.Uri.parse(`${serverUrl}/courses`));
     };
 
     private handleOpenBugReport = async (): Promise<void> => {
@@ -123,7 +125,7 @@ export class UtilityCommandModule {
         try {
             if (!participationId || !resultId) {
                 this.context.sendMessage({
-                    type: 'testResultsData',
+                    type: ExtensionMsg.TestResultsData,
                     testCases: [],
                     error: 'Missing participation or result ID'
                 });
@@ -166,20 +168,20 @@ export class UtilityCommandModule {
                 logger.submission('[Test Results] Mapped test cases:', testCases.length, 'items');
 
                 this.context.sendMessage({
-                    type: 'testResultsData',
+                    type: ExtensionMsg.TestResultsData,
                     testCases: testCases
                 });
             } else {
                 logger.submission('[Test Results] No feedbacks found in result details');
                 this.context.sendMessage({
-                    type: 'testResultsData',
+                    type: ExtensionMsg.TestResultsData,
                     testCases: []
                 });
             }
         } catch (error: unknown) {
             logger.submissionError('Fetch test results error:', error);
             this.context.sendMessage({
-                type: 'testResultsData',
+                type: ExtensionMsg.TestResultsData,
                 testCases: [],
                 error: extractErrorMessage(error)
             });
@@ -201,15 +203,12 @@ export class UtilityCommandModule {
             const config = vscode.workspace.getConfiguration('artemis');
             const serverUrl = config.get<string>('serverUrl', 'https://artemis.cit.tum.de');
 
-            // Construct the exercise URL
-            // Format: https://artemis.cit.tum.de/courses/{courseId}/exercises/{exerciseId}
-            let exerciseUrl: string;
-            if (courseId) {
-                exerciseUrl = `${serverUrl}/courses/${courseId}/exercises/${exerciseId}`;
-            } else {
-                // Fallback if no course ID is available
-                exerciseUrl = `${serverUrl}/courses/exercises/${exerciseId}`;
+            if (!courseId) {
+                vscode.window.showErrorMessage('Cannot open exercise in browser: missing course ID');
+                return;
             }
+
+            const exerciseUrl = `${serverUrl}/courses/${courseId}/exercises/${exerciseId}`;
 
             // Open in external browser
             await vscode.env.openExternal(vscode.Uri.parse(exerciseUrl));
@@ -278,7 +277,7 @@ export class UtilityCommandModule {
             // Send parsed error back to webview so it can show "Go to Source" button
             if (firstError) {
                 this.context.sendMessage({
-                    type: 'buildLogParsed',
+                    type: ExtensionMsg.BuildLogParsed,
                     error: firstError,
                     participationId: participationId,
                     resultId: resultId
@@ -379,7 +378,7 @@ export class UtilityCommandModule {
                 }
 
                 this.context.sendMessage({
-                    type: 'buildLogParsed',
+                    type: ExtensionMsg.BuildLogParsed,
                     error: firstError,
                     participationId: participationId,
                     resultId: resultId
@@ -413,7 +412,7 @@ export class UtilityCommandModule {
      */
     private handleWebviewLog = async (message: WebviewToExtensionMessage): Promise<void> => {
         const payload = getPayload<WebviewLogCommand>(message);
-        const { level, text, category } = payload;
+        const { level, text } = payload;
         const logCategory = LogCategory.VIEW;
 
         switch (level) {
