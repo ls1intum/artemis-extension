@@ -1,10 +1,11 @@
-import { useState, useEffect, type FormEvent } from 'react';
+import { useState, useEffect, useRef, type FormEvent } from 'react';
 import { Container } from '../../components/Container';
 import { TextInput } from '../../components/TextInput';
 import { Button } from '../../components/Button';
 import { ServiceHealth, type ServiceInfo } from '../../components/ServiceHealth';
+import { useExtensionMessage } from '../../hooks/useExtensionMessage';
 import type { LoginViewProps, LoginPersistedState, LoginViewState, UserInfo } from './types';
-import { ExtensionMsg, isExtensionMessage, postCommand } from '../../../../../shared/messageContracts';
+import { ExtensionMsg, postCommand } from '../../../../../shared/messageContracts';
 import { formatServiceName } from '../../utils/formatServiceName';
 import styles from './LoginView.module.css';
 
@@ -63,102 +64,94 @@ export function LoginView({ vscodeApi }: LoginViewProps) {
 		});
 	}, [username, password, rememberMe, vscodeApi]);
 
+	// Timer ref for hide-loading animation
+	const hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+	// Cleanup timer on unmount
+	useEffect(() => () => {
+		if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
+	}, []);
+
 	// Message handler for extension-to-webview messages
-	useEffect(() => {
-		let hideTimerId: ReturnType<typeof setTimeout> | null = null;
-
-		const messageHandler = (event: MessageEvent<unknown>) => {
-			if (!isExtensionMessage(event.data)) {
-				return;
+	useExtensionMessage((msg) => {
+		switch (msg.type) {
+			case ExtensionMsg.ShowLoading: {
+				setViewState('loading');
+				setLoadingHiding(false);
+				setLoadingVisible(true);
+				const showMsg = msg.message ?? 'Checking authentication...';
+				setLoadingMessage(showMsg);
+				setLoadingSubtext(loadingSubtexts[showMsg] ?? 'Please wait while we process your request');
+				break;
 			}
 
-			switch (event.data.type) {
-				case ExtensionMsg.ShowLoading: {
-					setViewState('loading');
-					setLoadingHiding(false);
-					setLoadingVisible(true);
-					const showMsg = event.data.message ?? 'Checking authentication...';
-					setLoadingMessage(showMsg);
-					setLoadingSubtext(loadingSubtexts[showMsg] ?? 'Please wait while we process your request');
-					break;
+			case ExtensionMsg.HideLoading:
+				if (viewState === 'loading') {
+					setLoadingHiding(true);
+					hideTimerRef.current = setTimeout(() => {
+						setLoadingVisible(false);
+						setLoadingHiding(false);
+						setViewState('form');
+						setLoadingMessage('');
+						setLoadingSubtext('');
+					}, 300);
 				}
+				break;
 
-				case ExtensionMsg.HideLoading:
-					if (viewState === 'loading') {
-						setLoadingHiding(true);
-						hideTimerId = setTimeout(() => {
-							setLoadingVisible(false);
-							setLoadingHiding(false);
-							setViewState('form');
-							setLoadingMessage('');
-							setLoadingSubtext('');
-						}, 300);
-					}
-					break;
-
-				case ExtensionMsg.UpdateLoading: {
-					const updateMsg = event.data.message ?? 'Processing...';
-					setLoadingMessage(updateMsg);
-					setLoadingSubtext(loadingSubtexts[updateMsg] ?? 'Please wait while we process your request');
-					break;
-				}
-
-				case ExtensionMsg.LoginSuccess:
-					setViewState('form'); // Dashboard transition handled by extension
-					setStatusMessage('');
-					setIsSubmitting(false);
-					setShowHealthChecks(false);
-					break;
-
-				case ExtensionMsg.LoginError: {
-					setViewState('form');
-					setStatusMessage(event.data.error ?? 'Login failed');
-					setStatusType('error');
-					setIsSubmitting(false);
-					setShowHealthChecks(true);
-					// Trigger health checks on error
-					if (serverUrl) {
-						performHealthChecks();
-					}
-					break;
-				}
-
-				case ExtensionMsg.LogoutSuccess:
-					setViewState('form');
-					setUserInfo(null);
-					setStatusMessage('You have been logged out.');
-					setStatusType('info');
-					setShowHealthChecks(false);
-					break;
-
-				case ExtensionMsg.SetServerUrl: {
-					setServerUrl(event.data.serverUrl ?? '');
-					break;
-				}
-
-				case ExtensionMsg.HealthCheckResults: {
-					// Convert health check results to ServiceInfo format
-					const services: ServiceInfo[] = Object.entries(event.data.results).map(([serviceName, data]) => ({
-						name: formatServiceName(serviceName),
-						status: data.status as 'online' | 'offline' | 'checking' | 'unknown',
-						message: data.message ?? '',
-						endpoint: data.endpoint ?? '',
-						httpStatus: data.httpStatus !== null ? String(data.httpStatus) : undefined,
-						response: data.response ?? undefined,
-					}));
-					setHealthServices(services);
-					setIsHealthChecking(false);
-					setLastHealthCheck(new Date());
-					break;
-				}
+			case ExtensionMsg.UpdateLoading: {
+				const updateMsg = msg.message ?? 'Processing...';
+				setLoadingMessage(updateMsg);
+				setLoadingSubtext(loadingSubtexts[updateMsg] ?? 'Please wait while we process your request');
+				break;
 			}
-		};
 
-		window.addEventListener('message', messageHandler);
-		return () => {
-			window.removeEventListener('message', messageHandler);
-			if (hideTimerId !== null) { clearTimeout(hideTimerId); }
-		};
+			case ExtensionMsg.LoginSuccess:
+				setViewState('form');
+				setStatusMessage('');
+				setIsSubmitting(false);
+				setShowHealthChecks(false);
+				break;
+
+			case ExtensionMsg.LoginError: {
+				setViewState('form');
+				setStatusMessage(msg.error ?? 'Login failed');
+				setStatusType('error');
+				setIsSubmitting(false);
+				setShowHealthChecks(true);
+				if (serverUrl) {
+					performHealthChecks();
+				}
+				break;
+			}
+
+			case ExtensionMsg.LogoutSuccess:
+				setViewState('form');
+				setUserInfo(null);
+				setStatusMessage('You have been logged out.');
+				setStatusType('info');
+				setShowHealthChecks(false);
+				break;
+
+			case ExtensionMsg.SetServerUrl: {
+				setServerUrl(msg.serverUrl ?? '');
+				break;
+			}
+
+			case ExtensionMsg.HealthCheckResults: {
+				const services: ServiceInfo[] = Object.entries(msg.results).map(([serviceName, data]) => ({
+					name: formatServiceName(serviceName),
+					status: data.status as 'online' | 'offline' | 'checking' | 'unknown',
+					message: data.message ?? '',
+					endpoint: data.endpoint ?? '',
+					httpStatus: data.httpStatus !== null ? String(data.httpStatus) : undefined,
+					response: data.response ?? undefined,
+				}));
+				setHealthServices(services);
+				setIsHealthChecking(false);
+				setLastHealthCheck(new Date());
+				break;
+			}
+		}
 	}, [viewState, serverUrl]);
 
 	// Perform health checks

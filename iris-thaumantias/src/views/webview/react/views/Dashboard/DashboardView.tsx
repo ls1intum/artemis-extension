@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useDashboardStore } from '../../stores/useDashboardStore';
 import type { DashboardViewProps, RecentCourseNode, Exercise } from './types';
 import type { CourseDashboardCourse } from '../../../../../types/apiResponses';
@@ -23,7 +23,8 @@ import LogOut from 'lucide-react/dist/esm/icons/log-out';
 import ChevronRight from 'lucide-react/dist/esm/icons/chevron-right';
 import { getIcon } from '../../../../../utils/iconMap';
 import SquareArrowOutUpRight from 'lucide-react/dist/esm/icons/square-arrow-out-up-right';
-import { ExtensionMsg, isExtensionMessage, postCommand } from '../../../../../shared/messageContracts';
+import { ExtensionMsg, postCommand } from '../../../../../shared/messageContracts';
+import { useExtensionMessage } from '../../hooks/useExtensionMessage';
 import styles from './DashboardView.module.css';
 
 export function DashboardView({ vscodeApi }: DashboardViewProps) {
@@ -40,37 +41,26 @@ export function DashboardView({ vscodeApi }: DashboardViewProps) {
 
     const [expandedCourses, setExpandedCourses] = useState<Set<number>>(new Set([0]));
 
-    // Load dashboard data on mount
-    useEffect(() => {
-        // Listen for dashboard messages
-        const handleMessage = (event: MessageEvent<unknown>) => {
-            if (!isExtensionMessage(event.data)) {
-                return;
+    // Listen for dashboard messages
+    useExtensionMessage((msg) => {
+        if (msg.type === ExtensionMsg.DashboardInit) {
+            setDashboardData(msg.courses ?? []);
+            if (msg.workspaceExercise) {
+                setWorkspaceExercise({
+                    id: msg.workspaceExercise.id,
+                    title: msg.workspaceExercise.title,
+                });
             }
-
-            if (event.data.type === ExtensionMsg.DashboardInit) {
-                setDashboardData(event.data.courses ?? []);
-                if (event.data.workspaceExercise) {
-                    setWorkspaceExercise({
-                        id: event.data.workspaceExercise.id,
-                        title: event.data.workspaceExercise.title,
-                    });
-                }
-            } else if (event.data.type === ExtensionMsg.WorkspaceExerciseDetected) {
-                if (typeof event.data.exerciseId === 'number' && typeof event.data.exerciseTitle === 'string') {
-                    setWorkspaceExercise({
-                        id: event.data.exerciseId,
-                        title: event.data.exerciseTitle,
-                    });
-                } else {
-                    setWorkspaceExercise(null);
-                }
+        } else if (msg.type === ExtensionMsg.WorkspaceExerciseDetected) {
+            if (typeof msg.exerciseId === 'number' && typeof msg.exerciseTitle === 'string') {
+                setWorkspaceExercise({
+                    id: msg.exerciseId,
+                    title: msg.exerciseTitle,
+                });
+            } else {
+                setWorkspaceExercise(null);
             }
-        };
-
-        window.addEventListener('message', handleMessage);
-
-        return () => window.removeEventListener('message', handleMessage);
+        }
     }, [vscodeApi, setDashboardData, setWorkspaceExercise]);
 
     const handleReloadDashboard = () => {

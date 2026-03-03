@@ -5,9 +5,10 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { BackLink, Container, TextInput, Button, PageHeader, SkeletonList } from '../../components';
+import { useExtensionMessage } from '../../hooks/useExtensionMessage';
 import styles from './GitCredentialsView.module.css';
 import type { GitCredentialsViewProps, GitCredentialsPersistedState } from './types';
-import { ExtensionMsg, isExtensionMessage, postCommand } from '../../../../../shared/messageContracts';
+import { ExtensionMsg, postCommand } from '../../../../../shared/messageContracts';
 
 export function GitCredentialsView({ vscodeApi }: GitCredentialsViewProps) {
     // Restore persisted state (form values only)
@@ -30,50 +31,40 @@ export function GitCredentialsView({ vscodeApi }: GitCredentialsViewProps) {
     // Timer ref for status message auto-clear
     const statusTimerRef = useRef<ReturnType<typeof setTimeout>>();
 
+    // Cleanup timer on unmount
+    useEffect(() => () => {
+        if (statusTimerRef.current) clearTimeout(statusTimerRef.current);
+    }, []);
+
     // Message handler
-    useEffect(() => {
-        const handleMessage = (event: MessageEvent<unknown>) => {
-            if (!isExtensionMessage(event.data)) {
-                return;
-            }
-
-            switch (event.data.type) {
-                case ExtensionMsg.GitCredentialsInit: {
-                    if (event.data.currentName) {
-                        setName(event.data.currentName);
-                    }
-                    if (event.data.currentEmail) {
-                        setEmail(event.data.currentEmail);
-                    }
-                    setIsLoaded(true);
-                    break;
+    useExtensionMessage((msg) => {
+        switch (msg.type) {
+            case ExtensionMsg.GitCredentialsInit: {
+                if (msg.currentName) {
+                    setName(msg.currentName);
                 }
-                case ExtensionMsg.GitIdentityInfo: {
-                    if (event.data.name) { setName(event.data.name); }
-                    if (event.data.email) { setEmail(event.data.email); }
-                    setIsLoaded(true);
-                    break;
+                if (msg.currentEmail) {
+                    setEmail(msg.currentEmail);
                 }
-                case ExtensionMsg.GitCredentialsResult: {
-                    setStatusMessage(event.data.message);
-                    setStatusType(event.data.status);
-                    // Cancel previous timer and start a new one
-                    if (statusTimerRef.current) {
-                        clearTimeout(statusTimerRef.current);
-                    }
-                    statusTimerRef.current = setTimeout(() => setStatusMessage(''), 5000);
-                    break;
+                setIsLoaded(true);
+                break;
+            }
+            case ExtensionMsg.GitIdentityInfo: {
+                if (msg.name) { setName(msg.name); }
+                if (msg.email) { setEmail(msg.email); }
+                setIsLoaded(true);
+                break;
+            }
+            case ExtensionMsg.GitCredentialsResult: {
+                setStatusMessage(msg.message);
+                setStatusType(msg.status);
+                if (statusTimerRef.current) {
+                    clearTimeout(statusTimerRef.current);
                 }
+                statusTimerRef.current = setTimeout(() => setStatusMessage(''), 5000);
+                break;
             }
-        };
-
-        window.addEventListener('message', handleMessage);
-        return () => {
-            window.removeEventListener('message', handleMessage);
-            if (statusTimerRef.current) {
-                clearTimeout(statusTimerRef.current);
-            }
-        };
+        }
     }, [vscodeApi]);
 
     const handleSubmit = (e: React.FormEvent) => {

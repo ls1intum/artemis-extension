@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
-import { ExtensionMsg, isExtensionMessage, postCommand } from '../../../../../shared/messageContracts';
+import { ExtensionMsg, postCommand } from '../../../../../shared/messageContracts';
 import { BackLink, Container, Button, Badge, PageHeader, SkeletonList } from '../../components';
+import { useExtensionMessage } from '../../hooks/useExtensionMessage';
 import styles from './RecommendedExtensionsView.module.css';
 import type { RecommendedExtensionsViewProps, ExtensionCategory, Extension, RecommendedExtensionsPersistedState } from './types';
 
@@ -25,20 +26,11 @@ export function RecommendedExtensionsView({ vscodeApi }: RecommendedExtensionsVi
     }, [selectedCategory, vscodeApi]);
 
     // Message handler
-    useEffect(() => {
-        const handleMessage = (event: MessageEvent<unknown>) => {
-            if (!isExtensionMessage(event.data)) {
-                return;
-            }
-
-            if (event.data.type === ExtensionMsg.RecommendedExtensionsInit) {
-                setCategories(event.data.categories);
-                setIsLoaded(true);
-            }
-        };
-
-        window.addEventListener('message', handleMessage);
-        return () => window.removeEventListener('message', handleMessage);
+    useExtensionMessage((msg) => {
+        if (msg.type === ExtensionMsg.RecommendedExtensionsInit) {
+            setCategories(msg.categories);
+            setIsLoaded(true);
+        }
     }, [vscodeApi]);
 
     const handleBackToDashboard = () => {

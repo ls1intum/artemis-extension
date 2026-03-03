@@ -4,11 +4,12 @@ import { useExamStartStore } from '../../stores/useExamStartStore';
 import { useRelativeTime } from '../../hooks/useRelativeTime';
 import { useExamTimer } from '../../hooks/useExamTimer';
 import { useExtensionError } from '../../hooks/useExtensionError';
+import { useExtensionMessage } from '../../hooks/useExtensionMessage';
 import { ExamTimer } from '../../components/ExamTimer/ExamTimer';
 import { TimerExpiredOverlay } from '../../components/TimerExpiredOverlay/TimerExpiredOverlay';
 import { BackLink, Container, Button, SkeletonList, ErrorMessage, Badge } from '../../components';
 import type { ExamStartViewProps } from './types';
-import { ExtensionMsg, WebviewMsgType, isExtensionMessage, postCommand } from '../../../../../shared/messageContracts';
+import { ExtensionMsg, WebviewMsgType, postCommand } from '../../../../../shared/messageContracts';
 import styles from './ExamStartView.module.css';
 
 export function ExamStartView({ vscodeApi }: ExamStartViewProps) {
@@ -20,20 +21,10 @@ export function ExamStartView({ vscodeApi }: ExamStartViewProps) {
     useExtensionError(handleError);
 
     // Load data on mount
-    useEffect(() => {
-        const handleMessage = (event: MessageEvent<unknown>) => {
-            if (!isExtensionMessage(event.data)) {
-                return;
-            }
-
-            if (event.data.type === ExtensionMsg.ExamStartInit) {
-                setExamStartData(event.data);
-            }
-        };
-
-        window.addEventListener('message', handleMessage);
-
-        return () => window.removeEventListener('message', handleMessage);
+    useExtensionMessage((msg) => {
+        if (msg.type === ExtensionMsg.ExamStartInit) {
+            setExamStartData(msg);
+        }
     }, [vscodeApi, setExamStartData]);
 
     // Calculate exam timing

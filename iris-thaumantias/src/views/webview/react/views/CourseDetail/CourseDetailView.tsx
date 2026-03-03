@@ -1,8 +1,9 @@
 import { useEffect } from 'react';
 import { useCourseDetailStore } from '../../stores/useCourseDetailStore';
 import { useNavigationStore } from '../../stores/useNavigationStore';
+import { useExtensionMessage } from '../../hooks/useExtensionMessage';
 import type { CourseDetailViewProps, CourseDetailPersistedState } from './types';
-import { ExtensionMsg, isExtensionMessage, postCommand } from '../../../../../shared/messageContracts';
+import { ExtensionMsg, postCommand } from '../../../../../shared/messageContracts';
 import type { Exercise, Exam } from '../../../../../shared/messageContracts';
 import { getIcon } from '../../../../../utils/iconMap';
 import {
@@ -42,7 +43,7 @@ export function CourseDetailView({ vscodeApi }: CourseDetailViewProps) {
 
     const { pushBreadcrumb, clearBreadcrumbs } = useNavigationStore();
 
-    // Restore persisted state and load data on mount
+    // Restore persisted state on mount
     useEffect(() => {
         const persistedState = vscodeApi.getState<CourseDetailPersistedState>();
         if (persistedState) {
@@ -55,29 +56,21 @@ export function CourseDetailView({ vscodeApi }: CourseDetailViewProps) {
         pushBreadcrumb('Dashboard', 'dashboard', () => {
             postCommand(vscodeApi, 'backToDashboard');
         });
+    }, [vscodeApi, setExerciseSearchTerm, setExerciseSortBy, pushBreadcrumb, clearBreadcrumbs]);
 
-        // Listen for courseDetailInit messages
-        const handleMessage = (event: MessageEvent<unknown>) => {
-            if (!isExtensionMessage(event.data)) {
-                return;
-            }
+    // Listen for courseDetailInit messages
+    useExtensionMessage((msg) => {
+        if (msg.type === ExtensionMsg.CourseDetailInit) {
+            setCourseData(msg.courseData as Parameters<typeof setCourseData>[0], msg.workspaceExerciseId as Parameters<typeof setCourseData>[1]);
 
-            if (event.data.type === ExtensionMsg.CourseDetailInit) {
-                setCourseData(event.data.courseData as Parameters<typeof setCourseData>[0], event.data.workspaceExerciseId as Parameters<typeof setCourseData>[1]);
-
-                // Push course breadcrumb
-                const courseTitle = event.data.courseData?.course?.title ?? 'Course';
-                const abbreviatedTitle = courseTitle.length > 20 ? courseTitle.substring(0, 17) + '...' : courseTitle;
-                pushBreadcrumb(abbreviatedTitle, 'course-detail', () => {
-                    // Current page, no action
-                });
-            }
-        };
-
-        window.addEventListener('message', handleMessage);
-
-        return () => window.removeEventListener('message', handleMessage);
-    }, [vscodeApi, setCourseData, setExerciseSearchTerm, setExerciseSortBy, pushBreadcrumb, clearBreadcrumbs]);
+            // Push course breadcrumb
+            const courseTitle = msg.courseData?.course?.title ?? 'Course';
+            const abbreviatedTitle = courseTitle.length > 20 ? courseTitle.substring(0, 17) + '...' : courseTitle;
+            pushBreadcrumb(abbreviatedTitle, 'course-detail', () => {
+                // Current page, no action
+            });
+        }
+    }, [vscodeApi, setCourseData, pushBreadcrumb]);
 
     // Persist search/sort state whenever it changes
     useEffect(() => {

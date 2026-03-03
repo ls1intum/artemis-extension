@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react';
-import { ExtensionMsg, isExtensionMessage, postCommand } from '../../../../../shared/messageContracts';
+import { useState } from 'react';
+import { ExtensionMsg, postCommand } from '../../../../../shared/messageContracts';
 import { BackLink, Container, Badge, PageHeader, SkeletonList } from '../../components';
+import { useExtensionMessage } from '../../hooks/useExtensionMessage';
 import type { StruggleDetectionViewProps, StruggleData } from './types';
 import styles from './StruggleDetectionView.module.css';
 
@@ -30,20 +31,11 @@ function getActionVariant(action: string): 'default' | 'success' | 'warning' | '
 export function StruggleDetectionView({ vscodeApi }: StruggleDetectionViewProps) {
     const [data, setData] = useState<StruggleData | null>(null);
 
-    useEffect(() => {
-        const handleMessage = (event: MessageEvent<unknown>) => {
-            if (!isExtensionMessage(event.data)) {
-                return;
-            }
-
-            if (event.data.type === ExtensionMsg.StruggleDetectionInit) {
-                const { type: _type, ...struggleData } = event.data;
-				setData(struggleData as StruggleData);
-            }
-        };
-
-        window.addEventListener('message', handleMessage);
-        return () => window.removeEventListener('message', handleMessage);
+    useExtensionMessage((msg) => {
+        if (msg.type === ExtensionMsg.StruggleDetectionInit) {
+            const { type: _type, ...struggleData } = msg;
+            setData(struggleData as StruggleData);
+        }
     }, [vscodeApi]);
 
     const handleBackToDashboard = () => {

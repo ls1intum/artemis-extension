@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useExerciseDetailStore } from '../../stores/useExerciseDetailStore';
 import { useNavigationStore } from '../../stores/useNavigationStore';
 import { useWebSocketUpdates } from '../../hooks/useWebSocketUpdates';
+import { useExtensionMessage } from '../../hooks/useExtensionMessage';
 import type { ExerciseDetailViewProps } from './types';
 import type { ExerciseDetailsResponse } from '../../../../../types/apiResponses';
 import { getIcon } from '../../../../../utils/iconMap';
@@ -24,7 +25,7 @@ import {
 import { ProblemStatement, ScoreInfo, TestResults } from './components';
 import type { ExerciseType } from '../../components/exercise/ParticipationActions';
 import type { BuildState } from '../../components/exercise/BuildProgress';
-import { ExtensionMsg, isExtensionMessage, postCommand } from '../../../../../shared/messageContracts';
+import { ExtensionMsg, postCommand } from '../../../../../shared/messageContracts';
 import { determineSubmissionStatus, determineParticipationStatus } from '../../utils/exerciseStatus';
 import { formatDate } from '../../utils/formatDate';
 import styles from './ExerciseDetailView.module.css';
@@ -47,46 +48,37 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
     // Initialize WebSocket updates hook
     useWebSocketUpdates(vscodeApi);
 
-    // Load data on mount
+    // Initialize breadcrumbs on mount
     useEffect(() => {
-        // Clear breadcrumbs and rebuild
         clearBreadcrumbs();
         pushBreadcrumb('Dashboard', 'dashboard', () => {
             postCommand(vscodeApi, 'backToDashboard');
         });
+    }, [vscodeApi, pushBreadcrumb, clearBreadcrumbs]);
 
-        // Listen for exerciseDetailInit messages
-        const handleMessage = (event: MessageEvent<unknown>) => {
-            if (!isExtensionMessage(event.data)) {
-                return;
-            }
+    // Listen for exerciseDetailInit messages
+    useExtensionMessage((msg) => {
+        if (msg.type === ExtensionMsg.ExerciseDetailInit) {
+            if (!msg.exerciseData) return;
 
-            if (event.data.type === ExtensionMsg.ExerciseDetailInit) {
-                if (!event.data.exerciseData) return;
+            setExerciseData(msg.exerciseData, msg.hideDeveloperTools);
 
-                setExerciseData(event.data.exerciseData, event.data.hideDeveloperTools);
+            // Push breadcrumbs: Dashboard > CourseName > ExerciseName
+            const exercise = msg.exerciseData?.exercise;
+            const courseName = exercise?.course?.title ?? 'Course';
+            const exerciseTitle = exercise?.title ?? 'Exercise';
+            const abbreviatedCourse = courseName.length > 20 ? courseName.substring(0, 17) + '...' : courseName;
+            const abbreviatedExercise = exerciseTitle.length > 20 ? exerciseTitle.substring(0, 17) + '...' : exerciseTitle;
 
-                // Push breadcrumbs: Dashboard > CourseName > ExerciseName
-                const exercise = event.data.exerciseData?.exercise;
-                const courseName = exercise?.course?.title ?? 'Course';
-                const exerciseTitle = exercise?.title ?? 'Exercise';
-                const abbreviatedCourse = courseName.length > 20 ? courseName.substring(0, 17) + '...' : courseName;
-                const abbreviatedExercise = exerciseTitle.length > 20 ? exerciseTitle.substring(0, 17) + '...' : exerciseTitle;
+            pushBreadcrumb(abbreviatedCourse, 'course-detail', () => {
+                postCommand(vscodeApi, 'backToCourseDetails');
+            });
 
-                pushBreadcrumb(abbreviatedCourse, 'course-detail', () => {
-                    postCommand(vscodeApi, 'backToCourseDetails');
-                });
-
-                pushBreadcrumb(abbreviatedExercise, 'exercise-detail', () => {
-                    // Current page, no action
-                });
-            }
-        };
-
-        window.addEventListener('message', handleMessage);
-
-        return () => window.removeEventListener('message', handleMessage);
-    }, [vscodeApi, setExerciseData, pushBreadcrumb, clearBreadcrumbs]);
+            pushBreadcrumb(abbreviatedExercise, 'exercise-detail', () => {
+                // Current page, no action
+            });
+        }
+    }, [vscodeApi, setExerciseData, pushBreadcrumb]);
 
     // Auto-retry once on error
     useEffect(() => {

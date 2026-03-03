@@ -1,6 +1,7 @@
 import { useEffect, useMemo } from 'react';
 import { useCourseListStore } from '../../stores/useCourseListStore';
 import { useNavigationStore } from '../../stores/useNavigationStore';
+import { useExtensionMessage } from '../../hooks/useExtensionMessage';
 import type { CourseListViewProps, CourseListPersistedState, CourseData, ArchivedCourse } from './types';
 import type { CourseDashboardCourse } from '../../../../../types/apiResponses';
 import {
@@ -17,7 +18,7 @@ import {
     PageHeader,
 } from '../../components';
 import type { DropdownOption } from '../../components';
-import { ExtensionMsg, isExtensionMessage, postCommand } from '../../../../../shared/messageContracts';
+import { ExtensionMsg, postCommand } from '../../../../../shared/messageContracts';
 import styles from './CourseListView.module.css';
 
 export function CourseListView({ vscodeApi }: CourseListViewProps) {
@@ -59,24 +60,16 @@ export function CourseListView({ vscodeApi }: CourseListViewProps) {
         pushBreadcrumb('Courses', 'course-list', () => {
             postCommand(vscodeApi, 'showAllCourses');
         });
+    }, [vscodeApi, pushBreadcrumb, setSearchTerm, setTypeFilter, setSemesterFilter, setSortBy]);
 
-        // Listen for courseList messages
-        const handleMessage = (event: MessageEvent<unknown>) => {
-            if (!isExtensionMessage(event.data)) {
-                return;
-            }
-
-            if (event.data.type === ExtensionMsg.CourseListInit) {
-                setCourses(event.data.courses ?? [], event.data.archivedCourses);
-            } else if (event.data.type === ExtensionMsg.ArchivedCoursesLoaded) {
-                setArchivedCourses(event.data.archivedCourses ?? []);
-            }
-        };
-
-        window.addEventListener('message', handleMessage);
-
-        return () => window.removeEventListener('message', handleMessage);
-    }, [vscodeApi, setCourses, setArchivedCourses, pushBreadcrumb, setSearchTerm, setTypeFilter, setSemesterFilter, setSortBy]);
+    // Listen for courseList messages
+    useExtensionMessage((msg) => {
+        if (msg.type === ExtensionMsg.CourseListInit) {
+            setCourses(msg.courses ?? [], msg.archivedCourses);
+        } else if (msg.type === ExtensionMsg.ArchivedCoursesLoaded) {
+            setArchivedCourses(msg.archivedCourses ?? []);
+        }
+    }, [vscodeApi, setCourses, setArchivedCourses]);
 
     // Persist filter state whenever it changes
     useEffect(() => {

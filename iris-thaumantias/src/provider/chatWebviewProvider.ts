@@ -957,11 +957,6 @@ Iris can see files from your workspace (configurable in settings). Check the "Re
             source: this._mapReasonToSource(reason),
         });
 
-        // Clear any existing sessions for this context before loading new ones
-        const contextKey = `course:${courseId}`;
-        this._contextStore.clearSessionsForContext(contextKey);
-
-        // Set context without automatically ensuring a session (we'll load from server first)
         this._contextStore.setActiveContext({
             type: 'course',
             id: courseId,
@@ -972,16 +967,7 @@ Iris can see files from your workspace (configurable in settings). Check the "Re
             selectedAt: Date.now(),
         }, false);
 
-        this._resetSessionStateForContextChange();
-
-        // Clear messages immediately to avoid showing old context messages
-        this._postMessageSafe({ type: ExtensionMsg.ClearChatMessages });
-
-        vscode.window.showInformationMessage(`Course context set to: ${courseTitle}`);
-
-        // Load sessions for the new context, then update UI
-        // The snapshot will be posted after sessions are loaded
-        void this._chatSessionService.loadAllSessionsForContext();
+        this._finalizeContextSwitch(`course:${courseId}`, `Course context set to: ${courseTitle}`);
     }
 
     public setExerciseContext(
@@ -994,17 +980,9 @@ Iris can see files from your workspace (configurable in settings). Check the "Re
         courseId?: number,
     ): void {
         logger.context('SET EXERCISE CONTEXT Called with:', LogLevel.DEBUG, {
-            exerciseId,
-            exerciseTitle,
-            shortName,
-            releaseDate,
-            dueDate,
-            courseId,
-            reason,
-            source: this._mapReasonToSource(reason)
+            exerciseId, exerciseTitle, shortName, releaseDate, dueDate, courseId, reason,
+            source: this._mapReasonToSource(reason),
         });
-
-        logger.context('SET EXERCISE CONTEXT Current active context BEFORE:', LogLevel.DEBUG, this._contextStore.getActiveContext());
 
         this._contextStore.registerExercise({
             id: exerciseId,
@@ -1015,22 +993,6 @@ Iris can see files from your workspace (configurable in settings). Check the "Re
             dueDate,
             source: this._mapReasonToSource(reason),
             isWorkspace: reason === 'workspace-detected' || reason === 'auto-workspace',
-        });
-
-        logger.context('SET EXERCISE CONTEXT Exercise registered. Active context AFTER registerExercise:', LogLevel.DEBUG,
-            this._contextStore.getActiveContext());
-
-        // Clear any existing sessions for this context before loading new ones
-        const contextKey = `exercise:${exerciseId}`;
-        logger.context(`SET EXERCISE CONTEXT Clearing sessions for context key: ${contextKey}`, LogLevel.DEBUG);
-        this._contextStore.clearSessionsForContext(contextKey);
-
-        // Set context without automatically ensuring a session (we'll load from server first)
-        logger.context('SET EXERCISE CONTEXT Setting active context to:', LogLevel.DEBUG, {
-            type: 'exercise',
-            id: exerciseId,
-            title: exerciseTitle,
-            shortName
         });
 
         this._contextStore.setActiveContext({
@@ -1044,15 +1006,7 @@ Iris can see files from your workspace (configurable in settings). Check the "Re
             selectedAt: Date.now(),
         }, false);
 
-        logger.context('SET EXERCISE CONTEXT Active context AFTER setActiveContext:', LogLevel.DEBUG,
-            this._contextStore.getActiveContext());
-
-        this._resetSessionStateForContextChange();
-
-        // Clear messages immediately to avoid showing old context messages
-        this._postMessageSafe({ type: ExtensionMsg.ClearChatMessages });
-
-        vscode.window.showInformationMessage(`Exercise context set to: ${exerciseTitle}`);
+        this._finalizeContextSwitch(`exercise:${exerciseId}`, `Exercise context set to: ${exerciseTitle}`);
 
         // Fire exercise context change event for TelemetryManager
         const previousExerciseId = this._currentExerciseId;
@@ -1062,11 +1016,13 @@ Iris can see files from your workspace (configurable in settings). Check the "Re
             previousExerciseId,
             exerciseRoot: vscode.workspace.workspaceFolders?.[0]?.uri,
         });
+    }
 
-        logger.context('SET EXERCISE CONTEXT Starting to load sessions for context...', LogLevel.DEBUG);
-
-        // Load sessions for the new context, then update UI
-        // The snapshot will be posted after sessions are loaded
+    private _finalizeContextSwitch(contextKey: string, label: string): void {
+        this._contextStore.clearSessionsForContext(contextKey);
+        this._resetSessionStateForContextChange();
+        this._postMessageSafe({ type: ExtensionMsg.ClearChatMessages });
+        vscode.window.showInformationMessage(label);
         void this._chatSessionService.loadAllSessionsForContext();
     }
 

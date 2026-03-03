@@ -155,232 +155,256 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
      * Used by reload handlers to update data in-place instead of destroying the webview.
      */
     public resendViewData(): void {
-        const currentState = this._appStateManager.currentState;
+        switch (this._appStateManager.currentState) {
+            case 'dashboard':              return this._sendDashboardInit();
+            case 'course-list':            return this._sendCourseListInit();
+            case 'course-detail':          return this._sendCourseDetailInit();
+            case 'exercise-detail':        return this._sendExerciseDetailInit();
+            case 'exam-conduction':        return this._sendExamConductionInit();
+            case 'exam-start':             return this._sendExamStartInit();
+            case 'exam-exercise-detail':   return this._sendExamExerciseDetailInit();
+            case 'ai-config':              return this._sendAiConfigInit();
+            case 'struggle-detection':     return this._sendStruggleDetectionInit();
+            case 'service-status':         return this._sendServiceStatusInit();
+            case 'recommended-extensions': return this._sendRecommendedExtensionsInit();
+            case 'git-credentials':        return this._sendGitCredentialsInit();
+            case 'login':                  return this._sendLoginInit();
+        }
+    }
 
-        if (currentState === 'dashboard') {
-            const coursesData = this._appStateManager.coursesData;
-            const courses = coursesData?.courses || [];
+    private _sendDashboardInit(): void {
+        const coursesData = this._appStateManager.coursesData;
+        const courses = coursesData?.courses || [];
 
-            const recentCourseNodes = courses.map((courseItem: CourseDashboardEntry) => {
-                const course = courseItem.course || courseItem;
-                const exercises = course.exercises || [];
+        const recentCourseNodes = courses.map((courseItem: CourseDashboardEntry) => {
+            const course = courseItem.course || courseItem;
+            const exercises = course.exercises || [];
 
-                const recentExercises = exercises
-                    .filter((ex: ExerciseDetail) => ex.releaseDate || ex.startDate || ex.dueDate)
-                    .sort((a: ExerciseDetail, b: ExerciseDetail) => {
-                        const aDate = a.releaseDate || a.startDate || a.dueDate || '';
-                        const bDate = b.releaseDate || b.startDate || b.dueDate || '';
-                        return bDate.localeCompare(aDate);
-                    });
-
-                return {
-                    courseData: {
-                        course: {
-                            id: (course.id ?? 0) as number,
-                            title: (course.title ?? 'Untitled Course') as string,
-                            exercises: course.exercises,
-                            startDate: course.startDate as string | undefined,
-                            creationDate: course.startDate as string | undefined,
-                        }
-                    },
-                    exercises: recentExercises,
-                };
-            });
-
-            this._postMessageSafe({
-                type: ExtensionMsg.DashboardInit,
-                courses: recentCourseNodes, workspaceExercise: undefined,
-            });
-        } else if (currentState === 'course-list') {
-            const coursesData = this._appStateManager.coursesData;
-            const courses = coursesData?.courses || [];
-            const archivedCourses = this._appStateManager.archivedCoursesData || undefined;
-
-            // Map CourseDashboardEntry to CourseData for message contract
-            const mappedCourses = courses.map((entry: CourseDashboardEntry) => ({
-                course: {
-                    id: entry.course?.id || 0,
-                    title: entry.course?.title || 'Untitled Course',
-                    description: entry.course?.description,
-                    semester: entry.course?.semester,
-                    color: entry.course?.color,
-                    exercises: entry.course?.exercises,
-                    numberOfStudents: entry.course?.numberOfStudents,
-                    instructorGroupName: entry.course?.instructorGroupName,
-                }
-            }));
-
-            this._postMessageSafe({
-                type: ExtensionMsg.CourseListInit,
-                courses: mappedCourses, archivedCourses,
-            });
-        } else if (currentState === 'course-detail') {
-            const courseData = this._appStateManager.currentCourseData;
-            if (!courseData) {
-                logger.error('Course detail state missing course data', LogCategory.VIEW);
-                return;
-            }
-
-            const exercises = courseData.course?.exercises || [];
-
-            detectWorkspaceExercise(exercises as ExerciseSource[]).then((detectedExercise: { id?: number } | null) => {
-                const workspaceExerciseId = detectedExercise?.id ?? null;
-                const config = vscode.workspace.getConfiguration('artemis');
-                const developerMode = config.get<boolean>('developerMode', false);
-
-                this._postMessageSafe({
-                    type: ExtensionMsg.CourseDetailInit,
-                    courseData: courseData as CourseDetailPayload,
-                    workspaceExerciseId: workspaceExerciseId,
-                    hideDeveloperTools: !developerMode,
+            const recentExercises = exercises
+                .filter((ex: ExerciseDetail) => ex.releaseDate || ex.startDate || ex.dueDate)
+                .sort((a: ExerciseDetail, b: ExerciseDetail) => {
+                    const aDate = a.releaseDate || a.startDate || a.dueDate || '';
+                    const bDate = b.releaseDate || b.startDate || b.dueDate || '';
+                    return bDate.localeCompare(aDate);
                 });
-            });
-        } else if (currentState === 'exercise-detail') {
-            const exerciseData = this._appStateManager.currentExerciseData;
-            if (!exerciseData) {
-                logger.error('Exercise detail state missing exercise data', LogCategory.VIEW);
-                return;
-            }
 
-            // For non-exam exercise detail, exerciseData should be ExerciseDetailsResponse
-            const config = vscode.workspace.getConfiguration('artemis');
-            const developerMode = config.get<boolean>('developerMode', false);
+            return {
+                courseData: {
+                    course: {
+                        id: (course.id ?? 0) as number,
+                        title: (course.title ?? 'Untitled Course') as string,
+                        exercises: course.exercises,
+                        startDate: course.startDate as string | undefined,
+                        creationDate: course.startDate as string | undefined,
+                    }
+                },
+                exercises: recentExercises,
+            };
+        });
+
+        this._postMessageSafe({
+            type: ExtensionMsg.DashboardInit,
+            courses: recentCourseNodes, workspaceExercise: undefined,
+        });
+    }
+
+    private _sendCourseListInit(): void {
+        const coursesData = this._appStateManager.coursesData;
+        const courses = coursesData?.courses || [];
+        const archivedCourses = this._appStateManager.archivedCoursesData || undefined;
+
+        const mappedCourses = courses.map((entry: CourseDashboardEntry) => ({
+            course: {
+                id: entry.course?.id || 0,
+                title: entry.course?.title || 'Untitled Course',
+                description: entry.course?.description,
+                semester: entry.course?.semester,
+                color: entry.course?.color,
+                exercises: entry.course?.exercises,
+                numberOfStudents: entry.course?.numberOfStudents,
+                instructorGroupName: entry.course?.instructorGroupName,
+            }
+        }));
+
+        this._postMessageSafe({
+            type: ExtensionMsg.CourseListInit,
+            courses: mappedCourses, archivedCourses,
+        });
+    }
+
+    private _sendCourseDetailInit(): void {
+        const courseData = this._appStateManager.currentCourseData;
+        if (!courseData) {
+            logger.error('Course detail state missing course data', LogCategory.VIEW);
+            return;
+        }
+
+        const exercises = courseData.course?.exercises || [];
+
+        detectWorkspaceExercise(exercises as ExerciseSource[]).then((detectedExercise: { id?: number } | null) => {
+            const workspaceExerciseId = detectedExercise?.id ?? null;
 
             this._postMessageSafe({
-                type: ExtensionMsg.ExerciseDetailInit,
-                exerciseData: exerciseData as ExerciseDetailsResponse,
-                hideDeveloperTools: !developerMode,
+                type: ExtensionMsg.CourseDetailInit,
+                courseData: courseData as CourseDetailPayload,
+                workspaceExerciseId: workspaceExerciseId,
+                hideDeveloperTools: !this.isDeveloperMode(),
             });
-        } else if (currentState === 'exam-conduction') {
-            const examData = this._appStateManager.currentExamData;
-            if (!examData) {
-                logger.error('Exam conduction state missing exam data', LogCategory.VIEW);
-                return;
-            }
+        });
+    }
 
-            const studentExam = examData.studentExam;
-            const exam = studentExam.exam;
+    private _sendExerciseDetailInit(): void {
+        const exerciseData = this._appStateManager.currentExerciseData;
+        if (!exerciseData) {
+            logger.error('Exercise detail state missing exercise data', LogCategory.VIEW);
+            return;
+        }
 
-            // Calculate absolute timestamps for timer
-            let startTime: number;
-            let endTime: number;
-            if (exam?.testExam && studentExam.startedDate) {
-                startTime = new Date(studentExam.startedDate).getTime();
-            } else if (exam?.startDate) {
-                startTime = new Date(exam.startDate).getTime();
-            } else {
-                startTime = Date.now();
-            }
-            endTime = startTime + ((studentExam.workingTime || 0) * 1000);
-            const totalDuration = (studentExam.workingTime || 0) * 1000;
+        this._postMessageSafe({
+            type: ExtensionMsg.ExerciseDetailInit,
+            exerciseData: exerciseData as ExerciseDetailsResponse,
+            hideDeveloperTools: !this.isDeveloperMode(),
+        });
+    }
 
-            // Detect workspace exercise
-            const exercises = studentExam.exercises || [];
-            detectWorkspaceExercise(exercises as ExerciseSource[]).then((detectedExercise: { id?: number } | null) => {
-                this._postMessageSafe({
-                    type: ExtensionMsg.ExamConductionInit,
-                    studentExam,
-                    courseId: examData.courseId,
-                    examId: examData.examId,
-                    endTime,
-                    startTime,
-                    totalDuration,
-                    workspaceExerciseId: detectedExercise?.id ?? null,
-                });
-            });
-        } else if (currentState === 'exam-start') {
-            const examData = this._appStateManager.currentExamData;
-            if (!examData) {
-                logger.error('Exam start state missing exam data', LogCategory.VIEW);
-                return;
-            }
+    private _sendExamConductionInit(): void {
+        const examData = this._appStateManager.currentExamData;
+        if (!examData) {
+            logger.error('Exam conduction state missing exam data', LogCategory.VIEW);
+            return;
+        }
 
+        const studentExam = examData.studentExam;
+        const exam = studentExam.exam;
+
+        let startTime: number;
+        let endTime: number;
+        if (exam?.testExam && studentExam.startedDate) {
+            startTime = new Date(studentExam.startedDate).getTime();
+        } else if (exam?.startDate) {
+            startTime = new Date(exam.startDate).getTime();
+        } else {
+            startTime = Date.now();
+        }
+        endTime = startTime + ((studentExam.workingTime || 0) * 1000);
+        const totalDuration = (studentExam.workingTime || 0) * 1000;
+
+        const exercises = studentExam.exercises || [];
+        detectWorkspaceExercise(exercises as ExerciseSource[]).then((detectedExercise: { id?: number } | null) => {
             this._postMessageSafe({
-                type: ExtensionMsg.ExamStartInit,
-                studentExam: examData.studentExam,
+                type: ExtensionMsg.ExamConductionInit,
+                studentExam,
                 courseId: examData.courseId,
                 examId: examData.examId,
+                endTime,
+                startTime,
+                totalDuration,
+                workspaceExerciseId: detectedExercise?.id ?? null,
             });
-        } else if (currentState === 'exam-exercise-detail') {
-            const exerciseData = this._appStateManager.currentExerciseData;
-            const examData = this._appStateManager.currentExamData;
+        });
+    }
 
-            if (!examData) {
-                logger.error('Exam exercise detail state missing exam data', LogCategory.VIEW);
-                return;
-            }
-            if (!exerciseData) {
-                logger.error('Exam exercise detail state missing exercise data', LogCategory.VIEW);
-                return;
-            }
-
-            const studentExam = examData.studentExam;
-            const exam = studentExam.exam;
-
-            // Calculate timer timestamps
-            let startTime: number;
-            if (exam?.testExam && studentExam.startedDate) {
-                startTime = new Date(studentExam.startedDate).getTime();
-            } else if (exam?.startDate) {
-                startTime = new Date(exam.startDate).getTime();
-            } else {
-                startTime = Date.now();
-            }
-            const endTime = startTime + ((studentExam.workingTime || 0) * 1000);
-            const totalDuration = (studentExam.workingTime || 0) * 1000;
-
-            const config = vscode.workspace.getConfiguration('artemis');
-            const developerMode = config.get<boolean>('developerMode', false);
-
-            this._postMessageSafe({
-                type: ExtensionMsg.ExamExerciseDetailInit,
-                exerciseData: exerciseData as ExerciseDetailsResponse,
-                examContext: {
-                    courseId: examData.courseId,
-                    examId: examData.examId,
-                    studentExam,
-                    endTime,
-                    startTime,
-                    totalDuration,
-                },
-                hideDeveloperTools: !developerMode,
-            });
-        } else if (currentState === 'ai-config') {
-            const aiExtensions = this._appStateManager.aiExtensions || [];
-            this._postMessageSafe({ type: ExtensionMsg.AiConfigInit, aiExtensions });
-        } else if (currentState === 'struggle-detection') {
-            const ctx = this._telemetryManager?.getStruggleContext();
-            this._postMessageSafe({
-                type: ExtensionMsg.StruggleDetectionInit,
-                isStruggling: ctx?.isStruggling ?? false,
-                eq: ctx?.eq ?? 0,
-                eqConfidence: ctx?.eqConfidence ?? 'insufficient',
-                triggerType: ctx?.triggerType,
-                recommendedAction: ctx?.recommendedAction ?? 'none',
-                isEnabled: this._telemetryManager?.isEnabled() ?? false,
-            });
-        } else if (currentState === 'service-status') {
-            const serverUrl = this._appStateManager.userInfo?.serverUrl;
-            this._postMessageSafe({ type: ExtensionMsg.ServiceStatusInit, serverUrl });
-        } else if (currentState === 'recommended-extensions') {
-            const categories = this._appStateManager.recommendedExtensions || [];
-            const mappedCategories = categories.map(category => ({
-                ...category,
-                extensions: category.extensions.map(ext => ({
-                    ...ext,
-                    isInstalled: ext.isInstalled ?? false
-                }))
-            }));
-            this._postMessageSafe({ type: ExtensionMsg.RecommendedExtensionsInit, categories: mappedCategories });
-        } else if (currentState === 'git-credentials') {
-            // Trigger git identity lookup (reuses the requestGitIdentity command handler)
-            this._messageHandler.handleMessage({
-                type: 'command',
-                command: WebviewCmd.RequestGitIdentity,
-            } as WebviewToExtensionMessage);
-        } else if (currentState === 'login') {
-            this._postMessageSafe({ type: ExtensionMsg.SetServerUrl, serverUrl: this._getServerUrl() });
+    private _sendExamStartInit(): void {
+        const examData = this._appStateManager.currentExamData;
+        if (!examData) {
+            logger.error('Exam start state missing exam data', LogCategory.VIEW);
+            return;
         }
+
+        this._postMessageSafe({
+            type: ExtensionMsg.ExamStartInit,
+            studentExam: examData.studentExam,
+            courseId: examData.courseId,
+            examId: examData.examId,
+        });
+    }
+
+    private _sendExamExerciseDetailInit(): void {
+        const exerciseData = this._appStateManager.currentExerciseData;
+        const examData = this._appStateManager.currentExamData;
+
+        if (!examData) {
+            logger.error('Exam exercise detail state missing exam data', LogCategory.VIEW);
+            return;
+        }
+        if (!exerciseData) {
+            logger.error('Exam exercise detail state missing exercise data', LogCategory.VIEW);
+            return;
+        }
+
+        const studentExam = examData.studentExam;
+        const exam = studentExam.exam;
+
+        let startTime: number;
+        if (exam?.testExam && studentExam.startedDate) {
+            startTime = new Date(studentExam.startedDate).getTime();
+        } else if (exam?.startDate) {
+            startTime = new Date(exam.startDate).getTime();
+        } else {
+            startTime = Date.now();
+        }
+        const endTime = startTime + ((studentExam.workingTime || 0) * 1000);
+        const totalDuration = (studentExam.workingTime || 0) * 1000;
+
+        this._postMessageSafe({
+            type: ExtensionMsg.ExamExerciseDetailInit,
+            exerciseData: exerciseData as ExerciseDetailsResponse,
+            examContext: {
+                courseId: examData.courseId,
+                examId: examData.examId,
+                studentExam,
+                endTime,
+                startTime,
+                totalDuration,
+            },
+            hideDeveloperTools: !this.isDeveloperMode(),
+        });
+    }
+
+    private _sendAiConfigInit(): void {
+        const aiExtensions = this._appStateManager.aiExtensions || [];
+        this._postMessageSafe({ type: ExtensionMsg.AiConfigInit, aiExtensions });
+    }
+
+    private _sendStruggleDetectionInit(): void {
+        const ctx = this._telemetryManager?.getStruggleContext();
+        this._postMessageSafe({
+            type: ExtensionMsg.StruggleDetectionInit,
+            isStruggling: ctx?.isStruggling ?? false,
+            eq: ctx?.eq ?? 0,
+            eqConfidence: ctx?.eqConfidence ?? 'insufficient',
+            triggerType: ctx?.triggerType,
+            recommendedAction: ctx?.recommendedAction ?? 'none',
+            isEnabled: this._telemetryManager?.isEnabled() ?? false,
+        });
+    }
+
+    private _sendServiceStatusInit(): void {
+        const serverUrl = this._appStateManager.userInfo?.serverUrl;
+        this._postMessageSafe({ type: ExtensionMsg.ServiceStatusInit, serverUrl });
+    }
+
+    private _sendRecommendedExtensionsInit(): void {
+        const categories = this._appStateManager.recommendedExtensions || [];
+        const mappedCategories = categories.map(category => ({
+            ...category,
+            extensions: category.extensions.map(ext => ({
+                ...ext,
+                isInstalled: ext.isInstalled ?? false
+            }))
+        }));
+        this._postMessageSafe({ type: ExtensionMsg.RecommendedExtensionsInit, categories: mappedCategories });
+    }
+
+    private _sendGitCredentialsInit(): void {
+        this._messageHandler.handleMessage({
+            type: 'command',
+            command: WebviewCmd.RequestGitIdentity,
+        } as WebviewToExtensionMessage);
+    }
+
+    private _sendLoginInit(): void {
+        this._postMessageSafe({ type: ExtensionMsg.SetServerUrl, serverUrl: this._getServerUrl() });
     }
 
     // WebViewActionHandler interface implementation

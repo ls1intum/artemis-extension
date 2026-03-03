@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react';
-import { ExtensionMsg, isExtensionMessage, postCommand } from '../../../../../shared/messageContracts';
+import { useState } from 'react';
+import { ExtensionMsg, postCommand } from '../../../../../shared/messageContracts';
 import { BackLink, Container, Badge, PageHeader, SkeletonList } from '../../components';
+import { useExtensionMessage } from '../../hooks/useExtensionMessage';
 import type { AiConfigViewProps, AiExtensionItem } from './types';
 import styles from './AiConfigView.module.css';
 
@@ -8,20 +9,11 @@ export function AiConfigView({ vscodeApi }: AiConfigViewProps) {
     const [extensions, setExtensions] = useState<AiExtensionItem[]>([]);
     const [isLoaded, setIsLoaded] = useState(false);
 
-    useEffect(() => {
-        const handleMessage = (event: MessageEvent<unknown>) => {
-            if (!isExtensionMessage(event.data)) {
-                return;
-            }
-
-            if (event.data.type === ExtensionMsg.AiConfigInit) {
-                setExtensions(event.data.aiExtensions);
-                setIsLoaded(true);
-            }
-        };
-
-        window.addEventListener('message', handleMessage);
-        return () => window.removeEventListener('message', handleMessage);
+    useExtensionMessage((msg) => {
+        if (msg.type === ExtensionMsg.AiConfigInit) {
+            setExtensions(msg.aiExtensions);
+            setIsLoaded(true);
+        }
     }, [vscodeApi]);
 
     const handleBackToDashboard = () => {

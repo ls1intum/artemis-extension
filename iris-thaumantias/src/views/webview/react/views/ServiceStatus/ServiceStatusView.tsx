@@ -4,7 +4,8 @@ import type {
     HealthCheckResult,
     ServiceStatusPersistedState,
 } from './types';
-import { ExtensionMsg, isExtensionMessage, postCommand } from '../../../../../shared/messageContracts';
+import { ExtensionMsg, postCommand } from '../../../../../shared/messageContracts';
+import { useExtensionMessage } from '../../hooks/useExtensionMessage';
 import {
     BackLink,
     Container,
@@ -28,35 +29,26 @@ export function ServiceStatusView({ vscodeApi }: ServiceStatusViewProps) {
     const [lastCheckTime, setLastCheckTime] = useState<Date | undefined>(undefined);
 
     // Handle messages from extension
-    useEffect(() => {
-        const messageHandler = (event: MessageEvent<unknown>) => {
-            if (!isExtensionMessage(event.data)) {
-                return;
-            }
-
-            switch (event.data.type) {
-                case ExtensionMsg.ServiceStatusInit: {
-                    const url = event.data.serverUrl ?? '';
-                    setServerUrl(url);
-                    setIsLoaded(true);
-                    // Trigger health check if we have a server URL
-                    if (url) {
-                        setIsChecking(true);
-                        postCommand(vscodeApi, 'performHealthChecks', { serverUrl: url });
-                    }
-                    break;
+    useExtensionMessage((msg) => {
+        switch (msg.type) {
+            case ExtensionMsg.ServiceStatusInit: {
+                const url = msg.serverUrl ?? '';
+                setServerUrl(url);
+                setIsLoaded(true);
+                // Trigger health check if we have a server URL
+                if (url) {
+                    setIsChecking(true);
+                    postCommand(vscodeApi, 'performHealthChecks', { serverUrl: url });
                 }
-                case ExtensionMsg.HealthCheckResults: {
-                    setHealthResults(event.data.results as Record<string, HealthCheckResult>);
-                    setIsChecking(false);
-                    setLastCheckTime(new Date());
-                    break;
-                }
+                break;
             }
-        };
-
-        window.addEventListener('message', messageHandler);
-        return () => window.removeEventListener('message', messageHandler);
+            case ExtensionMsg.HealthCheckResults: {
+                setHealthResults(msg.results as Record<string, HealthCheckResult>);
+                setIsChecking(false);
+                setLastCheckTime(new Date());
+                break;
+            }
+        }
     }, [vscodeApi]);
 
     // Persist serverUrl when it changes

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useExamExerciseDetailStore } from '../../stores/useExamExerciseDetailStore';
 import { useExerciseDetailStore } from '../../stores/useExerciseDetailStore';
 import { useWebSocketUpdates } from '../../hooks/useWebSocketUpdates';
+import { useExtensionMessage } from '../../hooks/useExtensionMessage';
 import { ExamTimer } from '../../components/ExamTimer/ExamTimer';
 import { TimerExpiredOverlay } from '../../components/TimerExpiredOverlay/TimerExpiredOverlay';
 import {
@@ -21,7 +22,7 @@ import { ProblemStatement, ScoreInfo, TestResults } from '../ExerciseDetail/comp
 import type { ExamExerciseDetailViewProps } from './types';
 import type { ExerciseType } from '../../components/exercise/ParticipationActions';
 import type { BuildState } from '../../components/exercise/BuildProgress';
-import { ExtensionMsg, WebviewMsgType, isExtensionMessage, postCommand } from '../../../../../shared/messageContracts';
+import { ExtensionMsg, WebviewMsgType, postCommand } from '../../../../../shared/messageContracts';
 import { determineSubmissionStatus, determineParticipationStatus } from '../../utils/exerciseStatus';
 import styles from './ExamExerciseDetailView.module.css';
 
@@ -44,21 +45,11 @@ export function ExamExerciseDetailView({ vscodeApi }: ExamExerciseDetailViewProp
     useWebSocketUpdates(vscodeApi);
 
     // Load data on mount
-    useEffect(() => {
-        const handleMessage = (event: MessageEvent<unknown>) => {
-            if (!isExtensionMessage(event.data)) {
-                return;
-            }
-
-            if (event.data.type === ExtensionMsg.ExamExerciseDetailInit) {
-                setExerciseData(event.data.exerciseData, event.data.hideDeveloperTools);
-                setExamExerciseData(event.data as Parameters<typeof setExamExerciseData>[0]);
-            }
-        };
-
-        window.addEventListener('message', handleMessage);
-
-        return () => window.removeEventListener('message', handleMessage);
+    useExtensionMessage((msg) => {
+        if (msg.type === ExtensionMsg.ExamExerciseDetailInit) {
+            setExerciseData(msg.exerciseData, msg.hideDeveloperTools);
+            setExamExerciseData(msg as Parameters<typeof setExamExerciseData>[0]);
+        }
     }, [vscodeApi, setExerciseData, setExamExerciseData]);
 
     // Auto-retry on error

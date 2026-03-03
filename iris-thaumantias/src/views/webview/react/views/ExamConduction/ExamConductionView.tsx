@@ -12,7 +12,8 @@ import { PageHeader } from '../../components/PageHeader/PageHeader';
 import { Badge } from '../../components/Badge/Badge';
 import { IconButton } from '../../components/Button/IconButton';
 import { useExtensionError } from '../../hooks/useExtensionError';
-import { ExtensionMsg, WebviewMsgType, isExtensionMessage, postCommand } from '../../../../../shared/messageContracts';
+import { useExtensionMessage } from '../../hooks/useExtensionMessage';
+import { ExtensionMsg, WebviewMsgType, postCommand } from '../../../../../shared/messageContracts';
 import styles from './ExamConductionView.module.css';
 
 /**
@@ -27,22 +28,10 @@ export function ExamConductionView({ vscodeApi }: ExamConductionViewProps) {
     useExtensionError(handleError);
 
     // Message handler
-    useEffect(() => {
-        const handleMessage = (event: MessageEvent<unknown>) => {
-            if (!isExtensionMessage(event.data)) {
-                return;
-            }
-
-            if (event.data.type === ExtensionMsg.ExamConductionInit) {
-                store.setExamData(event.data);
-            }
-        };
-
-        window.addEventListener('message', handleMessage);
-
-        return () => {
-            window.removeEventListener('message', handleMessage);
-        };
+    useExtensionMessage((msg) => {
+        if (msg.type === ExtensionMsg.ExamConductionInit) {
+            store.setExamData(msg);
+        }
     }, [vscodeApi, store]);
 
     // Reset scroll to top on mount
