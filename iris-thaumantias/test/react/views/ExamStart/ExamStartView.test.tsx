@@ -77,7 +77,7 @@ describe('ExamStartView', () => {
 		const retryButton = screen.getByRole('button', { name: /retry/i });
 		await userEvent.click(retryButton);
 
-		expect(mockApi.postMessage).toHaveBeenCalledWith({ type: 'ready' });
+		expect(mockApi.postMessage).toHaveBeenCalledWith({ type: 'requestInit' });
 	});
 
 	it('shows no data message when studentExam is null and not loading', () => {
@@ -280,10 +280,10 @@ describe('exam fetch error handling', () => {
 
 		await userEvent.click(screen.getByRole('button', { name: /Retry/i }));
 
-		// Ready message sent on retry (App.tsx handles initial ready, not the view)
-		const readyCalls = (mockApi.postMessage as any).mock.calls.filter(
-			(call: any[]) => call[0]?.type === 'ready'
+		// RequestInit message sent on retry (App.tsx handles initial ready, not the view)
+		const requestInitCalls = (mockApi.postMessage as any).mock.calls.filter(
+			(call: any[]) => call[0]?.type === 'requestInit'
 		);
-		expect(readyCalls.length).toBeGreaterThanOrEqual(1);
+		expect(requestInitCalls.length).toBeGreaterThanOrEqual(1);
 	});
 });

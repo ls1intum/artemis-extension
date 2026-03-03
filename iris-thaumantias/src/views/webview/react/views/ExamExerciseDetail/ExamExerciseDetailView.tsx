@@ -100,7 +100,7 @@ export function ExamExerciseDetailView({ vscodeApi }: ExamExerciseDetailViewProp
 
     const handleRetry = () => {
         setError(null);
-        vscodeApi.postMessage({ type: WebviewMsgType.Ready });
+        vscodeApi.postMessage({ type: WebviewMsgType.RequestInit });
     };
 
     const loading = examLoading || exerciseLoading;

@@ -124,7 +124,7 @@ export function ExamStartView({ vscodeApi }: ExamStartViewProps) {
 
     const handleRetry = () => {
         setError(null);
-        vscodeApi.postMessage({ type: WebviewMsgType.Ready });
+        vscodeApi.postMessage({ type: WebviewMsgType.RequestInit });
     };
 
     useEffect(() => {

@@ -4,9 +4,10 @@
 
 import type { CourseDashboardCourse, ExerciseDetail } from '../../types/apiResponses';
 
-/** Non-command webview message types (ready, updatePanelTitle, error) */
+/** Non-command webview message types (ready, requestInit, updatePanelTitle, error) */
 export const WebviewMsgType = {
     Ready: 'ready',
+    RequestInit: 'requestInit',
     UpdatePanelTitle: 'updatePanelTitle',
     Error: 'error',
 } as const;
@@ -236,6 +237,7 @@ type WebviewCommandMessages = {
 /** Full Webview->Extension union (commands + non-command messages) */
 export type WebviewToExtensionMessage =
     | { type: typeof WebviewMsgType.Ready }
+    | { type: typeof WebviewMsgType.RequestInit }
     | { type: typeof WebviewMsgType.UpdatePanelTitle; title: string }
     | { type: typeof WebviewMsgType.Error; payload: { message: string; stack?: string; componentStack?: string } }
     | WebviewCommandMessages;

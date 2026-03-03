@@ -74,7 +74,7 @@ export function ExamConductionView({ vscodeApi }: ExamConductionViewProps) {
                     onRetry={() => {
                         store.setError(null);
                         store.setLoading(true);
-                        vscodeApi.postMessage({ type: WebviewMsgType.Ready });
+                        vscodeApi.postMessage({ type: WebviewMsgType.RequestInit });
                     }}
                 />
             </div>
@@ -88,7 +88,7 @@ export function ExamConductionView({ vscodeApi }: ExamConductionViewProps) {
                 <BackLink onClick={handleBackToCourse}>Back to Course</BackLink>
                 <ErrorMessage
                     error="No exam data available"
-                    onRetry={() => vscodeApi.postMessage({ type: WebviewMsgType.Ready })}
+                    onRetry={() => vscodeApi.postMessage({ type: WebviewMsgType.RequestInit })}
                 />
             </div>
         );

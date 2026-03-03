@@ -519,6 +519,12 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
                     return;
                 }
 
+                // Handle re-init requests (e.g. retry after error)
+                if (message.type === WebviewMsgType.RequestInit) {
+                    this.resendViewData();
+                    return;
+                }
+
                 // Forward commands to the message handler (preserving type/command/payload)
                 this._messageHandler.handleMessage(message);
             },
@@ -870,6 +876,12 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
                 for (const msg of pending) {
                     if (!disposed) { panel.webview.postMessage(msg); }
                 }
+                options.onReady(postSafe);
+                return;
+            }
+
+            // Handle re-init requests (e.g. retry after error)
+            if (message.type === WebviewMsgType.RequestInit) {
                 options.onReady(postSafe);
                 return;
             }

@@ -263,19 +263,7 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
         });
         this._disposables.push(configListener);
 
-        this._postSnapshot();
-        void this._detectWorkspaceExercise();
-        // Load Iris messages if context is already selected
-        void this._loadIrisMessagesIfNeeded();
-
-        // Start monitoring WebSocket status
-        // this._startWebSocketMonitoring(); // Handled by IrisSessionManager
-
-        // Trigger initial file update
-        void this._fileMonitorService.triggerUpdate();
-
-        // Post initial .noai status
-        this._postNoAiStatus(this._noAiDetectionService.isNoAiEnabled);
+        // Init data is sent when the webview signals ready (see _handleMessage / _sendInitData)
     }
 
     // private _startWebSocketMonitoring(): void { ... } // Removed
@@ -419,6 +407,14 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
         }
     }
 
+    private _sendInitData(): void {
+        this._postSnapshot();
+        void this._detectWorkspaceExercise();
+        void this._loadIrisMessagesIfNeeded();
+        void this._fileMonitorService.triggerUpdate();
+        this._postNoAiStatus(this._noAiDetectionService.isNoAiEnabled);
+    }
+
     private _handleMessage(message: unknown): void {
         if (!isWebviewMessage(message)) {
             return;
@@ -441,6 +437,13 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
         if (typedMessage.type === WebviewMsgType.Ready) {
             this._webviewReady = true;
             this._flushPendingMessages();
+            this._sendInitData();
+            return;
+        }
+
+        // Handle re-init requests (e.g. retry after error)
+        if (typedMessage.type === WebviewMsgType.RequestInit) {
+            this._sendInitData();
             return;
         }
 
@@ -868,7 +871,7 @@ Iris can see files from your workspace (configurable in settings). Check the "Re
             this._webviewReady = false;
             this._pendingMessages = [];
             this._view.webview.html = getReactWebviewHtml(this._view.webview, this._extensionUri, 'irisChat');
-            this._postSnapshot();
+            // Init data is sent when the new webview signals ready (see _sendInitData)
         }
     }
 
