@@ -40,9 +40,6 @@ export function ExamConductionView({ vscodeApi }: ExamConductionViewProps) {
 
         window.addEventListener('message', handleMessage);
 
-        // Send ready signal
-        vscodeApi.postMessage({ type: WebviewMsgType.Ready });
-
         return () => {
             window.removeEventListener('message', handleMessage);
         };

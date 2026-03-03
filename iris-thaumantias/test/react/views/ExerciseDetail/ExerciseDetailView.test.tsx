@@ -72,12 +72,6 @@ function makeExerciseDataWithParticipation(opts: { hasResult?: boolean; hasSubmi
 }
 
 describe('ExerciseDetailView', () => {
-	it('sends ready postMessage on mount', () => {
-		const mockApi = createMockVsCodeApi();
-		render(<ExerciseDetailView vscodeApi={mockApi} />);
-		expect(mockApi.postMessage).toHaveBeenCalledWith({ type: 'ready' });
-	});
-
 	it('shows loading skeleton when isLoading is true', () => {
 		useExerciseDetailStore.setState({ isLoading: true });
 		const mockApi = createMockVsCodeApi();

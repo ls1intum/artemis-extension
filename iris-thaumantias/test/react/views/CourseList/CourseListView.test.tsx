@@ -17,12 +17,6 @@ const makeCourseData = (overrides: Partial<CourseData['course']> = {}): CourseDa
 });
 
 describe('CourseListView', () => {
-	it('sends ready postMessage on mount', () => {
-		const mockApi = createMockVsCodeApi();
-		render(<CourseListView vscodeApi={mockApi} />);
-		expect(mockApi.postMessage).toHaveBeenCalledWith({ type: 'ready' });
-	});
-
 	it('shows loading skeleton when isLoading is true and no courses', () => {
 		useCourseListStore.setState({ isLoading: true, courses: [] });
 		const mockApi = createMockVsCodeApi();

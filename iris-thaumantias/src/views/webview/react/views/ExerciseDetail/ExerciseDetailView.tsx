@@ -24,7 +24,7 @@ import {
 import { ProblemStatement, ScoreInfo, TestResults } from './components';
 import type { ExerciseType } from '../../components/exercise/ParticipationActions';
 import type { BuildState } from '../../components/exercise/BuildProgress';
-import { ExtensionMsg, WebviewMsgType, isExtensionMessage, postCommand } from '../../../../../shared/messageContracts';
+import { ExtensionMsg, isExtensionMessage, postCommand } from '../../../../../shared/messageContracts';
 import { determineSubmissionStatus, determineParticipationStatus } from '../../utils/exerciseStatus';
 import { formatDate } from '../../utils/formatDate';
 import styles from './ExerciseDetailView.module.css';
@@ -84,9 +84,6 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
         };
 
         window.addEventListener('message', handleMessage);
-
-        // Request initial data
-        vscodeApi.postMessage({ type: WebviewMsgType.Ready });
 
         return () => window.removeEventListener('message', handleMessage);
     }, [vscodeApi, setExerciseData, pushBreadcrumb, clearBreadcrumbs]);

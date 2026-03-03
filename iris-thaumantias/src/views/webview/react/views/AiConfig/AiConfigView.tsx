@@ -22,7 +22,7 @@ export function AiConfigView({ vscodeApi }: AiConfigViewProps) {
 
         window.addEventListener('message', handleMessage);
         return () => window.removeEventListener('message', handleMessage);
-    }, []);
+    }, [vscodeApi]);
 
     const handleBackToDashboard = () => {
         postCommand(vscodeApi, 'backToDashboard');

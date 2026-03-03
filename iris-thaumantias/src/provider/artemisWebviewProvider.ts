@@ -19,7 +19,7 @@ import { detectWorkspaceExercise, type ExerciseSource } from '../services/worksp
 import { WebSocketMessageHandler, ResultDTO, ProgrammingSubmission, ProgrammingSubmissionState, SubmissionProcessingMessage } from '../types';
 import type { BuildErrorCodeLensProvider } from './buildErrorCodeLensProvider';
 import type { TelemetryManager } from '../services/telemetry/telemetryManager';
-import { ExtensionMsg, WebviewMsgType } from '../shared/messageContracts';
+import { ExtensionMsg, WebviewCmd, WebviewMsgType } from '../shared/messageContracts';
 import type { ExtensionToWebviewMessage, WebviewToExtensionMessage, CourseDetailData as CourseDetailPayload } from '../shared/messageContracts';
 import type { CourseDashboardEntry, ExerciseDetail, CourseDetailData, ExerciseDetailsResponse, ResultSummary, SubmissionSummary } from '../types/apiResponses';
 import { isWebviewMessage } from '../shared/messageContracts/typeGuards';
@@ -373,7 +373,11 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
             }));
             this._postMessageSafe({ type: ExtensionMsg.RecommendedExtensionsInit, categories: mappedCategories });
         } else if (currentState === 'git-credentials') {
-            this._postMessageSafe({ type: ExtensionMsg.GitCredentialsInit });
+            // Trigger git identity lookup (reuses the requestGitIdentity command handler)
+            this._messageHandler.handleMessage({
+                type: 'command',
+                command: WebviewCmd.RequestGitIdentity,
+            } as WebviewToExtensionMessage);
         } else if (currentState === 'login') {
             this._postMessageSafe({ type: ExtensionMsg.SetServerUrl, serverUrl: this._getServerUrl() });
         }
@@ -847,6 +851,17 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
         const messageListener = panel.webview.onDidReceiveMessage(async (message: unknown) => {
             if (disposed) { return; }
             if (!isWebviewMessage(message)) { return; }
+
+            // Log error reports from webview ErrorBoundary
+            if (message.type === WebviewMsgType.Error) {
+                const errorPayload = (message as { payload?: { message?: string; stack?: string; componentStack?: string } }).payload;
+                logger.error('Fullscreen panel ErrorBoundary crash report', LogCategory.VIEW, {
+                    message: errorPayload?.message,
+                    stack: errorPayload?.stack,
+                    componentStack: errorPayload?.componentStack,
+                });
+                return;
+            }
 
             if (message.type === WebviewMsgType.Ready) {
                 panelReady = true;

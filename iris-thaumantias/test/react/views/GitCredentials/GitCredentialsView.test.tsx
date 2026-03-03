@@ -54,17 +54,6 @@ describe('GitCredentialsView', () => {
 		});
 	});
 
-	it('sends requestGitIdentity on mount', () => {
-		const mockApi = createMockVsCodeApi();
-		render(<GitCredentialsView vscodeApi={mockApi} />);
-		expect(mockApi.postMessage).toHaveBeenCalledWith(
-			expect.objectContaining({
-				type: 'command',
-				command: 'requestGitIdentity',
-			})
-		);
-	});
-
 	it('submitting form sends saveGitIdentity postMessage', async () => {
 		const mockApi = createMockVsCodeApi();
 		render(<GitCredentialsView vscodeApi={mockApi} />);

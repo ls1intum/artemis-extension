@@ -30,12 +30,6 @@ function makeCourseData(overrides: Partial<CourseData['course']> = {}): CourseDa
 
 describe('Course Navigation Flow', () => {
 	describe('Course list -> course detail navigation', () => {
-		it('sends ready postMessage on CourseListView mount', () => {
-			const mockApi = createMockVsCodeApi();
-			render(<CourseListView vscodeApi={mockApi} />);
-			expect(mockApi.postMessage).toHaveBeenCalledWith({ type: 'ready' });
-		});
-
 		it('displays courses after receiving courseListInit message', async () => {
 			const mockApi = createMockVsCodeApi();
 			render(<CourseListView vscodeApi={mockApi} />);
@@ -126,12 +120,6 @@ describe('Course Navigation Flow', () => {
 	});
 
 	describe('Course detail view', () => {
-		it('sends ready postMessage on CourseDetailView mount', () => {
-			const mockApi = createMockVsCodeApi();
-			render(<CourseDetailView vscodeApi={mockApi} />);
-			expect(mockApi.postMessage).toHaveBeenCalledWith({ type: 'ready' });
-		});
-
 		it('displays course title and exercises after receiving courseDetailInit message', async () => {
 			const mockApi = createMockVsCodeApi();
 			render(<CourseDetailView vscodeApi={mockApi} />);

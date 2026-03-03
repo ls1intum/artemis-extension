@@ -74,11 +74,6 @@ export function GitCredentialsView({ vscodeApi }: GitCredentialsViewProps) {
                 clearTimeout(statusTimerRef.current);
             }
         };
-    }, []);
-
-    // Request current git identity on mount
-    useEffect(() => {
-        postCommand(vscodeApi, 'requestGitIdentity');
     }, [vscodeApi]);
 
     const handleSubmit = (e: React.FormEvent) => {

@@ -80,12 +80,6 @@ describe('ExamExerciseDetailView', () => {
 		});
 	});
 
-	it('sends ready postMessage on mount', () => {
-		const mockApi = createMockVsCodeApi();
-		render(<ExamExerciseDetailView vscodeApi={mockApi} />);
-		expect(mockApi.postMessage).toHaveBeenCalledWith({ type: 'ready' });
-	});
-
 	it('shows loading skeleton when loading', () => {
 		useExamExerciseDetailStore.setState({ isLoading: true });
 		const mockApi = createMockVsCodeApi();

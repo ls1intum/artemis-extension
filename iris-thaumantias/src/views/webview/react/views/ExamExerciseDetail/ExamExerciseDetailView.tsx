@@ -58,9 +58,6 @@ export function ExamExerciseDetailView({ vscodeApi }: ExamExerciseDetailViewProp
 
         window.addEventListener('message', handleMessage);
 
-        // Send ready signal
-        vscodeApi.postMessage({ type: WebviewMsgType.Ready });
-
         return () => window.removeEventListener('message', handleMessage);
     }, [vscodeApi, setExerciseData, setExamExerciseData]);
 

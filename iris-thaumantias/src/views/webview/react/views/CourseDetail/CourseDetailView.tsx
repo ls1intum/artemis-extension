@@ -2,7 +2,7 @@ import { useEffect } from 'react';
 import { useCourseDetailStore } from '../../stores/useCourseDetailStore';
 import { useNavigationStore } from '../../stores/useNavigationStore';
 import type { CourseDetailViewProps, CourseDetailPersistedState } from './types';
-import { ExtensionMsg, WebviewMsgType, isExtensionMessage, postCommand } from '../../../../../shared/messageContracts';
+import { ExtensionMsg, isExtensionMessage, postCommand } from '../../../../../shared/messageContracts';
 import type { Exercise, Exam } from '../../../../../shared/messageContracts';
 import { getIcon } from '../../../../../utils/iconMap';
 import {
@@ -75,9 +75,6 @@ export function CourseDetailView({ vscodeApi }: CourseDetailViewProps) {
         };
 
         window.addEventListener('message', handleMessage);
-
-        // Request initial data
-        vscodeApi.postMessage({ type: WebviewMsgType.Ready });
 
         return () => window.removeEventListener('message', handleMessage);
     }, [vscodeApi, setCourseData, setExerciseSearchTerm, setExerciseSortBy, pushBreadcrumb, clearBreadcrumbs]);

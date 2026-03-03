@@ -23,7 +23,7 @@ import LogOut from 'lucide-react/dist/esm/icons/log-out';
 import ChevronRight from 'lucide-react/dist/esm/icons/chevron-right';
 import { getIcon } from '../../../../../utils/iconMap';
 import SquareArrowOutUpRight from 'lucide-react/dist/esm/icons/square-arrow-out-up-right';
-import { ExtensionMsg, WebviewMsgType, isExtensionMessage, postCommand } from '../../../../../shared/messageContracts';
+import { ExtensionMsg, isExtensionMessage, postCommand } from '../../../../../shared/messageContracts';
 import styles from './DashboardView.module.css';
 
 export function DashboardView({ vscodeApi }: DashboardViewProps) {
@@ -69,9 +69,6 @@ export function DashboardView({ vscodeApi }: DashboardViewProps) {
         };
 
         window.addEventListener('message', handleMessage);
-
-        // Send ready signal to trigger init data from provider
-        vscodeApi.postMessage({ type: WebviewMsgType.Ready });
 
         return () => window.removeEventListener('message', handleMessage);
     }, [vscodeApi, setDashboardData, setWorkspaceExercise]);

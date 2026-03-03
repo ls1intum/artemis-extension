@@ -19,12 +19,6 @@ const makeCourseDetailData = (overrides: Partial<CourseDetailData['course']> = {
 });
 
 describe('CourseDetailView', () => {
-	it('sends ready postMessage on mount', () => {
-		const mockApi = createMockVsCodeApi();
-		render(<CourseDetailView vscodeApi={mockApi} />);
-		expect(mockApi.postMessage).toHaveBeenCalledWith({ type: 'ready' });
-	});
-
 	it('shows loading skeleton when isLoading is true and no courseData', () => {
 		useCourseDetailStore.setState({ isLoading: true, courseData: null });
 		const mockApi = createMockVsCodeApi();

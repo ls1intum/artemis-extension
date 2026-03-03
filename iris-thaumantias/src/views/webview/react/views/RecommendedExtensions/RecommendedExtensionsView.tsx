@@ -39,7 +39,7 @@ export function RecommendedExtensionsView({ vscodeApi }: RecommendedExtensionsVi
 
         window.addEventListener('message', handleMessage);
         return () => window.removeEventListener('message', handleMessage);
-    }, []);
+    }, [vscodeApi]);
 
     const handleBackToDashboard = () => {
         postCommand(vscodeApi, 'backToDashboard');

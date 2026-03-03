@@ -26,10 +26,9 @@ export function App({ vscodeApi }: AppProps) {
 	const viewName = document.getElementById('root')?.getAttribute('data-view');
 
 	// Signal readiness to extension host after mount.
-	// Views that need initialization data (Dashboard, CourseList, etc.) send their
-	// own ready signal in useEffect; this serves as fallback for views that don't
-	// (Login, AiConfig, GitCredentials, etc.). Duplicate ready signals are harmless
-	// since providers treat ready as idempotent (set flag + flush).
+	// This is the single source of the ready signal — individual views register
+	// their message listeners in useEffect (child effects fire before parent),
+	// so listeners are in place before this signal triggers resendViewData().
 	useEffect(() => {
 		vscodeApi.postMessage({ type: WebviewMsgType.Ready });
 	}, [vscodeApi]);

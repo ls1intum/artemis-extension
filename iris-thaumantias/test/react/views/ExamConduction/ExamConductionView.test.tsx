@@ -36,12 +36,6 @@ function makeExamData(overrides: Record<string, unknown> = {}) {
 }
 
 describe('ExamConductionView', () => {
-	it('sends ready postMessage on mount', () => {
-		const mockApi = createMockVsCodeApi();
-		render(<ExamConductionView vscodeApi={mockApi} />);
-		expect(mockApi.postMessage).toHaveBeenCalledWith({ type: 'ready' });
-	});
-
 	it('shows loading skeleton when loading is true', () => {
 		useExamConductionStore.setState({ isLoading: true });
 		const mockApi = createMockVsCodeApi();
@@ -218,10 +212,10 @@ describe('exam fetch error handling', () => {
 
 		await userEvent.click(screen.getByRole('button', { name: /Retry/i }));
 
-		// Ready message re-sent (first call is on mount, second is on retry)
+		// Ready message sent on retry (App.tsx handles initial ready, not the view)
 		const readyCalls = (mockApi.postMessage as any).mock.calls.filter(
 			(call: any[]) => call[0]?.type === 'ready'
 		);
-		expect(readyCalls.length).toBeGreaterThanOrEqual(2);
+		expect(readyCalls.length).toBeGreaterThanOrEqual(1);
 	});
 });

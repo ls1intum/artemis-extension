@@ -18,12 +18,6 @@ const makeCourseNode = (id: number, title: string, exercises: Array<{ id: number
 });
 
 describe('DashboardView', () => {
-	it('sends ready postMessage on mount', () => {
-		const mockApi = createMockVsCodeApi();
-		render(<DashboardView vscodeApi={mockApi} />);
-		expect(mockApi.postMessage).toHaveBeenCalledWith({ type: 'ready' });
-	});
-
 	it('renders welcome header', () => {
 		const mockApi = createMockVsCodeApi();
 		render(<DashboardView vscodeApi={mockApi} />);
