@@ -233,14 +233,7 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
         const visibilityListener = webviewView.onDidChangeVisibility(() => {
             if (webviewView.visible) {
                 logger.websocket('Iris Chat view became visible, loading data...');
-                this._postSnapshot();
-                void this._detectWorkspaceExercise();
-                // Load Iris messages if context is already selected
-                void this._loadIrisMessagesIfNeeded();
-                // Update referenced files display
-                void this._fileMonitorService.triggerUpdate();
-                // Update .noai status
-                this._postNoAiStatus(this._noAiDetectionService.isNoAiEnabled);
+                this._sendInitData();
             } else {
                 logger.websocket('Iris Chat view became hidden');
             }
