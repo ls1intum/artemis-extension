@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import type { VsCodeApi } from '../../../shared/messageContracts';
+import { WebviewMsgType } from '../../../shared/messageContracts';
 import { GitCredentialsView } from './views/GitCredentials';
 import { ServiceStatusView } from './views/ServiceStatus';
 import { RecommendedExtensionsView } from './views/RecommendedExtensions';
@@ -30,7 +31,7 @@ export function App({ vscodeApi }: AppProps) {
 	// (Login, AiConfig, GitCredentials, etc.). Duplicate ready signals are harmless
 	// since providers treat ready as idempotent (set flag + flush).
 	useEffect(() => {
-		vscodeApi.postMessage({ type: 'ready' });
+		vscodeApi.postMessage({ type: WebviewMsgType.Ready });
 	}, [vscodeApi]);
 
 	const view = (() => {

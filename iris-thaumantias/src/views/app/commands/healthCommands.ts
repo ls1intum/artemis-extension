@@ -5,7 +5,7 @@ import { logger } from '../../../services/loggingService';
 
 // Health check result structure
 interface HealthCheckResult {
-    status: string;
+    status: 'online' | 'offline' | 'unknown';
     message: string;
     endpoint: string;
     httpStatus: number | null;
@@ -158,7 +158,7 @@ export class HealthCommandModule {
                     response: errorMessage
                 };
             }
-        } catch (error) {
+        } catch (error: unknown) {
             logger.apiError('Error performing health checks:', error);
         }
 

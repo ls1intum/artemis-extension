@@ -28,8 +28,6 @@ export class NavigationCommandModule {
     public getHandlers(): CommandMap {
         return {
             [WebviewCmd.BrowseCourses]: this.handleBrowseCourses,
-            [WebviewCmd.ViewExercises]: this.handleViewExercises,
-            [WebviewCmd.CheckGrades]: this.handleCheckGrades,
             [WebviewCmd.ShowAllCourses]: this.handleShowAllCourses,
             [WebviewCmd.ViewCourseDetails]: this.handleViewCourseDetails,
             [WebviewCmd.BackToDashboard]: this.handleBackToDashboard,
@@ -68,7 +66,7 @@ export class NavigationCommandModule {
                 language: 'markdown'
             });
             await vscode.window.showTextDocument(document);
-        } catch (error) {
+        } catch (error: unknown) {
             logger.viewError('Error opening rules in editor:', error);
             vscode.window.showErrorMessage('Failed to open rules in editor.');
         }
@@ -84,7 +82,7 @@ export class NavigationCommandModule {
             } else {
                 vscode.window.showErrorMessage('Could not determine Artemis server URL.');
             }
-        } catch (error) {
+        } catch (error: unknown) {
             logger.viewError('[EXAMMODE] Error opening exam in browser:', error);
             vscode.window.showErrorMessage('Failed to open exam in browser.');
         }
@@ -180,24 +178,6 @@ export class NavigationCommandModule {
         } catch (error: unknown) {
             logger.viewError('Browse courses error:', error);
             vscode.window.showErrorMessage('Error loading courses');
-        }
-    };
-
-    private handleViewExercises = async (_message: WebviewToExtensionMessage): Promise<void> => {
-        try {
-            vscode.window.showInformationMessage('This feature will show exercises in a future update.');
-        } catch (error: unknown) {
-            logger.viewError('View exercises error:', error);
-            vscode.window.showErrorMessage('Error accessing exercises');
-        }
-    };
-
-    private handleCheckGrades = async (_message: WebviewToExtensionMessage): Promise<void> => {
-        try {
-            vscode.window.showInformationMessage('This feature will show grades in a future update.');
-        } catch (error: unknown) {
-            logger.viewError('Check grades error:', error);
-            vscode.window.showErrorMessage('Error accessing grades');
         }
     };
 

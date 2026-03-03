@@ -8,7 +8,7 @@ import {
 import type { IrisChatMessage } from '../types/apiResponses';
 import type { IChatWebviewProvider } from '../types/IChatWebviewProvider';
 import { getReactWebviewHtml } from '../utils/webviewHelpers';
-import { ExtensionMsg } from '../shared/messageContracts';
+import { ExtensionMsg, WebviewMsgType } from '../shared/messageContracts';
 import type { ExtensionToWebviewMessage, ExtMsg, WebviewToExtensionMessage } from '../shared/messageContracts';
 import { isWebviewMessage } from '../shared/messageContracts/typeGuards';
 import { extractIrisMessageContent } from '../utils/irisMessageUtils';
@@ -427,7 +427,7 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
         const typedMessage = message as WebviewToExtensionMessage;
 
         // Log error reports from webview ErrorBoundary
-        if (typedMessage.type === 'error') {
+        if (typedMessage.type === WebviewMsgType.Error) {
             const errorPayload = typedMessage.payload;
             logger.error('Chat webview ErrorBoundary crash report', LogCategory.IRIS_CHAT, {
                 message: errorPayload?.message,
@@ -437,8 +437,8 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
             return;
         }
 
-        // Handle React ready signal (sent as { type: 'ready' })
-        if (typedMessage.type === 'ready') {
+        // Handle React ready signal
+        if (typedMessage.type === WebviewMsgType.Ready) {
             this._webviewReady = true;
             this._flushPendingMessages();
             return;

@@ -19,7 +19,7 @@ import { detectWorkspaceExercise, type ExerciseSource } from '../services/worksp
 import { WebSocketMessageHandler, ResultDTO, ProgrammingSubmission, ProgrammingSubmissionState, SubmissionProcessingMessage } from '../types';
 import type { BuildErrorCodeLensProvider } from './buildErrorCodeLensProvider';
 import type { TelemetryManager } from '../services/telemetry/telemetryManager';
-import { ExtensionMsg } from '../shared/messageContracts';
+import { ExtensionMsg, WebviewMsgType } from '../shared/messageContracts';
 import type { ExtensionToWebviewMessage, WebviewToExtensionMessage, CourseDetailData as CourseDetailPayload } from '../shared/messageContracts';
 import type { CourseDashboardEntry, ExerciseDetail, CourseDetailData, ExerciseDetailsResponse, ResultSummary, SubmissionSummary } from '../types/apiResponses';
 import { isWebviewMessage } from '../shared/messageContracts/typeGuards';
@@ -495,7 +495,7 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
                 }
 
                 // Log error reports from webview ErrorBoundary
-                if (message.type === 'error') {
+                if (message.type === WebviewMsgType.Error) {
                     const errorPayload = (message as { payload?: { message?: string; stack?: string; componentStack?: string } }).payload;
                     logger.error('Webview ErrorBoundary crash report', LogCategory.VIEW, {
                         message: errorPayload?.message,
@@ -506,7 +506,7 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
                 }
 
                 // Handle ready signal from React webview
-                if (message.type === 'ready') {
+                if (message.type === WebviewMsgType.Ready) {
                     this._webviewReady = true;
                     this._flushPendingMessages();
 
@@ -777,130 +777,92 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
 
     public async openExerciseFullscreen(exerciseData: ExerciseDetailsResponse): Promise<void> {
         const exerciseTitle = exerciseData?.exercise?.title || 'Exercise';
-
-        const panel = vscode.window.createWebviewPanel(
-            'artemis.exerciseFullscreen',
-            `Exercise: ${exerciseTitle}`,
-            vscode.ViewColumn.One,
-            {
-                enableScripts: true,
-                retainContextWhenHidden: true,
-                localResourceRoots: [vscode.Uri.joinPath(this._extensionUri, 'dist')]
-            }
-        );
-
-        // Reuse the same React webview HTML with exerciseDetail view routing
-        panel.webview.html = getReactWebviewHtml(panel.webview, this._extensionUri, 'exerciseDetail');
-
-        let disposed = false;
-        let panelReady = false;
-        let pendingMessages: ExtensionToWebviewMessage[] = [];
-
-        const postSafe = (msg: ExtensionToWebviewMessage): void => {
-            if (panelReady && !disposed) {
-                panel.webview.postMessage(msg);
-            } else if (!disposed) {
-                pendingMessages.push(msg);
-            }
-        };
-
-        // Register message handler for the fullscreen panel
-        const messageListener = panel.webview.onDidReceiveMessage(async (message: unknown) => {
-            if (disposed) { return; }
-            if (!isWebviewMessage(message)) { return; }
-
-            if (message.type === 'ready') {
-                panelReady = true;
-                const pending = pendingMessages;
-                pendingMessages = [];
-                for (const msg of pending) {
-                    if (!disposed) { panel.webview.postMessage(msg); }
-                }
+        this._openFullscreenPanel({
+            viewType: 'artemis.exerciseFullscreen',
+            title: `Exercise: ${exerciseTitle}`,
+            viewName: 'exerciseDetail',
+            onReady: (postSafe) => {
                 postSafe({
                     type: ExtensionMsg.ExerciseDetailInit,
                     exerciseData: exerciseData,
                     hideDeveloperTools: false,
                 });
-                return;
-            }
-
-            if (message.type === 'updatePanelTitle') {
-                panel.title = `Exercise: ${message.title}`;
-                return;
-            }
-
-            if (message.type === 'command') {
-                this._messageHandler.handleMessageWithSender(
-                    message,
-                    (resp: ExtensionToWebviewMessage) => postSafe(resp)
-                );
-            }
+            },
+            onTitleUpdate: (title) => `Exercise: ${title}`,
         });
-
-        panel.onDidDispose(() => {
-            disposed = true;
-            pendingMessages = [];
-            messageListener.dispose();
-        });
-
-        // Track panel for cleanup
-        this._extensionContext.subscriptions.push(panel);
     }
 
     public async openCourseFullscreen(courseData: CourseDetailData): Promise<void> {
         const courseTitle = courseData?.course?.title || 'Course';
-
-        const panel = vscode.window.createWebviewPanel(
-            'artemis.courseFullscreen',
-            `Course: ${courseTitle}`,
-            vscode.ViewColumn.One,
-            {
-                enableScripts: true,
-                retainContextWhenHidden: true,
-                localResourceRoots: [vscode.Uri.joinPath(this._extensionUri, 'dist')]
-            }
-        );
-
-        panel.webview.html = getReactWebviewHtml(panel.webview, this._extensionUri, 'courseDetail');
-
-        let disposed = false;
-        let panelReady = false;
-        let pendingMessages: ExtensionToWebviewMessage[] = [];
-
-        const postSafe = (msg: ExtensionToWebviewMessage): void => {
-            if (panelReady && !disposed) {
-                panel.webview.postMessage(msg);
-            } else if (!disposed) {
-                pendingMessages.push(msg);
-            }
-        };
-
-        const messageListener = panel.webview.onDidReceiveMessage(async (message: unknown) => {
-            if (disposed) { return; }
-            if (!isWebviewMessage(message)) { return; }
-
-            if (message.type === 'ready') {
-                panelReady = true;
-                const pending = pendingMessages;
-                pendingMessages = [];
-                for (const msg of pending) {
-                    if (!disposed) { panel.webview.postMessage(msg); }
-                }
-
+        this._openFullscreenPanel({
+            viewType: 'artemis.courseFullscreen',
+            title: `Course: ${courseTitle}`,
+            viewName: 'courseDetail',
+            onReady: (postSafe) => {
                 const config = vscode.workspace.getConfiguration('artemis');
                 const developerMode = config.get<boolean>('developerMode', false);
-
                 postSafe({
                     type: ExtensionMsg.CourseDetailInit,
                     courseData: courseData as CourseDetailPayload,
                     workspaceExerciseId: null,
                     hideDeveloperTools: !developerMode,
                 });
+            },
+            onTitleUpdate: (title) => `Course: ${title}`,
+        });
+    }
+
+    private _openFullscreenPanel(options: {
+        viewType: string;
+        title: string;
+        viewName: string;
+        onReady: (postSafe: (msg: ExtensionToWebviewMessage) => void) => void;
+        onTitleUpdate?: (title: string) => string;
+    }): void {
+        const panel = vscode.window.createWebviewPanel(
+            options.viewType,
+            options.title,
+            vscode.ViewColumn.One,
+            {
+                enableScripts: true,
+                retainContextWhenHidden: true,
+                localResourceRoots: [vscode.Uri.joinPath(this._extensionUri, 'dist')]
+            }
+        );
+
+        panel.webview.html = getReactWebviewHtml(panel.webview, this._extensionUri, options.viewName);
+
+        let disposed = false;
+        let panelReady = false;
+        let pendingMessages: ExtensionToWebviewMessage[] = [];
+
+        const postSafe = (msg: ExtensionToWebviewMessage): void => {
+            if (panelReady && !disposed) {
+                panel.webview.postMessage(msg);
+            } else if (!disposed) {
+                pendingMessages.push(msg);
+            }
+        };
+
+        const messageListener = panel.webview.onDidReceiveMessage(async (message: unknown) => {
+            if (disposed) { return; }
+            if (!isWebviewMessage(message)) { return; }
+
+            if (message.type === WebviewMsgType.Ready) {
+                panelReady = true;
+                const pending = pendingMessages;
+                pendingMessages = [];
+                for (const msg of pending) {
+                    if (!disposed) { panel.webview.postMessage(msg); }
+                }
+                options.onReady(postSafe);
                 return;
             }
 
-            if (message.type === 'updatePanelTitle') {
-                panel.title = `Course: ${message.title}`;
+            if (message.type === WebviewMsgType.UpdatePanelTitle) {
+                if (options.onTitleUpdate) {
+                    panel.title = options.onTitleUpdate(message.title);
+                }
                 return;
             }
 

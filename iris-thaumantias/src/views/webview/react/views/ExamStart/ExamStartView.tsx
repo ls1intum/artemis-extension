@@ -8,7 +8,7 @@ import { ExamTimer } from '../../components/ExamTimer/ExamTimer';
 import { TimerExpiredOverlay } from '../../components/TimerExpiredOverlay/TimerExpiredOverlay';
 import { BackLink, Container, Button, SkeletonList, ErrorMessage, Badge } from '../../components';
 import type { ExamStartViewProps } from './types';
-import { ExtensionMsg, isExtensionMessage, postCommand } from '../../../../../shared/messageContracts';
+import { ExtensionMsg, WebviewMsgType, isExtensionMessage, postCommand } from '../../../../../shared/messageContracts';
 import styles from './ExamStartView.module.css';
 
 export function ExamStartView({ vscodeApi }: ExamStartViewProps) {
@@ -34,7 +34,7 @@ export function ExamStartView({ vscodeApi }: ExamStartViewProps) {
         window.addEventListener('message', handleMessage);
 
         // Send ready signal
-        vscodeApi.postMessage({ type: 'ready' });
+        vscodeApi.postMessage({ type: WebviewMsgType.Ready });
 
         return () => window.removeEventListener('message', handleMessage);
     }, [vscodeApi, setExamStartData]);
@@ -127,7 +127,7 @@ export function ExamStartView({ vscodeApi }: ExamStartViewProps) {
 
     const handleRetry = () => {
         setError(null);
-        vscodeApi.postMessage({ type: 'ready' });
+        vscodeApi.postMessage({ type: WebviewMsgType.Ready });
     };
 
     useEffect(() => {

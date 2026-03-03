@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import type { CommandContext, CommandMap } from './types';
 import { getPayload, ExtensionMsg, WebviewCmd } from '../../../shared/messageContracts';
 import type { WebviewToExtensionMessage, WebCmd } from '../../../shared/messageContracts';
+import { CONFIG, VSCODE_CONFIG } from '../../../utils/constants';
 import { logger } from '../../../services/loggingService';
 
 export class AuthCommandModule {
@@ -21,8 +22,8 @@ export class AuthCommandModule {
             const password = payload.password;
             const rememberMe = payload.rememberMe || false;
 
-            const config = vscode.workspace.getConfiguration('artemis');
-            const serverUrl = config.get<string>('serverUrl', 'https://artemis.tum.de');
+            const config = vscode.workspace.getConfiguration(VSCODE_CONFIG.ARTEMIS_SECTION);
+            const serverUrl = config.get<string>(VSCODE_CONFIG.SERVER_URL_KEY, CONFIG.ARTEMIS_SERVER_URL_DEFAULT);
             await this.context.artemisApi.authenticate(username, password, rememberMe);
             const user = await this.context.artemisApi.getCurrentUser();
 

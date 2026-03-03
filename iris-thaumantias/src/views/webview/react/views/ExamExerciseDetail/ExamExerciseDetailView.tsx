@@ -21,7 +21,7 @@ import { ProblemStatement, ScoreInfo, TestResults } from '../ExerciseDetail/comp
 import type { ExamExerciseDetailViewProps } from './types';
 import type { ExerciseType } from '../../components/exercise/ParticipationActions';
 import type { BuildState } from '../../components/exercise/BuildProgress';
-import { ExtensionMsg, isExtensionMessage, postCommand } from '../../../../../shared/messageContracts';
+import { ExtensionMsg, WebviewMsgType, isExtensionMessage, postCommand } from '../../../../../shared/messageContracts';
 import { determineSubmissionStatus, determineParticipationStatus } from '../../utils/exerciseStatus';
 import styles from './ExamExerciseDetailView.module.css';
 
@@ -59,7 +59,7 @@ export function ExamExerciseDetailView({ vscodeApi }: ExamExerciseDetailViewProp
         window.addEventListener('message', handleMessage);
 
         // Send ready signal
-        vscodeApi.postMessage({ type: 'ready' });
+        vscodeApi.postMessage({ type: WebviewMsgType.Ready });
 
         return () => window.removeEventListener('message', handleMessage);
     }, [vscodeApi, setExerciseData, setExamExerciseData]);
@@ -103,7 +103,7 @@ export function ExamExerciseDetailView({ vscodeApi }: ExamExerciseDetailViewProp
 
     const handleRetry = () => {
         setError(null);
-        vscodeApi.postMessage({ type: 'ready' });
+        vscodeApi.postMessage({ type: WebviewMsgType.Ready });
     };
 
     const loading = examLoading || exerciseLoading;

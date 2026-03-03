@@ -12,7 +12,7 @@ import { PageHeader } from '../../components/PageHeader/PageHeader';
 import { Badge } from '../../components/Badge/Badge';
 import { IconButton } from '../../components/Button/IconButton';
 import { useExtensionError } from '../../hooks/useExtensionError';
-import { ExtensionMsg, isExtensionMessage, postCommand } from '../../../../../shared/messageContracts';
+import { ExtensionMsg, WebviewMsgType, isExtensionMessage, postCommand } from '../../../../../shared/messageContracts';
 import styles from './ExamConductionView.module.css';
 
 /**
@@ -41,7 +41,7 @@ export function ExamConductionView({ vscodeApi }: ExamConductionViewProps) {
         window.addEventListener('message', handleMessage);
 
         // Send ready signal
-        vscodeApi.postMessage({ type: 'ready' });
+        vscodeApi.postMessage({ type: WebviewMsgType.Ready });
 
         return () => {
             window.removeEventListener('message', handleMessage);
@@ -77,7 +77,7 @@ export function ExamConductionView({ vscodeApi }: ExamConductionViewProps) {
                     onRetry={() => {
                         store.setError(null);
                         store.setLoading(true);
-                        vscodeApi.postMessage({ type: 'ready' });
+                        vscodeApi.postMessage({ type: WebviewMsgType.Ready });
                     }}
                 />
             </div>
@@ -91,7 +91,7 @@ export function ExamConductionView({ vscodeApi }: ExamConductionViewProps) {
                 <BackLink onClick={handleBackToCourse}>Back to Course</BackLink>
                 <ErrorMessage
                     error="No exam data available"
-                    onRetry={() => vscodeApi.postMessage({ type: 'ready' })}
+                    onRetry={() => vscodeApi.postMessage({ type: WebviewMsgType.Ready })}
                 />
             </div>
         );

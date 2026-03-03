@@ -7,7 +7,7 @@ import type {
     WebviewToExtensionMessage,
     WebCmd,
 } from '../../../shared/messageContracts';
-import { VSCODE_CONFIG, checkWorkspaceFiles, extractErrorMessage } from '../../../utils';
+import { CONFIG, VSCODE_CONFIG, checkWorkspaceFiles, extractErrorMessage } from '../../../utils';
 import { detectWorkspaceExercise, normalizeRepositoryUrl, type ExerciseSource, GitService } from '../../../services';
 import { logger } from '../../../services/loggingService';
 
@@ -306,7 +306,7 @@ export class RepositoryCommandModule {
                         }
                         selectedPath = folderUri[0].fsPath;
                     }
-                } catch (error) {
+                } catch (error: unknown) {
                     vscode.window.showWarningMessage(`Default clone path "${defaultClonePath}" does not exist. Please select a folder.`);
                     const folderUri = await vscode.window.showOpenDialog({
                         canSelectFiles: false,
@@ -735,7 +735,7 @@ export class RepositoryCommandModule {
             rawToken = typeof payload.token === 'string' ? payload.token.trim() : '';
             const rawServerUrl = typeof payload.serverUrl === 'string' ? payload.serverUrl.trim() : '';
             const config = vscode.workspace.getConfiguration(VSCODE_CONFIG.ARTEMIS_SECTION);
-            const configuredServerUrl = config.get<string>(VSCODE_CONFIG.SERVER_URL_KEY, 'https://artemis.cit.tum.de');
+            const configuredServerUrl = config.get<string>(VSCODE_CONFIG.SERVER_URL_KEY, CONFIG.ARTEMIS_SERVER_URL_DEFAULT);
             serverUrl = rawServerUrl || configuredServerUrl;
         } catch (error: unknown) {
             logger.submissionError('Failed to parse saveGitCredentials payload:', error);

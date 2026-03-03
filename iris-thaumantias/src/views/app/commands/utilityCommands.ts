@@ -6,7 +6,7 @@ import type {
     WebviewToExtensionMessage,
     WebCmd,
 } from '../../../shared/messageContracts';
-import { BuildLogParser, normalizeRelativePath, extractErrorMessage } from '../../../utils';
+import { BuildLogParser, normalizeRelativePath, extractErrorMessage, CONFIG, VSCODE_CONFIG } from '../../../utils';
 import { logger, LogLevel, LogCategory } from '../../../services/loggingService';
 
 export class UtilityCommandModule {
@@ -59,8 +59,8 @@ export class UtilityCommandModule {
 
     private handleOpenWebsite = async (_message: WebviewToExtensionMessage): Promise<void> => {
         try {
-            const config = vscode.workspace.getConfiguration('artemis');
-            const serverUrl = config.get<string>('serverUrl', 'https://artemis.cit.tum.de');
+            const config = vscode.workspace.getConfiguration(VSCODE_CONFIG.ARTEMIS_SECTION);
+            const serverUrl = config.get<string>(VSCODE_CONFIG.SERVER_URL_KEY, CONFIG.ARTEMIS_SERVER_URL_DEFAULT);
             await vscode.env.openExternal(vscode.Uri.parse(`${serverUrl}/courses`));
         } catch (error: unknown) {
             logger.error('Failed to open website:', LogCategory.VIEW, error);
@@ -219,8 +219,8 @@ export class UtilityCommandModule {
                 return;
             }
             // Get the server URL from configuration
-            const config = vscode.workspace.getConfiguration('artemis');
-            const serverUrl = config.get<string>('serverUrl', 'https://artemis.cit.tum.de');
+            const config = vscode.workspace.getConfiguration(VSCODE_CONFIG.ARTEMIS_SECTION);
+            const serverUrl = config.get<string>(VSCODE_CONFIG.SERVER_URL_KEY, CONFIG.ARTEMIS_SERVER_URL_DEFAULT);
 
             if (!courseId) {
                 vscode.window.showErrorMessage('Cannot open exercise in browser: missing course ID');

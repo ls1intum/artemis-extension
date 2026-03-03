@@ -1,5 +1,6 @@
 import React from 'react';
 import type { VsCodeApi } from '../../../shared/messageContracts';
+import { WebviewMsgType } from '../../../shared/messageContracts';
 
 interface ErrorBoundaryProps {
 	children: React.ReactNode;
@@ -28,7 +29,7 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
 
 		// Report error to extension host via postMessage
 		this.props.vscodeApi.postMessage({
-			type: 'error',
+			type: WebviewMsgType.Error,
 			payload: {
 				message: error.message,
 				stack: error.stack,

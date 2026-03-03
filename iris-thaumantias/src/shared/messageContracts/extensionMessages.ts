@@ -283,7 +283,7 @@ interface ExtensionMsgPayloads {
     gitIdentityInfo: { name: string; email: string };
     healthCheckResults: {
         results: Record<string, {
-            status: string;
+            status: 'online' | 'offline' | 'unknown';
             message: string;
             endpoint: string;
             httpStatus: number | null;

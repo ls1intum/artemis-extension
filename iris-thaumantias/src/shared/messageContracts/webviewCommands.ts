@@ -4,6 +4,13 @@
 
 import type { CourseDashboardCourse, ExerciseDetail } from '../../types/apiResponses';
 
+/** Non-command webview message types (ready, updatePanelTitle, error) */
+export const WebviewMsgType = {
+    Ready: 'ready',
+    UpdatePanelTitle: 'updatePanelTitle',
+    Error: 'error',
+} as const;
+
 /** All Webview->Extension command types */
 export const WebviewCmd = {
     // Auth
@@ -103,8 +110,6 @@ export const WebviewCmd = {
     StartExam: 'startExam',
     RenderPlantUmlInline: 'renderPlantUmlInline',
 
-    ViewExercises: 'viewExercises',
-    CheckGrades: 'checkGrades',
     OpenRulesInEditor: 'openRulesInEditor',
     RenderPlantUml: 'renderPlantUml',
     OpenPlantUmlInNewTab: 'openPlantUmlInNewTab',
@@ -205,7 +210,7 @@ interface WebviewCmdPayloads {
     viewBuildLog: { participationId: number; resultId?: number };
     goToSourceError: { filePath: string; line: number; column?: number };
     fetchBuildLogsForError: { participationId: number; resultId?: number };
-    webviewLog: { level: string; text: string; category: string; error?: unknown };
+    webviewLog: { level: 'debug' | 'info' | 'warn' | 'error'; text: string; category: string; error?: unknown };
     participateInExercise: { exerciseId: number; exerciseTitle: string };
     openClonedRepository: { exerciseId: number };
     copyCloneUrl: { participationId: number; repositoryUri: string };
@@ -213,9 +218,6 @@ interface WebviewCmdPayloads {
     startExam: { courseId: number; examId: number; studentExamId: number };
     renderPlantUmlInline: { plantUml: string; index: number };
 
-    // Missing commands
-    viewExercises: undefined;
-    checkGrades: undefined;
     openRulesInEditor: { text: string };
     renderPlantUml: { plantUmlDiagrams: string[]; exerciseTitle?: string };
     openPlantUmlInNewTab: { plantUml: string; index: number };
@@ -233,9 +235,9 @@ type WebviewCommandMessages = {
 
 /** Full Webview->Extension union (commands + non-command messages) */
 export type WebviewToExtensionMessage =
-    | { type: 'ready' }
-    | { type: 'updatePanelTitle'; title: string }
-    | { type: 'error'; payload: { message: string; stack?: string; componentStack?: string } }
+    | { type: typeof WebviewMsgType.Ready }
+    | { type: typeof WebviewMsgType.UpdatePanelTitle; title: string }
+    | { type: typeof WebviewMsgType.Error; payload: { message: string; stack?: string; componentStack?: string } }
     | WebviewCommandMessages;
 
 /**
@@ -249,7 +251,7 @@ export interface VsCodeApi {
 }
 
 /** Extract the command string from a webview message (command field for command-type, type otherwise). */
-export function getCommand(message: WebviewToExtensionMessage): WebviewCmd | 'ready' | 'updatePanelTitle' | 'error' {
+export function getCommand(message: WebviewToExtensionMessage): WebviewCmd | typeof WebviewMsgType[keyof typeof WebviewMsgType] {
     return message.type === 'command'
         ? (message as { type: 'command'; command: WebviewCmd }).command
         : message.type;

@@ -4,6 +4,7 @@
 
 import { ExtensionMsg } from './extensionMessages';
 import type { ExtensionToWebviewMessage } from './extensionMessages';
+import { WebviewMsgType } from './webviewCommands';
 import type { WebviewToExtensionMessage } from './webviewCommands';
 
 const extensionMsgValues = new Set<string>(Object.values(ExtensionMsg));
@@ -14,10 +15,29 @@ export function isExtensionMessage(msg: unknown): msg is ExtensionToWebviewMessa
 }
 
 /** Non-command message types from WebviewToExtensionMessage union.
- *  Must match non-command variants in WebviewToExtensionMessage (webviewCommands.ts) */
-const WEBVIEW_MSG_TYPES = new Set<string>(['ready', 'command', 'error', 'updatePanelTitle'] as const);
+ *  Derived from WebviewMsgType const + the 'command' discriminator */
+const WEBVIEW_MSG_TYPES = new Set<string>([...Object.values(WebviewMsgType), 'command']);
 
 export function isWebviewMessage(msg: unknown): msg is WebviewToExtensionMessage {
-    return typeof msg === 'object' && msg !== null && 'type' in msg
-        && WEBVIEW_MSG_TYPES.has((msg as { type: string }).type);
+    if (typeof msg !== 'object' || msg === null || !('type' in msg)) {
+        return false;
+    }
+    const type = (msg as { type: string }).type;
+    if (!WEBVIEW_MSG_TYPES.has(type)) {
+        return false;
+    }
+    // Field validation for specific message types
+    switch (type) {
+        case WebviewMsgType.Error: {
+            const payload = (msg as { payload?: unknown }).payload;
+            return typeof payload === 'object' && payload !== null
+                && typeof (payload as { message?: unknown }).message === 'string';
+        }
+        case 'command':
+            return typeof (msg as { command?: unknown }).command === 'string';
+        case WebviewMsgType.UpdatePanelTitle:
+            return typeof (msg as { title?: unknown }).title === 'string';
+        default:
+            return true;
+    }
 }

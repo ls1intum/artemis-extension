@@ -17,7 +17,7 @@ import {
     PageHeader,
 } from '../../components';
 import type { DropdownOption } from '../../components';
-import { ExtensionMsg, isExtensionMessage, postCommand } from '../../../../../shared/messageContracts';
+import { ExtensionMsg, WebviewMsgType, isExtensionMessage, postCommand } from '../../../../../shared/messageContracts';
 import styles from './CourseListView.module.css';
 
 export function CourseListView({ vscodeApi }: CourseListViewProps) {
@@ -76,7 +76,7 @@ export function CourseListView({ vscodeApi }: CourseListViewProps) {
         window.addEventListener('message', handleMessage);
 
         // Request initial data
-        vscodeApi.postMessage({ type: 'ready' });
+        vscodeApi.postMessage({ type: WebviewMsgType.Ready });
 
         return () => window.removeEventListener('message', handleMessage);
     }, [vscodeApi, setCourses, setArchivedCourses, pushBreadcrumb, setSearchTerm, setTypeFilter, setSemesterFilter, setSortBy]);

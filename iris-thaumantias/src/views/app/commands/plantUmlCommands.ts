@@ -40,7 +40,7 @@ export class PlantUmlCommandModule {
             }, async () => {
                 await vscode.commands.executeCommand('artemis.renderPlantUmlFromWebview', combinedPlantUml, exerciseTitle);
             });
-        } catch (error) {
+        } catch (error: unknown) {
             logger.plantUmlError('Render PlantUML error:', error);
             const errorMsg = extractErrorMessage(error);
             vscode.window.showErrorMessage(`Failed to render PlantUML: ${errorMsg}`);
@@ -73,7 +73,7 @@ export class PlantUmlCommandModule {
             });
 
             logger.plantUml(`✅ Inline PlantUML diagram ${index + 1} rendered successfully`);
-        } catch (error) {
+        } catch (error: unknown) {
             logger.plantUmlError(`Render inline PlantUML error for diagram ${index + 1}:`, error);
             const errorMsg = extractErrorMessage(error);
             this.context.sendMessage({
@@ -97,7 +97,7 @@ export class PlantUmlCommandModule {
 
             const processedPlantUml = processPlantUml(plantUml);
             await vscode.commands.executeCommand('artemis.renderPlantUmlFromWebview', processedPlantUml, `Diagram ${index + 1}`);
-        } catch (error) {
+        } catch (error: unknown) {
             logger.plantUmlError(`Open PlantUML in new tab error for diagram ${index + 1}:`, error);
             const errorMsg = extractErrorMessage(error);
             vscode.window.showErrorMessage(`Failed to open PlantUML diagram: ${errorMsg}`);

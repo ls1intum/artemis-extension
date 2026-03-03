@@ -65,6 +65,8 @@ export function LoginView({ vscodeApi }: LoginViewProps) {
 
 	// Message handler for extension-to-webview messages
 	useEffect(() => {
+		let hideTimerId: ReturnType<typeof setTimeout> | null = null;
+
 		const messageHandler = (event: MessageEvent<unknown>) => {
 			if (!isExtensionMessage(event.data)) {
 				return;
@@ -84,7 +86,7 @@ export function LoginView({ vscodeApi }: LoginViewProps) {
 				case ExtensionMsg.HideLoading:
 					if (viewState === 'loading') {
 						setLoadingHiding(true);
-						setTimeout(() => {
+						hideTimerId = setTimeout(() => {
 							setLoadingVisible(false);
 							setLoadingHiding(false);
 							setViewState('form');
@@ -153,7 +155,10 @@ export function LoginView({ vscodeApi }: LoginViewProps) {
 		};
 
 		window.addEventListener('message', messageHandler);
-		return () => window.removeEventListener('message', messageHandler);
+		return () => {
+			window.removeEventListener('message', messageHandler);
+			if (hideTimerId !== null) { clearTimeout(hideTimerId); }
+		};
 	}, [viewState, serverUrl]);
 
 	// Perform health checks
