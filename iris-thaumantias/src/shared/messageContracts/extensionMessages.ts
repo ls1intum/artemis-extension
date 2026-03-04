@@ -37,7 +37,6 @@ export const ExtensionMsg = {
     UpdateLoading: 'updateLoading',
 
     // Dashboard/Course
-    WorkspaceExerciseDetected: 'workspaceExerciseDetected',
     ArchivedCoursesLoaded: 'archivedCoursesLoaded',
 
     // WebSocket
@@ -168,10 +167,6 @@ interface ExtensionMsgPayloads {
     updateLoading: { message: string };
 
     // Dashboard/Course
-    workspaceExerciseDetected: {
-        exerciseId: number | null;
-        exerciseTitle: string | null;
-    };
     archivedCoursesLoaded: { archivedCourses: ArchivedCourse[] };
 
     // WebSocket

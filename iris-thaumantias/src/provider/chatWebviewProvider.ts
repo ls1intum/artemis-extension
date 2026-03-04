@@ -463,6 +463,8 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
                         if (!handled) {
                             logger.debug('Unhandled message in chat view', LogCategory.IRIS_CHAT, typedMessage);
                         }
+                    }).catch(err => {
+                        logger.error('Error handling utility command', LogCategory.IRIS_CHAT, err);
                     });
                     break;
             }

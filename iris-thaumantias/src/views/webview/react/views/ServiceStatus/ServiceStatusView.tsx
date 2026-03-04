@@ -43,7 +43,7 @@ export function ServiceStatusView({ vscodeApi }: ServiceStatusViewProps) {
                 break;
             }
             case ExtensionMsg.HealthCheckResults: {
-                setHealthResults(msg.results as Record<string, HealthCheckResult>);
+                setHealthResults(msg.results);
                 setIsChecking(false);
                 setLastCheckTime(new Date());
                 break;

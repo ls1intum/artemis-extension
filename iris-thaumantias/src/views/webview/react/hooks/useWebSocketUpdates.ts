@@ -1,6 +1,5 @@
 import { useEffect, useRef } from 'react';
 import { ExtensionMsg, isExtensionMessage } from '../../../../shared/messageContracts';
-import type { VsCodeApi } from '../../../../shared/messageContracts';
 import { useExerciseDetailStore } from '../stores/useExerciseDetailStore';
 
 /**
@@ -8,7 +7,7 @@ import { useExerciseDetailStore } from '../stores/useExerciseDetailStore';
  * Buffers incoming WebSocket messages and processes them once per frame
  * to prevent re-render storms from high-frequency updates.
  */
-export function useWebSocketUpdates(vscodeApi: VsCodeApi): void {
+export function useWebSocketUpdates(): void {
     const updateBuildStatus = useExerciseDetailStore((state) => state.updateBuildStatus);
     const updateSubmission = useExerciseDetailStore((state) => state.updateSubmission);
     const updateSubmissionProcessing = useExerciseDetailStore((state) => state.updateSubmissionProcessing);

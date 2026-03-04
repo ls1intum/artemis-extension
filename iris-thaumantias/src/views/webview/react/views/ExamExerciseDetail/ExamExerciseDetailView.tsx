@@ -43,7 +43,7 @@ export function ExamExerciseDetailView({ vscodeApi }: ExamExerciseDetailViewProp
     const [autoRetried, setAutoRetried] = useState(false);
 
     // Initialize WebSocket updates
-    useWebSocketUpdates(vscodeApi);
+    useWebSocketUpdates();
 
     // Load data on mount
     useExtensionMessage((msg) => {

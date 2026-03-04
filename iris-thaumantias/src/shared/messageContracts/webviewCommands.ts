@@ -134,7 +134,7 @@ interface WebviewCmdPayloads {
     startExercise: { exerciseId: number };
     startPractice: { exerciseId: number; exerciseTitle?: string };
     askIrisAboutExercise: { exerciseId: number; exerciseTitle: string; exerciseShortName?: string; releaseDate?: string; dueDate?: string; courseId?: number; courseTitle?: string; courseShortName?: string };
-    checkRepositoryStatus: { showNotification?: boolean };
+    checkRepositoryStatus: undefined;
 
     // Exam
     openExam: { examId: number; courseId: number };

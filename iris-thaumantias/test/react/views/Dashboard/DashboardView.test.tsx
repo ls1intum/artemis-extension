@@ -183,21 +183,6 @@ describe('DashboardView', () => {
 		});
 	});
 
-	it('shows workspace exercise when workspaceExerciseDetected message is received', async () => {
-		const mockApi = createMockVsCodeApi();
-		render(<DashboardView vscodeApi={mockApi} />);
-
-		dispatchExtensionMessage({
-			type: 'workspaceExerciseDetected',
-			exerciseId: 88,
-			exerciseTitle: 'Detected Exercise',
-		});
-
-		await waitFor(() => {
-			expect(screen.getByText('Detected Exercise')).toBeInTheDocument();
-		});
-	});
-
 	it('clicking workspace exercise sends openExercise postMessage', async () => {
 		const mockApi = createMockVsCodeApi();
 		render(<DashboardView vscodeApi={mockApi} />);

@@ -281,6 +281,8 @@ export class ViewInitDataService {
     }
 
     public sendGitCredentialsInit(): void {
+        // Safe cast: RequestGitIdentity has undefined payload, so the literal
+        // is structurally correct as a WebviewToExtensionMessage command variant.
         this._getMessageHandler().handleMessage({
             type: 'command',
             command: WebviewCmd.RequestGitIdentity,

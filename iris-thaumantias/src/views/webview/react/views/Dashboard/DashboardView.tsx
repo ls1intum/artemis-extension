@@ -51,15 +51,6 @@ export function DashboardView({ vscodeApi }: DashboardViewProps) {
                     title: msg.workspaceExercise.title,
                 });
             }
-        } else if (msg.type === ExtensionMsg.WorkspaceExerciseDetected) {
-            if (typeof msg.exerciseId === 'number' && typeof msg.exerciseTitle === 'string') {
-                setWorkspaceExercise({
-                    id: msg.exerciseId,
-                    title: msg.exerciseTitle,
-                });
-            } else {
-                setWorkspaceExercise(null);
-            }
         }
     }, [vscodeApi, setDashboardData, setWorkspaceExercise]);
 

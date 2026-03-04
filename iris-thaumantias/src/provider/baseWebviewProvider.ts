@@ -49,6 +49,8 @@ export abstract class BaseWebviewProvider {
     private static readonly EVENT_TYPES: ReadonlySet<string> = new Set([
         'websocketUpdate',
         'addMessage',
+        'plantUmlRendered',
+        'plantUmlError',
     ]);
 
     /**

@@ -427,22 +427,33 @@ export class NavigationCommandModule {
     };
 
     private handleOpenExercise = async (message: WebviewToExtensionMessage): Promise<void> => {
-        const { exerciseId } = getPayload<WebCmd<'openExercise'>>(message);
+        const { exerciseId, courseId } = getPayload<WebCmd<'openExercise'>>(message);
 
         try {
             const coursesData = this.context.appStateManager.coursesData;
             let parentCourseDetailData: CourseDetailData | null = null;
 
             if (coursesData?.courses) {
-                for (const courseEntry of coursesData.courses) {
-                    const exercises = courseEntry?.course?.exercises || [];
-                    const foundExercise = exercises.find((ex) => ex?.id === exerciseId);
-
-                    if (foundExercise && courseEntry.course) {
-                        // Convert to CourseDetailData format
+                // Short-circuit: if courseId is provided, look up the course directly
+                if (courseId) {
+                    const courseEntry = coursesData.courses.find(c => c.course?.id === courseId);
+                    if (courseEntry?.course) {
                         parentCourseDetailData = { course: courseEntry.course };
-                        logger.view(`[Navigation] 📚 Found parent course for exercise ${exerciseId}: ${courseEntry.course.title}`);
-                        break;
+                        logger.view(`[Navigation] Found parent course for exercise ${exerciseId} via courseId: ${courseEntry.course.title}`);
+                    }
+                }
+
+                // Fallback: scan all courses for the exercise
+                if (!parentCourseDetailData) {
+                    for (const courseEntry of coursesData.courses) {
+                        const exercises = courseEntry?.course?.exercises || [];
+                        const foundExercise = exercises.find((ex) => ex?.id === exerciseId);
+
+                        if (foundExercise && courseEntry.course) {
+                            parentCourseDetailData = { course: courseEntry.course };
+                            logger.view(`[Navigation] Found parent course for exercise ${exerciseId}: ${courseEntry.course.title}`);
+                            break;
+                        }
                     }
                 }
             }

@@ -50,7 +50,7 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
     const [autoRetried, setAutoRetried] = useState(false);
 
     // Initialize WebSocket updates hook
-    useWebSocketUpdates(vscodeApi);
+    useWebSocketUpdates();
 
     // Initialize breadcrumbs on mount
     useEffect(() => {
@@ -119,7 +119,7 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
     };
 
     const handleCheckRepositoryStatus = () => {
-        postCommand(vscodeApi, 'checkRepositoryStatus', { showNotification: true });
+        postCommand(vscodeApi, 'checkRepositoryStatus');
     };
 
     const handleAskIris = () => {
