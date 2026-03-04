@@ -12,7 +12,7 @@ import type { IArtemisWebviewProvider } from '../types/IArtemisWebviewProvider';
 import { CONFIG, VSCODE_CONFIG } from '../utils';
 import { AI_EXTENSIONS_BLOCKLIST } from '../utils/aiExtensionsBlocklist';
 import { getRecommendedExtensionsByCategory } from '../utils/recommendedExtensions';
-import { AppStateManager, type UserInfo, type ExamData } from '../views/app/appStateManager';
+import { AppStateManager, type UserInfo } from '../views/app/appStateManager';
 import { WebViewMessageHandler } from '../views/app/webViewMessageHandler';
 import type { WebViewActionHandler } from '../views/app/types';
 import { ViewActionService } from '../views/app/viewActionService';
@@ -215,7 +215,9 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
                     }
                     logger.debug('Sidebar webview became visible, resending view data...', LogCategory.VIEW);
                     this.sendInitData();
-                })();
+                })().catch(err => {
+                    logger.error('Error in visibility change handler', LogCategory.VIEW, err);
+                });
             } else {
                 logger.debug('Sidebar webview became hidden', LogCategory.VIEW);
             }
@@ -238,8 +240,12 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
      */
     public async render(): Promise<void> {
         if (this._view) {
-            this._resetReadyState();
-            this._view.webview.html = await this._viewRouter.getHtml();
+            try {
+                this._resetReadyState();
+                this._view.webview.html = await this._viewRouter.getHtml();
+            } catch (err) {
+                logger.error('Failed to render webview', LogCategory.VIEW, err);
+            }
         }
     }
 

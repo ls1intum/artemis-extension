@@ -464,7 +464,7 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
                 break;
             case 'openFile':
                 if (typeof payload.filePath === 'string') {
-                    this._handleOpenFile(payload.filePath);
+                    void this._handleOpenFile(payload.filePath);
                 }
                 break;
             case 'openHelpPopup':
@@ -566,7 +566,7 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
         const activeContext = this._contextStore.getActiveContext();
 
         if (!activeContext) {
-            logger.warn('No active context, skipping message load', LogCategory.IRIS_CHAT);
+            logger.debug('No active context, skipping message load', LogCategory.IRIS_CHAT);
             return;
         }
 
@@ -583,31 +583,31 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
         this._postSnapshot({ showContextPicker: true });
     }
 
-    private _handleOpenFile(filePath: string): void {
-        // Try to find and open the file in the workspace
+    private async _handleOpenFile(filePath: string): Promise<void> {
         const workspaceFolders = vscode.workspace.workspaceFolders;
         if (!workspaceFolders || workspaceFolders.length === 0) {
             vscode.window.showWarningMessage('No workspace folder open');
             return;
         }
 
-        // Try to find the file in the workspace
-        const fileUri = vscode.Uri.joinPath(workspaceFolders[0].uri, filePath);
-        vscode.workspace.openTextDocument(fileUri).then(
-            doc => vscode.window.showTextDocument(doc),
-            () => {
-                // If not found with the exact path, try to find it
-                vscode.workspace.findFiles(`**/${filePath.split('/').pop()}`).then(files => {
-                    if (files.length > 0) {
-                        vscode.workspace.openTextDocument(files[0]).then(
-                            doc => vscode.window.showTextDocument(doc)
-                        );
-                    } else {
-                        vscode.window.showWarningMessage(`Could not find file: ${filePath}`);
-                    }
-                });
+        try {
+            const fileUri = vscode.Uri.joinPath(workspaceFolders[0].uri, filePath);
+            const doc = await vscode.workspace.openTextDocument(fileUri);
+            await vscode.window.showTextDocument(doc);
+        } catch {
+            try {
+                const fileName = filePath.split('/').pop();
+                const files = await vscode.workspace.findFiles(`**/${fileName}`);
+                if (files.length > 0) {
+                    const doc = await vscode.workspace.openTextDocument(files[0]);
+                    await vscode.window.showTextDocument(doc);
+                } else {
+                    vscode.window.showWarningMessage(`Could not find file: ${filePath}`);
+                }
+            } catch {
+                vscode.window.showWarningMessage(`Could not open file: ${filePath}`);
             }
-        );
+        }
     }
 
     private _handleOpenHelpPopup(): void {
