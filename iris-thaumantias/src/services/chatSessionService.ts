@@ -2,7 +2,10 @@ import * as vscode from 'vscode';
 import { ContextStore } from './contextStore';
 import { ArtemisApiService } from '../api';
 import { ActiveContext, ApiError, type IrisChatSession, type IrisChatMessage, type IrisSettingsResponse } from '../types';
+import type { IrisSessionManager } from './irisSessionManager';
+import { extractIrisMessageContent } from '../utils/irisMessageUtils';
 import { logger, LogCategory } from './loggingService';
+import { ExtensionMsg } from '../shared/messageContracts';
 import type { ExtensionToWebviewMessage } from '../shared/messageContracts';
 
 export class ChatSessionService {
@@ -322,6 +325,104 @@ export class ChatSessionService {
             this._contextStore.createSession();
             this._onCreateNewSession();
             this._onPostSnapshot();
+        }
+    }
+
+    public async initializeIrisSessionAndLoadMessages(
+        context: ActiveContext,
+        irisSessionManager: IrisSessionManager,
+    ): Promise<void> {
+        logger.websocket('initializeIrisSessionAndLoadMessages called', {
+            contextType: context.type,
+            contextId: context.id,
+            contextTitle: context.title
+        });
+
+        if (!this._artemisApiService) {
+            logger.websocketError('No Artemis API service available');
+            return;
+        }
+
+        try {
+            logger.irisChat(`Initializing Iris session for ${context.type}: ${context.title} (ID: ${context.id})`);
+
+            const snapshot = this._contextStore.snapshot();
+            const activeLocalSession = snapshot.activeSession;
+
+            logger.irisChat('Active local session:', {
+                id: activeLocalSession?.id,
+                messageCount: activeLocalSession?.messageCount,
+                artemisSessionId: activeLocalSession?.artemisSessionId,
+                createdAt: activeLocalSession?.createdAt ? new Date(activeLocalSession.createdAt).toISOString() : 'unknown'
+            });
+
+            const sessionId = await irisSessionManager.initializeSession(context, activeLocalSession?.artemisSessionId);
+
+            if (!activeLocalSession?.artemisSessionId) {
+                logger.irisChat(`Storing NEW Artemis session ID mapping: ${sessionId}`);
+                this._contextStore.setArtemisSessionId(sessionId);
+                this._onPostSnapshot();
+            }
+
+            logger.websocket(`Iris session initialized with ID: ${sessionId}`);
+
+            logger.irisChat(`Fetching messages for session: ${sessionId}`);
+            const messages = await this._artemisApiService.getChatMessages(sessionId);
+            logger.irisChat(`Received ${messages?.length || 0} messages from Iris`);
+
+            if (activeLocalSession?.messageCount && activeLocalSession.messageCount > 0 &&
+                (!messages || messages.length === 0)) {
+                logger.irisChatWarn(`Warning: Expected ${activeLocalSession.messageCount} messages but got none. Stored session might be stale.`);
+                logger.irisChatWarn('Clearing stale Artemis session ID mapping...');
+
+                this._contextStore.setArtemisSessionId(undefined);
+                this._onPostSnapshot();
+
+                vscode.window.showWarningMessage(
+                    'This conversation\'s messages could not be found on the server. They may have been deleted. The session mapping has been reset.',
+                    'Create New Conversation'
+                ).then(selection => {
+                    if (selection === 'Create New Conversation') {
+                        this._onCreateNewSession();
+                    }
+                });
+            }
+
+            if (messages && messages.length > 0) {
+                logger.irisChat('Sending messages to webview', messages);
+
+                const formattedMessages = messages.map((msg: IrisChatMessage) => {
+                    let content = extractIrisMessageContent(msg.content);
+                    if (content === 'undefined' || content === 'null') {
+                        const legacyMsg = msg as { message?: string };
+                        if (typeof legacyMsg.message === 'string') {
+                            content = legacyMsg.message;
+                        }
+                    }
+
+                    return {
+                        id: msg.id,
+                        role: (msg.sender === 'USER' ? 'user' : 'assistant') as 'user' | 'assistant',
+                        content: content,
+                        timestamp: msg.sentAt ? new Date(msg.sentAt).getTime() : Date.now(),
+                        helpful: (msg as { helpful?: boolean | null }).helpful
+                    };
+                });
+
+                this._postMessage({
+                    type: ExtensionMsg.LoadMessages,
+                    messages: formattedMessages
+                });
+                logger.irisChat('Messages sent to webview');
+            } else {
+                logger.irisChat('No messages to load or view not ready');
+            }
+
+            vscode.window.showInformationMessage(`Connected to Iris for ${context.title}`);
+        } catch (error: unknown) {
+            logger.error('Error initializing Iris session', LogCategory.IRIS_CHAT, error);
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            throw new Error(`Failed to connect to Iris: ${errorMessage}`);
         }
     }
 }

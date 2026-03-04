@@ -14,12 +14,14 @@ export { ExerciseRegistry, type ExerciseRegistryEntry } from './exerciseRegistry
 export { WebSocketStatusBarService } from './websocketStatusBar';
 export { logger, LogLevel, LogCategory } from './loggingService';
 export { NoAiDetectionService } from './noAiDetectionService';
+export { ViewInitDataService } from './viewInitDataService';
 export { ConsentService, ConsentLevel } from './consentService';
 export {
     detectWorkspaceExercise,
     findExerciseByRepositoryUrl,
     normalizeRepositoryUrl,
     isExerciseInCurrentWorkspace,
+    detectAndRegisterWorkspaceExercise,
     type DetectedExercise,
     type ExerciseSource
 } from './workspaceDetectionService';

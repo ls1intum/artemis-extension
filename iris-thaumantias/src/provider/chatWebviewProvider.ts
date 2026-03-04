@@ -5,13 +5,12 @@ import {
     ChatContextType,
     ContextSnapshot,
 } from '../types';
-import type { IrisChatMessage } from '../types/apiResponses';
 import type { IChatWebviewProvider } from '../types/IChatWebviewProvider';
+import { BaseWebviewProvider } from './baseWebviewProvider';
 import { getReactWebviewHtml } from '../utils/webviewHelpers';
 import { ExtensionMsg, WebviewMsgType } from '../shared/messageContracts';
 import type { ExtensionToWebviewMessage, ExtMsg, WebviewToExtensionMessage } from '../shared/messageContracts';
 import { isWebviewMessage } from '../shared/messageContracts/typeGuards';
-import { extractIrisMessageContent } from '../utils/irisMessageUtils';
 import { logger, LogLevel, LogCategory } from '../services/loggingService';
 import { ArtemisApiService } from '../api';
 import {
@@ -25,20 +24,13 @@ import {
     SessionManagementService,
     WebSocketMessageHandler,
     ContextStore,
-    ExerciseRegistry,
-    detectWorkspaceExercise,
     TelemetryManager,
     StruggleContext,
-    NoAiDetectionService
+    NoAiDetectionService,
+    detectAndRegisterWorkspaceExercise
 } from '../services';
-
-type ChatContextReason =
-    | 'user-selected'
-    | 'auto-workspace'
-    | 'auto-first'
-    | 'auto-recent'
-    | 'default'
-    | 'workspace-detected';
+import type { ChatContextReason } from '../services/chatContextManager';
+import { IRIS_CHAT_HELP_MARKDOWN } from '../utils/helpContent';
 
 export interface ExerciseContextChangeEvent {
     exerciseId: number;
@@ -46,12 +38,10 @@ export interface ExerciseContextChangeEvent {
     exerciseRoot?: vscode.Uri;
 }
 
-export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.Disposable, IChatWebviewProvider {
+export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.WebviewViewProvider, vscode.Disposable, IChatWebviewProvider {
     public static readonly viewType = 'iris.chatView';
 
-    private _view?: vscode.WebviewView;
     private readonly _contextStore: ContextStore;
-    private readonly _disposables: vscode.Disposable[] = [];
     private _fileMonitorService: FileMonitorService;
     private _irisSessionManager?: IrisSessionManager;
     private _chatDiagnosticsService: ChatDiagnosticsService;
@@ -64,10 +54,6 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
     private _noAiDetectionService: NoAiDetectionService;
     private _currentExerciseId?: number;
 
-    // Ready-signal handshake state
-    private _webviewReady = false;
-    private _pendingMessages: ExtensionToWebviewMessage[] = [];
-
     private readonly _onDidChangeExerciseContext = new vscode.EventEmitter<ExerciseContextChangeEvent>();
     public readonly onDidChangeExerciseContext = this._onDidChangeExerciseContext.event;
 
@@ -77,6 +63,7 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
         private readonly _artemisApiService?: ArtemisApiService,
         private readonly _websocketService?: ArtemisWebsocketService,
     ) {
+        super();
         this._contextStore = new ContextStore(this._extensionContext);
         this._fileMonitorService = new FileMonitorService();
         this._disposables.push(this._fileMonitorService);
@@ -95,14 +82,17 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
             this._websocketService,
             () => this._irisSessionManager,
             (message) => this._postMessageSafe(message),
-            (context) => this._initializeIrisSession(context),
+            (context) => this._irisSessionManager
+                ? this._chatSessionService.initializeIrisSessionAndLoadMessages(context, this._irisSessionManager)
+                : Promise.resolve(),
             () => this._postSnapshot()
         );
         this._chatContextManager = new ChatContextManager(
             this._contextStore,
             this._chatSessionService,
             () => this._irisSessionManager,
-            (message) => this._postMessageSafe(message)
+            (message) => this._postMessageSafe(message),
+            () => this._postSnapshot()
         );
         this._sessionManagementService = new SessionManagementService(
             this._contextStore,
@@ -183,30 +173,6 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
         this._onDidChangeExerciseContext.dispose();
     }
 
-    /**
-     * Safely post a message to the webview, queuing it if the webview is not ready yet.
-     */
-    private _postMessageSafe(message: ExtensionToWebviewMessage): void {
-        if (this._webviewReady && this._view) {
-            this._view.webview.postMessage(message);
-        } else {
-            this._pendingMessages.push(message);
-        }
-    }
-
-    /**
-     * Flush queued messages after webview signals ready.
-     */
-    private _flushPendingMessages(): void {
-        if (!this._view) {
-            return;
-        }
-        const pending = this._pendingMessages;
-        this._pendingMessages = [];
-        for (const msg of pending) {
-            this._view.webview.postMessage(msg);
-        }
-    }
 
     public resolveWebviewView(
         webviewView: vscode.WebviewView,
@@ -215,8 +181,7 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
     ) {
         logger.websocket('Iris Chat webview being resolved/loaded');
         this._view = webviewView;
-        this._webviewReady = false;
-        this._pendingMessages = [];
+        this._resetReadyState();
 
         webviewView.webview.options = {
             enableScripts: true,
@@ -260,18 +225,6 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
     }
 
     // private _startWebSocketMonitoring(): void { ... } // Removed
-
-    private _mapReasonToSource(reason: ChatContextReason): 'workspace-detected' | 'user-selected' | 'system-default' {
-        switch (reason) {
-            case 'user-selected':
-                return 'user-selected';
-            case 'auto-workspace':
-            case 'workspace-detected':
-                return 'workspace-detected';
-            default:
-                return 'system-default';
-        }
-    }
 
     private _serializeSession(session: StoredSession) {
         return {
@@ -320,84 +273,12 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
 
 
 
-    private _resetSessionStateForContextChange(): void {
-        // this._currentArtemisSessionId = undefined; // Handled by IrisSessionManager
-
-        if (this._irisSessionManager) {
-            this._irisSessionManager.unsubscribe();
-        }
-    }
-
     private async _detectWorkspaceExercise(): Promise<void> {
-        try {
-            const registry = ExerciseRegistry.getInstance();
-            let exercises = registry.getAllExercises();
-
-            // If registry is empty, try to fetch courses first to populate it
-            if (exercises.length === 0 && this._artemisApiService) {
-                logger.irisChat('Registry empty, fetching courses to populate exercises...');
-                try {
-                    const dashboardData = await this._artemisApiService.getCoursesForDashboard();
-                    const courses = dashboardData?.courses;
-
-                    if (courses && Array.isArray(courses) && courses.length > 0) {
-                        // Flatten all exercises from all courses (same as main extension does)
-                        for (const courseData of courses) {
-                            const courseExercises = courseData?.course?.exercises || courseData?.exercises || [];
-                            if (courseExercises.length > 0) {
-                                // Register exercises from this course
-                                registry.registerFromCourseData({
-                                    course: courseData.course || courseData,
-                                    exercises: courseExercises
-                                });
-                            }
-                        }
-                    }
-                    exercises = registry.getAllExercises();
-                    logger.irisChat(`Registry populated with ${exercises.length} exercises`);
-                } catch (error) {
-                    logger.irisChatWarn('Failed to fetch courses for registry population', error);
-                }
-            }
-
-            const detected = await detectWorkspaceExercise(exercises);
-
-            if (detected) {
-                logger.irisChat(`Detected workspace exercise: ${detected.title} (ID: ${detected.id})`);
-            } else {
-                logger.irisChat('No workspace exercise detected matching current git remote');
-            }
-
-            if (!detected) {
-                // If we have a stale workspace-detected context but can't verify it anymore, clear it
-                // We do this even if exercises.length is 0, because if we just tried to fetch and got nothing,
-                // it means we really don't know about this exercise.
-                const current = this._contextStore.getActiveContext();
-                if (current && current.source === 'workspace-detected') {
-                    logger.irisChat(`Clearing stale workspace context: ${current.title}`);
-                    this._contextStore.clearActiveContext();
-                    this._postSnapshot();
-                }
-                return;
-            }
-
-            const baseTitle = detected.title.replace(/ \(Workspace\)$/i, '');
-            const displayTitle = `${baseTitle} (Workspace)`;
-
-            this._contextStore.registerExercise({
-                id: detected.id,
-                title: displayTitle,
-                shortName: detected.shortName,
-                courseId: detected.courseId,
-                repositoryUri: detected.repositoryUri,
-                source: 'workspace-detected',
-                isWorkspace: true,
-            });
-
-            this._postSnapshot();
-        } catch (error) {
-            // Not a git repository or command failed - ignore silently
-        }
+        await detectAndRegisterWorkspaceExercise(
+            this._artemisApiService,
+            this._contextStore,
+            () => this._postSnapshot(),
+        );
     }
 
     private _sendInitData(): void {
@@ -428,8 +309,7 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
 
         // Handle React ready signal
         if (typedMessage.type === WebviewMsgType.Ready) {
-            this._webviewReady = true;
-            this._flushPendingMessages();
+            this._markReady();
             this._sendInitData();
             return;
         }
@@ -535,12 +415,12 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
 
     private async _loadIrisMessages(): Promise<void> {
         const activeContext = this._contextStore.getActiveContext();
-        if (!activeContext || !this._artemisApiService || !this._view) {
+        if (!activeContext || !this._artemisApiService || !this._view || !this._irisSessionManager) {
             return;
         }
 
         try {
-            await this._initializeIrisSession(activeContext);
+            await this._chatSessionService.initializeIrisSessionAndLoadMessages(activeContext, this._irisSessionManager);
         } catch (error: unknown) {
             logger.error('Failed to load Iris messages', LogCategory.IRIS_CHAT, error);
             const errorMessage = error instanceof Error ? error.message : String(error);
@@ -600,50 +480,9 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider, vscode.D
     }
 
     private _handleOpenHelpPopup(): void {
-        // Open the Iris Chat help documentation
-        const helpMessage = `
-# Iris Chat Context Guide
-
-## Context Selection
-Iris Chat operates within a specific **context** - either a course or an exercise. Your context determines what information Iris has access to and what help it can provide.
-
-## How Context Works
-
-**Exercise Context:**
-- Iris can see the exercise description, test cases, and your code
-- Get help with the specific requirements
-- Ask about failing tests
-- Request code review and suggestions
-
-**Course Context:**
-- Iris can see the overall course information
-- Ask general questions about course topics
-- Get help understanding concepts covered in the course
-
-**Workspace Detection:**
-- If you have an Artemis exercise open in your workspace, Iris will automatically detect it
-- You'll see a lock icon indicating this is your workspace exercise
-
-## Tips for Best Results
-
-1. **Be specific:** Ask about particular parts of your code or specific test failures
-2. **Provide context:** Mention which file or function you're working on
-3. **Ask follow-ups:** Iris remembers your conversation, so you can build on previous questions
-
-## Session Management
-
-- Each context has multiple sessions - like separate conversations
-- Create a new session to start fresh while keeping your old conversations
-- Switch between sessions using the context selector dropdown
-
-## Referenced Files
-
-Iris can see files from your workspace (configurable in settings). Check the "Referenced Files" section to see which files Iris has access to for the current message.
-        `.trim();
-
         vscode.window.showInformationMessage(
             'Iris Chat Context Guide',
-            { modal: true, detail: helpMessage }
+            { modal: true, detail: IRIS_CHAT_HELP_MARKDOWN }
         );
     }
 
@@ -731,107 +570,6 @@ Iris can see files from your workspace (configurable in settings). Check the "Re
         }
     }
 
-    private async _initializeIrisSession(context: ActiveContext): Promise<void> {
-        logger.websocket('_initializeIrisSession called', {
-            contextType: context.type,
-            contextId: context.id,
-            contextTitle: context.title
-        });
-
-        if (!this._artemisApiService || !this._irisSessionManager) {
-            logger.websocketError('No Artemis API service or Session Manager available');
-            return;
-        }
-
-        try {
-            logger.irisChat(`Initializing Iris session for ${context.type}: ${context.title} (ID: ${context.id})`);
-
-            // Check if we have a stored Artemis session ID for this local session
-            const snapshot = this._contextStore.snapshot();
-            const activeLocalSession = snapshot.activeSession;
-
-            logger.irisChat('Active local session:', {
-                id: activeLocalSession?.id,
-                messageCount: activeLocalSession?.messageCount,
-                artemisSessionId: activeLocalSession?.artemisSessionId,
-                createdAt: activeLocalSession?.createdAt ? new Date(activeLocalSession.createdAt).toISOString() : 'unknown'
-            });
-
-            const sessionId = await this._irisSessionManager.initializeSession(context, activeLocalSession?.artemisSessionId);
-
-            // If we didn't have a stored session ID, store it now
-            if (!activeLocalSession?.artemisSessionId) {
-                logger.irisChat(`Storing NEW Artemis session ID mapping: ${sessionId}`);
-                this._contextStore.setArtemisSessionId(sessionId);
-                this._postSnapshot();
-            }
-
-            logger.websocket(`Iris session initialized with ID: ${sessionId}`);
-
-            // Load existing messages if any
-            logger.irisChat(`Fetching messages for session: ${sessionId}`);
-            const messages = await this._artemisApiService.getChatMessages(sessionId);
-            logger.irisChat(`Received ${messages?.length || 0} messages from Iris`);
-
-            // If we expected messages but got none, the stored session might be stale
-            if (activeLocalSession?.messageCount && activeLocalSession.messageCount > 0 &&
-                (!messages || messages.length === 0)) {
-                logger.irisChatWarn(`Warning: Expected ${activeLocalSession.messageCount} messages but got none. Stored session might be stale.`);
-                logger.irisChatWarn('Clearing stale Artemis session ID mapping...');
-
-                // Clear the stale mapping
-                this._contextStore.setArtemisSessionId(undefined);
-                this._postSnapshot();
-
-                vscode.window.showWarningMessage(
-                    'This conversation\'s messages could not be found on the server. They may have been deleted. The session mapping has been reset.',
-                    'Create New Conversation'
-                ).then(selection => {
-                    if (selection === 'Create New Conversation') {
-                        this.createNewSession();
-                    }
-                });
-            }
-
-            if (messages && messages.length > 0) {
-                logger.irisChat('Sending messages to webview', messages);
-
-                const formattedMessages = messages.map((msg: IrisChatMessage) => {
-                    // Extract content - try msg.content first, then fall back to msg.message
-                    let content = extractIrisMessageContent(msg.content);
-                    if (content === 'undefined' || content === 'null') {
-                        const legacyMsg = msg as { message?: string };
-                        if (typeof legacyMsg.message === 'string') {
-                            content = legacyMsg.message;
-                        }
-                    }
-
-                    return {
-                        id: msg.id,
-                        role: (msg.sender === 'USER' ? 'user' : 'assistant') as 'user' | 'assistant',
-                        content: content,
-                        timestamp: msg.sentAt ? new Date(msg.sentAt).getTime() : Date.now(),
-                        helpful: (msg as { helpful?: boolean | null }).helpful // true, false, or null
-                    };
-                });
-
-                this._postMessageSafe({
-                    type: ExtensionMsg.LoadMessages,
-                    messages: formattedMessages
-                });
-                logger.irisChat('Messages sent to webview');
-            } else {
-                logger.irisChat('No messages to load or view not ready');
-            }
-
-            vscode.window.showInformationMessage(`Connected to Iris for ${context.title}`);
-        } catch (error: unknown) {
-            logger.error('Error initializing Iris session', LogCategory.IRIS_CHAT, error);
-            const errorMessage = error instanceof Error ? error.message : String(error);
-            throw new Error(`Failed to connect to Iris: ${errorMessage}`);
-        }
-    }
-
     public clearAllSessions(): void {
         logger.irisChat('Clearing all local Iris sessions...');
 
@@ -861,10 +599,8 @@ Iris can see files from your workspace (configurable in settings). Check the "Re
 
     public refreshTheme(): void {
         if (this._view) {
-            this._webviewReady = false;
-            this._pendingMessages = [];
+            this._resetReadyState();
             this._view.webview.html = getReactWebviewHtml(this._view.webview, this._extensionUri, 'irisChat');
-            // Init data is sent when the new webview signals ready (see _sendInitData)
         }
     }
 
@@ -918,30 +654,15 @@ Iris can see files from your workspace (configurable in settings). Check the "Re
     }
 
     public getSelectedContext(): ActiveContext | null {
-        const active = this._contextStore.getActiveContext();
-        if (active?.type === 'exercise' && !active.courseId) {
-            const tracked = this._contextStore.getExerciseById(active.id);
-            if (tracked?.courseId) {
-                return { ...active, courseId: tracked.courseId };
-            }
-        }
-        return active;
+        return this._chatContextManager.getSelectedContext();
     }
 
     public getSelectedExerciseId(): number | undefined {
-        const active = this._contextStore.getActiveContext();
-        return active?.type === 'exercise' ? active.id : undefined;
+        return this._chatContextManager.getSelectedExerciseId();
     }
 
     public getSelectedExercise(): { title: string; id: number } | undefined {
-        const active = this._contextStore.getActiveContext();
-        if (active?.type === 'exercise') {
-            return {
-                id: active.id,
-                title: active.title,
-            };
-        }
-        return undefined;
+        return this._chatContextManager.getSelectedExercise();
     }
 
     public setCourseContext(
@@ -950,24 +671,7 @@ Iris can see files from your workspace (configurable in settings). Check the "Re
         reason: ChatContextReason = 'user-selected',
         shortName?: string,
     ): void {
-        this._contextStore.registerCourse({
-            id: courseId,
-            title: courseTitle,
-            shortName,
-            source: this._mapReasonToSource(reason),
-        });
-
-        this._contextStore.setActiveContext({
-            type: 'course',
-            id: courseId,
-            title: courseTitle,
-            shortName,
-            source: this._mapReasonToSource(reason),
-            locked: reason === 'workspace-detected',
-            selectedAt: Date.now(),
-        }, false);
-
-        this._finalizeContextSwitch(`course:${courseId}`, `Course context set to: ${courseTitle}`);
+        this._chatContextManager.setCourseContext(courseId, courseTitle, reason, shortName);
     }
 
     public setExerciseContext(
@@ -979,34 +683,7 @@ Iris can see files from your workspace (configurable in settings). Check the "Re
         dueDate?: string,
         courseId?: number,
     ): void {
-        logger.context('SET EXERCISE CONTEXT Called with:', LogLevel.DEBUG, {
-            exerciseId, exerciseTitle, shortName, releaseDate, dueDate, courseId, reason,
-            source: this._mapReasonToSource(reason),
-        });
-
-        this._contextStore.registerExercise({
-            id: exerciseId,
-            title: exerciseTitle,
-            shortName,
-            courseId,
-            releaseDate,
-            dueDate,
-            source: this._mapReasonToSource(reason),
-            isWorkspace: reason === 'workspace-detected' || reason === 'auto-workspace',
-        });
-
-        this._contextStore.setActiveContext({
-            type: 'exercise',
-            id: exerciseId,
-            title: exerciseTitle,
-            shortName,
-            courseId,
-            source: this._mapReasonToSource(reason),
-            locked: reason === 'workspace-detected' || reason === 'auto-workspace',
-            selectedAt: Date.now(),
-        }, false);
-
-        this._finalizeContextSwitch(`exercise:${exerciseId}`, `Exercise context set to: ${exerciseTitle}`);
+        this._chatContextManager.setExerciseContext(exerciseId, exerciseTitle, reason, shortName, releaseDate, dueDate, courseId);
 
         // Fire exercise context change event for TelemetryManager
         const previousExerciseId = this._currentExerciseId;
@@ -1018,16 +695,7 @@ Iris can see files from your workspace (configurable in settings). Check the "Re
         });
     }
 
-    private _finalizeContextSwitch(contextKey: string, label: string): void {
-        this._contextStore.clearSessionsForContext(contextKey);
-        this._resetSessionStateForContextChange();
-        this._postMessageSafe({ type: ExtensionMsg.ClearChatMessages });
-        vscode.window.showInformationMessage(label);
-        void this._chatSessionService.loadAllSessionsForContext();
-    }
-
     public clearContext(): void {
-        this._contextStore.clearActiveContext();
-        this._postSnapshot();
+        this._chatContextManager.clearContext();
     }
 }

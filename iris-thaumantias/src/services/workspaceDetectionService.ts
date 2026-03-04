@@ -1,6 +1,10 @@
 import * as vscode from 'vscode';
 import { promisify } from 'util';
 import { execFile } from 'child_process';
+import type { ArtemisApiService } from '../api';
+import type { ContextStore } from './contextStore';
+import { ExerciseRegistry } from './exerciseRegistry';
+import { logger } from './loggingService';
 
 const execFileAsync = promisify(execFile);
 
@@ -203,4 +207,79 @@ export async function isExerciseInCurrentWorkspace(
 ): Promise<boolean> {
     const detected = await detectWorkspaceExercise(exercises, workspaceFolder);
     return detected?.id === exerciseId;
+}
+
+/**
+ * Detect workspace exercise with registry population fallback, then register it in a ContextStore.
+ * Used by ChatWebviewProvider to auto-detect the workspace exercise on load.
+ */
+export async function detectAndRegisterWorkspaceExercise(
+    artemisApiService: ArtemisApiService | undefined,
+    contextStore: ContextStore,
+    postSnapshot: () => void,
+): Promise<void> {
+
+    try {
+        const registry = ExerciseRegistry.getInstance();
+        let exercises = registry.getAllExercises();
+
+        if (exercises.length === 0 && artemisApiService) {
+            logger.irisChat('Registry empty, fetching courses to populate exercises...');
+            try {
+                const dashboardData = await artemisApiService.getCoursesForDashboard();
+                const courses = dashboardData?.courses;
+
+                if (courses && Array.isArray(courses) && courses.length > 0) {
+                    for (const courseData of courses) {
+                        const courseExercises = courseData?.course?.exercises || courseData?.exercises || [];
+                        if (courseExercises.length > 0) {
+                            registry.registerFromCourseData({
+                                course: courseData.course || courseData,
+                                exercises: courseExercises
+                            });
+                        }
+                    }
+                }
+                exercises = registry.getAllExercises();
+                logger.irisChat(`Registry populated with ${exercises.length} exercises`);
+            } catch (error) {
+                logger.irisChatWarn('Failed to fetch courses for registry population', error);
+            }
+        }
+
+        const detected = await detectWorkspaceExercise(exercises);
+
+        if (detected) {
+            logger.irisChat(`Detected workspace exercise: ${detected.title} (ID: ${detected.id})`);
+        } else {
+            logger.irisChat('No workspace exercise detected matching current git remote');
+        }
+
+        if (!detected) {
+            const current = contextStore.getActiveContext();
+            if (current && current.source === 'workspace-detected') {
+                logger.irisChat(`Clearing stale workspace context: ${current.title}`);
+                contextStore.clearActiveContext();
+                postSnapshot();
+            }
+            return;
+        }
+
+        const baseTitle = detected.title.replace(/ \(Workspace\)$/i, '');
+        const displayTitle = `${baseTitle} (Workspace)`;
+
+        contextStore.registerExercise({
+            id: detected.id,
+            title: displayTitle,
+            shortName: detected.shortName,
+            courseId: detected.courseId,
+            repositoryUri: detected.repositoryUri,
+            source: 'workspace-detected',
+            isWorkspace: true,
+        });
+
+        postSnapshot();
+    } catch {
+        // Not a git repository or command failed - ignore silently
+    }
 }

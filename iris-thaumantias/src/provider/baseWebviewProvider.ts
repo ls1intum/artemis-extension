@@ -1,0 +1,50 @@
+import * as vscode from 'vscode';
+import type { ExtensionToWebviewMessage } from '../shared/messageContracts';
+
+/**
+ * Shared base class for webview providers.
+ * Encapsulates the ready-signal handshake (queuing messages until the
+ * webview's React shell has signalled readiness).
+ */
+export abstract class BaseWebviewProvider {
+    protected _view?: vscode.WebviewView;
+    protected readonly _disposables: vscode.Disposable[] = [];
+
+    // Ready-signal handshake state
+    private _webviewReady = false;
+    private _pendingMessages: ExtensionToWebviewMessage[] = [];
+
+    /** Mark the webview as ready and flush queued messages. */
+    protected _markReady(): void {
+        this._webviewReady = true;
+        this._flushPendingMessages();
+    }
+
+    /** Reset ready state (e.g. before re-render or new webview). */
+    protected _resetReadyState(): void {
+        this._webviewReady = false;
+        this._pendingMessages = [];
+    }
+
+    /**
+     * Safely post a message to the webview, queuing it if not ready yet.
+     */
+    protected _postMessageSafe(message: ExtensionToWebviewMessage): void {
+        if (this._webviewReady && this._view) {
+            this._view.webview.postMessage(message);
+        } else {
+            this._pendingMessages.push(message);
+        }
+    }
+
+    private _flushPendingMessages(): void {
+        if (!this._view) {
+            return;
+        }
+        const pending = this._pendingMessages;
+        this._pendingMessages = [];
+        for (const msg of pending) {
+            this._view.webview.postMessage(msg);
+        }
+    }
+}
