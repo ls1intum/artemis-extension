@@ -69,7 +69,9 @@ export const WebviewCmd = {
 
     // Git
     SaveGitIdentity: 'saveGitIdentity',
+    // TODO: dead command — dispatched internally by viewInitDataService, not from React
     RequestGitIdentity: 'requestGitIdentity',
+    // TODO: dead command — no React sender, candidate for removal
     SaveGitCredentials: 'saveGitCredentials',
 
     // Views
@@ -95,25 +97,42 @@ export const WebviewCmd = {
     DebugSessions: 'debugSessions',
     OpenHelpPopup: 'openHelpPopup',
 
-    // Inline commands
+    // Inline commands — used by inline HTML handlers, not React components.
+    // TODO: dead command — no React sender, candidate for removal
     Alert: 'alert',
+    // TODO: dead command — no React sender, candidate for removal
     ShowSubmissionDetails: 'showSubmissionDetails',
+    // TODO: dead command — no React sender, candidate for removal
     FetchTestResults: 'fetchTestResults',
+    // TODO: dead command — no React sender, candidate for removal
     OpenExerciseInBrowser: 'openExerciseInBrowser',
+    // TODO: dead command — no React sender, candidate for removal
     ViewBuildLog: 'viewBuildLog',
+    // TODO: dead command — no React sender, candidate for removal
     GoToSourceError: 'goToSourceError',
+    // TODO: dead command — no React sender, candidate for removal
     FetchBuildLogsForError: 'fetchBuildLogsForError',
+    // TODO: dead command — no React sender, candidate for removal
     WebviewLog: 'webviewLog',
+    // TODO: dead command — no React sender, candidate for removal
     ParticipateInExercise: 'participateInExercise',
+    // TODO: dead command — no React sender, candidate for removal
     OpenClonedRepository: 'openClonedRepository',
+    // TODO: dead command — no React sender, candidate for removal
     CopyCloneUrl: 'copyCloneUrl',
+    // TODO: dead command — no React sender, candidate for removal
     PullChanges: 'pullChanges',
+    // TODO: dead command — no React sender, candidate for removal
     StartExam: 'startExam',
+    // TODO: dead command — no React sender, candidate for removal
     RenderPlantUmlInline: 'renderPlantUmlInline',
-
+    // TODO: dead command — no React sender, candidate for removal
     OpenRulesInEditor: 'openRulesInEditor',
+    // TODO: dead command — no React sender, candidate for removal
     RenderPlantUml: 'renderPlantUml',
+    // TODO: dead command — no React sender, candidate for removal
     OpenPlantUmlInNewTab: 'openPlantUmlInNewTab',
+    // TODO: dead command — no React sender, candidate for removal
     ClearBuildErrors: 'clearBuildErrors',
 } as const;
 

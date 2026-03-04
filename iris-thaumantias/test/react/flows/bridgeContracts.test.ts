@@ -245,13 +245,13 @@ describe('Bridge Contracts', () => {
     });
 
     // =========================================================================
-    // 11. showGitCredentials() → git-credentials state → gitCredentialsInit
+    // 11. showGitCredentials() → git-credentials state → gitIdentityInfo
     // =========================================================================
 
-    describe('git-credentials (gitCredentialsInit)', () => {
-        it('has type discriminant "gitCredentialsInit"', () => {
+    describe('git-credentials (gitIdentityInfo)', () => {
+        it('has type discriminant "gitIdentityInfo"', () => {
             const payload = createGitCredentialsPayload();
-            expect(payload.type).toBe('gitCredentialsInit');
+            expect(payload.type).toBe('gitIdentityInfo');
         });
 
         it('passes isExtensionMessage() type guard', () => {
@@ -259,23 +259,23 @@ describe('Bridge Contracts', () => {
             expect(isExtensionMessage(payload)).toBe(true);
         });
 
-        it('payload.currentName is a string', () => {
+        it('payload.name is a string', () => {
             const payload = createGitCredentialsPayload();
-            expect(typeof payload.currentName).toBe('string');
+            expect(typeof payload.name).toBe('string');
         });
 
-        it('payload.currentEmail is a string', () => {
+        it('payload.email is a string', () => {
             const payload = createGitCredentialsPayload();
-            expect(typeof payload.currentEmail).toBe('string');
+            expect(typeof payload.email).toBe('string');
         });
 
         it('custom credentials flow through via overrides', () => {
             const payload = createGitCredentialsPayload({
-                currentName: 'Jane Doe',
-                currentEmail: 'jane@tum.de',
+                name: 'Jane Doe',
+                email: 'jane@tum.de',
             });
-            expect(payload.currentName).toBe('Jane Doe');
-            expect(payload.currentEmail).toBe('jane@tum.de');
+            expect(payload.name).toBe('Jane Doe');
+            expect(payload.email).toBe('jane@tum.de');
         });
     });
 

@@ -120,7 +120,7 @@ export function CourseDetailView({ vscodeApi }: CourseDetailViewProps) {
 
     const handleOpenRawJSON = () => {
         if (courseData) {
-            postCommand(vscodeApi, 'openInEditor', { data: courseData as unknown as Record<string, unknown> });
+            postCommand(vscodeApi, 'openInEditor', { data: JSON.parse(JSON.stringify(courseData)) as Record<string, unknown> });
         }
     };
 

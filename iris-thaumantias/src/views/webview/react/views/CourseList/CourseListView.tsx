@@ -138,7 +138,7 @@ export function CourseListView({ vscodeApi }: CourseListViewProps) {
     };
 
     const handleViewCourseDetails = (courseData: CourseData) => {
-        postCommand(vscodeApi, 'viewCourseDetails', { courseData: courseData.course as unknown as CourseDashboardCourse });
+        postCommand(vscodeApi, 'viewCourseDetails', { courseData: courseData.course as CourseDashboardCourse });
     };
 
     const handleViewArchivedCourse = (courseId: number) => {

@@ -63,10 +63,10 @@ import {
  */
 
 // ============================================================================
-// 1. gitCredentialsInit → GitCredentialsView local state
+// 1. gitIdentityInfo → GitCredentialsView local state
 // ============================================================================
 
-describe('gitCredentialsInit hydrates GitCredentialsView local state', () => {
+describe('gitIdentityInfo hydrates GitCredentialsView local state', () => {
     it('renders pre-filled name and email after init message', async () => {
         const mockApi = createMockVsCodeApi();
         render(<GitCredentialsView vscodeApi={mockApi} />);
@@ -74,8 +74,8 @@ describe('gitCredentialsInit hydrates GitCredentialsView local state', () => {
         await act(async () => {
             dispatchExtensionMessage(
                 createGitCredentialsPayload({
-                    currentName: 'Alice Example',
-                    currentEmail: 'alice@tum.de',
+                    name: 'Alice Example',
+                    email: 'alice@tum.de',
                 }),
             );
         });

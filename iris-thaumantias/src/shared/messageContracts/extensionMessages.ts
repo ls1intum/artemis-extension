@@ -20,7 +20,6 @@ export const ExtensionMsg = {
     ExamStartInit: 'examStartInit',
     ExamConductionInit: 'examConductionInit',
     ExamExerciseDetailInit: 'examExerciseDetailInit',
-    GitCredentialsInit: 'gitCredentialsInit',
     ServiceStatusInit: 'serviceStatusInit',
     RecommendedExtensionsInit: 'recommendedExtensionsInit',
     AiConfigInit: 'aiConfigInit',
@@ -126,10 +125,6 @@ interface ExtensionMsgPayloads {
             totalDuration: number;
         };
         hideDeveloperTools: boolean;
-    };
-    gitCredentialsInit: {
-        currentName?: string;
-        currentEmail?: string;
     };
     serviceStatusInit: {
         serverUrl?: string;

@@ -4,12 +4,12 @@ import userEvent from '@testing-library/user-event';
 import { GitCredentialsView } from '../../../../src/views/webview/react/views/GitCredentials/GitCredentialsView';
 import { createMockVsCodeApi, dispatchExtensionMessage } from '../../__helpers__/vscodeApi';
 
-/** Dispatch gitCredentialsInit so the view transitions past the loading skeleton. */
-function initView(overrides?: { currentName?: string; currentEmail?: string }) {
+/** Dispatch gitIdentityInfo so the view transitions past the loading skeleton. */
+function initView(overrides?: { name?: string; email?: string }) {
 	dispatchExtensionMessage({
-		type: 'gitCredentialsInit',
-		currentName: overrides?.currentName ?? '',
-		currentEmail: overrides?.currentEmail ?? '',
+		type: 'gitIdentityInfo',
+		name: overrides?.name ?? '',
+		email: overrides?.email ?? '',
 	});
 }
 
@@ -114,11 +114,11 @@ describe('GitCredentialsView', () => {
 		});
 	});
 
-	it('populates name and email from gitCredentialsInit message', async () => {
+	it('populates name and email from gitIdentityInfo message', async () => {
 		const mockApi = createMockVsCodeApi();
 		render(<GitCredentialsView vscodeApi={mockApi} />);
 
-		initView({ currentName: 'John Doe', currentEmail: 'john@example.com' });
+		initView({ name: 'John Doe', email: 'john@example.com' });
 
 		await waitFor(() => {
 			const nameInput = screen.getByLabelText(/git user name/i) as HTMLInputElement;

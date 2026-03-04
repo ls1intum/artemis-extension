@@ -118,15 +118,15 @@ describe('Message contracts: ExtensionToWebviewMessage types', () => {
         expect(withoutUrl.serverUrl).toBeUndefined();
     });
 
-    it('GitCredentialsInitMessage has optional currentName and currentEmail fields', () => {
+    it('GitIdentityInfoMessage has name and email fields', () => {
         const msg = {
-            type: 'gitCredentialsInit' as const,
-            currentName: 'John Doe',
-            currentEmail: 'john@tum.de',
-        } satisfies ExtMsg<'gitCredentialsInit'>;
+            type: 'gitIdentityInfo' as const,
+            name: 'John Doe',
+            email: 'john@tum.de',
+        } satisfies ExtMsg<'gitIdentityInfo'>;
 
-        expect(msg.currentName).toBe('John Doe');
-        expect(msg.currentEmail).toBe('john@tum.de');
+        expect(msg.name).toBe('John Doe');
+        expect(msg.email).toBe('john@tum.de');
     });
 
     it('GitCredentialsResultMessage has status and message fields', () => {
