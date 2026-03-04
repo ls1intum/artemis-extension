@@ -8,14 +8,12 @@ interface CourseDetailState {
     workspaceExerciseId: number | null;
     hideDeveloperTools: boolean;
     isLoading: boolean;
-    error: string | null;
     exerciseSearchTerm: string;
     exerciseSortBy: string;
 
     // Actions
     setCourseData: (data: CourseDetailData, workspaceExerciseId?: number | null, hideDeveloperTools?: boolean) => void;
     setLoading: (loading: boolean) => void;
-    setError: (error: string | null) => void;
     setExerciseSearchTerm: (term: string) => void;
     setExerciseSortBy: (sort: string) => void;
     loadCourseDetail: (vscodeApi: VsCodeApi, courseId?: number) => void;
@@ -121,7 +119,6 @@ export const useCourseDetailStore = create<CourseDetailState>()(
             workspaceExerciseId: null,
             hideDeveloperTools: true,
             isLoading: false,
-            error: null,
             exerciseSearchTerm: '',
             exerciseSortBy: 'id-desc',
 
@@ -131,16 +128,11 @@ export const useCourseDetailStore = create<CourseDetailState>()(
                     workspaceExerciseId: workspaceExerciseId ?? null,
                     hideDeveloperTools: hideDeveloperTools ?? true,
                     isLoading: false,
-                    error: null,
                 }, false, 'setCourseData');
             },
 
             setLoading: (loading) => {
                 set({ isLoading: loading }, false, 'setLoading');
-            },
-
-            setError: (error) => {
-                set({ error, isLoading: false }, false, 'setError');
             },
 
             setExerciseSearchTerm: (term) => {
@@ -152,7 +144,7 @@ export const useCourseDetailStore = create<CourseDetailState>()(
             },
 
             loadCourseDetail: (vscodeApi, courseId) => {
-                set({ isLoading: true, error: null }, false, 'loadCourseDetail');
+                set({ isLoading: true }, false, 'loadCourseDetail');
                 postCommand(vscodeApi, 'reloadCourseDetail', { courseId: courseId || 0 });
             },
 

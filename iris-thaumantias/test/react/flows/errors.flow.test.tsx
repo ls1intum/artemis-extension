@@ -5,14 +5,11 @@
  * Separate from happy-path flows per CONTEXT.md decision.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ServiceHealth } from '../../../src/views/webview/react/components/ServiceHealth/ServiceHealth';
 import type { ServiceInfo } from '../../../src/views/webview/react/components/ServiceHealth/ServiceHealth';
 import { ErrorMessage } from '../../../src/views/webview/react/components/ErrorMessage/ErrorMessage';
-import { CourseListView } from '../../../src/views/webview/react/views/CourseList/CourseListView';
-import { useCourseListStore } from '../../../src/views/webview/react/stores/useCourseListStore';
-import { createMockVsCodeApi, dispatchExtensionMessage } from '../__helpers__/vscodeApi';
 
 // ============================================================================
 // Error Boundary
@@ -210,51 +207,6 @@ describe('Error suite: ServiceHealth degraded states', () => {
 // ============================================================================
 
 describe('Error suite: API error responses in views', () => {
-    it('displays error message when store has an error', () => {
-        useCourseListStore.setState({ error: 'Failed to load courses: Network error', isLoading: false });
-        const mockApi = createMockVsCodeApi();
-        render(<CourseListView vscodeApi={mockApi} />);
-
-        expect(screen.getByText('Failed to load courses: Network error')).toBeInTheDocument();
-    });
-
-    it('shows retry button when error state is active', () => {
-        useCourseListStore.setState({ error: 'Network error', isLoading: false });
-        const mockApi = createMockVsCodeApi();
-        render(<CourseListView vscodeApi={mockApi} />);
-
-        expect(screen.getByRole('button', { name: /Retry/i })).toBeInTheDocument();
-    });
-
-    it('clicking retry sends reload postMessage', async () => {
-        useCourseListStore.setState({ error: 'Network error', isLoading: false });
-        const mockApi = createMockVsCodeApi();
-        render(<CourseListView vscodeApi={mockApi} />);
-
-        await userEvent.click(screen.getByRole('button', { name: /Retry/i }));
-
-        expect(mockApi.postMessage).toHaveBeenCalledWith(
-            expect.objectContaining({ type: 'command', command: 'reloadCourses' })
-        );
-    });
-
-    it('transitions from error to loading state after retry', async () => {
-        useCourseListStore.setState({ error: 'Network error', isLoading: false });
-        const mockApi = createMockVsCodeApi();
-        render(<CourseListView vscodeApi={mockApi} />);
-
-        await userEvent.click(screen.getByRole('button', { name: /Retry/i }));
-
-        // After clicking retry the store transitions to loading state
-        await waitFor(() => {
-            const busyElements = document.querySelectorAll('[aria-busy="true"]');
-            // Either loading or the error clears (depends on store implementation)
-            expect(mockApi.postMessage).toHaveBeenCalledWith(
-                expect.objectContaining({ command: 'reloadCourses' })
-            );
-        });
-    });
-
     it('ErrorMessage component shows error text and retry button', () => {
         const handleRetry = vi.fn();
         render(<ErrorMessage error="Something went wrong loading data." onRetry={handleRetry} />);

@@ -88,35 +88,6 @@ describe('Course Navigation Flow', () => {
 			expect(busyElements.length).toBeGreaterThan(0);
 		});
 
-		it('shows error state with retry button on error response', async () => {
-			const mockApi = createMockVsCodeApi();
-			useCourseListStore.setState({ error: 'Failed to load courses', isLoading: false });
-			render(<CourseListView vscodeApi={mockApi} />);
-
-			expect(screen.getByText('Failed to load courses')).toBeInTheDocument();
-
-			// Retry button should be present
-			const retryButton = screen.getByRole('button', { name: /retry/i });
-			expect(retryButton).toBeInTheDocument();
-		});
-
-		it('sends reloadCourses postMessage when retry is clicked after error', async () => {
-			const user = userEvent.setup();
-			useCourseListStore.setState({ error: 'Network error', isLoading: false });
-			const mockApi = createMockVsCodeApi();
-			render(<CourseListView vscodeApi={mockApi} />);
-
-			const retryButton = screen.getByRole('button', { name: /retry/i });
-			await user.click(retryButton);
-
-			// OUTBOUND: verify reload postMessage sent
-			expect(mockApi.postMessage).toHaveBeenCalledWith(
-				expect.objectContaining({
-					type: 'command',
-					command: 'reloadCourses',
-				})
-			);
-		});
 	});
 
 	describe('Course detail view', () => {
@@ -191,13 +162,6 @@ describe('Course Navigation Flow', () => {
 			const mockApi = createMockVsCodeApi();
 			render(<CourseDetailView vscodeApi={mockApi} />);
 			expect(screen.getByText('No course selected')).toBeInTheDocument();
-		});
-
-		it('shows error state when error is set in store', () => {
-			useCourseDetailStore.setState({ error: 'Course not found', isLoading: false });
-			const mockApi = createMockVsCodeApi();
-			render(<CourseDetailView vscodeApi={mockApi} />);
-			expect(screen.getByText('Course not found')).toBeInTheDocument();
 		});
 
 		it('shows loading skeleton when loading with no course data', () => {

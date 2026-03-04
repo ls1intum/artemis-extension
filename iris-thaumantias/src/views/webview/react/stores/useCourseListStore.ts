@@ -7,7 +7,6 @@ interface CourseListState {
     archivedCourses: ArchivedCourse[];
     archivedLoaded: boolean;
     isLoading: boolean;
-    error: string | null;
     searchTerm: string;
     typeFilter: 'all' | 'active' | 'archived';
     semesterFilter: string;
@@ -17,7 +16,6 @@ interface CourseListState {
     setCourses: (courses: CourseData[], archived?: ArchivedCourse[]) => void;
     setArchivedCourses: (archived: ArchivedCourse[]) => void;
     setLoading: (loading: boolean) => void;
-    setError: (error: string | null) => void;
     setSearchTerm: (term: string) => void;
     setTypeFilter: (filter: 'all' | 'active' | 'archived') => void;
     setSemesterFilter: (filter: string) => void;
@@ -81,7 +79,6 @@ export const useCourseListStore = create<CourseListState>()(
             archivedCourses: [],
             archivedLoaded: false,
             isLoading: false,
-            error: null,
             searchTerm: '',
             typeFilter: 'all',
             semesterFilter: 'all',
@@ -93,7 +90,6 @@ export const useCourseListStore = create<CourseListState>()(
                     archivedCourses: archived || [],
                     archivedLoaded: archived !== undefined,
                     isLoading: false,
-                    error: null,
                 }, false, 'setCourses');
             },
 
@@ -107,10 +103,6 @@ export const useCourseListStore = create<CourseListState>()(
 
             setLoading: (loading) => {
                 set({ isLoading: loading }, false, 'setLoading');
-            },
-
-            setError: (error) => {
-                set({ error, isLoading: false }, false, 'setError');
             },
 
             setSearchTerm: (term) => {
@@ -139,7 +131,7 @@ export const useCourseListStore = create<CourseListState>()(
             },
 
             loadCourses: (vscodeApi) => {
-                set({ isLoading: true, error: null }, false, 'loadCourses');
+                set({ isLoading: true }, false, 'loadCourses');
                 postCommand(vscodeApi, 'reloadCourses');
             },
 

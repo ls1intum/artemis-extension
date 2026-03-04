@@ -35,7 +35,6 @@ describe('useCourseDetailStore', () => {
 		expect(result.current.courseData).toBeNull();
 		expect(result.current.workspaceExerciseId).toBeNull();
 		expect(result.current.isLoading).toBe(false);
-		expect(result.current.error).toBeNull();
 		expect(result.current.exerciseSearchTerm).toBe('');
 		expect(result.current.exerciseSortBy).toBe('id-desc');
 	});
@@ -49,7 +48,6 @@ describe('useCourseDetailStore', () => {
 		});
 
 		expect(result.current.isLoading).toBe(true);
-		expect(result.current.error).toBeNull();
 		expect(mockApi.postMessage).toHaveBeenCalledWith({
 			type: 'command',
 			command: 'reloadCourseDetail',
@@ -86,7 +84,6 @@ describe('useCourseDetailStore', () => {
 
 		expect(result.current.courseData).toEqual(data);
 		expect(result.current.isLoading).toBe(false);
-		expect(result.current.error).toBeNull();
 	});
 
 	it('setCourseData sets workspaceExerciseId when provided', () => {
@@ -109,21 +106,6 @@ describe('useCourseDetailStore', () => {
 		});
 
 		expect(result.current.workspaceExerciseId).toBeNull();
-	});
-
-	it('setError sets error and stops loading', () => {
-		const { result } = renderHook(() => useCourseDetailStore());
-
-		act(() => {
-			result.current.setLoading(true);
-		});
-
-		act(() => {
-			result.current.setError('Failed to load course');
-		});
-
-		expect(result.current.error).toBe('Failed to load course');
-		expect(result.current.isLoading).toBe(false);
 	});
 
 	it('setExerciseSearchTerm updates search term', () => {

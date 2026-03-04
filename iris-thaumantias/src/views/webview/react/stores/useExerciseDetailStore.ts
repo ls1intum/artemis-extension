@@ -29,7 +29,6 @@ interface ExerciseDetailState {
     exerciseData: ExerciseDetailsResponse | null;
     hideDeveloperTools: boolean;
     isLoading: boolean;
-    error: string | null;
 
     // Submission processing
     pendingSubmission: { state: string; participationId: number; buildTimingInfo?: unknown } | null;
@@ -43,7 +42,6 @@ interface ExerciseDetailState {
     // Actions
     setExerciseData: (data: ExerciseDetailsResponse, hideDeveloperTools: boolean) => void;
     setLoading: (loading: boolean) => void;
-    setError: (error: string | null) => void;
     loadExerciseDetail: (vscodeApi: VsCodeApi, exerciseId: number) => void;
     updateBuildStatus: (payload: ResultSummary) => void;
     updateSubmission: (payload: SubmissionSummary) => void;
@@ -87,7 +85,6 @@ export const useExerciseDetailStore = create<ExerciseDetailState>()(
             exerciseData: null,
             hideDeveloperTools: false,
             isLoading: false,
-            error: null,
             pendingSubmission: null,
             repoStatus: null,
             submissionResult: null,
@@ -99,7 +96,6 @@ export const useExerciseDetailStore = create<ExerciseDetailState>()(
                     exerciseData: data,
                     hideDeveloperTools,
                     isLoading: false,
-                    error: null,
                     pendingSubmission: (data.pendingSubmission as { state: string; participationId: number; buildTimingInfo?: unknown }) ?? null,
                 }, false, 'setExerciseData');
             },
@@ -108,12 +104,8 @@ export const useExerciseDetailStore = create<ExerciseDetailState>()(
                 set({ isLoading: loading }, false, 'setLoading');
             },
 
-            setError: (error) => {
-                set({ error, isLoading: false }, false, 'setError');
-            },
-
             loadExerciseDetail: (vscodeApi, exerciseId) => {
-                set({ isLoading: true, error: null }, false, 'loadExerciseDetail');
+                set({ isLoading: true }, false, 'loadExerciseDetail');
                 postCommand(vscodeApi, 'reloadExerciseDetail', { exerciseId });
             },
 

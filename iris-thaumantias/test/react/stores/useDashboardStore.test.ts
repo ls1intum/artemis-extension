@@ -9,7 +9,6 @@ describe('useDashboardStore', () => {
 
 		expect(result.current.recentCourses).toEqual([]);
 		expect(result.current.isLoading).toBe(false);
-		expect(result.current.error).toBeNull();
 		expect(result.current.workspaceExercise).toBeNull();
 	});
 
@@ -22,7 +21,6 @@ describe('useDashboardStore', () => {
 		});
 
 		expect(result.current.isLoading).toBe(true);
-		expect(result.current.error).toBeNull();
 	});
 
 	it('sends reloadDashboard command via postMessage', () => {
@@ -81,17 +79,6 @@ describe('useDashboardStore', () => {
 			result.current.setDashboardData(courses);
 		});
 
-		expect(result.current.isLoading).toBe(false);
-	});
-
-	it('sets error and stops loading on setError', () => {
-		const { result } = renderHook(() => useDashboardStore());
-
-		act(() => {
-			result.current.setError('Something failed');
-		});
-
-		expect(result.current.error).toBe('Something failed');
 		expect(result.current.isLoading).toBe(false);
 	});
 
@@ -161,37 +148,6 @@ describe('useDashboardStore', () => {
 		expect(result.current.isLoading).toBe(false);
 	});
 
-	it('loadDashboard clears previous error state', () => {
-		const { result } = renderHook(() => useDashboardStore());
-		const mockVsCodeApi = createMockVsCodeApi();
-
-		act(() => {
-			result.current.setError('Previous error');
-		});
-
-		expect(result.current.error).toBe('Previous error');
-
-		act(() => {
-			result.current.loadDashboard(mockVsCodeApi);
-		});
-
-		expect(result.current.error).toBeNull();
-	});
-
-	it('setDashboardData clears previous error state', () => {
-		const { result } = renderHook(() => useDashboardStore());
-
-		act(() => {
-			result.current.setError('Some error');
-		});
-
-		act(() => {
-			result.current.setDashboardData([]);
-		});
-
-		expect(result.current.error).toBeNull();
-	});
-
 	it('setDashboardData with fewer than 3 courses keeps all', () => {
 		const { result } = renderHook(() => useDashboardStore());
 
@@ -219,20 +175,6 @@ describe('useDashboardStore', () => {
 
 		expect(result.current.recentCourses).toEqual([]);
 		expect(result.current.isLoading).toBe(false);
-	});
-
-	it('setError with null clears error', () => {
-		const { result } = renderHook(() => useDashboardStore());
-
-		act(() => {
-			result.current.setError('An error occurred');
-		});
-
-		act(() => {
-			result.current.setError(null);
-		});
-
-		expect(result.current.error).toBeNull();
 	});
 
 	it('workspace exercise update does not affect recent courses', () => {

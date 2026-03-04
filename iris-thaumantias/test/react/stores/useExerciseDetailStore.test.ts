@@ -45,7 +45,6 @@ describe('useExerciseDetailStore', () => {
 		expect(result.current.exerciseData).toBeNull();
 		expect(result.current.hideDeveloperTools).toBe(false);
 		expect(result.current.isLoading).toBe(false);
-		expect(result.current.error).toBeNull();
 	});
 
 	it('loadExerciseDetail sets loading true and sends postMessage with exerciseId', () => {
@@ -57,7 +56,6 @@ describe('useExerciseDetailStore', () => {
 		});
 
 		expect(result.current.isLoading).toBe(true);
-		expect(result.current.error).toBeNull();
 		expect(mockApi.postMessage).toHaveBeenCalledWith({
 			type: 'command',
 			command: 'reloadExerciseDetail',
@@ -80,7 +78,6 @@ describe('useExerciseDetailStore', () => {
 		expect(result.current.exerciseData).toEqual(data);
 		expect(result.current.hideDeveloperTools).toBe(false);
 		expect(result.current.isLoading).toBe(false);
-		expect(result.current.error).toBeNull();
 	});
 
 	it('setExerciseData sets hideDeveloperTools flag correctly', () => {
@@ -91,35 +88,6 @@ describe('useExerciseDetailStore', () => {
 		});
 
 		expect(result.current.hideDeveloperTools).toBe(true);
-	});
-
-	it('setError sets error and stops loading', () => {
-		const { result } = renderHook(() => useExerciseDetailStore());
-
-		act(() => {
-			result.current.setLoading(true);
-		});
-
-		act(() => {
-			result.current.setError('Exercise not found');
-		});
-
-		expect(result.current.error).toBe('Exercise not found');
-		expect(result.current.isLoading).toBe(false);
-	});
-
-	it('setError can clear error with null', () => {
-		const { result } = renderHook(() => useExerciseDetailStore());
-
-		act(() => {
-			result.current.setError('Some error');
-		});
-
-		act(() => {
-			result.current.setError(null);
-		});
-
-		expect(result.current.error).toBeNull();
 	});
 
 	it('updateBuildStatus is a no-op when no exerciseData', () => {

@@ -16,7 +16,6 @@ import {
     ListItem,
     Badge,
     SkeletonList,
-    ErrorMessage,
     AskIris,
     EmptyState,
     PageHeader,
@@ -31,7 +30,6 @@ export function CourseDetailView({ vscodeApi }: CourseDetailViewProps) {
         workspaceExerciseId,
         hideDeveloperTools,
         isLoading,
-        error,
         exerciseSearchTerm,
         exerciseSortBy,
         setCourseData,
@@ -156,16 +154,6 @@ export function CourseDetailView({ vscodeApi }: CourseDetailViewProps) {
             <div className={styles.courseDetailContainer}>
                 <BackLink onClick={handleBackToDashboard} actions={backLinkActions}>Back to Dashboard</BackLink>
                 <SkeletonList count={5} />
-            </div>
-        );
-    }
-
-    // Error state
-    if (error) {
-        return (
-            <div className={styles.courseDetailContainer}>
-                <BackLink onClick={handleBackToDashboard} actions={backLinkActions}>Back to Dashboard</BackLink>
-                <ErrorMessage error={error} onRetry={handleReload} />
             </div>
         );
     }

@@ -331,33 +331,4 @@ describe('Exercise Submission Flow', () => {
 		expect(busyElements.length).toBeGreaterThan(0);
 	});
 
-	it('shows error state with retry button on error', () => {
-		useExerciseDetailStore.setState({ error: 'Failed to load exercise', isLoading: false });
-		const mockApi = createMockVsCodeApi();
-		render(<ExerciseDetailView vscodeApi={mockApi} />);
-
-		expect(screen.getByText('Failed to load exercise')).toBeInTheDocument();
-		expect(screen.getByRole('button', { name: /retry/i })).toBeInTheDocument();
-	});
-
-	it('sends reloadExerciseDetail postMessage when retry is clicked', async () => {
-		const user = userEvent.setup();
-		useExerciseDetailStore.setState({
-			error: 'Failed to load exercise',
-			isLoading: false,
-			exerciseData: makeExerciseData() as ReturnType<typeof useExerciseDetailStore.getState>['exerciseData'],
-		});
-		const mockApi = createMockVsCodeApi();
-		render(<ExerciseDetailView vscodeApi={mockApi} />);
-
-		await user.click(screen.getByRole('button', { name: /retry/i }));
-
-		expect(mockApi.postMessage).toHaveBeenCalledWith(
-			expect.objectContaining({
-				type: 'command',
-				command: 'reloadExerciseDetail',
-				payload: expect.objectContaining({ exerciseId: 42 }),
-			})
-		);
-	});
 });

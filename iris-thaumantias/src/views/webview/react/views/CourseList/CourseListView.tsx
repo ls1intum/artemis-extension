@@ -14,7 +14,6 @@ import {
     ListItem,
     Badge,
     SkeletonList,
-    ErrorMessage,
     PageHeader,
 } from '../../components';
 import type { DropdownOption } from '../../components';
@@ -27,7 +26,6 @@ export function CourseListView({ vscodeApi }: CourseListViewProps) {
         archivedCourses,
         archivedLoaded,
         isLoading,
-        error,
         searchTerm,
         typeFilter,
         semesterFilter,
@@ -137,6 +135,10 @@ export function CourseListView({ vscodeApi }: CourseListViewProps) {
         postCommand(vscodeApi, 'openSettings', { setting: 'Artemis' });
     };
 
+    const handleFullscreen = () => {
+        postCommand(vscodeApi, 'toggleCourseListFullscreen');
+    };
+
     const handleViewCourseDetails = (courseData: CourseData) => {
         postCommand(vscodeApi, 'viewCourseDetails', { courseData: courseData.course as CourseDashboardCourse });
     };
@@ -164,21 +166,6 @@ export function CourseListView({ vscodeApi }: CourseListViewProps) {
         );
     }
 
-    // Render error state
-    if (error) {
-        return (
-            <div className={styles.courseListContainer}>
-                <BackLink onClick={handleBackToDashboard} actions={
-                    <>
-                        <IconButton.Reload onClick={handleReloadCourses} title="Reload Courses" />
-                        <IconButton.Settings onClick={handleOpenSettings} title="Settings" />
-                    </>
-                }>Back to Dashboard</BackLink>
-                <ErrorMessage error={error} onRetry={handleReloadCourses} />
-            </div>
-        );
-    }
-
     // Search results info
     const searchResultsInfo = hasActiveFilters ? (
         visibleActiveCourses.length === 0 && visibleArchivedCourses.length === 0 ? (
@@ -197,6 +184,7 @@ export function CourseListView({ vscodeApi }: CourseListViewProps) {
         <div className={styles.courseListContainer}>
             <BackLink onClick={handleBackToDashboard} actions={
                 <>
+                    <IconButton.Fullscreen onClick={handleFullscreen} title="Open in Editor" />
                     <IconButton.Reload onClick={handleReloadCourses} title="Reload Courses" />
                     <IconButton.Settings onClick={handleOpenSettings} title="Settings" />
                 </>

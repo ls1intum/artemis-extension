@@ -8,13 +8,11 @@ interface DashboardState {
     recentCourses: RecentCourseNode[];
     workspaceExercise: { id: number; title: string } | null;
     isLoading: boolean;
-    error: string | null;
 
     // Actions
     loadDashboard: (vscodeApi: VsCodeApi) => void;
     setDashboardData: (courses: RecentCourseNode[]) => void;
     setWorkspaceExercise: (exercise: { id: number; title: string } | null) => void;
-    setError: (error: string | null) => void;
     setLoading: (loading: boolean) => void;
 }
 
@@ -24,10 +22,9 @@ export const useDashboardStore = create<DashboardState>()(
             recentCourses: [],
             workspaceExercise: null,
             isLoading: false,
-            error: null,
 
             loadDashboard: (vscodeApi: VsCodeApi) => {
-                set({ isLoading: true, error: null }, false, 'loadDashboard');
+                set({ isLoading: true }, false, 'loadDashboard');
                 postCommand(vscodeApi, 'reloadDashboard');
             },
 
@@ -41,15 +38,11 @@ export const useDashboardStore = create<DashboardState>()(
                     })
                     .slice(0, 3);
 
-                set({ recentCourses: sortedCourses, isLoading: false, error: null }, false, 'setDashboardData');
+                set({ recentCourses: sortedCourses, isLoading: false }, false, 'setDashboardData');
             },
 
             setWorkspaceExercise: (exercise: { id: number; title: string } | null) => {
                 set({ workspaceExercise: exercise }, false, 'setWorkspaceExercise');
-            },
-
-            setError: (error: string | null) => {
-                set({ error, isLoading: false }, false, 'setError');
             },
 
             setLoading: (loading: boolean) => {

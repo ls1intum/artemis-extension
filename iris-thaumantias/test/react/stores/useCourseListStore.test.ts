@@ -28,7 +28,6 @@ describe('useCourseListStore', () => {
 		expect(result.current.archivedCourses).toEqual([]);
 		expect(result.current.archivedLoaded).toBe(false);
 		expect(result.current.isLoading).toBe(false);
-		expect(result.current.error).toBeNull();
 		expect(result.current.searchTerm).toBe('');
 		expect(result.current.typeFilter).toBe('all');
 		expect(result.current.semesterFilter).toBe('all');
@@ -44,7 +43,6 @@ describe('useCourseListStore', () => {
 		});
 
 		expect(result.current.isLoading).toBe(true);
-		expect(result.current.error).toBeNull();
 		expect(mockApi.postMessage).toHaveBeenCalledWith({
 			type: 'command',
 			command: 'reloadCourses',
@@ -80,7 +78,6 @@ describe('useCourseListStore', () => {
 
 		expect(result.current.courses).toEqual(courses);
 		expect(result.current.isLoading).toBe(false);
-		expect(result.current.error).toBeNull();
 	});
 
 	it('setCourses with archived parameter populates archived courses', () => {
@@ -123,35 +120,6 @@ describe('useCourseListStore', () => {
 		expect(result.current.archivedCourses).toEqual(archived);
 		expect(result.current.archivedLoaded).toBe(true);
 		expect(result.current.isLoading).toBe(false);
-	});
-
-	it('setError sets error message and stops loading', () => {
-		const { result } = renderHook(() => useCourseListStore());
-
-		act(() => {
-			result.current.setLoading(true);
-		});
-
-		act(() => {
-			result.current.setError('Network failure');
-		});
-
-		expect(result.current.error).toBe('Network failure');
-		expect(result.current.isLoading).toBe(false);
-	});
-
-	it('setError can clear error with null', () => {
-		const { result } = renderHook(() => useCourseListStore());
-
-		act(() => {
-			result.current.setError('Some error');
-		});
-
-		act(() => {
-			result.current.setError(null);
-		});
-
-		expect(result.current.error).toBeNull();
 	});
 
 	it('setSearchTerm updates searchTerm', () => {

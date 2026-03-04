@@ -8,7 +8,6 @@ import {
     IconButton,
     ListItem,
     SkeletonList,
-    ErrorMessage,
 } from '../../components';
 import GraduationCap from 'lucide-react/dist/esm/icons/graduation-cap';
 import Settings from 'lucide-react/dist/esm/icons/settings';
@@ -32,11 +31,9 @@ export function DashboardView({ vscodeApi }: DashboardViewProps) {
         recentCourses,
         workspaceExercise,
         isLoading,
-        error,
         loadDashboard,
         setDashboardData,
         setWorkspaceExercise,
-        setError,
     } = useDashboardStore();
 
     const [expandedCourses, setExpandedCourses] = useState<Set<number>>(new Set([0]));
@@ -119,14 +116,6 @@ export function DashboardView({ vscodeApi }: DashboardViewProps) {
             return next;
         });
     };
-
-    if (error) {
-        return (
-            <div className={styles.dashboard}>
-                <ErrorMessage error={error} onRetry={handleReloadDashboard} />
-            </div>
-        );
-    }
 
     return (
         <div className={styles.dashboard}>

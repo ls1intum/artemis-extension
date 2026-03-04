@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { useExerciseDetailStore } from '../../stores/useExerciseDetailStore';
 import { useNavigationStore } from '../../stores/useNavigationStore';
 import { useWebSocketUpdates } from '../../hooks/useWebSocketUpdates';
@@ -14,7 +14,6 @@ import {
     Container,
     Badge,
     SkeletonList,
-    ErrorMessage,
     AskIris,
 } from '../../components';
 import {
@@ -35,7 +34,6 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
         exerciseData,
         hideDeveloperTools,
         isLoading,
-        error,
         repoStatus,
         submissionResult,
         clonedNotice,
@@ -47,7 +45,6 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
     } = useExerciseDetailStore();
 
     const { pushBreadcrumb, clearBreadcrumbs } = useNavigationStore();
-    const [autoRetried, setAutoRetried] = useState(false);
 
     // Initialize WebSocket updates hook
     useWebSocketUpdates();
@@ -87,25 +84,12 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
     // Listen for exercise-related extension messages
     useExerciseStatusMessages(vscodeApi);
 
-    // Auto-retry once on error
-    useEffect(() => {
-        const exerciseId = exerciseData?.exercise?.id;
-        if (error && !autoRetried && exerciseId) {
-            const timer = setTimeout(() => {
-                setAutoRetried(true);
-                loadExerciseDetail(vscodeApi, exerciseId);
-            }, 2000);
-            return () => clearTimeout(timer);
-        }
-    }, [error, autoRetried, exerciseData, loadExerciseDetail, vscodeApi]);
-
     const handleBackToCourse = () => {
         postCommand(vscodeApi, 'backToCourseDetails');
     };
 
     const handleReload = () => {
         if (exerciseData?.exercise?.id) {
-            setAutoRetried(false);
             loadExerciseDetail(vscodeApi, exerciseData.exercise.id);
         }
     };
@@ -148,19 +132,6 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
             <div className={styles.exerciseDetailView}>
                 <BackLink onClick={handleBackToCourse}>Back to Course</BackLink>
                 <SkeletonList count={5} />
-            </div>
-        );
-    }
-
-    // Error state
-    if (error) {
-        return (
-            <div className={styles.exerciseDetailView}>
-                <BackLink onClick={handleBackToCourse}>Back to Course</BackLink>
-                <ErrorMessage
-                    error={error}
-                    onRetry={handleReload}
-                />
             </div>
         );
     }

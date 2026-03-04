@@ -88,13 +88,6 @@ describe('ExerciseDetailView', () => {
 		expect(screen.getByText('Back to Course')).toBeInTheDocument();
 	});
 
-	it('shows error message when error is set', () => {
-		useExerciseDetailStore.setState({ error: 'Failed to load exercise', isLoading: false });
-		const mockApi = createMockVsCodeApi();
-		render(<ExerciseDetailView vscodeApi={mockApi} />);
-		expect(screen.getByText('Failed to load exercise')).toBeInTheDocument();
-	});
-
 	it('shows no data message when exerciseData is null and not loading', () => {
 		const mockApi = createMockVsCodeApi();
 		render(<ExerciseDetailView vscodeApi={mockApi} />);
@@ -223,13 +216,6 @@ describe('ExerciseDetailView', () => {
 				payload: expect.objectContaining({ participationId: 99 }),
 			})
 		);
-	});
-
-	it('shows error retry button when error is set', async () => {
-		useExerciseDetailStore.setState({ error: 'Network error', isLoading: false });
-		const mockApi = createMockVsCodeApi();
-		render(<ExerciseDetailView vscodeApi={mockApi} />);
-		expect(screen.getByRole('button', { name: /retry/i })).toBeInTheDocument();
 	});
 
 	it('shows developer tools by default (hideDeveloperTools = false)', () => {

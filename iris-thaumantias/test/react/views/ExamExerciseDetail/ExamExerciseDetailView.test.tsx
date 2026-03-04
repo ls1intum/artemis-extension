@@ -76,7 +76,6 @@ describe('ExamExerciseDetailView', () => {
 			exerciseData: null,
 			hideDeveloperTools: true,
 			isLoading: false,
-			error: null,
 		});
 	});
 

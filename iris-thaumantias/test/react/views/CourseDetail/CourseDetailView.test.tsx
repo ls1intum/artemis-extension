@@ -27,13 +27,6 @@ describe('CourseDetailView', () => {
 		expect(busyElements.length).toBeGreaterThan(0);
 	});
 
-	it('shows error message when error is set', () => {
-		useCourseDetailStore.setState({ error: 'Failed to load course details', isLoading: false });
-		const mockApi = createMockVsCodeApi();
-		render(<CourseDetailView vscodeApi={mockApi} />);
-		expect(screen.getByText('Failed to load course details')).toBeInTheDocument();
-	});
-
 	it('shows empty state when no courseData and no error', () => {
 		const mockApi = createMockVsCodeApi();
 		render(<CourseDetailView vscodeApi={mockApi} />);
@@ -135,13 +128,6 @@ describe('CourseDetailView', () => {
 				command: 'backToDashboard',
 			})
 		);
-	});
-
-	it('shows retry button when error is set', () => {
-		useCourseDetailStore.setState({ error: 'Request failed', isLoading: false });
-		const mockApi = createMockVsCodeApi();
-		render(<CourseDetailView vscodeApi={mockApi} />);
-		expect(screen.getByRole('button', { name: /retry/i })).toBeInTheDocument();
 	});
 
 	it('shows No exercises available when course has no exercises', async () => {

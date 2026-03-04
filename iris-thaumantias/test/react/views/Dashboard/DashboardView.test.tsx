@@ -39,13 +39,6 @@ describe('DashboardView', () => {
 		expect(busyElements.length).toBeGreaterThan(0);
 	});
 
-	it('shows error message when error is set', () => {
-		useDashboardStore.setState({ error: 'Dashboard load failed', isLoading: false });
-		const mockApi = createMockVsCodeApi();
-		render(<DashboardView vscodeApi={mockApi} />);
-		expect(screen.getByText('Dashboard load failed')).toBeInTheDocument();
-	});
-
 	it('displays course cards after receiving dashboardInit message', async () => {
 		const mockApi = createMockVsCodeApi();
 		render(<DashboardView vscodeApi={mockApi} />);

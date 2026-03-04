@@ -33,14 +33,11 @@ export function ExamExerciseDetailView({ vscodeApi }: ExamExerciseDetailViewProp
         exerciseData,
         hideDeveloperTools,
         isLoading: exerciseLoading,
-        error: exerciseError,
         pendingSubmission,
         setExerciseData,
-        loadExerciseDetail,
     } = useExerciseDetailStore();
 
     const [showExpiredOverlay, setShowExpiredOverlay] = useState(false);
-    const [autoRetried, setAutoRetried] = useState(false);
 
     // Initialize WebSocket updates
     useWebSocketUpdates();
@@ -56,18 +53,6 @@ export function ExamExerciseDetailView({ vscodeApi }: ExamExerciseDetailViewProp
 
     // Listen for exercise-related extension messages (build progress, submissions, repo status, etc.)
     useExerciseStatusMessages(vscodeApi);
-
-    // Auto-retry on error
-    useEffect(() => {
-        const exerciseId = exerciseData?.exercise?.id;
-        if (exerciseError && !autoRetried && exerciseId) {
-            const timer = setTimeout(() => {
-                setAutoRetried(true);
-                loadExerciseDetail(vscodeApi, exerciseId);
-            }, 2000);
-            return () => clearTimeout(timer);
-        }
-    }, [exerciseError, autoRetried, exerciseData, loadExerciseDetail, vscodeApi]);
 
     // Show timer expired overlay when working time expires
     useEffect(() => {
@@ -87,20 +72,13 @@ export function ExamExerciseDetailView({ vscodeApi }: ExamExerciseDetailViewProp
         postCommand(vscodeApi, 'backToExam');
     };
 
-    const handleReload = () => {
-        if (exerciseData?.exercise?.id) {
-            setAutoRetried(false);
-            loadExerciseDetail(vscodeApi, exerciseData.exercise.id);
-        }
-    };
-
     const handleRetry = () => {
         setError(null);
         requestInit(vscodeApi);
     };
 
     const loading = examLoading || exerciseLoading;
-    const error = examError || exerciseError;
+    const error = examError;
 
     // Loading state
     if (loading) {
