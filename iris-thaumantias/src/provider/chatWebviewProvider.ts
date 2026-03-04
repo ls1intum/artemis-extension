@@ -390,89 +390,92 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
         // Only command messages have command/payload properties
         if (typedMessage.type !== 'command') return;
 
-        switch (typedMessage.command) {
-            case WebviewCmd.SendMessage: {
-                const { text } = getPayload<WebCmd<'sendMessage'>>(typedMessage);
-                void this._handleChatMessage({ text }).catch(err => {
-                    logger.error('Error handling chat message', LogCategory.IRIS_CHAT, err);
-                    vscode.window.showErrorMessage('Failed to send message. Please try again.');
-                });
-                break;
-            }
-            case WebviewCmd.SelectChatContext: {
-                const { context, itemId, itemName, itemShortName } = getPayload<WebCmd<'selectChatContext'>>(typedMessage);
-                if (context && typeof itemId === 'number' && typeof itemName === 'string') {
-                    this._handleContextSelection(context, itemId, itemName, itemShortName);
+        try {
+            switch (typedMessage.command) {
+                case WebviewCmd.SendMessage: {
+                    const { text } = getPayload<WebCmd<'sendMessage'>>(typedMessage);
+                    void this._handleChatMessage({ text }).catch(err => {
+                        logger.error('Error handling chat message', LogCategory.IRIS_CHAT, err);
+                        vscode.window.showErrorMessage('Failed to send message. Please try again.');
+                    });
+                    break;
                 }
-                break;
-            }
-            case WebviewCmd.CreateNewSession:
-                this.createNewSession();
-                break;
-            case WebviewCmd.SwitchSession: {
-                const { sessionId } = getPayload<WebCmd<'switchSession'>>(typedMessage);
-                if (typeof sessionId === 'string') {
-                    this.switchToSession(sessionId);
+                case WebviewCmd.SelectChatContext: {
+                    const { context, itemId, itemName, itemShortName } = getPayload<WebCmd<'selectChatContext'>>(typedMessage);
+                    if (context && typeof itemId === 'number' && typeof itemName === 'string') {
+                        this._handleContextSelection(context, itemId, itemName, itemShortName);
+                    }
+                    break;
                 }
-                break;
-            }
-            case WebviewCmd.SwitchToWorkspaceContext:
-                this._handleSwitchToWorkspaceContext();
-                break;
-            case WebviewCmd.OpenDiagnostics:
-                this._chatDiagnosticsService.handleOpenDiagnostics().catch(err => {
-                    logger.error('Error opening diagnostics', LogCategory.IRIS_CHAT, err);
-                    vscode.window.showErrorMessage('Failed to open diagnostics report');
-                });
-                break;
-            case WebviewCmd.DebugSessions:
-                this._chatDiagnosticsService.handleDebugSessions().catch((err: unknown) => {
-                    logger.error('Error debugging sessions', LogCategory.IRIS_CHAT, err);
-                    vscode.window.showErrorMessage('Failed to fetch debug session data');
-                });
-                break;
-            case WebviewCmd.ResetChatSessions:
-                this._handleResetSessions();
-                break;
-            case WebviewCmd.ReconnectWebSocket:
-                this._handleReconnectWebSocket();
-                break;
-            case WebviewCmd.MessageFeedback: {
-                const { sessionId, messageId, feedback } = getPayload<WebCmd<'messageFeedback'>>(typedMessage);
-                const parsedMsgId = typeof messageId === 'number'
-                    ? messageId
-                    : typeof messageId === 'string'
-                        ? (Number.isNaN(Number(messageId)) ? undefined : parseInt(messageId as string, 10))
-                        : undefined;
-                void this._handleMessageFeedback({
-                    sessionId: typeof sessionId === 'number' ? sessionId : undefined,
-                    messageId: parsedMsgId,
-                    feedback: feedback as string | undefined
-                }).catch(err => {
-                    logger.error('Error handling message feedback', LogCategory.IRIS_CHAT, err);
-                });
-                break;
-            }
-            case WebviewCmd.OpenSettings: {
-                const { setting } = getPayload<WebCmd<'openSettings'>>(typedMessage);
-                if (typeof setting === 'string') {
+                case WebviewCmd.CreateNewSession:
+                    this.createNewSession();
+                    break;
+                case WebviewCmd.SwitchSession: {
+                    const { sessionId } = getPayload<WebCmd<'switchSession'>>(typedMessage);
+                    if (typeof sessionId === 'string') {
+                        this.switchToSession(sessionId);
+                    }
+                    break;
+                }
+                case WebviewCmd.SwitchToWorkspaceContext:
+                    this._handleSwitchToWorkspaceContext();
+                    break;
+                case WebviewCmd.OpenDiagnostics:
+                    this._chatDiagnosticsService.handleOpenDiagnostics().catch(err => {
+                        logger.error('Error opening diagnostics', LogCategory.IRIS_CHAT, err);
+                        vscode.window.showErrorMessage('Failed to open diagnostics report');
+                    });
+                    break;
+                case WebviewCmd.DebugSessions:
+                    this._chatDiagnosticsService.handleDebugSessions().catch((err: unknown) => {
+                        logger.error('Error debugging sessions', LogCategory.IRIS_CHAT, err);
+                        vscode.window.showErrorMessage('Failed to fetch debug session data');
+                    });
+                    break;
+                case WebviewCmd.ResetChatSessions:
+                    this._handleResetSessions();
+                    break;
+                case WebviewCmd.ReconnectWebSocket:
+                    this._handleReconnectWebSocket();
+                    break;
+                case WebviewCmd.MessageFeedback: {
+                    const { sessionId, messageId, feedback } = getPayload<WebCmd<'messageFeedback'>>(typedMessage);
+                    const parsedMsgId = typeof messageId === 'number'
+                        ? messageId
+                        : typeof messageId === 'string'
+                            ? (Number.isNaN(Number(messageId)) ? undefined : parseInt(messageId as string, 10))
+                            : undefined;
+                    void this._handleMessageFeedback({
+                        sessionId: typeof sessionId === 'number' ? sessionId : undefined,
+                        messageId: parsedMsgId,
+                        feedback: feedback as string | undefined
+                    }).catch(err => {
+                        logger.error('Error handling message feedback', LogCategory.IRIS_CHAT, err);
+                    });
+                    break;
+                }
+                case WebviewCmd.OpenSettings: {
+                    const setting = (typedMessage as WebCmd<'openSettings'>).payload?.setting ?? 'Artemis';
                     vscode.commands.executeCommand('workbench.action.openSettings', setting);
+                    break;
                 }
-                break;
-            }
-            case WebviewCmd.OpenFile: {
-                const { filePath } = getPayload<WebCmd<'openFile'>>(typedMessage);
-                if (typeof filePath === 'string') {
-                    void this._handleOpenFile(filePath);
+                case WebviewCmd.OpenFile: {
+                    const { filePath } = getPayload<WebCmd<'openFile'>>(typedMessage);
+                    if (typeof filePath === 'string') {
+                        void this._handleOpenFile(filePath);
+                    }
+                    break;
                 }
-                break;
+                case WebviewCmd.OpenHelpPopup:
+                    this._handleOpenHelpPopup();
+                    break;
+                default:
+                    logger.debug('Unhandled message in chat view', LogCategory.IRIS_CHAT, typedMessage);
+                    break;
             }
-            case WebviewCmd.OpenHelpPopup:
-                this._handleOpenHelpPopup();
-                break;
-            default:
-                logger.debug('Unhandled message in chat view', LogCategory.IRIS_CHAT, typedMessage);
-                break;
+        } catch (error) {
+            logger.error('Error handling chat command', LogCategory.IRIS_CHAT, error);
+            vscode.window.showErrorMessage(`Error processing command: ${typedMessage.command}`);
         }
     }
 

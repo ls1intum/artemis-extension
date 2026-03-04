@@ -4,6 +4,7 @@ import { IrisSessionManager } from './irisSessionManager';
 import type { IrisChatMessage } from '../types/apiResponses';
 import { logger, LogCategory } from './loggingService';
 import { extractIrisMessageContent } from '../utils/irisMessageUtils';
+import { ExtensionMsg } from '../shared/messageContracts';
 import type { ExtensionToWebviewMessage } from '../shared/messageContracts';
 
 export class WebSocketMessageHandler {
@@ -16,14 +17,17 @@ export class WebSocketMessageHandler {
     public handleIrisWebSocketMessage(data: unknown): void {
         logger.websocket(`🔔 Received Iris WebSocket message: ${JSON.stringify(data, null, 2)}`);
 
-        // Narrow unknown to typed object
-        const typedData = data as { type?: string; message?: IrisChatMessage };
+        // Runtime type guard for the incoming WebSocket payload
+        if (!this._isIrisWebSocketPayload(data)) {
+            logger.websocket(`⚠️ Unknown message type or format: ${JSON.stringify(data)}`);
+            return;
+        }
 
         // Handle different message types
-        if (typedData.type === 'MESSAGE' && typedData.message) {
+        if (data.type === 'MESSAGE' && data.message) {
             logger.websocket('📦 Processing MESSAGE type');
             // Extract content from the message
-            const msg = typedData.message;
+            const msg = data.message;
             const content = extractIrisMessageContent(msg.content);
 
             logger.websocket(`📝 Extracted content length: ${content.length} chars`);
@@ -33,26 +37,28 @@ export class WebSocketMessageHandler {
             if (msg.sender !== 'USER' && content) {
                 logger.websocket('🤖 Sending assistant message to webview (this should hide thinking indicator)');
                 this._postMessage({
-                    type: 'addMessage',
+                    type: ExtensionMsg.AddMessage,
                     message: {
                         id: msg.id,
                         role: 'assistant',
                         content: content,
                         timestamp: msg.sentAt ? new Date(msg.sentAt).getTime() : Date.now(),
-                        helpful: (msg as { helpful?: boolean | null }).helpful // true, false, or null
+                        helpful: typeof msg['helpful'] === 'boolean' ? msg['helpful'] : null
                     }
                 });
                 logger.websocket('✅ Assistant message sent to webview');
             } else {
                 logger.websocket('⏭️ Skipping message (either USER message or no content)');
             }
-        } else if (typedData.type === 'STATUS') {
+        } else if (data.type === 'STATUS') {
             // Handle status updates (e.g., "Iris is thinking...")
             logger.websocket(`📊 Iris status update: ${JSON.stringify(data)}`);
             // TODO: Show status indicator in UI
-        } else {
-            logger.websocket(`⚠️ Unknown message type or format: ${JSON.stringify(data)}`);
         }
+    }
+
+    private _isIrisWebSocketPayload(data: unknown): data is { type: string; message?: IrisChatMessage } {
+        return typeof data === 'object' && data !== null && 'type' in data && typeof (data as { type: unknown }).type === 'string';
     }
 
     public async handleReconnectWebSocket(): Promise<void> {
@@ -95,7 +101,7 @@ export class WebSocketMessageHandler {
 
     private _updateWebSocketStatus(isConnected: boolean): void {
         this._postMessage({
-            type: 'updateWebSocketStatus',
+            type: ExtensionMsg.UpdateWebSocketStatus,
             isConnected: isConnected
         });
     }
