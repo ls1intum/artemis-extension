@@ -53,7 +53,8 @@ export function ExamExerciseDetailView({ vscodeApi }: ExamExerciseDetailViewProp
     useExtensionMessage((msg) => {
         if (msg.type === ExtensionMsg.ExamExerciseDetailInit) {
             setExerciseData(msg.exerciseData, msg.hideDeveloperTools);
-            setExamExerciseData(msg as Parameters<typeof setExamExerciseData>[0]);
+            const { type: _type, ...payload } = msg;
+            setExamExerciseData(payload);
         }
     }, [vscodeApi, setExerciseData, setExamExerciseData]);
 

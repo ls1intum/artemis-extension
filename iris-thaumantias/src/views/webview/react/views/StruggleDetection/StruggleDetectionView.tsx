@@ -34,7 +34,7 @@ export function StruggleDetectionView({ vscodeApi }: StruggleDetectionViewProps)
     useExtensionMessage((msg) => {
         if (msg.type === ExtensionMsg.StruggleDetectionInit) {
             const { type: _type, ...struggleData } = msg;
-            setData(struggleData as StruggleData);
+            setData(struggleData);
         }
     }, [setData]);
 

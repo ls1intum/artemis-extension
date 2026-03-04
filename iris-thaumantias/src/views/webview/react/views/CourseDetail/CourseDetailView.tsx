@@ -62,7 +62,7 @@ export function CourseDetailView({ vscodeApi }: CourseDetailViewProps) {
     // Listen for courseDetailInit messages
     useExtensionMessage((msg) => {
         if (msg.type === ExtensionMsg.CourseDetailInit) {
-            setCourseData(msg.courseData as Parameters<typeof setCourseData>[0], msg.workspaceExerciseId as Parameters<typeof setCourseData>[1], msg.hideDeveloperTools);
+            setCourseData(msg.courseData, msg.workspaceExerciseId, msg.hideDeveloperTools);
 
             // Push course breadcrumb
             const courseTitle = msg.courseData?.course?.title ?? 'Course';

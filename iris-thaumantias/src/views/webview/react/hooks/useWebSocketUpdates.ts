@@ -45,7 +45,7 @@ export function useWebSocketUpdates(vscodeApi: VsCodeApi): void {
 
             // Add to buffer - push update fields (now at root level) to preserve discriminated union
             const { type: _type, ...updateData } = event.data;
-            bufferRef.current.push(updateData as WsUpdatePayload);
+            bufferRef.current.push(updateData);
 
             // Schedule RAF flush if not already scheduled
             if (rafIdRef.current === null) {
