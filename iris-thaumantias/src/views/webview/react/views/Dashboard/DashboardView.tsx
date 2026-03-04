@@ -135,20 +135,35 @@ export function DashboardView({ vscodeApi }: DashboardViewProps) {
     return (
         <div className={styles.dashboard}>
             {/* Welcome Header */}
-            <Container className={styles.dashboardHeader}>
-                <h1 className={styles.dashboardTitle}>
-                    <span>
-                        Welcome to{' '}
-                        <button
-                            type="button"
-                            className={styles.artemisTitleLink}
-                            onClick={handleOpenWebsite}
-                        >
-                            Artemis
-                        </button>
-                    </span>
-                </h1>
-                <p className={styles.dashboardSubtitle}>Your programming learning companion</p>
+            <Container>
+                <div className={styles.dashboardHeader}>
+                    <button
+                        type="button"
+                        className={styles.artemisLogoLink}
+                        onClick={handleOpenWebsite}
+                    >
+                        <img
+                            src={document.getElementById('root')?.dataset.logoUri}
+                            alt="Artemis"
+                            className={styles.artemisHeaderLogo}
+                        />
+                    </button>
+                    <div className={styles.dashboardHeaderText}>
+                        <h1 className={styles.dashboardTitle}>
+                            <span>
+                                Welcome to{' '}
+                                <button
+                                    type="button"
+                                    className={styles.artemisTitleLink}
+                                    onClick={handleOpenWebsite}
+                                >
+                                    Artemis
+                                </button>
+                            </span>
+                        </h1>
+                        <p className={styles.dashboardSubtitle}>Your programming learning companion</p>
+                    </div>
+                </div>
             </Container>
 
             {/* Workspace Exercise Section */}

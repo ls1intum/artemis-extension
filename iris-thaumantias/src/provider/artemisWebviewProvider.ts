@@ -181,7 +181,8 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
             enableScripts: true,
 
             localResourceRoots: [
-                vscode.Uri.joinPath(this._extensionUri, 'dist')
+                vscode.Uri.joinPath(this._extensionUri, 'dist'),
+                vscode.Uri.joinPath(this._extensionUri, 'media'),
             ]
         };
 

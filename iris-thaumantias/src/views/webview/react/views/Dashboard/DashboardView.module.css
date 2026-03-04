@@ -7,18 +7,42 @@
 
 /* Welcome Header */
 .dashboardHeader {
-    text-align: center;
+    display: inline-flex;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 0;
+    margin: 0 auto;
+}
+
+.artemisLogoLink {
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 0;
+    flex-shrink: 0;
+    opacity: 0.9;
+    transition: opacity 0.2s ease;
+}
+
+.artemisLogoLink:hover {
+    opacity: 1;
+}
+
+.artemisHeaderLogo {
+    width: 48px;
+    height: 48px;
+    filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.2));
+}
+
+.dashboardHeaderText {
+    text-align: left;
 }
 
 .dashboardTitle {
-    margin: 0 0 8px 0;
+    margin: 0 0 4px 0;
     font-size: 20px;
     font-weight: 600;
     color: var(--vscode-foreground);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
 }
 
 .artemisTitleLink {
