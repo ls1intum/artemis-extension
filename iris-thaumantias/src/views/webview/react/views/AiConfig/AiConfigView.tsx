@@ -14,7 +14,7 @@ export function AiConfigView({ vscodeApi }: AiConfigViewProps) {
             setExtensions(msg.aiExtensions);
             setIsLoaded(true);
         }
-    }, [vscodeApi]);
+    }, [setExtensions, setIsLoaded]);
 
     const handleBackToDashboard = () => {
         postCommand(vscodeApi, 'backToDashboard');

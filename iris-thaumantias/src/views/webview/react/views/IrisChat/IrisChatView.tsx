@@ -16,6 +16,11 @@ interface IrisChatViewProps {
 
 export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
     const store = useChatStore();
+    const {
+        setIrisState, setShowDiagnostics, addMessage, setMessages,
+        clearMessages, setReferencedFiles, setWebSocketConnected,
+        setDisabledMessage, setNoAiDetected,
+    } = store;
     const [sideMenuOpen, setSideMenuOpen] = useState(false);
     const [forceContextPicker, setForceContextPicker] = useState(false);
     const [contextSwitching, setContextSwitching] = useState(false);
@@ -62,22 +67,22 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
     useExtensionMessage((msg) => {
         switch (msg.type) {
             case ExtensionMsg.UpdateIrisState: {
-                store.setIrisState(msg.state);
+                setIrisState(msg.state);
                 if (msg.showDiagnostics !== undefined) {
-                    store.setShowDiagnostics(msg.showDiagnostics);
+                    setShowDiagnostics(msg.showDiagnostics);
                 }
                 break;
             }
 
             case ExtensionMsg.ShowContextPicker: {
-                store.setIrisState(msg.state);
+                setIrisState(msg.state);
                 setForceContextPicker(true);
                 break;
             }
 
             case ExtensionMsg.AddMessage: {
                 const m = msg.message;
-                store.addMessage({
+                addMessage({
                     id: m.id,
                     localId: crypto.randomUUID(),
                     role: m.role,
@@ -90,7 +95,7 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
             }
 
             case ExtensionMsg.LoadMessages: {
-                store.setMessages(msg.messages.map((m) => ({
+                setMessages(msg.messages.map((m) => ({
                     id: m.id,
                     localId: crypto.randomUUID(),
                     role: m.role,
@@ -103,11 +108,11 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
             }
 
             case ExtensionMsg.ClearChatMessages:
-                store.clearMessages();
+                clearMessages();
                 break;
 
             case ExtensionMsg.UpdateReferencedFiles: {
-                store.setReferencedFiles({
+                setReferencedFiles({
                     includedFiles: msg.includedFiles,
                     excludedFiles: msg.excludedFiles,
                     totalCount: msg.totalCount,
@@ -116,25 +121,25 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
             }
 
             case ExtensionMsg.UpdateWebSocketStatus: {
-                store.setWebSocketConnected(msg.isConnected);
+                setWebSocketConnected(msg.isConnected);
                 break;
             }
 
             case ExtensionMsg.ShowDisabledState: {
-                store.setDisabledMessage(msg.message);
+                setDisabledMessage(msg.message);
                 break;
             }
 
             case ExtensionMsg.HideDisabledState:
-                store.setDisabledMessage(null);
+                setDisabledMessage(null);
                 break;
 
             case ExtensionMsg.UpdateNoAiStatus: {
-                store.setNoAiDetected(msg.isNoAiDetected);
+                setNoAiDetected(msg.isNoAiDetected);
                 break;
             }
         }
-    }, [store]);
+    }, [setIrisState, setShowDiagnostics, addMessage, setMessages, clearMessages, setReferencedFiles, setWebSocketConnected, setDisabledMessage, setNoAiDetected]);
 
     // State persistence (only forceContextPicker)
     useEffect(() => {

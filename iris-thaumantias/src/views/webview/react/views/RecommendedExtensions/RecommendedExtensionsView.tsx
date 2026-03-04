@@ -31,7 +31,7 @@ export function RecommendedExtensionsView({ vscodeApi }: RecommendedExtensionsVi
             setCategories(msg.categories);
             setIsLoaded(true);
         }
-    }, [vscodeApi]);
+    }, [setCategories, setIsLoaded]);
 
     const handleBackToDashboard = () => {
         postCommand(vscodeApi, 'backToDashboard');

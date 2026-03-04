@@ -277,6 +277,11 @@ export function postCommand<K extends WebviewCmd>(
     }
 }
 
+/** Request re-send of init data from the extension (e.g. error recovery). */
+export function requestInit(vscodeApi: VsCodeApi): void {
+    vscodeApi.postMessage({ type: WebviewMsgType.RequestInit } as WebviewToExtensionMessage);
+}
+
 /** Extract a specific command message type */
 export type WebCmd<T extends WebviewCmd> = Extract<WebviewToExtensionMessage, { command: T }>;
 

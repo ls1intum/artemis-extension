@@ -65,7 +65,7 @@ export function GitCredentialsView({ vscodeApi }: GitCredentialsViewProps) {
                 break;
             }
         }
-    }, [vscodeApi]);
+    }, [setName, setEmail, setIsLoaded, setStatusMessage, setStatusType]);
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();

@@ -49,7 +49,7 @@ export function ServiceStatusView({ vscodeApi }: ServiceStatusViewProps) {
                 break;
             }
         }
-    }, [vscodeApi]);
+    }, [vscodeApi, setServerUrl, setIsLoaded, setIsChecking, setHealthResults, setLastCheckTime]);
 
     // Persist serverUrl when it changes
     useEffect(() => {

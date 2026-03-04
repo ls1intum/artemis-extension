@@ -13,7 +13,7 @@ import { Badge } from '../../components/Badge/Badge';
 import { IconButton } from '../../components/Button/IconButton';
 import { useExtensionError } from '../../hooks/useExtensionError';
 import { useExtensionMessage } from '../../hooks/useExtensionMessage';
-import { ExtensionMsg, WebviewMsgType, postCommand } from '../../../../../shared/messageContracts';
+import { ExtensionMsg, postCommand, requestInit } from '../../../../../shared/messageContracts';
 import styles from './ExamConductionView.module.css';
 
 /**
@@ -21,18 +21,19 @@ import styles from './ExamConductionView.module.css';
  */
 export function ExamConductionView({ vscodeApi }: ExamConductionViewProps) {
     const store = useExamConductionStore();
+    const { setExamData, setError } = store;
     const [overlayDismissed, setOverlayDismissed] = useState(false);
 
     // Handle extension error messages
-    const handleError = useCallback((message: string) => store.setError(message), [store]);
+    const handleError = useCallback((message: string) => setError(message), [setError]);
     useExtensionError(handleError);
 
     // Message handler
     useExtensionMessage((msg) => {
         if (msg.type === ExtensionMsg.ExamConductionInit) {
-            store.setExamData(msg);
+            setExamData(msg);
         }
-    }, [vscodeApi, store]);
+    }, [vscodeApi, setExamData]);
 
     // Reset scroll to top on mount
     useEffect(() => {
@@ -63,7 +64,7 @@ export function ExamConductionView({ vscodeApi }: ExamConductionViewProps) {
                     onRetry={() => {
                         store.setError(null);
                         store.setLoading(true);
-                        vscodeApi.postMessage({ type: WebviewMsgType.RequestInit });
+                        requestInit(vscodeApi);
                     }}
                 />
             </div>
@@ -77,7 +78,7 @@ export function ExamConductionView({ vscodeApi }: ExamConductionViewProps) {
                 <BackLink onClick={handleBackToCourse}>Back to Course</BackLink>
                 <ErrorMessage
                     error="No exam data available"
-                    onRetry={() => vscodeApi.postMessage({ type: WebviewMsgType.RequestInit })}
+                    onRetry={() => requestInit(vscodeApi)}
                 />
             </div>
         );

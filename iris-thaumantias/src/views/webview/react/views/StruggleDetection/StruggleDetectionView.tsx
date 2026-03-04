@@ -36,7 +36,7 @@ export function StruggleDetectionView({ vscodeApi }: StruggleDetectionViewProps)
             const { type: _type, ...struggleData } = msg;
             setData(struggleData as StruggleData);
         }
-    }, [vscodeApi]);
+    }, [setData]);
 
     const handleBackToDashboard = () => {
         postCommand(vscodeApi, 'backToDashboard');
