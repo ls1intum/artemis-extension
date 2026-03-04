@@ -140,7 +140,7 @@ export function LoginView({ vscodeApi }: LoginViewProps) {
 			case ExtensionMsg.HealthCheckResults: {
 				const services: ServiceInfo[] = Object.entries(msg.results).map(([serviceName, data]) => ({
 					name: formatServiceName(serviceName),
-					status: data.status as 'online' | 'offline' | 'checking' | 'unknown',
+					status: data.status,
 					message: data.message ?? '',
 					endpoint: data.endpoint ?? '',
 					httpStatus: data.httpStatus !== null ? String(data.httpStatus) : undefined,
@@ -188,7 +188,7 @@ export function LoginView({ vscodeApi }: LoginViewProps) {
 	};
 
 	const handleOpenSettings = () => {
-		postCommand(vscodeApi, 'openSettings');
+		postCommand(vscodeApi, 'openSettings', { setting: 'Artemis' });
 	};
 
 	const handleLogout = () => {

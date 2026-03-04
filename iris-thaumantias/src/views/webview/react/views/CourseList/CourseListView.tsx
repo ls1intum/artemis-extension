@@ -134,7 +134,7 @@ export function CourseListView({ vscodeApi }: CourseListViewProps) {
     };
 
     const handleOpenSettings = () => {
-        postCommand(vscodeApi, 'openSettings');
+        postCommand(vscodeApi, 'openSettings', { setting: 'Artemis' });
     };
 
     const handleViewCourseDetails = (courseData: CourseData) => {

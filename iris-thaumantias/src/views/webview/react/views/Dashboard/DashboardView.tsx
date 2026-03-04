@@ -90,7 +90,7 @@ export function DashboardView({ vscodeApi }: DashboardViewProps) {
     };
 
     const handleOpenSettings = () => {
-        postCommand(vscodeApi, 'openSettings');
+        postCommand(vscodeApi, 'openSettings', { setting: 'Artemis' });
     };
 
     const handleShowAiConfig = () => {

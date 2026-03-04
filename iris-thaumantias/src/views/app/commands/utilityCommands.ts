@@ -28,7 +28,7 @@ export class UtilityCommandModule {
 
     private handleOpenSettings = async (message: WebviewToExtensionMessage): Promise<void> => {
         try {
-            const settingId = (message as WebCmd<'openSettings'>).payload?.setting ?? 'Artemis';
+            const settingId = getPayload<WebCmd<'openSettings'>>(message).setting ?? 'Artemis';
             await vscode.commands.executeCommand('workbench.action.openSettings', settingId);
         } catch (error: unknown) {
             logger.error('Failed to open settings:', LogCategory.VIEW, error);

@@ -49,6 +49,9 @@ export interface ExerciseDetail {
     maxPoints?: number;
     bonusPoints?: number;
     problemStatement?: string;
+    mode?: string;
+    includedInScore?: boolean;
+    filePattern?: string;
     course?: CourseDashboardCourse;
     studentParticipations?: ParticipationSummary[];
     [key: string]: unknown;

@@ -11,7 +11,7 @@ export interface ServiceStatusViewProps {
  * Health check result for a single service.
  */
 export interface HealthCheckResult {
-    status: 'online' | 'offline' | 'checking' | 'unknown';
+    status: 'online' | 'offline' | 'unknown';
     message: string;
     endpoint: string;
     httpStatus: number | null;

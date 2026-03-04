@@ -209,7 +209,7 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
     };
 
     const handleOpenSettings = (setting?: string) => {
-        postCommand(vscodeApi, 'openSettings', setting ? { setting } : {});
+        postCommand(vscodeApi, 'openSettings', { setting: setting ?? 'Artemis' });
     };
 
     const handleReconnectWebSocket = () => {

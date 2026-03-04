@@ -97,7 +97,7 @@ export function CourseDetailView({ vscodeApi }: CourseDetailViewProps) {
     };
 
     const handleSettings = () => {
-        postCommand(vscodeApi, 'openSettings');
+        postCommand(vscodeApi, 'openSettings', { setting: 'Artemis' });
     };
 
     const handleOpenExercise = (exerciseId: number) => {

@@ -21,9 +21,7 @@ const COMMANDS_REQUIRING_PAYLOAD = new Set<string>([
     WebviewCmd.AskIrisAboutCourse,
     WebviewCmd.ReloadExerciseDetail,
     WebviewCmd.CloneRepository,
-    WebviewCmd.OpenRepository,
     WebviewCmd.SubmitExercise,
-    WebviewCmd.TriggerBuild,
     WebviewCmd.StartExercise,
     WebviewCmd.StartPractice,
     WebviewCmd.AskIrisAboutExercise,
@@ -35,6 +33,7 @@ const COMMANDS_REQUIRING_PAYLOAD = new Set<string>([
     WebviewCmd.OpenExternalLink,
     WebviewCmd.OpenImagePreview,
     WebviewCmd.SearchMarketplace,
+    WebviewCmd.OpenSettings,
     WebviewCmd.SaveGitIdentity,
     WebviewCmd.PerformHealthChecks,
     WebviewCmd.SendMessage,
@@ -44,6 +43,7 @@ const COMMANDS_REQUIRING_PAYLOAD = new Set<string>([
     WebviewCmd.OpenFile,
     WebviewCmd.GoToSourceError,
     WebviewCmd.ViewArchivedCourse,
+    WebviewCmd.RenderPlantUmlInline,
 ]);
 
 export function isExtensionMessage(msg: unknown): msg is ExtensionToWebviewMessage {

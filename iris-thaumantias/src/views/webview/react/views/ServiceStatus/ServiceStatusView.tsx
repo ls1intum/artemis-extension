@@ -83,7 +83,7 @@ export function ServiceStatusView({ vscodeApi }: ServiceStatusViewProps) {
     // Map health results to ServiceHealth component format
     const services: ServiceInfo[] = Object.entries(healthResults).map(([name, result]) => ({
         name: formatServiceName(name),
-        status: result.status as 'online' | 'offline' | 'checking' | 'unknown',
+        status: result.status,
         message: result.message,
         endpoint: result.endpoint,
         httpStatus: result.httpStatus !== null ? String(result.httpStatus) : undefined,

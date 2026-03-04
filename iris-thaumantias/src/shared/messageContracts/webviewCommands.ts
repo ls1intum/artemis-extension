@@ -45,7 +45,6 @@ export const WebviewCmd = {
     CloneRepository: 'cloneRepository',
     OpenRepository: 'openRepository',
     SubmitExercise: 'submitExercise',
-    TriggerBuild: 'triggerBuild',
     StartExercise: 'startExercise',
     StartPractice: 'startPractice',
     AskIrisAboutExercise: 'askIrisAboutExercise',
@@ -72,9 +71,6 @@ export const WebviewCmd = {
     SaveGitIdentity: 'saveGitIdentity',
     // TODO: dead command — dispatched internally by viewInitDataService, not from React
     RequestGitIdentity: 'requestGitIdentity',
-    // TODO: dead command — no React sender, candidate for removal
-    SaveGitCredentials: 'saveGitCredentials',
-
     // Views
     ShowAiConfig: 'showAiConfig',
     ShowRecommendedExtensions: 'showRecommendedExtensions',
@@ -139,7 +135,6 @@ interface WebviewCmdPayloads {
     cloneRepository: { participationId: number; repositoryUri: string; exerciseTitle: string };
     openRepository: { repositoryUri?: string };
     submitExercise: { participationId: number; exerciseId?: number; exerciseTitle?: string; commitMessage?: string };
-    triggerBuild: { participationId: number };
     startExercise: { exerciseId: number };
     startPractice: { exerciseId: number; exerciseTitle?: string };
     askIrisAboutExercise: { exerciseId: number; exerciseTitle: string; exerciseShortName?: string; releaseDate?: string; dueDate?: string; courseId?: number; courseTitle?: string; courseShortName?: string };
@@ -154,7 +149,7 @@ interface WebviewCmdPayloads {
 
     // Utility
     openWebsite: undefined;
-    openSettings: { setting?: string };
+    openSettings: { setting: string };
     openBugReport: undefined;
     openInEditor: { data: Record<string, unknown> };
     copyToClipboard: { text: string };
@@ -165,8 +160,6 @@ interface WebviewCmdPayloads {
     // Git
     saveGitIdentity: { name: string; email: string };
     requestGitIdentity: undefined;
-    saveGitCredentials: { username?: string; token?: string; serverUrl?: string };
-
     // Views
     showAiConfig: undefined;
     showRecommendedExtensions: undefined;

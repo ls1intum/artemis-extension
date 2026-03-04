@@ -455,7 +455,7 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
                     break;
                 }
                 case WebviewCmd.OpenSettings: {
-                    const setting = (typedMessage as WebCmd<'openSettings'>).payload?.setting ?? 'Artemis';
+                    const setting = getPayload<WebCmd<'openSettings'>>(typedMessage).setting ?? 'Artemis';
                     vscode.commands.executeCommand('workbench.action.openSettings', setting);
                     break;
                 }

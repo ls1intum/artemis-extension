@@ -76,8 +76,6 @@ export type { SkeletonProps, SkeletonListProps } from './Skeleton';
 export { Breadcrumbs } from './Breadcrumbs';
 export type { BreadcrumbsProps, BreadcrumbSegment } from './Breadcrumbs';
 
-export { ReconnectBanner } from './ReconnectBanner';
-
 export { ErrorMessage } from './ErrorMessage';
 export type { ErrorMessageProps } from './ErrorMessage';
 

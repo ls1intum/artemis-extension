@@ -5,11 +5,10 @@
  * Separate from happy-path flows per CONTEXT.md decision.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, act, waitFor } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ServiceHealth } from '../../../src/views/webview/react/components/ServiceHealth/ServiceHealth';
 import type { ServiceInfo } from '../../../src/views/webview/react/components/ServiceHealth/ServiceHealth';
-import { ReconnectBanner } from '../../../src/views/webview/react/components/ReconnectBanner/ReconnectBanner';
 import { ErrorMessage } from '../../../src/views/webview/react/components/ErrorMessage/ErrorMessage';
 import { CourseListView } from '../../../src/views/webview/react/views/CourseList/CourseListView';
 import { useCourseListStore } from '../../../src/views/webview/react/stores/useCourseListStore';
@@ -203,97 +202,6 @@ describe('Error suite: ServiceHealth degraded states', () => {
         render(<ServiceHealth services={degradedServices} onRefresh={vi.fn()} isRefreshing />);
         const btn = screen.getByRole('button', { name: /Checking/ });
         expect(btn).toBeDisabled();
-    });
-});
-
-// ============================================================================
-// ReconnectBanner connection loss and reconnect action tests
-// ============================================================================
-
-function dispatchWebSocketStatus(isConnected: boolean) {
-    const event = new MessageEvent('message', {
-        data: { type: 'updateWebSocketStatus', isConnected },
-    });
-    window.dispatchEvent(event);
-}
-
-describe('Error suite: ReconnectBanner', () => {
-    beforeEach(() => {
-        vi.useFakeTimers();
-    });
-
-    afterEach(() => {
-        vi.runOnlyPendingTimers();
-        vi.useRealTimers();
-    });
-
-    it('shows ReconnectBanner on connection loss (updateWebSocketStatus false)', () => {
-        render(<ReconnectBanner />);
-
-        act(() => {
-            dispatchWebSocketStatus(false);
-        });
-
-        expect(screen.getByText(/Reconnecting to Artemis/)).toBeInTheDocument();
-    });
-
-    it('banner disappears after successful reconnection and 2s delay', () => {
-        render(<ReconnectBanner />);
-
-        act(() => {
-            dispatchWebSocketStatus(false);
-        });
-        expect(screen.getByText(/Reconnecting to Artemis/)).toBeInTheDocument();
-
-        act(() => {
-            dispatchWebSocketStatus(true);
-            vi.advanceTimersByTime(2000);
-        });
-
-        expect(screen.queryByText(/Reconnecting to Artemis/)).not.toBeInTheDocument();
-    });
-
-    it('does not show banner when connection never drops', () => {
-        render(<ReconnectBanner />);
-        expect(screen.queryByText(/Reconnecting/)).not.toBeInTheDocument();
-    });
-
-    it('banner reappears if disconnected again after recovery', () => {
-        render(<ReconnectBanner />);
-
-        // First disconnect → reconnect cycle
-        act(() => {
-            dispatchWebSocketStatus(false);
-        });
-        act(() => {
-            dispatchWebSocketStatus(true);
-            vi.advanceTimersByTime(2000);
-        });
-        expect(screen.queryByText(/Reconnecting/)).not.toBeInTheDocument();
-
-        // Second disconnect — banner should reappear
-        act(() => {
-            dispatchWebSocketStatus(false);
-        });
-        expect(screen.getByText(/Reconnecting to Artemis/)).toBeInTheDocument();
-    });
-
-    it('banner remains visible until 2 seconds have passed after reconnect', () => {
-        render(<ReconnectBanner />);
-
-        act(() => {
-            dispatchWebSocketStatus(false);
-        });
-        act(() => {
-            dispatchWebSocketStatus(true);
-        });
-
-        // Only 1 second passed — banner still visible
-        act(() => {
-            vi.advanceTimersByTime(1000);
-        });
-
-        expect(screen.getByText(/Reconnecting to Artemis/)).toBeInTheDocument();
     });
 });
 

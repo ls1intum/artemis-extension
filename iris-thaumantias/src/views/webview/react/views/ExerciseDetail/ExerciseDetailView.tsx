@@ -134,7 +134,7 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
     };
 
     const handleSettings = () => {
-        postCommand(vscodeApi, 'openSettings');
+        postCommand(vscodeApi, 'openSettings', { setting: 'Artemis' });
     };
 
     const handleCheckRepositoryStatus = () => {
@@ -233,13 +233,11 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
     const bonusPoints = exercise.bonusPoints ?? 0;
     const dueDate = exercise.dueDate;
     const releaseDate = exercise.releaseDate || exercise.startDate;
-    // Additional fields not in core type (using index signature)
-    const exerciseWithExtra = exercise as typeof exercise & { mode?: string; includedInScore?: boolean; filePattern?: string };
-    const mode = exerciseWithExtra.mode ?? 'individual';
-    const includedInScore = exerciseWithExtra.includedInScore !== false ? 'Graded' : 'Not graded';
+    const mode = exercise.mode ?? 'individual';
+    const includedInScore = exercise.includedInScore !== false ? 'Graded' : 'Not graded';
     const courseName = exercise.course?.title || 'Unknown Course';
     const semester = exercise.course?.semester;
-    const filePattern = exerciseWithExtra.filePattern;
+    const filePattern = exercise.filePattern;
 
     // Time remaining calculation
     let timeRemaining = '';

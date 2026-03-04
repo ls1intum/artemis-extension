@@ -7,7 +7,7 @@ import type {
     WebviewToExtensionMessage,
     WebCmd,
 } from '../../../shared/messageContracts';
-import { CONFIG, VSCODE_CONFIG, checkWorkspaceFiles, extractErrorMessage } from '../../../utils';
+import { VSCODE_CONFIG, checkWorkspaceFiles, extractErrorMessage } from '../../../utils';
 import { detectWorkspaceExercise, normalizeRepositoryUrl, type ExerciseSource, GitService } from '../../../services';
 import { logger } from '../../../services/loggingService';
 
@@ -90,13 +90,11 @@ export class RepositoryCommandModule {
             [WebviewCmd.CheckRepositoryStatus]: this.handleCheckRepositoryStatus,
             [WebviewCmd.CloneRepository]: this.handleCloneRepository,
             [WebviewCmd.SubmitExercise]: this.handleSubmitExercise,
-            [WebviewCmd.SaveGitCredentials]: this.handleSaveGitCredentials,
             [WebviewCmd.SaveGitIdentity]: this.handleSaveGitIdentity,
             [WebviewCmd.RequestGitIdentity]: this.handleRequestGitIdentity,
             [WebviewCmd.StartPractice]: this.handleStartPractice,
             [WebviewCmd.StartExercise]: this.handleStartExercise,
             [WebviewCmd.OpenRepository]: this.handleOpenRepository,
-            [WebviewCmd.TriggerBuild]: this.handleTriggerBuild,
         };
     }
 
@@ -615,90 +613,6 @@ export class RepositoryCommandModule {
         });
     };
 
-    private handleSaveGitCredentials = async (message: WebviewToExtensionMessage): Promise<void> => {
-        let rawUsername: string;
-        let rawToken: string;
-        let serverUrl: string;
-        const sendResult = (status: 'success' | 'error' | 'warning' | 'info', text: string) => {
-            this.context.sendMessage({
-                type: ExtensionMsg.GitCredentialsResult,
-                status,
-                message: text
-            });
-        };
-        try {
-            const payload = getPayload<WebCmd<'saveGitCredentials'>>(message);
-            rawUsername = typeof payload.username === 'string' ? payload.username.trim() : '';
-            rawToken = typeof payload.token === 'string' ? payload.token.trim() : '';
-            const rawServerUrl = typeof payload.serverUrl === 'string' ? payload.serverUrl.trim() : '';
-            const config = vscode.workspace.getConfiguration(VSCODE_CONFIG.ARTEMIS_SECTION);
-            const configuredServerUrl = config.get<string>(VSCODE_CONFIG.SERVER_URL_KEY, CONFIG.ARTEMIS_SERVER_URL_DEFAULT);
-            serverUrl = rawServerUrl || configuredServerUrl;
-        } catch (error: unknown) {
-            logger.submissionError('Failed to parse saveGitCredentials payload:', error);
-            sendResult('error', 'Invalid message payload.');
-            return;
-        }
-
-        if (!rawUsername) {
-            sendResult('warning', 'Username is required.');
-            vscode.window.showErrorMessage('Please provide a username before saving Git credentials.');
-            return;
-        }
-
-        if (!rawToken) {
-            sendResult('warning', 'Token is required.');
-            vscode.window.showErrorMessage('Please provide a VCS token before saving Git credentials.');
-            return;
-        }
-
-        let host: string;
-        try {
-            const parsedUrl = new URL(serverUrl);
-            host = parsedUrl.host;
-            if (!host) {
-                throw new Error('Missing host in server URL.');
-            }
-        } catch (error: unknown) {
-            logger.submissionError('Invalid Artemis server URL:', error);
-            sendResult('error', 'Invalid Artemis server URL.');
-            vscode.window.showErrorMessage('Invalid Artemis server URL. Please verify the value and try again.');
-            return;
-        }
-
-        try {
-            const isGitAvailable = await this.gitService.isGitAvailable();
-            if (!isGitAvailable) {
-                throw new Error('Git not available');
-            }
-        } catch {
-            sendResult('error', 'Git is not available on the PATH.');
-            vscode.window.showErrorMessage('Git is not available on this system. Please install Git and try again.');
-            return;
-        }
-
-        try {
-            await this.gitService.ensureCredentialHelper();
-        } catch (error: unknown) {
-            logger.submissionError('Failed to configure credential helper:', error);
-            const messageText = extractErrorMessage(error);
-            sendResult('error', `Failed to configure credential helper: ${messageText}`);
-            vscode.window.showErrorMessage(`Failed to configure Git credential helper: ${messageText}`);
-            return;
-        }
-
-        try {
-            await this.gitService.storeCredentials(`https://${host}`, rawUsername, rawToken);
-            const successMessage = `Saved Git credentials for ${host}.`;
-            sendResult('success', successMessage);
-            vscode.window.showInformationMessage(successMessage);
-        } catch (error: unknown) {
-            logger.submissionError('Failed to store credential entry:', error);
-            const messageText = extractErrorMessage(error);
-            sendResult('error', `Failed to save credentials: ${messageText}`);
-            vscode.window.showErrorMessage(`Failed to save Git credentials: ${messageText}`);
-        }
-    };
     private registerWorkspaceListeners(): void {
         if (this.workspaceListenersRegistered) {
             return;
@@ -868,8 +782,7 @@ export class RepositoryCommandModule {
 
     private handleOpenRepository = async (message: WebviewToExtensionMessage): Promise<void> => {
         try {
-            const payload = getPayload<WebCmd<'openRepository'>>(message);
-            const repositoryUri = payload.repositoryUri;
+            const repositoryUri = (message as WebCmd<'openRepository'>).payload?.repositoryUri;
 
             if (!repositoryUri) {
                 vscode.window.showWarningMessage('No repository URL available.');
@@ -898,7 +811,4 @@ export class RepositoryCommandModule {
         }
     };
 
-    private handleTriggerBuild = async (_message: WebviewToExtensionMessage): Promise<void> => {
-        vscode.window.showInformationMessage('Build triggering is not supported yet. Please submit your exercise to trigger a build.');
-    };
 }
