@@ -69,7 +69,7 @@ export const WebviewCmd = {
 
     // Git
     SaveGitIdentity: 'saveGitIdentity',
-    // TODO: dead command — dispatched internally by viewInitDataService, not from React
+    // Internal: dispatched by viewInitDataService, not sent from React UI
     RequestGitIdentity: 'requestGitIdentity',
     // Views
     ShowAiConfig: 'showAiConfig',
@@ -189,6 +189,42 @@ interface WebviewCmdPayloads {
     renderPlantUmlInline: { plantUml: string; index: number };
 }
 
+/** Commands that require a non-undefined payload object. */
+export const COMMANDS_REQUIRING_PAYLOAD = new Set<string>([
+    WebviewCmd.Login,
+    WebviewCmd.ViewCourseDetails,
+    WebviewCmd.OpenExercise,
+    WebviewCmd.OpenExerciseDetails,
+    WebviewCmd.OpenExamExerciseDetails,
+    WebviewCmd.ReloadCourseDetail,
+    WebviewCmd.AskIrisAboutCourse,
+    WebviewCmd.ReloadExerciseDetail,
+    WebviewCmd.CloneRepository,
+    WebviewCmd.SubmitExercise,
+    WebviewCmd.StartExercise,
+    WebviewCmd.StartPractice,
+    WebviewCmd.AskIrisAboutExercise,
+    WebviewCmd.OpenExam,
+    WebviewCmd.OpenExamInBrowser,
+    WebviewCmd.RefreshExam,
+    WebviewCmd.OpenInEditor,
+    WebviewCmd.CopyToClipboard,
+    WebviewCmd.OpenExternalLink,
+    WebviewCmd.OpenImagePreview,
+    WebviewCmd.SearchMarketplace,
+    WebviewCmd.OpenSettings,
+    WebviewCmd.SaveGitIdentity,
+    WebviewCmd.PerformHealthChecks,
+    WebviewCmd.SendMessage,
+    WebviewCmd.SelectChatContext,
+    WebviewCmd.SwitchSession,
+    WebviewCmd.MessageFeedback,
+    WebviewCmd.OpenFile,
+    WebviewCmd.GoToSourceError,
+    WebviewCmd.ViewArchivedCourse,
+    WebviewCmd.RenderPlantUmlInline,
+]);
+
 /** Auto-generated command messages */
 type WebviewCommandMessages = {
     [K in WebviewCmd]: WebviewCmdPayloads[K] extends undefined
@@ -258,4 +294,14 @@ export function getPayload<T extends WebviewToExtensionMessage & { payload?: unk
         throw new Error(`Expected payload on message but got none (command=${String(cmd)})`);
     }
     return (message as { payload: unknown }).payload as ReturnType<typeof getPayload<T>>;
+}
+
+/** Extract typed payload from a command message. Returns undefined if payload is missing. */
+export function getOptionalPayload<T extends WebviewToExtensionMessage & { payload?: unknown }>(
+    message: WebviewToExtensionMessage
+): (T extends { payload?: infer P } ? P : never) | undefined {
+    if (!('payload' in message) || (message as { payload?: unknown }).payload === undefined) {
+        return undefined;
+    }
+    return (message as { payload: unknown }).payload as T extends { payload?: infer P } ? P : never;
 }

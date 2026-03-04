@@ -22,34 +22,12 @@ import {
     createServiceStatusPayload,
     createGitCredentialsPayload,
     createRecommendedExtensionsPayload,
-    createLogoutPayload,
 } from '../fixtures';
 
 describe('Bridge Contracts', () => {
 
     // =========================================================================
-    // 1. showLogin() → login state → logoutSuccess
-    // =========================================================================
-
-    describe('login (logoutSuccess)', () => {
-        it('has type discriminant "logoutSuccess"', () => {
-            const payload = createLogoutPayload();
-            expect(payload.type).toBe('logoutSuccess');
-        });
-
-        it('passes isExtensionMessage() type guard', () => {
-            const payload = createLogoutPayload();
-            expect(isExtensionMessage(payload)).toBe(true);
-        });
-
-        it('has no payload field', () => {
-            const payload = createLogoutPayload();
-            expect('payload' in payload).toBe(false);
-        });
-    });
-
-    // =========================================================================
-    // 2. showDashboard() → dashboard state → dashboardInit
+    // 1. showDashboard() → dashboard state → dashboardInit
     // =========================================================================
 
     describe('dashboard (dashboardInit)', () => {

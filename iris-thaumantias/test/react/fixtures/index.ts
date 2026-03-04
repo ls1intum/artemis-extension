@@ -8,5 +8,4 @@ export { createExamExerciseDetailPayload } from './examExerciseDetailPayload';
 export { createServiceStatusPayload } from './serviceStatusPayload';
 export { createGitCredentialsPayload } from './gitCredentialsPayload';
 export { createRecommendedExtensionsPayload } from './recommendedExtensionsPayload';
-export { createLogoutPayload } from './logoutPayload';
 export { createIrisInitPayload } from './irisInitPayload';

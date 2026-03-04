@@ -69,23 +69,9 @@ function sortExercises(exercises: Exercise[], sortBy: string): Exercise[] {
                 return bDate - aDate;
             });
         case 'points-asc':
-            return sorted.sort((a, b) => {
-                // Exercise may have maxPoints from ExerciseDetail index signature
-                const aExercise = a as Exercise & { maxPoints?: number };
-                const bExercise = b as Exercise & { maxPoints?: number };
-                const aPoints = aExercise.maxPoints ?? 0;
-                const bPoints = bExercise.maxPoints ?? 0;
-                return aPoints - bPoints;
-            });
+            return sorted.sort((a, b) => (a.maxPoints ?? 0) - (b.maxPoints ?? 0));
         case 'points-desc':
-            return sorted.sort((a, b) => {
-                // Exercise may have maxPoints from ExerciseDetail index signature
-                const aExercise = a as Exercise & { maxPoints?: number };
-                const bExercise = b as Exercise & { maxPoints?: number };
-                const aPoints = aExercise.maxPoints ?? 0;
-                const bPoints = bExercise.maxPoints ?? 0;
-                return bPoints - aPoints;
-            });
+            return sorted.sort((a, b) => (b.maxPoints ?? 0) - (a.maxPoints ?? 0));
         default:
             return sorted;
     }

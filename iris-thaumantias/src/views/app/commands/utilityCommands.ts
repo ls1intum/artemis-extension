@@ -9,6 +9,43 @@ import type {
 import { normalizeRelativePath, extractErrorMessage, CONFIG, VSCODE_CONFIG } from '../../../utils';
 import { logger, LogCategory } from '../../../services/loggingService';
 
+/**
+ * Open VS Code settings filtered by the given setting ID.
+ */
+export async function openSettings(settingId: string): Promise<void> {
+    await vscode.commands.executeCommand('workbench.action.openSettings', settingId);
+}
+
+/**
+ * Open a file in the workspace by path, falling back to a filename search.
+ */
+export async function openFileInWorkspace(filePath: string): Promise<void> {
+    const workspaceFolders = vscode.workspace.workspaceFolders;
+    if (!workspaceFolders || workspaceFolders.length === 0) {
+        vscode.window.showWarningMessage('No workspace folder open');
+        return;
+    }
+
+    try {
+        const fileUri = vscode.Uri.joinPath(workspaceFolders[0].uri, filePath);
+        const doc = await vscode.workspace.openTextDocument(fileUri);
+        await vscode.window.showTextDocument(doc);
+    } catch {
+        try {
+            const fileName = filePath.split('/').pop();
+            const files = await vscode.workspace.findFiles(`**/${fileName}`);
+            if (files.length > 0) {
+                const doc = await vscode.workspace.openTextDocument(files[0]);
+                await vscode.window.showTextDocument(doc);
+            } else {
+                vscode.window.showWarningMessage(`Could not find file: ${filePath}`);
+            }
+        } catch {
+            vscode.window.showWarningMessage(`Could not open file: ${filePath}`);
+        }
+    }
+}
+
 export class UtilityCommandModule {
     constructor(private readonly context: CommandContext) { }
 
@@ -23,13 +60,14 @@ export class UtilityCommandModule {
             [WebviewCmd.GoToSourceError]: this.handleGoToSourceError,
             [WebviewCmd.OpenExternalLink]: this.handleOpenExternalLink,
             [WebviewCmd.OpenImagePreview]: this.handleOpenImagePreview,
+            [WebviewCmd.OpenFile]: this.handleOpenFile,
         };
     }
 
     private handleOpenSettings = async (message: WebviewToExtensionMessage): Promise<void> => {
         try {
             const settingId = getPayload<WebCmd<'openSettings'>>(message).setting ?? 'Artemis';
-            await vscode.commands.executeCommand('workbench.action.openSettings', settingId);
+            await openSettings(settingId);
         } catch (error: unknown) {
             logger.error('Failed to open settings:', LogCategory.VIEW, error);
             vscode.window.showErrorMessage(`Failed to open settings: ${extractErrorMessage(error)}`);
@@ -286,6 +324,18 @@ export class UtilityCommandModule {
             if (action === 'Copy URL' && uri) {
                 await vscode.env.clipboard.writeText(uri);
             }
+        }
+    };
+
+    private handleOpenFile = async (message: WebviewToExtensionMessage): Promise<void> => {
+        try {
+            const { filePath } = getPayload<WebCmd<'openFile'>>(message);
+            if (typeof filePath === 'string') {
+                await openFileInWorkspace(filePath);
+            }
+        } catch (error: unknown) {
+            logger.error('Failed to open file:', LogCategory.VIEW, error);
+            vscode.window.showErrorMessage(`Failed to open file: ${extractErrorMessage(error)}`);
         }
     };
 

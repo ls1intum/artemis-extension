@@ -20,12 +20,4 @@ export interface LoginPersistedState {
 /**
  * Discriminated view state for the Login view.
  */
-export type LoginViewState = 'form' | 'loading' | 'loggedIn';
-
-/**
- * User info for logged-in state.
- */
-export interface UserInfo {
-	username: string;
-	serverUrl: string;
-}
+export type LoginViewState = 'form' | 'loading';

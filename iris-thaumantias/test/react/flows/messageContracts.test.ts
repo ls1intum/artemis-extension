@@ -49,14 +49,6 @@ describe('Message contracts: ExtensionToWebviewMessage types', () => {
         expect(msg.error).toBe('Invalid credentials');
     });
 
-    it('LogoutSuccessMessage has required type field', () => {
-        const msg = {
-            type: 'logoutSuccess' as const,
-        } satisfies ExtMsg<'logoutSuccess'>;
-
-        expect(msg.type).toBe('logoutSuccess');
-    });
-
     it('CourseListInitMessage has required payload.courses array', () => {
         const msg = {
             type: 'courseListInit' as const,

@@ -336,10 +336,6 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
         }
     }
 
-    public notifyLogout(): void {
-        this._postMessageSafe({ type: ExtensionMsg.LogoutSuccess });
-    }
-
     public async showDashboard(userInfo: UserInfo): Promise<void> {
         await this._appStateManager.showDashboard(userInfo);
 

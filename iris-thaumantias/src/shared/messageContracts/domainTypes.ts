@@ -32,6 +32,7 @@ export interface Exercise {
     releaseDate?: string;
     startDate?: string;
     dueDate?: string;
+    maxPoints?: number;
 }
 
 export interface ArchivedCourse {

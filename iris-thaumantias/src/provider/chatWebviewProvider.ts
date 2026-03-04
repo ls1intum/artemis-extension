@@ -12,6 +12,7 @@ import { ExtensionMsg, WebviewMsgType, WebviewCmd, getPayload } from '../shared/
 import type { ExtMsg, WebCmd, WebviewToExtensionMessage } from '../shared/messageContracts';
 import { isWebviewMessage } from '../shared/messageContracts/typeGuards';
 import { logger, LogCategory } from '../services/loggingService';
+import { openSettings, openFileInWorkspace } from '../views/app/commands/utilityCommands';
 import { ArtemisApiService } from '../api';
 import {
     ArtemisWebsocketService,
@@ -456,13 +457,13 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
                 }
                 case WebviewCmd.OpenSettings: {
                     const setting = getPayload<WebCmd<'openSettings'>>(typedMessage).setting ?? 'Artemis';
-                    vscode.commands.executeCommand('workbench.action.openSettings', setting);
+                    void openSettings(setting);
                     break;
                 }
                 case WebviewCmd.OpenFile: {
                     const { filePath } = getPayload<WebCmd<'openFile'>>(typedMessage);
                     if (typeof filePath === 'string') {
-                        void this._handleOpenFile(filePath);
+                        void openFileInWorkspace(filePath);
                     }
                     break;
                 }
@@ -579,33 +580,6 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
             contextId: activeContext.id
         });
         await this._chatSessionService.loadAllSessionsForContext();
-    }
-
-    private async _handleOpenFile(filePath: string): Promise<void> {
-        const workspaceFolders = vscode.workspace.workspaceFolders;
-        if (!workspaceFolders || workspaceFolders.length === 0) {
-            vscode.window.showWarningMessage('No workspace folder open');
-            return;
-        }
-
-        try {
-            const fileUri = vscode.Uri.joinPath(workspaceFolders[0].uri, filePath);
-            const doc = await vscode.workspace.openTextDocument(fileUri);
-            await vscode.window.showTextDocument(doc);
-        } catch {
-            try {
-                const fileName = filePath.split('/').pop();
-                const files = await vscode.workspace.findFiles(`**/${fileName}`);
-                if (files.length > 0) {
-                    const doc = await vscode.workspace.openTextDocument(files[0]);
-                    await vscode.window.showTextDocument(doc);
-                } else {
-                    vscode.window.showWarningMessage(`Could not find file: ${filePath}`);
-                }
-            } catch {
-                vscode.window.showWarningMessage(`Could not open file: ${filePath}`);
-            }
-        }
     }
 
     private _handleOpenHelpPopup(): void {

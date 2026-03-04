@@ -4,47 +4,11 @@
 
 import { ExtensionMsg } from './extensionMessages';
 import type { ExtensionToWebviewMessage } from './extensionMessages';
-import { WebviewMsgType, WebviewCmd } from './webviewCommands';
+import { WebviewMsgType, WebviewCmd, COMMANDS_REQUIRING_PAYLOAD } from './webviewCommands';
 import type { WebviewToExtensionMessage } from './webviewCommands';
 
 const extensionMsgValues = new Set<string>(Object.values(ExtensionMsg));
 const webviewCmdValues = new Set<string>(Object.values(WebviewCmd));
-
-/** Commands that require a non-undefined payload object. */
-const COMMANDS_REQUIRING_PAYLOAD = new Set<string>([
-    WebviewCmd.Login,
-    WebviewCmd.ViewCourseDetails,
-    WebviewCmd.OpenExercise,
-    WebviewCmd.OpenExerciseDetails,
-    WebviewCmd.OpenExamExerciseDetails,
-    WebviewCmd.ReloadCourseDetail,
-    WebviewCmd.AskIrisAboutCourse,
-    WebviewCmd.ReloadExerciseDetail,
-    WebviewCmd.CloneRepository,
-    WebviewCmd.SubmitExercise,
-    WebviewCmd.StartExercise,
-    WebviewCmd.StartPractice,
-    WebviewCmd.AskIrisAboutExercise,
-    WebviewCmd.OpenExam,
-    WebviewCmd.OpenExamInBrowser,
-    WebviewCmd.RefreshExam,
-    WebviewCmd.OpenInEditor,
-    WebviewCmd.CopyToClipboard,
-    WebviewCmd.OpenExternalLink,
-    WebviewCmd.OpenImagePreview,
-    WebviewCmd.SearchMarketplace,
-    WebviewCmd.OpenSettings,
-    WebviewCmd.SaveGitIdentity,
-    WebviewCmd.PerformHealthChecks,
-    WebviewCmd.SendMessage,
-    WebviewCmd.SelectChatContext,
-    WebviewCmd.SwitchSession,
-    WebviewCmd.MessageFeedback,
-    WebviewCmd.OpenFile,
-    WebviewCmd.GoToSourceError,
-    WebviewCmd.ViewArchivedCourse,
-    WebviewCmd.RenderPlantUmlInline,
-]);
 
 export function isExtensionMessage(msg: unknown): msg is ExtensionToWebviewMessage {
     return typeof msg === 'object' && msg !== null && 'type' in msg

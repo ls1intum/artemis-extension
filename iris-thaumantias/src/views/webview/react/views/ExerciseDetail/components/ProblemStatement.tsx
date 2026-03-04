@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useRef } from 'react';
 import { Container } from '../../../components/Container';
 import { Button } from '../../../components/Button';
+import { useExtensionMessage } from '../../../hooks/useExtensionMessage';
 import { processProblemStatement } from '../../../../../../utils/problemStatementProcessor';
 import { ExtensionMsg, postCommand } from '../../../../../../shared/messageContracts';
-import { isExtensionMessage } from '../../../../../../shared/messageContracts/typeGuards';
 import type { ProblemStatementProps } from '../types';
 import styles from './ProblemStatement.module.css';
 
@@ -56,7 +56,7 @@ export function ProblemStatement({
         return () => container.removeEventListener('click', handleClick);
     }, [processedHtml, vscodeApi]);
 
-    // PlantUML async rendering
+    // PlantUML async rendering: request rendering from extension
     useEffect(() => {
         const container = contentRef.current;
         if (!container || !vscodeApi) return;
@@ -64,7 +64,6 @@ export function ProblemStatement({
         const plantUmlElements = container.querySelectorAll('.plantuml-placeholder[data-plantuml]');
         if (plantUmlElements.length === 0) return;
 
-        // Request PlantUML rendering from extension
         plantUmlElements.forEach((element, index) => {
             const encoded = element.getAttribute('data-plantuml');
             if (!encoded) return;
@@ -74,40 +73,36 @@ export function ProblemStatement({
 
             postCommand(vscodeApi, 'renderPlantUmlInline', { plantUml, index });
         });
+    }, [processedHtml, vscodeApi]);
 
-        // Listen for rendered SVG responses
-        const handleMessage = (event: MessageEvent<unknown>) => {
-            if (!isExtensionMessage(event.data)) return;
-            const message = event.data;
+    // PlantUML async rendering: handle rendered SVG responses
+    useExtensionMessage((msg) => {
+        const container = contentRef.current;
+        if (!container) return;
 
-            if (message.type === ExtensionMsg.PlantUmlRendered && container) {
-                const placeholder = container.querySelector(
-                    `[data-plantuml-index="${message.index ?? ''}"]`
-                );
-                if (placeholder && placeholder.parentNode && typeof message.svg === 'string') {
-                    // Replace placeholder with new div — exactly like main
-                    const rendered = document.createElement('div');
-                    rendered.className = 'plantuml-rendered';
-                    rendered.innerHTML = message.svg;
-                    placeholder.parentNode.replaceChild(rendered, placeholder);
-                }
+        if (msg.type === ExtensionMsg.PlantUmlRendered) {
+            const placeholder = container.querySelector(
+                `[data-plantuml-index="${msg.index ?? ''}"]`
+            );
+            if (placeholder && placeholder.parentNode && typeof msg.svg === 'string') {
+                const rendered = document.createElement('div');
+                rendered.className = 'plantuml-rendered';
+                rendered.innerHTML = msg.svg;
+                placeholder.parentNode.replaceChild(rendered, placeholder);
             }
+        }
 
-            if (message.type === ExtensionMsg.PlantUmlError && container) {
-                const placeholder = container.querySelector(
-                    `[data-plantuml-index="${message.index ?? ''}"]`
-                );
-                if (placeholder && placeholder.parentNode) {
-                    const errorDiv = document.createElement('div');
-                    errorDiv.className = 'plantuml-error';
-                    errorDiv.textContent = `Error rendering PlantUML: ${message.error ?? 'Unknown error'}`;
-                    placeholder.parentNode.replaceChild(errorDiv, placeholder);
-                }
+        if (msg.type === ExtensionMsg.PlantUmlError) {
+            const placeholder = container.querySelector(
+                `[data-plantuml-index="${msg.index ?? ''}"]`
+            );
+            if (placeholder && placeholder.parentNode) {
+                const errorDiv = document.createElement('div');
+                errorDiv.className = 'plantuml-error';
+                errorDiv.textContent = `Error rendering PlantUML: ${msg.error ?? 'Unknown error'}`;
+                placeholder.parentNode.replaceChild(errorDiv, placeholder);
             }
-        };
-
-        window.addEventListener('message', handleMessage);
-        return () => window.removeEventListener('message', handleMessage);
+        }
     }, [processedHtml, vscodeApi]);
 
     return (

@@ -4,7 +4,7 @@ import { TextInput } from '../../components/TextInput';
 import { Button } from '../../components/Button';
 import { ServiceHealth, type ServiceInfo } from '../../components/ServiceHealth';
 import { useExtensionMessage } from '../../hooks/useExtensionMessage';
-import type { LoginViewProps, LoginPersistedState, LoginViewState, UserInfo } from './types';
+import type { LoginViewProps, LoginPersistedState, LoginViewState } from './types';
 import { ExtensionMsg, postCommand } from '../../../../../shared/messageContracts';
 import { formatServiceName } from '../../utils/formatServiceName';
 import styles from './LoginView.module.css';
@@ -39,9 +39,6 @@ export function LoginView({ vscodeApi }: LoginViewProps) {
 		'Connecting to Artemis...': 'Establishing secure connection',
 		'Checking authentication...': 'Please wait while we verify your credentials',
 	};
-
-	// Logged-in state
-	const [userInfo, setUserInfo] = useState<UserInfo | null>(null);
 
 	// Server URL for health checks
 	const [serverUrl, setServerUrl] = useState('');
@@ -124,14 +121,6 @@ export function LoginView({ vscodeApi }: LoginViewProps) {
 				break;
 			}
 
-			case ExtensionMsg.LogoutSuccess:
-				setViewState('form');
-				setUserInfo(null);
-				setStatusMessage('You have been logged out.');
-				setStatusType('info');
-				setShowHealthChecks(false);
-				break;
-
 			case ExtensionMsg.SetServerUrl: {
 				setServerUrl(msg.serverUrl ?? '');
 				break;
@@ -189,14 +178,6 @@ export function LoginView({ vscodeApi }: LoginViewProps) {
 
 	const handleOpenSettings = () => {
 		postCommand(vscodeApi, 'openSettings', { setting: 'Artemis' });
-	};
-
-	const handleLogout = () => {
-		postCommand(vscodeApi, 'logout');
-	};
-
-	const handleBrowseCourses = () => {
-		postCommand(vscodeApi, 'browseCourses');
 	};
 
 	return (
@@ -350,59 +331,6 @@ export function LoginView({ vscodeApi }: LoginViewProps) {
 				</div>
 			)}
 
-			{/* Logged-in state */}
-			{viewState === 'loggedIn' && userInfo && (
-				<Container
-					header={
-						<div>
-							<div style={{ fontSize: '18px', fontWeight: 600, marginBottom: '4px' }}>
-								You're already logged in!
-							</div>
-							<div style={{ fontSize: '13px', opacity: 0.8 }}>
-								We found an active Artemis session
-							</div>
-						</div>
-					}
-					variant="highlight"
-				>
-					<div style={{ marginBottom: '20px' }}>
-						<div style={{ marginBottom: '16px' }}>
-							<div style={{ color: 'var(--vscode-descriptionForeground)', fontSize: '12px', marginBottom: '4px' }}>
-								Username
-							</div>
-							<div style={{ color: 'var(--vscode-foreground)', fontSize: '14px', fontWeight: 500 }}>
-								{userInfo.username}
-							</div>
-						</div>
-						<div>
-							<div style={{ color: 'var(--vscode-descriptionForeground)', fontSize: '12px', marginBottom: '4px' }}>
-								Server URL
-							</div>
-							<div style={{ color: 'var(--vscode-foreground)', fontSize: '14px', fontWeight: 500 }}>
-								{userInfo.serverUrl}
-							</div>
-						</div>
-					</div>
-
-					<div style={{ marginBottom: '12px' }}>
-						<Button
-							variant="primary"
-							fullWidth
-							onClick={handleBrowseCourses}
-						>
-							Go to Dashboard
-						</Button>
-					</div>
-
-					<Button
-						variant="secondary"
-						fullWidth
-						onClick={handleLogout}
-					>
-						Logout from Artemis
-					</Button>
-				</Container>
-			)}
 		</div>
 	);
 }

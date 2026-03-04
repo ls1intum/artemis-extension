@@ -29,7 +29,6 @@ export const ExtensionMsg = {
     // Auth
     LoginSuccess: 'loginSuccess',
     LoginError: 'loginError',
-    LogoutSuccess: 'logoutSuccess',
     SetServerUrl: 'setServerUrl',
 
     // Loading
@@ -161,7 +160,6 @@ interface ExtensionMsgPayloads {
     // Auth
     loginSuccess: { username: string };
     loginError: { error: string };
-    logoutSuccess: undefined;
     setServerUrl: { serverUrl: string };
 
     // Loading

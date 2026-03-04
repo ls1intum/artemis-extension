@@ -3,6 +3,7 @@ import { useExamExerciseDetailStore } from '../../stores/useExamExerciseDetailSt
 import { useExerciseDetailStore } from '../../stores/useExerciseDetailStore';
 import { useWebSocketUpdates } from '../../hooks/useWebSocketUpdates';
 import { useExtensionMessage } from '../../hooks/useExtensionMessage';
+import { useExerciseStatusMessages } from '../../hooks/useExerciseStatusMessages';
 import { ExamTimer } from '../../components/ExamTimer/ExamTimer';
 import { TimerExpiredOverlay } from '../../components/TimerExpiredOverlay/TimerExpiredOverlay';
 import {
@@ -35,10 +36,6 @@ export function ExamExerciseDetailView({ vscodeApi }: ExamExerciseDetailViewProp
         error: exerciseError,
         setExerciseData,
         loadExerciseDetail,
-        setRepoStatus,
-        setSubmissionResult,
-        setClonedNotice,
-        setDirtyPagesStatus,
     } = useExerciseDetailStore();
 
     const [showExpiredOverlay, setShowExpiredOverlay] = useState(false);
@@ -57,22 +54,7 @@ export function ExamExerciseDetailView({ vscodeApi }: ExamExerciseDetailViewProp
     }, [vscodeApi, setExerciseData, setExamExerciseData]);
 
     // Listen for exercise-related extension messages (build progress, submissions, repo status, etc.)
-    useExtensionMessage((msg) => {
-        switch (msg.type) {
-            case ExtensionMsg.SubmissionResult:
-                setSubmissionResult({ success: msg.success, error: msg.error });
-                break;
-            case ExtensionMsg.UpdateRepoStatus:
-                setRepoStatus({ isConnected: msg.isConnected, hasChanges: msg.hasChanges, isGradedRepo: msg.isGradedRepo });
-                break;
-            case ExtensionMsg.ShowClonedRepoNotice:
-                setClonedNotice(msg.exerciseTitle);
-                break;
-            case ExtensionMsg.UpdateDirtyPagesStatus:
-                setDirtyPagesStatus({ hasDirtyPages: msg.hasDirtyPages, dirtyFileCount: msg.dirtyFileCount, autoSaveEnabled: msg.autoSaveEnabled });
-                break;
-        }
-    }, [vscodeApi, setSubmissionResult, setRepoStatus, setClonedNotice, setDirtyPagesStatus]);
+    useExerciseStatusMessages(vscodeApi);
 
     // Auto-retry on error
     useEffect(() => {

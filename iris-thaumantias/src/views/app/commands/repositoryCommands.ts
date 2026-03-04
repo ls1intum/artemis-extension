@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
 import type { CommandContext, CommandMap } from './types';
-import { getPayload, ExtensionMsg, WebviewCmd } from '../../../shared/messageContracts';
+import { getPayload, getOptionalPayload, ExtensionMsg, WebviewCmd } from '../../../shared/messageContracts';
 import type {
     WebviewToExtensionMessage,
     WebCmd,
@@ -782,7 +782,7 @@ export class RepositoryCommandModule {
 
     private handleOpenRepository = async (message: WebviewToExtensionMessage): Promise<void> => {
         try {
-            const repositoryUri = (message as WebCmd<'openRepository'>).payload?.repositoryUri;
+            const repositoryUri = getOptionalPayload<WebCmd<'openRepository'>>(message)?.repositoryUri;
 
             if (!repositoryUri) {
                 vscode.window.showWarningMessage('No repository URL available.');
