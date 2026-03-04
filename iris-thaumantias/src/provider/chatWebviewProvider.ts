@@ -39,8 +39,10 @@ export interface ExerciseContextChangeEvent {
 }
 
 export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.WebviewViewProvider, vscode.Disposable, IChatWebviewProvider {
+    // ── Static properties ──────────────────────────────────────────────
     public static readonly viewType = 'iris.chatView';
 
+    // ── Instance properties ────────────────────────────────────────────
     private readonly _contextStore: ContextStore;
     private _fileMonitorService: FileMonitorService;
     private _irisSessionManager?: IrisSessionManager;
@@ -57,6 +59,7 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
     private readonly _onDidChangeExerciseContext = new vscode.EventEmitter<ExerciseContextChangeEvent>();
     public readonly onDidChangeExerciseContext = this._onDidChangeExerciseContext.event;
 
+    // ── Constructor ────────────────────────────────────────────────────
     constructor(
         private readonly _extensionUri: vscode.Uri,
         private readonly _extensionContext: vscode.ExtensionContext,
@@ -130,6 +133,8 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
         });
     }
 
+    // ── Post-construction setters ──────────────────────────────────────
+
     /**
      * Set the telemetry manager for struggle detection integration
      */
@@ -140,30 +145,7 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
         logger.telemetry('Telemetry manager connected');
     }
 
-    /**
-     * Get current struggle context for Iris chat integration
-     */
-    public getStruggleContext(): StruggleContext | undefined {
-        return this._telemetryManager?.getStruggleContext();
-    }
-
-    /**
-     * Check if AI assistance is disabled due to .noai file
-     */
-    public isNoAiEnabled(): boolean {
-        return this._noAiDetectionService.isNoAiEnabled;
-    }
-
-    /**
-     * Post .noai status to the webview
-     */
-    private _postNoAiStatus(isNoAiDetected: boolean): void {
-        this._postMessageSafe({
-            type: ExtensionMsg.UpdateNoAiStatus,
-            isNoAiDetected,
-            noAiFilePath: this._noAiDetectionService.noAiFilePath
-        });
-    }
+    // ── Lifecycle ──────────────────────────────────────────────────────
 
     public dispose(): void {
         while (this._disposables.length > 0) {
@@ -172,7 +154,6 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
         }
         this._onDidChangeExerciseContext.dispose();
     }
-
 
     public resolveWebviewView(
         webviewView: vscode.WebviewView,
@@ -224,62 +205,20 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
         // Init data is sent when the webview signals ready (see _handleMessage / _sendInitData)
     }
 
-    // private _startWebSocketMonitoring(): void { ... } // Removed
+    // ── Rendering ──────────────────────────────────────────────────────
 
-    private _serializeSession(session: StoredSession) {
-        return {
-            id: session.id,
-            artemisSessionId: session.artemisSessionId,
-            preview: session.preview,
-            messageCount: session.messageCount,
-            createdAt: session.createdAt,
-            lastActivity: session.lastActivity,
-        };
-    }
-
-    private _serializeSnapshot(snapshot: ContextSnapshot): ExtMsg<'updateIrisState'>['state'] {
-        return {
-            context: snapshot.activeContext as ExtMsg<'updateIrisState'>['state']['context'],
-            activeSessionId: snapshot.activeSession?.id ?? null,
-            sessions: snapshot.sessions.map(session => this._serializeSession(session)),
-            recentExercises: snapshot.recentExercises,
-            recentCourses: snapshot.recentCourses,
-            allExercises: snapshot.allExercises,
-            allCourses: snapshot.allCourses,
-        };
-    }
-
-    private _postSnapshot(options: { showContextPicker?: boolean } = {}): void {
-        const snapshot = this._contextStore.snapshot();
-        const payload = this._serializeSnapshot(snapshot);
-
-        // Include developer mode flag
-        const config = vscode.workspace.getConfiguration('artemis');
-        const showDiagnostics = config.get<boolean>('developerMode', false);
-
-        this._postMessageSafe({
-            type: ExtensionMsg.UpdateIrisState,
-            state: payload,
-            showDiagnostics,
-        });
-
-        if (options.showContextPicker) {
-            this._postMessageSafe({
-                type: ExtensionMsg.ShowContextPicker,
-                state: payload,
-            });
+    public render(): void {
+        if (this._view) {
+            this._resetReadyState();
+            this._view.webview.html = getReactWebviewHtml(this._view.webview, this._extensionUri, 'irisChat');
         }
     }
 
-
-
-    private async _detectWorkspaceExercise(): Promise<void> {
-        await detectAndRegisterWorkspaceExercise(
-            this._artemisApiService,
-            this._contextStore,
-            () => this._postSnapshot(),
-        );
+    public refreshTheme(): void {
+        this.render();
     }
+
+    // ── Init data ──────────────────────────────────────────────────────
 
     private _sendInitData(): void {
         this._postSnapshot();
@@ -288,6 +227,138 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
         void this._fileMonitorService.triggerUpdate();
         this._postNoAiStatus(this._noAiDetectionService.isNoAiEnabled);
     }
+
+    // ── Public API ─────────────────────────────────────────────────────
+
+    /**
+     * Get current struggle context for Iris chat integration
+     */
+    public getStruggleContext(): StruggleContext | undefined {
+        return this._telemetryManager?.getStruggleContext();
+    }
+
+    /**
+     * Check if AI assistance is disabled due to .noai file
+     */
+    public isNoAiEnabled(): boolean {
+        return this._noAiDetectionService.isNoAiEnabled;
+    }
+
+    public clearAllSessions(): void {
+        logger.irisChat('Clearing all local Iris sessions...');
+
+        if (this._irisSessionManager) {
+            this._irisSessionManager.unsubscribe();
+        }
+
+        // Clear all sessions in the context store
+        this._contextStore.clearAllSessions();
+
+        // Clear chat UI
+        this._postMessageSafe({ type: ExtensionMsg.ClearChatMessages });
+
+        // Post updated snapshot
+        this._postSnapshot();
+
+        logger.irisChat('All Iris sessions cleared');
+    }
+
+    public updateDetectedExercise(
+        exerciseTitle: string,
+        exerciseId: number,
+        releaseDate?: string,
+        dueDate?: string,
+        shortName?: string,
+        courseId?: number,
+    ): void {
+        this._contextStore.registerExercise({
+            id: exerciseId,
+            title: exerciseTitle,
+            shortName,
+            courseId,
+            releaseDate,
+            dueDate,
+            source: 'system-default',
+            isWorkspace: /\\(Workspace\\)/i.test(exerciseTitle),
+        });
+        this._postSnapshot();
+    }
+
+    public removeDetectedExercise(exerciseId: number): void {
+        this._contextStore.removeExercise(exerciseId);
+        this._postSnapshot();
+    }
+
+    public updateDetectedCourse(courseTitle: string, courseId: number, shortName?: string): void {
+        this._contextStore.registerCourse({
+            id: courseId,
+            title: courseTitle,
+            shortName,
+            source: 'system-default',
+        });
+        this._postSnapshot();
+    }
+
+    public removeDetectedCourse(courseId: number): void {
+        this._contextStore.removeCourse(courseId);
+        this._postSnapshot();
+    }
+
+    public createNewSession(): void {
+        this._sessionManagementService.createNewSession();
+    }
+
+    public switchToSession(sessionId: string): void {
+        this._sessionManagementService.switchToSession(sessionId);
+    }
+
+    public getSelectedContext(): ActiveContext | null {
+        return this._chatContextManager.getSelectedContext();
+    }
+
+    public getSelectedExerciseId(): number | undefined {
+        return this._chatContextManager.getSelectedExerciseId();
+    }
+
+    public getSelectedExercise(): { title: string; id: number } | undefined {
+        return this._chatContextManager.getSelectedExercise();
+    }
+
+    public setCourseContext(
+        courseId: number,
+        courseTitle: string,
+        reason: ChatContextReason = 'user-selected',
+        shortName?: string,
+    ): void {
+        this._chatContextManager.setCourseContext(courseId, courseTitle, reason, shortName);
+    }
+
+    public setExerciseContext(
+        exerciseId: number,
+        exerciseTitle: string,
+        reason: ChatContextReason = 'user-selected',
+        shortName?: string,
+        releaseDate?: string,
+        dueDate?: string,
+        courseId?: number,
+    ): void {
+        this._chatContextManager.setExerciseContext(exerciseId, exerciseTitle, reason, shortName, releaseDate, dueDate, courseId);
+
+        // Fire exercise context change event for TelemetryManager
+        const previousExerciseId = this._currentExerciseId;
+        this._currentExerciseId = exerciseId;
+        this._onDidChangeExerciseContext.fire({
+            exerciseId,
+            previousExerciseId,
+            exerciseRoot: vscode.workspace.workspaceFolders?.[0]?.uri,
+        });
+    }
+
+    public clearContext(): void {
+        this._chatContextManager.clearContext();
+    }
+
+    // ── Private: Message handling ──────────────────────────────────────
 
     private _handleMessage(message: unknown): void {
         if (!isWebviewMessage(message)) {
@@ -409,6 +480,72 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
         }
     }
 
+    // ── Private: Helpers ───────────────────────────────────────────────
+
+    /**
+     * Post .noai status to the webview
+     */
+    private _postNoAiStatus(isNoAiDetected: boolean): void {
+        this._postMessageSafe({
+            type: ExtensionMsg.UpdateNoAiStatus,
+            isNoAiDetected,
+            noAiFilePath: this._noAiDetectionService.noAiFilePath
+        });
+    }
+
+    private _serializeSession(session: StoredSession) {
+        return {
+            id: session.id,
+            artemisSessionId: session.artemisSessionId,
+            preview: session.preview,
+            messageCount: session.messageCount,
+            createdAt: session.createdAt,
+            lastActivity: session.lastActivity,
+        };
+    }
+
+    private _serializeSnapshot(snapshot: ContextSnapshot): ExtMsg<'updateIrisState'>['state'] {
+        return {
+            context: snapshot.activeContext as ExtMsg<'updateIrisState'>['state']['context'],
+            activeSessionId: snapshot.activeSession?.id ?? null,
+            sessions: snapshot.sessions.map(session => this._serializeSession(session)),
+            recentExercises: snapshot.recentExercises,
+            recentCourses: snapshot.recentCourses,
+            allExercises: snapshot.allExercises,
+            allCourses: snapshot.allCourses,
+        };
+    }
+
+    private _postSnapshot(options: { showContextPicker?: boolean } = {}): void {
+        const snapshot = this._contextStore.snapshot();
+        const payload = this._serializeSnapshot(snapshot);
+
+        // Include developer mode flag
+        const config = vscode.workspace.getConfiguration('artemis');
+        const showDiagnostics = config.get<boolean>('developerMode', false);
+
+        this._postMessageSafe({
+            type: ExtensionMsg.UpdateIrisState,
+            state: payload,
+            showDiagnostics,
+        });
+
+        if (options.showContextPicker) {
+            this._postMessageSafe({
+                type: ExtensionMsg.ShowContextPicker,
+                state: payload,
+            });
+        }
+    }
+
+    private async _detectWorkspaceExercise(): Promise<void> {
+        await detectAndRegisterWorkspaceExercise(
+            this._artemisApiService,
+            this._contextStore,
+            () => this._postSnapshot(),
+        );
+    }
+
     private _handleContextSelection(contextType: ChatContextType, itemId: number, itemName: string, itemShortName?: string): void {
         this._chatContextManager.handleContextSelection(contextType, itemId, itemName, itemShortName);
     }
@@ -444,8 +581,6 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
         });
         await this._chatSessionService.loadAllSessionsForContext();
     }
-
-
 
     private _handleSwitchContext(): void {
         this._chatContextManager.handleSwitchContext();
@@ -500,9 +635,6 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
             );
         }
     }
-
-
-
 
     private async _handleChatMessage(message: { text?: string }): Promise<void> {
         // Check if .noai file is detected first
@@ -570,136 +702,11 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
         }
     }
 
-    public clearAllSessions(): void {
-        logger.irisChat('Clearing all local Iris sessions...');
-
-        if (this._irisSessionManager) {
-            this._irisSessionManager.unsubscribe();
-        }
-
-        // Clear all sessions in the context store
-        this._contextStore.clearAllSessions();
-
-        // Clear chat UI
-        this._postMessageSafe({ type: ExtensionMsg.ClearChatMessages });
-
-        // Post updated snapshot
-        this._postSnapshot();
-
-        logger.irisChat('All Iris sessions cleared');
-    }
-
     private async _handleReconnectWebSocket(): Promise<void> {
         await this._websocketMessageHandler.handleReconnectWebSocket();
     }
 
     private async _handleResetSessions(): Promise<void> {
         await this._sessionManagementService.handleResetSessions();
-    }
-
-    public render(): void {
-        if (this._view) {
-            this._resetReadyState();
-            this._view.webview.html = getReactWebviewHtml(this._view.webview, this._extensionUri, 'irisChat');
-        }
-    }
-
-    public refreshTheme(): void {
-        this.render();
-    }
-
-    public updateDetectedExercise(
-        exerciseTitle: string,
-        exerciseId: number,
-        releaseDate?: string,
-        dueDate?: string,
-        shortName?: string,
-        courseId?: number,
-    ): void {
-        this._contextStore.registerExercise({
-            id: exerciseId,
-            title: exerciseTitle,
-            shortName,
-            courseId,
-            releaseDate,
-            dueDate,
-            source: 'system-default',
-            isWorkspace: /\\(Workspace\\)/i.test(exerciseTitle),
-        });
-        this._postSnapshot();
-    }
-
-    public removeDetectedExercise(exerciseId: number): void {
-        this._contextStore.removeExercise(exerciseId);
-        this._postSnapshot();
-    }
-
-    public updateDetectedCourse(courseTitle: string, courseId: number, shortName?: string): void {
-        this._contextStore.registerCourse({
-            id: courseId,
-            title: courseTitle,
-            shortName,
-            source: 'system-default',
-        });
-        this._postSnapshot();
-    }
-
-    public removeDetectedCourse(courseId: number): void {
-        this._contextStore.removeCourse(courseId);
-        this._postSnapshot();
-    }
-
-    public createNewSession(): void {
-        this._sessionManagementService.createNewSession();
-    }
-
-    public switchToSession(sessionId: string): void {
-        this._sessionManagementService.switchToSession(sessionId);
-    }
-
-    public getSelectedContext(): ActiveContext | null {
-        return this._chatContextManager.getSelectedContext();
-    }
-
-    public getSelectedExerciseId(): number | undefined {
-        return this._chatContextManager.getSelectedExerciseId();
-    }
-
-    public getSelectedExercise(): { title: string; id: number } | undefined {
-        return this._chatContextManager.getSelectedExercise();
-    }
-
-    public setCourseContext(
-        courseId: number,
-        courseTitle: string,
-        reason: ChatContextReason = 'user-selected',
-        shortName?: string,
-    ): void {
-        this._chatContextManager.setCourseContext(courseId, courseTitle, reason, shortName);
-    }
-
-    public setExerciseContext(
-        exerciseId: number,
-        exerciseTitle: string,
-        reason: ChatContextReason = 'user-selected',
-        shortName?: string,
-        releaseDate?: string,
-        dueDate?: string,
-        courseId?: number,
-    ): void {
-        this._chatContextManager.setExerciseContext(exerciseId, exerciseTitle, reason, shortName, releaseDate, dueDate, courseId);
-
-        // Fire exercise context change event for TelemetryManager
-        const previousExerciseId = this._currentExerciseId;
-        this._currentExerciseId = exerciseId;
-        this._onDidChangeExerciseContext.fire({
-            exerciseId,
-            previousExerciseId,
-            exerciseRoot: vscode.workspace.workspaceFolders?.[0]?.uri,
-        });
-    }
-
-    public clearContext(): void {
-        this._chatContextManager.clearContext();
     }
 }

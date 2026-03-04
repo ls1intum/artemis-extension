@@ -35,8 +35,10 @@ import { isWebviewMessage } from '../shared/messageContracts/typeGuards';
  * render-data preparation into a dedicated ViewDataService.
  */
 export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscode.WebviewViewProvider, WebViewActionHandler, IArtemisWebviewProvider, vscode.Disposable {
+    // ── Static properties ──────────────────────────────────────────────
     public static readonly viewType = CONFIG.WEBVIEW.VIEW_TYPE;
 
+    // ── Instance properties ────────────────────────────────────────────
     private _appStateManager: AppStateManager;
     private _messageHandler: WebViewMessageHandler;
     private _viewRouter!: ViewRouter;
@@ -51,6 +53,7 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
     private _buildCodeLens?: BuildErrorCodeLensProvider;
     private _telemetryManager?: TelemetryManager;
 
+    // ── Constructor ────────────────────────────────────────────────────
     constructor(
         private readonly _extensionUri: vscode.Uri,
         private readonly _extensionContext: vscode.ExtensionContext,
@@ -96,6 +99,8 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
         );
     }
 
+    // ── Post-construction setters ──────────────────────────────────────
+
     /**
      * Set the CodeLens provider
      */
@@ -111,16 +116,6 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
             this._websocketService,
             this._extensionContext
         );
-    }
-
-    public dispose(): void {
-        if (this._websocketService && this._websocketHandler) {
-            this._websocketService.unregisterMessageHandler(this._websocketHandler);
-        }
-        while (this._disposables.length > 0) {
-            const d = this._disposables.pop();
-            d?.dispose();
-        }
     }
 
     /**
@@ -153,93 +148,15 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
         this._websocketService.registerMessageHandler(this._websocketHandler);
     }
 
-    /**
-     * Helper method to render the webview HTML
-     */
-    public async render(): Promise<void> {
-        if (this._view) {
-            this._resetReadyState();
-            this._view.webview.html = await this._viewRouter.getHtml();
+    // ── Lifecycle ──────────────────────────────────────────────────────
+
+    public dispose(): void {
+        if (this._websocketService && this._websocketHandler) {
+            this._websocketService.unregisterMessageHandler(this._websocketHandler);
         }
-    }
-
-    /**
-     * Send current view data to the webview without re-rendering.
-     * Called on ready signal, visibility change, and after navigation state updates.
-     */
-    public sendInitData(): void {
-        this._viewInitDataService.sendInitData();
-    }
-
-    // WebViewActionHandler interface implementation
-    public async openJsonInEditor(data: Record<string, unknown>): Promise<void> {
-        await this._viewActionService.openJsonInEditor(data);
-    }
-
-    public async openExerciseDetails(exerciseId: number): Promise<void> {
-        const didUpdate = await this._viewActionService.openExerciseDetails(exerciseId);
-
-        if (didUpdate) {
-            this.render();
-
-            // Ensure WebSocket is connected for real-time updates
-            if (this._websocketService && !this._websocketService.isConnected()) {
-                logger.websocket('Exercise opened - ensuring WebSocket connection for real-time updates...');
-                try {
-                    await this._websocketService.connect();
-                } catch (error) {
-                    logger.websocketWarn('Failed to connect WebSocket', error);
-                }
-            }
-
-            // Notify Iris chat about the detected exercise
-            const exerciseData = this._appStateManager.currentExerciseData;
-            if (exerciseData?.exercise) {
-                const exercise = exerciseData.exercise;
-                const exerciseTitle = exercise.title || 'Untitled';
-                const exerciseIdFromData = exercise.id || exerciseId;
-
-                // Register this exercise in the registry with its repository URL
-                const participations = exercise.studentParticipations || [];
-                if (participations.length > 0 && participations[0]?.repositoryUri) {
-                    const registry = ExerciseRegistry.getInstance();
-                    registry.registerExercise(
-                        exerciseIdFromData,
-                        exerciseTitle,
-                        participations[0].repositoryUri,
-                        exercise.shortName || '',
-                        exercise.course?.id
-                    );
-                    logger.exercise(`Registered individual exercise: ${exerciseTitle}`);
-                }
-
-                const chatProvider = ProviderRegistry.getInstance().getChatWebviewProvider();
-                if (chatProvider && typeof chatProvider.updateDetectedExercise === 'function') {
-                    // Extract date fields from exercise
-                    const releaseDate = exercise.releaseDate || exercise.startDate;
-                    const dueDate = exercise.dueDate;
-                    const shortName = exercise.shortName;
-                    chatProvider.updateDetectedExercise(exerciseTitle, exerciseIdFromData, releaseDate, dueDate, shortName || '', exercise.course?.id);
-                }
-            }
-        }
-    }
-
-    public async openExamExerciseDetails(
-        exercise: ExerciseDetail,
-        exerciseIndex: number,
-        courseId: number,
-        examId: number
-    ): Promise<void> {
-        const didUpdate = await this._viewActionService.openExamExerciseDetails(
-            exercise,
-            exerciseIndex,
-            courseId,
-            examId
-        );
-
-        if (didUpdate) {
-            this.render();
+        while (this._disposables.length > 0) {
+            const d = this._disposables.pop();
+            d?.dispose();
         }
     }
 
@@ -313,14 +230,108 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
         this._disposables.push(configListener);
     }
 
-    public notifyLogout(): void {
-        this._postMessageSafe({ type: ExtensionMsg.LogoutSuccess });
+    // ── Rendering ──────────────────────────────────────────────────────
+
+    /**
+     * Helper method to render the webview HTML
+     */
+    public async render(): Promise<void> {
+        if (this._view) {
+            this._resetReadyState();
+            this._view.webview.html = await this._viewRouter.getHtml();
+        }
     }
 
     public refreshTheme(): void {
-        if (this._view) {
+        this.render();
+    }
+
+    // ── Init data ──────────────────────────────────────────────────────
+
+    /**
+     * Send current view data to the webview without re-rendering.
+     * Called on ready signal, visibility change, and after navigation state updates.
+     */
+    public sendInitData(): void {
+        this._viewInitDataService.sendInitData();
+    }
+
+    // ── Public API ─────────────────────────────────────────────────────
+
+    // WebViewActionHandler interface implementation
+    public async openJsonInEditor(data: Record<string, unknown>): Promise<void> {
+        await this._viewActionService.openJsonInEditor(data);
+    }
+
+    public async openExerciseDetails(exerciseId: number): Promise<void> {
+        const didUpdate = await this._viewActionService.openExerciseDetails(exerciseId);
+
+        if (didUpdate) {
+            this.render();
+
+            // Ensure WebSocket is connected for real-time updates
+            if (this._websocketService && !this._websocketService.isConnected()) {
+                logger.websocket('Exercise opened - ensuring WebSocket connection for real-time updates...');
+                try {
+                    await this._websocketService.connect();
+                } catch (error) {
+                    logger.websocketWarn('Failed to connect WebSocket', error);
+                }
+            }
+
+            // Notify Iris chat about the detected exercise
+            const exerciseData = this._appStateManager.currentExerciseData;
+            if (exerciseData?.exercise) {
+                const exercise = exerciseData.exercise;
+                const exerciseTitle = exercise.title || 'Untitled';
+                const exerciseIdFromData = exercise.id || exerciseId;
+
+                // Register this exercise in the registry with its repository URL
+                const participations = exercise.studentParticipations || [];
+                if (participations.length > 0 && participations[0]?.repositoryUri) {
+                    const registry = ExerciseRegistry.getInstance();
+                    registry.registerExercise(
+                        exerciseIdFromData,
+                        exerciseTitle,
+                        participations[0].repositoryUri,
+                        exercise.shortName || '',
+                        exercise.course?.id
+                    );
+                    logger.exercise(`Registered individual exercise: ${exerciseTitle}`);
+                }
+
+                const chatProvider = ProviderRegistry.getInstance().getChatWebviewProvider();
+                if (chatProvider && typeof chatProvider.updateDetectedExercise === 'function') {
+                    // Extract date fields from exercise
+                    const releaseDate = exercise.releaseDate || exercise.startDate;
+                    const dueDate = exercise.dueDate;
+                    const shortName = exercise.shortName;
+                    chatProvider.updateDetectedExercise(exerciseTitle, exerciseIdFromData, releaseDate, dueDate, shortName || '', exercise.course?.id);
+                }
+            }
+        }
+    }
+
+    public async openExamExerciseDetails(
+        exercise: ExerciseDetail,
+        exerciseIndex: number,
+        courseId: number,
+        examId: number
+    ): Promise<void> {
+        const didUpdate = await this._viewActionService.openExamExerciseDetails(
+            exercise,
+            exerciseIndex,
+            courseId,
+            examId
+        );
+
+        if (didUpdate) {
             this.render();
         }
+    }
+
+    public notifyLogout(): void {
+        this._postMessageSafe({ type: ExtensionMsg.LogoutSuccess });
     }
 
     public async showDashboard(userInfo: UserInfo): Promise<void> {
@@ -466,17 +477,7 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
         this._fullscreenPanelManager.openCourseFullscreen(courseData as CourseDetailPayload);
     }
 
-    private postServerUrl(serverUrl?: string): void {
-        this._postMessageSafe({
-            type: ExtensionMsg.SetServerUrl,
-            serverUrl: serverUrl ?? this._getServerUrl()
-        });
-    }
-
-    private hideLoadingAndSendServerUrl(): void {
-        this._postMessageSafe({ type: ExtensionMsg.HideLoading });
-        this.postServerUrl();
-    }
+    // ── Private: Message handling ──────────────────────────────────────
 
     private _handleMessage(message: unknown): void {
         if (!isWebviewMessage(message)) {
@@ -514,6 +515,20 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
 
         // Forward commands to the message handler (preserving type/command/payload)
         this._messageHandler.handleMessage(typedMessage);
+    }
+
+    // ── Private: Helpers ───────────────────────────────────────────────
+
+    private postServerUrl(serverUrl?: string): void {
+        this._postMessageSafe({
+            type: ExtensionMsg.SetServerUrl,
+            serverUrl: serverUrl ?? this._getServerUrl()
+        });
+    }
+
+    private hideLoadingAndSendServerUrl(): void {
+        this._postMessageSafe({ type: ExtensionMsg.HideLoading });
+        this.postServerUrl();
     }
 
     private _getServerUrl(): string {
