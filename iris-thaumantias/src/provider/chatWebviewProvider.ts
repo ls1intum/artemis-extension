@@ -402,7 +402,7 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
             case WebviewCmd.SelectChatContext: {
                 const { context, itemId, itemName, itemShortName } = getPayload<WebCmd<'selectChatContext'>>(typedMessage);
                 if (context && typeof itemId === 'number' && typeof itemName === 'string') {
-                    this._handleContextSelection(context as ChatContextType, itemId, itemName, itemShortName);
+                    this._handleContextSelection(context, itemId, itemName, itemShortName);
                 }
                 break;
             }
@@ -416,9 +416,6 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
                 }
                 break;
             }
-            case WebviewCmd.SwitchContext:
-                this._handleSwitchContext();
-                break;
             case WebviewCmd.SwitchToWorkspaceContext:
                 this._handleSwitchToWorkspaceContext();
                 break;
@@ -579,11 +576,6 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
             contextId: activeContext.id
         });
         await this._chatSessionService.loadAllSessionsForContext();
-    }
-
-    private _handleSwitchContext(): void {
-        this._chatContextManager.handleSwitchContext();
-        this._postSnapshot({ showContextPicker: true });
     }
 
     private async _handleOpenFile(filePath: string): Promise<void> {

@@ -3,6 +3,7 @@
  */
 
 import type { CourseDashboardCourse, ExerciseDetail } from '../../types/apiResponses';
+import type { ChatContextType } from '../../types/context';
 
 /** Non-command webview message types (ready, requestInit, updatePanelTitle, error) */
 export const WebviewMsgType = {
@@ -88,7 +89,6 @@ export const WebviewCmd = {
     SwitchSession: 'switchSession',
     CreateNewSession: 'createNewSession',
     SwitchToWorkspaceContext: 'switchToWorkspaceContext',
-    SwitchContext: 'switchContext',
     ResetChatSessions: 'resetChatSessions',
     ReconnectWebSocket: 'reconnectWebSocket',
     MessageFeedback: 'messageFeedback',
@@ -209,11 +209,10 @@ interface WebviewCmdPayloads {
 
     // Iris Chat
     sendMessage: { text: string };
-    selectChatContext: { context: string; itemId: number; itemName: string; itemShortName?: string };
+    selectChatContext: { context: ChatContextType; itemId: number; itemName: string; itemShortName?: string };
     switchSession: { sessionId: string };
     createNewSession: undefined;
     switchToWorkspaceContext: undefined;
-    switchContext: undefined;
     resetChatSessions: undefined;
     reconnectWebSocket: undefined;
     messageFeedback: { sessionId: number; messageId: number | string; feedback: 'positive' | 'negative' };

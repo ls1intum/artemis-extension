@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import clsx from 'clsx';
 import type { ChatContext, ChatSession, ContextItem } from '../types';
+import type { ChatContextType } from '../../../../../../types/context';
 import styles from './ContextSelector.module.css';
 
 interface ContextSelectorProps {
@@ -11,7 +12,7 @@ interface ContextSelectorProps {
     recentCourses: ContextItem[];
     allExercises: ContextItem[];
     allCourses: ContextItem[];
-    onSelectContext: (type: string, id: number, title: string, shortName?: string) => void;
+    onSelectContext: (type: ChatContextType, id: number, title: string, shortName?: string) => void;
     onSelectSession: (sessionId: string) => void;
     onCreateNewSession: () => void;
     onSwitchToWorkspace: () => void;
@@ -65,7 +66,7 @@ export function ContextSelector({
     };
 
     const handleSelectContext = (
-        type: string,
+        type: ChatContextType,
         id: number,
         title: string,
         shortName?: string

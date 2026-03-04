@@ -136,7 +136,7 @@ export class ChatMessageService {
     private _displayUserMessage(text: string): void {
         logger.websocket('💬 Sending user message to webview');
         this._postMessage({
-            type: 'addMessage',
+            type: ExtensionMsg.AddMessage,
             message: {
                 role: 'user',
                 content: text,

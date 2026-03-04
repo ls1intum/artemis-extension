@@ -42,14 +42,29 @@ export abstract class BaseWebviewProvider {
         this._pendingMessages = [];
     }
 
+    /** Hard cap on pending messages to prevent unbounded growth. */
+    private static readonly MAX_PENDING = 200;
+
     /**
      * Safely post a message to the webview, queuing it if not ready yet.
+     * Deduplicates by message type (keeps latest) and enforces a hard cap.
      */
     protected _postMessageSafe(message: ExtensionToWebviewMessage): void {
         if (this._webviewReady && this._view) {
             this._view.webview.postMessage(message);
         } else {
-            this._pendingMessages.push(message);
+            // Deduplicate: replace existing message with same type
+            const idx = this._pendingMessages.findIndex(m => m.type === message.type);
+            if (idx !== -1) {
+                this._pendingMessages[idx] = message;
+            } else {
+                this._pendingMessages.push(message);
+            }
+
+            // Safety net: drop oldest if over hard cap
+            while (this._pendingMessages.length > BaseWebviewProvider.MAX_PENDING) {
+                this._pendingMessages.shift();
+            }
         }
     }
 
