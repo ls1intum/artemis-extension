@@ -45,8 +45,7 @@
 
 /* Workspace Exercise Section */
 .workspaceExerciseSection {
-    background: var(--vscode-inputValidation-infoBackground);
-    border: 1px solid var(--vscode-inputValidation-infoBorder);
+    /* Subtle styling, matching other sections */
 }
 
 .workspaceExerciseItem {

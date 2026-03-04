@@ -65,9 +65,25 @@ export class ViewInitDataService {
             };
         });
 
-        this._postMessage({
-            type: ExtensionMsg.DashboardInit,
-            courses: recentCourseNodes, workspaceExercise: undefined,
+        // Collect all exercises across courses to detect the workspace exercise
+        const allExercises = courses.flatMap((courseItem: CourseDashboardEntry) => {
+            const course = courseItem.course || courseItem;
+            return course.exercises || [];
+        });
+
+        detectWorkspaceExercise(allExercises as ExerciseSource[]).then((detectedExercise) => {
+            this._postMessage({
+                type: ExtensionMsg.DashboardInit,
+                courses: recentCourseNodes,
+                workspaceExercise: detectedExercise ? { id: detectedExercise.id, title: detectedExercise.title } : undefined,
+            });
+        }).catch((error) => {
+            logger.error('Failed to detect workspace exercise for dashboard', LogCategory.VIEW, error);
+            this._postMessage({
+                type: ExtensionMsg.DashboardInit,
+                courses: recentCourseNodes,
+                workspaceExercise: undefined,
+            });
         });
     }
 
