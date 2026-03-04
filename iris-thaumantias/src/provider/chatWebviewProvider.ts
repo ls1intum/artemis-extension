@@ -8,8 +8,8 @@ import {
 import type { IChatWebviewProvider } from '../types/IChatWebviewProvider';
 import { BaseWebviewProvider } from './baseWebviewProvider';
 import { getReactWebviewHtml } from '../utils/webviewHelpers';
-import { ExtensionMsg, WebviewMsgType } from '../shared/messageContracts';
-import type { ExtMsg, WebviewToExtensionMessage } from '../shared/messageContracts';
+import { ExtensionMsg, WebviewMsgType, WebviewCmd, getPayload } from '../shared/messageContracts';
+import type { ExtMsg, WebCmd, WebviewToExtensionMessage } from '../shared/messageContracts';
 import { isWebviewMessage } from '../shared/messageContracts/typeGuards';
 import { logger, LogCategory } from '../services/loggingService';
 import { ArtemisApiService } from '../api';
@@ -390,84 +390,87 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
         // Only command messages have command/payload properties
         if (typedMessage.type !== 'command') return;
 
-        // Extract payload — React sends { type: 'command', command: '...', payload: { ... } }
-        const payload = (typedMessage as { payload?: Record<string, unknown> }).payload ?? {};
-
         switch (typedMessage.command) {
-            case 'sendMessage':
-                void this._handleChatMessage({ text: payload.text as string | undefined }).catch(err => {
+            case WebviewCmd.SendMessage: {
+                const { text } = getPayload<WebCmd<'sendMessage'>>(typedMessage);
+                void this._handleChatMessage({ text }).catch(err => {
                     logger.error('Error handling chat message', LogCategory.IRIS_CHAT, err);
                     vscode.window.showErrorMessage('Failed to send message. Please try again.');
                 });
                 break;
-            case 'selectChatContext': {
-                const context = payload.context as ChatContextType | undefined;
-                const itemId = payload.itemId as number | undefined;
-                const itemName = payload.itemName as string | undefined;
-                const itemShortName = payload.itemShortName as string | undefined;
+            }
+            case WebviewCmd.SelectChatContext: {
+                const { context, itemId, itemName, itemShortName } = getPayload<WebCmd<'selectChatContext'>>(typedMessage);
                 if (context && typeof itemId === 'number' && typeof itemName === 'string') {
-                    this._handleContextSelection(context, itemId, itemName, itemShortName);
+                    this._handleContextSelection(context as ChatContextType, itemId, itemName, itemShortName);
                 }
                 break;
             }
-            case 'createNewSession':
+            case WebviewCmd.CreateNewSession:
                 this.createNewSession();
                 break;
-            case 'switchSession':
-                if (typeof payload.sessionId === 'string') {
-                    this.switchToSession(payload.sessionId);
+            case WebviewCmd.SwitchSession: {
+                const { sessionId } = getPayload<WebCmd<'switchSession'>>(typedMessage);
+                if (typeof sessionId === 'string') {
+                    this.switchToSession(sessionId);
                 }
                 break;
-            case 'switchContext':
+            }
+            case WebviewCmd.SwitchContext:
                 this._handleSwitchContext();
                 break;
-            case 'switchToWorkspaceContext':
+            case WebviewCmd.SwitchToWorkspaceContext:
                 this._handleSwitchToWorkspaceContext();
                 break;
-            case 'openDiagnostics':
+            case WebviewCmd.OpenDiagnostics:
                 this._chatDiagnosticsService.handleOpenDiagnostics().catch(err => {
                     logger.error('Error opening diagnostics', LogCategory.IRIS_CHAT, err);
                     vscode.window.showErrorMessage('Failed to open diagnostics report');
                 });
                 break;
-            case 'debugSessions':
+            case WebviewCmd.DebugSessions:
                 this._chatDiagnosticsService.handleDebugSessions().catch((err: unknown) => {
                     logger.error('Error debugging sessions', LogCategory.IRIS_CHAT, err);
                     vscode.window.showErrorMessage('Failed to fetch debug session data');
                 });
                 break;
-            case 'resetChatSessions':
+            case WebviewCmd.ResetChatSessions:
                 this._handleResetSessions();
                 break;
-            case 'reconnectWebSocket':
+            case WebviewCmd.ReconnectWebSocket:
                 this._handleReconnectWebSocket();
                 break;
-            case 'messageFeedback': {
-                const msgId = payload.messageId;
+            case WebviewCmd.MessageFeedback: {
+                const { sessionId, messageId, feedback } = getPayload<WebCmd<'messageFeedback'>>(typedMessage);
+                const parsedMsgId = typeof messageId === 'number'
+                    ? messageId
+                    : typeof messageId === 'string'
+                        ? (Number.isNaN(Number(messageId)) ? undefined : parseInt(messageId as string, 10))
+                        : undefined;
                 void this._handleMessageFeedback({
-                    sessionId: typeof payload.sessionId === 'number' ? payload.sessionId : undefined,
-                    messageId: typeof msgId === 'number'
-                        ? msgId
-                        : typeof msgId === 'string'
-                            ? (Number.isNaN(Number(msgId)) ? undefined : parseInt(msgId, 10))
-                            : undefined,
-                    feedback: payload.feedback as string | undefined
+                    sessionId: typeof sessionId === 'number' ? sessionId : undefined,
+                    messageId: parsedMsgId,
+                    feedback: feedback as string | undefined
                 }).catch(err => {
                     logger.error('Error handling message feedback', LogCategory.IRIS_CHAT, err);
                 });
                 break;
             }
-            case 'openSettings':
-                if (typeof payload.setting === 'string') {
-                    vscode.commands.executeCommand('workbench.action.openSettings', payload.setting);
+            case WebviewCmd.OpenSettings: {
+                const { setting } = getPayload<WebCmd<'openSettings'>>(typedMessage);
+                if (typeof setting === 'string') {
+                    vscode.commands.executeCommand('workbench.action.openSettings', setting);
                 }
                 break;
-            case 'openFile':
-                if (typeof payload.filePath === 'string') {
-                    void this._handleOpenFile(payload.filePath);
+            }
+            case WebviewCmd.OpenFile: {
+                const { filePath } = getPayload<WebCmd<'openFile'>>(typedMessage);
+                if (typeof filePath === 'string') {
+                    void this._handleOpenFile(filePath);
                 }
                 break;
-            case 'openHelpPopup':
+            }
+            case WebviewCmd.OpenHelpPopup:
                 this._handleOpenHelpPopup();
                 break;
             default:
