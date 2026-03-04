@@ -8,7 +8,7 @@ import type {
     WebCmd,
 } from '../../../shared/messageContracts';
 import { VSCODE_CONFIG, checkWorkspaceFiles, extractErrorMessage } from '../../../utils';
-import { detectWorkspaceExercise, normalizeRepositoryUrl, type ExerciseSource, GitService } from '../../../services';
+import { normalizeRepositoryUrl, GitService } from '../../../services';
 import { logger } from '../../../services/loggingService';
 
 const GIT_IDENTITY_NOT_CONFIGURED = 'GIT_IDENTITY_NOT_CONFIGURED';
@@ -86,7 +86,6 @@ export class RepositoryCommandModule {
 
     public getHandlers(): CommandMap {
         return {
-            [WebviewCmd.DetectWorkspaceExercise]: this.handleDetectWorkspaceExercise,
             [WebviewCmd.CheckRepositoryStatus]: this.handleCheckRepositoryStatus,
             [WebviewCmd.CloneRepository]: this.handleCloneRepository,
             [WebviewCmd.SubmitExercise]: this.handleSubmitExercise,
@@ -109,55 +108,6 @@ export class RepositoryCommandModule {
             return false;
         }
         return true;
-    }
-
-    private handleDetectWorkspaceExercise = async (_message: WebviewToExtensionMessage): Promise<void> => {
-        try {
-            const exercises = this.flattenExercisesFromCourses();
-            const detected = await detectWorkspaceExercise(exercises);
-
-            this.context.sendMessage({
-                type: ExtensionMsg.WorkspaceExerciseDetected,
-                exerciseId: detected?.id ?? null,
-                exerciseTitle: detected?.title ?? null
-            });
-        } catch (error: unknown) {
-            logger.submissionWarn('Error detecting workspace exercise:', error);
-            this.context.sendMessage({
-                type: ExtensionMsg.WorkspaceExerciseDetected,
-                exerciseId: null,
-                exerciseTitle: null
-            });
-        }
-    };
-
-    /**
-     * Flattens all exercises from coursesData into a single array.
-     */
-    private flattenExercisesFromCourses(): ExerciseSource[] {
-        const coursesData = this.context.appStateManager.coursesData;
-        if (!coursesData?.courses) {
-            return [];
-        }
-
-        const exercises: ExerciseSource[] = [];
-        for (const courseData of coursesData.courses) {
-            const courseExercises = courseData?.course?.exercises || courseData?.exercises || [];
-            // Map ExerciseDetail to ExerciseSource, filtering out invalid exercises
-            for (const ex of courseExercises) {
-                if (typeof ex.id === 'number' && ex.title) {
-                    exercises.push({
-                        id: ex.id,
-                        title: ex.title,
-                        shortName: ex.shortName,
-                        courseId: ex.course?.id,
-                        repositoryUri: undefined,
-                        studentParticipations: ex.studentParticipations
-                    });
-                }
-            }
-        }
-        return exercises;
     }
 
     private handleCheckRepositoryStatus = async (_message: WebviewToExtensionMessage): Promise<void> => {

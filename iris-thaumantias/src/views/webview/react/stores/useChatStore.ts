@@ -88,11 +88,7 @@ export const useChatStore = create<ChatState>()(
                         id: state.context.id,
                         title: state.context.title,
                         shortName: state.context.shortName,
-                        // courseId is not on the message contract context - it needs to be looked up from recentExercises/allExercises
-                        courseId: state.context.type === 'exercise'
-                            ? state.recentExercises.find(ex => ex.id === state.context!.id)?.courseId
-                            || state.allExercises.find(ex => ex.id === state.context!.id)?.courseId
-                            : undefined,
+                        courseId: state.context.courseId,
                         locked: state.context.locked,
                         source: state.context.source,
                     } : null,

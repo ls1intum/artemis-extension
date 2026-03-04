@@ -183,7 +183,7 @@ interface ExtensionMsgPayloads {
     // Iris Chat
     updateIrisState: {
         state: {
-            context: { type: ChatContextType; id: number; title: string; shortName?: string; locked: boolean; source: 'user-selected' | 'workspace-detected' | 'system-default' } | null;
+            context: { type: ChatContextType; id: number; title: string; shortName?: string; courseId?: number; locked: boolean; source: 'user-selected' | 'workspace-detected' | 'system-default' } | null;
             activeSessionId: string | null;
             sessions: Array<{
                 id: string;

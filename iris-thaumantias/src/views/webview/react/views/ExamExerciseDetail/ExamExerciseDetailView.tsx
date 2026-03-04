@@ -34,6 +34,7 @@ export function ExamExerciseDetailView({ vscodeApi }: ExamExerciseDetailViewProp
         hideDeveloperTools,
         isLoading: exerciseLoading,
         error: exerciseError,
+        pendingSubmission,
         setExerciseData,
         loadExerciseDetail,
     } = useExerciseDetailStore();
@@ -146,7 +147,6 @@ export function ExamExerciseDetailView({ vscodeApi }: ExamExerciseDetailViewProp
     // Extract submission and result data
     const latestSubmission = participation?.submissions?.[0];
     const latestResult = participation?.results?.[0];
-    const pendingSubmission = exerciseData.pendingSubmission;
 
     // Determine submission status
     const submissionStatus = determineSubmissionStatus(pendingSubmission, latestResult, exercise.maxPoints ?? 0);

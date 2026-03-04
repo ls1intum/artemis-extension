@@ -242,10 +242,9 @@ describe('useExerciseDetailStore', () => {
 			result.current.updateSubmissionProcessing({ state: 'BUILDING', participationId: 555 });
 		});
 
-		// After processing, exerciseData should still be present (the deep clone persists)
+		// After processing, pendingSubmission should be on store state
 		expect(result.current.exerciseData).not.toBeNull();
-		const dataWithPending = result.current.exerciseData as ExerciseDetailsResponse & { pendingSubmission?: { state: string; participationId: number } };
-		expect(dataWithPending.pendingSubmission?.participationId).toBe(555);
+		expect(result.current.pendingSubmission?.participationId).toBe(555);
 	});
 
 	it('updateSubmissionProcessing ignores events for unknown participations', () => {
@@ -263,8 +262,7 @@ describe('useExerciseDetailStore', () => {
 			result.current.updateSubmissionProcessing({ state: 'BUILDING', participationId: 999 });
 		});
 
-		const dataWithPending = result.current.exerciseData as ExerciseDetailsResponse & { pendingSubmission?: unknown };
-		expect(dataWithPending.pendingSubmission).toBeUndefined();
+		expect(result.current.pendingSubmission).toBeNull();
 	});
 
 	it('state is fully reset in beforeEach — exercise data does not bleed between tests', () => {

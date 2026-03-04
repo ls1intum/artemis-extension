@@ -31,6 +31,9 @@ interface ExerciseDetailState {
     isLoading: boolean;
     error: string | null;
 
+    // Submission processing
+    pendingSubmission: { state: string; participationId: number; buildTimingInfo?: unknown } | null;
+
     // Extension→Webview response state
     repoStatus: RepoStatus | null;
     submissionResult: SubmissionResult | null;
@@ -51,6 +54,7 @@ interface ExerciseDetailState {
     setDirtyPagesStatus: (status: DirtyPagesStatus) => void;
     clearSubmissionResult: () => void;
     clearClonedNotice: () => void;
+    clearPendingSubmission: () => void;
 }
 
 /**
@@ -77,36 +81,6 @@ function findParticipationForResult(
     return null;
 }
 
-/**
- * Get the latest submission from a participation.
- */
-function getLatestSubmission(participation: ParticipationSummary): SubmissionSummary | null {
-    if (!participation?.submissions || participation.submissions.length === 0) {
-        return null;
-    }
-
-    return participation.submissions.reduce((latest, current) => {
-        const latestDate = latest?.submissionDate ? new Date(latest.submissionDate).getTime() : 0;
-        const currentDate = current?.submissionDate ? new Date(current.submissionDate).getTime() : 0;
-        return currentDate > latestDate ? current : latest;
-    }, participation.submissions[0]);
-}
-
-/**
- * Get the latest result from a participation.
- */
-function getLatestResult(participation: ParticipationSummary): ResultSummary | null {
-    if (!participation?.results || participation.results.length === 0) {
-        return null;
-    }
-
-    return participation.results.reduce((latest, current) => {
-        const latestDate = latest?.completionDate ? new Date(latest.completionDate).getTime() : 0;
-        const currentDate = current?.completionDate ? new Date(current.completionDate).getTime() : 0;
-        return currentDate > latestDate ? current : latest;
-    }, participation.results[0]);
-}
-
 export const useExerciseDetailStore = create<ExerciseDetailState>()(
     devtools(
         (set, get) => ({
@@ -114,6 +88,7 @@ export const useExerciseDetailStore = create<ExerciseDetailState>()(
             hideDeveloperTools: false,
             isLoading: false,
             error: null,
+            pendingSubmission: null,
             repoStatus: null,
             submissionResult: null,
             clonedNotice: null,
@@ -125,6 +100,7 @@ export const useExerciseDetailStore = create<ExerciseDetailState>()(
                     hideDeveloperTools,
                     isLoading: false,
                     error: null,
+                    pendingSubmission: (data.pendingSubmission as { state: string; participationId: number; buildTimingInfo?: unknown }) ?? null,
                 }, false, 'setExerciseData');
             },
 
@@ -150,8 +126,7 @@ export const useExerciseDetailStore = create<ExerciseDetailState>()(
                 // payload is the newResult data
                 const result = payload;
 
-                // Deep clone exerciseData
-                const updatedData = JSON.parse(JSON.stringify(state.exerciseData)) as ExerciseDetailsResponse;
+                const updatedData = structuredClone(state.exerciseData);
 
                 // Find participation: match by participationId first, then by result ID, then fallback
                 let participation: ParticipationSummary | null = null;
@@ -179,10 +154,6 @@ export const useExerciseDetailStore = create<ExerciseDetailState>()(
                     } else {
                         participation.results.push(result);
                     }
-
-                    // Update latest result reference - updatedData may have latestResult field via index signature
-                    const updatedDataWithLatest = updatedData as ExerciseDetailsResponse & { latestResult?: ResultSummary | null };
-                    updatedDataWithLatest.latestResult = getLatestResult(participation);
                 }
 
                 set({ exerciseData: updatedData }, false, 'updateBuildStatus');
@@ -197,8 +168,7 @@ export const useExerciseDetailStore = create<ExerciseDetailState>()(
                 // payload is the newSubmission data
                 const submission = payload;
 
-                // Deep clone exerciseData
-                const updatedData = JSON.parse(JSON.stringify(state.exerciseData)) as ExerciseDetailsResponse;
+                const updatedData = structuredClone(state.exerciseData);
 
                 // Find participation by participationId first, then fallback to first
                 let participation: ParticipationSummary | undefined;
@@ -223,10 +193,6 @@ export const useExerciseDetailStore = create<ExerciseDetailState>()(
                     } else {
                         participation.submissions.push(submission);
                     }
-
-                    // Update latest submission reference - updatedData may have latestSubmission field via index signature
-                    const updatedDataWithLatest = updatedData as ExerciseDetailsResponse & { latestSubmission?: SubmissionSummary | null };
-                    updatedDataWithLatest.latestSubmission = getLatestSubmission(participation);
                 }
 
                 set({ exerciseData: updatedData }, false, 'updateSubmission');
@@ -246,14 +212,7 @@ export const useExerciseDetailStore = create<ExerciseDetailState>()(
                     return;
                 }
 
-                // Deep clone exerciseData
-                const updatedData = JSON.parse(JSON.stringify(state.exerciseData)) as ExerciseDetailsResponse;
-
-                // Mark pending submission - updatedData may have pendingSubmission field via index signature
-                const updatedDataWithPending = updatedData as ExerciseDetailsResponse & { pendingSubmission?: typeof payload };
-                updatedDataWithPending.pendingSubmission = payload;
-
-                set({ exerciseData: updatedData }, false, 'updateSubmissionProcessing');
+                set({ pendingSubmission: payload }, false, 'updateSubmissionProcessing');
             },
 
             setRepoStatus: (status) => {
@@ -278,6 +237,10 @@ export const useExerciseDetailStore = create<ExerciseDetailState>()(
 
             clearClonedNotice: () => {
                 set({ clonedNotice: null }, false, 'clearClonedNotice');
+            },
+
+            clearPendingSubmission: () => {
+                set({ pendingSubmission: null }, false, 'clearPendingSubmission');
             },
         }),
         {

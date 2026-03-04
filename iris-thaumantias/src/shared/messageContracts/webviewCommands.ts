@@ -49,7 +49,6 @@ export const WebviewCmd = {
     StartPractice: 'startPractice',
     AskIrisAboutExercise: 'askIrisAboutExercise',
     CheckRepositoryStatus: 'checkRepositoryStatus',
-    DetectWorkspaceExercise: 'detectWorkspaceExercise',
 
     // Exam
     OpenExam: 'openExam',
@@ -92,9 +91,6 @@ export const WebviewCmd = {
     OpenDiagnostics: 'openDiagnostics',
     DebugSessions: 'debugSessions',
     OpenHelpPopup: 'openHelpPopup',
-
-    // Exercise navigation
-    GoToSourceError: 'goToSourceError',
 
     // PlantUML inline rendering
     RenderPlantUmlInline: 'renderPlantUmlInline',
@@ -139,7 +135,6 @@ interface WebviewCmdPayloads {
     startPractice: { exerciseId: number; exerciseTitle?: string };
     askIrisAboutExercise: { exerciseId: number; exerciseTitle: string; exerciseShortName?: string; releaseDate?: string; dueDate?: string; courseId?: number; courseTitle?: string; courseShortName?: string };
     checkRepositoryStatus: { showNotification?: boolean };
-    detectWorkspaceExercise: undefined;
 
     // Exam
     openExam: { examId: number; courseId: number };
@@ -182,9 +177,6 @@ interface WebviewCmdPayloads {
     debugSessions: undefined;
     openHelpPopup: undefined;
 
-    // Exercise navigation
-    goToSourceError: { filePath: string; line: number; column?: number };
-
     // PlantUML inline rendering
     renderPlantUmlInline: { plantUml: string; index: number };
 }
@@ -220,7 +212,6 @@ export const COMMANDS_REQUIRING_PAYLOAD = new Set<string>([
     WebviewCmd.SwitchSession,
     WebviewCmd.MessageFeedback,
     WebviewCmd.OpenFile,
-    WebviewCmd.GoToSourceError,
     WebviewCmd.ViewArchivedCourse,
     WebviewCmd.RenderPlantUmlInline,
 ]);

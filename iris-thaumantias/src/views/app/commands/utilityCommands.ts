@@ -6,7 +6,7 @@ import type {
     WebviewToExtensionMessage,
     WebCmd,
 } from '../../../shared/messageContracts';
-import { normalizeRelativePath, extractErrorMessage, CONFIG, VSCODE_CONFIG } from '../../../utils';
+import { extractErrorMessage, CONFIG, VSCODE_CONFIG } from '../../../utils';
 import { logger, LogCategory } from '../../../services/loggingService';
 
 /**
@@ -57,7 +57,6 @@ export class UtilityCommandModule {
             [WebviewCmd.OpenInEditor]: this.handleOpenInEditor,
             [WebviewCmd.CopyToClipboard]: this.handleCopyToClipboard,
             [WebviewCmd.SearchMarketplace]: this.handleSearchMarketplace,
-            [WebviewCmd.GoToSourceError]: this.handleGoToSourceError,
             [WebviewCmd.OpenExternalLink]: this.handleOpenExternalLink,
             [WebviewCmd.OpenImagePreview]: this.handleOpenImagePreview,
             [WebviewCmd.OpenFile]: this.handleOpenFile,
@@ -126,59 +125,6 @@ export class UtilityCommandModule {
         } catch (error: unknown) {
             logger.error('Failed to search marketplace:', LogCategory.VIEW, error);
             vscode.window.showErrorMessage(`Failed to search marketplace: ${extractErrorMessage(error)}`);
-        }
-    };
-
-    private handleGoToSourceError = async (message: WebviewToExtensionMessage): Promise<void> => {
-        try {
-            const payload = getPayload<WebCmd<'goToSourceError'>>(message);
-            const filePath: string = normalizeRelativePath(payload.filePath);
-            const line = payload.line;
-            const column = payload.column;
-            if (!filePath) {
-                vscode.window.showErrorMessage('Cannot navigate to source: missing file path.');
-                return;
-            }
-
-            // Check if workspace is open
-            const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
-            if (!workspaceFolder) {
-                vscode.window.showErrorMessage('No workspace folder open. Please open the exercise repository first.');
-                return;
-            }
-
-            // Construct full file path
-            const fullPath = vscode.Uri.joinPath(workspaceFolder.uri, filePath);
-
-            // Check if file exists
-            try {
-                await vscode.workspace.fs.stat(fullPath);
-            } catch {
-                vscode.window.showErrorMessage(`File not found: ${filePath}\n\nMake sure you have the exercise repository open in the workspace.`);
-                return;
-            }
-
-            // Open the file
-            const document = await vscode.workspace.openTextDocument(fullPath);
-            const editor = await vscode.window.showTextDocument(document, {
-                preview: false,
-                viewColumn: vscode.ViewColumn.One
-            });
-
-            // Navigate to the error location
-            if (line > 0) {
-                const position = new vscode.Position(line - 1, column ? column - 1 : 0);
-                editor.selection = new vscode.Selection(position, position);
-                editor.revealRange(
-                    new vscode.Range(position, position),
-                    vscode.TextEditorRevealType.InCenter
-                );
-            }
-
-            vscode.window.showInformationMessage(`Navigated to ${filePath}:${line}`);
-        } catch (error: unknown) {
-            logger.viewError('Go to source error:', error);
-            vscode.window.showErrorMessage(`Failed to navigate to source: ${extractErrorMessage(error)}`);
         }
     };
 

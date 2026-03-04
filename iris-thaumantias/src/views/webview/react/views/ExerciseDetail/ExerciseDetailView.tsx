@@ -39,6 +39,7 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
         repoStatus,
         submissionResult,
         clonedNotice,
+        pendingSubmission,
         setExerciseData,
         loadExerciseDetail,
         clearSubmissionResult,
@@ -194,7 +195,6 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
     // Extract submission and result data
     const latestSubmission = participation?.submissions?.[0];
     const latestResult = participation?.results?.[0];
-    const pendingSubmission = exerciseData.pendingSubmission;
 
     // Determine submission status
     const submissionStatus = determineSubmissionStatus(pendingSubmission, latestResult, exercise.maxPoints ?? 0);

@@ -455,28 +455,40 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
                     });
                     break;
                 }
-                case WebviewCmd.OpenSettings: {
-                    const setting = getPayload<WebCmd<'openSettings'>>(typedMessage).setting ?? 'Artemis';
-                    void openSettings(setting);
-                    break;
-                }
-                case WebviewCmd.OpenFile: {
-                    const { filePath } = getPayload<WebCmd<'openFile'>>(typedMessage);
-                    if (typeof filePath === 'string') {
-                        void openFileInWorkspace(filePath);
-                    }
-                    break;
-                }
                 case WebviewCmd.OpenHelpPopup:
                     this._handleOpenHelpPopup();
                     break;
                 default:
-                    logger.debug('Unhandled message in chat view', LogCategory.IRIS_CHAT, typedMessage);
+                    void this._handleUtilityCommand(typedMessage).then(handled => {
+                        if (!handled) {
+                            logger.debug('Unhandled message in chat view', LogCategory.IRIS_CHAT, typedMessage);
+                        }
+                    });
                     break;
             }
         } catch (error) {
             logger.error('Error handling chat command', LogCategory.IRIS_CHAT, error);
             vscode.window.showErrorMessage(`Error processing command: ${typedMessage.command}`);
+        }
+    }
+
+    private async _handleUtilityCommand(message: WebviewToExtensionMessage): Promise<boolean> {
+        if (message.type !== 'command') return false;
+        switch (message.command) {
+            case WebviewCmd.OpenSettings: {
+                const setting = getPayload<WebCmd<'openSettings'>>(message).setting ?? 'Artemis';
+                await openSettings(setting);
+                return true;
+            }
+            case WebviewCmd.OpenFile: {
+                const { filePath } = getPayload<WebCmd<'openFile'>>(message);
+                if (typeof filePath === 'string') {
+                    await openFileInWorkspace(filePath);
+                }
+                return true;
+            }
+            default:
+                return false;
         }
     }
 

@@ -235,8 +235,7 @@ describe('Exercise Submission Flow', () => {
 
 		// The exercise is in building state — verify the store reflects this
 		const storeState = useExerciseDetailStore.getState();
-		const pendingSubmission = (storeState.exerciseData as typeof dataWithPending)?.pendingSubmission;
-		expect(pendingSubmission).toBeTruthy();
+		expect(storeState.pendingSubmission).toBeTruthy();
 	});
 
 	it('completes full submission lifecycle with build progress simulation', async () => {

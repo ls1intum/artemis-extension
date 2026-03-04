@@ -377,13 +377,14 @@ describe('useChatStore', () => {
 		expect(result.current.recentCourses).toHaveLength(1);
 	});
 
-	it('setIrisState resolves courseId for exercise context from recentExercises', () => {
+	it('setIrisState passes courseId from context directly', () => {
 		const { result } = renderHook(() => useChatStore());
 		const irisState = makeIrisState({
 			context: {
 				type: 'exercise',
 				id: 42,
 				title: 'Exercise',
+				courseId: 10,
 				locked: false,
 				source: 'workspace-detected',
 			},
