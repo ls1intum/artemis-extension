@@ -123,6 +123,65 @@
   gap: 8px;
 }
 
+/* Banners */
+.banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  border-radius: 4px;
+  font-size: 13px;
+  gap: 8px;
+}
+
+.banner[data-variant="success"] {
+  background: var(--vscode-testing-iconPassed, #388a34);
+  color: #fff;
+}
+
+.banner[data-variant="error"] {
+  background: var(--vscode-testing-iconFailed, #f14c4c);
+  color: #fff;
+}
+
+.banner[data-variant="info"] {
+  background: var(--vscode-button-secondaryBackground);
+  color: var(--vscode-button-secondaryForeground);
+}
+
+.bannerDismiss {
+  background: none;
+  border: none;
+  color: inherit;
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
+  padding: 0 4px;
+  opacity: 0.8;
+}
+
+.bannerDismiss:hover {
+  opacity: 1;
+}
+
+/* Build error action */
+.buildErrorAction {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 0;
+  font-size: 13px;
+  color: var(--vscode-errorForeground, #f14c4c);
+}
+
+/* Test results error */
+.testResultsError {
+  padding: 8px 0;
+  font-size: 13px;
+  color: var(--vscode-errorForeground, #f14c4c);
+}
+
 /* Developer tools */
 .devTools {
   display: flex;

@@ -72,7 +72,9 @@ export function DashboardView({ vscodeApi }: DashboardViewProps) {
     };
 
     const handleViewCourseDetails = (courseData: RecentCourseNode) => {
-        postCommand(vscodeApi, 'viewCourseDetails', { courseData: courseData as unknown as CourseDashboardCourse });
+        postCommand(vscodeApi, 'viewCourseDetails', {
+            courseData: courseData.courseData.course as CourseDashboardCourse,
+        });
     };
 
     const handleOpenExercise = (exerciseId: number, courseId?: number | null) => {

@@ -29,6 +29,7 @@ export function CourseDetailView({ vscodeApi }: CourseDetailViewProps) {
     const {
         courseData,
         workspaceExerciseId,
+        hideDeveloperTools,
         isLoading,
         error,
         exerciseSearchTerm,
@@ -61,7 +62,7 @@ export function CourseDetailView({ vscodeApi }: CourseDetailViewProps) {
     // Listen for courseDetailInit messages
     useExtensionMessage((msg) => {
         if (msg.type === ExtensionMsg.CourseDetailInit) {
-            setCourseData(msg.courseData as Parameters<typeof setCourseData>[0], msg.workspaceExerciseId as Parameters<typeof setCourseData>[1]);
+            setCourseData(msg.courseData as Parameters<typeof setCourseData>[0], msg.workspaceExerciseId as Parameters<typeof setCourseData>[1], msg.hideDeveloperTools);
 
             // Push course breadcrumb
             const courseTitle = msg.courseData?.course?.title ?? 'Course';
@@ -186,11 +187,6 @@ export function CourseDetailView({ vscodeApi }: CourseDetailViewProps) {
     const exercises = filteredExercises();
     const exams = sortedExams();
 
-    // Check developer mode from init message (stored in courseData metadata)
-    interface CourseDataWithMeta {
-        hideDeveloperTools?: boolean;
-    }
-    const hideDeveloperTools = (courseData as CourseDataWithMeta)?.hideDeveloperTools ?? true;
     const showDeveloperTools = !hideDeveloperTools;
 
     // Calculate exam status for collapsible behavior

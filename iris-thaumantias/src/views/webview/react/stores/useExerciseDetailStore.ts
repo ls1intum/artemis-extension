@@ -8,11 +8,49 @@ import type {
     SubmissionSummary,
 } from '../../../../types/apiResponses';
 
+interface RepoStatus {
+    isConnected: boolean;
+    hasChanges: boolean;
+    isGradedRepo: boolean;
+}
+
+interface SubmissionResult {
+    success: boolean;
+    error?: string;
+}
+
+interface TestResultCase {
+    testName?: string;
+    successful?: boolean;
+    message?: string;
+}
+
+interface BuildError {
+    filePath: string;
+    line: number;
+    message: string;
+    column?: number;
+}
+
+interface DirtyPagesStatus {
+    hasDirtyPages: boolean;
+    dirtyFileCount: number;
+    autoSaveEnabled: boolean;
+}
+
 interface ExerciseDetailState {
     exerciseData: ExerciseDetailsResponse | null;
     hideDeveloperTools: boolean;
     isLoading: boolean;
     error: string | null;
+
+    // Extension→Webview response state
+    repoStatus: RepoStatus | null;
+    submissionResult: SubmissionResult | null;
+    clonedNotice: string | null;
+    testResults: { testCases: TestResultCase[]; error?: string } | null;
+    buildError: BuildError | null;
+    dirtyPagesStatus: DirtyPagesStatus | null;
 
     // Actions
     setExerciseData: (data: ExerciseDetailsResponse, hideDeveloperTools: boolean) => void;
@@ -22,6 +60,14 @@ interface ExerciseDetailState {
     updateBuildStatus: (payload: ResultSummary) => void;
     updateSubmission: (payload: SubmissionSummary) => void;
     updateSubmissionProcessing: (payload: { state: string; participationId: number; buildTimingInfo?: unknown }) => void;
+    setRepoStatus: (status: RepoStatus) => void;
+    setSubmissionResult: (result: SubmissionResult) => void;
+    setClonedNotice: (exerciseTitle: string) => void;
+    setTestResults: (data: { testCases: TestResultCase[]; error?: string }) => void;
+    setBuildError: (error: BuildError | null) => void;
+    setDirtyPagesStatus: (status: DirtyPagesStatus) => void;
+    clearSubmissionResult: () => void;
+    clearClonedNotice: () => void;
 }
 
 /**
@@ -85,6 +131,12 @@ export const useExerciseDetailStore = create<ExerciseDetailState>()(
             hideDeveloperTools: false,
             isLoading: false,
             error: null,
+            repoStatus: null,
+            submissionResult: null,
+            clonedNotice: null,
+            testResults: null,
+            buildError: null,
+            dirtyPagesStatus: null,
 
             setExerciseData: (data, hideDeveloperTools) => {
                 set({
@@ -120,8 +172,11 @@ export const useExerciseDetailStore = create<ExerciseDetailState>()(
                 // Deep clone exerciseData
                 const updatedData = JSON.parse(JSON.stringify(state.exerciseData)) as ExerciseDetailsResponse;
 
-                // Find participation for this result
-                const participation = findParticipationForResult(updatedData, result);
+                // Find participation for this result (fall back to first participation for new results)
+                let participation = findParticipationForResult(updatedData, result);
+                if (!participation && updatedData.exercise?.studentParticipations?.length) {
+                    participation = updatedData.exercise.studentParticipations[0];
+                }
 
                 if (participation) {
                     // Update or add result
@@ -159,10 +214,13 @@ export const useExerciseDetailStore = create<ExerciseDetailState>()(
                 // Deep clone exerciseData
                 const updatedData = JSON.parse(JSON.stringify(state.exerciseData)) as ExerciseDetailsResponse;
 
-                // Find participation by ID
-                const participation = updatedData.exercise?.studentParticipations?.find(
+                // Find participation by ID (fall back to first participation when no match)
+                let participation = updatedData.exercise?.studentParticipations?.find(
                     (p: ParticipationSummary) => p.id === submissionParticipation?.id
                 );
+                if (!participation && updatedData.exercise?.studentParticipations?.length) {
+                    participation = updatedData.exercise.studentParticipations[0];
+                }
 
                 if (participation) {
                     // Update or add submission
@@ -191,8 +249,13 @@ export const useExerciseDetailStore = create<ExerciseDetailState>()(
                     return;
                 }
 
-                // payload contains submission processing status
-                // For now, just flag that a submission is processing
+                // Guard: only accept events for participations belonging to this exercise
+                const match = state.exerciseData.exercise?.studentParticipations?.find(
+                    (p) => p.id === payload.participationId
+                );
+                if (!match) {
+                    return;
+                }
 
                 // Deep clone exerciseData
                 const updatedData = JSON.parse(JSON.stringify(state.exerciseData)) as ExerciseDetailsResponse;
@@ -202,6 +265,38 @@ export const useExerciseDetailStore = create<ExerciseDetailState>()(
                 updatedDataWithPending.pendingSubmission = payload;
 
                 set({ exerciseData: updatedData }, false, 'updateSubmissionProcessing');
+            },
+
+            setRepoStatus: (status) => {
+                set({ repoStatus: status }, false, 'setRepoStatus');
+            },
+
+            setSubmissionResult: (result) => {
+                set({ submissionResult: result }, false, 'setSubmissionResult');
+            },
+
+            setClonedNotice: (exerciseTitle) => {
+                set({ clonedNotice: exerciseTitle }, false, 'setClonedNotice');
+            },
+
+            setTestResults: (data) => {
+                set({ testResults: data }, false, 'setTestResults');
+            },
+
+            setBuildError: (error) => {
+                set({ buildError: error }, false, 'setBuildError');
+            },
+
+            setDirtyPagesStatus: (status) => {
+                set({ dirtyPagesStatus: status }, false, 'setDirtyPagesStatus');
+            },
+
+            clearSubmissionResult: () => {
+                set({ submissionResult: null }, false, 'clearSubmissionResult');
+            },
+
+            clearClonedNotice: () => {
+                set({ clonedNotice: null }, false, 'clearClonedNotice');
             },
         }),
         {

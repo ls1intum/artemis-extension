@@ -36,10 +36,23 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
         hideDeveloperTools,
         isLoading,
         error,
+        repoStatus,
+        submissionResult,
+        clonedNotice,
+        testResults,
+        buildError,
         setExerciseData,
         setLoading,
         setError,
         loadExerciseDetail,
+        setRepoStatus,
+        setSubmissionResult,
+        setClonedNotice,
+        setTestResults,
+        setBuildError,
+        setDirtyPagesStatus,
+        clearSubmissionResult,
+        clearClonedNotice,
     } = useExerciseDetailStore();
 
     const { pushBreadcrumb, clearBreadcrumbs } = useNavigationStore();
@@ -79,6 +92,30 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
             });
         }
     }, [vscodeApi, setExerciseData, pushBreadcrumb]);
+
+    // Listen for exercise-related extension messages
+    useExtensionMessage((msg) => {
+        switch (msg.type) {
+            case ExtensionMsg.SubmissionResult:
+                setSubmissionResult({ success: msg.success, error: msg.error });
+                break;
+            case ExtensionMsg.UpdateRepoStatus:
+                setRepoStatus({ isConnected: msg.isConnected, hasChanges: msg.hasChanges, isGradedRepo: msg.isGradedRepo });
+                break;
+            case ExtensionMsg.ShowClonedRepoNotice:
+                setClonedNotice(msg.exerciseTitle);
+                break;
+            case ExtensionMsg.TestResultsData:
+                setTestResults({ testCases: msg.testCases, error: msg.error });
+                break;
+            case ExtensionMsg.BuildLogParsed:
+                setBuildError(msg.error);
+                break;
+            case ExtensionMsg.UpdateDirtyPagesStatus:
+                setDirtyPagesStatus({ hasDirtyPages: msg.hasDirtyPages, dirtyFileCount: msg.dirtyFileCount, autoSaveEnabled: msg.autoSaveEnabled });
+                break;
+        }
+    }, [vscodeApi, setSubmissionResult, setRepoStatus, setClonedNotice, setTestResults, setBuildError, setDirtyPagesStatus]);
 
     // Auto-retry once on error
     useEffect(() => {
@@ -253,6 +290,22 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
         <div className={styles.exerciseDetailView}>
             <ReconnectBanner />
 
+            {/* Submission result banner */}
+            {submissionResult && (
+                <div className={styles.banner} data-variant={submissionResult.success ? 'success' : 'error'}>
+                    <span>{submissionResult.success ? 'Submission successful' : `Submission failed: ${submissionResult.error || 'Unknown error'}`}</span>
+                    <button className={styles.bannerDismiss} onClick={clearSubmissionResult}>×</button>
+                </div>
+            )}
+
+            {/* Cloned repo notice */}
+            {clonedNotice && (
+                <div className={styles.banner} data-variant="info">
+                    <span>Repository cloned for "{clonedNotice}"</span>
+                    <button className={styles.bannerDismiss} onClick={clearClonedNotice}>×</button>
+                </div>
+            )}
+
             <BackLink onClick={handleBackToCourse} actions={
                 <>
                     <IconButton.Reload onClick={handleReload} title="Reload Exercise" />
@@ -286,9 +339,9 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
                                 <button
                                     className={styles.repoStatusIcon}
                                     onClick={handleCheckRepositoryStatus}
-                                    title="Check repository status"
+                                    title={repoStatus ? `Repo: ${repoStatus.isConnected ? 'connected' : 'disconnected'}${repoStatus.hasChanges ? ', has changes' : ''}` : 'Check repository status'}
                                 >
-                                    ?
+                                    {repoStatus ? (repoStatus.isConnected ? '●' : '○') : '?'}
                                 </button>
                             </div>
                         </div>
@@ -385,7 +438,37 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
                         exerciseType={exerciseType}
                     />
                 )}
+
+                {/* Build error with "Go to error" action */}
+                {buildError && (
+                    <div className={styles.buildErrorAction}>
+                        <span>{buildError.message} ({buildError.filePath}:{buildError.line})</span>
+                        <Button variant="secondary" onClick={() => {
+                            postCommand(vscodeApi, 'goToSourceError', {
+                                filePath: buildError.filePath,
+                                line: buildError.line,
+                                column: buildError.column ?? 0,
+                            });
+                        }}>
+                            Go to Error
+                        </Button>
+                    </div>
+                )}
             </Container>
+
+            {/* Test Results */}
+            {testResults && testResults.testCases.length > 0 && (
+                <Container header={<h3>Test Results</h3>}>
+                    <TestResults testCases={testResults.testCases.map((tc) => ({
+                        name: tc.testName || 'Unnamed Test',
+                        passed: tc.successful === true,
+                        message: tc.message,
+                    }))} />
+                    {testResults.error && (
+                        <div className={styles.testResultsError}>{testResults.error}</div>
+                    )}
+                </Container>
+            )}
 
             {/* Ask Iris Section */}
             <Container header={<h3>Ask Iris</h3>}>

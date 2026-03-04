@@ -6,13 +6,14 @@ import type { ExerciseDetail } from '../../../../types/apiResponses';
 interface CourseDetailState {
     courseData: CourseDetailData | null;
     workspaceExerciseId: number | null;
+    hideDeveloperTools: boolean;
     isLoading: boolean;
     error: string | null;
     exerciseSearchTerm: string;
     exerciseSortBy: string;
 
     // Actions
-    setCourseData: (data: CourseDetailData, workspaceExerciseId?: number | null) => void;
+    setCourseData: (data: CourseDetailData, workspaceExerciseId?: number | null, hideDeveloperTools?: boolean) => void;
     setLoading: (loading: boolean) => void;
     setError: (error: string | null) => void;
     setExerciseSearchTerm: (term: string) => void;
@@ -132,15 +133,17 @@ export const useCourseDetailStore = create<CourseDetailState>()(
         (set, get) => ({
             courseData: null,
             workspaceExerciseId: null,
+            hideDeveloperTools: true,
             isLoading: false,
             error: null,
             exerciseSearchTerm: '',
             exerciseSortBy: 'id-desc',
 
-            setCourseData: (data, workspaceExerciseId) => {
+            setCourseData: (data, workspaceExerciseId, hideDeveloperTools) => {
                 set({
                     courseData: data,
                     workspaceExerciseId: workspaceExerciseId ?? null,
+                    hideDeveloperTools: hideDeveloperTools ?? true,
                     isLoading: false,
                     error: null,
                 }, false, 'setCourseData');

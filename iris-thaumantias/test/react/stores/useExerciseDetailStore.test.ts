@@ -229,7 +229,10 @@ describe('useExerciseDetailStore', () => {
 
 	it('updateSubmissionProcessing stores pending submission reference', () => {
 		const { result } = renderHook(() => useExerciseDetailStore());
-		const exerciseData = makeExerciseData();
+		const participation = makeParticipation({ id: 555 });
+		const exerciseData = makeExerciseData({
+			exercise: { id: 1, studentParticipations: [participation] },
+		});
 
 		act(() => {
 			result.current.setExerciseData(exerciseData, false);
@@ -243,6 +246,25 @@ describe('useExerciseDetailStore', () => {
 		expect(result.current.exerciseData).not.toBeNull();
 		const dataWithPending = result.current.exerciseData as ExerciseDetailsResponse & { pendingSubmission?: { state: string; participationId: number } };
 		expect(dataWithPending.pendingSubmission?.participationId).toBe(555);
+	});
+
+	it('updateSubmissionProcessing ignores events for unknown participations', () => {
+		const { result } = renderHook(() => useExerciseDetailStore());
+		const participation = makeParticipation({ id: 10 });
+		const exerciseData = makeExerciseData({
+			exercise: { id: 1, studentParticipations: [participation] },
+		});
+
+		act(() => {
+			result.current.setExerciseData(exerciseData, false);
+		});
+
+		act(() => {
+			result.current.updateSubmissionProcessing({ state: 'BUILDING', participationId: 999 });
+		});
+
+		const dataWithPending = result.current.exerciseData as ExerciseDetailsResponse & { pendingSubmission?: unknown };
+		expect(dataWithPending.pendingSubmission).toBeUndefined();
 	});
 
 	it('state is fully reset in beforeEach — exercise data does not bleed between tests', () => {
