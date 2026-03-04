@@ -64,28 +64,11 @@
     transform: none !important;
 }
 
-/* Icon color inheritance - use fill by default for solid icons */
+/* Icon color inheritance - Lucide icons use stroke, not fill */
 .btn svg {
-    fill: currentColor;
-    stroke: none;
-}
-
-.btn svg path,
-.btn svg circle,
-.btn svg rect,
-.btn svg polygon {
-    fill: currentColor;
-    stroke: none;
-}
-
-/* For icons that explicitly need stroke (outlined icons), use stroke attribute */
-.btn svg[stroke]:not([stroke="none"]),
-.btn svg path[stroke]:not([stroke="none"]),
-.btn svg circle[stroke]:not([stroke="none"]),
-.btn svg rect[stroke]:not([stroke="none"]),
-.btn svg polygon[stroke]:not([stroke="none"]) {
-    stroke: currentColor;
+    color: currentColor;
     fill: none;
+    stroke: currentColor;
 }
 
 /* Primary Button - Blue solid background */
@@ -167,7 +150,6 @@
 .btnIconSlot svg {
     width: 16px;
     height: 16px;
-    fill: currentColor;
 }
 
 /* Label within button */
