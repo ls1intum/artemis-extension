@@ -6,7 +6,7 @@ import { ViewInitDataService } from '../services/viewInitDataService';
 import { SubmissionWebSocketHandler } from '../services/submissionWebSocketHandler';
 import { FullscreenPanelManager } from '../services/fullscreenPanelManager';
 import { AuthFlowHandler } from '../services/authFlowHandler';
-import { logger, LogLevel, LogCategory } from '../services/loggingService';
+import { logger, LogCategory } from '../services/loggingService';
 import { ProviderRegistry } from '../services/ProviderRegistry';
 import type { IArtemisWebviewProvider } from '../types/IArtemisWebviewProvider';
 import { CONFIG, VSCODE_CONFIG } from '../utils';
@@ -116,6 +116,10 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
             this._websocketService,
             this._extensionContext
         );
+        // Re-apply auth context updater to new handler instance
+        if (this._authContextUpdater) {
+            this._messageHandler.setAuthContextUpdater(this._authContextUpdater);
+        }
     }
 
     /**
@@ -154,10 +158,7 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
         if (this._websocketService && this._websocketHandler) {
             this._websocketService.unregisterMessageHandler(this._websocketHandler);
         }
-        while (this._disposables.length > 0) {
-            const d = this._disposables.pop();
-            d?.dispose();
-        }
+        this._drainDisposables();
     }
 
     public async resolveWebviewView(
@@ -224,7 +225,7 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
         // Listen for configuration changes to re-render when settings change
         const configListener = vscode.workspace.onDidChangeConfiguration(event => {
             if (event.affectsConfiguration('artemis.developerMode')) {
-                this.render();
+                this.refreshTheme();
             }
         });
         this._disposables.push(configListener);
@@ -240,10 +241,6 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
             this._resetReadyState();
             this._view.webview.html = await this._viewRouter.getHtml();
         }
-    }
-
-    public refreshTheme(): void {
-        this.render();
     }
 
     // ── Init data ──────────────────────────────────────────────────────

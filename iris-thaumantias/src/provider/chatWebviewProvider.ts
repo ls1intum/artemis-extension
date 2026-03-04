@@ -9,9 +9,9 @@ import type { IChatWebviewProvider } from '../types/IChatWebviewProvider';
 import { BaseWebviewProvider } from './baseWebviewProvider';
 import { getReactWebviewHtml } from '../utils/webviewHelpers';
 import { ExtensionMsg, WebviewMsgType } from '../shared/messageContracts';
-import type { ExtensionToWebviewMessage, ExtMsg, WebviewToExtensionMessage } from '../shared/messageContracts';
+import type { ExtMsg, WebviewToExtensionMessage } from '../shared/messageContracts';
 import { isWebviewMessage } from '../shared/messageContracts/typeGuards';
-import { logger, LogLevel, LogCategory } from '../services/loggingService';
+import { logger, LogCategory } from '../services/loggingService';
 import { ArtemisApiService } from '../api';
 import {
     ArtemisWebsocketService,
@@ -59,6 +59,7 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
     private readonly _onDidChangeExerciseContext = new vscode.EventEmitter<ExerciseContextChangeEvent>();
     public readonly onDidChangeExerciseContext = this._onDidChangeExerciseContext.event;
 
+
     // ── Constructor ────────────────────────────────────────────────────
     constructor(
         private readonly _extensionUri: vscode.Uri,
@@ -67,6 +68,7 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
         private readonly _websocketService?: ArtemisWebsocketService,
     ) {
         super();
+        this._disposables.push(this._onDidChangeExerciseContext);
         this._contextStore = new ContextStore(this._extensionContext);
         this._fileMonitorService = new FileMonitorService();
         this._disposables.push(this._fileMonitorService);
@@ -128,9 +130,11 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
 
         // Initialize .noai detection service
         this._noAiDetectionService = NoAiDetectionService.getInstance();
-        this._noAiDetectionService.onNoAiStatusChanged(isNoAiDetected => {
-            this._postNoAiStatus(isNoAiDetected);
-        });
+        this._disposables.push(
+            this._noAiDetectionService.onNoAiStatusChanged(isNoAiDetected => {
+                this._postNoAiStatus(isNoAiDetected);
+            })
+        );
     }
 
     // ── Post-construction setters ──────────────────────────────────────
@@ -148,11 +152,7 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
     // ── Lifecycle ──────────────────────────────────────────────────────
 
     public dispose(): void {
-        while (this._disposables.length > 0) {
-            const disposable = this._disposables.pop();
-            disposable?.dispose();
-        }
-        this._onDidChangeExerciseContext.dispose();
+        this._drainDisposables();
     }
 
     public resolveWebviewView(
@@ -160,7 +160,7 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
         _context: vscode.WebviewViewResolveContext,
         _token: vscode.CancellationToken,
     ) {
-        logger.websocket('Iris Chat webview being resolved/loaded');
+        logger.debug('Iris Chat webview being resolved/loaded', LogCategory.VIEW);
         this._view = webviewView;
         this._resetReadyState();
 
@@ -178,10 +178,10 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
 
         const visibilityListener = webviewView.onDidChangeVisibility(() => {
             if (webviewView.visible) {
-                logger.websocket('Iris Chat view became visible, loading data...');
+                logger.debug('Iris Chat view became visible, loading data...', LogCategory.VIEW);
                 this._sendInitData();
             } else {
-                logger.websocket('Iris Chat view became hidden');
+                logger.debug('Iris Chat view became hidden', LogCategory.VIEW);
             }
         });
         this._disposables.push(visibilityListener);
@@ -212,10 +212,6 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
             this._resetReadyState();
             this._view.webview.html = getReactWebviewHtml(this._view.webview, this._extensionUri, 'irisChat');
         }
-    }
-
-    public refreshTheme(): void {
-        this.render();
     }
 
     // ── Init data ──────────────────────────────────────────────────────
@@ -566,16 +562,16 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
     }
 
     private async _loadIrisMessagesIfNeeded(): Promise<void> {
-        logger.websocket('_loadIrisMessagesIfNeeded called');
+        logger.debug('_loadIrisMessagesIfNeeded called', LogCategory.IRIS_CHAT);
         const activeContext = this._contextStore.getActiveContext();
 
         if (!activeContext) {
-            logger.websocketWarn('No active context, skipping message load');
+            logger.warn('No active context, skipping message load', LogCategory.IRIS_CHAT);
             return;
         }
 
         // Always reload sessions fresh from Artemis when view loads
-        logger.websocket('Reloading all sessions fresh from Artemis...', {
+        logger.debug('Reloading all sessions fresh from Artemis...', LogCategory.IRIS_CHAT, {
             contextType: activeContext.type,
             contextId: activeContext.id
         });
@@ -639,14 +635,14 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
     private async _handleChatMessage(message: { text?: string }): Promise<void> {
         // Check if .noai file is detected first
         if (this._noAiDetectionService.isNoAiEnabled) {
-            logger.websocketWarn('Chat blocked: .noai file detected');
+            logger.warn('Chat blocked: .noai file detected', LogCategory.IRIS_CHAT);
             this._postNoAiStatus(true);
             return;
         }
 
         const activeContext = this._contextStore.getActiveContext();
         if (!activeContext) {
-            logger.websocketWarn('No active context');
+            logger.warn('No active context', LogCategory.IRIS_CHAT);
             vscode.window.showErrorMessage('Please select a course or exercise context first');
             return;
         }

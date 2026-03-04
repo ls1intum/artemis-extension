@@ -10,6 +10,22 @@ export abstract class BaseWebviewProvider {
     protected _view?: vscode.WebviewView;
     protected readonly _disposables: vscode.Disposable[] = [];
 
+    /** Subclasses must implement to (re-)render the webview HTML. */
+    public abstract render(): void | Promise<void>;
+
+    /** Re-render the webview to pick up theme / config changes. */
+    public refreshTheme(): void {
+        Promise.resolve(this.render()).catch(() => {});
+    }
+
+    /** Dispose every item in `_disposables` (LIFO order). */
+    protected _drainDisposables(): void {
+        while (this._disposables.length > 0) {
+            const d = this._disposables.pop();
+            d?.dispose();
+        }
+    }
+
     // Ready-signal handshake state
     private _webviewReady = false;
     private _pendingMessages: ExtensionToWebviewMessage[] = [];
