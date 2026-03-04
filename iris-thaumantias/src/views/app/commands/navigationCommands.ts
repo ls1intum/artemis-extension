@@ -50,27 +50,11 @@ export class NavigationCommandModule {
             [WebviewCmd.ToggleFullscreen]: this.handleToggleFullscreen,
             [WebviewCmd.ToggleCourseFullscreen]: this.handleToggleCourseFullscreen,
             [WebviewCmd.OpenExam]: this.handleOpenExam,
-            [WebviewCmd.StartExam]: this.handleStartExam,
             [WebviewCmd.RefreshExam]: this.handleRefreshExam,
             [WebviewCmd.ReloadExamConduction]: this.handleReloadExamConduction,
             [WebviewCmd.OpenExamInBrowser]: this.handleOpenExamInBrowser,
-            [WebviewCmd.OpenRulesInEditor]: this.handleOpenRulesInEditor,
         };
     }
-
-    private handleOpenRulesInEditor = async (message: WebviewToExtensionMessage): Promise<void> => {
-        try {
-            const { text } = getPayload<WebCmd<'openRulesInEditor'>>(message);
-            const document = await vscode.workspace.openTextDocument({
-                content: text,
-                language: 'markdown'
-            });
-            await vscode.window.showTextDocument(document);
-        } catch (error: unknown) {
-            logger.viewError('Error opening rules in editor:', error);
-            vscode.window.showErrorMessage('Failed to open rules in editor.');
-        }
-    };
 
     private handleOpenExamInBrowser = async (message: WebviewToExtensionMessage): Promise<void> => {
         try {
@@ -115,17 +99,7 @@ export class NavigationCommandModule {
     };
 
 
-    private handleStartExam = async (message: WebviewToExtensionMessage): Promise<void> => {
-        try {
-            const payload = getPayload<WebCmd<'startExam'>>(message);
-            await this._startExamWithPayload(payload);
-        } catch (error: unknown) {
-            logger.viewError('[EXAMMODE] Error starting exam:', error);
-            vscode.window.showErrorMessage('Failed to start exam.');
-        }
-    };
-
-    private async _startExamWithPayload(payload: WebCmd<'startExam'>['payload']): Promise<void> {
+    private async _startExamWithPayload(payload: { courseId: number; examId: number; studentExamId: number }): Promise<void> {
         try {
             const { courseId, examId, studentExamId } = payload;
             logger.view(`[EXAMMODE] Starting exam ${examId} for student exam ${studentExamId}`);

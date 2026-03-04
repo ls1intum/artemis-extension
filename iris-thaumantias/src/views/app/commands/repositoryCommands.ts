@@ -87,12 +87,8 @@ export class RepositoryCommandModule {
     public getHandlers(): CommandMap {
         return {
             [WebviewCmd.DetectWorkspaceExercise]: this.handleDetectWorkspaceExercise,
-            [WebviewCmd.ParticipateInExercise]: this.handleParticipateInExercise,
             [WebviewCmd.CheckRepositoryStatus]: this.handleCheckRepositoryStatus,
             [WebviewCmd.CloneRepository]: this.handleCloneRepository,
-            [WebviewCmd.OpenClonedRepository]: this.handleOpenClonedRepository,
-            [WebviewCmd.CopyCloneUrl]: this.handleCopyCloneUrl,
-            [WebviewCmd.PullChanges]: this.handlePullChanges,
             [WebviewCmd.SubmitExercise]: this.handleSubmitExercise,
             [WebviewCmd.SaveGitCredentials]: this.handleSaveGitCredentials,
             [WebviewCmd.SaveGitIdentity]: this.handleSaveGitIdentity,
@@ -165,29 +161,6 @@ export class RepositoryCommandModule {
         }
         return exercises;
     }
-
-    private handleParticipateInExercise = async (message: WebviewToExtensionMessage): Promise<void> => {
-        try {
-            const payload = getPayload<WebCmd<'participateInExercise'>>(message);
-            const exerciseId = payload.exerciseId;
-            const exerciseTitle = payload.exerciseTitle;
-            vscode.window.showInformationMessage('Starting exercise participation...');
-            const participation = await this.context.artemisApi.startExerciseParticipation(exerciseId);
-
-            if (participation) {
-                vscode.window.showInformationMessage(
-                    `Successfully started participation in "${exerciseTitle}". Your repository is being prepared.`
-                );
-
-                await this.context.actionHandler.openExerciseDetails(exerciseId);
-            }
-        } catch (error: unknown) {
-            logger.submissionError('Failed to start exercise participation:', error);
-            vscode.window.showErrorMessage(
-                `Failed to start exercise participation: ${extractErrorMessage(error)}`
-            );
-        }
-    };
 
     private handleCheckRepositoryStatus = async (_message: WebviewToExtensionMessage): Promise<void> => {
         if (this.currentRepoContext) {
@@ -472,98 +445,6 @@ export class RepositoryCommandModule {
         } catch (error: unknown) {
             logger.submissionError('Clone repository error:', error);
             vscode.window.showErrorMessage('Failed to clone repository.');
-        }
-    };
-
-    private handleOpenClonedRepository = async (message: WebviewToExtensionMessage): Promise<void> => {
-        try {
-            const payload = getPayload<WebCmd<'openClonedRepository'>>(message);
-            const exerciseId = payload.exerciseId;
-            const repoInfo = this.clonedRepositories.get(exerciseId);
-
-            if (!repoInfo) {
-                vscode.window.showWarningMessage('No cloned repository found for this exercise. Please clone it first.');
-                return;
-            }
-
-            // Validate that the cached path still exists
-            if (!fs.existsSync(repoInfo.path)) {
-                this.clonedRepositories.delete(exerciseId);
-                vscode.window.showWarningMessage('The cloned repository folder no longer exists. Please clone it again.');
-                return;
-            }
-
-            const repoUri = vscode.Uri.file(repoInfo.path);
-            await vscode.commands.executeCommand('vscode.openFolder', repoUri, true);
-
-            this.clonedRepositories.delete(exerciseId);
-        } catch (error: unknown) {
-            logger.submissionError('Open cloned repository error:', error);
-            vscode.window.showErrorMessage('Failed to open cloned repository.');
-        }
-    };
-
-    private handleCopyCloneUrl = async (message: WebviewToExtensionMessage): Promise<void> => {
-        try {
-            const payload = getPayload<WebCmd<'copyCloneUrl'>>(message);
-            const { participationId, repositoryUri } = payload;
-            if (!participationId || !repositoryUri) {
-                vscode.window.showErrorMessage('Cannot copy URL: missing participation or repository URL.');
-                return;
-            }
-
-            const authenticatedUrl = await this.buildAuthenticatedUrl(participationId, repositoryUri);
-            if (!authenticatedUrl) {
-                return;
-            }
-
-            await vscode.env.clipboard.writeText(authenticatedUrl);
-            vscode.window.showInformationMessage('Clone URL (token) copied to clipboard.');
-        } catch (error: unknown) {
-            logger.submissionError('Copy clone URL error:', error);
-            vscode.window.showErrorMessage('Failed to copy clone URL.');
-        }
-    };
-
-    private handlePullChanges = async (message: WebviewToExtensionMessage): Promise<void> => {
-        try {
-            const payload = getPayload<WebCmd<'pullChanges'>>(message);
-            const exerciseTitle = payload.exerciseTitle;
-            const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
-            if (!workspaceFolder) {
-                vscode.window.showErrorMessage('No workspace folder open. Please open the exercise repository first.');
-                return;
-            }
-
-            const cwd = workspaceFolder.uri.fsPath;
-
-            await vscode.window.withProgress({
-                location: vscode.ProgressLocation.Notification,
-                title: `Pulling changes for "${exerciseTitle}"...`,
-                cancellable: false
-            }, async () => {
-                try {
-                    await this.gitService.pullWithRebase({ cwd });
-                    vscode.window.showInformationMessage(`Successfully pulled changes for "${exerciseTitle}".`);
-
-                    if (this.currentRepoContext) {
-                        await this._checkRepositoryStatusWithContext(this.currentRepoContext);
-                    }
-                } catch (pullError: unknown) {
-                    const errorMessage = pullError instanceof Error ? pullError.message : '';
-                    if (errorMessage && errorMessage.includes('CONFLICT')) {
-                        throw new Error('Merge conflict detected. Please resolve conflicts manually.');
-                    } else if (errorMessage && errorMessage.includes('Already up to date')) {
-                        vscode.window.showInformationMessage('Repository is already up to date.');
-                    } else {
-                        throw pullError;
-                    }
-                }
-            });
-        } catch (error: unknown) {
-            logger.submissionError('Pull changes error:', error);
-            const errorMessage = extractErrorMessage(error);
-            vscode.window.showErrorMessage(errorMessage);
         }
     };
 

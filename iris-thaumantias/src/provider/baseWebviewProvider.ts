@@ -45,20 +45,32 @@ export abstract class BaseWebviewProvider {
     /** Hard cap on pending messages to prevent unbounded growth. */
     private static readonly MAX_PENDING = 200;
 
+    /** Event-type messages that carry unique data per dispatch and must never be deduplicated. */
+    private static readonly EVENT_TYPES: ReadonlySet<string> = new Set([
+        'websocketUpdate',
+        'addMessage',
+    ]);
+
     /**
      * Safely post a message to the webview, queuing it if not ready yet.
      * Deduplicates by message type (keeps latest) and enforces a hard cap.
+     * Event-type messages are always appended without deduplication.
      */
     protected _postMessageSafe(message: ExtensionToWebviewMessage): void {
         if (this._webviewReady && this._view) {
             this._view.webview.postMessage(message);
         } else {
-            // Deduplicate: replace existing message with same type
-            const idx = this._pendingMessages.findIndex(m => m.type === message.type);
-            if (idx !== -1) {
-                this._pendingMessages[idx] = message;
-            } else {
+            if (BaseWebviewProvider.EVENT_TYPES.has(message.type)) {
+                // Event messages carry unique data — never deduplicate
                 this._pendingMessages.push(message);
+            } else {
+                // Deduplicate: replace existing message with same type
+                const idx = this._pendingMessages.findIndex(m => m.type === message.type);
+                if (idx !== -1) {
+                    this._pendingMessages[idx] = message;
+                } else {
+                    this._pendingMessages.push(message);
+                }
             }
 
             // Safety net: drop oldest if over hard cap

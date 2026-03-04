@@ -1,4 +1,4 @@
-export type ChatContextType = 'exercise' | 'course' | 'lecture' | 'general';
+export type ChatContextType = 'exercise' | 'course';
 
 export type ContextSource =
     | 'workspace-detected'

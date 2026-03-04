@@ -9,6 +9,7 @@ import type {
     SubmissionSummary,
 } from '../../types/apiResponses';
 import type { CourseData, ArchivedCourse, CourseDetailData, RecentCourseNode } from './domainTypes';
+import type { ChatContextType } from '../../types/context';
 
 /** All Extension->Webview message types (const object for string-literal compatibility) */
 export const ExtensionMsg = {
@@ -57,8 +58,6 @@ export const ExtensionMsg = {
 
     // Exercise/Repo responses
     SubmissionResult: 'submissionResult',
-    TestResultsData: 'testResultsData',
-    BuildLogParsed: 'buildLogParsed',
     UpdateRepoStatus: 'updateRepoStatus',
     UpdateDirtyPagesStatus: 'updateDirtyPagesStatus',
     ShowClonedRepoNotice: 'showClonedRepoNotice',
@@ -186,7 +185,7 @@ interface ExtensionMsgPayloads {
     // Iris Chat
     updateIrisState: {
         state: {
-            context: { type: 'course' | 'exercise'; id: number; title: string; shortName?: string; locked: boolean; source: 'user-selected' | 'workspace-detected' | 'system-default' } | null;
+            context: { type: ChatContextType; id: number; title: string; shortName?: string; locked: boolean; source: 'user-selected' | 'workspace-detected' | 'system-default' } | null;
             activeSessionId: string | null;
             sessions: Array<{
                 id: string;
@@ -240,24 +239,6 @@ interface ExtensionMsgPayloads {
 
     // Exercise/Repo responses
     submissionResult: { success: boolean; error?: string };
-    testResultsData: {
-        testCases: Array<{
-            testName?: string;
-            successful?: boolean;
-            message?: string;
-        }>;
-        error?: string;
-    };
-    buildLogParsed: {
-        error: {
-            filePath: string;
-            line: number;
-            message: string;
-            column?: number;
-        } | null;
-        participationId: number;
-        resultId?: number;
-    };
     updateRepoStatus: {
         isConnected: boolean;
         hasChanges: boolean;

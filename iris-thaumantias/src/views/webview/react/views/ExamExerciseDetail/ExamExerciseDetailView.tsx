@@ -38,8 +38,6 @@ export function ExamExerciseDetailView({ vscodeApi }: ExamExerciseDetailViewProp
         setRepoStatus,
         setSubmissionResult,
         setClonedNotice,
-        setTestResults,
-        setBuildError,
         setDirtyPagesStatus,
     } = useExerciseDetailStore();
 
@@ -70,17 +68,11 @@ export function ExamExerciseDetailView({ vscodeApi }: ExamExerciseDetailViewProp
             case ExtensionMsg.ShowClonedRepoNotice:
                 setClonedNotice(msg.exerciseTitle);
                 break;
-            case ExtensionMsg.TestResultsData:
-                setTestResults({ testCases: msg.testCases, error: msg.error });
-                break;
-            case ExtensionMsg.BuildLogParsed:
-                setBuildError(msg.error);
-                break;
             case ExtensionMsg.UpdateDirtyPagesStatus:
                 setDirtyPagesStatus({ hasDirtyPages: msg.hasDirtyPages, dirtyFileCount: msg.dirtyFileCount, autoSaveEnabled: msg.autoSaveEnabled });
                 break;
         }
-    }, [vscodeApi, setSubmissionResult, setRepoStatus, setClonedNotice, setTestResults, setBuildError, setDirtyPagesStatus]);
+    }, [vscodeApi, setSubmissionResult, setRepoStatus, setClonedNotice, setDirtyPagesStatus]);
 
     // Auto-retry on error
     useEffect(() => {

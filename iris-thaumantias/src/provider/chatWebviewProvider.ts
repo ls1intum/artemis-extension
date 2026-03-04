@@ -505,7 +505,7 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
 
     private _serializeSnapshot(snapshot: ContextSnapshot): ExtMsg<'updateIrisState'>['state'] {
         return {
-            context: snapshot.activeContext as ExtMsg<'updateIrisState'>['state']['context'],
+            context: snapshot.activeContext,
             activeSessionId: snapshot.activeSession?.id ?? null,
             sessions: snapshot.sessions.map(session => this._serializeSession(session)),
             recentExercises: snapshot.recentExercises,

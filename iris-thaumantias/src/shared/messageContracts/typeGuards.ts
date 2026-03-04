@@ -10,6 +10,42 @@ import type { WebviewToExtensionMessage } from './webviewCommands';
 const extensionMsgValues = new Set<string>(Object.values(ExtensionMsg));
 const webviewCmdValues = new Set<string>(Object.values(WebviewCmd));
 
+/** Commands that require a non-undefined payload object. */
+const COMMANDS_REQUIRING_PAYLOAD = new Set<string>([
+    WebviewCmd.Login,
+    WebviewCmd.ViewCourseDetails,
+    WebviewCmd.OpenExercise,
+    WebviewCmd.OpenExerciseDetails,
+    WebviewCmd.OpenExamExerciseDetails,
+    WebviewCmd.ReloadCourseDetail,
+    WebviewCmd.AskIrisAboutCourse,
+    WebviewCmd.ReloadExerciseDetail,
+    WebviewCmd.CloneRepository,
+    WebviewCmd.OpenRepository,
+    WebviewCmd.SubmitExercise,
+    WebviewCmd.TriggerBuild,
+    WebviewCmd.StartExercise,
+    WebviewCmd.StartPractice,
+    WebviewCmd.AskIrisAboutExercise,
+    WebviewCmd.OpenExam,
+    WebviewCmd.OpenExamInBrowser,
+    WebviewCmd.RefreshExam,
+    WebviewCmd.OpenInEditor,
+    WebviewCmd.CopyToClipboard,
+    WebviewCmd.OpenExternalLink,
+    WebviewCmd.OpenImagePreview,
+    WebviewCmd.SearchMarketplace,
+    WebviewCmd.SaveGitIdentity,
+    WebviewCmd.PerformHealthChecks,
+    WebviewCmd.SendMessage,
+    WebviewCmd.SelectChatContext,
+    WebviewCmd.SwitchSession,
+    WebviewCmd.MessageFeedback,
+    WebviewCmd.OpenFile,
+    WebviewCmd.GoToSourceError,
+    WebviewCmd.ViewArchivedCourse,
+]);
+
 export function isExtensionMessage(msg: unknown): msg is ExtensionToWebviewMessage {
     return typeof msg === 'object' && msg !== null && 'type' in msg
         && extensionMsgValues.has((msg as { type: string }).type);
@@ -36,7 +72,17 @@ export function isWebviewMessage(msg: unknown): msg is WebviewToExtensionMessage
         }
         case 'command': {
             const command = (msg as { command?: unknown }).command;
-            return typeof command === 'string' && webviewCmdValues.has(command);
+            if (typeof command !== 'string' || !webviewCmdValues.has(command)) {
+                return false;
+            }
+            // Reject commands that require a payload but are missing one
+            if (COMMANDS_REQUIRING_PAYLOAD.has(command)) {
+                const payload = (msg as { payload?: unknown }).payload;
+                if (typeof payload !== 'object' || payload === null) {
+                    return false;
+                }
+            }
+            return true;
         }
         case WebviewMsgType.UpdatePanelTitle:
             return typeof (msg as { title?: unknown }).title === 'string';

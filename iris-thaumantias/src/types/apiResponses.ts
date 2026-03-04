@@ -69,6 +69,7 @@ export interface SubmissionSummary {
     buildFailed?: boolean;
     commitHash?: string;
     results?: ResultSummary[];
+    participationId?: number;
     [key: string]: unknown;
 }
 
@@ -78,6 +79,7 @@ export interface ResultSummary {
     successful?: boolean;
     score?: number;
     feedbacks?: FeedbackSummary[];
+    participationId?: number;
     [key: string]: unknown;
 }
 

@@ -1,50 +1,30 @@
 import * as vscode from 'vscode';
 import * as crypto from 'crypto';
 import type { CommandContext, CommandMap } from './types';
-import { getPayload, ExtensionMsg, WebviewCmd } from '../../../shared/messageContracts';
+import { getPayload, WebviewCmd } from '../../../shared/messageContracts';
 import type {
     WebviewToExtensionMessage,
     WebCmd,
 } from '../../../shared/messageContracts';
-import { BuildLogParser, normalizeRelativePath, extractErrorMessage, CONFIG, VSCODE_CONFIG } from '../../../utils';
-import { logger, LogLevel, LogCategory } from '../../../services/loggingService';
+import { normalizeRelativePath, extractErrorMessage, CONFIG, VSCODE_CONFIG } from '../../../utils';
+import { logger, LogCategory } from '../../../services/loggingService';
 
 export class UtilityCommandModule {
     constructor(private readonly context: CommandContext) { }
 
     public getHandlers(): CommandMap {
         return {
-            [WebviewCmd.Alert]: this.handleAlert,
             [WebviewCmd.OpenSettings]: this.handleOpenSettings,
             [WebviewCmd.OpenWebsite]: this.handleOpenWebsite,
             [WebviewCmd.OpenBugReport]: this.handleOpenBugReport,
             [WebviewCmd.OpenInEditor]: this.handleOpenInEditor,
             [WebviewCmd.CopyToClipboard]: this.handleCopyToClipboard,
             [WebviewCmd.SearchMarketplace]: this.handleSearchMarketplace,
-            [WebviewCmd.ShowSubmissionDetails]: this.handleShowSubmissionDetails,
-            [WebviewCmd.FetchTestResults]: this.handleFetchTestResults,
-            [WebviewCmd.OpenExerciseInBrowser]: this.handleOpenExerciseInBrowser,
-            [WebviewCmd.ViewBuildLog]: this.handleViewBuildLog,
             [WebviewCmd.GoToSourceError]: this.handleGoToSourceError,
-            [WebviewCmd.FetchBuildLogsForError]: this.handleFetchBuildLogsForError,
-            [WebviewCmd.ClearBuildErrors]: this.handleClearBuildErrors,
-            [WebviewCmd.WebviewLog]: this.handleWebviewLog,
             [WebviewCmd.OpenExternalLink]: this.handleOpenExternalLink,
             [WebviewCmd.OpenImagePreview]: this.handleOpenImagePreview,
         };
     }
-
-    private handleAlert = async (message: WebviewToExtensionMessage): Promise<void> => {
-        try {
-            const payload = getPayload<WebCmd<'alert'>>(message);
-            if (payload.text) {
-                vscode.window.showErrorMessage(payload.text);
-            }
-        } catch (error: unknown) {
-            logger.error('Failed to show alert:', LogCategory.VIEW, error);
-            vscode.window.showErrorMessage(`Failed to show alert: ${extractErrorMessage(error)}`);
-        }
-    };
 
     private handleOpenSettings = async (message: WebviewToExtensionMessage): Promise<void> => {
         try {
@@ -111,201 +91,6 @@ export class UtilityCommandModule {
         }
     };
 
-    private handleShowSubmissionDetails = async (message: WebviewToExtensionMessage): Promise<void> => {
-        try {
-            const payload = getPayload<WebCmd<'showSubmissionDetails'>>(message);
-            const participationId = payload.participationId;
-            const resultId = payload.resultId;
-            if (!participationId || !resultId) {
-                vscode.window.showErrorMessage('Cannot fetch submission details: missing participation or result ID.');
-                return;
-            }
-
-            vscode.window.showInformationMessage('Loading submission details...');
-
-            const resultDetails = await this.context.artemisApi.getResultDetails(participationId, resultId);
-
-            if (resultDetails) {
-                await this.context.actionHandler.openJsonInEditor(resultDetails);
-                vscode.window.showInformationMessage('Submission details opened in editor');
-            } else {
-                vscode.window.showErrorMessage('No submission details found');
-            }
-        } catch (error: unknown) {
-            logger.submissionError('Show submission details error:', error);
-            vscode.window.showErrorMessage(`Failed to fetch submission details: ${extractErrorMessage(error)}`);
-        }
-    };
-
-    private handleFetchTestResults = async (message: WebviewToExtensionMessage): Promise<void> => {
-        try {
-            const payload = getPayload<WebCmd<'fetchTestResults'>>(message);
-            const participationId = payload.participationId;
-            const resultId = payload.resultId;
-            if (!participationId || !resultId) {
-                this.context.sendMessage({
-                    type: ExtensionMsg.TestResultsData,
-                    testCases: [],
-                    error: 'Missing participation or result ID'
-                });
-                return;
-            }
-
-            const resultDetails = await this.context.artemisApi.getResultDetails(participationId, resultId);
-
-            logger.submission('[Test Results] Result details received:', JSON.stringify(resultDetails, null, 2));
-
-            let feedbacks: unknown[] = [];
-
-            if (Array.isArray(resultDetails)) {
-                feedbacks = resultDetails;
-            } else if (resultDetails && typeof resultDetails === 'object' && 'feedbacks' in resultDetails && Array.isArray(resultDetails.feedbacks)) {
-                feedbacks = resultDetails.feedbacks;
-            }
-
-            logger.submission('[Test Results] Feedbacks array:', feedbacks.length, 'items');
-
-            if (feedbacks.length > 0) {
-                const testCases = feedbacks
-                    .filter((feedback): feedback is Record<string, unknown> =>
-                        typeof feedback === 'object' && feedback !== null && 'testCase' in feedback)
-                    .map((feedback) => ({
-                        testName: (typeof feedback.testCase === 'object' && feedback.testCase !== null && 'testName' in feedback.testCase && typeof feedback.testCase.testName === 'string')
-                            ? feedback.testCase.testName
-                            : 'Unnamed Test',
-                        successful: feedback.positive === true,
-                        message: typeof feedback.detailText === 'string' ? feedback.detailText : '',
-                        type: (typeof feedback.testCase === 'object' && feedback.testCase !== null && 'type' in feedback.testCase)
-                            ? feedback.testCase.type
-                            : feedback.type,
-                        credits: feedback.credits,
-                        visibility: (typeof feedback.testCase === 'object' && feedback.testCase !== null && 'visibility' in feedback.testCase)
-                            ? feedback.testCase.visibility
-                            : undefined
-                    }));
-
-                logger.submission('[Test Results] Mapped test cases:', testCases.length, 'items');
-
-                this.context.sendMessage({
-                    type: ExtensionMsg.TestResultsData,
-                    testCases: testCases
-                });
-            } else {
-                logger.submission('[Test Results] No feedbacks found in result details');
-                this.context.sendMessage({
-                    type: ExtensionMsg.TestResultsData,
-                    testCases: []
-                });
-            }
-        } catch (error: unknown) {
-            logger.submissionError('Fetch test results error:', error);
-            this.context.sendMessage({
-                type: ExtensionMsg.TestResultsData,
-                testCases: [],
-                error: extractErrorMessage(error)
-            });
-        }
-    };
-
-    private handleOpenExerciseInBrowser = async (message: WebviewToExtensionMessage): Promise<void> => {
-        try {
-            const payload = getPayload<WebCmd<'openExerciseInBrowser'>>(message);
-            const exerciseId = payload.exerciseId;
-            const courseId = payload.courseId;
-
-            if (!exerciseId) {
-                vscode.window.showErrorMessage('Cannot open exercise: missing exercise ID');
-                return;
-            }
-            // Get the server URL from configuration
-            const config = vscode.workspace.getConfiguration(VSCODE_CONFIG.ARTEMIS_SECTION);
-            const serverUrl = config.get<string>(VSCODE_CONFIG.SERVER_URL_KEY, CONFIG.ARTEMIS_SERVER_URL_DEFAULT);
-
-            if (!courseId) {
-                vscode.window.showErrorMessage('Cannot open exercise in browser: missing course ID');
-                return;
-            }
-
-            const exerciseUrl = `${serverUrl}/courses/${courseId}/exercises/${exerciseId}`;
-
-            // Open in external browser
-            await vscode.env.openExternal(vscode.Uri.parse(exerciseUrl));
-        } catch (error: unknown) {
-            logger.viewError('Open exercise in browser error:', error);
-            vscode.window.showErrorMessage(`Failed to open exercise in browser: ${extractErrorMessage(error)}`);
-        }
-    };
-
-    private handleViewBuildLog = async (message: WebviewToExtensionMessage): Promise<void> => {
-        try {
-            const payload = getPayload<WebCmd<'viewBuildLog'>>(message);
-            const participationId = payload.participationId;
-            const resultId = payload.resultId;
-            if (!participationId) {
-                vscode.window.showErrorMessage('Cannot fetch build log: missing participation ID.');
-                return;
-            }
-
-            vscode.window.showInformationMessage('Loading build log...');
-
-            const buildLogs = await this.context.artemisApi.getBuildLogs(participationId, resultId);
-
-            if (!buildLogs || buildLogs.length === 0) {
-                vscode.window.showInformationMessage('No build logs available for this submission.');
-                return;
-            }
-
-            // Parse the first error from build logs
-            const firstError = BuildLogParser.parseFirstError(buildLogs);
-
-            // Format the build log for display
-            const logContent = buildLogs
-                .map((entry: unknown) => {
-                    if (typeof entry !== 'object' || entry === null) {return '';}
-                    const entryObj = entry as { time?: unknown; log?: unknown };
-                    const timestamp = entryObj.time ? new Date(entryObj.time as string).toISOString().replace('T', ' ').substring(0, 19) : '';
-                    const log = typeof entryObj.log === 'string' ? entryObj.log : '';
-                    return `${timestamp}\n    ${log}`;
-                })
-                .join('\n');
-
-            // Create header with metadata and error summary
-            let header = `${'='.repeat(80)}\nArtemis Build Log\n${'='.repeat(80)}\n\n`;
-
-            if (firstError) {
-                header += `⚠️  First Error Found:\n`;
-                header += `   ${BuildLogParser.formatError(firstError)}\n\n`;
-                header += `${'='.repeat(80)}\n\n`;
-            }
-
-            const fullContent = header + logContent;
-
-            // Open in a new editor tab
-            const document = await vscode.workspace.openTextDocument({
-                content: fullContent,
-                language: 'log'
-            });
-
-            await vscode.window.showTextDocument(document, {
-                preview: false,
-                viewColumn: vscode.ViewColumn.Active
-            });
-
-            // Send parsed error back to webview so it can show "Go to Source" button
-            this.context.sendMessage({
-                type: ExtensionMsg.BuildLogParsed,
-                error: firstError,
-                participationId: participationId,
-                resultId: resultId
-            });
-
-            vscode.window.showInformationMessage('Build log opened in editor');
-        } catch (error: unknown) {
-            logger.error('View build log error:', LogCategory.BUILD, error);
-            vscode.window.showErrorMessage(`Failed to fetch build log: ${extractErrorMessage(error)}`);
-        }
-    };
-
     private handleGoToSourceError = async (message: WebviewToExtensionMessage): Promise<void> => {
         try {
             const payload = getPayload<WebCmd<'goToSourceError'>>(message);
@@ -356,96 +141,6 @@ export class UtilityCommandModule {
         } catch (error: unknown) {
             logger.viewError('Go to source error:', error);
             vscode.window.showErrorMessage(`Failed to navigate to source: ${extractErrorMessage(error)}`);
-        }
-    };
-
-    private handleFetchBuildLogsForError = async (message: WebviewToExtensionMessage): Promise<void> => {
-        try {
-            const payload = getPayload<WebCmd<'fetchBuildLogsForError'>>(message);
-            const participationId = payload.participationId;
-            const resultId = payload.resultId;
-            if (!participationId) {
-                logger.error('Cannot fetch build logs for error: missing participation ID.', LogCategory.BUILD);
-                return;
-            }
-
-            logger.info('[Build Log] 🔍 Fetching build logs in background to parse errors...', LogCategory.BUILD);
-
-            const buildLogs = await this.context.artemisApi.getBuildLogs(participationId, resultId);
-
-            if (!buildLogs || buildLogs.length === 0) {
-                logger.info('[Build Log] No build logs available for error parsing', LogCategory.BUILD);
-                return;
-            }
-
-            // Parse the first error from build logs
-            const firstError = BuildLogParser.parseFirstError(buildLogs);
-
-            // Send parsed error back to webview so it can show "Go to Source" button
-            if (firstError) {
-                logger.info('[Build Log] ✅ Parsed error from build logs:', LogCategory.BUILD, firstError);
-
-                // Show CodeLens above the error line
-                if (this.context.buildCodeLens) {
-                    this.context.buildCodeLens.setErrors(firstError.filePath, [firstError]);
-                }
-
-                this.context.sendMessage({
-                    type: ExtensionMsg.BuildLogParsed,
-                    error: firstError,
-                    participationId: participationId,
-                    resultId: resultId
-                });
-            } else {
-                logger.info('No parseable errors found in build logs', LogCategory.BUILD);
-            }
-        } catch (error: unknown) {
-            logger.error('Fetch build logs for error:', LogCategory.BUILD, error);
-            // Silently fail - this is a background operation
-        }
-    };
-
-    private handleClearBuildErrors = async (_message: WebviewToExtensionMessage): Promise<void> => {
-        try {
-            logger.info('🧹 Clearing CodeLens build errors...', LogCategory.BUILD);
-
-            // Clear all build errors from CodeLens
-            if (this.context.buildCodeLens) {
-                this.context.buildCodeLens.clearErrors();
-                logger.info('✅ CodeLens errors cleared', LogCategory.BUILD);
-            }
-        } catch (error: unknown) {
-            logger.error('Error clearing build errors:', LogCategory.BUILD, error);
-            // Silently fail - this is a background operation
-        }
-    };
-
-    /**
-     * Handles log messages from webview scripts
-     */
-    private handleWebviewLog = async (message: WebviewToExtensionMessage): Promise<void> => {
-        try {
-            const payload = getPayload<WebCmd<'webviewLog'>>(message);
-            const { level, text } = payload;
-            const logCategory = LogCategory.VIEW;
-
-            switch (level) {
-                case 'error':
-                    logger.error(text, logCategory, payload.error);
-                    break;
-                case 'warn':
-                    logger.warn(text, logCategory);
-                    break;
-                case 'debug':
-                    logger.debug(text, logCategory);
-                    break;
-                case 'info':
-                default:
-                    logger.info(text, logCategory);
-                    break;
-            }
-        } catch (error: unknown) {
-            logger.error('Failed to process webview log:', LogCategory.VIEW, error);
         }
     };
 

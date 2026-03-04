@@ -35,6 +35,7 @@ export class SubmissionWebSocketHandler {
                 credits: f.credits,
                 positive: f.positive,
             })),
+            participationId: result.participation?.id,
         };
         this._postMessage({
             type: ExtensionMsg.WebsocketUpdate,
@@ -62,6 +63,7 @@ export class SubmissionWebSocketHandler {
                     positive: f.positive,
                 })),
             })),
+            participationId: submission.participation?.id,
         };
         this._postMessage({
             type: ExtensionMsg.WebsocketUpdate,

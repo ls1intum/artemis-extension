@@ -21,7 +21,7 @@ import {
     ParticipationActions,
     BuildProgress,
 } from '../../components/exercise';
-import { ProblemStatement, ScoreInfo, TestResults } from './components';
+import { ProblemStatement, ScoreInfo } from './components';
 import type { ExerciseType } from '../../components/exercise/ParticipationActions';
 import type { BuildState } from '../../components/exercise/BuildProgress';
 import { ExtensionMsg, postCommand } from '../../../../../shared/messageContracts';
@@ -38,8 +38,6 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
         repoStatus,
         submissionResult,
         clonedNotice,
-        testResults,
-        buildError,
         setExerciseData,
         setLoading,
         setError,
@@ -47,8 +45,6 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
         setRepoStatus,
         setSubmissionResult,
         setClonedNotice,
-        setTestResults,
-        setBuildError,
         setDirtyPagesStatus,
         clearSubmissionResult,
         clearClonedNotice,
@@ -104,17 +100,11 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
             case ExtensionMsg.ShowClonedRepoNotice:
                 setClonedNotice(msg.exerciseTitle);
                 break;
-            case ExtensionMsg.TestResultsData:
-                setTestResults({ testCases: msg.testCases, error: msg.error });
-                break;
-            case ExtensionMsg.BuildLogParsed:
-                setBuildError(msg.error);
-                break;
             case ExtensionMsg.UpdateDirtyPagesStatus:
                 setDirtyPagesStatus({ hasDirtyPages: msg.hasDirtyPages, dirtyFileCount: msg.dirtyFileCount, autoSaveEnabled: msg.autoSaveEnabled });
                 break;
         }
-    }, [vscodeApi, setSubmissionResult, setRepoStatus, setClonedNotice, setTestResults, setBuildError, setDirtyPagesStatus]);
+    }, [vscodeApi, setSubmissionResult, setRepoStatus, setClonedNotice, setDirtyPagesStatus]);
 
     // Auto-retry once on error
     useEffect(() => {
@@ -436,36 +426,7 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
                     />
                 )}
 
-                {/* Build error with "Go to error" action */}
-                {buildError && (
-                    <div className={styles.buildErrorAction}>
-                        <span>{buildError.message} ({buildError.filePath}:{buildError.line})</span>
-                        <Button variant="secondary" onClick={() => {
-                            postCommand(vscodeApi, 'goToSourceError', {
-                                filePath: buildError.filePath,
-                                line: buildError.line,
-                                column: buildError.column ?? 0,
-                            });
-                        }}>
-                            Go to Error
-                        </Button>
-                    </div>
-                )}
             </Container>
-
-            {/* Test Results */}
-            {testResults && testResults.testCases.length > 0 && (
-                <Container header={<h3>Test Results</h3>}>
-                    <TestResults testCases={testResults.testCases.map((tc) => ({
-                        name: tc.testName || 'Unnamed Test',
-                        passed: tc.successful === true,
-                        message: tc.message,
-                    }))} />
-                    {testResults.error && (
-                        <div className={styles.testResultsError}>{testResults.error}</div>
-                    )}
-                </Container>
-            )}
 
             {/* Ask Iris Section */}
             <Container header={<h3>Ask Iris</h3>}>

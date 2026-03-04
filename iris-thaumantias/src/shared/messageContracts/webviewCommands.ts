@@ -97,43 +97,11 @@ export const WebviewCmd = {
     DebugSessions: 'debugSessions',
     OpenHelpPopup: 'openHelpPopup',
 
-    // Inline commands — used by inline HTML handlers, not React components.
-    // TODO: dead command — no React sender, candidate for removal
-    Alert: 'alert',
-    // TODO: dead command — no React sender, candidate for removal
-    ShowSubmissionDetails: 'showSubmissionDetails',
-    // TODO: dead command — no React sender, candidate for removal
-    FetchTestResults: 'fetchTestResults',
-    // TODO: dead command — no React sender, candidate for removal
-    OpenExerciseInBrowser: 'openExerciseInBrowser',
-    // TODO: dead command — no React sender, candidate for removal
-    ViewBuildLog: 'viewBuildLog',
-    // TODO: dead command — no React sender, candidate for removal
+    // Exercise navigation
     GoToSourceError: 'goToSourceError',
-    // TODO: dead command — no React sender, candidate for removal
-    FetchBuildLogsForError: 'fetchBuildLogsForError',
-    // TODO: dead command — no React sender, candidate for removal
-    WebviewLog: 'webviewLog',
-    // TODO: dead command — no React sender, candidate for removal
-    ParticipateInExercise: 'participateInExercise',
-    // TODO: dead command — no React sender, candidate for removal
-    OpenClonedRepository: 'openClonedRepository',
-    // TODO: dead command — no React sender, candidate for removal
-    CopyCloneUrl: 'copyCloneUrl',
-    // TODO: dead command — no React sender, candidate for removal
-    PullChanges: 'pullChanges',
-    // TODO: dead command — no React sender, candidate for removal
-    StartExam: 'startExam',
-    // TODO: dead command — no React sender, candidate for removal
+
+    // PlantUML inline rendering
     RenderPlantUmlInline: 'renderPlantUmlInline',
-    // TODO: dead command — no React sender, candidate for removal
-    OpenRulesInEditor: 'openRulesInEditor',
-    // TODO: dead command — no React sender, candidate for removal
-    RenderPlantUml: 'renderPlantUml',
-    // TODO: dead command — no React sender, candidate for removal
-    OpenPlantUmlInNewTab: 'openPlantUmlInNewTab',
-    // TODO: dead command — no React sender, candidate for removal
-    ClearBuildErrors: 'clearBuildErrors',
 } as const;
 
 /** Union of all Webview->Extension command strings */
@@ -221,26 +189,11 @@ interface WebviewCmdPayloads {
     debugSessions: undefined;
     openHelpPopup: undefined;
 
-    // Inline commands
-    alert: { text: string };
-    showSubmissionDetails: { participationId: number; resultId: number };
-    fetchTestResults: { participationId: number; resultId: number };
-    openExerciseInBrowser: { exerciseId: number; courseId?: number };
-    viewBuildLog: { participationId: number; resultId?: number };
+    // Exercise navigation
     goToSourceError: { filePath: string; line: number; column?: number };
-    fetchBuildLogsForError: { participationId: number; resultId?: number };
-    webviewLog: { level: 'debug' | 'info' | 'warn' | 'error'; text: string; category: string; error?: unknown };
-    participateInExercise: { exerciseId: number; exerciseTitle: string };
-    openClonedRepository: { exerciseId: number };
-    copyCloneUrl: { participationId: number; repositoryUri: string };
-    pullChanges: { exerciseTitle: string };
-    startExam: { courseId: number; examId: number; studentExamId: number };
-    renderPlantUmlInline: { plantUml: string; index: number };
 
-    openRulesInEditor: { text: string };
-    renderPlantUml: { plantUmlDiagrams: string[]; exerciseTitle?: string };
-    openPlantUmlInNewTab: { plantUml: string; index: number };
-    clearBuildErrors: undefined;
+    // PlantUML inline rendering
+    renderPlantUmlInline: { plantUml: string; index: number };
 }
 
 /** Auto-generated command messages */

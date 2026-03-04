@@ -19,19 +19,6 @@ interface SubmissionResult {
     error?: string;
 }
 
-interface TestResultCase {
-    testName?: string;
-    successful?: boolean;
-    message?: string;
-}
-
-interface BuildError {
-    filePath: string;
-    line: number;
-    message: string;
-    column?: number;
-}
-
 interface DirtyPagesStatus {
     hasDirtyPages: boolean;
     dirtyFileCount: number;
@@ -48,8 +35,6 @@ interface ExerciseDetailState {
     repoStatus: RepoStatus | null;
     submissionResult: SubmissionResult | null;
     clonedNotice: string | null;
-    testResults: { testCases: TestResultCase[]; error?: string } | null;
-    buildError: BuildError | null;
     dirtyPagesStatus: DirtyPagesStatus | null;
 
     // Actions
@@ -63,8 +48,6 @@ interface ExerciseDetailState {
     setRepoStatus: (status: RepoStatus) => void;
     setSubmissionResult: (result: SubmissionResult) => void;
     setClonedNotice: (exerciseTitle: string) => void;
-    setTestResults: (data: { testCases: TestResultCase[]; error?: string }) => void;
-    setBuildError: (error: BuildError | null) => void;
     setDirtyPagesStatus: (status: DirtyPagesStatus) => void;
     clearSubmissionResult: () => void;
     clearClonedNotice: () => void;
@@ -134,8 +117,6 @@ export const useExerciseDetailStore = create<ExerciseDetailState>()(
             repoStatus: null,
             submissionResult: null,
             clonedNotice: null,
-            testResults: null,
-            buildError: null,
             dirtyPagesStatus: null,
 
             setExerciseData: (data, hideDeveloperTools) => {
@@ -172,8 +153,16 @@ export const useExerciseDetailStore = create<ExerciseDetailState>()(
                 // Deep clone exerciseData
                 const updatedData = JSON.parse(JSON.stringify(state.exerciseData)) as ExerciseDetailsResponse;
 
-                // Find participation for this result (fall back to first participation for new results)
-                let participation = findParticipationForResult(updatedData, result);
+                // Find participation: match by participationId first, then by result ID, then fallback
+                let participation: ParticipationSummary | null = null;
+                if (result.participationId && updatedData.exercise?.studentParticipations) {
+                    participation = updatedData.exercise.studentParticipations.find(
+                        p => p.id === result.participationId
+                    ) ?? null;
+                }
+                if (!participation) {
+                    participation = findParticipationForResult(updatedData, result);
+                }
                 if (!participation && updatedData.exercise?.studentParticipations?.length) {
                     participation = updatedData.exercise.studentParticipations[0];
                 }
@@ -207,17 +196,17 @@ export const useExerciseDetailStore = create<ExerciseDetailState>()(
 
                 // payload is the newSubmission data
                 const submission = payload;
-                // Submission may have a participation reference (not in type but present at runtime via index signature)
-                const submissionWithParticipation = submission as SubmissionSummary & { participation?: ParticipationSummary };
-                const submissionParticipation = submissionWithParticipation.participation;
 
                 // Deep clone exerciseData
                 const updatedData = JSON.parse(JSON.stringify(state.exerciseData)) as ExerciseDetailsResponse;
 
-                // Find participation by ID (fall back to first participation when no match)
-                let participation = updatedData.exercise?.studentParticipations?.find(
-                    (p: ParticipationSummary) => p.id === submissionParticipation?.id
-                );
+                // Find participation by participationId first, then fallback to first
+                let participation: ParticipationSummary | undefined;
+                if (submission.participationId && updatedData.exercise?.studentParticipations) {
+                    participation = updatedData.exercise.studentParticipations.find(
+                        (p: ParticipationSummary) => p.id === submission.participationId
+                    );
+                }
                 if (!participation && updatedData.exercise?.studentParticipations?.length) {
                     participation = updatedData.exercise.studentParticipations[0];
                 }
@@ -277,14 +266,6 @@ export const useExerciseDetailStore = create<ExerciseDetailState>()(
 
             setClonedNotice: (exerciseTitle) => {
                 set({ clonedNotice: exerciseTitle }, false, 'setClonedNotice');
-            },
-
-            setTestResults: (data) => {
-                set({ testResults: data }, false, 'setTestResults');
-            },
-
-            setBuildError: (error) => {
-                set({ buildError: error }, false, 'setBuildError');
             },
 
             setDirtyPagesStatus: (status) => {
