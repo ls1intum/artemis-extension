@@ -270,7 +270,7 @@ suite('WebViewMessageHandler - handleMessageWithSender', () => {
             assert.ok(registeredHandlers.has('logout'), 'Should have "logout" handler (AuthCommandModule)');
 
             // Navigation module commands
-            assert.ok(registeredHandlers.has('browseCourses'), 'Should have "browseCourses" handler (NavigationCommandModule)');
+            assert.ok(registeredHandlers.has('showAllCourses'), 'Should have "showAllCourses" handler (NavigationCommandModule)');
             assert.ok(registeredHandlers.has('viewCourseDetails'), 'Should have "viewCourseDetails" handler (NavigationCommandModule)');
 
             // Repository module commands

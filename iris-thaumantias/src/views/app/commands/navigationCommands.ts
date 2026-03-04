@@ -18,16 +18,12 @@ import type {
     ExerciseDetailsResponse,
 } from '../../../types/apiResponses';
 
-interface CourseQuickPickItem extends vscode.QuickPickItem {
-    courseData: CourseDashboardEntry;
-}
 
 export class NavigationCommandModule {
     constructor(private readonly context: CommandContext) { }
 
     public getHandlers(): CommandMap {
         return {
-            [WebviewCmd.BrowseCourses]: this.handleBrowseCourses,
             [WebviewCmd.ShowAllCourses]: this.handleShowAllCourses,
             [WebviewCmd.ViewCourseDetails]: this.handleViewCourseDetails,
             [WebviewCmd.BackToDashboard]: this.handleBackToDashboard,
@@ -116,44 +112,6 @@ export class NavigationCommandModule {
             vscode.window.showErrorMessage('Failed to start exam.');
         }
     }
-
-    private handleBrowseCourses = async (_message: WebviewToExtensionMessage): Promise<void> => {
-        try {
-            vscode.window.showInformationMessage('Loading courses...');
-
-            const dashboardData = await this.context.artemisApi.getCoursesForDashboard();
-
-            if (dashboardData?.courses && dashboardData.courses.length > 0) {
-                const quickPickItems: CourseQuickPickItem[] = dashboardData.courses.map((courseData: CourseDashboardEntry) => {
-                    const course = courseData.course;
-                    const exerciseCount = course?.exercises ? course.exercises.length : 0;
-                    const semester = course?.semester || 'No semester';
-
-                    return {
-                        label: course?.title ?? 'Untitled Course',
-                        description: `${semester} • ${exerciseCount} exercises`,
-                        detail: course?.description || 'No description available',
-                        courseData
-                    };
-                });
-
-                const selectedItem = await vscode.window.showQuickPick<CourseQuickPickItem>(quickPickItems, {
-                    placeHolder: 'Select a course to view details',
-                    matchOnDescription: true,
-                    matchOnDetail: true
-                });
-
-                if (selectedItem) {
-                    await this.processCourseDetails(selectedItem.courseData);
-                }
-            } else {
-                vscode.window.showWarningMessage('No courses found or you don\'t have access to any courses.');
-            }
-        } catch (error: unknown) {
-            logger.viewError('Browse courses error:', error);
-            vscode.window.showErrorMessage('Error loading courses');
-        }
-    };
 
     private handleShowAllCourses = async (_message: WebviewToExtensionMessage): Promise<void> => {
         await this.context.actionHandler.showCourseList();

@@ -230,7 +230,7 @@ describe('DashboardView', () => {
 		expect(screen.getByText('Browse Courses')).toBeInTheDocument();
 	});
 
-	it('clicking Browse Courses sends browseCourses postMessage', async () => {
+	it('clicking Browse Courses sends showAllCourses postMessage', async () => {
 		const mockApi = createMockVsCodeApi();
 		render(<DashboardView vscodeApi={mockApi} />);
 
@@ -239,7 +239,7 @@ describe('DashboardView', () => {
 		expect(mockApi.postMessage).toHaveBeenCalledWith(
 			expect.objectContaining({
 				type: 'command',
-				command: 'browseCourses',
+				command: 'showAllCourses',
 			})
 		);
 	});

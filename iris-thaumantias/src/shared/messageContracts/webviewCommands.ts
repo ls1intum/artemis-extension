@@ -21,7 +21,6 @@ export const WebviewCmd = {
 
     // Navigation
     BackToDashboard: 'backToDashboard',
-    BrowseCourses: 'browseCourses',
     ShowAllCourses: 'showAllCourses',
     ViewCourseDetails: 'viewCourseDetails',
     OpenExercise: 'openExercise',
@@ -107,7 +106,6 @@ interface WebviewCmdPayloads {
 
     // Navigation
     backToDashboard: undefined;
-    browseCourses: undefined;
     showAllCourses: undefined;
     viewCourseDetails: { courseData: CourseDashboardCourse };
     openExercise: { exerciseId: number; courseId?: number | null };

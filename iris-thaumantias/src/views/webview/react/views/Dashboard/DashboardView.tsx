@@ -76,10 +76,6 @@ export function DashboardView({ vscodeApi }: DashboardViewProps) {
         postCommand(vscodeApi, 'openWebsite');
     };
 
-    const handleBrowseCourses = () => {
-        postCommand(vscodeApi, 'browseCourses');
-    };
-
     const handleOpenSettings = () => {
         postCommand(vscodeApi, 'openSettings', { setting: 'Artemis' });
     };
@@ -285,7 +281,7 @@ export function DashboardView({ vscodeApi }: DashboardViewProps) {
                 header={<h2 className={styles.sectionTitle}>Tools & Settings</h2>}
             >
                 <div className={styles.actionMenu}>
-                    <Button variant="ghost" fullWidth onClick={handleBrowseCourses} icon={<GraduationCap size={16} />}>
+                    <Button variant="ghost" fullWidth onClick={handleShowAllCourses} icon={<GraduationCap size={16} />}>
                         Browse Courses
                     </Button>
                     <Button variant="ghost" fullWidth onClick={handleOpenSettings} icon={<Settings size={16} />}>
