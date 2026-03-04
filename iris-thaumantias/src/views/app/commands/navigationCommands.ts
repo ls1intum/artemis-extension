@@ -351,7 +351,7 @@ export class NavigationCommandModule {
             this.context.appStateManager.clearCoursesData();
             await this.context.appStateManager.showCourseList();
             // Send updated data to React without re-rendering
-            this.context.actionHandler.resendViewData();
+            this.context.actionHandler.sendInitData();
         } catch (error: unknown) {
             logger.viewError('Reload courses error:', error);
             vscode.window.showErrorMessage('Error reloading courses');
@@ -365,7 +365,7 @@ export class NavigationCommandModule {
             if (userInfo) {
                 await this.context.appStateManager.showDashboard(userInfo);
                 // Send updated data to React without re-rendering
-                this.context.actionHandler.resendViewData();
+                this.context.actionHandler.sendInitData();
             }
         } catch (error: unknown) {
             logger.viewError('Reload dashboard error:', error);
@@ -401,7 +401,7 @@ export class NavigationCommandModule {
 
                 this.context.appStateManager.showCourseDetail(courseData);
                 // Send updated data to React without re-rendering
-                this.context.actionHandler.resendViewData();
+                this.context.actionHandler.sendInitData();
             }
         } catch (error: unknown) {
             logger.viewError('Reload course detail error:', error);
@@ -431,7 +431,7 @@ export class NavigationCommandModule {
                 this.context.appStateManager.clearCurrentExerciseData();
                 await this.context.appStateManager.showExerciseDetail(exerciseId);
                 // Send updated data to React without re-rendering
-                this.context.actionHandler.resendViewData();
+                this.context.actionHandler.sendInitData();
             }
         } catch (error: unknown) {
             logger.viewError('Reload exercise detail error:', error);
@@ -563,7 +563,7 @@ export class NavigationCommandModule {
             if (studentExam.started && studentExam.id) {
                 const conductionDetails = await this.context.artemisApi.startStudentExam(courseId, examId, studentExam.id);
                 this.context.appStateManager.showExamConduction({ studentExam: conductionDetails, courseId, examId });
-                this.context.actionHandler.resendViewData();
+                this.context.actionHandler.sendInitData();
             } else {
                 vscode.window.showWarningMessage('Exam has not been started yet.');
             }

@@ -28,7 +28,7 @@ export function App({ vscodeApi }: AppProps) {
 	// Signal readiness to extension host after mount.
 	// This is the single source of the ready signal — individual views register
 	// their message listeners in useEffect (child effects fire before parent),
-	// so listeners are in place before this signal triggers resendViewData().
+	// so listeners are in place before this signal triggers sendInitData().
 	useEffect(() => {
 		vscodeApi.postMessage({ type: WebviewMsgType.Ready });
 	}, [vscodeApi]);

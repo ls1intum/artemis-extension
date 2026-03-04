@@ -260,18 +260,18 @@ suite('Panel hide/show state persistence', () => {
     });
 
     test('resolveWebviewView registers an onDidChangeVisibility listener', async () => {
-        // If the listener is registered, simulateShow should trigger resendViewData.
-        // We verify this indirectly by spying on resendViewData.
-        const resendSpy = sandbox.spy(provider, 'resendViewData');
+        // If the listener is registered, simulateShow should trigger sendInitData.
+        // We verify this indirectly by spying on sendInitData.
+        const resendSpy = sandbox.spy(provider, 'sendInitData');
         controllableView.simulateShow();
         await Promise.resolve();
         await Promise.resolve(); // flush async body
 
-        assert.ok(resendSpy.called, 'onDidChangeVisibility listener should be registered and trigger resendViewData');
+        assert.ok(resendSpy.called, 'onDidChangeVisibility listener should be registered and trigger sendInitData');
     });
 
-    test('resendViewData is called when panel becomes visible', async () => {
-        const resendSpy = sandbox.spy(provider, 'resendViewData');
+    test('sendInitData is called when panel becomes visible', async () => {
+        const resendSpy = sandbox.spy(provider, 'sendInitData');
 
         // Hide first, then show
         controllableView.simulateHide();
@@ -281,16 +281,16 @@ suite('Panel hide/show state persistence', () => {
         await Promise.resolve();
         await Promise.resolve();
 
-        assert.ok(resendSpy.calledOnce, 'resendViewData should be called exactly once on show');
+        assert.ok(resendSpy.calledOnce, 'sendInitData should be called exactly once on show');
     });
 
-    test('resendViewData is NOT called when panel becomes hidden', async () => {
-        const resendSpy = sandbox.spy(provider, 'resendViewData');
+    test('sendInitData is NOT called when panel becomes hidden', async () => {
+        const resendSpy = sandbox.spy(provider, 'sendInitData');
 
         controllableView.simulateHide();
         await Promise.resolve();
 
-        assert.strictEqual(resendSpy.callCount, 0, 'resendViewData should not be called when panel is hidden');
+        assert.strictEqual(resendSpy.callCount, 0, 'sendInitData should not be called when panel is hidden');
     });
 
     test('_webviewReady stays true across hide/show (retainContextWhenHidden behavior)', async () => {
@@ -319,8 +319,8 @@ suite('Panel hide/show state persistence', () => {
         await Promise.resolve();
         await Promise.resolve();
 
-        // The resendViewData call should post a message directly (not queue it)
-        // In the default 'login' state resendViewData does nothing, so we need to
+        // The sendInitData call should post a message directly (not queue it)
+        // In the default 'login' state sendInitData does nothing, so we need to
         // set state to dashboard first and provide minimal courses data
         (provider as any)._appStateManager._currentState = 'dashboard';
         (provider as any)._appStateManager._coursesData = { courses: [] };

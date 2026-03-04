@@ -164,11 +164,11 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
     }
 
     /**
-     * Resend view data to the existing React app without re-rendering.
-     * Used by reload handlers to update data in-place instead of destroying the webview.
+     * Send current view data to the webview without re-rendering.
+     * Called on ready signal, visibility change, and after navigation state updates.
      */
-    public resendViewData(): void {
-        this._viewInitDataService.resendViewData();
+    public sendInitData(): void {
+        this._viewInitDataService.sendInitData();
     }
 
     // WebViewActionHandler interface implementation
@@ -278,42 +278,10 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
         this._authFlowHandler.checkExistingAuthentication();
 
         // Handle messages from the webview using the message handler
-        webviewView.webview.onDidReceiveMessage(
-            (message: unknown) => {
-                if (!isWebviewMessage(message)) {
-                    return;
-                }
-
-                // Log error reports from webview ErrorBoundary
-                if (message.type === WebviewMsgType.Error) {
-                    const errorPayload = (message as { payload?: { message?: string; stack?: string; componentStack?: string } }).payload;
-                    logger.error('Webview ErrorBoundary crash report', LogCategory.VIEW, {
-                        message: errorPayload?.message,
-                        stack: errorPayload?.stack,
-                        componentStack: errorPayload?.componentStack,
-                    });
-                    return;
-                }
-
-                // Handle ready signal from React webview
-                if (message.type === WebviewMsgType.Ready) {
-                    this._markReady();
-                    this.resendViewData();
-                    return;
-                }
-
-                // Handle re-init requests (e.g. retry after error)
-                if (message.type === WebviewMsgType.RequestInit) {
-                    this.resendViewData();
-                    return;
-                }
-
-                // Forward commands to the message handler (preserving type/command/payload)
-                this._messageHandler.handleMessage(message);
-            },
-            undefined,
-            this._disposables
-        );
+        const messageListener = webviewView.webview.onDidReceiveMessage(message => {
+            this._handleMessage(message);
+        });
+        this._disposables.push(messageListener);
 
         // Handle visibility changes — resend data when panel becomes visible
         const visibilityListener = webviewView.onDidChangeVisibility(() => {
@@ -328,7 +296,7 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
                         return;
                     }
                     logger.debug('Sidebar webview became visible, resending view data...', LogCategory.VIEW);
-                    this.resendViewData();
+                    this.sendInitData();
                 })();
             } else {
                 logger.debug('Sidebar webview became hidden', LogCategory.VIEW);
@@ -508,6 +476,44 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
     private hideLoadingAndSendServerUrl(): void {
         this._postMessageSafe({ type: ExtensionMsg.HideLoading });
         this.postServerUrl();
+    }
+
+    private _handleMessage(message: unknown): void {
+        if (!isWebviewMessage(message)) {
+            return;
+        }
+
+        const typedMessage = message as WebviewToExtensionMessage;
+
+        // Log error reports from webview ErrorBoundary
+        if (typedMessage.type === WebviewMsgType.Error) {
+            const errorPayload = typedMessage.payload;
+            logger.error('Webview ErrorBoundary crash report', LogCategory.VIEW, {
+                message: errorPayload?.message,
+                stack: errorPayload?.stack,
+                componentStack: errorPayload?.componentStack,
+            });
+            return;
+        }
+
+        // Handle ready signal from React webview
+        if (typedMessage.type === WebviewMsgType.Ready) {
+            this._markReady();
+            this.sendInitData();
+            return;
+        }
+
+        // Handle re-init requests (e.g. retry after error)
+        if (typedMessage.type === WebviewMsgType.RequestInit) {
+            this.sendInitData();
+            return;
+        }
+
+        // Only command messages have command/payload properties
+        if (typedMessage.type !== 'command') return;
+
+        // Forward commands to the message handler (preserving type/command/payload)
+        this._messageHandler.handleMessage(typedMessage);
     }
 
     private _getServerUrl(): string {

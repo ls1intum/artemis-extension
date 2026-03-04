@@ -17,7 +17,7 @@ export class ViewInitDataService {
         private readonly _postMessage: (msg: ExtensionToWebviewMessage) => void,
     ) {}
 
-    public resendViewData(): void {
+    public sendInitData(): void {
         switch (this._getAppStateManager().currentState) {
             case 'dashboard':              return this.sendDashboardInit();
             case 'course-list':            return this.sendCourseListInit();

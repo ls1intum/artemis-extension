@@ -597,11 +597,15 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
         await this._sessionManagementService.handleResetSessions();
     }
 
-    public refreshTheme(): void {
+    public render(): void {
         if (this._view) {
             this._resetReadyState();
             this._view.webview.html = getReactWebviewHtml(this._view.webview, this._extensionUri, 'irisChat');
         }
+    }
+
+    public refreshTheme(): void {
+        this.render();
     }
 
     public updateDetectedExercise(
