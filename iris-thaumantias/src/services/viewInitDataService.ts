@@ -106,12 +106,18 @@ export class ViewInitDataService {
         const exercises = courseData.course?.exercises || [];
 
         detectWorkspaceExercise(exercises as ExerciseSource[]).then((detectedExercise: { id?: number } | null) => {
-            const workspaceExerciseId = detectedExercise?.id ?? null;
-
             this._postMessage({
                 type: ExtensionMsg.CourseDetailInit,
                 courseData: courseData as CourseDetailPayload,
-                workspaceExerciseId: workspaceExerciseId,
+                workspaceExerciseId: detectedExercise?.id ?? null,
+                hideDeveloperTools: !this._isDeveloperMode(),
+            });
+        }).catch((error) => {
+            logger.error('Failed to detect workspace exercise for course detail', LogCategory.VIEW, error);
+            this._postMessage({
+                type: ExtensionMsg.CourseDetailInit,
+                courseData: courseData as CourseDetailPayload,
+                workspaceExerciseId: null,
                 hideDeveloperTools: !this._isDeveloperMode(),
             });
         });
@@ -164,6 +170,18 @@ export class ViewInitDataService {
                 startTime,
                 totalDuration,
                 workspaceExerciseId: detectedExercise?.id ?? null,
+            });
+        }).catch((error) => {
+            logger.error('Failed to detect workspace exercise for exam conduction', LogCategory.VIEW, error);
+            this._postMessage({
+                type: ExtensionMsg.ExamConductionInit,
+                studentExam,
+                courseId: examData.courseId,
+                examId: examData.examId,
+                endTime,
+                startTime,
+                totalDuration,
+                workspaceExerciseId: null,
             });
         });
     }
