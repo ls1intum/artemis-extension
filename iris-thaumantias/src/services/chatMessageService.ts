@@ -87,7 +87,7 @@ export class ChatMessageService {
             vscode.window.showErrorMessage(`Failed to send message: ${errorMessage}`);
 
             this._postMessage({
-                type: 'addMessage',
+                type: ExtensionMsg.AddMessage,
                 message: {
                     role: 'user',
                     content: `Error: ${errorMessage}`,

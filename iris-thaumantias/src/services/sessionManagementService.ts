@@ -5,6 +5,7 @@ import { ArtemisApiService } from '../api';
 import { ActiveContext } from '../types';
 import type { IrisChatSession, IrisChatMessage } from '../types/apiResponses';
 import { logger, LogCategory } from './loggingService';
+import { ExtensionMsg } from '../shared/messageContracts';
 import type { ExtensionToWebviewMessage } from '../shared/messageContracts';
 
 export class SessionManagementService {
@@ -28,7 +29,7 @@ export class SessionManagementService {
         this._contextStore.createSession();
         this._postSnapshot();
 
-        this._postMessage({ type: 'clearChatMessages' });
+        this._postMessage({ type: ExtensionMsg.ClearChatMessages });
 
         // Create a brand new Iris session on the server
         const activeContext = this._contextStore.getActiveContext();
@@ -57,7 +58,7 @@ export class SessionManagementService {
         this._contextStore.switchSession(sessionId);
         this._postSnapshot();
 
-        this._postMessage({ type: 'clearChatMessages' });
+        this._postMessage({ type: ExtensionMsg.ClearChatMessages });
 
         // Load messages for the switched session
         this._loadIrisMessages().catch(err => {
@@ -182,6 +183,6 @@ export class SessionManagementService {
         logger.irisChat('Clearing all local sessions');
         this._contextStore.clearAllSessions();
         this._postSnapshot();
-        this._postMessage({ type: 'clearChatMessages' });
+        this._postMessage({ type: ExtensionMsg.ClearChatMessages });
     }
 }

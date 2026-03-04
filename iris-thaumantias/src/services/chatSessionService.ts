@@ -161,11 +161,11 @@ export class ChatSessionService {
                 logger.irisChat('Iris is disabled, not loading sessions');
                 // Clear any existing sessions and show disabled overlay
                 this._postMessage({
-                    type: 'clearChatMessages'
+                    type: ExtensionMsg.ClearChatMessages
                 });
                 const contextLabel = activeContext.type === 'course' ? 'course' : 'exercise';
                 this._postMessage({
-                    type: 'showDisabledState',
+                    type: ExtensionMsg.ShowDisabledState,
                     message: `Iris chat is not enabled for this ${contextLabel}. Please contact your instructor.`
                 });
                 return;
@@ -173,7 +173,7 @@ export class ChatSessionService {
 
             // Hide disabled overlay if it was previously shown
             this._postMessage({
-                type: 'hideDisabledState'
+                type: ExtensionMsg.HideDisabledState
             });
 
             // Step 1: Fetch session metadata (fast, lightweight)
@@ -225,7 +225,7 @@ export class ChatSessionService {
             this._contextStore.clearSessionsForContext(contextKey);
 
             // Clear chat messages immediately after clearing sessions to avoid showing old messages
-            this._postMessage({ type: 'clearChatMessages' });
+            this._postMessage({ type: ExtensionMsg.ClearChatMessages });
 
             // Import all sessions from Artemis
             if (artemisSessionsListFromServer.length > 0) {
