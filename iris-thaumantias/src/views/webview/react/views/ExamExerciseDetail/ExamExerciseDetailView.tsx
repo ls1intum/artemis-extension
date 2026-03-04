@@ -36,6 +36,12 @@ export function ExamExerciseDetailView({ vscodeApi }: ExamExerciseDetailViewProp
         error: exerciseError,
         setExerciseData,
         loadExerciseDetail,
+        setRepoStatus,
+        setSubmissionResult,
+        setClonedNotice,
+        setTestResults,
+        setBuildError,
+        setDirtyPagesStatus,
     } = useExerciseDetailStore();
 
     const [showExpiredOverlay, setShowExpiredOverlay] = useState(false);
@@ -51,6 +57,30 @@ export function ExamExerciseDetailView({ vscodeApi }: ExamExerciseDetailViewProp
             setExamExerciseData(msg as Parameters<typeof setExamExerciseData>[0]);
         }
     }, [vscodeApi, setExerciseData, setExamExerciseData]);
+
+    // Listen for exercise-related extension messages (build progress, submissions, repo status, etc.)
+    useExtensionMessage((msg) => {
+        switch (msg.type) {
+            case ExtensionMsg.SubmissionResult:
+                setSubmissionResult({ success: msg.success, error: msg.error });
+                break;
+            case ExtensionMsg.UpdateRepoStatus:
+                setRepoStatus({ isConnected: msg.isConnected, hasChanges: msg.hasChanges, isGradedRepo: msg.isGradedRepo });
+                break;
+            case ExtensionMsg.ShowClonedRepoNotice:
+                setClonedNotice(msg.exerciseTitle);
+                break;
+            case ExtensionMsg.TestResultsData:
+                setTestResults({ testCases: msg.testCases, error: msg.error });
+                break;
+            case ExtensionMsg.BuildLogParsed:
+                setBuildError(msg.error);
+                break;
+            case ExtensionMsg.UpdateDirtyPagesStatus:
+                setDirtyPagesStatus({ hasDirtyPages: msg.hasDirtyPages, dirtyFileCount: msg.dirtyFileCount, autoSaveEnabled: msg.autoSaveEnabled });
+                break;
+        }
+    }, [vscodeApi, setSubmissionResult, setRepoStatus, setClonedNotice, setTestResults, setBuildError, setDirtyPagesStatus]);
 
     // Auto-retry on error
     useEffect(() => {
