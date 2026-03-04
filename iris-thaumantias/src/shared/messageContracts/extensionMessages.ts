@@ -70,8 +70,6 @@ export const ExtensionMsg = {
     PlantUmlRendered: 'plantUmlRendered',
     PlantUmlError: 'plantUmlError',
 
-    // Error
-    Error: 'error',
 } as const;
 
 /** Union of all Extension->Webview message type strings */
@@ -289,9 +287,6 @@ interface ExtensionMsgPayloads {
     // PlantUML
     plantUmlRendered: { index: number; svg: string };
     plantUmlError: { index: number; error: string };
-
-    // Error
-    error: { message: string };
 }
 
 /** Auto-generated discriminated union of all Extension->Webview messages */

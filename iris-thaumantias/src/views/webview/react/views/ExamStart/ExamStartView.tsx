@@ -1,9 +1,8 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState } from 'react';
 import DOMPurify from 'dompurify';
 import { useExamStartStore } from '../../stores/useExamStartStore';
 import { useRelativeTime } from '../../hooks/useRelativeTime';
 import { useExamTimer } from '../../hooks/useExamTimer';
-import { useExtensionError } from '../../hooks/useExtensionError';
 import { useExtensionMessage } from '../../hooks/useExtensionMessage';
 import { ExamTimer } from '../../components/ExamTimer/ExamTimer';
 import { TimerExpiredOverlay } from '../../components/TimerExpiredOverlay/TimerExpiredOverlay';
@@ -15,10 +14,6 @@ import styles from './ExamStartView.module.css';
 export function ExamStartView({ vscodeApi }: ExamStartViewProps) {
     const { studentExam, courseId, examId, isLoading, error, setExamStartData, setError } = useExamStartStore();
     const [showExpiredOverlay, setShowExpiredOverlay] = useState(false);
-
-    // Handle extension error messages
-    const handleError = useCallback((message: string) => setError(message), [setError]);
-    useExtensionError(handleError);
 
     // Load data on mount
     useExtensionMessage((msg) => {

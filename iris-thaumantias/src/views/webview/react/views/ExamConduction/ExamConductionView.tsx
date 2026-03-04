@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState } from 'react';
 import { useExamConductionStore } from '../../stores/useExamConductionStore';
 import type { ExamConductionViewProps } from './types';
 import { ExamTimer } from '../../components/ExamTimer/ExamTimer';
@@ -11,7 +11,6 @@ import { Container } from '../../components/Container/Container';
 import { PageHeader } from '../../components/PageHeader/PageHeader';
 import { Badge } from '../../components/Badge/Badge';
 import { IconButton } from '../../components/Button/IconButton';
-import { useExtensionError } from '../../hooks/useExtensionError';
 import { useExtensionMessage } from '../../hooks/useExtensionMessage';
 import { ExtensionMsg, postCommand, requestInit } from '../../../../../shared/messageContracts';
 import styles from './ExamConductionView.module.css';
@@ -23,10 +22,6 @@ export function ExamConductionView({ vscodeApi }: ExamConductionViewProps) {
     const store = useExamConductionStore();
     const { setExamData, setError } = store;
     const [overlayDismissed, setOverlayDismissed] = useState(false);
-
-    // Handle extension error messages
-    const handleError = useCallback((message: string) => setError(message), [setError]);
-    useExtensionError(handleError);
 
     // Message handler
     useExtensionMessage((msg) => {

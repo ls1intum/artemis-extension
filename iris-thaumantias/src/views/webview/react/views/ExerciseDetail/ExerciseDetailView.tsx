@@ -15,7 +15,6 @@ import {
     SkeletonList,
     ErrorMessage,
     AskIris,
-    ReconnectBanner,
 } from '../../components';
 import {
     SubmissionStatus,
@@ -288,8 +287,6 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
 
     return (
         <div className={styles.exerciseDetailView}>
-            <ReconnectBanner />
-
             {/* Submission result banner */}
             {submissionResult && (
                 <div className={styles.banner} data-variant={submissionResult.success ? 'success' : 'error'}>

@@ -10,7 +10,6 @@ import {
     Container,
     SkeletonList,
     ErrorMessage,
-    ReconnectBanner,
 } from '../../components';
 import { PageHeader } from '../../components/PageHeader/PageHeader';
 import {
@@ -195,8 +194,6 @@ export function ExamExerciseDetailView({ vscodeApi }: ExamExerciseDetailViewProp
             {showExpiredOverlay && (
                 <TimerExpiredOverlay visible={showExpiredOverlay} onDismiss={() => setShowExpiredOverlay(false)} />
             )}
-
-            <ReconnectBanner />
 
             {/* Timer Header */}
             <div className={styles.timerHeader}>
