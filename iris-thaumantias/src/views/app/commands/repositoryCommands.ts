@@ -25,12 +25,28 @@ export class RepositoryCommandModule {
     private workspaceListenersRegistered = false;
     private clonedRepositories: Map<number, { path: string; title: string }> = new Map();
     private dirtyPagesCheckDebounce?: NodeJS.Timeout;
-    private textDocumentChangeListener?: vscode.Disposable;
+    private readonly listenerDisposables: vscode.Disposable[] = [];
     private readonly gitService: GitService;
 
     constructor(private readonly context: CommandContext) {
         this.gitService = new GitService();
         this.registerWorkspaceListeners();
+    }
+
+    public dispose(): void {
+        for (const d of this.listenerDisposables) {
+            d.dispose();
+        }
+        this.listenerDisposables.length = 0;
+        if (this.workspaceChangeDebounce) {
+            clearTimeout(this.workspaceChangeDebounce);
+            this.workspaceChangeDebounce = undefined;
+        }
+        if (this.dirtyPagesCheckDebounce) {
+            clearTimeout(this.dirtyPagesCheckDebounce);
+            this.dirtyPagesCheckDebounce = undefined;
+        }
+        this.workspaceListenersRegistered = false;
     }
 
     /**
@@ -811,37 +827,38 @@ export class RepositoryCommandModule {
             this.scheduleWorkspaceStatusCheck(uri);
         };
 
-        vscode.workspace.onDidSaveTextDocument(document => {
-            handleUri(document.uri);
-            this.scheduleDirtyPagesCheck();
-        });
-        vscode.workspace.onDidCreateFiles(event => {
-            if (event.files && event.files.length > 0) {
-                handleUri(event.files[0]);
-            } else {
-                handleUri();
-            }
-        });
-        vscode.workspace.onDidDeleteFiles(event => {
-            if (event.files && event.files.length > 0) {
-                handleUri(event.files[0]);
-            } else {
-                handleUri();
-            }
-        });
-        vscode.workspace.onDidRenameFiles(event => {
-            if (event.files && event.files.length > 0) {
-                handleUri(event.files[0].newUri);
-            } else {
-                handleUri();
-            }
-        });
-
-        this.textDocumentChangeListener = vscode.workspace.onDidChangeTextDocument(event => {
-            if (event.document.uri.scheme === 'file') {
+        this.listenerDisposables.push(
+            vscode.workspace.onDidSaveTextDocument(document => {
+                handleUri(document.uri);
                 this.scheduleDirtyPagesCheck();
-            }
-        });
+            }),
+            vscode.workspace.onDidCreateFiles(event => {
+                if (event.files && event.files.length > 0) {
+                    handleUri(event.files[0]);
+                } else {
+                    handleUri();
+                }
+            }),
+            vscode.workspace.onDidDeleteFiles(event => {
+                if (event.files && event.files.length > 0) {
+                    handleUri(event.files[0]);
+                } else {
+                    handleUri();
+                }
+            }),
+            vscode.workspace.onDidRenameFiles(event => {
+                if (event.files && event.files.length > 0) {
+                    handleUri(event.files[0].newUri);
+                } else {
+                    handleUri();
+                }
+            }),
+            vscode.workspace.onDidChangeTextDocument(event => {
+                if (event.document.uri.scheme === 'file') {
+                    this.scheduleDirtyPagesCheck();
+                }
+            }),
+        );
 
         this.workspaceListenersRegistered = true;
     }

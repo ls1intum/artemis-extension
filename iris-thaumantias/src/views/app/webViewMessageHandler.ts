@@ -111,6 +111,13 @@ export class WebViewMessageHandler {
     }
 
     /**
+     * Dispose the handler and its command modules.
+     */
+    public dispose(): void {
+        this.repositoryModule.dispose();
+    }
+
+    /**
      * Set the authentication context updater function.
      */
     public setAuthContextUpdater(updater: (isAuthenticated: boolean) => Promise<void>): void {

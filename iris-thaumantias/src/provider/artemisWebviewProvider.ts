@@ -106,6 +106,8 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
      */
     public setBuildDiagnostics(codeLensProvider: BuildErrorCodeLensProvider): void {
         this._buildCodeLens = codeLensProvider;
+        // Dispose old handler to release workspace listeners before recreating
+        this._messageHandler.dispose();
         // Recreate message handler with CodeLens provider
         this._messageHandler = new WebViewMessageHandler(
             this._authManager,
@@ -155,6 +157,7 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
     // ── Lifecycle ──────────────────────────────────────────────────────
 
     public dispose(): void {
+        this._messageHandler.dispose();
         if (this._websocketService && this._websocketHandler) {
             this._websocketService.unregisterMessageHandler(this._websocketHandler);
         }
