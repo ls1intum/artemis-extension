@@ -1,7 +1,8 @@
 import { useEffect, useState, useRef } from 'react';
-import { ExtensionMsg, isExtensionMessage, postCommand } from '../../../../../shared/messageContracts';
+import { ExtensionMsg, postCommand } from '../../../../../shared/messageContracts';
 import type { VsCodeApi } from '../../../../../shared/messageContracts';
 import { useChatStore } from '../../stores/useChatStore';
+import { useExtensionMessage } from '../../hooks/useExtensionMessage';
 import { ChatMessageList } from './components/ChatMessageList';
 import { ChatInput } from './components/ChatInput';
 import { ContextSelector } from './components/ContextSelector';
@@ -58,90 +59,81 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
     }, [store.context?.id]);
 
     // Message listener - handles messages from extension
-    useEffect(() => {
-        const handler = (event: MessageEvent<unknown>) => {
-            if (!isExtensionMessage(event.data)) {
-                return;
+    useExtensionMessage((msg) => {
+        switch (msg.type) {
+            case ExtensionMsg.UpdateIrisState: {
+                store.setIrisState(msg.state);
+                if (msg.showDiagnostics !== undefined) {
+                    store.setShowDiagnostics(msg.showDiagnostics);
+                }
+                break;
             }
 
-            switch (event.data.type) {
-                case ExtensionMsg.UpdateIrisState: {
-                    store.setIrisState(event.data.state);
-                    if (event.data.showDiagnostics !== undefined) {
-                        store.setShowDiagnostics(event.data.showDiagnostics);
-                    }
-                    break;
-                }
-
-                case ExtensionMsg.ShowContextPicker: {
-                    store.setIrisState(event.data.state);
-                    setForceContextPicker(true);
-                    break;
-                }
-
-                case ExtensionMsg.AddMessage: {
-                    const msg = event.data.message;
-                    store.addMessage({
-                        id: msg.id,
-                        localId: crypto.randomUUID(),
-                        role: msg.role,
-                        content: msg.content,
-                        timestamp: msg.timestamp,
-                        helpful: msg.helpful ?? null,
-                        status: 'sent',
-                    });
-                    break;
-                }
-
-                case ExtensionMsg.LoadMessages: {
-                    store.setMessages(event.data.messages.map((msg) => ({
-                        id: msg.id,
-                        localId: crypto.randomUUID(),
-                        role: msg.role,
-                        content: msg.content,
-                        timestamp: msg.timestamp,
-                        helpful: msg.helpful ?? null,
-                        status: 'sent' as const,
-                    })));
-                    break;
-                }
-
-                case ExtensionMsg.ClearChatMessages:
-                    store.clearMessages();
-                    break;
-
-                case ExtensionMsg.UpdateReferencedFiles: {
-                    store.setReferencedFiles({
-                        includedFiles: event.data.includedFiles,
-                        excludedFiles: event.data.excludedFiles,
-                        totalCount: event.data.totalCount,
-                    });
-                    break;
-                }
-
-                case ExtensionMsg.UpdateWebSocketStatus: {
-                    store.setWebSocketConnected(event.data.isConnected);
-                    break;
-                }
-
-                case ExtensionMsg.ShowDisabledState: {
-                    store.setDisabledMessage(event.data.message);
-                    break;
-                }
-
-                case ExtensionMsg.HideDisabledState:
-                    store.setDisabledMessage(null);
-                    break;
-
-                case ExtensionMsg.UpdateNoAiStatus: {
-                    store.setNoAiDetected(event.data.isNoAiDetected);
-                    break;
-                }
+            case ExtensionMsg.ShowContextPicker: {
+                store.setIrisState(msg.state);
+                setForceContextPicker(true);
+                break;
             }
-        };
 
-        window.addEventListener('message', handler);
-        return () => window.removeEventListener('message', handler);
+            case ExtensionMsg.AddMessage: {
+                const m = msg.message;
+                store.addMessage({
+                    id: m.id,
+                    localId: crypto.randomUUID(),
+                    role: m.role,
+                    content: m.content,
+                    timestamp: m.timestamp,
+                    helpful: m.helpful ?? null,
+                    status: 'sent',
+                });
+                break;
+            }
+
+            case ExtensionMsg.LoadMessages: {
+                store.setMessages(msg.messages.map((m) => ({
+                    id: m.id,
+                    localId: crypto.randomUUID(),
+                    role: m.role,
+                    content: m.content,
+                    timestamp: m.timestamp,
+                    helpful: m.helpful ?? null,
+                    status: 'sent' as const,
+                })));
+                break;
+            }
+
+            case ExtensionMsg.ClearChatMessages:
+                store.clearMessages();
+                break;
+
+            case ExtensionMsg.UpdateReferencedFiles: {
+                store.setReferencedFiles({
+                    includedFiles: msg.includedFiles,
+                    excludedFiles: msg.excludedFiles,
+                    totalCount: msg.totalCount,
+                });
+                break;
+            }
+
+            case ExtensionMsg.UpdateWebSocketStatus: {
+                store.setWebSocketConnected(msg.isConnected);
+                break;
+            }
+
+            case ExtensionMsg.ShowDisabledState: {
+                store.setDisabledMessage(msg.message);
+                break;
+            }
+
+            case ExtensionMsg.HideDisabledState:
+                store.setDisabledMessage(null);
+                break;
+
+            case ExtensionMsg.UpdateNoAiStatus: {
+                store.setNoAiDetected(msg.isNoAiDetected);
+                break;
+            }
+        }
     }, [store]);
 
     // State persistence (only forceContextPicker)
