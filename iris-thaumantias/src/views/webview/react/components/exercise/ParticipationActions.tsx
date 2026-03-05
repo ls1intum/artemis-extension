@@ -1,5 +1,8 @@
-import { ReactNode } from 'react';
+import { ReactNode, useState, useRef, useEffect } from 'react';
 import clsx from 'clsx';
+import FlaskConical from 'lucide-react/dist/esm/icons/flask-conical';
+import AlertTriangle from 'lucide-react/dist/esm/icons/alert-triangle';
+import Mail from 'lucide-react/dist/esm/icons/mail';
 import { Button } from '../Button';
 import styles from './ParticipationActions.module.css';
 
@@ -30,6 +33,7 @@ export interface ParticipationActionsProps {
   onToggleCommitMessage?: () => void;
   onCommitMessageChange?: (message: string) => void;
   onConfigureAutoSave?: () => void;
+  onCheckWorkspace?: () => void;
   onStartPractice?: () => void;
   className?: string;
   isExamExercise?: boolean;
@@ -61,6 +65,7 @@ export function ParticipationActions({
   onToggleCommitMessage,
   onCommitMessageChange,
   onConfigureAutoSave,
+  onCheckWorkspace,
   onStartPractice,
   className,
   isExamExercise = false,
@@ -71,6 +76,32 @@ export function ParticipationActions({
 }: ParticipationActionsProps) {
   const isProgramming = exerciseType === 'programming';
   const hasParticipation = participationStatus !== 'not-started';
+
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const moreMenuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!isDropdownOpen) {return;}
+
+    const handleClickOutside = (e: MouseEvent) => {
+      if (moreMenuRef.current && !moreMenuRef.current.contains(e.target as Node)) {
+        setIsDropdownOpen(false);
+      }
+    };
+
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setIsDropdownOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener('keydown', handleEscape);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('keydown', handleEscape);
+    };
+  }, [isDropdownOpen]);
 
   // Participation info section
   const renderParticipationInfo = () => {
@@ -106,7 +137,7 @@ export function ParticipationActions({
     if (!isPracticeMode) {return null;}
     return (
       <div className={styles.practiceModeIndicator}>
-        <span className={styles.practiceModeIcon}>🧪</span> Practice Mode
+        <FlaskConical size={14} /> Practice Mode
       </div>
     );
   };
@@ -143,7 +174,7 @@ export function ParticipationActions({
     if (!hasUnsavedChanges) {return null;}
     return (
       <div className={styles.unsavedChangesBanner}>
-        <span className={styles.unsavedChangesIcon}>⚠️</span>
+        <AlertTriangle size={14} />
         <span className={styles.unsavedChangesText}>
           <strong>Unsaved changes detected.</strong> Please save your files before submitting.{' '}
           <Button variant="link" onClick={onConfigureAutoSave}>
@@ -163,7 +194,7 @@ export function ParticipationActions({
           Submit
         </Button>
         <button className={styles.uploadMessageBtn} onClick={onToggleCommitMessage}>
-          ✉
+          <Mail size={14} />
         </button>
       </div>
     );
@@ -226,6 +257,8 @@ export function ParticipationActions({
     }
 
     // Participated - show full actions
+    const isWorkspaceConnected = workspaceStatus === 'clean' || workspaceStatus === 'dirty';
+
     return (
       <div className={clsx(styles.participationActions, className)}>
         {renderPracticeModeIndicator()}
@@ -235,26 +268,38 @@ export function ParticipationActions({
         {renderSubmitButtonGroup()}
         {renderCommitMessageInput()}
         <div className={styles.actionButtonRow}>
-          <Button variant="primary" onClick={onClone} fullWidth>
-            Clone Repository
-          </Button>
-          <div className={styles.moreMenu}>
-            <Button variant="link" onClick={() => {}}>
+          {!isWorkspaceConnected && (
+            <Button variant="primary" onClick={onClone} fullWidth>
+              Clone Repository
+            </Button>
+          )}
+          <div className={styles.moreMenu} ref={moreMenuRef}>
+            <Button variant="link" onClick={() => setIsDropdownOpen(prev => !prev)}>
               More options ▾
             </Button>
-            <div className={styles.moreDropdown}>
-              <button className={styles.dropdownItem} onClick={onPullChanges}>
-                Pull Changes
-              </button>
-              <button className={styles.dropdownItem} onClick={onCopyCloneUrl}>
-                Copy Clone URL
-              </button>
-              {!isExamExercise && (
-                <button className={styles.dropdownItem} onClick={onOpenInBrowser}>
-                  Open in browser
+            {isDropdownOpen && (
+              <div className={styles.moreDropdown}>
+                {isWorkspaceConnected && (
+                  <button className={styles.dropdownItem} onClick={() => { setIsDropdownOpen(false); onClone?.(); }}>
+                    Clone Repository
+                  </button>
+                )}
+                <button className={styles.dropdownItem} onClick={() => { setIsDropdownOpen(false); onCheckWorkspace?.(); }}>
+                  Check workspace status
                 </button>
-              )}
-            </div>
+                <button className={styles.dropdownItem} onClick={() => { setIsDropdownOpen(false); onPullChanges?.(); }}>
+                  Pull Changes
+                </button>
+                <button className={styles.dropdownItem} onClick={() => { setIsDropdownOpen(false); onCopyCloneUrl?.(); }}>
+                  Copy Clone URL
+                </button>
+                {!isExamExercise && (
+                  <button className={styles.dropdownItem} onClick={() => { setIsDropdownOpen(false); onOpenInBrowser?.(); }}>
+                    Open in browser
+                  </button>
+                )}
+              </div>
+            )}
           </div>
         </div>
       </div>

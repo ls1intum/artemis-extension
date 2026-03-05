@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useExerciseDetailStore } from '../../stores/useExerciseDetailStore';
 import { useNavigationStore } from '../../stores/useNavigationStore';
 import { useWebSocketUpdates } from '../../hooks/useWebSocketUpdates';
@@ -8,8 +8,6 @@ import type { ExerciseDetailViewProps } from './types';
 import type { ExerciseDetailsResponse } from '../../../../../types/apiResponses';
 import { getIcon } from '../../../../../utils/iconMap';
 import ChevronDown from 'lucide-react/dist/esm/icons/chevron-down';
-import GitBranch from 'lucide-react/dist/esm/icons/git-branch';
-import RefreshCw from 'lucide-react/dist/esm/icons/refresh-cw';
 import {
     BackLink,
     IconButton,
@@ -48,6 +46,9 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
     } = useExerciseDetailStore();
 
     const { pushBreadcrumb, clearBreadcrumbs } = useNavigationStore();
+
+    const [showCommitMessage, setShowCommitMessage] = useState(false);
+    const [commitMessage, setCommitMessage] = useState('');
 
     // Initialize WebSocket updates hook
     useWebSocketUpdates();
@@ -105,10 +106,6 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
 
     const handleSettings = () => {
         postCommand(vscodeApi, 'openSettings', { setting: 'Artemis' });
-    };
-
-    const handleCheckRepositoryStatus = () => {
-        postCommand(vscodeApi, 'checkRepositoryStatus');
     };
 
     const handleAskIris = () => {
@@ -223,6 +220,11 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
         }
     }
 
+    // Workspace status derived from repoStatus
+    const workspaceStatus = !repoStatus ? 'checking'
+        : !repoStatus.isConnected ? 'disconnected'
+        : repoStatus.hasChanges ? 'dirty' : 'clean';
+
     // Problem statement (markdown is already processed to HTML by extension)
     const problemStatementHtml = exercise.problemStatement || 'No description available';
 
@@ -314,17 +316,6 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
                             </div>
                         )}
                     </div>
-                    <Button variant="secondary" onClick={handleCheckRepositoryStatus}>
-                        {repoStatus ? (
-                            repoStatus.isConnected ? (
-                                <><GitBranch size={14} /> {repoStatus.hasChanges ? 'Unsaved changes' : 'Repository connected'}{repoStatus.isPracticeRepo ? ' (Practice)' : ''}</>
-                            ) : (
-                                <><GitBranch size={14} /> Not connected</>
-                            )
-                        ) : (
-                            <><RefreshCw size={14} /> Check repository</>
-                        )}
-                    </Button>
                 </div>
             </details>
 
@@ -335,13 +326,25 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
                     participationStatus={participationStatus}
                     hasRepository={!!repositoryUri}
                     canSubmit={hasParticipation && isProgramming}
+                    workspaceStatus={workspaceStatus}
+                    isPracticeMode={repoStatus?.isPracticeRepo ?? false}
+                    showClonedNotice={!!clonedNotice}
                     onStart={() => {
                         if (exercise.id === undefined) return;
                         postCommand(vscodeApi, 'startExercise', { exerciseId: exercise.id });
                     }}
+                    showCommitMessageInput={showCommitMessage}
+                    commitMessage={commitMessage}
+                    onToggleCommitMessage={() => setShowCommitMessage(prev => !prev)}
+                    onCommitMessageChange={setCommitMessage}
                     onSubmit={() => {
                         if (participationId) {
-                            postCommand(vscodeApi, 'submitExercise', { participationId });
+                            postCommand(vscodeApi, 'submitExercise', {
+                                participationId,
+                                ...(commitMessage ? { commitMessage } : {}),
+                            });
+                            setCommitMessage('');
+                            setShowCommitMessage(false);
                         }
                     }}
                     onClone={() => {
@@ -355,6 +358,17 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
                     }}
                     onOpenRepository={() => {
                         postCommand(vscodeApi, 'openRepository', { repositoryUri });
+                    }}
+                    onOpenClonedRepository={() => {
+                        postCommand(vscodeApi, 'openRepository', { repositoryUri });
+                    }}
+                    onCheckWorkspace={() => {
+                        postCommand(vscodeApi, 'checkRepositoryStatus');
+                    }}
+                    onCopyCloneUrl={() => {
+                        if (repositoryUri) {
+                            postCommand(vscodeApi, 'copyToClipboard', { text: repositoryUri });
+                        }
                     }}
                     onStartPractice={() => {
                         if (exercise.id === undefined) return;
