@@ -24,7 +24,7 @@ import {
 import { ProblemStatement, ScoreInfo } from './components';
 import type { ExerciseType } from '../../components/exercise/ParticipationActions';
 import type { BuildState } from '../../components/exercise/BuildProgress';
-import { ExtensionMsg, postCommand } from '../../../../../shared/messageContracts';
+import { ExtensionMsg, postCommand, requestInit } from '../../../../../shared/messageContracts';
 import { determineSubmissionStatus, determineParticipationStatus } from '../../utils/exerciseStatus';
 import { formatDate } from '../../utils/formatDate';
 import styles from './ExerciseDetailView.module.css';
@@ -91,6 +91,8 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
     const handleReload = () => {
         if (exerciseData?.exercise?.id) {
             loadExerciseDetail(vscodeApi, exerciseData.exercise.id);
+        } else {
+            requestInit(vscodeApi);
         }
     };
 

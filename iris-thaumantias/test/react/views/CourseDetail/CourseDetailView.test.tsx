@@ -218,6 +218,20 @@ describe('CourseDetailView', () => {
 		});
 	});
 
+	it('clicking Reload icon in empty state sends requestInit message', async () => {
+		useCourseDetailStore.setState({ courseData: null, isLoading: false });
+		const mockApi = createMockVsCodeApi();
+		render(<CourseDetailView vscodeApi={mockApi} />);
+
+		// The reload icon button is rendered in the backLinkActions even in empty state
+		const reloadButton = screen.getByTitle('Reload');
+		await userEvent.click(reloadButton);
+
+		expect(mockApi.postMessage).toHaveBeenCalledWith(
+			expect.objectContaining({ type: 'requestInit' })
+		);
+	});
+
 	it('exercise search filters results', async () => {
 		const mockApi = createMockVsCodeApi();
 		render(<CourseDetailView vscodeApi={mockApi} />);

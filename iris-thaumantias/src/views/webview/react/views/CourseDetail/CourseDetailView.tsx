@@ -3,7 +3,7 @@ import { useCourseDetailStore } from '../../stores/useCourseDetailStore';
 import { useNavigationStore } from '../../stores/useNavigationStore';
 import { useExtensionMessage } from '../../hooks/useExtensionMessage';
 import type { CourseDetailViewProps, CourseDetailPersistedState } from './types';
-import { ExtensionMsg, postCommand } from '../../../../../shared/messageContracts';
+import { ExtensionMsg, postCommand, requestInit } from '../../../../../shared/messageContracts';
 import type { Exercise, Exam } from '../../../../../shared/messageContracts';
 import { getIcon } from '../../../../../utils/iconMap';
 import {
@@ -87,6 +87,8 @@ export function CourseDetailView({ vscodeApi }: CourseDetailViewProps) {
     const handleReload = () => {
         if (courseData?.course.id) {
             loadCourseDetail(vscodeApi, courseData.course.id);
+        } else {
+            requestInit(vscodeApi);
         }
     };
 

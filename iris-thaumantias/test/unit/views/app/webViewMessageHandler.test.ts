@@ -260,6 +260,36 @@ suite('WebViewMessageHandler - handleMessageWithSender', () => {
         });
     });
 
+    suite('reload error recovery', () => {
+        test('reloadCourses calls sendInitData on error', async () => {
+            const sender = sandbox.stub();
+            sandbox.stub(mockStateManager, 'showCourseList').rejects(new Error('API failure'));
+
+            await handler.handleMessageWithSender(
+                { type: 'command', command: 'reloadCourses' } as any,
+                sender
+            );
+
+            assert.ok(actionHandler.sendInitData.calledOnce,
+                'sendInitData should be called in the catch block to reset loading state');
+        });
+
+        test('reloadDashboard calls sendInitData on error', async () => {
+            const sender = sandbox.stub();
+            // Set userInfo so the handler enters the if-branch
+            (mockStateManager as any)._userInfo = { login: 'testuser', serverUrl: 'https://example.com' };
+            sandbox.stub(mockStateManager, 'showDashboard').rejects(new Error('API failure'));
+
+            await handler.handleMessageWithSender(
+                { type: 'command', command: 'reloadDashboard' } as any,
+                sender
+            );
+
+            assert.ok(actionHandler.sendInitData.calledOnce,
+                'sendInitData should be called in the catch block to reset loading state');
+        });
+    });
+
     suite('real command module integration', () => {
         test('registered handlers include representative commands from all 7 modules', () => {
             const registeredHandlers = (handler as any).commandHandlers as Map<string, unknown>;

@@ -281,19 +281,18 @@ export class NavigationCommandModule {
 
     private handleReloadCourses = async (_message: WebviewToExtensionMessage): Promise<void> => {
         try {
-            this.context.appStateManager.clearCoursesData();
             await this.context.appStateManager.showCourseList();
             // Send updated data to React without re-rendering
             this.context.actionHandler.sendInitData();
         } catch (error: unknown) {
             logger.viewError('Reload courses error:', error);
             vscode.window.showErrorMessage('Error reloading courses');
+            this.context.actionHandler.sendInitData();
         }
     };
 
     private handleReloadDashboard = async (_message: WebviewToExtensionMessage): Promise<void> => {
         try {
-            this.context.appStateManager.clearDashboardData();
             const userInfo = this.context.appStateManager.userInfo;
             if (userInfo) {
                 await this.context.appStateManager.showDashboard(userInfo);
@@ -303,6 +302,7 @@ export class NavigationCommandModule {
         } catch (error: unknown) {
             logger.viewError('Reload dashboard error:', error);
             vscode.window.showErrorMessage('Error reloading dashboard');
+            this.context.actionHandler.sendInitData();
         }
     };
 
@@ -311,8 +311,6 @@ export class NavigationCommandModule {
             const payload = getPayload<WebCmd<'reloadCourseDetail'>>(message);
             const courseId = payload.courseId || this.context.appStateManager.currentCourseData?.course?.id;
             if (courseId) {
-                this.context.appStateManager.clearCurrentCourseData();
-
                 // Fetch fresh course data from the single-course dashboard endpoint
                 const dashboardDTO = await this.context.artemisApi.getCourseForDashboard(courseId);
 
@@ -339,6 +337,7 @@ export class NavigationCommandModule {
         } catch (error: unknown) {
             logger.viewError('Reload course detail error:', error);
             vscode.window.showErrorMessage('Error reloading course details');
+            this.context.actionHandler.sendInitData();
         }
     };
 
@@ -361,7 +360,6 @@ export class NavigationCommandModule {
             }
 
             if (exerciseId) {
-                this.context.appStateManager.clearCurrentExerciseData();
                 await this.context.appStateManager.showExerciseDetail(exerciseId);
                 // Send updated data to React without re-rendering
                 this.context.actionHandler.sendInitData();
@@ -369,6 +367,7 @@ export class NavigationCommandModule {
         } catch (error: unknown) {
             logger.viewError('Reload exercise detail error:', error);
             vscode.window.showErrorMessage('Error reloading exercise details');
+            this.context.actionHandler.sendInitData();
         }
     };
 

@@ -237,4 +237,17 @@ describe('ExerciseDetailView', () => {
 		render(<ExerciseDetailView vscodeApi={mockApi} />);
 		expect(screen.queryByText('Developer Tools')).not.toBeInTheDocument();
 	});
+
+	it('clicking Reload in empty state sends requestInit message', async () => {
+		useExerciseDetailStore.setState({ exerciseData: null, isLoading: false });
+		const mockApi = createMockVsCodeApi();
+		render(<ExerciseDetailView vscodeApi={mockApi} />);
+
+		const reloadButton = screen.getByRole('button', { name: /reload/i });
+		await userEvent.click(reloadButton);
+
+		expect(mockApi.postMessage).toHaveBeenCalledWith(
+			expect.objectContaining({ type: 'requestInit' })
+		);
+	});
 });
