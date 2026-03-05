@@ -480,6 +480,27 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
         this._fullscreenPanelManager.openCourseFullscreen(courseData as CourseDetailPayload);
     }
 
+    public async openCourseListFullscreen(): Promise<void> {
+        const coursesData = this._appStateManager.coursesData;
+        const courses = coursesData?.courses || [];
+        const archivedCourses = this._appStateManager.archivedCoursesData || undefined;
+
+        const mappedCourses = courses.map((entry) => ({
+            course: {
+                id: entry.course?.id || 0,
+                title: entry.course?.title || 'Untitled Course',
+                description: entry.course?.description,
+                semester: entry.course?.semester,
+                color: entry.course?.color,
+                exercises: entry.course?.exercises,
+                numberOfStudents: entry.course?.numberOfStudents,
+                instructorGroupName: entry.course?.instructorGroupName,
+            }
+        }));
+
+        this._fullscreenPanelManager.openCourseListFullscreen(mappedCourses, archivedCourses);
+    }
+
     // ── Private: Message handling ──────────────────────────────────────
 
     private _handleMessage(message: unknown): void {

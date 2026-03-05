@@ -36,6 +36,7 @@ export const WebviewCmd = {
     LoadArchivedCourses: 'loadArchivedCourses',
     ViewArchivedCourse: 'viewArchivedCourse',
     ToggleCourseFullscreen: 'toggleCourseFullscreen',
+    ToggleCourseListFullscreen: 'toggleCourseListFullscreen',
     AskIrisAboutCourse: 'askIrisAboutCourse',
 
     // Exercise
@@ -121,6 +122,7 @@ interface WebviewCmdPayloads {
     loadArchivedCourses: undefined;
     viewArchivedCourse: { courseId: number };
     toggleCourseFullscreen: undefined;
+    toggleCourseListFullscreen: undefined;
     askIrisAboutCourse: { courseId: number; courseTitle: string; courseShortName?: string };
 
     // Exercise

@@ -45,6 +45,7 @@ export class NavigationCommandModule {
             [WebviewCmd.OpenExercise]: this.handleOpenExercise,
             [WebviewCmd.ToggleFullscreen]: this.handleToggleFullscreen,
             [WebviewCmd.ToggleCourseFullscreen]: this.handleToggleCourseFullscreen,
+            [WebviewCmd.ToggleCourseListFullscreen]: this.handleToggleCourseListFullscreen,
             [WebviewCmd.OpenExam]: this.handleOpenExam,
             [WebviewCmd.RefreshExam]: this.handleRefreshExam,
             [WebviewCmd.ReloadExamConduction]: this.handleReloadExamConduction,
@@ -441,6 +442,15 @@ export class NavigationCommandModule {
         } catch (error: unknown) {
             logger.viewError('Error opening exercise in fullscreen:', error);
             vscode.window.showErrorMessage('Failed to open exercise in fullscreen mode');
+        }
+    };
+
+    private handleToggleCourseListFullscreen = async (_message: WebviewToExtensionMessage): Promise<void> => {
+        try {
+            await this.context.actionHandler.openCourseListFullscreen();
+        } catch (error: unknown) {
+            logger.viewError('Error opening course list in fullscreen:', error);
+            vscode.window.showErrorMessage('Failed to open course list in fullscreen mode');
         }
     };
 

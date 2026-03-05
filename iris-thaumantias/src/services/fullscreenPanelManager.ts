@@ -31,6 +31,21 @@ export class FullscreenPanelManager {
         });
     }
 
+    public openCourseListFullscreen(courses: { course: Record<string, unknown> }[], archivedCourses?: unknown[]): void {
+        this._openFullscreenPanel({
+            viewType: 'artemis.courseListFullscreen',
+            title: 'All Courses',
+            viewName: 'courseList',
+            onReady: (postSafe) => {
+                postSafe({
+                    type: ExtensionMsg.CourseListInit,
+                    courses,
+                    archivedCourses,
+                } as ExtensionToWebviewMessage);
+            },
+        });
+    }
+
     public openCourseFullscreen(courseData: CourseDetailPayload): void {
         const courseTitle = courseData?.course?.title || 'Course';
         this._openFullscreenPanel({
