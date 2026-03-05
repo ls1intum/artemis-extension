@@ -8,7 +8,7 @@ import type {
     WebCmd,
 } from '../../../shared/messageContracts';
 import { VSCODE_CONFIG, checkWorkspaceFiles, extractErrorMessage } from '../../../utils';
-import { normalizeRepositoryUrl, GitService } from '../../../services';
+import { normalizeRepositoryUrl, getWorkspaceRepositoryUrl, getWorkspaceStatus, GitService } from '../../../services';
 import { logger } from '../../../services/loggingService';
 
 const GIT_IDENTITY_NOT_CONFIGURED = 'GIT_IDENTITY_NOT_CONFIGURED';
@@ -111,85 +111,53 @@ export class RepositoryCommandModule {
     }
 
     private handleCheckRepositoryStatus = async (_message: WebviewToExtensionMessage): Promise<void> => {
-        if (this.currentRepoContext) {
-            await this._checkRepositoryStatusWithContext(this.currentRepoContext);
-        } else {
-            logger.submissionWarn('No repository context available');
+        const exerciseData = this.context.appStateManager.currentExerciseData;
+        const exercise = exerciseData?.exercise;
+        const participations = exercise?.studentParticipations ?? [];
+        const repoUris = participations
+            .map(p => p.repositoryUri)
+            .filter((uri): uri is string => !!uri);
+
+        if (exercise?.id === undefined || repoUris.length === 0) {
+            // Fall back to cached context if available
+            if (this.currentRepoContext) {
+                await this._checkRepositoryStatusWithContext([this.currentRepoContext.expectedRepoUrl], this.currentRepoContext.exerciseId);
+            } else {
+                logger.submissionWarn('No repository context available');
+            }
+            return;
         }
+
+        this.currentRepoContext = { expectedRepoUrl: repoUris[0], exerciseId: exercise.id };
+        await this._checkRepositoryStatusWithContext(repoUris, exercise.id);
     };
 
-    private async _checkRepositoryStatusWithContext(repoContext: RepoContext): Promise<void> {
+    private async _checkRepositoryStatusWithContext(repoUris: string[], exerciseId: number): Promise<void> {
         try {
-            const { expectedRepoUrl, exerciseId } = repoContext;
-
             const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
-            let isConnected = false;
-            let hasChanges = false;
-            let isGradedRepo = false;
-
-            this.currentRepoContext = { expectedRepoUrl, exerciseId };
             this.currentWorkspacePath = workspaceFolder?.uri.fsPath;
 
-            if (workspaceFolder) {
-                try {
-                    const currentRepoUrl = await this.gitService.getRemoteUrl({
-                        cwd: workspaceFolder.uri.fsPath
+            // Try each participation URI until we find a match
+            for (const uri of repoUris) {
+                const status = await getWorkspaceStatus(uri, workspaceFolder);
+                if (status.isConnected) {
+                    this.currentRepoContext = { expectedRepoUrl: uri, exerciseId };
+                    this.context.sendMessage({
+                        type: ExtensionMsg.UpdateRepoStatus,
+                        isConnected: status.isConnected,
+                        hasChanges: status.hasChanges,
+                        isPracticeRepo: status.isPracticeRepo,
                     });
-
-                    const normalizedCurrent = normalizeRepositoryUrl(currentRepoUrl);
-                    const normalizedExpected = normalizeRepositoryUrl(expectedRepoUrl);
-
-                    isConnected = normalizedCurrent === normalizedExpected;
-
-                    if (isConnected) {
-                        try {
-                            // Use unified workspace file checker (lightweight)
-                            const result = await checkWorkspaceFiles(workspaceFolder, {
-                                includeContent: false,
-                                applyFilters: false
-                            });
-                            hasChanges = result.hasChanges;
-                        } catch (statusError: unknown) {
-                            logger.submissionWarn('Failed to determine repository changes:', statusError);
-                            hasChanges = false;
-                        }
-                    } else {
-                        // Check if we are in the graded repository
-                        const coursesData = this.context.appStateManager.coursesData;
-                        if (coursesData?.courses) {
-                            for (const courseData of coursesData.courses) {
-                                const exercises = courseData?.course?.exercises || [];
-                                const exercise = exercises.find((e) => e?.id === exerciseId);
-
-                                if (exercise) {
-                                    const participations = exercise.studentParticipations || [];
-                                    // Find graded participation (not testRun)
-                                    const gradedParticipation = participations.find((p) => {
-                                        return p && typeof p === 'object' && 'testRun' in p && !p.testRun;
-                                    });
-
-                                    if (gradedParticipation?.repositoryUri) {
-                                        const normalizedGraded = normalizeRepositoryUrl(gradedParticipation.repositoryUri);
-                                        if (normalizedCurrent === normalizedGraded) {
-                                            isGradedRepo = true;
-                                        }
-                                    }
-                                    break;
-                                }
-                            }
-                        }
-                    }
-                } catch (gitError: unknown) {
-                    isConnected = false;
-                    hasChanges = false;
+                    return;
                 }
             }
 
+            // No match found
             this.context.sendMessage({
                 type: ExtensionMsg.UpdateRepoStatus,
-                isConnected: isConnected,
-                hasChanges: hasChanges,
-                isGradedRepo: isGradedRepo
+                isConnected: false,
+                hasChanges: false,
+                isPracticeRepo: false,
             });
         } catch (error: unknown) {
             logger.submissionError('Check repository status error:', error);
@@ -626,7 +594,10 @@ export class RepositoryCommandModule {
 
         this.workspaceChangeDebounce = setTimeout(() => {
             if (this.currentRepoContext) {
-                void this._checkRepositoryStatusWithContext(this.currentRepoContext);
+                void this._checkRepositoryStatusWithContext(
+                    [this.currentRepoContext.expectedRepoUrl],
+                    this.currentRepoContext.exerciseId,
+                );
             }
         }, 500);
     }
@@ -741,12 +712,8 @@ export class RepositoryCommandModule {
             // Try to open the repository folder if it's already cloned in the workspace
             const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
             if (workspaceFolder) {
-                const currentRepoUrl = await this.gitService.getRemoteUrl({
-                    cwd: workspaceFolder.uri.fsPath
-                });
-                const normalizedCurrent = normalizeRepositoryUrl(currentRepoUrl);
-                const normalizedExpected = normalizeRepositoryUrl(repositoryUri);
-                if (normalizedCurrent === normalizedExpected) {
+                const wsUrl = await getWorkspaceRepositoryUrl(workspaceFolder);
+                if (wsUrl && normalizeRepositoryUrl(wsUrl) === normalizeRepositoryUrl(repositoryUri)) {
                     // Already in the correct workspace — just reveal the explorer
                     await vscode.commands.executeCommand('workbench.view.explorer');
                     return;

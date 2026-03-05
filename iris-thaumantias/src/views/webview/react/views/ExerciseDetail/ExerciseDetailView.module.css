@@ -39,6 +39,12 @@
   gap: 8px;
 }
 
+.exerciseTitleRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .exerciseTitle {
   font-size: 18px;
   font-weight: 600;
@@ -52,11 +58,6 @@
   flex-wrap: wrap;
 }
 
-.exerciseIconBadge {
-  font-size: 20px;
-  line-height: 1;
-}
-
 .toggleIcon {
   flex-shrink: 0;
   font-size: 12px;
@@ -68,26 +69,6 @@
   transform: rotate(180deg);
 }
 
-.repoStatusIcon {
-  width: 24px;
-  height: 24px;
-  border-radius: 50%;
-  background: var(--vscode-button-secondaryBackground);
-  color: var(--vscode-button-secondaryForeground);
-  border: none;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 12px;
-  font-weight: 600;
-  transition: all 0.2s;
-}
-
-.repoStatusIcon:hover {
-  background: var(--vscode-button-secondaryHoverBackground);
-}
-
 /* Expanded content */
 .expandedContent {
   padding: 0 16px 16px 16px;
@@ -96,7 +77,7 @@
 
 .infoGrid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  grid-template-columns: repeat(2, 1fr);
   gap: 16px;
   padding-top: 16px;
 }
@@ -111,8 +92,6 @@
   font-size: 12px;
   color: var(--vscode-descriptionForeground);
   font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
 }
 
 .infoValue {
@@ -195,18 +174,10 @@
         max-width: 900px;
         margin: 0 auto;
     }
-
-    .infoGrid {
-        grid-template-columns: repeat(2, 1fr);
-    }
 }
 
 @media (min-width: 900px) {
     .exerciseDetailView {
         max-width: 1100px;
-    }
-
-    .infoGrid {
-        grid-template-columns: repeat(3, 1fr);
     }
 }

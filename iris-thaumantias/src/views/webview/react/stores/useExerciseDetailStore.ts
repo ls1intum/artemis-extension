@@ -11,7 +11,7 @@ import type {
 interface RepoStatus {
     isConnected: boolean;
     hasChanges: boolean;
-    isGradedRepo: boolean;
+    isPracticeRepo: boolean;
 }
 
 interface SubmissionResult {
@@ -40,7 +40,7 @@ interface ExerciseDetailState {
     dirtyPagesStatus: DirtyPagesStatus | null;
 
     // Actions
-    setExerciseData: (data: ExerciseDetailsResponse, hideDeveloperTools: boolean) => void;
+    setExerciseData: (data: ExerciseDetailsResponse, hideDeveloperTools: boolean, repoStatus?: RepoStatus) => void;
     setLoading: (loading: boolean) => void;
     loadExerciseDetail: (vscodeApi: VsCodeApi, exerciseId: number) => void;
     updateBuildStatus: (payload: ResultSummary) => void;
@@ -91,12 +91,13 @@ export const useExerciseDetailStore = create<ExerciseDetailState>()(
             clonedNotice: null,
             dirtyPagesStatus: null,
 
-            setExerciseData: (data, hideDeveloperTools) => {
+            setExerciseData: (data, hideDeveloperTools, repoStatus) => {
                 set({
                     exerciseData: data,
                     hideDeveloperTools,
                     isLoading: false,
                     pendingSubmission: (data.pendingSubmission as { state: string; participationId: number; buildTimingInfo?: unknown }) ?? null,
+                    repoStatus: repoStatus ?? null,
                 }, false, 'setExerciseData');
             },
 

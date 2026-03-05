@@ -5,6 +5,7 @@ import type { ArtemisApiService } from '../api';
 import type { ContextStore } from './contextStore';
 import { ExerciseRegistry } from './exerciseRegistry';
 import { logger } from './loggingService';
+import { checkWorkspaceFiles } from '../utils';
 
 const execFileAsync = promisify(execFile);
 
@@ -78,6 +79,72 @@ export async function getWorkspaceRepositoryUrl(
         // Not a git repository or git command failed
         return null;
     }
+}
+
+/**
+ * Status of the current workspace relative to an expected exercise repository.
+ */
+export interface WorkspaceStatus {
+    isConnected: boolean;
+    hasChanges: boolean;
+    isPracticeRepo: boolean;
+}
+
+/**
+ * Checks whether the current workspace matches an expected exercise repository URL.
+ * Combines URL comparison, practice-repo fallback, and file-change detection.
+ * @param expectedRepoUri The exercise's expected repository URL
+ * @param workspaceFolder Optional workspace folder, defaults to first workspace folder
+ * @returns WorkspaceStatus with connection, changes, and practice-repo info
+ */
+export async function getWorkspaceStatus(
+    expectedRepoUri: string,
+    workspaceFolder?: vscode.WorkspaceFolder
+): Promise<WorkspaceStatus> {
+    const folder = workspaceFolder || vscode.workspace.workspaceFolders?.[0];
+
+    const disconnected: WorkspaceStatus = { isConnected: false, hasChanges: false, isPracticeRepo: false };
+
+    if (!folder) {
+        return disconnected;
+    }
+
+    const workspaceUrl = await getWorkspaceRepositoryUrl(folder);
+    if (!workspaceUrl) {
+        return disconnected;
+    }
+
+    const normalizedWorkspace = normalizeRepositoryUrl(workspaceUrl);
+    const normalizedExpected = normalizeRepositoryUrl(expectedRepoUri);
+
+    // Direct match
+    if (normalizedWorkspace === normalizedExpected) {
+        let hasChanges = false;
+        try {
+            const result = await checkWorkspaceFiles(folder, { includeContent: false, applyFilters: false });
+            hasChanges = result.hasChanges;
+        } catch {
+            // Fall through with hasChanges = false
+        }
+        return { isConnected: true, hasChanges, isPracticeRepo: normalizedWorkspace.includes('-practice-') };
+    }
+
+    // Practice-repo fallback: workspace URL contains '-practice-', try matching without it
+    if (normalizedWorkspace.includes('-practice-')) {
+        const potentialGradedUrl = normalizedWorkspace.replace('-practice-', '-');
+        if (potentialGradedUrl === normalizedExpected) {
+            let hasChanges = false;
+            try {
+                const result = await checkWorkspaceFiles(folder, { includeContent: false, applyFilters: false });
+                hasChanges = result.hasChanges;
+            } catch {
+                // Fall through with hasChanges = false
+            }
+            return { isConnected: true, hasChanges, isPracticeRepo: true };
+        }
+    }
+
+    return disconnected;
 }
 
 /**

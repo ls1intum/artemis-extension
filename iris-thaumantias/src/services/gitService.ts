@@ -27,17 +27,6 @@ export class GitService {
     }
 
     /**
-     * Get the remote URL for a repository
-     */
-    public async getRemoteUrl(options: GitCommandOptions): Promise<string> {
-        const { stdout } = await execFileAsync('git', ['remote', 'get-url', 'origin'], {
-            cwd: options.cwd,
-            timeout: options.timeout
-        });
-        return stdout.trim();
-    }
-
-    /**
      * Pull changes with rebase
      */
     public async pullWithRebase(options: GitCommandOptions): Promise<void> {

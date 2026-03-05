@@ -94,6 +94,7 @@ interface ExtensionMsgPayloads {
     exerciseDetailInit: {
         exerciseData: ExerciseDetailsResponse;
         hideDeveloperTools: boolean;
+        repoStatus?: { isConnected: boolean; hasChanges: boolean; isPracticeRepo: boolean };
     };
     examStartInit: {
         studentExam: StudentExam;
@@ -235,7 +236,7 @@ interface ExtensionMsgPayloads {
     updateRepoStatus: {
         isConnected: boolean;
         hasChanges: boolean;
-        isGradedRepo: boolean;
+        isPracticeRepo: boolean;
     };
     updateDirtyPagesStatus: {
         hasDirtyPages: boolean;

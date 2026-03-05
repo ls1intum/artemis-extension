@@ -20,10 +20,13 @@ export {
     detectWorkspaceExercise,
     findExerciseByRepositoryUrl,
     normalizeRepositoryUrl,
+    getWorkspaceRepositoryUrl,
+    getWorkspaceStatus,
     isExerciseInCurrentWorkspace,
     detectAndRegisterWorkspaceExercise,
     type DetectedExercise,
-    type ExerciseSource
+    type ExerciseSource,
+    type WorkspaceStatus,
 } from './workspaceDetectionService';
 
 // Telemetry services

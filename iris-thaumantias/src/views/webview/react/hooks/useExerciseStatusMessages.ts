@@ -17,7 +17,7 @@ export function useExerciseStatusMessages(vscodeApi: VsCodeApi): void {
                 setSubmissionResult({ success: msg.success, error: msg.error });
                 break;
             case ExtensionMsg.UpdateRepoStatus:
-                setRepoStatus({ isConnected: msg.isConnected, hasChanges: msg.hasChanges, isGradedRepo: msg.isGradedRepo });
+                setRepoStatus({ isConnected: msg.isConnected, hasChanges: msg.hasChanges, isPracticeRepo: msg.isPracticeRepo });
                 break;
             case ExtensionMsg.ShowClonedRepoNotice:
                 setClonedNotice(msg.exerciseTitle);

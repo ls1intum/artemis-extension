@@ -7,6 +7,9 @@ import { useExerciseStatusMessages } from '../../hooks/useExerciseStatusMessages
 import type { ExerciseDetailViewProps } from './types';
 import type { ExerciseDetailsResponse } from '../../../../../types/apiResponses';
 import { getIcon } from '../../../../../utils/iconMap';
+import ChevronDown from 'lucide-react/dist/esm/icons/chevron-down';
+import GitBranch from 'lucide-react/dist/esm/icons/git-branch';
+import RefreshCw from 'lucide-react/dist/esm/icons/refresh-cw';
 import {
     BackLink,
     IconButton,
@@ -62,7 +65,7 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
         if (msg.type === ExtensionMsg.ExerciseDetailInit) {
             if (!msg.exerciseData) return;
 
-            setExerciseData(msg.exerciseData, msg.hideDeveloperTools);
+            setExerciseData(msg.exerciseData, msg.hideDeveloperTools, msg.repoStatus);
 
             // Push breadcrumbs: Dashboard > CourseName > ExerciseName
             const exercise = msg.exerciseData?.exercise;
@@ -257,14 +260,14 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
                 <summary className={styles.exerciseSummary}>
                     <div className={styles.summaryContent}>
                         <div className={styles.summaryText}>
-                            <div className={styles.exerciseTitle}>{exercise.title}</div>
+                            <div className={styles.exerciseTitleRow}>
+                                {(() => {
+                                    const ExerciseTypeIcon = getIcon(exercise.type);
+                                    return <ExerciseTypeIcon size={18} />;
+                                })()}
+                                <div className={styles.exerciseTitle}>{exercise.title}</div>
+                            </div>
                             <div className={styles.exerciseMeta}>
-                                <div className={styles.exerciseIconBadge}>
-                                    {(() => {
-                                        const ExerciseTypeIcon = getIcon(exercise.type);
-                                        return <ExerciseTypeIcon size={16} />;
-                                    })()}
-                                </div>
                                 <Badge variant="default">
                                     {maxPoints} {maxPoints === 1 ? 'point' : 'points'}
                                     {bonusPoints > 0 && ` + ${bonusPoints} bonus`}
@@ -274,16 +277,9 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
                                         {timeRemaining}
                                     </Badge>
                                 )}
-                                <button
-                                    className={styles.repoStatusIcon}
-                                    onClick={handleCheckRepositoryStatus}
-                                    title={repoStatus ? `Repo: ${repoStatus.isConnected ? 'connected' : 'disconnected'}${repoStatus.hasChanges ? ', has changes' : ''}` : 'Check repository status'}
-                                >
-                                    {repoStatus ? (repoStatus.isConnected ? '●' : '○') : '?'}
-                                </button>
                             </div>
                         </div>
-                        <span className={styles.toggleIcon}>▼</span>
+                        <ChevronDown size={14} className={styles.toggleIcon} />
                     </div>
                 </summary>
                 <div className={styles.expandedContent}>
@@ -296,7 +292,7 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
                         </div>
                         <div className={styles.infoItem}>
                             <div className={styles.infoLabel}>Mode</div>
-                            <div className={styles.infoValue}>{mode}</div>
+                            <div className={styles.infoValue}>{mode.charAt(0).toUpperCase() + mode.slice(1).toLowerCase()}</div>
                         </div>
                         <div className={styles.infoItem}>
                             <div className={styles.infoLabel}>Grading</div>
@@ -318,6 +314,17 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
                             </div>
                         )}
                     </div>
+                    <Button variant="secondary" onClick={handleCheckRepositoryStatus}>
+                        {repoStatus ? (
+                            repoStatus.isConnected ? (
+                                <><GitBranch size={14} /> {repoStatus.hasChanges ? 'Unsaved changes' : 'Repository connected'}{repoStatus.isPracticeRepo ? ' (Practice)' : ''}</>
+                            ) : (
+                                <><GitBranch size={14} /> Not connected</>
+                            )
+                        ) : (
+                            <><RefreshCw size={14} /> Check repository</>
+                        )}
+                    </Button>
                 </div>
             </details>
 

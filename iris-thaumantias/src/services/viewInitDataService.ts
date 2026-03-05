@@ -5,7 +5,7 @@ import type { WebViewMessageHandler } from '../views/app/webViewMessageHandler';
 import { ExtensionMsg, WebviewCmd } from '../shared/messageContracts';
 import type { ExtensionToWebviewMessage, WebviewToExtensionMessage, CourseDetailData as CourseDetailPayload } from '../shared/messageContracts';
 import type { CourseDashboardEntry, ExerciseDetail, ExerciseDetailsResponse } from '../types/apiResponses';
-import { detectWorkspaceExercise, type ExerciseSource } from './workspaceDetectionService';
+import { detectWorkspaceExercise, getWorkspaceStatus, type ExerciseSource, type WorkspaceStatus } from './workspaceDetectionService';
 import { logger, LogCategory } from './loggingService';
 import { VSCODE_CONFIG, CONFIG } from '../utils';
 
@@ -146,11 +146,34 @@ export class ViewInitDataService {
             return;
         }
 
-        this._postMessage({
-            type: ExtensionMsg.ExerciseDetailInit,
-            exerciseData: exerciseData as ExerciseDetailsResponse,
-            hideDeveloperTools: !this._isDeveloperMode(),
-        });
+        const participations = exerciseData.exercise?.studentParticipations ?? [];
+        const repoUris = participations
+            .map(p => p.repositoryUri)
+            .filter((uri): uri is string => !!uri);
+
+        if (repoUris.length > 0) {
+            this._detectWorkspaceForExercise(repoUris).then((repoStatus) => {
+                this._postMessage({
+                    type: ExtensionMsg.ExerciseDetailInit,
+                    exerciseData: exerciseData as ExerciseDetailsResponse,
+                    hideDeveloperTools: !this._isDeveloperMode(),
+                    repoStatus,
+                });
+            }).catch((error) => {
+                logger.error('Failed to detect workspace status for exercise detail', LogCategory.VIEW, error);
+                this._postMessage({
+                    type: ExtensionMsg.ExerciseDetailInit,
+                    exerciseData: exerciseData as ExerciseDetailsResponse,
+                    hideDeveloperTools: !this._isDeveloperMode(),
+                });
+            });
+        } else {
+            this._postMessage({
+                type: ExtensionMsg.ExerciseDetailInit,
+                exerciseData: exerciseData as ExerciseDetailsResponse,
+                hideDeveloperTools: !this._isDeveloperMode(),
+            });
+        }
     }
 
     public sendExamConductionInit(): void {
@@ -309,6 +332,21 @@ export class ViewInitDataService {
         const config = vscode.workspace.getConfiguration(VSCODE_CONFIG.ARTEMIS_SECTION);
         const serverUrl = config.get<string>(VSCODE_CONFIG.SERVER_URL_KEY, CONFIG.ARTEMIS_SERVER_URL_DEFAULT);
         this._postMessage({ type: ExtensionMsg.SetServerUrl, serverUrl });
+    }
+
+    /**
+     * Check workspace status against all participation repo URIs for an exercise.
+     * Returns the first connected match, or the last result if none match.
+     */
+    private async _detectWorkspaceForExercise(repoUris: string[]): Promise<WorkspaceStatus> {
+        for (const uri of repoUris) {
+            const status = await getWorkspaceStatus(uri);
+            if (status.isConnected) {
+                return status;
+            }
+        }
+        // No match found — return disconnected status
+        return { isConnected: false, hasChanges: false, isPracticeRepo: false };
     }
 
     private _isDeveloperMode(): boolean {

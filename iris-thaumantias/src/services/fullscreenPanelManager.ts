@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { ExtensionMsg, WebviewMsgType } from '../shared/messageContracts';
 import type { ExtensionToWebviewMessage, CourseDetailData as CourseDetailPayload } from '../shared/messageContracts';
+import { getWorkspaceStatus } from './workspaceDetectionService';
 import type { ExerciseDetailsResponse } from '../types/apiResponses';
 import { isWebviewMessage } from '../shared/messageContracts/typeGuards';
 import { getReactWebviewHtml } from '../utils/webviewHelpers';
@@ -21,11 +22,40 @@ export class FullscreenPanelManager {
             title: `Exercise: ${exerciseTitle}`,
             viewName: 'exerciseDetail',
             onReady: (postSafe) => {
-                postSafe({
-                    type: ExtensionMsg.ExerciseDetailInit,
-                    exerciseData: exerciseData,
-                    hideDeveloperTools: false,
-                });
+                const repoUris = (exerciseData.exercise?.studentParticipations ?? [])
+                    .map(p => p.repositoryUri)
+                    .filter((uri): uri is string => !!uri);
+
+                const tryDetect = async () => {
+                    for (const uri of repoUris) {
+                        const status = await getWorkspaceStatus(uri);
+                        if (status.isConnected) { return status; }
+                    }
+                    return undefined;
+                };
+
+                if (repoUris.length > 0) {
+                    tryDetect().then((repoStatus) => {
+                        postSafe({
+                            type: ExtensionMsg.ExerciseDetailInit,
+                            exerciseData,
+                            hideDeveloperTools: false,
+                            repoStatus,
+                        });
+                    }).catch(() => {
+                        postSafe({
+                            type: ExtensionMsg.ExerciseDetailInit,
+                            exerciseData,
+                            hideDeveloperTools: false,
+                        });
+                    });
+                } else {
+                    postSafe({
+                        type: ExtensionMsg.ExerciseDetailInit,
+                        exerciseData,
+                        hideDeveloperTools: false,
+                    });
+                }
             },
             onTitleUpdate: (title) => `Exercise: ${title}`,
         });
