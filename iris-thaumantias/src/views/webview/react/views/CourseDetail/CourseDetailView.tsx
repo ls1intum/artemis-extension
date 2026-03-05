@@ -215,12 +215,10 @@ export function CourseDetailView({ vscodeApi }: CourseDetailViewProps) {
             </PageHeader>
 
             {/* Ask Iris Section */}
-            <div className={styles.irisSection}>
-                <AskIris
-                    label="Ask Iris about this course"
-                    onClick={handleAskIris}
-                />
-            </div>
+            <AskIris
+                description="Open the Iris chat to discuss this course or get guidance."
+                onClick={handleAskIris}
+            />
 
             {/* Exams Section */}
             {exams.length > 0 && (

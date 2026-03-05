@@ -380,13 +380,10 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
             </Container>
 
             {/* Ask Iris Section */}
-            <Container header={<h3>Ask Iris</h3>}>
-                <p>Open the Iris chat to discuss this exercise or get guidance.</p>
-                <AskIris
-                    onClick={handleAskIris}
-                    label="Ask Iris about this exercise"
-                />
-            </Container>
+            <AskIris
+                description="Open the Iris chat to discuss this exercise or get guidance."
+                onClick={handleAskIris}
+            />
 
             {/* Problem Statement */}
             <ProblemStatement

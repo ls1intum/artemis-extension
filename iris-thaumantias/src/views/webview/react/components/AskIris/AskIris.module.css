@@ -1,49 +1,27 @@
-.askIris {
-  display: inline-flex;
+.section > div:first-child {
+  margin-bottom: 4px;
+}
+
+.header {
+  display: flex;
   align-items: center;
   gap: 8px;
-  padding: 10px 16px;
-  background: var(--theme-primary-background, var(--vscode-button-background));
-  color: var(--theme-primary-foreground, var(--vscode-button-foreground));
-  border: none;
-  border-radius: var(--theme-button-radius, 4px);
-  font-size: 14px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: background 0.2s ease, transform 0.1s ease;
-  min-height: 32px;
 }
 
-.askIris:hover {
-  background: var(--theme-primary-background-hover, var(--vscode-button-hoverBackground));
-  transform: translateY(-1px);
-}
-
-.askIris:active {
-  transform: translateY(0);
-}
-
-.askIris:focus-visible {
-  outline: 2px solid var(--theme-focus-border, var(--vscode-focusBorder));
-  outline-offset: 2px;
-}
-
-.irisIcon {
-  width: 20px;
-  height: 20px;
+.logo {
+  width: 24px;
+  height: 24px;
   flex-shrink: 0;
-  animation: pulse 2s ease-in-out infinite;
+  object-fit: contain;
 }
 
-@keyframes pulse {
-  0%, 100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.7;
-  }
+.content {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
 }
 
-.label {
-  line-height: 1;
+.content p {
+  margin: 0;
 }

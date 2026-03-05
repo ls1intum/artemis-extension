@@ -3,65 +3,39 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { AskIris } from '../../../../src/views/webview/react/components/AskIris/AskIris';
 
-describe('AskIris', () => {
-	it('renders as a button', () => {
-		render(<AskIris />);
-		expect(screen.getByRole('button')).toBeInTheDocument();
-	});
+const defaultProps = {
+	description: 'Open the Iris chat to discuss this course or get guidance.',
+	onClick: vi.fn(),
+};
 
-	it('displays default "Ask Iris" label', () => {
-		render(<AskIris />);
+describe('AskIris', () => {
+	it('renders the "Ask Iris" heading', () => {
+		render(<AskIris {...defaultProps} />);
 		expect(screen.getByText('Ask Iris')).toBeInTheDocument();
 	});
 
-	it('displays custom label when provided', () => {
-		render(<AskIris label="Get help from Iris" />);
-		expect(screen.getByText('Get help from Iris')).toBeInTheDocument();
+	it('displays the description text', () => {
+		render(<AskIris {...defaultProps} />);
+		expect(screen.getByText(defaultProps.description)).toBeInTheDocument();
 	});
 
-	it('calls onClick handler when clicked', async () => {
-		const handleClick = vi.fn();
-		render(<AskIris onClick={handleClick} />);
+	it('renders an Ask button', () => {
+		render(<AskIris {...defaultProps} />);
+		expect(screen.getByRole('button', { name: 'Ask' })).toBeInTheDocument();
+	});
 
-		await userEvent.click(screen.getByRole('button'));
+	it('calls onClick handler when Ask button is clicked', async () => {
+		const handleClick = vi.fn();
+		render(<AskIris description={defaultProps.description} onClick={handleClick} />);
+
+		await userEvent.click(screen.getByRole('button', { name: 'Ask' }));
 
 		expect(handleClick).toHaveBeenCalledOnce();
 	});
 
-	it('renders SVG iris icon inside button', () => {
-		const { container } = render(<AskIris />);
-		const button = screen.getByRole('button');
-		const svg = button.querySelector('svg');
-		expect(svg).toBeInTheDocument();
-	});
-
-	it('does not throw when onClick is not provided', async () => {
-		render(<AskIris />);
-		await expect(userEvent.click(screen.getByRole('button'))).resolves.toBeUndefined();
-	});
-
-	it('renders as type="button" (not submit)', () => {
-		render(<AskIris />);
-		expect(screen.getByRole('button')).toHaveAttribute('type', 'button');
-	});
-
-	it('can be activated with keyboard Enter', async () => {
-		const handleClick = vi.fn();
-		render(<AskIris onClick={handleClick} />);
-
-		screen.getByRole('button').focus();
-		await userEvent.keyboard('{Enter}');
-
-		expect(handleClick).toHaveBeenCalledOnce();
-	});
-
-	it('can be activated with keyboard Space', async () => {
-		const handleClick = vi.fn();
-		render(<AskIris onClick={handleClick} />);
-
-		screen.getByRole('button').focus();
-		await userEvent.keyboard(' ');
-
-		expect(handleClick).toHaveBeenCalledOnce();
+	it('renders the Iris logo image', () => {
+		render(<AskIris {...defaultProps} />);
+		const img = screen.getByRole('img', { hidden: true });
+		expect(img).toBeInTheDocument();
 	});
 });

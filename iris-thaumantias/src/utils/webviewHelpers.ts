@@ -45,6 +45,9 @@ export function getReactWebviewHtml(webview: vscode.Webview, extensionUri: vscod
     const logoUri = webview.asWebviewUri(
         vscode.Uri.joinPath(extensionUri, 'media', 'artemis-blue.png')
     );
+    const irisLogoUri = webview.asWebviewUri(
+        vscode.Uri.joinPath(extensionUri, 'media', 'iris-logo-big-left.png')
+    );
 
     const dataViewAttr = viewName ? ` data-view="${viewName}"` : '';
 
@@ -66,7 +69,7 @@ export function getReactWebviewHtml(webview: vscode.Webview, extensionUri: vscod
     <link rel="stylesheet" type="text/css" href="${reactStyleUri}" nonce="${nonce}">
 </head>
 <body>
-    <div id="root"${dataViewAttr} data-logo-uri="${logoUri}"></div>
+    <div id="root"${dataViewAttr} data-logo-uri="${logoUri}" data-iris-logo-uri="${irisLogoUri}"></div>
     <script nonce="${nonce}" src="${scriptUri}"></script>
 </body>
 </html>`;

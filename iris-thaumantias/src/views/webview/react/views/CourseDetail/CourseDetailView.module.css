@@ -21,12 +21,6 @@
     opacity: 0.8;
 }
 
-/* Ask Iris Section */
-.irisSection {
-    display: flex;
-    justify-content: flex-start;
-}
-
 /* Section Headers */
 .sectionHeader {
     display: flex;
