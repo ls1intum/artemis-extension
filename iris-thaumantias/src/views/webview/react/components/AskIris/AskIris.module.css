@@ -1,27 +1,41 @@
-.section > div:first-child {
-  margin-bottom: 4px;
-}
-
-.header {
+.layout {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--theme-container-padding);
+}
+
+.logoCol {
+  flex: none;
+  display: flex;
+  align-items: center;
+}
+
+.textCol {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  text-align: left;
+  gap: 4px;
+}
+
+.buttonCol {
+  flex: none;
+  display: flex;
+  align-items: center;
 }
 
 .logo {
-  width: 24px;
-  height: 24px;
+  width: 40px;
+  height: 40px;
   flex-shrink: 0;
   object-fit: contain;
 }
 
-.content {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
+.title {
+  margin: 0;
 }
 
-.content p {
+.description {
   margin: 0;
 }
