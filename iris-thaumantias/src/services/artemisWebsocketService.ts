@@ -699,7 +699,7 @@ export class ArtemisWebsocketService {
             clearTimeout(this._connectionStateDebounceTimer);
             this._connectionStateDebounceTimer = undefined;
         }
-        this.disconnect();
+        void this.disconnect().catch(err => this._log(`Error during disconnect in dispose: ${err}`));
         this._connectionStateCallbacks.clear();
     }
 
