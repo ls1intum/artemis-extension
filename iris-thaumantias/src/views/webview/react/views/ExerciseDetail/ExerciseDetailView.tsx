@@ -34,6 +34,7 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
         hideDeveloperTools,
         isLoading,
         repoStatus,
+        dirtyPagesStatus,
         clonedNotice,
         pendingSubmission,
         setExerciseData,
@@ -338,7 +339,9 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
                     canSubmit={hasParticipation && isProgramming}
                     workspaceStatus={workspaceStatus}
                     isPracticeMode={repoStatus?.isPracticeRepo ?? false}
+                    hasUnsavedChanges={dirtyPagesStatus?.hasDirtyPages === true && !dirtyPagesStatus?.autoSaveEnabled}
                     showClonedNotice={!!clonedNotice}
+                    onConfigureAutoSave={() => postCommand(vscodeApi, 'openSettings', { setting: 'files.autoSave' })}
                     onStart={() => {
                         if (exercise.id === undefined) { return; }
                         postCommand(vscodeApi, 'startExercise', { exerciseId: exercise.id });

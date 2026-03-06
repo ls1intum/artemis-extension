@@ -117,15 +117,18 @@ export async function getWorkspaceStatus(
     const normalizedWorkspace = normalizeRepositoryUrl(workspaceUrl);
     const normalizedExpected = normalizeRepositoryUrl(expectedRepoUri);
 
+    async function getFileChanges(): Promise<boolean> {
+        try {
+            const result = await checkWorkspaceFiles(folder!, { includeContent: false, applyFilters: false });
+            return result.hasChanges;
+        } catch {
+            return false;
+        }
+    }
+
     // Direct match
     if (normalizedWorkspace === normalizedExpected) {
-        let hasChanges = false;
-        try {
-            const result = await checkWorkspaceFiles(folder, { includeContent: false, applyFilters: false });
-            hasChanges = result.hasChanges;
-        } catch {
-            // Fall through with hasChanges = false
-        }
+        const hasChanges = await getFileChanges();
         return { isConnected: true, hasChanges, isPracticeRepo: normalizedWorkspace.includes('-practice-') };
     }
 
@@ -133,13 +136,7 @@ export async function getWorkspaceStatus(
     if (normalizedWorkspace.includes('-practice-')) {
         const potentialGradedUrl = normalizedWorkspace.replace('-practice-', '-');
         if (potentialGradedUrl === normalizedExpected) {
-            let hasChanges = false;
-            try {
-                const result = await checkWorkspaceFiles(folder, { includeContent: false, applyFilters: false });
-                hasChanges = result.hasChanges;
-            } catch {
-                // Fall through with hasChanges = false
-            }
+            const hasChanges = await getFileChanges();
             return { isConnected: true, hasChanges, isPracticeRepo: true };
         }
     }
