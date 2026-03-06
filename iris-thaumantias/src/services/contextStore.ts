@@ -127,7 +127,7 @@ export class ContextStore {
             sessions: {}, // Never persist sessions
             activeSessionId: null, // Never persist active session
         };
-        void this.context.globalState.update(STORE_KEY, stateToPersist);
+        this.context.globalState.update(STORE_KEY, stateToPersist).then(undefined, err => logger.error('Failed to persist state', err));
     }
 
     public snapshot(): ContextSnapshot {
@@ -300,7 +300,7 @@ export class ContextStore {
 
         const key = getContextKey(active.type, active.id);
         const session: StoredSession = {
-            id: `session-${now()}`,
+            id: `session-${crypto.randomUUID()}`,
             contextKey: key,
             preview,
             messageCount: 0,
@@ -328,7 +328,7 @@ export class ContextStore {
 
         const key = getContextKey(active.type, active.id);
         const session: StoredSession = {
-            id: `session-${createdAt}`,
+            id: `session-${artemisSessionId ?? crypto.randomUUID()}`,
             contextKey: key,
             preview,
             messageCount,
