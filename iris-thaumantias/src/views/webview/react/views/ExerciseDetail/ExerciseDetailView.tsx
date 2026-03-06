@@ -20,11 +20,9 @@ import {
 import {
     SubmissionStatus,
     ParticipationActions,
-    BuildProgress,
 } from '../../components/exercise';
 import { ProblemStatement, ScoreInfo } from './components';
 import type { ExerciseType } from '../../components/exercise/ParticipationActions';
-import type { BuildState } from '../../components/exercise/BuildProgress';
 import { ExtensionMsg, postCommand, requestInit } from '../../../../../shared/messageContracts';
 import { determineSubmissionStatus, determineParticipationStatus } from '../../utils/exerciseStatus';
 import { formatDate } from '../../utils/formatDate';
@@ -174,12 +172,6 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
 
     // Determine participation status
     const participationStatus = determineParticipationStatus(hasParticipation, latestResult, latestSubmission);
-
-    // Build progress status
-    let buildStatus: BuildState = 'idle';
-    if (pendingSubmission) {
-        buildStatus = 'building';
-    }
 
     // Exercise card data
     const maxPoints = exercise.maxPoints ?? 0;
@@ -378,14 +370,6 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
                         postCommand(vscodeApi, 'openWebsite');
                     }}
                 />
-
-                {/* Build Progress (when building) */}
-                {buildStatus !== 'idle' && (
-                    <BuildProgress
-                        status={buildStatus}
-                        message="Building your submission..."
-                    />
-                )}
 
                 {/* Submission Status */}
                 {hasParticipation && (
