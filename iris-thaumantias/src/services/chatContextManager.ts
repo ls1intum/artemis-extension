@@ -3,7 +3,7 @@ import { ContextStore } from './contextStore';
 import { IrisSessionInitService } from './chatSessionService';
 import { IrisSessionManager } from './irisSessionManager';
 import { ActiveContext, ChatContextType, TrackedExercise } from '../types';
-import { logger, LogLevel, LogCategory } from './loggingService';
+import { logger, LogCategory } from './loggingService';
 import { ExtensionMsg } from '../shared/messageContracts';
 import type { ExtensionToWebviewMessage } from '../shared/messageContracts';
 
@@ -15,6 +15,17 @@ export type ChatContextReason =
     | 'default'
     | 'workspace-detected';
 
+export interface SwitchContextParams {
+    type: ChatContextType;
+    id: number;
+    title: string;
+    shortName?: string;
+    courseId?: number;
+    reason?: ChatContextReason;
+    releaseDate?: string;
+    dueDate?: string;
+}
+
 export class ChatContextManager {
     constructor(
         private readonly _contextStore: ContextStore,
@@ -24,131 +35,95 @@ export class ChatContextManager {
         private readonly _postSnapshot?: () => void,
     ) { }
 
+    /**
+     * Unified context switch: registers the entity, sets active context,
+     * resets the Iris session, clears chat, and reloads sessions from Artemis.
+     */
+    public switchContext(params: SwitchContextParams): void {
+        const reason = params.reason ?? 'user-selected';
+        const source = this._mapReasonToSource(reason);
+        const isWorkspaceRelated = reason === 'workspace-detected' || reason === 'auto-workspace';
+
+        // Step 1: Register in context store
+        if (params.type === 'exercise') {
+            this._contextStore.registerExercise({
+                id: params.id,
+                title: params.title,
+                shortName: params.shortName,
+                courseId: params.courseId,
+                releaseDate: params.releaseDate,
+                dueDate: params.dueDate,
+                source,
+                isWorkspace: isWorkspaceRelated,
+            });
+        } else {
+            this._contextStore.registerCourse({
+                id: params.id,
+                title: params.title,
+                shortName: params.shortName,
+                source,
+            });
+        }
+
+        // Step 2: Set active context (ensureSession=false — sessions loaded below)
+        this._contextStore.setActiveContext({
+            type: params.type,
+            id: params.id,
+            title: params.title,
+            shortName: params.shortName,
+            courseId: params.type === 'exercise' ? params.courseId : undefined,
+            source,
+            locked: isWorkspaceRelated,
+            selectedAt: Date.now(),
+        }, false);
+
+        // Step 3: Finalize — reset WS subscription, clear UI, reload sessions
+        this._resetSessionForContextChange();
+        this._clearChatMessages();
+
+        const label = params.type === 'exercise' ? 'Exercise' : 'Course';
+        vscode.window.showInformationMessage(`${label} context set to: ${params.title}`);
+
+        this._chatSessionService.loadAllSessionsForContext().catch((err: unknown) => {
+            logger.error('Error loading Iris sessions:', LogCategory.IRIS_CHAT, err);
+        });
+    }
+
+    // ── Thin wrappers kept for call-site compatibility ──────────────────
+
     public handleContextSelection(
         contextType: ChatContextType,
         itemId: number,
         itemName: string,
         itemShortName?: string
     ): void {
-        if (contextType === 'exercise') {
-            const tracked = this._contextStore.getExerciseById(itemId);
-            this._contextStore.registerExercise({
-                id: itemId,
-                title: itemName,
-                shortName: itemShortName,
-                courseId: tracked?.courseId,
-                source: 'user-selected',
-            });
-        } else if (contextType === 'course') {
-            this._contextStore.registerCourse({
-                id: itemId,
-                title: itemName,
-                shortName: itemShortName,
-                source: 'user-selected',
-            });
-        }
-
-        this._contextStore.setActiveContext({
-            type: contextType,
-            id: itemId,
-            title: itemName,
-            shortName: itemShortName,
-            courseId: contextType === 'exercise' ? this._contextStore.getExerciseById(itemId)?.courseId : undefined,
-            source: 'user-selected',
-            locked: false,
-            selectedAt: Date.now(),
-        }, false);
-
-        this._resetSessionForContextChange();
-        this._clearChatMessages();
-
-        const label = contextType === 'exercise' ? 'Exercise' : contextType === 'course' ? 'Course' : 'Context';
-        vscode.window.showInformationMessage(`${label} context set to: ${itemName}`);
-
-        // Load all sessions for the new context
-        this._chatSessionService.loadAllSessionsForContext().catch((err: unknown) => {
-            logger.error('Error loading Iris sessions:', LogCategory.IRIS_CHAT, err);
-        });
+        const courseId = contextType === 'exercise'
+            ? this._contextStore.getExerciseById(itemId)?.courseId
+            : undefined;
+        this.switchContext({ type: contextType, id: itemId, title: itemName, shortName: itemShortName, courseId });
     }
 
     public handleCourseSelection(courseId: number): void {
-        const latest = this._contextStore.registerCourse({
-            id: courseId,
-            title: `Course ${courseId}`,
-        });
-        const course = latest.recentCourses.find(c => c.id === courseId) ?? latest.allCourses.find(c => c.id === courseId);
-
-        this._contextStore.setActiveContext({
+        const snapshot = this._contextStore.snapshot();
+        const course = snapshot.allCourses.find(c => c.id === courseId)
+            ?? snapshot.recentCourses.find(c => c.id === courseId);
+        this.switchContext({
             type: 'course',
             id: courseId,
             title: course?.title ?? `Course ${courseId}`,
             shortName: course?.shortName,
-            source: 'user-selected',
-            locked: false,
-            selectedAt: Date.now(),
-        }, false);
-
-        this._resetSessionForContextChange();
-        this._clearChatMessages();
-
-        // Load all sessions for the new context
-        this._chatSessionService.loadAllSessionsForContext().catch((err: unknown) => {
-            logger.error('Error loading Iris sessions:', LogCategory.IRIS_CHAT, err);
         });
     }
 
     public handleExerciseSelection(exerciseId: number): void {
         const tracked = this._contextStore.getExerciseById(exerciseId);
-        const latest = this._contextStore.registerExercise({
-            id: exerciseId,
-            title: `Exercise ${exerciseId}`,
-            courseId: tracked?.courseId,
-        });
-        const exercise = latest.recentExercises.find(ex => ex.id === exerciseId) ?? latest.allExercises.find(ex => ex.id === exerciseId);
-
-        this._contextStore.setActiveContext({
+        this.switchContext({
             type: 'exercise',
             id: exerciseId,
-            title: exercise?.title ?? `Exercise ${exerciseId}`,
-            shortName: exercise?.shortName,
-            courseId: exercise?.courseId,
-            source: 'user-selected',
-            locked: false,
-            selectedAt: Date.now(),
-        }, false);
-
-        this._resetSessionForContextChange();
-        this._clearChatMessages();
-
-        vscode.window.showInformationMessage(`Exercise context set to: ${exercise?.title ?? `Exercise ${exerciseId}`}`);
-
-        // Load all sessions for the new context
-        this._chatSessionService.loadAllSessionsForContext().catch((err: unknown) => {
-            logger.error('Error loading Iris sessions:', LogCategory.IRIS_CHAT, err);
+            title: tracked?.title ?? `Exercise ${exerciseId}`,
+            shortName: tracked?.shortName,
+            courseId: tracked?.courseId,
         });
-    }
-
-    public handleSwitchContext(): void {
-        this._contextStore.unlockActiveContext();
-    }
-
-    public handleSwitchToWorkspaceContext(): TrackedExercise | undefined {
-        const snapshot = this._contextStore.snapshot();
-
-        // Search in both recent and all exercises
-        const workspaceExercise = snapshot.recentExercises.find(exercise =>
-            exercise.isWorkspace || /\(Workspace\)/i.test(exercise.title)
-        ) || snapshot.allExercises.find(exercise =>
-            exercise.isWorkspace || /\(Workspace\)/i.test(exercise.title)
-        );
-
-        if (!workspaceExercise) {
-            vscode.window.showWarningMessage('No workspace exercise detected. Open a workspace folder with a git repository.');
-            return undefined;
-        }
-
-        // Return the exercise so the provider can call setExerciseContext
-        return workspaceExercise;
     }
 
     public setExerciseContext(
@@ -160,34 +135,16 @@ export class ChatContextManager {
         dueDate?: string,
         courseId?: number,
     ): void {
-        logger.context('SET EXERCISE CONTEXT Called with:', LogLevel.DEBUG, {
-            exerciseId, exerciseTitle, shortName, releaseDate, dueDate, courseId, reason,
-            source: this._mapReasonToSource(reason),
-        });
-
-        this._contextStore.registerExercise({
-            id: exerciseId,
-            title: exerciseTitle,
-            shortName,
-            courseId,
-            releaseDate,
-            dueDate,
-            source: this._mapReasonToSource(reason),
-            isWorkspace: reason === 'workspace-detected' || reason === 'auto-workspace',
-        });
-
-        this._contextStore.setActiveContext({
+        this.switchContext({
             type: 'exercise',
             id: exerciseId,
             title: exerciseTitle,
             shortName,
             courseId,
-            source: this._mapReasonToSource(reason),
-            locked: reason === 'workspace-detected' || reason === 'auto-workspace',
-            selectedAt: Date.now(),
-        }, false);
-
-        this._finalizeContextSwitch(`exercise:${exerciseId}`, `Exercise context set to: ${exerciseTitle}`);
+            reason,
+            releaseDate,
+            dueDate,
+        });
     }
 
     public setCourseContext(
@@ -196,24 +153,30 @@ export class ChatContextManager {
         reason: ChatContextReason = 'user-selected',
         shortName?: string,
     ): void {
-        this._contextStore.registerCourse({
-            id: courseId,
-            title: courseTitle,
-            shortName,
-            source: this._mapReasonToSource(reason),
-        });
+        this.switchContext({ type: 'course', id: courseId, title: courseTitle, shortName, reason });
+    }
 
-        this._contextStore.setActiveContext({
-            type: 'course',
-            id: courseId,
-            title: courseTitle,
-            shortName,
-            source: this._mapReasonToSource(reason),
-            locked: reason === 'workspace-detected',
-            selectedAt: Date.now(),
-        }, false);
+    // ── Non-switch helpers ──────────────────────────────────────────────
 
-        this._finalizeContextSwitch(`course:${courseId}`, `Course context set to: ${courseTitle}`);
+    public handleSwitchContext(): void {
+        this._contextStore.unlockActiveContext();
+    }
+
+    public handleSwitchToWorkspaceContext(): TrackedExercise | undefined {
+        const snapshot = this._contextStore.snapshot();
+
+        const workspaceExercise = snapshot.recentExercises.find(exercise =>
+            exercise.isWorkspace || /\(Workspace\)/i.test(exercise.title)
+        ) || snapshot.allExercises.find(exercise =>
+            exercise.isWorkspace || /\(Workspace\)/i.test(exercise.title)
+        );
+
+        if (!workspaceExercise) {
+            vscode.window.showWarningMessage('No workspace exercise detected. Open a workspace folder with a git repository.');
+            return undefined;
+        }
+
+        return workspaceExercise;
     }
 
     public clearContext(): void {
@@ -240,10 +203,7 @@ export class ChatContextManager {
     public getSelectedExercise(): { title: string; id: number } | undefined {
         const active = this._contextStore.getActiveContext();
         if (active?.type === 'exercise') {
-            return {
-                id: active.id,
-                title: active.title,
-            };
+            return { id: active.id, title: active.title };
         }
         return undefined;
     }
@@ -251,6 +211,8 @@ export class ChatContextManager {
     public mapReasonToSource(reason: ChatContextReason): 'workspace-detected' | 'user-selected' | 'system-default' {
         return this._mapReasonToSource(reason);
     }
+
+    // ── Private helpers ─────────────────────────────────────────────────
 
     private _mapReasonToSource(reason: ChatContextReason): 'workspace-detected' | 'user-selected' | 'system-default' {
         switch (reason) {
@@ -262,14 +224,6 @@ export class ChatContextManager {
             default:
                 return 'system-default';
         }
-    }
-
-    private _finalizeContextSwitch(contextKey: string, label: string): void {
-        this._contextStore.clearSessionsForContext(contextKey);
-        this._resetSessionForContextChange();
-        this._clearChatMessages();
-        vscode.window.showInformationMessage(label);
-        void this._chatSessionService.loadAllSessionsForContext();
     }
 
     private _resetSessionForContextChange(): void {
