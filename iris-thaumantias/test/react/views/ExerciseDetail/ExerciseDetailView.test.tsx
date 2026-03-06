@@ -129,7 +129,7 @@ describe('ExerciseDetailView', () => {
 		useExerciseDetailStore.setState({ exerciseData: makeExerciseData() as never });
 		const mockApi = createMockVsCodeApi();
 		render(<ExerciseDetailView vscodeApi={mockApi} />);
-		expect(screen.getByText('Ask Iris about this exercise')).toBeInTheDocument();
+		expect(screen.getByText('Ask Iris')).toBeInTheDocument();
 	});
 
 	it('clicking Ask Iris sends askIrisAboutExercise postMessage', async () => {
@@ -137,7 +137,7 @@ describe('ExerciseDetailView', () => {
 		const mockApi = createMockVsCodeApi();
 		render(<ExerciseDetailView vscodeApi={mockApi} />);
 
-		const askIrisButton = screen.getByText('Ask Iris about this exercise');
+		const askIrisButton = screen.getByRole('button', { name: 'Ask' });
 		await userEvent.click(askIrisButton);
 
 		expect(mockApi.postMessage).toHaveBeenCalledWith(

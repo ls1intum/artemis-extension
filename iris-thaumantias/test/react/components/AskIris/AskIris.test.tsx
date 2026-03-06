@@ -34,8 +34,8 @@ describe('AskIris', () => {
 	});
 
 	it('renders the Iris logo image', () => {
-		render(<AskIris {...defaultProps} />);
-		const img = screen.getByRole('img', { hidden: true });
+		const { container } = render(<AskIris {...defaultProps} />);
+		const img = container.querySelector('img');
 		expect(img).toBeInTheDocument();
 	});
 });

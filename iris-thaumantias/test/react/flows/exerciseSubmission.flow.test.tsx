@@ -60,7 +60,6 @@ function makeExerciseDataWithParticipation() {
 				{
 					id: 99,
 					repositoryUri: 'https://git.example.com/bst-repo',
-					results: [],
 					submissions: [],
 				},
 			],
@@ -82,21 +81,25 @@ function makeExerciseDataWithResults() {
 				{
 					id: 99,
 					repositoryUri: 'https://git.example.com/bst-repo',
-					results: [
+					submissions: [
 						{
-							id: 10,
-							score: 75,
-							maxScore: 100,
-							successful: false,
-							completionDate: '2025-01-01T12:00:00Z',
-							feedbacks: [
-								{ text: 'Insert test passed', positive: true, type: 'AUTOMATIC' },
-								{ text: 'Delete test failed: null pointer', positive: false, type: 'AUTOMATIC' },
+							id: 1,
+							submissionDate: '2025-01-01T11:59:00Z',
+							results: [
+								{
+									id: 10,
+									score: 75,
+									successful: false,
+									completionDate: '2025-01-01T12:00:00Z',
+									testCaseCount: 2,
+									passedTestCaseCount: 1,
+									feedbacks: [
+										{ text: 'Insert test passed', positive: true, type: 'AUTOMATIC' },
+										{ text: 'Delete test failed: null pointer', positive: false, type: 'AUTOMATIC' },
+									],
+								},
 							],
 						},
-					],
-					submissions: [
-						{ id: 1, submissionDate: '2025-01-01T11:59:00Z' },
 					],
 				},
 			],
@@ -297,8 +300,9 @@ describe('Exercise Submission Flow', () => {
 		const storeState = useExerciseDetailStore.getState();
 		const participations = storeState.exerciseData?.exercise?.studentParticipations;
 		expect(participations).toHaveLength(1);
-		expect(participations?.[0]?.results).toHaveLength(1);
-		expect(participations?.[0]?.results?.[0]?.score).toBe(75);
+		const latestSubmission = participations?.[0]?.submissions?.[0];
+		expect(latestSubmission?.results).toHaveLength(1);
+		expect(latestSubmission?.results?.[0]?.score).toBe(75);
 	});
 
 	it('shows score information when results are available', async () => {
@@ -316,10 +320,10 @@ describe('Exercise Submission Flow', () => {
 			expect(screen.getByText('Binary Search Tree')).toBeInTheDocument();
 		});
 
-		// Verify results data in store
+		// Verify results data in store (results live on submission.results)
 		const storeState = useExerciseDetailStore.getState();
-		const result = storeState.exerciseData?.exercise?.studentParticipations?.[0]?.results?.[0];
-		expect(result?.score).toBe(75);
+		const latestSub = storeState.exerciseData?.exercise?.studentParticipations?.[0]?.submissions?.[0];
+		expect(latestSub?.results?.[0]?.score).toBe(75);
 	});
 
 	it('shows loading state when isLoading is true', () => {

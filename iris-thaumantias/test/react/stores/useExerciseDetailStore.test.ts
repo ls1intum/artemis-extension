@@ -18,7 +18,6 @@ const makeExerciseData = (overrides: Partial<ExerciseDetailsResponse> = {}): Exe
 const makeParticipation = (overrides: Partial<ParticipationSummary> = {}): ParticipationSummary => ({
 	id: 10,
 	type: 'STUDENT',
-	results: [],
 	submissions: [],
 	...overrides,
 });
@@ -100,12 +99,12 @@ describe('useExerciseDetailStore', () => {
 		expect(result.current.exerciseData).toBeNull();
 	});
 
-	it('updateBuildStatus adds result to participation that already references that result id', () => {
+	it('updateBuildStatus adds result to latest submission on matching participation', () => {
 		const { result } = renderHook(() => useExerciseDetailStore());
-		// The store finds a participation by searching for a result with a matching id.
-		// To push result id 200, the participation must already contain id 200 (partial/placeholder).
+		// Results live on submission.results in Artemis
 		const placeholderResult = makeResult({ id: 200, score: 0 });
-		const participation = makeParticipation({ id: 10, results: [placeholderResult] });
+		const submission = makeSubmission({ id: 300, results: [placeholderResult] });
+		const participation = makeParticipation({ id: 10, submissions: [submission] });
 		const exerciseData = makeExerciseData({
 			exercise: { id: 1, studentParticipations: [participation] },
 		});
@@ -120,16 +119,17 @@ describe('useExerciseDetailStore', () => {
 			result.current.updateBuildStatus(updatedResult);
 		});
 
-		const updatedParticipation = result.current.exerciseData?.exercise?.studentParticipations?.[0];
+		const latestSubmission = result.current.exerciseData?.exercise?.studentParticipations?.[0]?.submissions?.[0];
 		// Result id 200 was replaced (upsert by id), not duplicated
-		expect(updatedParticipation?.results).toHaveLength(1);
-		expect(updatedParticipation?.results?.[0].score).toBe(95);
+		expect(latestSubmission?.results).toHaveLength(1);
+		expect(latestSubmission?.results?.[0].score).toBe(95);
 	});
 
 	it('updateBuildStatus replaces existing result with same id', () => {
 		const { result } = renderHook(() => useExerciseDetailStore());
 		const existingResult = makeResult({ id: 100, score: 50 });
-		const participation = makeParticipation({ id: 10, results: [existingResult] });
+		const submission = makeSubmission({ id: 300, results: [existingResult] });
+		const participation = makeParticipation({ id: 10, submissions: [submission] });
 		const exerciseData = makeExerciseData({
 			exercise: { id: 1, studentParticipations: [participation] },
 		});
@@ -144,9 +144,9 @@ describe('useExerciseDetailStore', () => {
 			result.current.updateBuildStatus(updatedResult);
 		});
 
-		const updatedParticipation = result.current.exerciseData?.exercise?.studentParticipations?.[0];
-		expect(updatedParticipation?.results).toHaveLength(1);
-		expect(updatedParticipation?.results?.[0].score).toBe(90);
+		const latestSubmission = result.current.exerciseData?.exercise?.studentParticipations?.[0]?.submissions?.[0];
+		expect(latestSubmission?.results).toHaveLength(1);
+		expect(latestSubmission?.results?.[0].score).toBe(90);
 	});
 
 	it('updateSubmission is a no-op when no exerciseData', () => {
