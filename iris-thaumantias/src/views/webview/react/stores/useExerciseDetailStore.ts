@@ -14,11 +14,6 @@ interface RepoStatus {
     isPracticeRepo: boolean;
 }
 
-interface SubmissionResult {
-    success: boolean;
-    error?: string;
-}
-
 interface DirtyPagesStatus {
     hasDirtyPages: boolean;
     dirtyFileCount: number;
@@ -35,7 +30,6 @@ interface ExerciseDetailState {
 
     // Extension→Webview response state
     repoStatus: RepoStatus | null;
-    submissionResult: SubmissionResult | null;
     clonedNotice: string | null;
     dirtyPagesStatus: DirtyPagesStatus | null;
 
@@ -47,10 +41,8 @@ interface ExerciseDetailState {
     updateSubmission: (payload: SubmissionSummary) => void;
     updateSubmissionProcessing: (payload: { state: string; participationId: number; buildTimingInfo?: unknown }) => void;
     setRepoStatus: (status: RepoStatus) => void;
-    setSubmissionResult: (result: SubmissionResult) => void;
     setClonedNotice: (exerciseTitle: string) => void;
     setDirtyPagesStatus: (status: DirtyPagesStatus) => void;
-    clearSubmissionResult: () => void;
     clearClonedNotice: () => void;
     clearPendingSubmission: () => void;
 }
@@ -87,7 +79,6 @@ export const useExerciseDetailStore = create<ExerciseDetailState>()(
             isLoading: false,
             pendingSubmission: null,
             repoStatus: null,
-            submissionResult: null,
             clonedNotice: null,
             dirtyPagesStatus: null,
 
@@ -218,20 +209,12 @@ export const useExerciseDetailStore = create<ExerciseDetailState>()(
                 set({ repoStatus: status }, false, 'setRepoStatus');
             },
 
-            setSubmissionResult: (result) => {
-                set({ submissionResult: result }, false, 'setSubmissionResult');
-            },
-
             setClonedNotice: (exerciseTitle) => {
                 set({ clonedNotice: exerciseTitle }, false, 'setClonedNotice');
             },
 
             setDirtyPagesStatus: (status) => {
                 set({ dirtyPagesStatus: status }, false, 'setDirtyPagesStatus');
-            },
-
-            clearSubmissionResult: () => {
-                set({ submissionResult: null }, false, 'clearSubmissionResult');
             },
 
             clearClonedNotice: () => {

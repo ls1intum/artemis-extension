@@ -55,7 +55,6 @@ export const ExtensionMsg = {
     UpdateNoAiStatus: 'updateNoAiStatus',
 
     // Exercise/Repo responses
-    SubmissionResult: 'submissionResult',
     UpdateRepoStatus: 'updateRepoStatus',
     UpdateDirtyPagesStatus: 'updateDirtyPagesStatus',
     ShowClonedRepoNotice: 'showClonedRepoNotice',
@@ -232,7 +231,6 @@ interface ExtensionMsgPayloads {
     };
 
     // Exercise/Repo responses
-    submissionResult: { success: boolean; error?: string };
     updateRepoStatus: {
         isConnected: boolean;
         hasChanges: boolean;

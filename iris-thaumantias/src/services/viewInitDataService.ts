@@ -156,7 +156,8 @@ export class ViewInitDataService {
             this._detectWorkspaceForExercise(repoUris).then((repoStatus) => {
                 // Set repo context so workspace listeners can auto-detect changes on file save
                 if (repoStatus.matchedUri && exerciseId !== undefined) {
-                    this._getMessageHandler().setRepositoryContext(repoStatus.matchedUri, exerciseId);
+                    const handler = this._getMessageHandler();
+                    handler.setRepositoryContext(repoStatus.matchedUri, exerciseId);
                 }
                 this._postMessage({
                     type: ExtensionMsg.ExerciseDetailInit,

@@ -34,12 +34,10 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
         hideDeveloperTools,
         isLoading,
         repoStatus,
-        submissionResult,
         clonedNotice,
         pendingSubmission,
         setExerciseData,
         loadExerciseDetail,
-        clearSubmissionResult,
         clearClonedNotice,
     } = useExerciseDetailStore();
 
@@ -253,14 +251,6 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
 
     return (
         <div className={styles.exerciseDetailView}>
-            {/* Submission result banner */}
-            {submissionResult && (
-                <div className={styles.banner} data-variant={submissionResult.success ? 'success' : 'error'}>
-                    <span>{submissionResult.success ? 'Submission successful' : `Submission failed: ${submissionResult.error || 'Unknown error'}`}</span>
-                    <button className={styles.bannerDismiss} onClick={clearSubmissionResult}>×</button>
-                </div>
-            )}
-
             {/* Cloned repo notice */}
             {clonedNotice && (
                 <div className={styles.banner} data-variant="info">

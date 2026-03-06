@@ -382,9 +382,7 @@ export class RepositoryCommandModule {
             const commitMessage = payload.commitMessage;
             const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
             if (!workspaceFolder) {
-                const errorText = 'Open the exercise repository in VS Code before submitting.';
-                vscode.window.showErrorMessage(errorText);
-                this.context.sendMessage({ type: ExtensionMsg.SubmissionResult, success: false, error: errorText });
+                vscode.window.showErrorMessage('Open the exercise repository in VS Code before submitting.');
                 return;
             }
 
@@ -438,7 +436,6 @@ export class RepositoryCommandModule {
             });
 
             vscode.window.showInformationMessage(`Successfully submitted "${exerciseTitle}".`);
-            this.context.sendMessage({ type: ExtensionMsg.SubmissionResult, success: true });
 
             // Re-check workspace status so UI reflects clean state after push
             if (this.currentRepoContext) {
@@ -466,7 +463,6 @@ export class RepositoryCommandModule {
                 vscode.window.showErrorMessage(errorMessage);
             }
 
-            this.context.sendMessage({ type: ExtensionMsg.SubmissionResult, success: false, error: errorMessage });
         }
     };
 
