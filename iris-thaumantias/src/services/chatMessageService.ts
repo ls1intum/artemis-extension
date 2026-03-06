@@ -231,9 +231,9 @@ export class ChatMessageService {
                     'OK'
                 ).then(selection => {
                     if (selection === 'Disable Feature') {
-                        vscode.workspace.getConfiguration('artemis.iris').update('sendUncommittedChanges', false, true);
+                        void vscode.workspace.getConfiguration('artemis.iris').update('sendUncommittedChanges', false, true);
                     }
-                });
+                }, err => logger.error('Error showing uncommitted files warning', LogCategory.IRIS_CHAT, err));
             }
 
             // Continue without uncommitted files - this is not a critical error
