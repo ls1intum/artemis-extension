@@ -8,7 +8,7 @@ import { logger, LogCategory } from './loggingService';
 import { ExtensionMsg } from '../shared/messageContracts';
 import type { ExtensionToWebviewMessage } from '../shared/messageContracts';
 
-export class SessionManagementService {
+export class IrisSessionLifecycleService {
     constructor(
         private readonly _contextStore: ContextStore,
         private readonly _artemisApiService: ArtemisApiService | undefined,
@@ -19,7 +19,7 @@ export class SessionManagementService {
     ) { }
 
     public createNewSession(): void {
-        logger.irisChat('Creating new session');
+        logger.info('Creating new session', LogCategory.IRIS_CHAT);
 
         const irisSessionManager = this._getIrisSessionManager();
         if (irisSessionManager) {
@@ -48,7 +48,7 @@ export class SessionManagementService {
     }
 
     public switchToSession(sessionId: string): void {
-        logger.irisChat('Switching to session:', sessionId);
+        logger.info('Switching to session:', LogCategory.IRIS_CHAT, sessionId);
 
         const irisSessionManager = this._getIrisSessionManager();
         if (irisSessionManager) {
@@ -86,7 +86,7 @@ export class SessionManagementService {
         }
 
         try {
-            logger.irisChat('Fetching all Iris sessions from Artemis for context:', activeContext.title);
+            logger.info('Fetching all Iris sessions from Artemis for context:', LogCategory.IRIS_CHAT, activeContext.title);
 
             // Step 1: Fetch session metadata
             let artemisSessionsMetadata: IrisChatSession[] = [];
@@ -96,7 +96,7 @@ export class SessionManagementService {
                 artemisSessionsMetadata = await this._artemisApiService.getExerciseChatSessions(activeContext.id);
             }
 
-            logger.irisChat(`Fetched ${artemisSessionsMetadata.length} session(s) metadata from Artemis`);
+            logger.info(`Fetched ${artemisSessionsMetadata.length} session(s) metadata from Artemis`, LogCategory.IRIS_CHAT);
 
             // Step 2: Fetch messages for all sessions
             const artemisSessionsListFromServer: Array<IrisChatSession & { messages: IrisChatMessage[] }> = await Promise.all(
@@ -117,7 +117,7 @@ export class SessionManagementService {
                 })
             );
 
-            logger.irisChat(`Fetched messages for all ${artemisSessionsListFromServer.length} sessions`);
+            logger.info(`Fetched messages for all ${artemisSessionsListFromServer.length} sessions`, LogCategory.IRIS_CHAT);
 
             // Import all sessions from Artemis
             if (artemisSessionsListFromServer.length > 0) {
@@ -154,7 +154,7 @@ export class SessionManagementService {
                         this._contextStore.switchSession(snapshot.activeSession.id);
                     }
 
-                    logger.irisChat(`Imported session ${artemisSession.id} (${messageCount} messages) with local ID: ${snapshot.activeSession?.id}`);
+                    logger.info(`Imported session ${artemisSession.id} (${messageCount} messages) with local ID: ${snapshot.activeSession?.id}`, LogCategory.IRIS_CHAT);
                 }
 
                 this._postSnapshot();
@@ -180,7 +180,7 @@ export class SessionManagementService {
     }
 
     private _clearAllSessions(): void {
-        logger.irisChat('Clearing all local sessions');
+        logger.info('Clearing all local sessions', LogCategory.IRIS_CHAT);
         this._contextStore.clearAllSessions();
         this._postSnapshot();
         this._postMessage({ type: ExtensionMsg.ClearChatMessages });

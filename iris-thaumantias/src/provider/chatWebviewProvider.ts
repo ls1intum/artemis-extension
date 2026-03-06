@@ -22,7 +22,7 @@ import {
     IrisSessionInitService,
     ChatMessageService,
     ChatContextManager,
-    SessionManagementService,
+    IrisSessionLifecycleService,
     IrisWebSocketMessageHandler,
     ContextStore,
     TelemetryManager,
@@ -51,7 +51,7 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
     private _chatSessionService: IrisSessionInitService;
     private _chatMessageService: ChatMessageService;
     private _chatContextManager: ChatContextManager;
-    private _sessionManagementService: SessionManagementService;
+    private _sessionManagementService: IrisSessionLifecycleService;
     private _websocketMessageHandler: IrisWebSocketMessageHandler;
     private _telemetryManager?: TelemetryManager;
     private _noAiDetectionService: NoAiDetectionService;
@@ -100,7 +100,7 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
             (message) => this._postMessageSafe(message),
             () => this._postSnapshot()
         );
-        this._sessionManagementService = new SessionManagementService(
+        this._sessionManagementService = new IrisSessionLifecycleService(
             this._contextStore,
             this._artemisApiService,
             () => this._irisSessionManager,

@@ -3,7 +3,7 @@ export { ChatDiagnosticsService } from './chatDiagnosticsService';
 export { IrisSessionInitService } from './chatSessionService';
 export { ChatMessageService } from './chatMessageService';
 export { ChatContextManager } from './chatContextManager';
-export { SessionManagementService } from './sessionManagementService';
+export { IrisSessionLifecycleService } from './sessionManagementService';
 export { IrisWebSocketMessageHandler } from './websocketMessageHandler';
 export { GitService } from './gitService';
 export { FileMonitorService } from './fileMonitorService';
