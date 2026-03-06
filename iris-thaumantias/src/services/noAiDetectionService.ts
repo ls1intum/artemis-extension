@@ -15,7 +15,6 @@ export type FileExistsChecker = (uri: vscode.Uri) => Promise<boolean>;
  * When a .noai file is detected, Iris AI assistance should be disabled.
  */
 export class NoAiDetectionService implements vscode.Disposable {
-    private static _instance: NoAiDetectionService | undefined;
     private _isNoAiEnabled: boolean = false;
     private _noAiFilePath: string | undefined;
     private readonly _disposables: vscode.Disposable[] = [];
@@ -37,25 +36,8 @@ export class NoAiDetectionService implements vscode.Disposable {
         }
     };
 
-    private constructor() {
+    constructor() {
         this._initialize();
-    }
-
-    public static getInstance(): NoAiDetectionService {
-        if (!NoAiDetectionService._instance) {
-            NoAiDetectionService._instance = new NoAiDetectionService();
-        }
-        return NoAiDetectionService._instance;
-    }
-
-    /**
-     * Reset the singleton instance (for testing purposes)
-     */
-    public static resetInstance(): void {
-        if (NoAiDetectionService._instance) {
-            NoAiDetectionService._instance.dispose();
-            NoAiDetectionService._instance = undefined;
-        }
     }
 
     /**

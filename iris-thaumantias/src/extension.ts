@@ -100,7 +100,7 @@ export async function activate(context: vscode.ExtensionContext) {
 	await initializeAuthContext();
 
 	// Initialize .noai file detection service
-	const noAiDetectionService = NoAiDetectionService.getInstance();
+	const noAiDetectionService = new NoAiDetectionService();
 	context.subscriptions.push(noAiDetectionService);
 
 	// Initialize data collection consent service and prompt if pending
@@ -142,7 +142,7 @@ export async function activate(context: vscode.ExtensionContext) {
 	);
 
 	// Register the Chat view provider
-	const chatWebviewProvider = new ChatWebviewProvider(context.extensionUri, context, artemisApiService, artemisWebsocketService);
+	const chatWebviewProvider = new ChatWebviewProvider(context.extensionUri, context, artemisApiService, artemisWebsocketService, noAiDetectionService);
 
 	// Pass telemetry manager to chat provider for struggle context integration
 	chatWebviewProvider.setTelemetryManager(telemetryManager);

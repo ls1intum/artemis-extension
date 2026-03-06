@@ -65,8 +65,9 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
     constructor(
         private readonly _extensionUri: vscode.Uri,
         private readonly _extensionContext: vscode.ExtensionContext,
-        private readonly _artemisApiService?: ArtemisApiService,
-        private readonly _websocketService?: ArtemisWebsocketService,
+        private readonly _artemisApiService: ArtemisApiService | undefined,
+        private readonly _websocketService: ArtemisWebsocketService | undefined,
+        noAiDetectionService: NoAiDetectionService,
     ) {
         super();
         this._disposables.push(this._onDidChangeExerciseContext);
@@ -129,8 +130,7 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
             });
         });
 
-        // Initialize .noai detection service
-        this._noAiDetectionService = NoAiDetectionService.getInstance();
+        this._noAiDetectionService = noAiDetectionService;
         this._disposables.push(
             this._noAiDetectionService.onNoAiStatusChanged(isNoAiDetected => {
                 this._postNoAiStatus(isNoAiDetected);
