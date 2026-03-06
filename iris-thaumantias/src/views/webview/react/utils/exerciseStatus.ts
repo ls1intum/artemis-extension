@@ -4,19 +4,23 @@ import type { ParticipationStatusType } from '../components/exercise/Participati
 export function determineSubmissionStatus(
     pendingSubmission: unknown,
     latestResult: { score?: number; successful?: boolean } | undefined,
-    maxPoints: number,
+    latestSubmission?: { buildFailed?: boolean } | undefined,
 ): SubmissionStatusType {
     if (pendingSubmission) {
         return 'building';
     }
     if (latestResult) {
-        const score = latestResult.score ?? 0;
-        if (latestResult.successful || score >= maxPoints * 0.8) {
+        // result.score is a percentage (0-100) in Artemis
+        const scorePercent = latestResult.score ?? 0;
+        if (latestResult.successful || scorePercent >= 80) {
             return 'success';
         }
-        if (score > 0) {
+        if (scorePercent > 0) {
             return 'partial';
         }
+        return 'failed';
+    }
+    if (latestSubmission?.buildFailed) {
         return 'failed';
     }
     return 'no-submission';

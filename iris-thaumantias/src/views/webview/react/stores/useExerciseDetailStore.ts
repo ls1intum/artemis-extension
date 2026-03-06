@@ -68,9 +68,9 @@ function findParticipationForResult(
     }
 
     for (const participation of exerciseData.exercise.studentParticipations) {
-        if (participation.results) {
-            const foundResult = participation.results.find((r) => r.id === result.id);
-            if (foundResult) {
+        // Results live on submission.results in Artemis
+        for (const submission of participation.submissions ?? []) {
+            if (submission.results?.some((r) => r.id === result.id)) {
                 return participation;
             }
         }
@@ -136,20 +136,26 @@ export const useExerciseDetailStore = create<ExerciseDetailState>()(
                 }
 
                 if (participation) {
-                    // Update or add result
-                    if (!participation.results) {
-                        participation.results = [];
-                    }
+                    // Results live on submission.results in Artemis
+                    // Find the latest submission (highest ID) and update its results
+                    const submissions = participation.submissions ?? [];
+                    const latestSubmission = [...submissions]
+                        .sort((a, b) => (b.id ?? 0) - (a.id ?? 0))[0];
 
-                    const existingIndex = participation.results.findIndex((r) => r.id === result.id);
-                    if (existingIndex >= 0) {
-                        participation.results[existingIndex] = result;
-                    } else {
-                        participation.results.push(result);
+                    if (latestSubmission) {
+                        if (!latestSubmission.results) {
+                            latestSubmission.results = [];
+                        }
+                        const existingIndex = latestSubmission.results.findIndex((r) => r.id === result.id);
+                        if (existingIndex >= 0) {
+                            latestSubmission.results[existingIndex] = result;
+                        } else {
+                            latestSubmission.results.push(result);
+                        }
                     }
                 }
 
-                set({ exerciseData: updatedData }, false, 'updateBuildStatus');
+                set({ exerciseData: updatedData, pendingSubmission: null }, false, 'updateBuildStatus');
             },
 
             updateSubmission: (payload) => {

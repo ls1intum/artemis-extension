@@ -123,11 +123,14 @@ export function ExamExerciseDetailView({ vscodeApi }: ExamExerciseDetailViewProp
     const repositoryUri = participation?.repositoryUri;
 
     // Extract submission and result data
-    const latestSubmission = participation?.submissions?.[0];
-    const latestResult = participation?.results?.[0];
+    // In Artemis, "latest" = highest ID; results live on submission.results
+    const latestSubmission = [...(participation?.submissions ?? [])]
+        .sort((a, b) => (b.id ?? 0) - (a.id ?? 0))[0];
+    const latestResult = [...(latestSubmission?.results ?? [])]
+        .sort((a, b) => (b.id ?? 0) - (a.id ?? 0))[0];
 
     // Determine submission status
-    const submissionStatus = determineSubmissionStatus(pendingSubmission, latestResult, exercise.maxPoints ?? 0);
+    const submissionStatus = determineSubmissionStatus(pendingSubmission, latestResult, latestSubmission);
 
     // Determine participation status
     const participationStatus = determineParticipationStatus(hasParticipation, latestResult, latestSubmission);

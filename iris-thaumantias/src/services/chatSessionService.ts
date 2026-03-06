@@ -110,7 +110,7 @@ export class ChatSessionService {
 
         try {
             const exerciseDetails = await this._artemisApiService?.getExerciseDetails(context.id);
-            const resolvedCourseId = exerciseDetails?.exercise?.course?.id ?? exerciseDetails?.course?.id;
+            const resolvedCourseId = exerciseDetails?.exercise?.course?.id;
             if (resolvedCourseId) {
                 this._contextStore.registerExercise({
                     id: context.id,

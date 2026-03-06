@@ -62,7 +62,7 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
     // Listen for exerciseDetailInit messages
     useExtensionMessage((msg) => {
         if (msg.type === ExtensionMsg.ExerciseDetailInit) {
-            if (!msg.exerciseData) return;
+            if (!msg.exerciseData) { return; }
 
             setExerciseData(msg.exerciseData, msg.hideDeveloperTools, msg.repoStatus);
 
@@ -158,17 +158,45 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
     const isProgramming = exerciseType === 'programming';
 
     // Extract participation data
-    const participation = exercise.studentParticipations?.[0];
+    // Select participation matching the current workspace mode (practice vs graded)
+    const isPractice = repoStatus?.isPracticeRepo ?? false;
+    const allParticipations = exercise.studentParticipations ?? [];
+    const participation = allParticipations.find(p => p.testRun === isPractice)
+        ?? allParticipations[0];
     const hasParticipation = !!participation;
     const participationId = participation?.id;
     const repositoryUri = participation?.repositoryUri;
 
     // Extract submission and result data
-    const latestSubmission = participation?.submissions?.[0];
-    const latestResult = participation?.results?.[0];
+    // In Artemis, "latest" = highest ID (not date-sorted)
+    const latestSubmission = [...(participation?.submissions ?? [])]
+        .sort((a, b) => (b.id ?? 0) - (a.id ?? 0))[0];
+    // Results live on submission.results (not on participation directly)
+    const latestResult = [...(latestSubmission?.results ?? [])]
+        .sort((a, b) => (b.id ?? 0) - (a.id ?? 0))[0];
+
+    // Use Artemis-provided test case counts when available, fall back to feedbacks
+    const buildFailed = latestSubmission?.buildFailed ?? false;
+    const totalTests = latestResult?.testCaseCount ?? 0;
+    const passedTests = latestResult?.passedTestCaseCount ?? 0;
+    const hasTestInfo = totalTests > 0;
+
+    // Build test cases from feedbacks for detailed display
+    const feedbacks = latestResult?.feedbacks ?? [];
+    const testFeedbacks = feedbacks.filter(f =>
+        f.type === 'AUTOMATIC' && f.text && !f.text.startsWith('SCAFeedbackIdentifier:')
+    );
+    const testCases = testFeedbacks.map(f => ({
+        name: f.text ?? 'Test',
+        passed: f.positive ?? false,
+        message: f.detailText,
+    }));
+
+    // result.score is already a percentage (0-100) in Artemis
+    const scorePercentage = latestResult?.score ?? 0;
 
     // Determine submission status
-    const submissionStatus = determineSubmissionStatus(pendingSubmission, latestResult, exercise.maxPoints ?? 0);
+    const submissionStatus = determineSubmissionStatus(pendingSubmission, latestResult, latestSubmission);
 
     // Determine participation status
     const participationStatus = determineParticipationStatus(hasParticipation, latestResult, latestSubmission);
@@ -322,7 +350,7 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
                     isPracticeMode={repoStatus?.isPracticeRepo ?? false}
                     showClonedNotice={!!clonedNotice}
                     onStart={() => {
-                        if (exercise.id === undefined) return;
+                        if (exercise.id === undefined) { return; }
                         postCommand(vscodeApi, 'startExercise', { exerciseId: exercise.id });
                     }}
                     showCommitMessageInput={showCommitMessage}
@@ -375,10 +403,15 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
                 {hasParticipation && (
                     <SubmissionStatus
                         status={submissionStatus}
-                        score={latestResult?.score ?? 0}
+                        score={scorePercentage * maxPoints / 100}
                         maxScore={maxPoints}
-                        scorePercentage={latestResult?.score && maxPoints > 0 ? (latestResult.score / maxPoints) * 100 : 0}
+                        scorePercentage={scorePercentage}
                         exerciseType={exerciseType}
+                        buildFailed={buildFailed}
+                        hasTestInfo={hasTestInfo}
+                        totalTests={totalTests}
+                        passedTests={passedTests}
+                        testCases={testCases}
                     />
                 )}
 

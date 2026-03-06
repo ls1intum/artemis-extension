@@ -143,14 +143,9 @@ export class ArtemisApiService {
         // Debug: Log what we actually received
         if ((exerciseData.exercise?.studentParticipations?.length ?? 0) > 0) {
             for (const participation of exerciseData.exercise!.studentParticipations!) {
-                const submissionCount = participation.submissions?.length || 0;
-                const resultCount = participation.results?.length || 0;
-                logger.api(`📊 Participation ${participation.id}: ${submissionCount} submissions, ${resultCount} results`);
-
-                if (submissionCount === 0) {
-                    logger.apiWarn(`⚠️ Participation ${participation.id} has no submissions array or it's empty`);
-                    logger.api(`Participation data: ${JSON.stringify(participation, null, 2)}`);
-                }
+                const submissions = participation.submissions ?? [];
+                const totalResults = submissions.reduce((sum, s) => sum + (s.results?.length ?? 0), 0);
+                logger.api(`📊 Participation ${participation.id}: ${submissions.length} submissions, ${totalResults} results`);
             }
         } else {
             logger.apiWarn('⚠️ No student participations found in exercise details response');
@@ -393,7 +388,7 @@ export class ArtemisApiService {
     // Get Iris settings for an exercise (resolved via course settings)
     async getIrisExerciseChatSettings(exerciseId: number): Promise<IrisSettingsResponse> {
         const exerciseDetails = await this.getExerciseDetails(exerciseId);
-        const courseId = exerciseDetails?.exercise?.course?.id ?? exerciseDetails?.course?.id;
+        const courseId = exerciseDetails?.exercise?.course?.id;
         if (!courseId) {
             throw new Error('Failed to resolve course for Iris exercise settings');
         }

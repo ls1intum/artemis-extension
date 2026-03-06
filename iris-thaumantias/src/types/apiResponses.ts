@@ -34,7 +34,7 @@ export interface CourseDashboardCourse {
 
 export interface ExerciseDetailsResponse {
     exercise?: ExerciseDetail;
-    course?: CourseDashboardCourse;
+    plagiarismCaseInfo?: unknown;
     [key: string]: unknown;
 }
 
@@ -61,8 +61,11 @@ export interface ParticipationSummary {
     id?: number;
     type?: string;
     repositoryUri?: string;
+    branch?: string;
+    initializationState?: string;
+    initializationDate?: string;
+    testRun?: boolean;
     submissions?: SubmissionSummary[];
-    results?: ResultSummary[];
     [key: string]: unknown;
 }
 
@@ -80,7 +83,13 @@ export interface ResultSummary {
     id?: number;
     completionDate?: string;
     successful?: boolean;
+    /** Relative score in % (0-100, can exceed 100 with bonus points) */
     score?: number;
+    rated?: boolean;
+    assessmentType?: string;
+    testCaseCount?: number;
+    passedTestCaseCount?: number;
+    codeIssueCount?: number;
     feedbacks?: FeedbackSummary[];
     participationId?: number;
     [key: string]: unknown;
@@ -90,8 +99,13 @@ export interface FeedbackSummary {
     id?: number;
     text?: string;
     detailText?: string;
+    reference?: string;
     credits?: number;
     positive?: boolean;
+    type?: string;
+    visibility?: string;
+    hasLongFeedbackText?: boolean;
+    testCase?: { id?: number; testName?: string };
     [key: string]: unknown;
 }
 

@@ -188,12 +188,13 @@ export function ParticipationActions({
   // Submit button group
   const renderSubmitButtonGroup = () => {
     if (!isProgramming || !hasParticipation || !canSubmit) {return null;}
+    const noChanges = workspaceStatus === 'clean';
     return (
       <div className={styles.submitButtonGroup}>
-        <Button variant="primary" onClick={onSubmit} fullWidth>
+        <Button variant="primary" onClick={onSubmit} fullWidth disabled={noChanges}>
           Submit
         </Button>
-        <button className={styles.uploadMessageBtn} onClick={onToggleCommitMessage}>
+        <button className={styles.uploadMessageBtn} onClick={onToggleCommitMessage} disabled={noChanges}>
           <Mail size={14} />
         </button>
       </div>
