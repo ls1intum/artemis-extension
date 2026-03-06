@@ -7,7 +7,7 @@ import { extractIrisMessageContent } from '../utils/irisMessageUtils';
 import { ExtensionMsg } from '../shared/messageContracts';
 import type { ExtensionToWebviewMessage } from '../shared/messageContracts';
 
-export class WebSocketMessageHandler {
+export class IrisWebSocketMessageHandler {
     constructor(
         private readonly _websocketService: ArtemisWebsocketService | undefined,
         private readonly _getIrisSessionManager: () => IrisSessionManager | undefined,

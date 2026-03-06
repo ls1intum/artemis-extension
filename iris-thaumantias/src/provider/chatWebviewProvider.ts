@@ -23,7 +23,7 @@ import {
     ChatMessageService,
     ChatContextManager,
     SessionManagementService,
-    WebSocketMessageHandler,
+    IrisWebSocketMessageHandler,
     ContextStore,
     TelemetryManager,
     StruggleContext,
@@ -52,7 +52,7 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
     private _chatMessageService: ChatMessageService;
     private _chatContextManager: ChatContextManager;
     private _sessionManagementService: SessionManagementService;
-    private _websocketMessageHandler: WebSocketMessageHandler;
+    private _websocketMessageHandler: IrisWebSocketMessageHandler;
     private _telemetryManager?: TelemetryManager;
     private _noAiDetectionService: NoAiDetectionService;
     private _currentExerciseId?: number;
@@ -108,7 +108,7 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
             () => this._postSnapshot(),
             () => this._loadIrisMessages()
         );
-        this._websocketMessageHandler = new WebSocketMessageHandler(
+        this._websocketMessageHandler = new IrisWebSocketMessageHandler(
             this._websocketService,
             () => this._irisSessionManager,
             (message) => this._postMessageSafe(message)
@@ -147,7 +147,7 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
         this._telemetryManager = telemetryManager;
 
         // Start exercise session when context is selected
-        logger.telemetry('Telemetry manager connected');
+        logger.info('Telemetry manager connected', LogCategory.TELEMETRY);
     }
 
     // ── Lifecycle ──────────────────────────────────────────────────────
@@ -242,7 +242,7 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
     }
 
     public clearAllSessions(): void {
-        logger.irisChat('Clearing all local Iris sessions...');
+        logger.info('Clearing all local Iris sessions...', LogCategory.IRIS_CHAT);
 
         if (this._irisSessionManager) {
             this._irisSessionManager.unsubscribe();
@@ -257,7 +257,7 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
         // Post updated snapshot
         this._postSnapshot();
 
-        logger.irisChat('All Iris sessions cleared');
+        logger.info('All Iris sessions cleared', LogCategory.IRIS_CHAT);
     }
 
     public updateDetectedExercise(
@@ -659,22 +659,22 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
         const messageId: number | undefined = message.messageId;
         const feedback: string | undefined = message.feedback;
 
-        logger.irisChat('Message feedback received', { sessionId, messageId, feedback });
+        logger.info('Message feedback received', LogCategory.IRIS_CHAT, { sessionId, messageId, feedback });
 
         if (!sessionId || !messageId || !feedback) {
-            logger.irisChatWarn('Missing required feedback data', { sessionId, messageId, feedback });
+            logger.warn('Missing required feedback data', LogCategory.IRIS_CHAT, { sessionId, messageId, feedback });
             return;
         }
 
         if (!this._artemisApiService) {
-            logger.irisChatWarn('Artemis API service not available');
+            logger.warn('Artemis API service not available', LogCategory.IRIS_CHAT);
             return;
         }
 
         try {
             const isHelpful = feedback === 'positive';
             await this._artemisApiService.markMessageHelpful(sessionId, messageId, isHelpful);
-            logger.irisChat(`Feedback submitted: ${feedback} for message ${messageId} in session ${sessionId}`);
+            logger.info(`Feedback submitted: ${feedback} for message ${messageId} in session ${sessionId}`, LogCategory.IRIS_CHAT);
 
             // Optional: Show user confirmation
             // vscode.window.showInformationMessage('Thanks for your feedback!');
