@@ -162,8 +162,8 @@ export class IrisSessionManager implements vscode.Disposable {
      * Public method to explicitly subscribe to a session.
      * Use this when you know the WebSocket should be connected.
      */
-    public subscribeToSession(sessionId: number): void {
-        this._subscribeIfConnected(sessionId);
+    public async subscribeToSession(sessionId: number): Promise<void> {
+        await this._subscribeIfConnected(sessionId);
     }
 
     private _handleWebSocketMessage(data: unknown): void {
@@ -191,7 +191,7 @@ export class IrisSessionManager implements vscode.Disposable {
             if (isConnected && this._currentArtemisSessionId && !this._isSubscribed) {
                 logger.session(`Reconnected, resubscribing to session: ${this._currentArtemisSessionId}`);
                 // NOTE: _subscribeIfConnected does NOT call connect() - it's safe!
-                this._subscribeIfConnected(this._currentArtemisSessionId);
+                void this._subscribeIfConnected(this._currentArtemisSessionId);
             }
         });
     }
