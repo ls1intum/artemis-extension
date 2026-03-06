@@ -1,5 +1,4 @@
 import * as vscode from 'vscode';
-import { ProviderRegistry } from '../../../services/ProviderRegistry';
 import { logger, LogCategory } from '../../../services/loggingService';
 import type { CommandContext, CommandMap } from './types';
 import { getPayload, WebviewCmd } from '../../../shared/messageContracts';
@@ -37,15 +36,15 @@ export class IrisCommandModule {
             });
 
             if (!exerciseId) {
-                logger.irisChatError('ERROR: Missing exercise ID');
+                logger.error('ERROR: Missing exercise ID', LogCategory.IRIS_CHAT);
                 vscode.window.showWarningMessage('Unable to open Iris chat: missing exercise information.');
                 return;
             }
 
-            logger.irisChat('Focusing Iris chat view...');
+            logger.info('Focusing Iris chat view...', LogCategory.IRIS_CHAT);
             await vscode.commands.executeCommand('iris.chatView.focus');
 
-            const chatProvider = ProviderRegistry.getInstance().getChatWebviewProvider();
+            const chatProvider = this.context.providerRegistry.getChatWebviewProvider();
             const title = exerciseTitle || `Exercise ${exerciseId}`;
 
             logger.debug(`Chat provider available: ${!!chatProvider}`, LogCategory.IRIS_CHAT);
@@ -65,9 +64,9 @@ export class IrisCommandModule {
 
             if (chatProvider && typeof chatProvider.setExerciseContext === 'function') {
                 chatProvider.setExerciseContext(exerciseId, title, 'user-selected', exerciseShortName, releaseDate, dueDate, courseId);
-                logger.irisChat('setExerciseContext called successfully');
+                logger.info('setExerciseContext called successfully', LogCategory.IRIS_CHAT);
             } else {
-                logger.irisChatWarn('WARNING: Chat provider is unavailable or does not support exercise context selection');
+                logger.warn('WARNING: Chat provider is unavailable or does not support exercise context selection', LogCategory.IRIS_CHAT);
             }
         } catch (error: unknown) {
             logger.error('Failed to open Iris chat for exercise:', LogCategory.IRIS_CHAT, error);
@@ -86,11 +85,11 @@ export class IrisCommandModule {
 
             await vscode.commands.executeCommand('iris.chatView.focus');
 
-            const chatProvider = ProviderRegistry.getInstance().getChatWebviewProvider();
+            const chatProvider = this.context.providerRegistry.getChatWebviewProvider();
             if (chatProvider && typeof chatProvider.setCourseContext === 'function') {
                 chatProvider.setCourseContext(courseId, courseTitle || `Course ${courseId}`, 'user-selected', courseShortName);
             } else {
-                logger.irisChatWarn('Iris chat provider is unavailable or does not support course context selection.');
+                logger.warn('Iris chat provider is unavailable or does not support course context selection.', LogCategory.IRIS_CHAT);
             }
         } catch (error: unknown) {
             logger.error('Failed to open Iris chat for course:', LogCategory.IRIS_CHAT, error);

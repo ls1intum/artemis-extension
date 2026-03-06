@@ -14,20 +14,8 @@ export interface IProviderRegistry {
 }
 
 export class ProviderRegistry implements IProviderRegistry {
-    private static instance: ProviderRegistry;
     private chatProvider: IChatWebviewProvider | undefined;
     private artemisProvider: IArtemisWebviewProvider | undefined;
-
-    private constructor() {
-        // Private constructor enforces singleton pattern
-    }
-
-    public static getInstance(): ProviderRegistry {
-        if (!ProviderRegistry.instance) {
-            ProviderRegistry.instance = new ProviderRegistry();
-        }
-        return ProviderRegistry.instance;
-    }
 
     public getChatWebviewProvider(): IChatWebviewProvider | undefined {
         return this.chatProvider;

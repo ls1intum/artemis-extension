@@ -60,6 +60,7 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
         private readonly _authManager: AuthManager,
         private readonly _artemisApi: ArtemisApiService,
         private readonly _exerciseRegistry: ExerciseRegistry,
+        private readonly _providerRegistry: ProviderRegistry,
     ) {
         super();
         this._appStateManager = new AppStateManager(this._artemisApi);
@@ -72,7 +73,8 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
             undefined,  // buildCodeLens will be set later
             undefined,  // websocketService will be set later
             this._extensionContext,
-            this._exerciseRegistry
+            this._exerciseRegistry,
+            this._providerRegistry
         );
         this._viewInitDataService = new ViewInitDataService(
             () => this._appStateManager,
@@ -119,7 +121,8 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
             codeLensProvider,
             this._websocketService,
             this._extensionContext,
-            this._exerciseRegistry
+            this._exerciseRegistry,
+            this._providerRegistry
         );
         // Re-apply auth context updater to new handler instance
         if (this._authContextUpdater) {
@@ -310,7 +313,7 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
                     logger.exercise(`Registered individual exercise: ${exerciseTitle}`);
                 }
 
-                const chatProvider = ProviderRegistry.getInstance().getChatWebviewProvider();
+                const chatProvider = this._providerRegistry.getChatWebviewProvider();
                 if (chatProvider && typeof chatProvider.updateDetectedExercise === 'function') {
                     // Extract date fields from exercise
                     const releaseDate = exercise.releaseDate || exercise.startDate;

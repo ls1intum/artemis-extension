@@ -3,6 +3,7 @@ import { AuthManager } from '../../auth';
 import { ArtemisApiService } from '../../api';
 import { logger, LogLevel, LogCategory } from '../../services/loggingService';
 import { ArtemisWebsocketService, ExerciseRegistry } from '../../services';
+import type { IProviderRegistry } from '../../services/ProviderRegistry';
 import { AppStateManager } from './appStateManager';
 import type { WebViewActionHandler } from './types';
 import type { CommandContext, CommandHandler } from './commands/types';
@@ -38,7 +39,8 @@ export class WebViewMessageHandler {
         private readonly buildCodeLens?: BuildErrorCodeLensProvider,
         websocketService?: ArtemisWebsocketService,
         extensionContext?: vscode.ExtensionContext,
-        exerciseRegistry?: ExerciseRegistry
+        exerciseRegistry?: ExerciseRegistry,
+        providerRegistry?: IProviderRegistry
     ) {
         this._websocketService = websocketService;
         const context: CommandContext = {
@@ -51,7 +53,8 @@ export class WebViewMessageHandler {
             buildCodeLens: this.buildCodeLens,
             websocketService: this._websocketService,
             extensionContext: extensionContext!,
-            exerciseRegistry: exerciseRegistry!
+            exerciseRegistry: exerciseRegistry!,
+            providerRegistry: providerRegistry!
         };
 
         const modules = [

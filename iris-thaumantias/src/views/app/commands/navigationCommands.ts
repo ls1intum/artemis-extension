@@ -1,5 +1,4 @@
 import * as vscode from 'vscode';
-import { ProviderRegistry } from '../../../services/ProviderRegistry';
 import { getExamErrorMessage } from '../../../services/examErrorHandler';
 import type { CommandContext, CommandMap } from './types';
 import { logger } from '../../../services/loggingService';
@@ -160,7 +159,7 @@ export class NavigationCommandModule {
             const entryFormat: CourseDashboardEntry = 'course' in courseData ? courseData : { course: courseData };
             registry.registerFromCourseData(entryFormat);
 
-            const chatProvider = ProviderRegistry.getInstance().getChatWebviewProvider();
+            const chatProvider = this.context.providerRegistry.getChatWebviewProvider();
             if (course) {
                 const courseTitle = course.title || 'Untitled Course';
                 const courseId = course.id || 0;

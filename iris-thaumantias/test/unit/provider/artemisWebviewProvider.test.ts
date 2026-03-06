@@ -7,6 +7,7 @@ import { MockExtensionContext } from '../mocks/vscodeMocks';
 import { AuthManager } from '../../../src/auth';
 import { ArtemisApiService } from '../../../src/api';
 import { ArtemisWebsocketService, ExerciseRegistry } from '../../../src/services';
+import { ProviderRegistry } from '../../../src/services/ProviderRegistry';
 
 class MockAuthManager extends AuthManager {
     constructor(context: vscode.ExtensionContext) {
@@ -125,7 +126,8 @@ suite('ArtemisWebviewProvider Test Suite', () => {
             mockContext,
             mockAuthManager,
             mockApiService,
-            new ExerciseRegistry()
+            new ExerciseRegistry(),
+            new ProviderRegistry()
         );
     });
 
@@ -242,7 +244,8 @@ suite('Panel hide/show state persistence', () => {
             mockContext,
             mockAuthManager,
             mockApiService,
-            new ExerciseRegistry()
+            new ExerciseRegistry(),
+            new ProviderRegistry()
         );
 
         spyWebview = new SpyWebview();

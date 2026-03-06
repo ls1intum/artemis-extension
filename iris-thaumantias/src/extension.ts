@@ -122,11 +122,12 @@ export async function activate(context: vscode.ExtensionContext) {
 		}
 	});
 
-	// Initialize exercise registry (shared across providers)
+	// Initialize shared registries
 	const exerciseRegistry = new ExerciseRegistry();
+	const providerRegistry = new ProviderRegistry();
 
 	// Register the Artemis login view provider with dependencies
-	const artemisWebviewProvider = new ArtemisWebviewProvider(context.extensionUri, context, authManager, artemisApiService, exerciseRegistry);
+	const artemisWebviewProvider = new ArtemisWebviewProvider(context.extensionUri, context, authManager, artemisApiService, exerciseRegistry, providerRegistry);
 
 	// Pass the auth context updater to the webview provider
 	artemisWebviewProvider.setAuthContextUpdater(updateAuthContext);
@@ -160,7 +161,6 @@ export async function activate(context: vscode.ExtensionContext) {
 	);
 
 	// Register providers in the registry so they can be accessed by other parts of the extension
-	const providerRegistry = ProviderRegistry.getInstance();
 	providerRegistry.setArtemisWebviewProvider(artemisWebviewProvider);
 	providerRegistry.setChatWebviewProvider(chatWebviewProvider);
 
@@ -286,7 +286,7 @@ export async function activate(context: vscode.ExtensionContext) {
 				return;
 			}
 
-			const chatProvider = ProviderRegistry.getInstance().getChatWebviewProvider();
+			const chatProvider = providerRegistry.getChatWebviewProvider();
 			const activeContext = chatProvider?.getSelectedContext?.();
 			const courseId = activeContext?.type === 'course' ? activeContext.id : activeContext?.courseId;
 
