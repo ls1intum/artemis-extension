@@ -57,7 +57,7 @@ export class ChatContextManager {
             source: 'user-selected',
             locked: false,
             selectedAt: Date.now(),
-        });
+        }, false);
 
         this._resetSessionForContextChange();
         this._clearChatMessages();
@@ -86,7 +86,7 @@ export class ChatContextManager {
             source: 'user-selected',
             locked: false,
             selectedAt: Date.now(),
-        });
+        }, false);
 
         this._resetSessionForContextChange();
         this._clearChatMessages();
@@ -115,7 +115,7 @@ export class ChatContextManager {
             source: 'user-selected',
             locked: false,
             selectedAt: Date.now(),
-        });
+        }, false);
 
         this._resetSessionForContextChange();
         this._clearChatMessages();
