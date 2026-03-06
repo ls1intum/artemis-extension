@@ -24,6 +24,7 @@ export {
     getWorkspaceStatus,
     isExerciseInCurrentWorkspace,
     detectAndRegisterWorkspaceExercise,
+    detectWorkspaceForRepoUris,
     type DetectedExercise,
     type ExerciseSource,
     type WorkspaceStatus,

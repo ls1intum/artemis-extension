@@ -274,6 +274,23 @@ export async function isExerciseInCurrentWorkspace(
 }
 
 /**
+ * Check workspace status against a list of repository URIs.
+ * Returns the first connected match with its URI, or disconnected status if none match.
+ */
+export async function detectWorkspaceForRepoUris(
+    repoUris: string[],
+    workspaceFolder?: vscode.WorkspaceFolder
+): Promise<WorkspaceStatus & { matchedUri?: string }> {
+    for (const uri of repoUris) {
+        const status = await getWorkspaceStatus(uri, workspaceFolder);
+        if (status.isConnected) {
+            return { ...status, matchedUri: uri };
+        }
+    }
+    return { isConnected: false, hasChanges: false, isPracticeRepo: false };
+}
+
+/**
  * Detect workspace exercise with registry population fallback, then register it in a ContextStore.
  * Used by ChatWebviewProvider to auto-detect the workspace exercise on load.
  */

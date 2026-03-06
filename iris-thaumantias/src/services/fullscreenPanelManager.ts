@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import { ExtensionMsg, WebviewMsgType } from '../shared/messageContracts';
 import type { ExtensionToWebviewMessage, CourseDetailData as CourseDetailPayload } from '../shared/messageContracts';
-import { getWorkspaceStatus } from './workspaceDetectionService';
+import { detectWorkspaceForRepoUris } from './workspaceDetectionService';
 import type { ExerciseDetailsResponse } from '../types/apiResponses';
 import { isWebviewMessage } from '../shared/messageContracts/typeGuards';
 import { getReactWebviewHtml } from '../utils/webviewHelpers';
@@ -26,16 +26,8 @@ export class FullscreenPanelManager {
                     .map(p => p.repositoryUri)
                     .filter((uri): uri is string => !!uri);
 
-                const tryDetect = async () => {
-                    for (const uri of repoUris) {
-                        const status = await getWorkspaceStatus(uri);
-                        if (status.isConnected) { return status; }
-                    }
-                    return undefined;
-                };
-
                 if (repoUris.length > 0) {
-                    tryDetect().then((repoStatus) => {
+                    detectWorkspaceForRepoUris(repoUris).then((repoStatus) => {
                         postSafe({
                             type: ExtensionMsg.ExerciseDetailInit,
                             exerciseData,

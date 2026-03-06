@@ -5,7 +5,7 @@ import type { WebViewMessageHandler } from '../views/app/webViewMessageHandler';
 import { ExtensionMsg, WebviewCmd } from '../shared/messageContracts';
 import type { ExtensionToWebviewMessage, WebviewToExtensionMessage, CourseDetailData as CourseDetailPayload } from '../shared/messageContracts';
 import type { CourseDashboardEntry, ExerciseDetail, ExerciseDetailsResponse } from '../types/apiResponses';
-import { detectWorkspaceExercise, getWorkspaceStatus, type ExerciseSource, type WorkspaceStatus } from './workspaceDetectionService';
+import { detectWorkspaceExercise, detectWorkspaceForRepoUris, type ExerciseSource } from './workspaceDetectionService';
 import { logger, LogCategory } from './loggingService';
 import { VSCODE_CONFIG, CONFIG } from '../utils';
 
@@ -153,7 +153,7 @@ export class ViewInitDataService {
 
         if (repoUris.length > 0) {
             const exerciseId = exerciseData.exercise?.id;
-            this._detectWorkspaceForExercise(repoUris).then((repoStatus) => {
+            detectWorkspaceForRepoUris(repoUris).then((repoStatus) => {
                 // Set repo context so workspace listeners can auto-detect changes on file save
                 if (repoStatus.matchedUri && exerciseId !== undefined) {
                     const handler = this._getMessageHandler();
@@ -338,21 +338,6 @@ export class ViewInitDataService {
         const config = vscode.workspace.getConfiguration(VSCODE_CONFIG.ARTEMIS_SECTION);
         const serverUrl = config.get<string>(VSCODE_CONFIG.SERVER_URL_KEY, CONFIG.ARTEMIS_SERVER_URL_DEFAULT);
         this._postMessage({ type: ExtensionMsg.SetServerUrl, serverUrl });
-    }
-
-    /**
-     * Check workspace status against all participation repo URIs for an exercise.
-     * Returns the first connected match, or the last result if none match.
-     */
-    private async _detectWorkspaceForExercise(repoUris: string[]): Promise<WorkspaceStatus & { matchedUri?: string }> {
-        for (const uri of repoUris) {
-            const status = await getWorkspaceStatus(uri);
-            if (status.isConnected) {
-                return { ...status, matchedUri: uri };
-            }
-        }
-        // No match found — return disconnected status
-        return { isConnected: false, hasChanges: false, isPracticeRepo: false };
     }
 
     private _isDeveloperMode(): boolean {
