@@ -1,11 +1,11 @@
 import * as vscode from 'vscode';
 import { promisify } from 'util';
 import { execFile } from 'child_process';
-import type { ArtemisApiService } from '../api';
-import type { ContextStore } from './contextStore';
-import { ExerciseRegistry } from './exerciseRegistry';
-import { logger } from './loggingService';
-import { checkWorkspaceFiles } from '../utils';
+import type { ArtemisApiService } from '../../api';
+import type { ContextStore } from '../contextStore';
+import { ExerciseRegistry } from '../exerciseRegistry';
+import { logger } from '../loggingService';
+import { checkWorkspaceFiles } from '../../utils';
 
 const execFileAsync = promisify(execFile);
 

@@ -3,7 +3,7 @@ import type { CommandContext, CommandMap } from './types';
 import { getPayload, ExtensionMsg, WebviewCmd } from '../../../shared/messageContracts';
 import type { WebviewToExtensionMessage, WebCmd } from '../../../shared/messageContracts';
 import { CONFIG, VSCODE_CONFIG } from '../../../utils/constants';
-import { logger } from '../../../services/loggingService';
+import { logger, LogCategory } from '../../../services/loggingService';
 
 export class AuthCommandModule {
     constructor(private readonly context: CommandContext) { }
@@ -42,7 +42,7 @@ export class AuthCommandModule {
                 user: user
             });
         } catch (error: unknown) {
-            logger.authError('Login error:', error);
+            logger.error('Login error:', LogCategory.AUTH, error);
             const friendlyError = this.formatLoginError(error);
             vscode.window.showErrorMessage(friendlyError);
 
@@ -63,7 +63,7 @@ export class AuthCommandModule {
             this.context.appStateManager.showLogin();
             this.context.actionHandler.render();
         } catch (error: unknown) {
-            logger.authError('Logout error:', error);
+            logger.error('Logout error:', LogCategory.AUTH, error);
             vscode.window.showErrorMessage('Error during logout');
         }
     };

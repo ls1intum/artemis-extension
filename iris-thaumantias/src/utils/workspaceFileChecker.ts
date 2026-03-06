@@ -169,7 +169,7 @@ export async function checkWorkspaceFiles(
                                         if (!isIgnored) {
                                             allFiles.add(file);
                                         } else {
-                                            logger.fileMonitor(`Skipping gitignored dirty file: ${file}`);
+                                            logger.info(`Skipping gitignored dirty file: ${file}`, LogCategory.FILE_MONITOR);
                                         }
                                     } catch {
                                         // If we can't determine, include it to be safe
@@ -239,7 +239,7 @@ export async function checkWorkspaceFiles(
             }
         } catch (error) {
             // No upstream or other error - ignore
-            logger.fileMonitor('No upstream branch or git diff failed');
+            logger.info('No upstream branch or git diff failed', LogCategory.FILE_MONITOR);
         }
     }
 

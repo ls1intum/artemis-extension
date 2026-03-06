@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { logger, LogCategory } from './loggingService';
+import { logger, LogCategory } from '../loggingService';
 import { execFile } from 'child_process';
 import { promisify } from 'util';
 

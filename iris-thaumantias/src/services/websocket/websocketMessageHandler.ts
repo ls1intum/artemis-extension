@@ -1,11 +1,11 @@
 import * as vscode from 'vscode';
 import { ArtemisWebsocketService } from './artemisWebsocketService';
-import { IrisSessionManager } from './irisSessionManager';
-import type { IrisChatMessage } from '../types/apiResponses';
-import { logger, LogCategory } from './loggingService';
-import { extractIrisMessageContent } from '../utils/irisMessageUtils';
-import { ExtensionMsg } from '../shared/messageContracts';
-import type { ExtensionToWebviewMessage } from '../shared/messageContracts';
+import { IrisSessionManager } from '../iris/irisSessionManager';
+import type { IrisChatMessage } from '../../types/apiResponses';
+import { logger, LogCategory } from '../loggingService';
+import { extractIrisMessageContent } from '../../utils/irisMessageUtils';
+import { ExtensionMsg } from '../../shared/messageContracts';
+import type { ExtensionToWebviewMessage } from '../../shared/messageContracts';
 
 export class IrisWebSocketMessageHandler {
     constructor(

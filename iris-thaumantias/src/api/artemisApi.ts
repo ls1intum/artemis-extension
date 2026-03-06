@@ -145,10 +145,10 @@ export class ArtemisApiService {
             for (const participation of exerciseData.exercise!.studentParticipations!) {
                 const submissions = participation.submissions ?? [];
                 const totalResults = submissions.reduce((sum, s) => sum + (s.results?.length ?? 0), 0);
-                logger.api(`📊 Participation ${participation.id}: ${submissions.length} submissions, ${totalResults} results`);
+                logger.info(`📊 Participation ${participation.id}: ${submissions.length} submissions, ${totalResults} results`, LogCategory.API);
             }
         } else {
-            logger.apiWarn('⚠️ No student participations found in exercise details response');
+            logger.warn('⚠️ No student participations found in exercise details response', LogCategory.API);
         }
 
         return exerciseData;
@@ -166,7 +166,7 @@ export class ArtemisApiService {
             // Check if response has content
             const text = await response.text();
             if (!text || text.trim() === '') {
-                logger.api(`No pending submission for participation ${participationId}`);
+                logger.info(`No pending submission for participation ${participationId}`, LogCategory.API);
                 return null;
             }
 
@@ -174,7 +174,7 @@ export class ArtemisApiService {
             return ProgrammingSubmission.fromJSON(JSON.parse(text));
         } catch (error) {
             // If no pending submission exists, API may return 404 or empty response
-            logger.api(`No pending submission for participation ${participationId}: ${error}`);
+            logger.info(`No pending submission for participation ${participationId}: ${error}`, LogCategory.API);
             return null;
         }
     }
@@ -487,7 +487,7 @@ export class ArtemisApiService {
         // Older Artemis servers will ignore unknown fields (Jackson default behavior)
         if (uncommittedFiles && uncommittedFiles.size > 0) {
             messagePayload.uncommittedFiles = Object.fromEntries(uncommittedFiles);
-            logger.api(`Sending ${uncommittedFiles.size} uncommitted files to Iris`);
+            logger.info(`Sending ${uncommittedFiles.size} uncommitted files to Iris`, LogCategory.API);
         }
 
         try {
@@ -503,7 +503,7 @@ export class ArtemisApiService {
             // If sending with uncommittedFiles fails, retry without them
             // This handles the case where the server doesn't support the feature yet
             if (uncommittedFiles && uncommittedFiles.size > 0 && error instanceof ApiError && error.status === 400) {
-                logger.apiWarn('Failed to send uncommitted files, retrying without them (server might not support this feature yet)');
+                logger.warn('Failed to send uncommitted files, retrying without them (server might not support this feature yet)', LogCategory.API);
                 const fallbackPayload = {
                     sentAt: new Date().toISOString(),
                     content: [

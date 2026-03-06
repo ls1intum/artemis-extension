@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { getExamErrorMessage } from '../../../services/examErrorHandler';
+import { getExamErrorMessage } from '../../../services/exam/examErrorHandler';
 import type { CommandContext, CommandMap } from './types';
 import { logger } from '../../../services/loggingService';
 import { getPayload, ExtensionMsg, WebviewCmd } from '../../../shared/messageContracts';

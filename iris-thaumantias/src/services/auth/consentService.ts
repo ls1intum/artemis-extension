@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
-import { logger, LogCategory } from './loggingService';
-import { VSCODE_CONFIG } from '../utils';
+import { logger, LogCategory } from '../loggingService';
+import { VSCODE_CONFIG } from '../../utils';
 
 /**
  * Consent levels for data collection.

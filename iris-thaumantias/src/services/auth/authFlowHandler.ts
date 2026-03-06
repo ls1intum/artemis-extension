@@ -1,11 +1,11 @@
 import * as vscode from 'vscode';
-import { AuthManager } from '../auth';
-import { ArtemisApiService } from '../api';
-import { ExtensionMsg } from '../shared/messageContracts';
-import type { ExtensionToWebviewMessage } from '../shared/messageContracts';
-import type { UserInfo } from '../views/app/appStateManager';
-import { logger, LogCategory } from './loggingService';
-import { CONFIG, VSCODE_CONFIG } from '../utils';
+import { AuthManager } from '../../auth';
+import { ArtemisApiService } from '../../api';
+import { ExtensionMsg } from '../../shared/messageContracts';
+import type { ExtensionToWebviewMessage } from '../../shared/messageContracts';
+import type { UserInfo } from '../../views/app/appStateManager';
+import { logger, LogCategory } from '../loggingService';
+import { CONFIG, VSCODE_CONFIG } from '../../utils';
 
 export class AuthFlowHandler {
     constructor(
@@ -55,14 +55,14 @@ export class AuthFlowHandler {
                 try {
                     const user = await this._artemisApi.getCurrentUser();
                     const serverUrl = this._getServerUrl();
-                    logger.auth(`Auto-authenticated user: ${user.login}`);
+                    logger.info(`Auto-authenticated user: ${user.login}`, LogCategory.AUTH);
                     await this._callbacks.showDashboard({
                         username: user.login || 'User',
                         serverUrl: serverUrl,
                         user: user
                     });
                 } catch (userError) {
-                    logger.auth('Stored credentials are invalid, clearing...');
+                    logger.info('Stored credentials are invalid, clearing...', LogCategory.AUTH);
                     await this._authManager.clear();
 
                     const updater = this._getAuthContextUpdater();

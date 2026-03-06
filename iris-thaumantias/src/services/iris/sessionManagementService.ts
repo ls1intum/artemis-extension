@@ -1,12 +1,12 @@
 import * as vscode from 'vscode';
-import { ContextStore } from './contextStore';
+import { ContextStore } from '../contextStore';
 import { IrisSessionManager } from './irisSessionManager';
-import { ArtemisApiService } from '../api';
-import { ActiveContext } from '../types';
-import type { IrisChatSession, IrisChatMessage } from '../types/apiResponses';
-import { logger, LogCategory } from './loggingService';
-import { ExtensionMsg } from '../shared/messageContracts';
-import type { ExtensionToWebviewMessage } from '../shared/messageContracts';
+import { ArtemisApiService } from '../../api';
+import { ActiveContext } from '../../types';
+import type { IrisChatSession, IrisChatMessage } from '../../types/apiResponses';
+import { logger, LogCategory } from '../loggingService';
+import { ExtensionMsg } from '../../shared/messageContracts';
+import type { ExtensionToWebviewMessage } from '../../shared/messageContracts';
 
 export class IrisSessionLifecycleService {
     constructor(

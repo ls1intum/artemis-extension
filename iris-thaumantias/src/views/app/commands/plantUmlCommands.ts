@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import { processPlantUml, extractErrorMessage } from '../../../utils';
-import { logger } from '../../../services/loggingService';
+import { logger, LogCategory } from '../../../services/loggingService';
 import type { CommandContext, CommandMap } from './types';
 import { getPayload, ExtensionMsg, WebviewCmd } from '../../../shared/messageContracts';
 import type {
@@ -30,7 +30,7 @@ export class PlantUmlCommandModule {
         }
 
         try {
-            logger.plantUml(`Rendering inline PlantUML diagram ${index + 1}`);
+            logger.info(`Rendering inline PlantUML diagram ${index + 1}`, LogCategory.PLANTUML);
 
             const processedPlantUml = processPlantUml(plantUml);
             const isDarkTheme = vscode.window.activeColorTheme.kind === vscode.ColorThemeKind.Dark;
@@ -42,9 +42,9 @@ export class PlantUmlCommandModule {
                 svg: svg
             });
 
-            logger.plantUml(`✅ Inline PlantUML diagram ${index + 1} rendered successfully`);
+            logger.info(`✅ Inline PlantUML diagram ${index + 1} rendered successfully`, LogCategory.PLANTUML);
         } catch (error: unknown) {
-            logger.plantUmlError(`Render inline PlantUML error for diagram ${index + 1}:`, error);
+            logger.error(`Render inline PlantUML error for diagram ${index + 1}:`, LogCategory.PLANTUML, error);
             const errorMsg = extractErrorMessage(error);
             this.context.sendMessage({
                 type: ExtensionMsg.PlantUmlError,

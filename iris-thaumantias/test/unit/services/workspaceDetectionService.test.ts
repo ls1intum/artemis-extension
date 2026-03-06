@@ -8,7 +8,7 @@ import {
     isExerciseInCurrentWorkspace,
     type ExerciseSource,
     type DetectedExercise
-} from '../../../src/services/workspaceDetectionService';
+} from '../../../src/services/workspace/workspaceDetectionService';
 
 suite('WorkspaceDetectionService', () => {
     suite('normalizeRepositoryUrl', () => {

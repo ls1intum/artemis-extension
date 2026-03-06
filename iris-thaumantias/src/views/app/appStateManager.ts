@@ -163,22 +163,22 @@ export class AppStateManager {
             // ALWAYS fetch fresh data to ensure we have the latest results
             // Exercise data changes frequently (new submissions, build results)
             // and stale data can occur when WebSocket fails or disconnects
-            logger.view(`🔄 Fetching fresh exercise data for exercise ${exerciseId}`);
+            logger.info(`🔄 Fetching fresh exercise data for exercise ${exerciseId}`, LogCategory.VIEW);
             const exerciseDetails = await this._artemisApi.getExerciseDetails(exerciseId);
             this._currentExerciseData = exerciseDetails;
 
             // Check for pending submissions (builds in progress)
             const participation = exerciseDetails.exercise?.studentParticipations?.[0];
             if (participation?.id) {
-                logger.view(`🔍 Checking for pending submission for participation ${participation.id}`);
+                logger.info(`🔍 Checking for pending submission for participation ${participation.id}`, LogCategory.VIEW);
                 const pendingSubmission = await this._artemisApi.getLatestPendingSubmission(participation.id);
 
                 if (pendingSubmission) {
-                    logger.view(`⏳ Found pending submission - build in progress!`);
+                    logger.info(`⏳ Found pending submission - build in progress!`, LogCategory.VIEW);
                     // Store pending submission info for the view to use
                     this._currentExerciseData.pendingSubmission = pendingSubmission;
                 } else {
-                    logger.view(`✅ No pending submission - latest result is final`);
+                    logger.info(`✅ No pending submission - latest result is final`, LogCategory.VIEW);
                 }
             }
 
@@ -200,7 +200,7 @@ export class AppStateManager {
         if (this._currentState === 'exercise-detail' && this._currentExerciseData) {
             const exerciseId = this._currentExerciseData?.exercise?.id;
             if (exerciseId) {
-                logger.view(`🔄 Refreshing exercise ${exerciseId}`);
+                logger.info(`🔄 Refreshing exercise ${exerciseId}`, LogCategory.VIEW);
                 await this.showExerciseDetail(exerciseId);
             }
         }

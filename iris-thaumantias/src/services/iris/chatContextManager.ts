@@ -1,11 +1,11 @@
 import * as vscode from 'vscode';
-import { ContextStore } from './contextStore';
+import { ContextStore } from '../contextStore';
 import { IrisSessionInitService } from './chatSessionService';
 import { IrisSessionManager } from './irisSessionManager';
-import { ActiveContext, ChatContextType, TrackedExercise } from '../types';
-import { logger, LogCategory } from './loggingService';
-import { ExtensionMsg } from '../shared/messageContracts';
-import type { ExtensionToWebviewMessage } from '../shared/messageContracts';
+import { ActiveContext, ChatContextType, TrackedExercise } from '../../types';
+import { logger, LogCategory } from '../loggingService';
+import { ExtensionMsg } from '../../shared/messageContracts';
+import type { ExtensionToWebviewMessage } from '../../shared/messageContracts';
 
 export type ChatContextReason =
     | 'user-selected'

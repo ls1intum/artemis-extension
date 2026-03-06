@@ -1,7 +1,7 @@
 import type { CommandContext, CommandMap } from './types';
 import { getPayload, ExtensionMsg, WebviewCmd } from '../../../shared/messageContracts';
 import type { WebviewToExtensionMessage, WebCmd } from '../../../shared/messageContracts';
-import { logger } from '../../../services/loggingService';
+import { logger, LogCategory } from '../../../services/loggingService';
 
 // Health check result structure
 interface HealthCheckResult {
@@ -159,7 +159,7 @@ export class HealthCommandModule {
                 };
             }
         } catch (error: unknown) {
-            logger.apiError('Error performing health checks:', error);
+            logger.error('Error performing health checks:', LogCategory.API, error);
         }
 
         this.context.sendMessage({

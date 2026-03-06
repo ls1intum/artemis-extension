@@ -1,4 +1,4 @@
-import { ApiError } from '../types';
+import { ApiError } from '../../types';
 
 /**
  * Maps Artemis exam error keys and messages to user-friendly error messages.

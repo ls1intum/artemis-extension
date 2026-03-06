@@ -1,8 +1,8 @@
 import * as vscode from 'vscode';
-import { ArtemisApiService } from '../api';
-import { ArtemisWebsocketService } from './artemisWebsocketService';
-import { ActiveContext, type IrisChatMessage } from '../types';
-import { logger, LogLevel } from './loggingService';
+import { ArtemisApiService } from '../../api';
+import { ArtemisWebsocketService } from '../websocket/artemisWebsocketService';
+import { ActiveContext, type IrisChatMessage } from '../../types';
+import { logger, LogLevel } from '../loggingService';
 
 /** WebSocket message structure for Iris chat */
 interface IrisWebSocketMessage {

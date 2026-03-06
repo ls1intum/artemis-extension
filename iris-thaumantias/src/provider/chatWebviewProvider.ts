@@ -31,7 +31,7 @@ import {
     ExerciseRegistry,
     detectAndRegisterWorkspaceExercise
 } from '../services';
-import type { ChatContextReason } from '../services/chatContextManager';
+import type { ChatContextReason } from '../services/iris/chatContextManager';
 import { IRIS_CHAT_HELP_MARKDOWN } from '../utils/helpContent';
 
 export interface ExerciseContextChangeEvent {

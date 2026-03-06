@@ -1,7 +1,7 @@
 import * as assert from 'assert';
 import * as sinon from 'sinon';
-import { ArtemisWebsocketService } from '../../../src/services/artemisWebsocketService';
-import { IrisSessionManager } from '../../../src/services/irisSessionManager';
+import { ArtemisWebsocketService } from '../../../src/services/websocket/artemisWebsocketService';
+import { IrisSessionManager } from '../../../src/services/iris/irisSessionManager';
 import { MockExtensionContext } from '../mocks/vscodeMocks';
 import { AuthManager } from '../../../src/auth/auth';
 import { ArtemisApiService } from '../../../src/api';

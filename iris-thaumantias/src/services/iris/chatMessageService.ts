@@ -1,14 +1,14 @@
 import * as vscode from 'vscode';
-import { ArtemisApiService } from '../api';
-import { ArtemisWebsocketService } from './artemisWebsocketService';
+import { ArtemisApiService } from '../../api';
+import { ArtemisWebsocketService } from '../websocket/artemisWebsocketService';
 import { IrisSessionManager } from './irisSessionManager';
-import { ContextStore } from './contextStore';
-import { ActiveContext } from '../types';
-import { checkWorkspaceFiles } from '../utils';
-import { StruggleContext } from './telemetry';
-import { logger, LogCategory } from './loggingService';
-import { ExtensionMsg } from '../shared/messageContracts';
-import type { ExtensionToWebviewMessage } from '../shared/messageContracts';
+import { ContextStore } from '../contextStore';
+import { ActiveContext } from '../../types';
+import { checkWorkspaceFiles } from '../../utils';
+import { StruggleContext } from '../telemetry';
+import { logger, LogCategory } from '../loggingService';
+import { ExtensionMsg } from '../../shared/messageContracts';
+import type { ExtensionToWebviewMessage } from '../../shared/messageContracts';
 
 export class ChatMessageService {
     constructor(

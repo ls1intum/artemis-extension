@@ -1,12 +1,12 @@
 import * as vscode from 'vscode';
-import { ExtensionMsg, WebviewMsgType } from '../shared/messageContracts';
-import type { ExtensionToWebviewMessage, CourseDetailData as CourseDetailPayload } from '../shared/messageContracts';
-import { detectWorkspaceForRepoUris } from './workspaceDetectionService';
-import type { ExerciseDetailsResponse } from '../types/apiResponses';
-import { isWebviewMessage } from '../shared/messageContracts/typeGuards';
-import { getReactWebviewHtml } from '../utils/webviewHelpers';
-import type { WebViewMessageHandler } from '../views/app/webViewMessageHandler';
-import { logger, LogCategory } from './loggingService';
+import { ExtensionMsg, WebviewMsgType } from '../../shared/messageContracts';
+import type { ExtensionToWebviewMessage, CourseDetailData as CourseDetailPayload } from '../../shared/messageContracts';
+import { detectWorkspaceForRepoUris } from '../workspace/workspaceDetectionService';
+import type { ExerciseDetailsResponse } from '../../types/apiResponses';
+import { isWebviewMessage } from '../../shared/messageContracts/typeGuards';
+import { getReactWebviewHtml } from '../../utils/webviewHelpers';
+import type { WebViewMessageHandler } from '../../views/app/webViewMessageHandler';
+import { logger, LogCategory } from '../loggingService';
 
 export class FullscreenPanelManager {
     constructor(

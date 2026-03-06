@@ -1,15 +1,15 @@
 import { Client, StompConfig, StompSubscription, IFrame, IMessage } from '@stomp/stompjs';
 import WebSocket from 'ws';
 import * as vscode from 'vscode';
-import { AuthManager } from '../auth';
-import { CONFIG, VSCODE_CONFIG, WEBSOCKET_TOPICS } from '../utils';
-import { logger, LogCategory } from './loggingService';
+import { AuthManager } from '../../auth';
+import { CONFIG, VSCODE_CONFIG, WEBSOCKET_TOPICS } from '../../utils';
+import { logger, LogCategory } from '../loggingService';
 import {
     ResultDTO,
     ProgrammingSubmission,
     SubmissionProcessingMessage,
     WebSocketMessageHandler
-} from '../types';
+} from '../../types';
 
 /**
  * Delay in milliseconds before emitting non-connected states to consumers.

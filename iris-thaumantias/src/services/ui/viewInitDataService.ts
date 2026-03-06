@@ -1,13 +1,13 @@
 import * as vscode from 'vscode';
-import { AppStateManager } from '../views/app/appStateManager';
-import type { TelemetryManager } from './telemetry/telemetryManager';
-import type { WebViewMessageHandler } from '../views/app/webViewMessageHandler';
-import { ExtensionMsg, WebviewCmd } from '../shared/messageContracts';
-import type { ExtensionToWebviewMessage, WebviewToExtensionMessage, CourseDetailData as CourseDetailPayload } from '../shared/messageContracts';
-import type { CourseDashboardEntry, ExerciseDetail, ExerciseDetailsResponse } from '../types/apiResponses';
-import { detectWorkspaceExercise, detectWorkspaceForRepoUris, type ExerciseSource } from './workspaceDetectionService';
-import { logger, LogCategory } from './loggingService';
-import { VSCODE_CONFIG, CONFIG } from '../utils';
+import { AppStateManager } from '../../views/app/appStateManager';
+import type { TelemetryManager } from '../telemetry/telemetryManager';
+import type { WebViewMessageHandler } from '../../views/app/webViewMessageHandler';
+import { ExtensionMsg, WebviewCmd } from '../../shared/messageContracts';
+import type { ExtensionToWebviewMessage, WebviewToExtensionMessage, CourseDetailData as CourseDetailPayload } from '../../shared/messageContracts';
+import type { CourseDashboardEntry, ExerciseDetail, ExerciseDetailsResponse } from '../../types/apiResponses';
+import { detectWorkspaceExercise, detectWorkspaceForRepoUris, type ExerciseSource } from '../workspace/workspaceDetectionService';
+import { logger, LogCategory } from '../loggingService';
+import { VSCODE_CONFIG, CONFIG } from '../../utils';
 
 export class ViewInitDataService {
     constructor(

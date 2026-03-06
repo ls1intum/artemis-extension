@@ -1,21 +1,25 @@
-export { ArtemisWebsocketService } from './artemisWebsocketService';
-export { ChatDiagnosticsService } from './chatDiagnosticsService';
-export { IrisSessionInitService } from './chatSessionService';
-export { ChatMessageService } from './chatMessageService';
-export { ChatContextManager } from './chatContextManager';
-export { IrisSessionLifecycleService } from './sessionManagementService';
-export { IrisWebSocketMessageHandler } from './websocketMessageHandler';
-export { GitService } from './gitService';
-export { FileMonitorService } from './fileMonitorService';
-export { IrisSessionManager } from './irisSessionManager';
-export { ContextStore } from './contextStore';
-export { ProviderRegistry } from './ProviderRegistry';
-export { ExerciseRegistry, type ExerciseRegistryEntry } from './exerciseRegistry';
-export { WebSocketStatusBarService } from './websocketStatusBar';
-export { logger, LogLevel, LogCategory } from './loggingService';
-export { NoAiDetectionService } from './noAiDetectionService';
-export { ViewInitDataService } from './viewInitDataService';
-export { ConsentService, ConsentLevel } from './consentService';
+// Auth
+export { AuthFlowHandler } from './auth';
+export { ConsentService, ConsentLevel } from './auth';
+
+// Iris
+export { ChatContextManager } from './iris';
+export { ChatDiagnosticsService } from './iris';
+export { ChatMessageService } from './iris';
+export { IrisSessionInitService } from './iris';
+export { IrisSessionManager } from './iris';
+export { IrisSessionLifecycleService } from './iris';
+
+// WebSocket
+export { ArtemisWebsocketService } from './websocket';
+export { SubmissionWebSocketHandler } from './websocket';
+export { IrisWebSocketMessageHandler } from './websocket';
+export { WebSocketStatusBarService } from './websocket';
+
+// Workspace
+export { FileMonitorService } from './workspace';
+export { GitService } from './workspace';
+export { NoAiDetectionService } from './workspace';
 export {
     detectWorkspaceExercise,
     findExerciseByRepositoryUrl,
@@ -28,7 +32,20 @@ export {
     type DetectedExercise,
     type ExerciseSource,
     type WorkspaceStatus,
-} from './workspaceDetectionService';
+} from './workspace';
 
-// Telemetry services
+// UI
+export { FullscreenPanelManager } from './ui';
+export { ViewInitDataService } from './ui';
+
+// Exam
+export { getExamErrorMessage } from './exam';
+
+// Root-level (shared state & cross-cutting)
+export { ContextStore } from './contextStore';
+export { ProviderRegistry, type IProviderRegistry } from './ProviderRegistry';
+export { ExerciseRegistry, type ExerciseRegistryEntry } from './exerciseRegistry';
+export { logger, LogLevel, LogCategory } from './loggingService';
+
+// Telemetry
 export * from './telemetry';

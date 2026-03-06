@@ -1,6 +1,6 @@
 import * as assert from 'assert';
 import * as sinon from 'sinon';
-import { IrisSessionInitService } from '../../../src/services/chatSessionService';
+import { IrisSessionInitService } from '../../../src/services/iris/chatSessionService';
 import { ContextStore } from '../../../src/services/contextStore';
 import { ArtemisApiService } from '../../../src/api';
 import { ActiveContext } from '../../../src/types';

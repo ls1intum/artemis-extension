@@ -17,7 +17,7 @@ import { CompileEquivalentEmitter, classifyBuildResult } from './eventPipeline/c
 import { BoundaryTriggerEmitter } from './eventPipeline/boundaryTriggerEmitter';
 import { InterventionDecisionEngine } from './decision/interventionDecisionEngine';
 import { AdaptiveCadence } from './intervention/adaptiveCadence';
-import { ArtemisWebsocketService } from '../artemisWebsocketService';
+import { ArtemisWebsocketService } from '../websocket/artemisWebsocketService';
 import { ResultDTO, WebSocketMessageHandler } from '../../types';
 import { VSCODE_CONFIG } from '../../utils/constants';
 import { logger, LogCategory } from '../loggingService';

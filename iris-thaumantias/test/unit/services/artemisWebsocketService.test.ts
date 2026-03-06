@@ -1,5 +1,5 @@
 import * as assert from 'assert';
-import { ArtemisWebsocketService } from '../../../src/services/artemisWebsocketService';
+import { ArtemisWebsocketService } from '../../../src/services/websocket/artemisWebsocketService';
 import { MockExtensionContext } from '../mocks/vscodeMocks';
 import { AuthManager } from '../../../src/auth/auth';
 import { ResultDTO } from '../../../src/types/artemis';
