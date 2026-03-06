@@ -4,6 +4,7 @@ import type { ArtemisApiService } from '../../../api';
 import type { AppStateManager } from '../appStateManager';
 import type { WebViewActionHandler } from '../types';
 import type { ArtemisWebsocketService } from '../../../services';
+import type { ExerciseRegistry } from '../../../services';
 import type { WebviewToExtensionMessage, ExtensionToWebviewMessage } from '../../../shared/messageContracts';
 import type { BuildErrorCodeLensProvider } from '../../../provider/buildErrorCodeLensProvider';
 
@@ -20,4 +21,5 @@ export interface CommandContext {
     buildCodeLens?: BuildErrorCodeLensProvider;
     websocketService?: ArtemisWebsocketService;
     extensionContext: vscode.ExtensionContext;
+    exerciseRegistry: ExerciseRegistry;
 }

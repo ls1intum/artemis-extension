@@ -298,10 +298,11 @@ export async function detectAndRegisterWorkspaceExercise(
     artemisApiService: ArtemisApiService | undefined,
     contextStore: ContextStore,
     postSnapshot: () => void,
+    exerciseRegistry: ExerciseRegistry,
 ): Promise<void> {
 
     try {
-        const registry = ExerciseRegistry.getInstance();
+        const registry = exerciseRegistry;
         let exercises = registry.getAllExercises();
 
         if (exercises.length === 0 && artemisApiService) {

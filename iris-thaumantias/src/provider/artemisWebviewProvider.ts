@@ -59,6 +59,7 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
         private readonly _extensionContext: vscode.ExtensionContext,
         private readonly _authManager: AuthManager,
         private readonly _artemisApi: ArtemisApiService,
+        private readonly _exerciseRegistry: ExerciseRegistry,
     ) {
         super();
         this._appStateManager = new AppStateManager(this._artemisApi);
@@ -70,7 +71,8 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
             this,
             undefined,  // buildCodeLens will be set later
             undefined,  // websocketService will be set later
-            this._extensionContext
+            this._extensionContext,
+            this._exerciseRegistry
         );
         this._viewInitDataService = new ViewInitDataService(
             () => this._appStateManager,
@@ -116,7 +118,8 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
             this,
             codeLensProvider,
             this._websocketService,
-            this._extensionContext
+            this._extensionContext,
+            this._exerciseRegistry
         );
         // Re-apply auth context updater to new handler instance
         if (this._authContextUpdater) {
@@ -296,7 +299,7 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
                 // Register this exercise in the registry with its repository URL
                 const participations = exercise.studentParticipations || [];
                 if (participations.length > 0 && participations[0]?.repositoryUri) {
-                    const registry = ExerciseRegistry.getInstance();
+                    const registry = this._exerciseRegistry;
                     registry.registerExercise(
                         exerciseIdFromData,
                         exerciseTitle,
@@ -450,7 +453,7 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
         this._appStateManager.showCourseDetail(courseData);
 
         // Populate exercise registry with repository URLs for workspace matching
-        const registry = ExerciseRegistry.getInstance();
+        const registry = this._exerciseRegistry;
         const courseName = courseData?.course?.title || 'Unknown Course';
         logger.info(`Loading course: ${courseName}`, LogCategory.VIEW);
 

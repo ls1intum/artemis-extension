@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 import { AuthManager } from '../../auth';
 import { ArtemisApiService } from '../../api';
 import { logger, LogLevel, LogCategory } from '../../services/loggingService';
-import { ArtemisWebsocketService } from '../../services';
+import { ArtemisWebsocketService, ExerciseRegistry } from '../../services';
 import { AppStateManager } from './appStateManager';
 import type { WebViewActionHandler } from './types';
 import type { CommandContext, CommandHandler } from './commands/types';
@@ -37,7 +37,8 @@ export class WebViewMessageHandler {
         private readonly actionHandler: WebViewActionHandler,
         private readonly buildCodeLens?: BuildErrorCodeLensProvider,
         websocketService?: ArtemisWebsocketService,
-        extensionContext?: vscode.ExtensionContext
+        extensionContext?: vscode.ExtensionContext,
+        exerciseRegistry?: ExerciseRegistry
     ) {
         this._websocketService = websocketService;
         const context: CommandContext = {
@@ -49,7 +50,8 @@ export class WebViewMessageHandler {
             updateAuthContext: (isAuthenticated: boolean) => this.updateAuthContext(isAuthenticated),
             buildCodeLens: this.buildCodeLens,
             websocketService: this._websocketService,
-            extensionContext: extensionContext!
+            extensionContext: extensionContext!,
+            exerciseRegistry: exerciseRegistry!
         };
 
         const modules = [

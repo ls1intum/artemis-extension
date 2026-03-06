@@ -5,9 +5,7 @@ suite('ExerciseRegistry Test Suite', () => {
     let registry: ExerciseRegistry;
 
     setup(() => {
-        // Reset singleton for each test
-        (ExerciseRegistry as any).instance = undefined;
-        registry = ExerciseRegistry.getInstance();
+        registry = new ExerciseRegistry();
     });
 
     test('should register and retrieve exercise', () => {
@@ -44,12 +42,6 @@ suite('ExerciseRegistry Test Suite', () => {
         assert.strictEqual(exercises.length, 1); // Only ex1 should be registered
         assert.strictEqual(exercises[0].id, 1);
         assert.strictEqual(exercises[0].title, 'Exercise 1');
-    });
-
-    test('should return singleton instance', () => {
-        const instance1 = ExerciseRegistry.getInstance();
-        const instance2 = ExerciseRegistry.getInstance();
-        assert.strictEqual(instance1, instance2);
     });
 
     test('should clear all exercises', () => {

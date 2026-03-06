@@ -9,15 +9,7 @@ export interface ExerciseRegistryEntry {
 }
 
 export class ExerciseRegistry {
-    private static instance: ExerciseRegistry;
     private exercises: Map<number, ExerciseRegistryEntry> = new Map();
-
-    static getInstance(): ExerciseRegistry {
-        if (!ExerciseRegistry.instance) {
-            ExerciseRegistry.instance = new ExerciseRegistry();
-        }
-        return ExerciseRegistry.instance;
-    }
 
     public registerExercise(id: number, title: string, repositoryUri: string, shortName?: string, courseId?: number): void {
         this.exercises.set(id, { id, title, repositoryUri, shortName, courseId });
@@ -101,11 +93,4 @@ export class ExerciseRegistry {
         this.exercises.clear();
     }
 
-    /**
-     * Reset the singleton instance for testing purposes.
-     * This should only be used in test files to ensure clean state between tests.
-     */
-    public static resetForTesting(): void {
-        ExerciseRegistry.instance = undefined as unknown as ExerciseRegistry;
-    }
 }

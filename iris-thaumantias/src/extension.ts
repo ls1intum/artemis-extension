@@ -4,7 +4,7 @@ import * as vscode from 'vscode';
 import { ArtemisWebviewProvider, ChatWebviewProvider, BuildErrorCodeLensProvider } from './provider';
 import { AuthManager } from './auth';
 import { ArtemisApiService } from './api';
-import { ArtemisWebsocketService, TelemetryManager, WebSocketStatusBarService, NoAiDetectionService, ConsentService } from './services';
+import { ArtemisWebsocketService, TelemetryManager, WebSocketStatusBarService, NoAiDetectionService, ConsentService, ExerciseRegistry } from './services';
 import { ProviderRegistry } from './services/ProviderRegistry';
 import { VSCODE_CONFIG, processPlantUml, normalizeRelativePath } from './utils';
 import { logger, LogLevel, LogCategory } from './services/loggingService';
@@ -122,8 +122,11 @@ export async function activate(context: vscode.ExtensionContext) {
 		}
 	});
 
+	// Initialize exercise registry (shared across providers)
+	const exerciseRegistry = new ExerciseRegistry();
+
 	// Register the Artemis login view provider with dependencies
-	const artemisWebviewProvider = new ArtemisWebviewProvider(context.extensionUri, context, authManager, artemisApiService);
+	const artemisWebviewProvider = new ArtemisWebviewProvider(context.extensionUri, context, authManager, artemisApiService, exerciseRegistry);
 
 	// Pass the auth context updater to the webview provider
 	artemisWebviewProvider.setAuthContextUpdater(updateAuthContext);
@@ -142,7 +145,7 @@ export async function activate(context: vscode.ExtensionContext) {
 	);
 
 	// Register the Chat view provider
-	const chatWebviewProvider = new ChatWebviewProvider(context.extensionUri, context, artemisApiService, artemisWebsocketService, noAiDetectionService);
+	const chatWebviewProvider = new ChatWebviewProvider(context.extensionUri, context, artemisApiService, artemisWebsocketService, noAiDetectionService, exerciseRegistry);
 
 	// Pass telemetry manager to chat provider for struggle context integration
 	chatWebviewProvider.setTelemetryManager(telemetryManager);

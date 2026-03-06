@@ -8,7 +8,8 @@ import type { IrisChatSession } from '../types';
 export class ChatDiagnosticsService {
     constructor(
         private readonly _contextStore: ContextStore,
-        private readonly _artemisApiService?: ArtemisApiService
+        private readonly _artemisApiService: ArtemisApiService | undefined,
+        private readonly _exerciseRegistry: ExerciseRegistry,
     ) { }
 
     public async handleOpenDiagnostics(): Promise<void> {
@@ -89,7 +90,7 @@ export class ChatDiagnosticsService {
             report += '  No recent courses tracked\n';
         }
 
-        const registry = ExerciseRegistry.getInstance();
+        const registry = this._exerciseRegistry;
         const registeredExercises = registry.getAllExercises();
         report += `\n📘 EXERCISE REGISTRY (${registeredExercises.length} total):\n`;
         if (registeredExercises.length > 0) {

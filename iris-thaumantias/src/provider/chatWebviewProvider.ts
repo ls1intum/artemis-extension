@@ -28,6 +28,7 @@ import {
     TelemetryManager,
     StruggleContext,
     NoAiDetectionService,
+    ExerciseRegistry,
     detectAndRegisterWorkspaceExercise
 } from '../services';
 import type { ChatContextReason } from '../services/chatContextManager';
@@ -68,13 +69,14 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
         private readonly _artemisApiService: ArtemisApiService | undefined,
         private readonly _websocketService: ArtemisWebsocketService | undefined,
         noAiDetectionService: NoAiDetectionService,
+        private readonly _exerciseRegistry: ExerciseRegistry,
     ) {
         super();
         this._disposables.push(this._onDidChangeExerciseContext);
         this._contextStore = new ContextStore(this._extensionContext);
         this._fileMonitorService = new FileMonitorService();
         this._disposables.push(this._fileMonitorService);
-        this._chatDiagnosticsService = new ChatDiagnosticsService(this._contextStore, this._artemisApiService);
+        this._chatDiagnosticsService = new ChatDiagnosticsService(this._contextStore, this._artemisApiService, this._exerciseRegistry);
         this._chatSessionService = new IrisSessionInitService(
             this._contextStore,
             this._artemisApiService,
@@ -557,6 +559,7 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
             this._artemisApiService,
             this._contextStore,
             () => this._postSnapshot(),
+            this._exerciseRegistry,
         );
     }
 

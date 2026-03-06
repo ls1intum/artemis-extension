@@ -1,5 +1,4 @@
 import * as vscode from 'vscode';
-import { ExerciseRegistry } from '../../../services';
 import { ProviderRegistry } from '../../../services/ProviderRegistry';
 import { getExamErrorMessage } from '../../../services/examErrorHandler';
 import type { CommandContext, CommandMap } from './types';
@@ -156,7 +155,7 @@ export class NavigationCommandModule {
 
             this.context.appStateManager.showCourseDetail(courseDetailData);
 
-            const registry = ExerciseRegistry.getInstance();
+            const registry = this.context.exerciseRegistry;
             // Pass the entry format for registration (expects CourseDashboardEntry)
             const entryFormat: CourseDashboardEntry = 'course' in courseData ? courseData : { course: courseData };
             registry.registerFromCourseData(entryFormat);
