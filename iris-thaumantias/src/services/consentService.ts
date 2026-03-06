@@ -22,31 +22,13 @@ export enum ConsentLevel {
  * programmatic access to the current consent level.
  */
 export class ConsentService implements vscode.Disposable {
-    private static _instance: ConsentService | undefined;
     private readonly _disposables: vscode.Disposable[] = [];
 
     private readonly _onConsentChanged = new vscode.EventEmitter<ConsentLevel>();
     public readonly onConsentChanged = this._onConsentChanged.event;
 
-    private constructor() {
+    constructor() {
         this._initialize();
-    }
-
-    public static getInstance(): ConsentService {
-        if (!ConsentService._instance) {
-            ConsentService._instance = new ConsentService();
-        }
-        return ConsentService._instance;
-    }
-
-    /**
-     * Reset the singleton instance (for testing purposes)
-     */
-    public static resetInstance(): void {
-        if (ConsentService._instance) {
-            ConsentService._instance.dispose();
-            ConsentService._instance = undefined;
-        }
     }
 
     public dispose(): void {

@@ -6,12 +6,10 @@ import { ConsentService, ConsentLevel } from '../../../src/services/consentServi
 suite('ConsentService', () => {
     let sandbox: sinon.SinonSandbox;
     let mockConfig: { get: sinon.SinonStub; update: sinon.SinonStub };
+    let service: ConsentService;
 
     setup(() => {
         sandbox = sinon.createSandbox();
-
-        // Reset the singleton instance before each test
-        ConsentService.resetInstance();
 
         // Mock workspace configuration
         mockConfig = {
@@ -24,56 +22,38 @@ suite('ConsentService', () => {
         sandbox.stub(vscode.workspace, 'onDidChangeConfiguration').returns({
             dispose: () => { },
         } as vscode.Disposable);
+
+        service = new ConsentService();
     });
 
     teardown(() => {
-        ConsentService.resetInstance();
+        service.dispose();
         sandbox.restore();
-    });
-
-    suite('Singleton Pattern', () => {
-        test('should return the same instance', () => {
-            const instance1 = ConsentService.getInstance();
-            const instance2 = ConsentService.getInstance();
-            assert.strictEqual(instance1, instance2);
-        });
-
-        test('should create new instance after reset', () => {
-            const instance1 = ConsentService.getInstance();
-            ConsentService.resetInstance();
-            const instance2 = ConsentService.getInstance();
-            assert.notStrictEqual(instance1, instance2);
-        });
     });
 
     suite('Consent Level', () => {
         test('should return pending when config returns pending', () => {
             mockConfig.get.returns('pending');
-            const service = ConsentService.getInstance();
             assert.strictEqual(service.consentLevel, ConsentLevel.Pending);
         });
 
         test('should return declined when config returns declined', () => {
             mockConfig.get.returns('declined');
-            const service = ConsentService.getInstance();
             assert.strictEqual(service.consentLevel, ConsentLevel.Declined);
         });
 
         test('should return basic when config returns basic', () => {
             mockConfig.get.returns('basic');
-            const service = ConsentService.getInstance();
             assert.strictEqual(service.consentLevel, ConsentLevel.Basic);
         });
 
         test('should return extended when config returns extended', () => {
             mockConfig.get.returns('extended');
-            const service = ConsentService.getInstance();
             assert.strictEqual(service.consentLevel, ConsentLevel.Extended);
         });
 
         test('should default to pending for unknown values', () => {
             mockConfig.get.returns('unknown');
-            const service = ConsentService.getInstance();
             assert.strictEqual(service.consentLevel, ConsentLevel.Pending);
         });
     });
@@ -81,37 +61,30 @@ suite('ConsentService', () => {
     suite('Data Collection Flags', () => {
         test('isDataCollectionEnabled should be false for pending', () => {
             mockConfig.get.returns('pending');
-            const service = ConsentService.getInstance();
             assert.strictEqual(service.isDataCollectionEnabled, false);
         });
 
         test('isDataCollectionEnabled should be false for declined', () => {
             mockConfig.get.returns('declined');
-            const service = ConsentService.getInstance();
             assert.strictEqual(service.isDataCollectionEnabled, false);
         });
 
         test('isDataCollectionEnabled should be true for basic', () => {
             mockConfig.get.returns('basic');
-            const service = ConsentService.getInstance();
             assert.strictEqual(service.isDataCollectionEnabled, true);
         });
 
         test('isDataCollectionEnabled should be true for extended', () => {
             mockConfig.get.returns('extended');
-            const service = ConsentService.getInstance();
             assert.strictEqual(service.isDataCollectionEnabled, true);
         });
 
         test('isExtendedCollectionEnabled should be true only for extended', () => {
             mockConfig.get.returns('extended');
-            const service = ConsentService.getInstance();
             assert.strictEqual(service.isExtendedCollectionEnabled, true);
 
             mockConfig.get.returns('basic');
-            ConsentService.resetInstance();
-            const service2 = ConsentService.getInstance();
-            assert.strictEqual(service2.isExtendedCollectionEnabled, false);
+            assert.strictEqual(service.isExtendedCollectionEnabled, false);
         });
     });
 
@@ -120,7 +93,6 @@ suite('ConsentService', () => {
             mockConfig.get.returns('pending');
             const showInfoStub = sandbox.stub(vscode.window, 'showInformationMessage').resolves(undefined);
 
-            const service = ConsentService.getInstance();
             await service.promptIfPending();
 
             assert.ok(showInfoStub.calledOnce, 'showInformationMessage should be called');
@@ -134,7 +106,6 @@ suite('ConsentService', () => {
             mockConfig.get.returns('declined');
             const showInfoStub = sandbox.stub(vscode.window, 'showInformationMessage').resolves(undefined);
 
-            const service = ConsentService.getInstance();
             await service.promptIfPending();
 
             assert.ok(showInfoStub.notCalled, 'showInformationMessage should not be called');
@@ -144,7 +115,6 @@ suite('ConsentService', () => {
             mockConfig.get.returns('basic');
             const showInfoStub = sandbox.stub(vscode.window, 'showInformationMessage').resolves(undefined);
 
-            const service = ConsentService.getInstance();
             await service.promptIfPending();
 
             assert.ok(showInfoStub.notCalled, 'showInformationMessage should not be called');
@@ -154,7 +124,6 @@ suite('ConsentService', () => {
             mockConfig.get.returns('extended');
             const showInfoStub = sandbox.stub(vscode.window, 'showInformationMessage').resolves(undefined);
 
-            const service = ConsentService.getInstance();
             await service.promptIfPending();
 
             assert.ok(showInfoStub.notCalled, 'showInformationMessage should not be called');
@@ -164,7 +133,6 @@ suite('ConsentService', () => {
             mockConfig.get.returns('pending');
             sandbox.stub(vscode.window, 'showInformationMessage').resolves('Accept' as any);
 
-            const service = ConsentService.getInstance();
             await service.promptIfPending();
 
             assert.ok(mockConfig.update.calledOnce, 'config.update should be called');
@@ -176,7 +144,6 @@ suite('ConsentService', () => {
             mockConfig.get.returns('pending');
             sandbox.stub(vscode.window, 'showInformationMessage').resolves('Decline' as any);
 
-            const service = ConsentService.getInstance();
             await service.promptIfPending();
 
             assert.ok(mockConfig.update.calledOnce, 'config.update should be called');
@@ -187,7 +154,6 @@ suite('ConsentService', () => {
 
     suite('setConsent', () => {
         test('should update configuration with correct value', async () => {
-            const service = ConsentService.getInstance();
             await service.setConsent(ConsentLevel.Extended);
 
             assert.ok(mockConfig.update.calledOnce, 'config.update should be called');
@@ -199,7 +165,6 @@ suite('ConsentService', () => {
 
     suite('Disposal', () => {
         test('should dispose resources correctly', () => {
-            const service = ConsentService.getInstance();
             // Should not throw
             service.dispose();
         });

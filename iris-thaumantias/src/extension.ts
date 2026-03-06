@@ -104,7 +104,7 @@ export async function activate(context: vscode.ExtensionContext) {
 	context.subscriptions.push(noAiDetectionService);
 
 	// Initialize data collection consent service and prompt if pending
-	const consentService = ConsentService.getInstance();
+	const consentService = new ConsentService();
 	context.subscriptions.push(consentService);
 	consentService.promptIfPending();
 
@@ -499,7 +499,7 @@ export async function activate(context: vscode.ExtensionContext) {
 		'artemis.renderPlantUmlFromWebview',
 		async (plantUmlText: string, exerciseTitle?: string) => {
 			try {
-				logger.plantUml('Rendering PlantUML from webview');
+				logger.info('Rendering PlantUML from webview', LogCategory.PLANTUML);
 				logger.debug('PlantUML content: ' + plantUmlText, LogCategory.PLANTUML);
 
 				// Process the PlantUML text to replace testsColor(...) with "green"
@@ -577,7 +577,7 @@ export async function activate(context: vscode.ExtensionContext) {
 	// Listen for configuration changes
 	const configChangeListener = vscode.workspace.onDidChangeConfiguration(event => {
 		if (event.affectsConfiguration(`${VSCODE_CONFIG.ARTEMIS_SECTION}.${VSCODE_CONFIG.SERVER_URL_KEY}`)) {
-			logger.configLog('Artemis server URL configuration changed');
+			logger.info('Artemis server URL configuration changed', LogCategory.CONFIG);
 
 			// Optionally show a message to the user about the server URL change
 			const config = vscode.workspace.getConfiguration(VSCODE_CONFIG.ARTEMIS_SECTION);
