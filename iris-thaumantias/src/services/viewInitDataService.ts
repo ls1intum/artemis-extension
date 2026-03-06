@@ -152,7 +152,12 @@ export class ViewInitDataService {
             .filter((uri): uri is string => !!uri);
 
         if (repoUris.length > 0) {
+            const exerciseId = exerciseData.exercise?.id;
             this._detectWorkspaceForExercise(repoUris).then((repoStatus) => {
+                // Set repo context so workspace listeners can auto-detect changes on file save
+                if (repoStatus.matchedUri && exerciseId !== undefined) {
+                    this._getMessageHandler().setRepositoryContext(repoStatus.matchedUri, exerciseId);
+                }
                 this._postMessage({
                     type: ExtensionMsg.ExerciseDetailInit,
                     exerciseData: exerciseData as ExerciseDetailsResponse,
@@ -338,11 +343,11 @@ export class ViewInitDataService {
      * Check workspace status against all participation repo URIs for an exercise.
      * Returns the first connected match, or the last result if none match.
      */
-    private async _detectWorkspaceForExercise(repoUris: string[]): Promise<WorkspaceStatus> {
+    private async _detectWorkspaceForExercise(repoUris: string[]): Promise<WorkspaceStatus & { matchedUri?: string }> {
         for (const uri of repoUris) {
             const status = await getWorkspaceStatus(uri);
             if (status.isConnected) {
-                return status;
+                return { ...status, matchedUri: uri };
             }
         }
         // No match found — return disconnected status

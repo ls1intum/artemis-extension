@@ -145,6 +145,14 @@ export class WebViewMessageHandler {
         return this.repositoryModule.hasRecentlyClonedRepo(exerciseId);
     }
 
+    /**
+     * Set the repository context so workspace file-save listeners
+     * can automatically detect changes without a manual check.
+     */
+    public setRepositoryContext(repoUrl: string, exerciseId: number): void {
+        this.repositoryModule.setRepositoryContext(repoUrl, exerciseId);
+    }
+
     private async updateAuthContext(isAuthenticated: boolean): Promise<void> {
         if (this._authContextUpdater) {
             await this._authContextUpdater(isAuthenticated);

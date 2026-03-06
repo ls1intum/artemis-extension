@@ -33,6 +33,15 @@ export class RepositoryCommandModule {
         this.registerWorkspaceListeners();
     }
 
+    /**
+     * Set the repository context so workspace listeners can detect changes
+     * without requiring a manual checkRepositoryStatus command.
+     */
+    public setRepositoryContext(repoUrl: string, exerciseId: number): void {
+        this.currentRepoContext = { expectedRepoUrl: repoUrl, exerciseId };
+        this.currentWorkspacePath = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+    }
+
     public dispose(): void {
         for (const d of this.listenerDisposables) {
             d.dispose();
@@ -430,6 +439,14 @@ export class RepositoryCommandModule {
 
             vscode.window.showInformationMessage(`Successfully submitted "${exerciseTitle}".`);
             this.context.sendMessage({ type: ExtensionMsg.SubmissionResult, success: true });
+
+            // Re-check workspace status so UI reflects clean state after push
+            if (this.currentRepoContext) {
+                void this._checkRepositoryStatusWithContext(
+                    [this.currentRepoContext.expectedRepoUrl],
+                    this.currentRepoContext.exerciseId,
+                );
+            }
 
             // Ensure WebSocket is connected to receive real-time result updates
             if (this.context.websocketService && !this.context.websocketService.isConnected()) {
