@@ -19,7 +19,7 @@ import {
     FileMonitorService,
     IrisSessionManager,
     ChatDiagnosticsService,
-    ChatSessionService,
+    IrisSessionInitService,
     ChatMessageService,
     ChatContextManager,
     SessionManagementService,
@@ -48,7 +48,7 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
     private _fileMonitorService: FileMonitorService;
     private _irisSessionManager?: IrisSessionManager;
     private _chatDiagnosticsService: ChatDiagnosticsService;
-    private _chatSessionService: ChatSessionService;
+    private _chatSessionService: IrisSessionInitService;
     private _chatMessageService: ChatMessageService;
     private _chatContextManager: ChatContextManager;
     private _sessionManagementService: SessionManagementService;
@@ -74,7 +74,7 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
         this._fileMonitorService = new FileMonitorService();
         this._disposables.push(this._fileMonitorService);
         this._chatDiagnosticsService = new ChatDiagnosticsService(this._contextStore, this._artemisApiService);
-        this._chatSessionService = new ChatSessionService(
+        this._chatSessionService = new IrisSessionInitService(
             this._contextStore,
             this._artemisApiService,
             (message) => this._postMessageSafe(message),

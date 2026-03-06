@@ -1,6 +1,6 @@
 export { ArtemisWebsocketService } from './artemisWebsocketService';
 export { ChatDiagnosticsService } from './chatDiagnosticsService';
-export { ChatSessionService } from './chatSessionService';
+export { IrisSessionInitService } from './chatSessionService';
 export { ChatMessageService } from './chatMessageService';
 export { ChatContextManager } from './chatContextManager';
 export { SessionManagementService } from './sessionManagementService';

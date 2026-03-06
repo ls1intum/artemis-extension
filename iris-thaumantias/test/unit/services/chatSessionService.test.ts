@@ -1,13 +1,13 @@
 import * as assert from 'assert';
 import * as sinon from 'sinon';
-import { ChatSessionService } from '../../../src/services/chatSessionService';
+import { IrisSessionInitService } from '../../../src/services/chatSessionService';
 import { ContextStore } from '../../../src/services/contextStore';
 import { ArtemisApiService } from '../../../src/api';
 import { ActiveContext } from '../../../src/types';
 import { MockExtensionContext } from '../mocks/vscodeMocks';
 
-suite('ChatSessionService Test Suite', () => {
-    let chatSessionService: ChatSessionService;
+suite('IrisSessionInitService Test Suite', () => {
+    let chatSessionService: IrisSessionInitService;
     let contextStore: ContextStore;
     let mockApiService: sinon.SinonStubbedInstance<ArtemisApiService>;
     let postMessageSpy: sinon.SinonSpy;
@@ -33,7 +33,7 @@ suite('ChatSessionService Test Suite', () => {
         onCreateNewSessionSpy = sinon.spy();
         onPostSnapshotSpy = sinon.spy();
 
-        chatSessionService = new ChatSessionService(
+        chatSessionService = new IrisSessionInitService(
             contextStore,
             mockApiService as any,
             postMessageSpy,
@@ -138,7 +138,7 @@ suite('ChatSessionService Test Suite', () => {
 
     suite('Iris Settings Check', () => {
         test('should return false when API service is not available', async () => {
-            const serviceWithoutApi = new ChatSessionService(
+            const serviceWithoutApi = new IrisSessionInitService(
                 contextStore,
                 undefined,
                 postMessageSpy,
@@ -351,7 +351,7 @@ suite('ChatSessionService Test Suite', () => {
         });
 
         test('should not load sessions when API service is not available', async () => {
-            const serviceWithoutApi = new ChatSessionService(
+            const serviceWithoutApi = new IrisSessionInitService(
                 contextStore,
                 undefined,
                 postMessageSpy,

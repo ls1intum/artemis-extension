@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import { ContextStore } from './contextStore';
-import { ChatSessionService } from './chatSessionService';
+import { IrisSessionInitService } from './chatSessionService';
 import { IrisSessionManager } from './irisSessionManager';
 import { ActiveContext, ChatContextType, TrackedExercise } from '../types';
 import { logger, LogLevel, LogCategory } from './loggingService';
@@ -18,7 +18,7 @@ export type ChatContextReason =
 export class ChatContextManager {
     constructor(
         private readonly _contextStore: ContextStore,
-        private readonly _chatSessionService: ChatSessionService,
+        private readonly _chatSessionService: IrisSessionInitService,
         private readonly _getIrisSessionManager: () => IrisSessionManager | undefined,
         private readonly _postMessage: (message: ExtensionToWebviewMessage) => void,
         private readonly _postSnapshot?: () => void,
