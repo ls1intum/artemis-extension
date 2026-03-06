@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import { ExerciseRegistry } from '../../../services';
 import { ProviderRegistry } from '../../../services/ProviderRegistry';
-import { ExamErrorHandler } from '../../../services/examErrorHandler';
+import { getExamErrorMessage } from '../../../services/examErrorHandler';
 import type { CommandContext, CommandMap } from './types';
 import { logger } from '../../../services/loggingService';
 import { getPayload, ExtensionMsg, WebviewCmd } from '../../../shared/messageContracts';
@@ -90,7 +90,7 @@ export class NavigationCommandModule {
             }
         } catch (error: unknown) {
             logger.viewError('[EXAMMODE] Error opening exam:', error);
-            const userMessage = ExamErrorHandler.getExamErrorMessage(error);
+            const userMessage = getExamErrorMessage(error);
             vscode.window.showErrorMessage(userMessage);
         }
     };
