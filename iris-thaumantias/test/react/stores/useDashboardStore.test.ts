@@ -9,7 +9,7 @@ describe('useDashboardStore', () => {
 
 		expect(result.current.recentCourses).toEqual([]);
 		expect(result.current.isLoading).toBe(false);
-		expect(result.current.workspaceExercise).toBeNull();
+		expect(result.current.workspaceExercise).toBe('loading');
 	});
 
 	it('sets loading state when loadDashboard called', () => {

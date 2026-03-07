@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import { promisify } from 'util';
 import { execFile } from 'child_process';
 import type { ArtemisApiService } from '../../api';
+import type { CourseDashboardEntry } from '../../types/apiResponses';
 import type { ContextStore } from '../contextStore';
 import { ExerciseRegistry } from '../exerciseRegistry';
 import { logger } from '../loggingService';
@@ -291,6 +292,58 @@ export async function detectWorkspaceForRepoUris(
 }
 
 /**
+ * Searches archived courses for one whose exercises match the current workspace git remote.
+ * Fetches archived course details one at a time (sequential) to avoid loading all at once.
+ * @returns The matching CourseDashboardEntry, or null if not found / already in active courses.
+ */
+export async function findWorkspaceCourseInArchive(
+    artemisApi: ArtemisApiService,
+    activeCourseEntries: CourseDashboardEntry[]
+): Promise<CourseDashboardEntry | null> {
+    const repositoryUrl = await getWorkspaceRepositoryUrl();
+    if (!repositoryUrl) {
+        return null;
+    }
+
+    // Check if the exercise is already in active courses
+    const allActiveExercises: ExerciseSource[] = activeCourseEntries.flatMap(entry => {
+        const exercises = entry.course?.exercises || entry.exercises || [];
+        return exercises
+            .filter((ex): ex is typeof ex & { id: number; title: string } => ex.id !== undefined && ex.title !== undefined)
+            .map(ex => ({ ...ex, courseId: entry.course?.id }));
+    });
+
+    if (findExerciseByRepositoryUrl(repositoryUrl, allActiveExercises)) {
+        return null; // Already matched in active courses
+    }
+
+    // Fetch lightweight archived course list
+    const archivedCourses = await artemisApi.getArchivedCourses();
+
+    // Check each archived course sequentially until we find a match
+    for (const course of archivedCourses) {
+        if (course.id === undefined) {
+            continue;
+        }
+        try {
+            const entry = await artemisApi.getCourseForDashboard(course.id);
+            const exercises: ExerciseSource[] = (entry.course?.exercises || entry.exercises || [])
+                .filter((ex): ex is typeof ex & { id: number; title: string } => ex.id !== undefined && ex.title !== undefined)
+                .map(ex => ({ ...ex, courseId: entry.course?.id }));
+
+            if (findExerciseByRepositoryUrl(repositoryUrl, exercises)) {
+                logger.irisChat(`Found workspace match in archived course: ${entry.course?.title}`);
+                return entry;
+            }
+        } catch {
+            // Skip courses that fail to load
+        }
+    }
+
+    return null;
+}
+
+/**
  * Detect workspace exercise with registry population fallback, then register it in a ContextStore.
  * Used by ChatWebviewProvider to auto-detect the workspace exercise on load.
  */
@@ -329,7 +382,28 @@ export async function detectAndRegisterWorkspaceExercise(
             }
         }
 
-        const detected = await detectWorkspaceExercise(exercises);
+        let detected = await detectWorkspaceExercise(exercises);
+
+        // Fallback: search archived courses if no match in active courses
+        if (!detected && artemisApiService) {
+            logger.irisChat('No match in active courses, checking archived courses...');
+            try {
+                const archivedEntry = await findWorkspaceCourseInArchive(artemisApiService, []);
+                if (archivedEntry) {
+                    const courseExercises = archivedEntry.course?.exercises || archivedEntry.exercises || [];
+                    if (courseExercises.length > 0) {
+                        registry.registerFromCourseData({
+                            course: archivedEntry.course || {},
+                            exercises: courseExercises
+                        });
+                    }
+                    exercises = registry.getAllExercises();
+                    detected = await detectWorkspaceExercise(exercises);
+                }
+            } catch (error) {
+                logger.irisChatWarn('Failed to fetch archived courses for workspace detection', error);
+            }
+        }
 
         if (detected) {
             logger.irisChat(`Detected workspace exercise: ${detected.title} (ID: ${detected.id})`);

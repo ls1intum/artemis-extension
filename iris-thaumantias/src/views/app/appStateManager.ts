@@ -1,7 +1,7 @@
 import { ArtemisApiService } from '../../api';
 import { logger, LogLevel, LogCategory } from '../../services/loggingService';
 import { getRecommendedExtensionsByCategory, type RecommendedExtensionCategory } from '../../utils/recommendedExtensions';
-import type { CourseDashboardResponse, ArchivedCourse, CourseDetailData, ExerciseDetailsResponse, StudentExam, ExerciseDetail } from '../../types/apiResponses';
+import type { CourseDashboardResponse, CourseDashboardEntry, ArchivedCourse, CourseDetailData, CourseDashboardCourse, ExamSummary, ExerciseDetailsResponse, StudentExam, ExerciseDetail } from '../../types/apiResponses';
 import type { ArtemisUser } from '../../types';
 
 export type AppState = 'login' | 'dashboard' | 'course-list' | 'course-detail' | 'exercise-detail' | 'exam-exercise-detail' | 'ai-config' | 'service-status' | 'struggle-detection' | 'recommended-extensions' | 'git-credentials' | 'exam-start' | 'exam-conduction';
@@ -46,6 +46,7 @@ export class AppStateManager {
     private _userInfo?: UserInfo;
     private _coursesData?: CourseDashboardResponse;
     private _archivedCoursesData?: ArchivedCourse[];
+    private _archiveCheckComplete = true;
     private _currentCourseData?: CourseDetailData;
     private _currentExerciseData?: ExerciseDetailsResponse | ExamExerciseData;
     private _currentExamData?: ExamData;
@@ -89,6 +90,14 @@ export class AppStateManager {
 
     get recommendedExtensions(): RecommendedExtensionCategory[] | undefined {
         return this._recommendedExtensions;
+    }
+
+    get archiveCheckComplete(): boolean {
+        return this._archiveCheckComplete;
+    }
+
+    set archiveCheckComplete(value: boolean) {
+        this._archiveCheckComplete = value;
     }
 
     // State transitions
@@ -137,20 +146,21 @@ export class AppStateManager {
 
     public async showArchivedCourseDetail(courseId: number): Promise<void> {
         try {
-            // Fetch course details
-            const courseDetails = await this._artemisApi.getCourseDetails(courseId);
-
-            // Create courseData structure for archived courses
-            // We don't include exercises since archived courses typically don't have active exercises
-            const archivedCourseData = {
+            const dashboardDTO = await this._artemisApi.getCourseForDashboard(courseId);
+            const courseData: CourseDetailData = {
                 course: {
-                    ...courseDetails,
-                    exercises: [], // Empty exercises array for archived courses
-                    isArchived: true // Mark this as archived for potential UI differences
+                    ...(dashboardDTO.course as CourseDashboardCourse),
+                    isArchived: true
                 }
             };
 
-            this._currentCourseData = archivedCourseData;
+            // Fetch exams separately (same pattern as handleReloadCourseDetail)
+            try {
+                const exams = await this._artemisApi.getExamsForCourse(courseId);
+                courseData.course.exams = exams as ExamSummary[];
+            } catch { /* continue without exams */ }
+
+            this._currentCourseData = courseData;
             this._currentState = 'course-detail';
         } catch (error) {
             logger.error('Error loading archived course details:', LogCategory.VIEW, error);
@@ -225,6 +235,14 @@ export class AppStateManager {
 
     public setCoursesData(data: CourseDashboardResponse): void {
         this._coursesData = data;
+    }
+
+    public injectCourseEntry(entry: CourseDashboardEntry): void {
+        if (!this._coursesData) {
+            this._coursesData = { courses: [] };
+        }
+        this._coursesData.courses ??= [];
+        this._coursesData.courses.push(entry);
     }
 
     public async loadArchivedCourses(): Promise<void> {

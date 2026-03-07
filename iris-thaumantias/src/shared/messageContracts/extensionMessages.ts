@@ -79,7 +79,7 @@ interface ExtensionMsgPayloads {
         workspaceExercise?: {
             id: number;
             title: string;
-        };
+        } | null;
     };
     courseListInit: {
         courses: CourseData[];

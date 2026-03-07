@@ -6,13 +6,13 @@ export type { RecentCourseNode } from '../../../../shared/messageContracts';
 
 interface DashboardState {
     recentCourses: RecentCourseNode[];
-    workspaceExercise: { id: number; title: string } | null;
+    workspaceExercise: { id: number; title: string } | 'loading' | null;
     isLoading: boolean;
 
     // Actions
     loadDashboard: (vscodeApi: VsCodeApi) => void;
     setDashboardData: (courses: RecentCourseNode[]) => void;
-    setWorkspaceExercise: (exercise: { id: number; title: string } | null) => void;
+    setWorkspaceExercise: (exercise: { id: number; title: string } | 'loading' | null) => void;
     setLoading: (loading: boolean) => void;
 }
 
@@ -20,11 +20,11 @@ export const useDashboardStore = create<DashboardState>()(
     devtools(
         (set) => ({
             recentCourses: [],
-            workspaceExercise: null,
+            workspaceExercise: 'loading',
             isLoading: false,
 
             loadDashboard: (vscodeApi: VsCodeApi) => {
-                set({ isLoading: true }, false, 'loadDashboard');
+                set({ isLoading: true, workspaceExercise: 'loading' }, false, 'loadDashboard');
                 postCommand(vscodeApi, 'reloadDashboard');
             },
 
@@ -41,7 +41,7 @@ export const useDashboardStore = create<DashboardState>()(
                 set({ recentCourses: sortedCourses, isLoading: false }, false, 'setDashboardData');
             },
 
-            setWorkspaceExercise: (exercise: { id: number; title: string } | null) => {
+            setWorkspaceExercise: (exercise: { id: number; title: string } | 'loading' | null) => {
                 set({ workspaceExercise: exercise }, false, 'setWorkspaceExercise');
             },
 

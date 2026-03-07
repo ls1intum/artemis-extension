@@ -7,6 +7,7 @@ import {
     Button,
     IconButton,
     ListItem,
+    Skeleton,
     SkeletonList,
 } from '../../components';
 import GraduationCap from 'lucide-react/dist/esm/icons/graduation-cap';
@@ -42,11 +43,14 @@ export function DashboardView({ vscodeApi }: DashboardViewProps) {
     useExtensionMessage((msg) => {
         if (msg.type === ExtensionMsg.DashboardInit) {
             setDashboardData(msg.courses ?? []);
-            if (msg.workspaceExercise) {
-                setWorkspaceExercise({
-                    id: msg.workspaceExercise.id,
-                    title: msg.workspaceExercise.title,
-                });
+            // Only update workspace state when detection has actually run
+            // (field present as null or object). Absent = detection not run yet.
+            if (msg.workspaceExercise !== undefined) {
+                setWorkspaceExercise(
+                    msg.workspaceExercise
+                        ? { id: msg.workspaceExercise.id, title: msg.workspaceExercise.title }
+                        : null,
+                );
             }
         }
     }, [vscodeApi, setDashboardData, setWorkspaceExercise]);
@@ -152,12 +156,16 @@ export function DashboardView({ vscodeApi }: DashboardViewProps) {
             </Container>
 
             {/* Workspace Exercise Section */}
-            {workspaceExercise && (
-                <Container
-                    className={styles.workspaceExerciseSection}
-                    padding="tight"
-                    header={<h2 className={styles.sectionTitle}>Current Workspace Exercise</h2>}
-                >
+            <Container
+                className={styles.workspaceExerciseSection}
+                padding="tight"
+                header={<h2 className={styles.sectionTitle}>Current Workspace Exercise</h2>}
+            >
+                {workspaceExercise === 'loading' ? (
+                    <div className={styles.workspaceExerciseItem}>
+                        <Skeleton width="60%" height="16px" />
+                    </div>
+                ) : workspaceExercise ? (
                     <ListItem
                         onClick={() => handleOpenExercise(workspaceExercise.id)}
                         className={styles.workspaceExerciseItem}
@@ -169,8 +177,12 @@ export function DashboardView({ vscodeApi }: DashboardViewProps) {
                             <div className={styles.workspaceExerciseArrow}>→</div>
                         </div>
                     </ListItem>
-                </Container>
-            )}
+                ) : (
+                    <div className={styles.workspaceNotFound}>
+                        No exercise detected for this workspace
+                    </div>
+                )}
+            </Container>
 
             {/* Recent Courses Section */}
             <Container

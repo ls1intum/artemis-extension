@@ -95,6 +95,13 @@
     color: var(--vscode-descriptionForeground);
 }
 
+.workspaceNotFound {
+    padding: 8px 12px;
+    font-size: 13px;
+    color: var(--vscode-descriptionForeground);
+    font-style: italic;
+}
+
 /* Section titles */
 .sectionTitle {
     margin: 0;

@@ -71,18 +71,34 @@ export class ViewInitDataService {
             return course.exercises || [];
         });
 
+        // null = "no match" (shown to user), undefined = "still loading" (keeps skeleton).
+        // We only publish null once the archived-course check has finished,
+        // so the UI doesn't flash "no exercise" before a late-arriving archived match.
+        const noMatch = this._getAppStateManager().archiveCheckComplete ? null : undefined;
+
+        if (allExercises.length === 0) {
+            this._postMessage({
+                type: ExtensionMsg.DashboardInit,
+                courses: recentCourseNodes,
+                workspaceExercise: noMatch,
+            });
+            return;
+        }
+
         detectWorkspaceExercise(allExercises as ExerciseSource[]).then((detectedExercise) => {
             this._postMessage({
                 type: ExtensionMsg.DashboardInit,
                 courses: recentCourseNodes,
-                workspaceExercise: detectedExercise ? { id: detectedExercise.id, title: detectedExercise.title } : undefined,
+                workspaceExercise: detectedExercise
+                    ? { id: detectedExercise.id, title: detectedExercise.title }
+                    : noMatch,
             });
         }).catch((error) => {
             logger.error('Failed to detect workspace exercise for dashboard', LogCategory.VIEW, error);
             this._postMessage({
                 type: ExtensionMsg.DashboardInit,
                 courses: recentCourseNodes,
-                workspaceExercise: undefined,
+                workspaceExercise: noMatch,
             });
         });
     }

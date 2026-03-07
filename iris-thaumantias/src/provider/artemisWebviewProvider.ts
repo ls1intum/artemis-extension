@@ -19,6 +19,7 @@ import { ViewActionService } from '../views/app/viewActionService';
 import { ViewRouter } from '../views/app/viewRouter';
 import { ExerciseRegistry } from '../services';
 import { WebSocketMessageHandler } from '../types';
+import { findWorkspaceCourseInArchive } from '../services/workspace/workspaceDetectionService';
 import { BaseWebviewProvider } from './baseWebviewProvider';
 import type { BuildErrorCodeLensProvider } from './buildErrorCodeLensProvider';
 import type { TelemetryManager } from '../services/telemetry/telemetryManager';
@@ -349,6 +350,20 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
         if (this._view) {
             this.render();
         }
+
+        // Check archived courses in the background.
+        // Flag prevents sendDashboardInit from publishing workspace result too early.
+        this._appStateManager.archiveCheckComplete = false;
+        void findWorkspaceCourseInArchive(
+            this._artemisApi, this._appStateManager.coursesData?.courses || []
+        ).then(archivedEntry => {
+            if (archivedEntry) {
+                this._appStateManager.injectCourseEntry(archivedEntry);
+            }
+        }).catch(() => { /* don't block dashboard */ }).finally(() => {
+            this._appStateManager.archiveCheckComplete = true;
+            this.sendInitData();
+        });
     }
 
     public showLogin(): void {
