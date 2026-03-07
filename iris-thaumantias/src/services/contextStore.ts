@@ -127,7 +127,7 @@ export class ContextStore {
             sessions: {}, // Never persist sessions
             activeSessionId: null, // Never persist active session
         };
-        this.context.globalState.update(STORE_KEY, stateToPersist).then(undefined, err => logger.error('Failed to persist state', err));
+        this.context.globalState.update(STORE_KEY, stateToPersist).then(undefined, (err: unknown) => logger.error('Failed to persist state', undefined, err));
     }
 
     public snapshot(): ContextSnapshot {

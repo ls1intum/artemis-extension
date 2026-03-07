@@ -391,7 +391,7 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
         }
 
         // Only command messages have command/payload properties
-        if (typedMessage.type !== 'command') return;
+        if (typedMessage.type !== 'command') {return;}
 
         try {
             switch (typedMessage.command) {
@@ -477,7 +477,7 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
     }
 
     private async _handleUtilityCommand(message: WebviewToExtensionMessage): Promise<boolean> {
-        if (message.type !== 'command') return false;
+        if (message.type !== 'command') {return false;}
         switch (message.command) {
             case WebviewCmd.OpenSettings: {
                 const setting = getPayload<WebCmd<'openSettings'>>(message).setting ?? 'Artemis';

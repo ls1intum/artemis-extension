@@ -5,7 +5,7 @@ interface ThinkingIndicatorProps {
 }
 
 export function ThinkingIndicator({ isVisible = true }: ThinkingIndicatorProps) {
-    if (!isVisible) return null;
+    if (!isVisible) {return null;}
 
     return (
         <div className={styles.container}>

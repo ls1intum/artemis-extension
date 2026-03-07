@@ -66,7 +66,7 @@ export function LoginView({ vscodeApi }: LoginViewProps) {
 
 	// Cleanup timer on unmount
 	useEffect(() => () => {
-		if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
+		if (hideTimerRef.current) {clearTimeout(hideTimerRef.current);}
 	}, []);
 
 	// Message handler for extension-to-webview messages
@@ -145,7 +145,7 @@ export function LoginView({ vscodeApi }: LoginViewProps) {
 
 	// Perform health checks
 	const performHealthChecks = () => {
-		if (!serverUrl) return;
+		if (!serverUrl) {return;}
 		setIsHealthChecking(true);
 		postCommand(vscodeApi, 'performHealthChecks', { serverUrl });
 	};

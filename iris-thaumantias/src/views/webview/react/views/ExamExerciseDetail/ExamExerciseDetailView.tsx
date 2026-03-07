@@ -175,7 +175,7 @@ export function ExamExerciseDetailView({ vscodeApi }: ExamExerciseDetailViewProp
                     canSubmit={hasParticipation && isProgramming}
                     isExamExercise={true}
                     onStart={() => {
-                        if (exercise.id === undefined) return;
+                        if (exercise.id === undefined) {return;}
                         postCommand(vscodeApi, 'startExercise', { exerciseId: exercise.id });
                     }}
                     onSubmit={() => {
@@ -196,7 +196,7 @@ export function ExamExerciseDetailView({ vscodeApi }: ExamExerciseDetailViewProp
                         postCommand(vscodeApi, 'openRepository', { repositoryUri });
                     }}
                     onStartPractice={() => {
-                        if (exercise.id === undefined) return;
+                        if (exercise.id === undefined) {return;}
                         postCommand(vscodeApi, 'startPractice', { exerciseId: exercise.id });
                     }}
                 />

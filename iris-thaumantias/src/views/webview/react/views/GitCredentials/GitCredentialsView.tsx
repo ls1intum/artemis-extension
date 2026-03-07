@@ -33,7 +33,7 @@ export function GitCredentialsView({ vscodeApi }: GitCredentialsViewProps) {
 
     // Cleanup timer on unmount
     useEffect(() => () => {
-        if (statusTimerRef.current) clearTimeout(statusTimerRef.current);
+        if (statusTimerRef.current) {clearTimeout(statusTimerRef.current);}
     }, []);
 
     // Message handler

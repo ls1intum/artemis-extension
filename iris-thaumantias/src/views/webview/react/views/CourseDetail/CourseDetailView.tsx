@@ -46,8 +46,8 @@ export function CourseDetailView({ vscodeApi }: CourseDetailViewProps) {
     useEffect(() => {
         const persistedState = vscodeApi.getState<CourseDetailPersistedState>();
         if (persistedState) {
-            if (persistedState.exerciseSearchTerm) setExerciseSearchTerm(persistedState.exerciseSearchTerm);
-            if (persistedState.exerciseSortBy) setExerciseSortBy(persistedState.exerciseSortBy);
+            if (persistedState.exerciseSearchTerm) {setExerciseSearchTerm(persistedState.exerciseSearchTerm);}
+            if (persistedState.exerciseSortBy) {setExerciseSortBy(persistedState.exerciseSortBy);}
         }
 
         // Clear breadcrumbs and rebuild

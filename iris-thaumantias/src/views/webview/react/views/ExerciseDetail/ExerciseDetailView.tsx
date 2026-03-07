@@ -384,7 +384,7 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
                         }
                     }}
                     onStartPractice={() => {
-                        if (exercise.id === undefined) return;
+                        if (exercise.id === undefined) {return;}
                         postCommand(vscodeApi, 'startPractice', { exerciseId: exercise.id });
                     }}
                     onOpenInBrowser={() => {

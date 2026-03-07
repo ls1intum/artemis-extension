@@ -541,7 +541,7 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
         }
 
         // Only command messages have command/payload properties
-        if (typedMessage.type !== 'command') return;
+        if (typedMessage.type !== 'command') {return;}
 
         // Forward commands to the message handler (preserving type/command/payload)
         this._messageHandler.handleMessage(typedMessage);

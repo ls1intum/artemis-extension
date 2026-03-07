@@ -25,7 +25,7 @@ export function ProblemStatement({
     // Event delegation for links and images
     useEffect(() => {
         const container = contentRef.current;
-        if (!container) return;
+        if (!container) {return;}
 
         const handleClick = (event: MouseEvent) => {
             const target = event.target as HTMLElement;
@@ -59,14 +59,14 @@ export function ProblemStatement({
     // PlantUML async rendering: request rendering from extension
     useEffect(() => {
         const container = contentRef.current;
-        if (!container || !vscodeApi) return;
+        if (!container || !vscodeApi) {return;}
 
         const plantUmlElements = container.querySelectorAll('.plantuml-placeholder[data-plantuml]');
-        if (plantUmlElements.length === 0) return;
+        if (plantUmlElements.length === 0) {return;}
 
         plantUmlElements.forEach((element, index) => {
             const encoded = element.getAttribute('data-plantuml');
-            if (!encoded) return;
+            if (!encoded) {return;}
 
             const plantUml = decodeURIComponent(encoded);
             element.setAttribute('data-plantuml-index', String(index));
@@ -78,7 +78,7 @@ export function ProblemStatement({
     // PlantUML async rendering: handle rendered SVG responses
     useExtensionMessage((msg) => {
         const container = contentRef.current;
-        if (!container) return;
+        if (!container) {return;}
 
         if (msg.type === ExtensionMsg.PlantUmlRendered) {
             const placeholder = container.querySelector(

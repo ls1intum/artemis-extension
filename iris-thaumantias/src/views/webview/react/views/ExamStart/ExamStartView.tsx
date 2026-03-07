@@ -62,7 +62,7 @@ export function ExamStartView({ vscodeApi }: ExamStartViewProps) {
 
     // Sanitize exam rules
     const sanitizeRules = (html: string): string => {
-        if (!html) return 'No rules defined for this exam.';
+        if (!html) {return 'No rules defined for this exam.';}
 
         let processed = html;
 

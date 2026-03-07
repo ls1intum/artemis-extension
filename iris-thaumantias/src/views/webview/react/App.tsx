@@ -69,7 +69,7 @@ export function App({ vscodeApi }: AppProps) {
 	})();
 
 	// IrisChat is fullscreen (100vh) — no wrapper padding
-	if (viewName === 'irisChat') return view;
+	if (viewName === 'irisChat') {return view;}
 
 	return <div className={styles.viewWrapper}>{view}</div>;
 }

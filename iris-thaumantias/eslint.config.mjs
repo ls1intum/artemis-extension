@@ -54,9 +54,10 @@ export default [{
 },
 // Allow console.* in test files, disable type-aware rules (tests not in main tsconfig project)
 {
-    files: ["test/**/*.ts"],
+    files: ["test/**/*.ts", "test/**/*.tsx"],
     rules: {
         "no-console": "off",
+        "@typescript-eslint/no-explicit-any": "off",
         "@typescript-eslint/no-unsafe-assignment": "off",
         "@typescript-eslint/no-unsafe-return": "off",
         "@typescript-eslint/no-unsafe-member-access": "off",

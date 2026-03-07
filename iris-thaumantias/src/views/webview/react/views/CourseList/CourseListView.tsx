@@ -48,10 +48,10 @@ export function CourseListView({ vscodeApi }: CourseListViewProps) {
     useEffect(() => {
         const persistedState = vscodeApi.getState<CourseListPersistedState>();
         if (persistedState) {
-            if (persistedState.searchTerm) setSearchTerm(persistedState.searchTerm);
-            if (persistedState.typeFilter) setTypeFilter(persistedState.typeFilter as 'all' | 'active' | 'archived');
-            if (persistedState.semesterFilter) setSemesterFilter(persistedState.semesterFilter);
-            if (persistedState.sortBy) setSortBy(persistedState.sortBy);
+            if (persistedState.searchTerm) {setSearchTerm(persistedState.searchTerm);}
+            if (persistedState.typeFilter) {setTypeFilter(persistedState.typeFilter as 'all' | 'active' | 'archived');}
+            if (persistedState.semesterFilter) {setSemesterFilter(persistedState.semesterFilter);}
+            if (persistedState.sortBy) {setSortBy(persistedState.sortBy);}
         }
 
         // Push breadcrumb
