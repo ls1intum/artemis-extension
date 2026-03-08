@@ -417,7 +417,7 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
                     >
                         configurable
                     </button>
-                    ). Iris can make mistakes. Consider verifying important information.
+                    ). Iris can make mistakes.
                 </div>
             </div>
         </div>
