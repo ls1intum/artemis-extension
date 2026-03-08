@@ -227,6 +227,16 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
         disabledBannerText = 'AI assistance is disabled. A .noai file was detected in your workspace.';
     }
 
+    // Compute disabled placeholder for input
+    let disabledPlaceholder: string | undefined;
+    if (store.context === null) {
+        disabledPlaceholder = 'Select a course or exercise to start chatting';
+    } else if (store.isNoAiDetected) {
+        disabledPlaceholder = 'AI assistance is disabled (.noai detected)';
+    } else if (store.disabledMessage) {
+        disabledPlaceholder = 'Iris chat is not available for this exercise';
+    }
+
     // Check if workspace exercise exists
     const hasWorkspaceExercise = store.allExercises.some(ex => ex.isWorkspace);
 
@@ -235,40 +245,14 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
             {/* Header */}
             <div className={styles.header}>
                 <div className={styles.headerLeft}>
-                    {/* Iris bot icon */}
-                    <svg
+                    {/* Iris logo */}
+                    <img
+                        src={document.getElementById('root')?.dataset.irisLogoUri}
+                        alt=""
                         width="24"
                         height="24"
-                        viewBox="0 0 24 24"
-                        fill="none"
                         className={styles.irisIcon}
-                    >
-                        <circle
-                            cx="12"
-                            cy="12"
-                            r="8"
-                            stroke="var(--vscode-charts-purple)"
-                            strokeWidth="2"
-                        />
-                        <circle
-                            cx="9"
-                            cy="10"
-                            r="1.5"
-                            fill="var(--vscode-charts-purple)"
-                        />
-                        <circle
-                            cx="15"
-                            cy="10"
-                            r="1.5"
-                            fill="var(--vscode-charts-purple)"
-                        />
-                        <path
-                            d="M8 15c1 1.5 3 1.5 4 0s3-1.5 4 0"
-                            stroke="var(--vscode-charts-purple)"
-                            strokeWidth="1.5"
-                            strokeLinecap="round"
-                        />
-                    </svg>
+                    />
                     <h1 className={styles.title}>Chat with Iris</h1>
                 </div>
 
@@ -373,8 +357,8 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
                 </div>
             )}
 
-            {/* WebSocket status banner */}
-            {!store.isWebSocketConnected && (
+            {/* WebSocket status banner (hidden when chat is already disabled) */}
+            {!store.isWebSocketConnected && !isChatDisabled && (
                 <div className={styles.websocketBanner}>
                     <span>WebSocket disconnected</span>
                     <button
@@ -404,6 +388,7 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
                         onFeedback={handleFeedback}
                         onSendPrompt={handleSendMessage}
                         hasContext={store.context !== null}
+                        isChatDisabled={isChatDisabled}
                     />
                 )}
             </div>
@@ -420,6 +405,7 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
                 <ChatInput
                     onSend={handleSendMessage}
                     disabled={isChatDisabled || store.context === null}
+                    disabledPlaceholder={disabledPlaceholder}
                 />
 
                 {/* Disclaimer */}

@@ -1,8 +1,8 @@
 .scrollContainer {
-    flex: 1;
+    height: 100%;
     overflow-y: auto;
     overflow-x: hidden;
-    background: var(--vscode-editor-background);
+    background: var(--theme-background);
 }
 
 .content {

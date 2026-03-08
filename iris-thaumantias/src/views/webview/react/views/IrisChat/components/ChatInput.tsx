@@ -7,12 +7,14 @@ interface ChatInputProps {
     onSend: (text: string) => void;
     disabled: boolean;
     placeholder?: string;
+    disabledPlaceholder?: string;
 }
 
 export function ChatInput({
     onSend,
     disabled,
     placeholder = 'Ask Iris anything...',
+    disabledPlaceholder = 'Select a course or exercise to start chatting',
 }: ChatInputProps) {
     const [value, setValue] = useState('');
 
@@ -46,7 +48,7 @@ export function ChatInput({
                 onKeyDown={handleKeyDown}
                 placeholder={
                     disabled
-                        ? 'Select a course or exercise to start chatting'
+                        ? disabledPlaceholder
                         : placeholder
                 }
                 disabled={disabled}

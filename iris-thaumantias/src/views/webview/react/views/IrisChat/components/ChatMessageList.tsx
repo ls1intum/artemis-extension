@@ -12,6 +12,7 @@ interface ChatMessageListProps {
     onFeedback: (messageId: string, feedback: 'positive' | 'negative') => void;
     onSendPrompt: (text: string) => void;
     hasContext: boolean;
+    isChatDisabled?: boolean;
 }
 
 export function ChatMessageList({
@@ -20,6 +21,7 @@ export function ChatMessageList({
     onFeedback,
     onSendPrompt,
     hasContext,
+    isChatDisabled,
 }: ChatMessageListProps) {
     const { scrollRef, contentRef, scrollOnSend } = useAutoScroll();
 
@@ -38,7 +40,7 @@ export function ChatMessageList({
         <div ref={scrollRef} className={styles.scrollContainer}>
             <div ref={contentRef} className={styles.content}>
                 {showWelcome ? (
-                    <WelcomeState onSendPrompt={onSendPrompt} hasContext={hasContext} />
+                    <WelcomeState onSendPrompt={onSendPrompt} hasContext={hasContext} isChatDisabled={isChatDisabled} />
                 ) : (
                     <>
                         {messages.map((message) => {

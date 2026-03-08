@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { ChatMessage } from '../../../../../src/views/webview/react/views/IrisChat/types';
@@ -69,7 +69,7 @@ describe('MessageBubble', () => {
 		expect(screen.getByText('What is polymorphism?')).toBeInTheDocument();
 	});
 
-	it('renders assistant avatar for assistant messages', () => {
+	it('does not render avatar for assistant messages', () => {
 		const message = makeMessage({ role: 'assistant' });
 		const { container } = render(
 			<MessageBubble
@@ -79,26 +79,7 @@ describe('MessageBubble', () => {
 				onFeedback={vi.fn()}
 			/>
 		);
-		// Avatar SVG is rendered for assistant messages
-		const svg = container.querySelector('svg');
-		expect(svg).toBeInTheDocument();
-	});
-
-	it('does not render avatar for user messages', () => {
-		const message = makeMessage({ role: 'user' });
-		const { container } = render(
-			<MessageBubble
-				message={message}
-				isStreaming={false}
-				streamingChunks={[]}
-				onFeedback={vi.fn()}
-			/>
-		);
-		// User messages don't have an avatar div
-		// We check that the first div is not an avatar (no circle SVG)
-		// by verifying Streamdown renders for user messages without avatar
-		const streamdownEl = container.querySelector('[data-testid="streamdown"]');
-		expect(streamdownEl).toBeInTheDocument();
+		expect(container.querySelector('img')).not.toBeInTheDocument();
 	});
 
 	it('renders StreamingMessage when isStreaming is true', () => {

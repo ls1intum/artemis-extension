@@ -1,9 +1,21 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { WelcomeState } from '../../../../../src/views/webview/react/views/IrisChat/components/WelcomeState';
 
 describe('WelcomeState', () => {
+	let root: HTMLDivElement;
+
+	beforeEach(() => {
+		root = document.createElement('div');
+		root.id = 'root';
+		root.dataset.irisLogoUri = 'test-iris-logo.svg';
+		document.body.appendChild(root);
+	});
+
+	afterEach(() => {
+		root.remove();
+	});
 	it('renders no-context message when hasContext is false', () => {
 		render(<WelcomeState onSendPrompt={vi.fn()} hasContext={false} />);
 		expect(
@@ -26,10 +38,11 @@ describe('WelcomeState', () => {
 		expect(screen.getByText('How can I help you today?')).toBeInTheDocument();
 	});
 
-	it('renders Iris avatar SVG when hasContext is true', () => {
+	it('renders Iris logo image when hasContext is true', () => {
 		const { container } = render(<WelcomeState onSendPrompt={vi.fn()} hasContext={true} />);
-		const svg = container.querySelector('svg');
-		expect(svg).toBeInTheDocument();
+		const img = container.querySelector('img');
+		expect(img).toBeInTheDocument();
+		expect(img?.getAttribute('src')).toBe('test-iris-logo.svg');
 	});
 
 	it('renders three suggested prompt buttons when hasContext is true', () => {

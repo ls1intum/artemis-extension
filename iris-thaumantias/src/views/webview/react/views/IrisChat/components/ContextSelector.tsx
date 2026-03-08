@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import clsx from 'clsx';
+import FolderGit2 from 'lucide-react/dist/esm/icons/folder-git-2';
 import type { ChatContext, ChatSession, ContextItem } from '../types';
 import type { ChatContextType } from '../../../../../../types/context';
 import styles from './ContextSelector.module.css';
@@ -104,6 +105,7 @@ export function ContextSelector({
 
     // Check if there's a workspace exercise
     const hasWorkspaceExercise = allExercises.some((ex) => ex.isWorkspace);
+    const isInWorkspaceContext = context?.source === 'workspace-detected';
 
     // Check if new session should be disabled (no messages in current session)
     const canCreateNewSession = sessions.length > 0 && sessions.some(s => s.messageCount > 0);
@@ -116,30 +118,9 @@ export function ContextSelector({
         <div ref={containerRef} className={styles.container}>
             <button className={styles.header} onClick={toggleDropdown}>
                 <div className={styles.headerContent}>
-                    {context?.locked && (
-                        <svg
-                            width="14"
-                            height="14"
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            className={styles.lockIcon}
-                        >
-                            <rect
-                                x="5"
-                                y="11"
-                                width="14"
-                                height="10"
-                                rx="2"
-                                stroke="currentColor"
-                                strokeWidth="2"
-                            />
-                            <path
-                                d="M7 11V7a5 5 0 0110 0v4"
-                                stroke="currentColor"
-                                strokeWidth="2"
-                            />
-                        </svg>
-                    )}
+                    {context?.source === 'workspace-detected' ? (
+                        <FolderGit2 size={14} className={styles.lockIcon} />
+                    ) : (
                     <div className={styles.contextIcon}>
                         {context?.type === 'exercise' ? (
                             <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
@@ -157,6 +138,7 @@ export function ContextSelector({
                             </svg>
                         )}
                     </div>
+                    )}
                     <div className={styles.textContainer}>
                         <span className={styles.title}>
                             {context?.title || 'Select context'}
@@ -189,14 +171,26 @@ export function ContextSelector({
                 <div className={styles.dropdown}>
                     {/* Search input - always shown */}
                     <div className={styles.searchContainer}>
-                        <input
-                            type="text"
-                            className={styles.searchInput}
-                            placeholder="Search exercises or courses..."
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                            autoFocus
-                        />
+                        <div className={styles.searchInputWrapper}>
+                            <svg
+                                width="14"
+                                height="14"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                className={styles.searchIcon}
+                            >
+                                <circle cx="11" cy="11" r="8" stroke="currentColor" strokeWidth="2" />
+                                <line x1="21" y1="21" x2="16.65" y2="16.65" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                            </svg>
+                            <input
+                                type="text"
+                                className={styles.searchInput}
+                                placeholder="Search exercises or courses..."
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                                autoFocus
+                            />
+                        </div>
                     </div>
 
                     <div className={styles.dropdownContent}>
@@ -222,28 +216,7 @@ export function ContextSelector({
                                                 }
                                             >
                                                 {exercise.isWorkspace && (
-                                                    <svg
-                                                        width="14"
-                                                        height="14"
-                                                        viewBox="0 0 24 24"
-                                                        fill="none"
-                                                        className={styles.itemIcon}
-                                                    >
-                                                        <rect
-                                                            x="5"
-                                                            y="11"
-                                                            width="14"
-                                                            height="10"
-                                                            rx="2"
-                                                            stroke="currentColor"
-                                                            strokeWidth="2"
-                                                        />
-                                                        <path
-                                                            d="M7 11V7a5 5 0 0110 0v4"
-                                                            stroke="currentColor"
-                                                            strokeWidth="2"
-                                                        />
-                                                    </svg>
+                                                    <FolderGit2 size={14} className={styles.itemIcon} />
                                                 )}
                                                 <span className={styles.itemText}>
                                                     {exercise.title}
@@ -299,6 +272,21 @@ export function ContextSelector({
                                                 })}
                                                 onClick={() => handleSelectSession(session.id)}
                                             >
+                                                <svg
+                                                    width="14"
+                                                    height="14"
+                                                    viewBox="0 0 24 24"
+                                                    fill="none"
+                                                    className={styles.sessionIcon}
+                                                >
+                                                    <path
+                                                        d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"
+                                                        stroke="currentColor"
+                                                        strokeWidth="2"
+                                                        strokeLinecap="round"
+                                                        strokeLinejoin="round"
+                                                    />
+                                                </svg>
                                                 <div className={styles.sessionContent}>
                                                     <span className={styles.sessionPreview}>
                                                         {session.preview}
@@ -339,24 +327,42 @@ export function ContextSelector({
                                         }}
                                         disabled={!canCreateNewSession}
                                     >
-                                        New Conversation
+                                        <span className={styles.actionButtonContent}>
+                                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                                <line x1="12" y1="5" x2="12" y2="19" />
+                                                <line x1="5" y1="12" x2="19" y2="12" />
+                                            </svg>
+                                            New Conversation
+                                        </span>
                                     </button>
                                     {hasWorkspaceExercise && (
                                         <button
                                             className={styles.actionButton}
+                                            disabled={isInWorkspaceContext}
                                             onClick={() => {
                                                 onSwitchToWorkspace();
                                                 setIsOpen(false);
                                             }}
                                         >
-                                            Switch to Workspace
+                                            <span className={styles.actionButtonContent}>
+                                                <FolderGit2 size={14} />
+                                                {isInWorkspaceContext ? 'Workspace Exercise (Active)' : 'Chat about Workspace Exercise (Currently Open)'}
+                                            </span>
                                         </button>
                                     )}
                                     <button
                                         className={styles.actionButton}
                                         onClick={handleSwitchContext}
                                     >
-                                        Switch to Different Context
+                                        <span className={styles.actionButtonContent}>
+                                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                                <polyline points="17 1 21 5 17 9" />
+                                                <path d="M3 11V9a4 4 0 0 1 4-4h14" />
+                                                <polyline points="7 23 3 19 7 15" />
+                                                <path d="M21 13v2a4 4 0 0 1-4 4H3" />
+                                            </svg>
+                                            Switch to Different Context
+                                        </span>
                                     </button>
                                 </div>
                             </>
