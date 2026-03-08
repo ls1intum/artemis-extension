@@ -109,10 +109,10 @@ suite('ChatContextManager Test Suite', () => {
             assert.strictEqual(snapshot.activeContext.courseId, 101);
         });
 
-        test('should unsubscribe from Iris session on context change', () => {
+        test('should reset Iris session on context change', () => {
             chatContextManager.handleContextSelection('course', 101, 'Test Course');
 
-            assert.ok(irisSessionManager.unsubscribe.calledOnce);
+            assert.ok(irisSessionManager.resetSession.calledOnce);
         });
 
         test('should clear chat messages on context change', () => {
@@ -186,10 +186,10 @@ suite('ChatContextManager Test Suite', () => {
             assert.ok(course);
         });
 
-        test('should unsubscribe from Iris session', () => {
+        test('should reset Iris session on course selection', () => {
             chatContextManager.handleCourseSelection(101);
 
-            assert.ok(irisSessionManager.unsubscribe.calledOnce);
+            assert.ok(irisSessionManager.resetSession.calledOnce);
         });
     });
 
@@ -269,10 +269,10 @@ suite('ChatContextManager Test Suite', () => {
             assert.ok(call.args[0].includes('Exercise context set to:'));
         });
 
-        test('should unsubscribe from Iris session', () => {
+        test('should reset Iris session on exercise selection', () => {
             chatContextManager.handleExerciseSelection(123);
 
-            assert.ok(irisSessionManager.unsubscribe.calledOnce);
+            assert.ok(irisSessionManager.resetSession.calledOnce);
         });
     });
 
@@ -452,13 +452,13 @@ suite('ChatContextManager Test Suite', () => {
             assert.strictEqual(chatSessionService.loadAllSessionsForContext.callCount, 3);
         });
 
-        test('should unsubscribe Iris session each time context changes', () => {
+        test('should reset Iris session each time context changes', () => {
             chatContextManager.handleCourseSelection(101);
             chatContextManager.handleExerciseSelection(123);
             chatContextManager.handleCourseSelection(102);
 
-            // Should unsubscribe 3 times
-            assert.strictEqual(irisSessionManager.unsubscribe.callCount, 3);
+            // Should reset session 3 times
+            assert.strictEqual(irisSessionManager.resetSession.callCount, 3);
         });
 
         test('should clear messages each time context changes', () => {
