@@ -364,9 +364,11 @@ export class ArtemisApiService {
         return ProfileInfo.fromJSON(await response.json());
     }
 
-    // Check if the Iris profile is active on the server (global Iris enablement)
+    // Check if Iris is active on the server (module feature or legacy profile)
     isIrisProfileActive(profileInfo: ProfileInfo): boolean {
-        return profileInfo.activeProfiles?.includes(PROFILE_IRIS) ?? false;
+        return profileInfo.activeModuleFeatures?.includes(PROFILE_IRIS)
+            || profileInfo.activeProfiles?.includes(PROFILE_IRIS)
+            || false;
     }
 
     // Render PlantUML diagram to SVG

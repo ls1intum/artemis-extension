@@ -7,6 +7,7 @@ export const PROFILE_IRIS = 'iris';
 export class ProfileInfo {
     constructor(
         public readonly activeProfiles: string[],
+        public readonly activeModuleFeatures: string[],
         public readonly ribbonEnv?: string,
         public readonly inProduction?: boolean,
         public readonly openApiEnabled?: boolean,
@@ -19,6 +20,7 @@ export class ProfileInfo {
         const d = data as Record<string, unknown>;
         return new ProfileInfo(
             Array.isArray(d.activeProfiles) ? d.activeProfiles.map(String) : [],
+            Array.isArray(d.activeModuleFeatures) ? d.activeModuleFeatures.map(String) : [],
             typeof d.ribbonEnv === 'string' ? d.ribbonEnv : undefined,
             typeof d.inProduction === 'boolean' ? d.inProduction : undefined,
             typeof d.openApiEnabled === 'boolean' ? d.openApiEnabled : undefined,

@@ -116,9 +116,10 @@ export class HealthCommandModule {
 
                 if (infoResponse.ok) {
                     try {
-                        const infoData = await infoResponse.json() as { activeProfiles?: string[] };
+                        const infoData = await infoResponse.json() as { activeProfiles?: string[]; activeModuleFeatures?: string[] };
                         const profiles = infoData.activeProfiles || [];
-                        const isIrisActive = profiles.includes('iris');
+                        const moduleFeatures = infoData.activeModuleFeatures || [];
+                        const isIrisActive = moduleFeatures.includes('iris') || profiles.includes('iris');
 
                         results.irisService = {
                             status: isIrisActive ? 'online' : 'offline',
@@ -126,8 +127,8 @@ export class HealthCommandModule {
                             endpoint: `${serverUrl}/management/info`,
                             httpStatus: infoResponse.status,
                             response: isIrisActive
-                                ? `Iris profile active (${profiles.length} profiles loaded)`
-                                : `Iris profile not in activeProfiles`
+                                ? `Iris module active (${moduleFeatures.length} module features, ${profiles.length} profiles loaded)`
+                                : `Iris not found in activeModuleFeatures or activeProfiles`
                         };
                     } catch {
                         results.irisService = {

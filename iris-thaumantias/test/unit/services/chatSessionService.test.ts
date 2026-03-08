@@ -24,7 +24,7 @@ suite('IrisSessionInitService Test Suite', () => {
         mockApiService = sinon.createStubInstance(ArtemisApiService);
 
         // Mock Iris profile check (required for all Iris settings checks)
-        mockApiService.getProfileInfo.resolves({ activeProfiles: ['iris'] });
+        mockApiService.getProfileInfo.resolves({ activeProfiles: [], activeModuleFeatures: ['iris'] });
         mockApiService.isIrisProfileActive.returns(true);
 
         // Create spies for callbacks
