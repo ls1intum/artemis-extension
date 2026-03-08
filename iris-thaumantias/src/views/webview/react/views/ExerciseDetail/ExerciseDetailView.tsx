@@ -1,6 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useExerciseDetailStore } from '../../stores/useExerciseDetailStore';
-import { useNavigationStore } from '../../stores/useNavigationStore';
 import { useWebSocketUpdates } from '../../hooks/useWebSocketUpdates';
 import { useExtensionMessage } from '../../hooks/useExtensionMessage';
 import { useExerciseStatusMessages } from '../../hooks/useExerciseStatusMessages';
@@ -42,21 +41,11 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
         clearClonedNotice,
     } = useExerciseDetailStore();
 
-    const { pushBreadcrumb, clearBreadcrumbs } = useNavigationStore();
-
     const [showCommitMessage, setShowCommitMessage] = useState(false);
     const [commitMessage, setCommitMessage] = useState('');
 
     // Initialize WebSocket updates hook
     useWebSocketUpdates();
-
-    // Initialize breadcrumbs on mount
-    useEffect(() => {
-        clearBreadcrumbs();
-        pushBreadcrumb('Dashboard', 'dashboard', () => {
-            postCommand(vscodeApi, 'backToDashboard');
-        });
-    }, [vscodeApi, pushBreadcrumb, clearBreadcrumbs]);
 
     // Listen for exerciseDetailInit messages
     useExtensionMessage((msg) => {
@@ -64,23 +53,8 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
             if (!msg.exerciseData) { return; }
 
             setExerciseData(msg.exerciseData, msg.hideDeveloperTools, msg.repoStatus);
-
-            // Push breadcrumbs: Dashboard > CourseName > ExerciseName
-            const exercise = msg.exerciseData?.exercise;
-            const courseName = exercise?.course?.title ?? 'Course';
-            const exerciseTitle = exercise?.title ?? 'Exercise';
-            const abbreviatedCourse = courseName.length > 20 ? courseName.substring(0, 17) + '...' : courseName;
-            const abbreviatedExercise = exerciseTitle.length > 20 ? exerciseTitle.substring(0, 17) + '...' : exerciseTitle;
-
-            pushBreadcrumb(abbreviatedCourse, 'course-detail', () => {
-                postCommand(vscodeApi, 'backToCourseDetails');
-            });
-
-            pushBreadcrumb(abbreviatedExercise, 'exercise-detail', () => {
-                // Current page, no action
-            });
         }
-    }, [vscodeApi, setExerciseData, pushBreadcrumb]);
+    }, [vscodeApi, setExerciseData]);
 
     // Listen for exercise-related extension messages
     useExerciseStatusMessages(vscodeApi);

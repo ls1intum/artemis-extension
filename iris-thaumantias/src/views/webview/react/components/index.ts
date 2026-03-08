@@ -73,8 +73,6 @@ export type {
 export { Skeleton, SkeletonList } from './Skeleton';
 export type { SkeletonProps, SkeletonListProps } from './Skeleton';
 
-export { Breadcrumbs } from './Breadcrumbs';
-export type { BreadcrumbsProps, BreadcrumbSegment } from './Breadcrumbs';
 
 export { ErrorMessage } from './ErrorMessage';
 export type { ErrorMessageProps } from './ErrorMessage';

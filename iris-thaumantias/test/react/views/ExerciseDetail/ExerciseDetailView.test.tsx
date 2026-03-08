@@ -3,7 +3,6 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ExerciseDetailView } from '../../../../src/views/webview/react/views/ExerciseDetail/ExerciseDetailView';
 import { useExerciseDetailStore } from '../../../../src/views/webview/react/stores/useExerciseDetailStore';
-import { useNavigationStore } from '../../../../src/views/webview/react/stores/useNavigationStore';
 import { createMockVsCodeApi, dispatchExtensionMessage } from '../../__helpers__/vscodeApi';
 
 // Mock useWebSocketUpdates — not under test here

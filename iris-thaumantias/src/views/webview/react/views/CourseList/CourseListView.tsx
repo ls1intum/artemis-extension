@@ -1,6 +1,5 @@
 import { useEffect, useMemo } from 'react';
 import { useCourseListStore } from '../../stores/useCourseListStore';
-import { useNavigationStore } from '../../stores/useNavigationStore';
 import { useExtensionMessage } from '../../hooks/useExtensionMessage';
 import type { CourseListViewProps, CourseListPersistedState, CourseData, ArchivedCourse } from './types';
 import type { CourseDashboardCourse } from '../../../../../types/apiResponses';
@@ -42,8 +41,6 @@ export function CourseListView({ vscodeApi }: CourseListViewProps) {
         filteredCourses,
     } = useCourseListStore();
 
-    const { pushBreadcrumb } = useNavigationStore();
-
     // Restore persisted state on mount
     useEffect(() => {
         const persistedState = vscodeApi.getState<CourseListPersistedState>();
@@ -53,12 +50,7 @@ export function CourseListView({ vscodeApi }: CourseListViewProps) {
             if (persistedState.semesterFilter) {setSemesterFilter(persistedState.semesterFilter);}
             if (persistedState.sortBy) {setSortBy(persistedState.sortBy);}
         }
-
-        // Push breadcrumb
-        pushBreadcrumb('Courses', 'course-list', () => {
-            postCommand(vscodeApi, 'showAllCourses');
-        });
-    }, [vscodeApi, pushBreadcrumb, setSearchTerm, setTypeFilter, setSemesterFilter, setSortBy]);
+    }, [vscodeApi, setSearchTerm, setTypeFilter, setSemesterFilter, setSortBy]);
 
     // Listen for courseList messages
     useExtensionMessage((msg) => {

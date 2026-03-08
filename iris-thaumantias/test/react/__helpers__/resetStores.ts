@@ -1,5 +1,4 @@
 import { useDashboardStore } from '../../../src/views/webview/react/stores/useDashboardStore';
-import { useNavigationStore } from '../../../src/views/webview/react/stores/useNavigationStore';
 import { useChatStore } from '../../../src/views/webview/react/stores/useChatStore';
 import { useCourseListStore } from '../../../src/views/webview/react/stores/useCourseListStore';
 import { useCourseDetailStore } from '../../../src/views/webview/react/stores/useCourseDetailStore';
@@ -14,7 +13,6 @@ import { createMockVsCodeApi } from './vscodeApi';
 // immutable updates (new object on every setState call).
 const storeEntries = [
     { store: useDashboardStore, state: useDashboardStore.getState() },
-    { store: useNavigationStore, state: useNavigationStore.getState() },
     { store: useChatStore, state: useChatStore.getState() },
     { store: useCourseListStore, state: useCourseListStore.getState() },
     { store: useCourseDetailStore, state: useCourseDetailStore.getState() },
@@ -25,7 +23,7 @@ const storeEntries = [
 ] as const;
 
 /**
- * Resets all 9 Zustand stores to their import-time initial state and
+ * Resets all 8 Zustand stores to their import-time initial state and
  * re-initialises window.acquireVsCodeApi with a fresh mock.
  *
  * Call this in a global beforeEach to prevent store state leaking between tests.

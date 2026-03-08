@@ -1,6 +1,5 @@
 import { useEffect } from 'react';
 import { useCourseDetailStore } from '../../stores/useCourseDetailStore';
-import { useNavigationStore } from '../../stores/useNavigationStore';
 import { useExtensionMessage } from '../../hooks/useExtensionMessage';
 import type { CourseDetailViewProps, CourseDetailPersistedState } from './types';
 import { ExtensionMsg, postCommand, requestInit } from '../../../../../shared/messageContracts';
@@ -40,8 +39,6 @@ export function CourseDetailView({ vscodeApi }: CourseDetailViewProps) {
         sortedExams,
     } = useCourseDetailStore();
 
-    const { pushBreadcrumb, clearBreadcrumbs } = useNavigationStore();
-
     // Restore persisted state on mount
     useEffect(() => {
         const persistedState = vscodeApi.getState<CourseDetailPersistedState>();
@@ -49,27 +46,14 @@ export function CourseDetailView({ vscodeApi }: CourseDetailViewProps) {
             if (persistedState.exerciseSearchTerm) {setExerciseSearchTerm(persistedState.exerciseSearchTerm);}
             if (persistedState.exerciseSortBy) {setExerciseSortBy(persistedState.exerciseSortBy);}
         }
-
-        // Clear breadcrumbs and rebuild
-        clearBreadcrumbs();
-        pushBreadcrumb('Dashboard', 'dashboard', () => {
-            postCommand(vscodeApi, 'backToDashboard');
-        });
-    }, [vscodeApi, setExerciseSearchTerm, setExerciseSortBy, pushBreadcrumb, clearBreadcrumbs]);
+    }, [vscodeApi, setExerciseSearchTerm, setExerciseSortBy]);
 
     // Listen for courseDetailInit messages
     useExtensionMessage((msg) => {
         if (msg.type === ExtensionMsg.CourseDetailInit) {
             setCourseData(msg.courseData, msg.workspaceExerciseId, msg.hideDeveloperTools);
-
-            // Push course breadcrumb
-            const courseTitle = msg.courseData?.course?.title ?? 'Course';
-            const abbreviatedTitle = courseTitle.length > 20 ? courseTitle.substring(0, 17) + '...' : courseTitle;
-            pushBreadcrumb(abbreviatedTitle, 'course-detail', () => {
-                // Current page, no action
-            });
         }
-    }, [vscodeApi, setCourseData, pushBreadcrumb]);
+    }, [vscodeApi, setCourseData]);
 
     // Persist search/sort state whenever it changes
     useEffect(() => {
