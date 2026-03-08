@@ -418,17 +418,20 @@ export class ArtemisWebsocketService {
     }
 
     /**
-     * Subscribe to personal result updates for the authenticated user
+     * Generic topic subscription with connection/duplicate guards, JSON parsing,
+     * handler dispatch, and structured logging.
      */
-    public subscribeToPersonalResults(): void {
+    private _subscribeToTopic<T>(
+        topic: string,
+        parser: (data: unknown) => T,
+        dispatch: (handler: WebSocketMessageHandler, parsed: T) => void,
+        logFormatter: (parsed: T) => string,
+    ): void {
         if (!this._isConnected || !this._client) {
             this._log('Cannot subscribe: not connected');
             return;
         }
 
-        // IMPORTANT: Topic is plural 'newResults', not singular 'newResult'
-        // See: webapp/app/core/course/shared/services/participation-websocket.service.ts
-        const topic = WEBSOCKET_TOPICS.NEW_RESULTS;
         if (this._subscriptions.has(topic)) {
             this._log(`Already subscribed to ${topic}`);
             return;
@@ -436,92 +439,52 @@ export class ArtemisWebsocketService {
 
         const subscription = this._client.subscribe(topic, (message: IMessage) => {
             try {
-                const result = ResultDTO.fromJSON(JSON.parse(message.body));
-                this._log(`Received new result: score=${result.score}, successful=${result.successful}`);
-
-                // Notify all handlers
-                this._messageHandlers.forEach(handler => {
-                    if (handler.onNewResult) {
-                        handler.onNewResult(result);
-                    }
-                });
+                const parsed = parser(JSON.parse(message.body));
+                this._log(logFormatter(parsed));
+                this._messageHandlers.forEach(handler => dispatch(handler, parsed));
             } catch (error) {
-                this._log(`Error processing result message: ${error}`);
+                this._log(`Error processing message on ${topic}: ${error}`);
             }
         });
 
         this._subscriptions.set(topic, subscription);
         this._log(`Subscribed to ${topic}`);
+    }
+
+    /**
+     * Subscribe to personal result updates for the authenticated user
+     */
+    public subscribeToPersonalResults(): void {
+        this._subscribeToTopic(
+            WEBSOCKET_TOPICS.NEW_RESULTS,
+            (data) => ResultDTO.fromJSON(data),
+            (handler, result) => handler.onNewResult?.(result),
+            (result) => `Received new result: score=${result.score}, successful=${result.successful}`,
+        );
     }
 
     /**
      * Subscribe to personal submission updates
      */
     public subscribeToPersonalSubmissions(): void {
-        if (!this._isConnected || !this._client) {
-            this._log('Cannot subscribe: not connected');
-            return;
-        }
-
-        const topic = WEBSOCKET_TOPICS.NEW_SUBMISSIONS;
-        if (this._subscriptions.has(topic)) {
-            this._log(`Already subscribed to ${topic}`);
-            return;
-        }
-
-        const subscription = this._client.subscribe(topic, (message: IMessage) => {
-            try {
-                const submission = ProgrammingSubmission.fromJSON(JSON.parse(message.body));
-                this._log(`Received new submission: ${submission.id}`);
-
-                // Notify all handlers
-                this._messageHandlers.forEach(handler => {
-                    if (handler.onNewSubmission) {
-                        handler.onNewSubmission(submission);
-                    }
-                });
-            } catch (error) {
-                this._log(`Error processing submission message: ${error}`);
-            }
-        });
-
-        this._subscriptions.set(topic, subscription);
-        this._log(`Subscribed to ${topic}`);
+        this._subscribeToTopic(
+            WEBSOCKET_TOPICS.NEW_SUBMISSIONS,
+            (data) => ProgrammingSubmission.fromJSON(data),
+            (handler, submission) => handler.onNewSubmission?.(submission),
+            (submission) => `Received new submission: ${submission.id}`,
+        );
     }
 
     /**
      * Subscribe to submission processing updates (build status)
      */
     public subscribeToSubmissionProcessing(): void {
-        if (!this._isConnected || !this._client) {
-            this._log('Cannot subscribe: not connected');
-            return;
-        }
-
-        const topic = WEBSOCKET_TOPICS.SUBMISSION_PROCESSING;
-        if (this._subscriptions.has(topic)) {
-            this._log(`Already subscribed to ${topic}`);
-            return;
-        }
-
-        const subscription = this._client.subscribe(topic, (message: IMessage) => {
-            try {
-                const processingMsg = SubmissionProcessingMessage.fromJSON(JSON.parse(message.body));
-                this._log(`Received submission processing update: participationId=${processingMsg.participationId}`);
-
-                // Notify all handlers
-                this._messageHandlers.forEach(handler => {
-                    if (handler.onSubmissionProcessing) {
-                        handler.onSubmissionProcessing(processingMsg);
-                    }
-                });
-            } catch (error) {
-                this._log(`Error processing submission processing message: ${error}`);
-            }
-        });
-
-        this._subscriptions.set(topic, subscription);
-        this._log(`Subscribed to ${topic}`);
+        this._subscribeToTopic(
+            WEBSOCKET_TOPICS.SUBMISSION_PROCESSING,
+            (data) => SubmissionProcessingMessage.fromJSON(data),
+            (handler, msg) => handler.onSubmissionProcessing?.(msg),
+            (msg) => `Received submission processing update: participationId=${msg.participationId}`,
+        );
     }
 
     /**

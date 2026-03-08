@@ -1,5 +1,5 @@
 import { ArtemisApiService } from '../../api';
-import { logger, LogLevel, LogCategory } from '../../services/loggingService';
+import { logger, LogCategory } from '../../services/loggingService';
 import { getRecommendedExtensionsByCategory, type RecommendedExtensionCategory } from '../../utils/recommendedExtensions';
 import type { CourseDashboardResponse, CourseDashboardEntry, ArchivedCourse, CourseDetailData, CourseDashboardCourse, ExamSummary, ExerciseDetailsResponse, StudentExam, ExerciseDetail } from '../../types/apiResponses';
 import type { ArtemisUser } from '../../types';
@@ -201,40 +201,6 @@ export class AppStateManager {
 
     public backToCourseDetails(): void {
         this._currentState = 'course-detail';
-    }
-
-    /**
-     * Refresh the current exercise detail view with fresh data
-     */
-    public async refreshCurrentExercise(): Promise<void> {
-        if (this._currentState === 'exercise-detail' && this._currentExerciseData) {
-            const exerciseId = this._currentExerciseData?.exercise?.id;
-            if (exerciseId) {
-                logger.info(`🔄 Refreshing exercise ${exerciseId}`, LogCategory.VIEW);
-                await this.showExerciseDetail(exerciseId);
-            }
-        }
-    }
-
-    // Data management
-    public clearCoursesData(): void {
-        this._coursesData = undefined;
-    }
-
-    public clearCurrentCourseData(): void {
-        this._currentCourseData = undefined;
-    }
-
-    public clearCurrentExerciseData(): void {
-        this._currentExerciseData = undefined;
-    }
-
-    public clearDashboardData(): void {
-        this._coursesData = undefined;
-    }
-
-    public setCoursesData(data: CourseDashboardResponse): void {
-        this._coursesData = data;
     }
 
     public injectCourseEntry(entry: CourseDashboardEntry): void {

@@ -93,6 +93,17 @@ export class RepositoryCommandModule {
         }
     }
 
+    private async _selectFolder(openLabel: string, title: string): Promise<string | undefined> {
+        const folderUri = await vscode.window.showOpenDialog({
+            canSelectFiles: false,
+            canSelectFolders: true,
+            canSelectMany: false,
+            openLabel,
+            title,
+        });
+        return folderUri?.[0]?.fsPath;
+    }
+
     public getHandlers(): CommandMap {
         return {
             [WebviewCmd.CheckRepositoryStatus]: this.handleCheckRepositoryStatus,
@@ -206,35 +217,21 @@ export class RepositoryCommandModule {
                         selectedPath = defaultClonePath;
                     } else {
                         vscode.window.showWarningMessage(`Default clone path "${defaultClonePath}" is not a directory. Please select a folder.`);
-                        const folderUri = await vscode.window.showOpenDialog({
-                            canSelectFiles: false,
-                            canSelectFolders: true,
-                            canSelectMany: false,
-                            openLabel: 'Select Clone Destination',
-                            title: `Choose where to clone ${exerciseTitle}`
-                        });
-
-                        if (!folderUri || !folderUri[0]) {
+                        const fallbackPath = await this._selectFolder('Select Clone Destination', `Choose where to clone ${exerciseTitle}`);
+                        if (!fallbackPath) {
                             vscode.window.showInformationMessage('Clone cancelled - no destination selected.');
                             return;
                         }
-                        selectedPath = folderUri[0].fsPath;
+                        selectedPath = fallbackPath;
                     }
                 } catch (error: unknown) {
                     vscode.window.showWarningMessage(`Default clone path "${defaultClonePath}" does not exist. Please select a folder.`);
-                    const folderUri = await vscode.window.showOpenDialog({
-                        canSelectFiles: false,
-                        canSelectFolders: true,
-                        canSelectMany: false,
-                        openLabel: 'Select Clone Destination',
-                        title: `Choose where to clone ${exerciseTitle}`
-                    });
-
-                    if (!folderUri || !folderUri[0]) {
+                    const errorFallbackPath = await this._selectFolder('Select Clone Destination', `Choose where to clone ${exerciseTitle}`);
+                    if (!errorFallbackPath) {
                         vscode.window.showInformationMessage('Clone cancelled - no destination selected.');
                         return;
                     }
-                    selectedPath = folderUri[0].fsPath;
+                    selectedPath = errorFallbackPath;
                 }
             } else {
                 // No default path configured - show prompt if enabled
@@ -248,16 +245,9 @@ export class RepositoryCommandModule {
                     );
 
                     if (choice === 'Set Default Folder') {
-                        const folderUri = await vscode.window.showOpenDialog({
-                            canSelectFiles: false,
-                            canSelectFolders: true,
-                            canSelectMany: false,
-                            openLabel: 'Set as Default',
-                            title: 'Select default folder for all exercise repositories'
-                        });
-
-                        if (folderUri && folderUri[0]) {
-                            selectedPath = folderUri[0].fsPath;
+                        const defaultFolderPath = await this._selectFolder('Set as Default', 'Select default folder for all exercise repositories');
+                        if (defaultFolderPath) {
+                            selectedPath = defaultFolderPath;
                             // Save as default
                             await config.update(
                                 VSCODE_CONFIG.DEFAULT_CLONE_PATH_KEY,
@@ -278,34 +268,19 @@ export class RepositoryCommandModule {
                         );
 
                         // Still need to get a folder for this clone
-                        const folderUri = await vscode.window.showOpenDialog({
-                            canSelectFiles: false,
-                            canSelectFolders: true,
-                            canSelectMany: false,
-                            openLabel: 'Select Folder',
-                            title: `Where should "${exerciseTitle}" be cloned?`
-                        });
-
-                        if (!folderUri || !folderUri[0]) {
+                        const dontAskPath = await this._selectFolder('Select Folder', `Where should "${exerciseTitle}" be cloned?`);
+                        if (!dontAskPath) {
                             vscode.window.showInformationMessage('Clone cancelled - no folder selected.');
                             return;
                         }
-                        selectedPath = folderUri[0].fsPath;
+                        selectedPath = dontAskPath;
                     } else if (choice === 'Choose Each Time') {
-                        // "Choose Each Time" - just show the folder picker for this clone
-                        const folderUri = await vscode.window.showOpenDialog({
-                            canSelectFiles: false,
-                            canSelectFolders: true,
-                            canSelectMany: false,
-                            openLabel: 'Select Folder',
-                            title: `Where should "${exerciseTitle}" be cloned?`
-                        });
-
-                        if (!folderUri || !folderUri[0]) {
+                        const chosenPath = await this._selectFolder('Select Folder', `Where should "${exerciseTitle}" be cloned?`);
+                        if (!chosenPath) {
                             vscode.window.showInformationMessage('Clone cancelled - no folder selected.');
                             return;
                         }
-                        selectedPath = folderUri[0].fsPath;
+                        selectedPath = chosenPath;
                     } else {
                         // User cancelled the modal (pressed ESC) - abort clone
                         vscode.window.showInformationMessage('Clone cancelled.');
@@ -313,19 +288,12 @@ export class RepositoryCommandModule {
                     }
                 } else {
                     // Prompt disabled, just show folder picker
-                    const folderUri = await vscode.window.showOpenDialog({
-                        canSelectFiles: false,
-                        canSelectFolders: true,
-                        canSelectMany: false,
-                        openLabel: 'Select Clone Destination',
-                        title: `Choose where to clone ${exerciseTitle}`
-                    });
-
-                    if (!folderUri || !folderUri[0]) {
+                    const promptDisabledPath = await this._selectFolder('Select Clone Destination', `Choose where to clone ${exerciseTitle}`);
+                    if (!promptDisabledPath) {
                         vscode.window.showInformationMessage('Clone cancelled - no destination selected.');
                         return;
                     }
-                    selectedPath = folderUri[0].fsPath;
+                    selectedPath = promptDisabledPath;
                 }
 
             }

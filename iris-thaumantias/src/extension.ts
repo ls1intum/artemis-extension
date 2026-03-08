@@ -161,7 +161,6 @@ export async function activate(context: vscode.ExtensionContext) {
 	);
 
 	// Register providers in the registry so they can be accessed by other parts of the extension
-	providerRegistry.setArtemisWebviewProvider(artemisWebviewProvider);
 	providerRegistry.setChatWebviewProvider(chatWebviewProvider);
 
 	// Add telemetry manager to subscriptions for proper disposal
