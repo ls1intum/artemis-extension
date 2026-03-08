@@ -223,7 +223,7 @@ export class ChatContextManager {
     private _resetSessionForContextChange(): void {
         const irisSessionManager = this._getIrisSessionManager();
         if (irisSessionManager) {
-            irisSessionManager.unsubscribe();
+            irisSessionManager.resetSession();
         }
     }
 

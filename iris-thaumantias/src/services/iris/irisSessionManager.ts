@@ -76,6 +76,12 @@ export class IrisSessionManager implements vscode.Disposable {
         this._isSubscribed = false;
     }
 
+    /** Unsubscribe AND clear the cached session ID (used on context switch). */
+    public resetSession(): void {
+        this.unsubscribe();
+        this._currentArtemisSessionId = undefined;
+    }
+
     public async initializeSession(context: ActiveContext, storedSessionId?: number): Promise<number> {
         logger.session(`Initializing session for ${context.type} ${context.id}`);
 
