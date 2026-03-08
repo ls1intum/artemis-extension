@@ -180,6 +180,7 @@ describe('Exercise Submission Flow', () => {
 		dispatchExtensionMessage({
 			type: 'exerciseDetailInit',
 			exerciseData: makeExerciseDataWithParticipation(),
+			repoStatus: { isConnected: true, hasChanges: true, isPracticeRepo: false },
 			hideDeveloperTools: false,
 		});
 
@@ -196,6 +197,7 @@ describe('Exercise Submission Flow', () => {
 		dispatchExtensionMessage({
 			type: 'exerciseDetailInit',
 			exerciseData: makeExerciseDataWithParticipation(),
+			repoStatus: { isConnected: true, hasChanges: true, isPracticeRepo: false },
 			hideDeveloperTools: false,
 		});
 
@@ -250,6 +252,7 @@ describe('Exercise Submission Flow', () => {
 		dispatchExtensionMessage({
 			type: 'exerciseDetailInit',
 			exerciseData: makeExerciseDataWithParticipation(),
+			repoStatus: { isConnected: true, hasChanges: true, isPracticeRepo: false },
 			hideDeveloperTools: false,
 		});
 

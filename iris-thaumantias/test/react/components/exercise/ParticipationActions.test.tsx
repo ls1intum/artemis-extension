@@ -69,6 +69,7 @@ describe('ParticipationActions', () => {
 					exerciseType="programming"
 					participationStatus="in-progress"
 					canSubmit={true}
+					workspaceStatus="dirty"
 				/>
 			);
 			expect(screen.getByRole('button', { name: 'Submit' })).toBeInTheDocument();
@@ -92,6 +93,7 @@ describe('ParticipationActions', () => {
 					exerciseType="programming"
 					participationStatus="in-progress"
 					canSubmit={true}
+					workspaceStatus="dirty"
 					onSubmit={handleSubmit}
 				/>
 			);
@@ -108,6 +110,7 @@ describe('ParticipationActions', () => {
 					exerciseType="programming"
 					participationStatus="in-progress"
 					canSubmit={true}
+					workspaceStatus="dirty"
 					onToggleCommitMessage={handleToggle}
 				/>
 			);

@@ -188,7 +188,7 @@ export function ParticipationActions({
   // Submit button group
   const renderSubmitButtonGroup = () => {
     const isWorkspaceConnected = workspaceStatus === 'clean' || workspaceStatus === 'dirty';
-    if (!isProgramming || !hasParticipation || !canSubmit || !isWorkspaceConnected) {return null;}
+    if (!isProgramming || !hasParticipation || !canSubmit || (!isExamExercise && !isWorkspaceConnected)) {return null;}
     const noChanges = workspaceStatus === 'clean';
     return (
       <div className={styles.submitButtonGroup}>

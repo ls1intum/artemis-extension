@@ -163,6 +163,7 @@ describe('ExamExerciseDetailView', () => {
 		useExerciseDetailStore.setState({
 			exerciseData: makeExerciseDataWithParticipation() as never,
 			isLoading: false,
+			repoStatus: { isConnected: true, hasChanges: true, isPracticeRepo: false },
 		});
 		const mockApi = createMockVsCodeApi();
 		render(<ExamExerciseDetailView vscodeApi={mockApi} />);
@@ -174,6 +175,7 @@ describe('ExamExerciseDetailView', () => {
 		useExerciseDetailStore.setState({
 			exerciseData: makeExerciseDataWithParticipation() as never,
 			isLoading: false,
+			repoStatus: { isConnected: true, hasChanges: true, isPracticeRepo: false },
 		});
 		const mockApi = createMockVsCodeApi();
 		render(<ExamExerciseDetailView vscodeApi={mockApi} />);

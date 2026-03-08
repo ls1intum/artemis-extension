@@ -192,6 +192,7 @@ describe('ExerciseDetailView', () => {
 	it('shows submit button when participation exists', () => {
 		useExerciseDetailStore.setState({
 			exerciseData: makeExerciseDataWithParticipation() as never,
+			repoStatus: { isConnected: true, hasChanges: true, isPracticeRepo: false },
 		});
 		const mockApi = createMockVsCodeApi();
 		render(<ExerciseDetailView vscodeApi={mockApi} />);
@@ -201,6 +202,7 @@ describe('ExerciseDetailView', () => {
 	it('submit button sends submitExercise postMessage', async () => {
 		useExerciseDetailStore.setState({
 			exerciseData: makeExerciseDataWithParticipation() as never,
+			repoStatus: { isConnected: true, hasChanges: true, isPracticeRepo: false },
 		});
 		const mockApi = createMockVsCodeApi();
 		render(<ExerciseDetailView vscodeApi={mockApi} />);

@@ -31,6 +31,16 @@ class MockArtemisApiService extends ArtemisApiService {
         };
     }
 
+    async getCourseForDashboard(courseId: number) {
+        this.getCourseDetailsCalled = true;
+        this.lastCourseId = courseId;
+        return { course: { id: courseId, title: 'Test Course' } };
+    }
+
+    async getExamsForCourse(_courseId: number) {
+        return [];
+    }
+
     async getCourseDetails(courseId: number) {
         this.getCourseDetailsCalled = true;
         this.lastCourseId = courseId;

@@ -127,7 +127,7 @@ suite('ChatContextManager Test Suite', () => {
             const snapshot = contextStore.snapshot();
             assert.ok(snapshot.activeContext);
             assert.strictEqual(snapshot.activeContext.type, 'lecture');
-            assert.ok(showInformationMessageStub.calledWith('Context context set to: Test Lecture'));
+            assert.ok(showInformationMessageStub.calledWith('Course context set to: Test Lecture'));
         });
 
         test('should handle session loading errors gracefully', async () => {
@@ -345,7 +345,8 @@ suite('ChatContextManager Test Suite', () => {
         test('should find exercise with "(Workspace)" in title', () => {
             contextStore.registerExercise({
                 id: 123,
-                title: 'My Exercise (Workspace)'
+                title: 'My Exercise (Workspace)',
+                isWorkspace: true
             });
 
             const result = chatContextManager.handleSwitchToWorkspaceContext();
@@ -357,7 +358,8 @@ suite('ChatContextManager Test Suite', () => {
         test('should be case-insensitive when matching "(Workspace)"', () => {
             contextStore.registerExercise({
                 id: 123,
-                title: 'My Exercise (workspace)'
+                title: 'My Exercise (workspace)',
+                isWorkspace: true
             });
 
             const result = chatContextManager.handleSwitchToWorkspaceContext();
