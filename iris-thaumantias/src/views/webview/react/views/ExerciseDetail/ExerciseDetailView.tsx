@@ -213,6 +213,10 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
         }
     }
 
+    // Practice availability: exercise is overdue, programming, and user has no (graded) participation
+    const isOverdue = dueDate ? new Date(dueDate).getTime() < Date.now() : false;
+    const isPracticeAvailable = isProgramming && isOverdue && !hasParticipation;
+
     // Workspace status derived from repoStatus
     const workspaceStatus = !repoStatus ? 'checking'
         : !repoStatus.isConnected ? 'disconnected'
@@ -313,6 +317,7 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
                     canSubmit={hasParticipation && isProgramming}
                     workspaceStatus={workspaceStatus}
                     isPracticeMode={repoStatus?.isPracticeRepo ?? false}
+                    isPracticeAvailable={isPracticeAvailable}
                     hasUnsavedChanges={dirtyPagesStatus?.hasDirtyPages === true && !dirtyPagesStatus?.autoSaveEnabled}
                     showClonedNotice={!!clonedNotice}
                     onConfigureAutoSave={() => postCommand(vscodeApi, 'openSettings', { setting: 'files.autoSave' })}
@@ -359,7 +364,7 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
                     }}
                     onStartPractice={() => {
                         if (exercise.id === undefined) {return;}
-                        postCommand(vscodeApi, 'startPractice', { exerciseId: exercise.id });
+                        postCommand(vscodeApi, 'startPractice', { exerciseId: exercise.id, exerciseTitle: exercise.title });
                     }}
                     onOpenInBrowser={() => {
                         postCommand(vscodeApi, 'openWebsite');
