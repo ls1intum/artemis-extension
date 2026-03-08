@@ -163,13 +163,7 @@ export class ChatContextManager {
     }
 
     public handleSwitchToWorkspaceContext(): TrackedExercise | undefined {
-        const snapshot = this._contextStore.snapshot();
-
-        const workspaceExercise = snapshot.recentExercises.find(exercise =>
-            exercise.isWorkspace || /\(Workspace\)/i.test(exercise.title)
-        ) || snapshot.allExercises.find(exercise =>
-            exercise.isWorkspace || /\(Workspace\)/i.test(exercise.title)
-        );
+        const workspaceExercise = this._contextStore.getWorkspaceExercise();
 
         if (!workspaceExercise) {
             vscode.window.showWarningMessage('No workspace exercise detected. Open a workspace folder with a git repository.');

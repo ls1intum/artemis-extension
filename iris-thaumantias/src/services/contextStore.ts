@@ -171,6 +171,11 @@ export class ContextStore {
             ?? this.state.recentExercises.find(exercise => exercise.id === exerciseId);
     }
 
+    public getWorkspaceExercise(): TrackedExercise | undefined {
+        return this.state.allExercises.find(ex => ex.isWorkspace)
+            ?? this.state.recentExercises.find(ex => ex.isWorkspace);
+    }
+
     public registerExercise(input: ExerciseInput): ContextSnapshot {
 
         const entry = this.upsertExercise(input);
@@ -178,11 +183,14 @@ export class ContextStore {
         this.trimExerciseHistory();
 
         if (input.source === 'workspace-detected') {
-            // Only override the active context if:
+            // Override the active context if:
             // 1. There is no active context, OR
-            // 2. The active context is NOT user-selected (respect explicit user choices)
-            const shouldOverride = !this.state.activeContext ||
-                this.state.activeContext.source !== 'user-selected';
+            // 2. A different exercise was detected (new workspace opened), OR
+            // 3. The active context is NOT user-selected (respect user choice only for same workspace)
+            const isDifferentExercise = !this.state.activeContext ||
+                this.state.activeContext.id !== entry.id;
+            const shouldOverride = isDifferentExercise ||
+                this.state.activeContext!.source !== 'user-selected';
 
             if (shouldOverride) {
                 logger.context('Source is workspace-detected, setting active context to workspace exercise');
@@ -197,7 +205,7 @@ export class ContextStore {
                     selectedAt: now(),
                 });
             } else {
-                logger.context('Workspace exercise detected, but user has explicitly selected another context - NOT overriding');
+                logger.context('Same workspace exercise re-detected, user has explicitly selected another context - NOT overriding');
             }
         } else if (!this.state.activeContext) {
             logger.context('No active context exists, calling autoSelectContext()');

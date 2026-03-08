@@ -44,8 +44,43 @@ suite('ContextStore Test Suite', () => {
         assert.strictEqual(snapshot.activeContext.source, 'workspace-detected');
     });
 
-    test('should not override user-selected context with workspace exercise', () => {
-        // Set user selected context
+    test('should not override user-selected when same workspace exercise re-detected', () => {
+        // Register workspace exercise first
+        contextStore.registerExercise({
+            id: 1,
+            title: 'Workspace Exercise',
+            source: 'workspace-detected',
+            isWorkspace: true
+        });
+
+        // User manually switches to a different context but with same exercise ID
+        // (simulating user selecting something, then same workspace re-triggers)
+        const userContext: ActiveContext = {
+            type: 'exercise',
+            id: 1,
+            title: 'Workspace Exercise',
+            source: 'user-selected',
+            selectedAt: Date.now(),
+            locked: false
+        };
+        contextStore.setActiveContext(userContext);
+
+        // Same workspace exercise re-detected (e.g. view becomes visible again)
+        contextStore.registerExercise({
+            id: 1,
+            title: 'Workspace Exercise',
+            source: 'workspace-detected',
+            isWorkspace: true
+        });
+
+        const snapshot = contextStore.snapshot();
+        assert.ok(snapshot.activeContext);
+        assert.strictEqual(snapshot.activeContext.id, 1);
+        assert.strictEqual(snapshot.activeContext.source, 'user-selected'); // Should respect user choice
+    });
+
+    test('should override user-selected when different workspace exercise detected', () => {
+        // Set user-selected context for exercise 2
         const userContext: ActiveContext = {
             type: 'exercise',
             id: 2,
@@ -56,17 +91,18 @@ suite('ContextStore Test Suite', () => {
         };
         contextStore.setActiveContext(userContext);
 
-        // Try to register workspace exercise
+        // Different workspace exercise detected (new project opened)
         contextStore.registerExercise({
             id: 1,
-            title: 'Workspace Exercise',
-            source: 'workspace-detected'
+            title: 'New Workspace Exercise',
+            source: 'workspace-detected',
+            isWorkspace: true
         });
 
         const snapshot = contextStore.snapshot();
         assert.ok(snapshot.activeContext);
-        assert.strictEqual(snapshot.activeContext.id, 2); // Should still be user exercise
-        assert.strictEqual(snapshot.activeContext.source, 'user-selected');
+        assert.strictEqual(snapshot.activeContext.id, 1); // Should override to new workspace
+        assert.strictEqual(snapshot.activeContext.source, 'workspace-detected');
     });
 
     test('should register course', () => {

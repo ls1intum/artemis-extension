@@ -15,11 +15,20 @@ export class IrisSessionLifecycleService {
         private readonly _getIrisSessionManager: () => IrisSessionManager | undefined,
         private readonly _postMessage: (message: ExtensionToWebviewMessage) => void,
         private readonly _postSnapshot: () => void,
-        private readonly _loadIrisMessages: () => Promise<void>
+        private readonly _loadIrisMessages: () => Promise<void>,
+        private readonly _resetToWorkspace: () => void = () => {},
     ) { }
 
     public createNewSession(): void {
         logger.info('Creating new session', LogCategory.IRIS_CHAT);
+
+        // If workspace exercise exists and we're not in workspace context, switch back
+        const workspaceExercise = this._contextStore.getWorkspaceExercise();
+        const currentContext = this._contextStore.getActiveContext();
+        if (workspaceExercise && currentContext?.source !== 'workspace-detected') {
+            this._resetToWorkspace();
+            return; // switchContext in the provider already handles session creation
+        }
 
         const irisSessionManager = this._getIrisSessionManager();
         if (irisSessionManager) {

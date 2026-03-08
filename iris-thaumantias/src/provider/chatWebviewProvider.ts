@@ -109,7 +109,8 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
             () => this._irisSessionManager,
             (message) => this._postMessageSafe(message),
             () => this._postSnapshot(),
-            () => this._loadIrisMessages()
+            () => this._loadIrisMessages(),
+            () => this._handleSwitchToWorkspaceContext(),
         );
         this._websocketMessageHandler = new IrisWebSocketMessageHandler(
             this._websocketService,
@@ -169,7 +170,10 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
 
         webviewView.webview.options = {
             enableScripts: true,
-            localResourceRoots: [vscode.Uri.joinPath(this._extensionUri, 'dist')],
+            localResourceRoots: [
+                vscode.Uri.joinPath(this._extensionUri, 'dist'),
+                vscode.Uri.joinPath(this._extensionUri, 'media'),
+            ],
         };
 
         webviewView.webview.html = getReactWebviewHtml(webviewView.webview, this._extensionUri, 'irisChat');
@@ -225,6 +229,11 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
         void this._loadIrisMessagesIfNeeded();
         void this._fileMonitorService.triggerUpdate();
         this._postNoAiStatus(this._noAiDetectionService.isNoAiEnabled);
+
+        // Send current WebSocket connection status so the banner reflects reality
+        if (this._websocketService) {
+            this._websocketMessageHandler.updateWebSocketStatus(this._websocketService.isConnected());
+        }
     }
 
     // ── Public API ─────────────────────────────────────────────────────
