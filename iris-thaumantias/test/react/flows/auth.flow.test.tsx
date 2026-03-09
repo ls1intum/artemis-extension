@@ -68,12 +68,11 @@ describe('Auth Flow', () => {
 		});
 	});
 
-	it('restores persisted form state from getState on mount', () => {
+	it('restores persisted form state from getState on mount (password never persisted)', () => {
 		const mockApi = createMockVsCodeApi({
 			getState: <T = unknown>() =>
 				({
 					username: 'persisted-user',
-					password: 'persisted-pass',
 					rememberMe: true,
 				}) as T | undefined,
 		});
@@ -84,7 +83,7 @@ describe('Auth Flow', () => {
 		const passwordInput = screen.getByTestId('login-password') as HTMLInputElement;
 
 		expect(usernameInput.value).toBe('persisted-user');
-		expect(passwordInput.value).toBe('persisted-pass');
+		expect(passwordInput.value).toBe('');
 	});
 
 	it('prevents form submission when username or password is empty', async () => {

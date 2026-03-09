@@ -205,7 +205,7 @@
     "test:react": "vitest run",
     "test:react:watch": "vitest",
     "test:react:coverage": "vitest run --coverage",
-    "test:struggle": "npm run compile-tests && vscode-test --label unit --grep \"Struggle Detection\"",
+    "test:struggle": "npm run compile-tests && vscode-test --label struggle",
     "test:e2e": "npm run compile-tests && vscode-test --label e2e",
     "test:ui": "bash test/e2e/ui/run-tests.sh",
     "test:all": "npm run test:unit && npm run test:react",

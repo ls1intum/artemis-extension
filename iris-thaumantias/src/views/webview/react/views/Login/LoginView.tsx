@@ -16,9 +16,9 @@ export function LoginView({ vscodeApi }: LoginViewProps) {
 	// View state (discriminated)
 	const [viewState, setViewState] = useState<LoginViewState>('form');
 
-	// Form state (persisted)
+	// Form state (persisted — password excluded for security)
 	const [username, setUsername] = useState(persistedState?.username || '');
-	const [password, setPassword] = useState(persistedState?.password || '');
+	const [password, setPassword] = useState('');
 	const [rememberMe, setRememberMe] = useState(persistedState?.rememberMe ?? true);
 
 	// Transient status messages
@@ -56,10 +56,9 @@ export function LoginView({ vscodeApi }: LoginViewProps) {
 	useEffect(() => {
 		vscodeApi.setState<LoginPersistedState>({
 			username,
-			password,
 			rememberMe,
 		});
-	}, [username, password, rememberMe, vscodeApi]);
+	}, [username, rememberMe, vscodeApi]);
 
 	// Timer ref for hide-loading animation
 	const hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);

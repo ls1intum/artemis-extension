@@ -107,7 +107,6 @@ describe('LoginView', () => {
 		const mockApi = createMockVsCodeApi({
 			getState: <T = unknown>() => ({
 				username: 'saved-user',
-				password: 'saved-pass',
 				rememberMe: true,
 			}) as T | undefined,
 		});
@@ -118,7 +117,7 @@ describe('LoginView', () => {
 		const passwordInput = screen.getByTestId('login-password') as HTMLInputElement;
 
 		expect(usernameInput.value).toBe('saved-user');
-		expect(passwordInput.value).toBe('saved-pass');
+		expect(passwordInput.value).toBe('');
 	});
 
 	it('displays error message on loginError', async () => {

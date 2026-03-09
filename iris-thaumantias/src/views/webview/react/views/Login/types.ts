@@ -9,11 +9,11 @@ export interface LoginViewProps {
 
 /**
  * Persisted state for the Login view.
- * ALL form values are persisted per user decision.
+ * Password is intentionally excluded — it is only needed for the single
+ * authenticate request and must never be written to disk.
  */
 export interface LoginPersistedState {
 	username: string;
-	password: string;
 	rememberMe: boolean;
 }
 

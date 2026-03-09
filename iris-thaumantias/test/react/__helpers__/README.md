@@ -167,7 +167,7 @@ it('restores persisted state from getState', () => {
   const mockApi = createMockVsCodeApi({
     getState: vi.fn(() => ({
       username: 'saved-user',
-      password: 'saved-pass',
+      rememberMe: true,
     })),
   });
 
@@ -177,6 +177,9 @@ it('restores persisted state from getState', () => {
   expect(usernameInput.value).toBe('saved-user');
 });
 ```
+
+> **Note:** Passwords must never be included in persisted state.
+> They are only held in React component state for the duration of the login form submission.
 
 ## Anti-Patterns
 

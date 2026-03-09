@@ -18,6 +18,11 @@ export default defineConfig([
 		},
 	},
 	{
+		// Struggle detection tests
+		label: 'struggle',
+		files: 'out/test/unit/struggle-detection/**/*.test.js',
+	},
+	{
 		// E2E tests (requires running Artemis + Iris)
 		label: 'e2e',
 		files: 'out/test/e2e/**/*.e2e.test.js',

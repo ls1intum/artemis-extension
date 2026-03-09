@@ -223,9 +223,9 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
 
     // ── Init data ──────────────────────────────────────────────────────
 
-    private _sendInitData(): void {
+    private async _sendInitData(): Promise<void> {
         this._postSnapshot();
-        void this._detectWorkspaceExercise();
+        await this._detectWorkspaceExercise();
         void this._loadIrisMessagesIfNeeded();
         void this._fileMonitorService.triggerUpdate();
         this._postNoAiStatus(this._noAiDetectionService.isNoAiEnabled);
