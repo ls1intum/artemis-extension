@@ -171,11 +171,8 @@ describe('useExerciseDetailStore', () => {
 			result.current.setExerciseData(exerciseData, false);
 		});
 
-		// Create a submission that references the participation
-		const newSubmission = {
-			...makeSubmission({ id: 201, submissionDate: '2025-01-02T12:00:00Z' }),
-			participation: { id: 10 },
-		} as SubmissionSummary & { participation: { id: number } };
+		// Create a submission that references the participation by participationId
+		const newSubmission = makeSubmission({ id: 201, submissionDate: '2025-01-02T12:00:00Z', participationId: 10 });
 
 		act(() => {
 			result.current.updateSubmission(newSubmission);
@@ -231,6 +228,79 @@ describe('useExerciseDetailStore', () => {
 		});
 
 		expect(result.current.pendingSubmission).toBeNull();
+	});
+
+	it('updateBuildStatus with unknown participationId does not mutate state', () => {
+		const { result } = renderHook(() => useExerciseDetailStore());
+		const participation = makeParticipation({ id: 10, submissions: [makeSubmission({ id: 300 })] });
+		const exerciseData = makeExerciseData({
+			exercise: { id: 1, studentParticipations: [participation] },
+		});
+
+		act(() => {
+			result.current.setExerciseData(exerciseData, false);
+		});
+
+		const resultPayload = makeResult({ id: 999, participationId: 999 });
+
+		act(() => {
+			result.current.updateBuildStatus(resultPayload);
+		});
+
+		// Participation should be untouched
+		const p = result.current.exerciseData?.exercise?.studentParticipations?.[0];
+		expect(p?.id).toBe(10);
+		expect(p?.submissions).toHaveLength(1);
+		expect(p?.submissions?.[0]?.results).toBeUndefined();
+		expect(result.current.pendingSubmission).toBeNull();
+	});
+
+	it('updateSubmission with unknown participationId does not mutate state', () => {
+		const { result } = renderHook(() => useExerciseDetailStore());
+		const existingSubmission = makeSubmission({ id: 200 });
+		const participation = makeParticipation({ id: 10, submissions: [existingSubmission] });
+		const exerciseData = makeExerciseData({
+			exercise: { id: 1, studentParticipations: [participation] },
+		});
+
+		act(() => {
+			result.current.setExerciseData(exerciseData, false);
+		});
+
+		const newSubmission = makeSubmission({ id: 201, participationId: 999 });
+
+		act(() => {
+			result.current.updateSubmission(newSubmission);
+		});
+
+		const p = result.current.exerciseData?.exercise?.studentParticipations?.[0];
+		expect(p?.submissions).toHaveLength(1);
+		expect(p?.submissions?.[0]?.id).toBe(200);
+	});
+
+	it('setExerciseData clears stale clonedNotice and dirtyPagesStatus', () => {
+		const { result } = renderHook(() => useExerciseDetailStore());
+
+		act(() => {
+			result.current.setExerciseData(makeExerciseData(), false);
+		});
+
+		// Simulate receiving clonedNotice and dirtyPagesStatus from a previous exercise
+		act(() => {
+			result.current.setClonedNotice('Old Exercise');
+			result.current.setDirtyPagesStatus({ hasDirtyPages: true, dirtyFileCount: 3, autoSaveEnabled: false });
+		});
+
+		expect(result.current.clonedNotice).toBe('Old Exercise');
+		expect(result.current.dirtyPagesStatus?.hasDirtyPages).toBe(true);
+
+		// Switch to a new exercise
+		act(() => {
+			result.current.setExerciseData(makeExerciseData({ exercise: { id: 2, title: 'New Exercise', studentParticipations: [] } }), false);
+		});
+
+		expect(result.current.clonedNotice).toBeNull();
+		expect(result.current.dirtyPagesStatus).toBeNull();
 	});
 
 	it('state is fully reset in beforeEach — exercise data does not bleed between tests', () => {

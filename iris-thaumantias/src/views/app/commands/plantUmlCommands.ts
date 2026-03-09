@@ -18,13 +18,14 @@ export class PlantUmlCommandModule {
     }
 
     private handleRenderPlantUmlInline = async (message: WebviewToExtensionMessage): Promise<void> => {
-        const { plantUml, index } = getPayload<WebCmd<'renderPlantUmlInline'>>(message);
+        const { plantUml, index, nonce } = getPayload<WebCmd<'renderPlantUmlInline'>>(message);
 
         if (!plantUml) {
             this.context.sendMessage({
                 type: ExtensionMsg.PlantUmlError,
                 index: index,
-                error: 'No PlantUML content provided'
+                error: 'No PlantUML content provided',
+                nonce: nonce
             });
             return;
         }
@@ -39,7 +40,8 @@ export class PlantUmlCommandModule {
             this.context.sendMessage({
                 type: ExtensionMsg.PlantUmlRendered,
                 index: index,
-                svg: svg
+                svg: svg,
+                nonce: nonce
             });
 
             logger.info(`✅ Inline PlantUML diagram ${index + 1} rendered successfully`, LogCategory.PLANTUML);
@@ -49,7 +51,8 @@ export class PlantUmlCommandModule {
             this.context.sendMessage({
                 type: ExtensionMsg.PlantUmlError,
                 index: index,
-                error: errorMsg
+                error: errorMsg,
+                nonce: nonce
             });
         }
     };

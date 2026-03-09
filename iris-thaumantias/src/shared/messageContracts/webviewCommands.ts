@@ -178,7 +178,7 @@ interface WebviewCmdPayloads {
     openHelpPopup: undefined;
 
     // PlantUML inline rendering
-    renderPlantUmlInline: { plantUml: string; index: number };
+    renderPlantUmlInline: { plantUml: string; index: number; nonce: number };
 }
 
 /** Commands that require a non-undefined payload object. */

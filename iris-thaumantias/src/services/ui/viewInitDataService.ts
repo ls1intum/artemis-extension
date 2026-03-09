@@ -194,6 +194,7 @@ export class ViewInitDataService {
             }).catch((error) => {
                 if (gen !== this._initGeneration) { return; }
                 logger.error('Failed to detect workspace status for exercise detail', LogCategory.VIEW, error);
+                this._getMessageHandler().clearRepositoryContext();
                 this._postMessage({
                     type: ExtensionMsg.ExerciseDetailInit,
                     exerciseData: exerciseData as ExerciseDetailsResponse,
@@ -201,6 +202,7 @@ export class ViewInitDataService {
                 });
             });
         } else {
+            this._getMessageHandler().clearRepositoryContext();
             this._postMessage({
                 type: ExtensionMsg.ExerciseDetailInit,
                 exerciseData: exerciseData as ExerciseDetailsResponse,

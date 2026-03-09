@@ -42,6 +42,10 @@ export class RepositoryCommandModule {
         this.currentWorkspacePath = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
     }
 
+    public clearRepositoryContext(): void {
+        this.currentRepoContext = undefined;
+    }
+
     public dispose(): void {
         for (const d of this.listenerDisposables) {
             d.dispose();

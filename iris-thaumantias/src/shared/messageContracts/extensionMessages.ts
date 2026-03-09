@@ -258,8 +258,8 @@ interface ExtensionMsgPayloads {
     };
 
     // PlantUML
-    plantUmlRendered: { index: number; svg: string };
-    plantUmlError: { index: number; error: string };
+    plantUmlRendered: { index: number; svg: string; nonce: number };
+    plantUmlError: { index: number; error: string; nonce: number };
 }
 
 /** Auto-generated discriminated union of all Extension->Webview messages */

@@ -19,7 +19,7 @@ import {
     ResultDTO,
     BuildLogEntry,
     ParsedBuildError,
-} from '../../../src/models';
+} from '../../../src/types/artemis';
 
 suite('ApiError', () => {
     test('extends Error with status and detail', () => {

@@ -18,6 +18,7 @@ export function ProblemStatement({
     vscodeApi,
 }: ProblemStatementProps) {
     const contentRef = useRef<HTMLDivElement>(null);
+    const renderNonce = useRef(0);
 
     // Process HTML through KaTeX, sanitizer, and marker pipeline
     const processedHtml = useMemo(() => processProblemStatement(markdown), [markdown]);
@@ -64,14 +65,18 @@ export function ProblemStatement({
         const plantUmlElements = container.querySelectorAll('.plantuml-placeholder[data-plantuml]');
         if (plantUmlElements.length === 0) {return;}
 
+        renderNonce.current++;
+        const nonce = renderNonce.current;
+
         plantUmlElements.forEach((element, index) => {
             const encoded = element.getAttribute('data-plantuml');
             if (!encoded) {return;}
 
             const plantUml = decodeURIComponent(encoded);
             element.setAttribute('data-plantuml-index', String(index));
+            element.setAttribute('data-plantuml-nonce', String(nonce));
 
-            postCommand(vscodeApi, 'renderPlantUmlInline', { plantUml, index });
+            postCommand(vscodeApi, 'renderPlantUmlInline', { plantUml, index, nonce });
         });
     }, [processedHtml, vscodeApi]);
 
@@ -84,24 +89,24 @@ export function ProblemStatement({
             const placeholder = container.querySelector(
                 `[data-plantuml-index="${msg.index ?? ''}"]`
             );
-            if (placeholder && placeholder.parentNode && typeof msg.svg === 'string') {
-                const rendered = document.createElement('div');
-                rendered.className = 'plantuml-rendered';
-                rendered.innerHTML = msg.svg;
-                placeholder.parentNode.replaceChild(rendered, placeholder);
-            }
+            if (!placeholder || !placeholder.parentNode || typeof msg.svg !== 'string') {return;}
+            if (placeholder.getAttribute('data-plantuml-nonce') !== String(msg.nonce)) {return;}
+            const rendered = document.createElement('div');
+            rendered.className = 'plantuml-rendered';
+            rendered.innerHTML = msg.svg;
+            placeholder.parentNode.replaceChild(rendered, placeholder);
         }
 
         if (msg.type === ExtensionMsg.PlantUmlError) {
             const placeholder = container.querySelector(
                 `[data-plantuml-index="${msg.index ?? ''}"]`
             );
-            if (placeholder && placeholder.parentNode) {
-                const errorDiv = document.createElement('div');
-                errorDiv.className = 'plantuml-error';
-                errorDiv.textContent = `Error rendering PlantUML: ${msg.error ?? 'Unknown error'}`;
-                placeholder.parentNode.replaceChild(errorDiv, placeholder);
-            }
+            if (!placeholder || !placeholder.parentNode) {return;}
+            if (placeholder.getAttribute('data-plantuml-nonce') !== String(msg.nonce)) {return;}
+            const errorDiv = document.createElement('div');
+            errorDiv.className = 'plantuml-error';
+            errorDiv.textContent = `Error rendering PlantUML: ${msg.error ?? 'Unknown error'}`;
+            placeholder.parentNode.replaceChild(errorDiv, placeholder);
         }
     }, [processedHtml, vscodeApi]);
 

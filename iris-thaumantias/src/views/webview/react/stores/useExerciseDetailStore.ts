@@ -89,6 +89,8 @@ export const useExerciseDetailStore = create<ExerciseDetailState>()(
                     isLoading: false,
                     pendingSubmission: (data.pendingSubmission as { state: string; participationId: number; buildTimingInfo?: unknown }) ?? null,
                     repoStatus: repoStatus ?? null,
+                    clonedNotice: null,
+                    dirtyPagesStatus: null,
                 }, false, 'setExerciseData');
             },
 
@@ -122,8 +124,9 @@ export const useExerciseDetailStore = create<ExerciseDetailState>()(
                 if (!participation) {
                     participation = findParticipationForResult(updatedData, result);
                 }
-                if (!participation && updatedData.exercise?.studentParticipations?.length) {
-                    participation = updatedData.exercise.studentParticipations[0];
+                if (!participation) {
+                    set({ pendingSubmission: null }, false, 'updateBuildStatus');
+                    return;
                 }
 
                 if (participation) {
@@ -167,8 +170,8 @@ export const useExerciseDetailStore = create<ExerciseDetailState>()(
                         (p: ParticipationSummary) => p.id === submission.participationId
                     );
                 }
-                if (!participation && updatedData.exercise?.studentParticipations?.length) {
-                    participation = updatedData.exercise.studentParticipations[0];
+                if (!participation) {
+                    return;
                 }
 
                 if (participation) {

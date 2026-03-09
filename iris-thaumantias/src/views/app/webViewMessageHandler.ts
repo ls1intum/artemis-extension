@@ -158,6 +158,10 @@ export class WebViewMessageHandler {
         this.repositoryModule.setRepositoryContext(repoUrl, exerciseId);
     }
 
+    public clearRepositoryContext(): void {
+        this.repositoryModule.clearRepositoryContext();
+    }
+
     private async updateAuthContext(isAuthenticated: boolean): Promise<void> {
         if (this._authContextUpdater) {
             await this._authContextUpdater(isAuthenticated);
