@@ -1,5 +1,5 @@
 import { createExamStore } from './createExamStore';
-import type { StudentExam, ExerciseDetailsResponse } from '../../../../types/apiResponses';
+import type { StudentExam } from '../../../../types/apiResponses';
 
 interface ExamContext {
     courseId: number | null;
@@ -17,9 +17,7 @@ export const useExamExerciseDetailStore = createExamStore(
     },
     (set) => ({
         setExamExerciseData: (payload: {
-            exerciseData: ExerciseDetailsResponse;
             examContext: ExamContext;
-            hideDeveloperTools: boolean;
         }) =>
             set({
                 examContext: payload.examContext,

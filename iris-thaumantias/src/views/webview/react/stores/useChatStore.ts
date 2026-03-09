@@ -39,7 +39,6 @@ interface ChatState {
     setMessages: (messages: ChatMessage[]) => void;
     addMessage: (message: ChatMessage) => void;
     clearMessages: () => void;
-    updateMessageContent: (localId: string, content: string) => void;
     setMessageStatus: (localId: string, status: 'sending' | 'sent' | 'error', errorMessage?: string) => void;
 
     // Streaming actions
@@ -123,14 +122,6 @@ export const useChatStore = create<ChatState>()(
                     messages: [],
                     streaming: { isStreaming: false, messageLocalId: null, visibleChunks: [] },
                 }, false, 'clearMessages');
-            },
-
-            updateMessageContent: (localId, content) => {
-                set((state) => ({
-                    messages: state.messages.map(msg =>
-                        msg.localId === localId ? { ...msg, content } : msg
-                    ),
-                }), false, 'updateMessageContent');
             },
 
             setMessageStatus: (localId, status, errorMessage) => {

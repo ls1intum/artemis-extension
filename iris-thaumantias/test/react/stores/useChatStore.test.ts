@@ -101,35 +101,6 @@ describe('useChatStore', () => {
 		expect(result.current.messages).toEqual([]);
 	});
 
-	it('updateMessageContent updates content of the matching localId message', () => {
-		const { result } = renderHook(() => useChatStore());
-
-		act(() => {
-			result.current.addMessage(makeMessage({ localId: 'msg-1', content: 'Original content' }));
-		});
-
-		act(() => {
-			result.current.updateMessageContent('msg-1', 'Updated content');
-		});
-
-		expect(result.current.messages[0].content).toBe('Updated content');
-	});
-
-	it('updateMessageContent does not affect other messages', () => {
-		const { result } = renderHook(() => useChatStore());
-
-		act(() => {
-			result.current.addMessage(makeMessage({ localId: 'msg-1', content: 'First' }));
-			result.current.addMessage(makeMessage({ localId: 'msg-2', content: 'Second' }));
-		});
-
-		act(() => {
-			result.current.updateMessageContent('msg-1', 'Modified');
-		});
-
-		expect(result.current.messages[1].content).toBe('Second');
-	});
-
 	it('setMessageStatus updates status of the matching localId message', () => {
 		const { result } = renderHook(() => useChatStore());
 

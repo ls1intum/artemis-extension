@@ -1,7 +1,6 @@
 import { create } from 'zustand';
 import { devtools } from 'zustand/middleware';
 import { postCommand, type VsCodeApi, type CourseDetailData, type Exam, type Exercise } from '../../../../shared/messageContracts';
-import type { ExerciseDetail } from '../../../../types/apiResponses';
 
 interface CourseDetailState {
     courseData: CourseDetailData | null;

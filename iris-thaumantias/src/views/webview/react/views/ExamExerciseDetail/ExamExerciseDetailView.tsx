@@ -31,7 +31,6 @@ export function ExamExerciseDetailView({ vscodeApi }: ExamExerciseDetailViewProp
         useExamExerciseDetailStore();
     const {
         exerciseData,
-        hideDeveloperTools,
         isLoading: exerciseLoading,
         pendingSubmission,
         setExerciseData,

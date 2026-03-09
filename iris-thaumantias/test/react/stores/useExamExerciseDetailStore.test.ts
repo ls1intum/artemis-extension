@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import { useExamExerciseDetailStore } from '../../../src/views/webview/react/stores/useExamExerciseDetailStore';
-import type { StudentExam, ExerciseDetailsResponse } from '../../../src/types/apiResponses';
+import type { StudentExam } from '../../../src/types/apiResponses';
 
 const makeStudentExam = (overrides: Partial<StudentExam> = {}): StudentExam => ({
 	id: 1,
@@ -9,17 +9,6 @@ const makeStudentExam = (overrides: Partial<StudentExam> = {}): StudentExam => (
 	startedDate: '2025-06-01T09:00:00Z',
 	exercises: [],
 	workingTime: 7200,
-	...overrides,
-});
-
-const makeExerciseData = (overrides: Partial<ExerciseDetailsResponse> = {}): ExerciseDetailsResponse => ({
-	exercise: {
-		id: 10,
-		title: 'Sorting Exercise',
-		type: 'programming',
-		studentParticipations: [],
-		...overrides.exercise,
-	},
 	...overrides,
 });
 
@@ -48,9 +37,7 @@ describe('useExamExerciseDetailStore', () => {
 
 		act(() => {
 			result.current.setExamExerciseData({
-				exerciseData: makeExerciseData(),
 				examContext: examContext as Parameters<typeof result.current.setExamExerciseData>[0]['examContext'],
-				hideDeveloperTools: false,
 			});
 		});
 
@@ -68,9 +55,7 @@ describe('useExamExerciseDetailStore', () => {
 
 		act(() => {
 			result.current.setExamExerciseData({
-				exerciseData: makeExerciseData(),
 				examContext: examContext as Parameters<typeof result.current.setExamExerciseData>[0]['examContext'],
-				hideDeveloperTools: false,
 			});
 		});
 
@@ -86,9 +71,7 @@ describe('useExamExerciseDetailStore', () => {
 
 		act(() => {
 			result.current.setExamExerciseData({
-				exerciseData: makeExerciseData(),
 				examContext: examContext as Parameters<typeof result.current.setExamExerciseData>[0]['examContext'],
-				hideDeveloperTools: false,
 			});
 		});
 
@@ -145,9 +128,7 @@ describe('useExamExerciseDetailStore', () => {
 
 		act(() => {
 			result.current.setExamExerciseData({
-				exerciseData: makeExerciseData(),
 				examContext: makeExamContext() as Parameters<typeof result.current.setExamExerciseData>[0]['examContext'],
-				hideDeveloperTools: false,
 			});
 		});
 
@@ -167,24 +148,6 @@ describe('useExamExerciseDetailStore', () => {
 		expect(result.current.error).toBe('Network failure');
 	});
 
-	it('hideDeveloperTools flag is accepted in payload (store ignores it)', () => {
-		// The store only keeps examContext, not exerciseData or hideDeveloperTools —
-		// those are handled by the view or useExerciseDetailStore. This verifies
-		// the store correctly ignores unknown fields in the payload.
-		const { result } = renderHook(() => useExamExerciseDetailStore());
-
-		act(() => {
-			result.current.setExamExerciseData({
-				exerciseData: makeExerciseData(),
-				examContext: makeExamContext() as Parameters<typeof result.current.setExamExerciseData>[0]['examContext'],
-				hideDeveloperTools: true,
-			});
-		});
-
-		// examContext is set; the hideDeveloperTools field is not stored
-		expect(result.current.examContext).not.toBeNull();
-	});
-
 	it('successive calls to setExamExerciseData overwrite previous examContext', () => {
 		const { result } = renderHook(() => useExamExerciseDetailStore());
 
@@ -193,9 +156,7 @@ describe('useExamExerciseDetailStore', () => {
 
 		act(() => {
 			result.current.setExamExerciseData({
-				exerciseData: makeExerciseData(),
 				examContext: firstContext as Parameters<typeof result.current.setExamExerciseData>[0]['examContext'],
-				hideDeveloperTools: false,
 			});
 		});
 
@@ -203,9 +164,7 @@ describe('useExamExerciseDetailStore', () => {
 
 		act(() => {
 			result.current.setExamExerciseData({
-				exerciseData: makeExerciseData(),
 				examContext: secondContext as Parameters<typeof result.current.setExamExerciseData>[0]['examContext'],
-				hideDeveloperTools: false,
 			});
 		});
 
