@@ -28,7 +28,10 @@ export function ExamConductionView({ vscodeApi }: ExamConductionViewProps) {
         if (msg.type === ExtensionMsg.ExamConductionInit) {
             setExamData(msg);
         }
-    }, [vscodeApi, setExamData]);
+        if (msg.type === ExtensionMsg.ViewInitError) {
+            setError(msg.error);
+        }
+    }, [vscodeApi, setExamData, setError]);
 
     // Reset scroll to top on mount
     useEffect(() => {

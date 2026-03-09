@@ -20,7 +20,10 @@ export function ExamStartView({ vscodeApi }: ExamStartViewProps) {
         if (msg.type === ExtensionMsg.ExamStartInit) {
             setExamStartData(msg);
         }
-    }, [vscodeApi, setExamStartData]);
+        if (msg.type === ExtensionMsg.ViewInitError) {
+            setError(msg.error);
+        }
+    }, [vscodeApi, setExamStartData, setError]);
 
     // Calculate exam timing
     const examStartDate = studentExam?.exam?.startDate ? new Date(studentExam.exam.startDate) : null;

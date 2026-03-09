@@ -48,7 +48,10 @@ export function ExamExerciseDetailView({ vscodeApi }: ExamExerciseDetailViewProp
             const { type: _type, ...payload } = msg;
             setExamExerciseData(payload);
         }
-    }, [vscodeApi, setExerciseData, setExamExerciseData]);
+        if (msg.type === ExtensionMsg.ViewInitError) {
+            setError(msg.error);
+        }
+    }, [vscodeApi, setExerciseData, setExamExerciseData, setError]);
 
     // Listen for exercise-related extension messages (build progress, submissions, repo status, etc.)
     useExerciseStatusMessages(vscodeApi);

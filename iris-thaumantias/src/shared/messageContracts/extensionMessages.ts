@@ -25,6 +25,7 @@ export const ExtensionMsg = {
     RecommendedExtensionsInit: 'recommendedExtensionsInit',
     AiConfigInit: 'aiConfigInit',
     StruggleDetectionInit: 'struggleDetectionInit',
+    ViewInitError: 'viewInitError',
 
     // Auth
     LoginSuccess: 'loginSuccess',
@@ -155,6 +156,7 @@ interface ExtensionMsgPayloads {
         recommendedAction: 'none' | 'subtle' | 'notification' | 'proactive';
         isEnabled: boolean;
     };
+    viewInitError: { error: string };
 
     // Auth
     loginSuccess: { username: string };

@@ -215,6 +215,7 @@ export class ViewInitDataService {
         const examData = this._getAppStateManager().currentExamData;
         if (!examData) {
             logger.error('Exam conduction state missing exam data', LogCategory.VIEW);
+            this._postMessage({ type: ExtensionMsg.ViewInitError, error: 'Exam data is not available. Please go back and try again.' });
             return;
         }
 
@@ -267,6 +268,7 @@ export class ViewInitDataService {
         const examData = this._getAppStateManager().currentExamData;
         if (!examData) {
             logger.error('Exam start state missing exam data', LogCategory.VIEW);
+            this._postMessage({ type: ExtensionMsg.ViewInitError, error: 'Exam data is not available. Please go back and try again.' });
             return;
         }
 
@@ -285,10 +287,12 @@ export class ViewInitDataService {
 
         if (!examData) {
             logger.error('Exam exercise detail state missing exam data', LogCategory.VIEW);
+            this._postMessage({ type: ExtensionMsg.ViewInitError, error: 'Exam data is not available. Please go back and try again.' });
             return;
         }
         if (!exerciseData) {
             logger.error('Exam exercise detail state missing exercise data', LogCategory.VIEW);
+            this._postMessage({ type: ExtensionMsg.ViewInitError, error: 'Exam data is not available. Please go back and try again.' });
             return;
         }
 
