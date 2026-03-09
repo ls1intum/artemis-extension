@@ -445,21 +445,22 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
                     });
                     break;
                 case WebviewCmd.ResetChatSessions:
-                    this._handleResetSessions();
+                    void this._handleResetSessions().catch(err => {
+                        logger.error('Error resetting sessions', LogCategory.IRIS_CHAT, err);
+                        vscode.window.showErrorMessage('Failed to reset chat sessions. Please try again.');
+                    });
                     break;
                 case WebviewCmd.ReconnectWebSocket:
-                    this._handleReconnectWebSocket();
+                    void this._handleReconnectWebSocket().catch(err => {
+                        logger.error('Error reconnecting WebSocket', LogCategory.IRIS_CHAT, err);
+                        vscode.window.showErrorMessage('Failed to reconnect. Please try again.');
+                    });
                     break;
                 case WebviewCmd.MessageFeedback: {
                     const { sessionId, messageId, feedback } = getPayload<WebCmd<'messageFeedback'>>(typedMessage);
-                    const parsedMsgId = typeof messageId === 'number'
-                        ? messageId
-                        : typeof messageId === 'string'
-                            ? (Number.isNaN(Number(messageId)) ? undefined : parseInt(messageId as string, 10))
-                            : undefined;
                     void this._handleMessageFeedback({
                         sessionId: typeof sessionId === 'number' ? sessionId : undefined,
-                        messageId: parsedMsgId,
+                        messageId: typeof messageId === 'number' ? messageId : undefined,
                         feedback: feedback as string | undefined
                     }).catch(err => {
                         logger.error('Error handling message feedback', LogCategory.IRIS_CHAT, err);

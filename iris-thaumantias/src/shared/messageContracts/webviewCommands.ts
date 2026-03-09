@@ -171,7 +171,7 @@ interface WebviewCmdPayloads {
     switchToWorkspaceContext: undefined;
     resetChatSessions: undefined;
     reconnectWebSocket: undefined;
-    messageFeedback: { sessionId: number; messageId: number | string; feedback: 'positive' | 'negative' };
+    messageFeedback: { sessionId: number; messageId: number; feedback: 'positive' | 'negative' };
     openFile: { filePath: string };
     openDiagnostics: undefined;
     debugSessions: undefined;

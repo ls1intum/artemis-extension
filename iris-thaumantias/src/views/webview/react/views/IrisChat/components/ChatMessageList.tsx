@@ -9,7 +9,7 @@ import styles from './ChatMessageList.module.css';
 interface ChatMessageListProps {
     messages: ChatMessage[];
     streaming: StreamingState;
-    onFeedback: (messageId: string, feedback: 'positive' | 'negative') => void;
+    onFeedback: (messageId: number, feedback: 'positive' | 'negative') => void;
     onSendPrompt: (text: string) => void;
     hasContext: boolean;
     isChatDisabled?: boolean;

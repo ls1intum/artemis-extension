@@ -177,7 +177,7 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
         postCommand(vscodeApi, 'sendMessage', { text });
     };
 
-    const handleFeedback = (messageId: string, feedback: 'positive' | 'negative') => {
+    const handleFeedback = (messageId: number, feedback: 'positive' | 'negative') => {
         const activeSession = store.sessions.find(s => s.id === store.activeSessionId);
         if (typeof activeSession?.artemisSessionId !== 'number') {return;}
         postCommand(vscodeApi, 'messageFeedback', {

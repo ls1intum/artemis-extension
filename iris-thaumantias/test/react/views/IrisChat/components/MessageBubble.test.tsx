@@ -176,7 +176,7 @@ describe('MessageBubble', () => {
 		const helpfulButton = screen.getByRole('button', { name: 'Helpful' });
 		await userEvent.click(helpfulButton);
 
-		expect(onFeedback).toHaveBeenCalledWith('1', 'positive');
+		expect(onFeedback).toHaveBeenCalledWith(1, 'positive');
 	});
 
 	it('calls onFeedback with negative when not helpful button clicked', async () => {
@@ -197,7 +197,7 @@ describe('MessageBubble', () => {
 		const notHelpfulButton = screen.getByRole('button', { name: 'Not helpful' });
 		await userEvent.click(notHelpfulButton);
 
-		expect(onFeedback).toHaveBeenCalledWith('1', 'negative');
+		expect(onFeedback).toHaveBeenCalledWith(1, 'negative');
 	});
 
 	it('renders Streamdown in static mode for non-streaming assistant messages', () => {

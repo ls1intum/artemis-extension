@@ -11,7 +11,7 @@ interface MessageBubbleProps {
     message: ChatMessage;
     isStreaming: boolean;
     streamingChunks: string[];
-    onFeedback: (messageId: string, feedback: 'positive' | 'negative') => void;
+    onFeedback: (messageId: number, feedback: 'positive' | 'negative') => void;
 }
 
 function MessageBubbleComponent({
@@ -41,7 +41,7 @@ function MessageBubbleComponent({
 
     const handleFeedback = (feedback: 'positive' | 'negative') => {
         if (message.id !== undefined) {
-            onFeedback(String(message.id), feedback);
+            onFeedback(message.id, feedback);
         }
     };
 
