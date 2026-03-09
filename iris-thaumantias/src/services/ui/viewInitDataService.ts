@@ -21,7 +21,11 @@ export class ViewInitDataService {
 
     public sendInitData(): void {
         ++this._initGeneration;
-        switch (this._getAppStateManager().currentState) {
+        const state = this._getAppStateManager().currentState;
+        if (state !== 'exercise-detail') {
+            this._getMessageHandler().clearRepositoryContext();
+        }
+        switch (state) {
             case 'dashboard':              return this.sendDashboardInit();
             case 'course-list':            return this.sendCourseListInit();
             case 'course-detail':          return this.sendCourseDetailInit();
