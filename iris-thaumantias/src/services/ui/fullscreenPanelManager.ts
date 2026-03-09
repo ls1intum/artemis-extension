@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { ExtensionMsg, WebviewMsgType } from '../../shared/messageContracts';
 import type { ExtensionToWebviewMessage, CourseDetailData as CourseDetailPayload } from '../../shared/messageContracts';
+import type { CourseData, ArchivedCourse } from '../../shared/messageContracts/domainTypes';
 import { detectWorkspaceForRepoUris } from '../workspace/workspaceDetectionService';
 import type { ExerciseDetailsResponse } from '../../types/apiResponses';
 import { isWebviewMessage } from '../../shared/messageContracts/typeGuards';
@@ -53,7 +54,7 @@ export class FullscreenPanelManager {
         });
     }
 
-    public openCourseListFullscreen(courses: { course: Record<string, unknown> }[], archivedCourses?: unknown[]): void {
+    public openCourseListFullscreen(courses: CourseData[], archivedCourses?: ArchivedCourse[]): void {
         this._openFullscreenPanel({
             viewType: 'artemis.courseListFullscreen',
             title: 'All Courses',
@@ -63,7 +64,7 @@ export class FullscreenPanelManager {
                     type: ExtensionMsg.CourseListInit,
                     courses,
                     archivedCourses,
-                } as ExtensionToWebviewMessage);
+                });
             },
         });
     }

@@ -121,6 +121,10 @@ export class TelemetryManager implements vscode.Disposable, WebSocketMessageHand
     }
 
     public dispose(): void {
+        if (this._websocketService) {
+            this._websocketService.unregisterMessageHandler(this);
+        }
+
         if (this._debugUpdateTimer) {
             clearInterval(this._debugUpdateTimer);
             this._debugUpdateTimer = undefined;

@@ -20,7 +20,7 @@ export interface CommandContext {
     sendMessage(message: ExtensionToWebviewMessage): void;
     updateAuthContext(isAuthenticated: boolean): Promise<void>;
     buildCodeLens?: BuildErrorCodeLensProvider;
-    websocketService?: ArtemisWebsocketService;
+    getWebsocketService?: () => ArtemisWebsocketService | undefined;
     extensionContext: vscode.ExtensionContext;
     exerciseRegistry: ExerciseRegistry;
     providerRegistry: IProviderRegistry;

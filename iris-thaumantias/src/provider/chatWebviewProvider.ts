@@ -583,9 +583,16 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
             return;
         }
 
+        const loadToken = this._chatSessionService.contextLoadToken;
+
         try {
             await this._chatSessionService.initializeIrisSessionAndLoadMessages(activeContext, this._irisSessionManager);
         } catch (error: unknown) {
+            // If context changed during load, silently discard the error
+            if (this._chatSessionService.contextLoadToken !== loadToken) {
+                logger.info('Context changed during message load, discarding error', LogCategory.IRIS_CHAT);
+                return;
+            }
             logger.error('Failed to load Iris messages', LogCategory.IRIS_CHAT, error);
             const errorMessage = error instanceof Error ? error.message : String(error);
             vscode.window.showWarningMessage(`Could not load previous messages: ${errorMessage}`);

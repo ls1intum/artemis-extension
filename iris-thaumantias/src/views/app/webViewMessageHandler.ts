@@ -51,7 +51,7 @@ export class WebViewMessageHandler {
             sendMessage: (message: ExtensionToWebviewMessage) => this._sendMessage(message),
             updateAuthContext: (isAuthenticated: boolean) => this.updateAuthContext(isAuthenticated),
             buildCodeLens: this.buildCodeLens,
-            websocketService: this._websocketService,
+            getWebsocketService: () => this._websocketService,
             extensionContext: extensionContext!,
             exerciseRegistry: exerciseRegistry!,
             providerRegistry: providerRegistry!

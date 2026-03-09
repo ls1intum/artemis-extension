@@ -128,6 +128,13 @@ export class IrisSessionLifecycleService {
 
             logger.info(`Fetched messages for all ${artemisSessionsListFromServer.length} sessions`, LogCategory.IRIS_CHAT);
 
+            // Check if context changed during async operations
+            const currentContext = this._contextStore.getActiveContext();
+            if (!currentContext || currentContext.id !== activeContext.id) {
+                logger.info('Context changed during session reset, aborting import', LogCategory.IRIS_CHAT);
+                return;
+            }
+
             // Import all sessions from Artemis
             if (artemisSessionsListFromServer.length > 0) {
                 // Sort sessions by creation date (newest first)
@@ -167,6 +174,13 @@ export class IrisSessionLifecycleService {
                 }
 
                 this._postSnapshot();
+
+                // Check context again before loading messages
+                const contextAfterImport = this._contextStore.getActiveContext();
+                if (!contextAfterImport || contextAfterImport.id !== activeContext.id) {
+                    logger.info('Context changed during session import, aborting message load', LogCategory.IRIS_CHAT);
+                    return;
+                }
 
                 // Load messages for the most recent session
                 await this._loadIrisMessages();

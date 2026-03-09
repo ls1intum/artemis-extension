@@ -300,7 +300,6 @@ export class IrisSessionInitService {
                     logger.info('Context changed before creating new session, aborting load', LogCategory.IRIS_CHAT);
                     return;
                 }
-                this._contextStore.createSession();
                 this._onCreateNewSession();
             }
 
@@ -322,7 +321,6 @@ export class IrisSessionInitService {
             }
 
             // Fall back to creating a new session
-            this._contextStore.createSession();
             this._onCreateNewSession();
             this._onPostSnapshot();
         }

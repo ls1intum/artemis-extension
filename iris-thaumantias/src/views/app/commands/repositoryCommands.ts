@@ -429,10 +429,11 @@ export class RepositoryCommandModule {
             }
 
             // Ensure WebSocket is connected to receive real-time result updates
-            if (this.context.websocketService && !this.context.websocketService.isConnected()) {
+            const websocketService = this.context.getWebsocketService?.();
+            if (websocketService && !websocketService.isConnected()) {
                 logger.info('🔌 Submission successful - ensuring WebSocket connection for result updates...', LogCategory.WEBSOCKET);
                 try {
-                    await this.context.websocketService.connect();
+                    await websocketService.connect();
                 } catch (wsError) {
                     logger.error('Failed to connect WebSocket after submission:', LogCategory.WEBSOCKET, wsError);
                 }

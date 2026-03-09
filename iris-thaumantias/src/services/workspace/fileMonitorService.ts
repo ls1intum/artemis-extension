@@ -12,6 +12,7 @@ export class FileMonitorService implements vscode.Disposable {
     private readonly _disposables: vscode.Disposable[] = [];
     private _fileUpdateTimer?: NodeJS.Timeout;
     private _lastFileUpdate = 0;
+    private _disposed = false;
 
     private readonly _onDidUpdateFiles = new vscode.EventEmitter<FileMonitorUpdate>();
     public readonly onDidUpdateFiles = this._onDidUpdateFiles.event;
@@ -21,6 +22,8 @@ export class FileMonitorService implements vscode.Disposable {
     }
 
     public dispose(): void {
+        this._disposed = true;
+
         if (this._fileUpdateTimer) {
             clearInterval(this._fileUpdateTimer);
             this._fileUpdateTimer = undefined;
@@ -54,6 +57,7 @@ export class FileMonitorService implements vscode.Disposable {
         const gitExtension = vscode.extensions.getExtension('vscode.git');
         if (gitExtension) {
             Promise.resolve(gitExtension.activate()).then(() => {
+                if (this._disposed) { return; }
                 logger.fileMonitor('Git extension activated');
                 // Git extension exports are untyped - use unknown and type guard
                 const exports = gitExtension.exports as { getAPI?: (version: number) => unknown };
