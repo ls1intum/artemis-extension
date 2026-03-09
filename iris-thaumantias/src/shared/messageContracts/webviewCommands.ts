@@ -143,7 +143,7 @@ interface WebviewCmdPayloads {
     reloadExamConduction: undefined;
 
     // Utility
-    openWebsite: undefined;
+    openWebsite: { path?: string };
     openSettings: { setting: string };
     openBugReport: undefined;
     openInEditor: { data: Record<string, unknown> };

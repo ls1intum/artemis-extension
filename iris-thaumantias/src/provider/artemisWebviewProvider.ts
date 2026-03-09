@@ -221,7 +221,7 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
                     const currentState = this._appStateManager.currentState;
                     if (!hasAuth && currentState !== 'login') {
                         logger.debug('Auth expired while panel was hidden, showing login', LogCategory.VIEW);
-                        this.hideLoadingAndSendServerUrl();
+                        this.showLogin();
                         return;
                     }
                     logger.debug('Sidebar webview became visible, resending view data...', LogCategory.VIEW);

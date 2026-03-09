@@ -367,7 +367,9 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
                         postCommand(vscodeApi, 'startPractice', { exerciseId: exercise.id, exerciseTitle: exercise.title });
                     }}
                     onOpenInBrowser={() => {
-                        postCommand(vscodeApi, 'openWebsite');
+                        postCommand(vscodeApi, 'openWebsite', {
+                            path: `/courses/${exercise.course?.id}/exercises/${exercise.id}`,
+                        });
                     }}
                 />
 

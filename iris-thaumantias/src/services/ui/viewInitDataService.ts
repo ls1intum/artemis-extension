@@ -10,6 +10,8 @@ import { logger, LogCategory } from '../loggingService';
 import { VSCODE_CONFIG, CONFIG } from '../../utils';
 
 export class ViewInitDataService {
+    private _initGeneration = 0;
+
     constructor(
         private readonly _getAppStateManager: () => AppStateManager,
         private readonly _getTelemetryManager: () => TelemetryManager | undefined,
@@ -18,6 +20,7 @@ export class ViewInitDataService {
     ) {}
 
     public sendInitData(): void {
+        ++this._initGeneration;
         switch (this._getAppStateManager().currentState) {
             case 'dashboard':              return this.sendDashboardInit();
             case 'course-list':            return this.sendCourseListInit();
@@ -84,7 +87,9 @@ export class ViewInitDataService {
             return;
         }
 
+        const gen = this._initGeneration;
         detectWorkspaceExercise(allExercises as ExerciseSource[]).then((detectedExercise) => {
+            if (gen !== this._initGeneration) { return; }
             this._postMessage({
                 type: ExtensionMsg.DashboardInit,
                 courses: recentCourseNodes,
@@ -93,6 +98,7 @@ export class ViewInitDataService {
                     : noMatch,
             });
         }).catch((error) => {
+            if (gen !== this._initGeneration) { return; }
             logger.error('Failed to detect workspace exercise for dashboard', LogCategory.VIEW, error);
             this._postMessage({
                 type: ExtensionMsg.DashboardInit,
@@ -136,7 +142,9 @@ export class ViewInitDataService {
 
         const exercises = courseData.course?.exercises || [];
 
+        const gen = this._initGeneration;
         detectWorkspaceExercise(exercises as ExerciseSource[]).then((detectedExercise: { id?: number } | null) => {
+            if (gen !== this._initGeneration) { return; }
             this._postMessage({
                 type: ExtensionMsg.CourseDetailInit,
                 courseData: courseData as CourseDetailPayload,
@@ -144,6 +152,7 @@ export class ViewInitDataService {
                 hideDeveloperTools: !this._isDeveloperMode(),
             });
         }).catch((error) => {
+            if (gen !== this._initGeneration) { return; }
             logger.error('Failed to detect workspace exercise for course detail', LogCategory.VIEW, error);
             this._postMessage({
                 type: ExtensionMsg.CourseDetailInit,
@@ -168,7 +177,9 @@ export class ViewInitDataService {
 
         if (repoUris.length > 0) {
             const exerciseId = exerciseData.exercise?.id;
+            const gen = this._initGeneration;
             detectWorkspaceForRepoUris(repoUris).then((repoStatus) => {
+                if (gen !== this._initGeneration) { return; }
                 // Set repo context so workspace listeners can auto-detect changes on file save
                 if (repoStatus.matchedUri && exerciseId !== undefined) {
                     const handler = this._getMessageHandler();
@@ -181,6 +192,7 @@ export class ViewInitDataService {
                     repoStatus,
                 });
             }).catch((error) => {
+                if (gen !== this._initGeneration) { return; }
                 logger.error('Failed to detect workspace status for exercise detail', LogCategory.VIEW, error);
                 this._postMessage({
                     type: ExtensionMsg.ExerciseDetailInit,
@@ -220,7 +232,9 @@ export class ViewInitDataService {
         const totalDuration = (studentExam.workingTime || 0) * 1000;
 
         const exercises = studentExam.exercises || [];
+        const gen = this._initGeneration;
         detectWorkspaceExercise(exercises as ExerciseSource[]).then((detectedExercise: { id?: number } | null) => {
+            if (gen !== this._initGeneration) { return; }
             this._postMessage({
                 type: ExtensionMsg.ExamConductionInit,
                 studentExam,
@@ -232,6 +246,7 @@ export class ViewInitDataService {
                 workspaceExerciseId: detectedExercise?.id ?? null,
             });
         }).catch((error) => {
+            if (gen !== this._initGeneration) { return; }
             logger.error('Failed to detect workspace exercise for exam conduction', LogCategory.VIEW, error);
             this._postMessage({
                 type: ExtensionMsg.ExamConductionInit,

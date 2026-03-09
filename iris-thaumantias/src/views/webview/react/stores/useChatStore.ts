@@ -119,7 +119,10 @@ export const useChatStore = create<ChatState>()(
             },
 
             clearMessages: () => {
-                set({ messages: [] }, false, 'clearMessages');
+                set({
+                    messages: [],
+                    streaming: { isStreaming: false, messageLocalId: null, visibleChunks: [] },
+                }, false, 'clearMessages');
             },
 
             updateMessageContent: (localId, content) => {

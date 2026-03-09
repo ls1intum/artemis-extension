@@ -321,12 +321,23 @@ export class RepositoryCommandModule {
 
             this.clonedRepositories.set(exerciseId, { path: repoPath, title: exerciseTitle });
 
-            setTimeout(() => {
-                this.context.sendMessage({
-                    type: ExtensionMsg.ShowClonedRepoNotice,
-                    exerciseTitle: exerciseTitle
-                });
-            }, 2000);
+            // Poll for the cloned directory to appear (up to 60s)
+            const pollInterval = 2000;
+            const maxAttempts = 30;
+            let attempts = 0;
+            const pollTimer = setInterval(() => {
+                attempts++;
+                if (fs.existsSync(repoPath)) {
+                    clearInterval(pollTimer);
+                    this.context.sendMessage({
+                        type: ExtensionMsg.ShowClonedRepoNotice,
+                        exerciseTitle: exerciseTitle
+                    });
+                } else if (attempts >= maxAttempts) {
+                    clearInterval(pollTimer);
+                    this.clonedRepositories.delete(exerciseId);
+                }
+            }, pollInterval);
 
             const openAction = await vscode.window.showInformationMessage('Open the cloned repository when ready?', 'Open Folder', 'Skip');
             if (openAction === 'Open Folder') {

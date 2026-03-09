@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import * as crypto from 'crypto';
 import type { CommandContext, CommandMap } from './types';
-import { getPayload, WebviewCmd } from '../../../shared/messageContracts';
+import { getPayload, getOptionalPayload, WebviewCmd } from '../../../shared/messageContracts';
 import type {
     WebviewToExtensionMessage,
     WebCmd,
@@ -73,11 +73,13 @@ export class UtilityCommandModule {
         }
     };
 
-    private handleOpenWebsite = async (_message: WebviewToExtensionMessage): Promise<void> => {
+    private handleOpenWebsite = async (message: WebviewToExtensionMessage): Promise<void> => {
         try {
             const config = vscode.workspace.getConfiguration(VSCODE_CONFIG.ARTEMIS_SECTION);
             const serverUrl = config.get<string>(VSCODE_CONFIG.SERVER_URL_KEY, CONFIG.ARTEMIS_SERVER_URL_DEFAULT);
-            await vscode.env.openExternal(vscode.Uri.parse(`${serverUrl}/courses`));
+            const payload = getOptionalPayload<WebCmd<'openWebsite'>>(message);
+            const urlPath = payload?.path || '/courses';
+            await vscode.env.openExternal(vscode.Uri.parse(`${serverUrl}${urlPath}`));
         } catch (error: unknown) {
             logger.error('Failed to open website:', LogCategory.VIEW, error);
             vscode.window.showErrorMessage(`Failed to open website: ${extractErrorMessage(error)}`);
