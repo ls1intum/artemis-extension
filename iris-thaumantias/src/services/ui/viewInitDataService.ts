@@ -58,7 +58,6 @@ export class ViewInitDataService {
                         title: (course.title ?? 'Untitled Course') as string,
                         exercises: course.exercises,
                         startDate: course.startDate as string | undefined,
-                        creationDate: course.startDate as string | undefined,
                     }
                 },
                 exercises: recentExercises,

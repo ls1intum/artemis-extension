@@ -227,20 +227,19 @@ suite('ChatMessageService', () => {
             assert.strictEqual(updateCall.args[0].excludedFiles[0].reason, 'Excluded');
         });
 
-        test('should display user message before file update message', async () => {
+        test('should post updateReferencedFiles without a preceding user addMessage', async () => {
             createService();
 
             await service.handleChatMessage('Hello', activeContext);
 
-            const addMessageIndex = postMessageSpy.getCalls().findIndex(
+            const addMessageCall = postMessageSpy.getCalls().find(
                 (c: sinon.SinonSpyCall) => c.args[0]?.type === 'addMessage' && c.args[0]?.message?.role === 'user'
             );
-            const updateIndex = postMessageSpy.getCalls().findIndex(
+            const updateCall = postMessageSpy.getCalls().find(
                 (c: sinon.SinonSpyCall) => c.args[0]?.type === 'updateReferencedFiles'
             );
-            assert.ok(addMessageIndex !== -1, 'Should post user message');
-            assert.ok(updateIndex !== -1, 'Should post file update');
-            assert.ok(addMessageIndex < updateIndex, 'User message should come before file update');
+            assert.ok(!addMessageCall, 'Should not post user addMessage from service');
+            assert.ok(updateCall, 'Should post file update');
         });
     });
 

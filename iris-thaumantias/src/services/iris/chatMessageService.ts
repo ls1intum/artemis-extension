@@ -49,9 +49,6 @@ export class ChatMessageService {
             // Check WebSocket connection before sending
             await this._ensureWebSocketConnection();
 
-            // Show user message immediately
-            this._displayUserMessage(messageText);
-
             // Get or create Iris session
             await this._ensureIrisSession(activeContext);
 
@@ -89,7 +86,7 @@ export class ChatMessageService {
             this._postMessage({
                 type: ExtensionMsg.AddMessage,
                 message: {
-                    role: 'user',
+                    role: 'assistant',
                     content: `Error: ${errorMessage}`,
                     timestamp: Date.now()
                 }
@@ -131,19 +128,6 @@ export class ChatMessageService {
             logger.error('❌ Failed to connect WebSocket', LogCategory.WEBSOCKET, error as Error);
             vscode.window.showWarningMessage('WebSocket connection failed. You may not receive responses in real-time.');
         }
-    }
-
-    private _displayUserMessage(text: string): void {
-        logger.websocket('💬 Sending user message to webview');
-        this._postMessage({
-            type: ExtensionMsg.AddMessage,
-            message: {
-                role: 'user',
-                content: text,
-                timestamp: Date.now()
-            }
-        });
-        logger.websocket('✅ User message sent to webview (this should trigger thinking indicator)');
     }
 
     private async _ensureIrisSession(activeContext: ActiveContext): Promise<void> {

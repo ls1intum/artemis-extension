@@ -32,8 +32,8 @@ export const useDashboardStore = create<DashboardState>()(
                 // Sort and limit to 3 most recent courses
                 const sortedCourses = courses
                     .sort((a, b) => {
-                        const aDate = a.courseData.course.startDate || a.courseData.course.creationDate || '';
-                        const bDate = b.courseData.course.startDate || b.courseData.course.creationDate || '';
+                        const aDate = a.courseData.course.startDate || '';
+                        const bDate = b.courseData.course.startDate || '';
                         return bDate.localeCompare(aDate);
                     })
                     .slice(0, 3);

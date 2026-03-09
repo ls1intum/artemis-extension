@@ -16,7 +16,6 @@ export interface CourseData {
         numberOfStudents?: number;
         instructorGroupName?: string;
         startDate?: string;
-        creationDate?: string;
     };
 }
 

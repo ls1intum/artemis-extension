@@ -110,12 +110,12 @@ describe('useDashboardStore', () => {
 		expect(result.current.workspaceExercise).toBeNull();
 	});
 
-	it('handles courses with creationDate fallback', () => {
+	it('sorts courses by startDate only', () => {
 		const { result } = renderHook(() => useDashboardStore());
 
 		const courses: RecentCourseNode[] = [
 			{
-				courseData: { course: { title: 'Course without startDate', creationDate: '2023-03-01' } },
+				courseData: { course: { title: 'Course without startDate' } },
 				exercises: [],
 			},
 			{

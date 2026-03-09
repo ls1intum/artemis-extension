@@ -91,6 +91,9 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
                     helpful: m.helpful ?? null,
                     status: 'sent',
                 });
+                if (m.role === 'assistant') {
+                    store.finishStreaming(m.content);
+                }
                 break;
             }
 

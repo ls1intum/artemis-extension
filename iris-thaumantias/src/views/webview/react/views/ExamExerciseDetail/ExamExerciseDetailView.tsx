@@ -129,6 +129,9 @@ export function ExamExerciseDetailView({ vscodeApi }: ExamExerciseDetailViewProp
     const latestResult = [...(latestSubmission?.results ?? [])]
         .sort((a, b) => (b.id ?? 0) - (a.id ?? 0))[0];
 
+    // result.score is already a percentage (0-100) in Artemis
+    const scorePercentage = latestResult?.score ?? 0;
+
     // Determine submission status
     const submissionStatus = determineSubmissionStatus(pendingSubmission, latestResult, latestSubmission);
 
@@ -210,13 +213,9 @@ export function ExamExerciseDetailView({ vscodeApi }: ExamExerciseDetailViewProp
                 {hasParticipation && (
                     <SubmissionStatus
                         status={submissionStatus}
-                        score={latestResult?.score ?? 0}
+                        score={scorePercentage * maxPoints / 100}
                         maxScore={maxPoints}
-                        scorePercentage={
-                            latestResult?.score && maxPoints > 0
-                                ? (latestResult.score / maxPoints) * 100
-                                : 0
-                        }
+                        scorePercentage={scorePercentage}
                         exerciseType={exerciseType}
                     />
                 )}
@@ -232,7 +231,7 @@ export function ExamExerciseDetailView({ vscodeApi }: ExamExerciseDetailViewProp
             {/* Score Info (if available) */}
             {latestResult && (
                 <ScoreInfo
-                    score={latestResult.score ?? 0}
+                    score={scorePercentage * maxPoints / 100}
                     maxScore={maxPoints}
                     bonusPoints={exercise.bonusPoints ?? 0}
                 />
