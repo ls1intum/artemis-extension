@@ -308,7 +308,7 @@ export class ViewInitDataService {
 
         this._postMessage({
             type: ExtensionMsg.ExamExerciseDetailInit,
-            exerciseData: exerciseData as ExerciseDetailsResponse,
+            exerciseData: { exercise: exerciseData.exercise },
             examContext: {
                 courseId: examData.courseId,
                 examId: examData.examId,
