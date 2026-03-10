@@ -329,6 +329,7 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
                     recentCourses={store.recentCourses}
                     allExercises={store.allExercises}
                     allCourses={store.allCourses}
+                    forceContextPicker={forceContextPicker}
                     onSelectContext={(type, id, title, shortName) => {
                         postCommand(vscodeApi, 'selectChatContext', { context: type, itemId: id, itemName: title, itemShortName: shortName });
                         setForceContextPicker(false);

@@ -30,6 +30,7 @@ const defaultProps = {
 	recentCourses: [],
 	allExercises: [],
 	allCourses: [],
+	forceContextPicker: false,
 	onSelectContext: vi.fn(),
 	onSelectSession: vi.fn(),
 	onCreateNewSession: vi.fn(),

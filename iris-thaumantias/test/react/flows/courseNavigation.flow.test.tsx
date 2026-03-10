@@ -159,6 +159,7 @@ describe('Course Navigation Flow', () => {
 		});
 
 		it('shows empty state when no course data is available', () => {
+			useCourseDetailStore.setState({ isLoading: false });
 			const mockApi = createMockVsCodeApi();
 			render(<CourseDetailView vscodeApi={mockApi} />);
 			expect(screen.getByText('No course selected')).toBeInTheDocument();

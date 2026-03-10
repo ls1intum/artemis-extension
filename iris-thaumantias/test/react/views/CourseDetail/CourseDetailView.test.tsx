@@ -28,6 +28,7 @@ describe('CourseDetailView', () => {
 	});
 
 	it('shows empty state when no courseData and no error', () => {
+		useCourseDetailStore.setState({ isLoading: false });
 		const mockApi = createMockVsCodeApi();
 		render(<CourseDetailView vscodeApi={mockApi} />);
 		expect(screen.getByText('No course selected')).toBeInTheDocument();

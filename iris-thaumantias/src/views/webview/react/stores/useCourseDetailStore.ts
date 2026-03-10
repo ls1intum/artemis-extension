@@ -117,7 +117,7 @@ export const useCourseDetailStore = create<CourseDetailState>()(
             courseData: null,
             workspaceExerciseId: null,
             hideDeveloperTools: true,
-            isLoading: false,
+            isLoading: true,
             exerciseSearchTerm: '',
             exerciseSortBy: 'id-desc',
 

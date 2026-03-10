@@ -38,12 +38,12 @@ const makeSubmission = (overrides: Partial<SubmissionSummary> = {}): SubmissionS
 });
 
 describe('useExerciseDetailStore', () => {
-	it('initializes with null exercise and false hideDeveloperTools', () => {
+	it('initializes with null exercise and loading state', () => {
 		const { result } = renderHook(() => useExerciseDetailStore());
 
 		expect(result.current.exerciseData).toBeNull();
 		expect(result.current.hideDeveloperTools).toBe(false);
-		expect(result.current.isLoading).toBe(false);
+		expect(result.current.isLoading).toBe(true);
 	});
 
 	it('loadExerciseDetail sets loading true and sends postMessage with exerciseId', () => {

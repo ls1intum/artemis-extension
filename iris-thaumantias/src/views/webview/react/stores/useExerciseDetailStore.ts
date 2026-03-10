@@ -76,7 +76,7 @@ export const useExerciseDetailStore = create<ExerciseDetailState>()(
         (set, get) => ({
             exerciseData: null,
             hideDeveloperTools: false,
-            isLoading: false,
+            isLoading: true,
             pendingSubmission: null,
             repoStatus: null,
             clonedNotice: null,

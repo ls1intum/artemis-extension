@@ -13,6 +13,7 @@ interface ContextSelectorProps {
     recentCourses: ContextItem[];
     allExercises: ContextItem[];
     allCourses: ContextItem[];
+    forceContextPicker: boolean;
     onSelectContext: (type: ChatContextType, id: number, title: string, shortName?: string) => void;
     onSelectSession: (sessionId: string) => void;
     onCreateNewSession: () => void;
@@ -28,6 +29,7 @@ export function ContextSelector({
     recentCourses,
     allExercises,
     allCourses,
+    forceContextPicker,
     onSelectContext,
     onSelectSession,
     onCreateNewSession,
@@ -36,7 +38,6 @@ export function ContextSelector({
 }: ContextSelectorProps) {
     const [isOpen, setIsOpen] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
-    const [forceContextPicker, setForceContextPicker] = useState(false);
     const containerRef = useRef<HTMLDivElement>(null);
 
     // Close dropdown when clicking outside
@@ -48,7 +49,6 @@ export function ContextSelector({
             ) {
                 setIsOpen(false);
                 setSearchQuery('');
-                setForceContextPicker(false);
             }
         };
 
@@ -62,7 +62,6 @@ export function ContextSelector({
         setIsOpen(!isOpen);
         if (isOpen) {
             setSearchQuery('');
-            setForceContextPicker(false);
         }
     };
 
@@ -75,7 +74,6 @@ export function ContextSelector({
         onSelectContext(type, id, title, shortName);
         setIsOpen(false);
         setSearchQuery('');
-        setForceContextPicker(false);
     };
 
     const handleSelectSession = (sessionId: string) => {
@@ -84,7 +82,7 @@ export function ContextSelector({
     };
 
     const handleSwitchContext = () => {
-        setForceContextPicker(true);
+        onSwitchContext();
     };
 
     // Check if we should show context picker

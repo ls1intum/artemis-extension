@@ -29,12 +29,12 @@ const makeExam = (overrides: Partial<Exam> = {}): Exam => ({
 });
 
 describe('useCourseDetailStore', () => {
-	it('initializes with null course and empty state', () => {
+	it('initializes with null course and loading state', () => {
 		const { result } = renderHook(() => useCourseDetailStore());
 
 		expect(result.current.courseData).toBeNull();
 		expect(result.current.workspaceExerciseId).toBeNull();
-		expect(result.current.isLoading).toBe(false);
+		expect(result.current.isLoading).toBe(true);
 		expect(result.current.exerciseSearchTerm).toBe('');
 		expect(result.current.exerciseSortBy).toBe('id-desc');
 	});

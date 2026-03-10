@@ -103,7 +103,10 @@ export class FullscreenPanelManager {
             {
                 enableScripts: true,
                 retainContextWhenHidden: true,
-                localResourceRoots: [vscode.Uri.joinPath(this._extensionUri, 'dist')]
+                localResourceRoots: [
+                    vscode.Uri.joinPath(this._extensionUri, 'dist'),
+                    vscode.Uri.joinPath(this._extensionUri, 'media'),
+                ]
             }
         );
 

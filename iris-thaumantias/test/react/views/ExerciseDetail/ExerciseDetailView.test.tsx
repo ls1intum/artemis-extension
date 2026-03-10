@@ -88,6 +88,7 @@ describe('ExerciseDetailView', () => {
 	});
 
 	it('shows no data message when exerciseData is null and not loading', () => {
+		useExerciseDetailStore.setState({ isLoading: false });
 		const mockApi = createMockVsCodeApi();
 		render(<ExerciseDetailView vscodeApi={mockApi} />);
 		expect(screen.getByText('No exercise data available.')).toBeInTheDocument();
@@ -111,28 +112,28 @@ describe('ExerciseDetailView', () => {
 	});
 
 	it('renders exercise title from store data', () => {
-		useExerciseDetailStore.setState({ exerciseData: makeExerciseData() as never });
+		useExerciseDetailStore.setState({ exerciseData: makeExerciseData() as never, isLoading: false });
 		const mockApi = createMockVsCodeApi();
 		render(<ExerciseDetailView vscodeApi={mockApi} />);
 		expect(screen.getByText('My Exercise')).toBeInTheDocument();
 	});
 
 	it('renders problem statement section', () => {
-		useExerciseDetailStore.setState({ exerciseData: makeExerciseData() as never });
+		useExerciseDetailStore.setState({ exerciseData: makeExerciseData() as never, isLoading: false });
 		const mockApi = createMockVsCodeApi();
 		render(<ExerciseDetailView vscodeApi={mockApi} />);
 		expect(screen.getByText('Solve the problem.')).toBeInTheDocument();
 	});
 
 	it('shows "Ask Iris" section', () => {
-		useExerciseDetailStore.setState({ exerciseData: makeExerciseData() as never });
+		useExerciseDetailStore.setState({ exerciseData: makeExerciseData() as never, isLoading: false });
 		const mockApi = createMockVsCodeApi();
 		render(<ExerciseDetailView vscodeApi={mockApi} />);
 		expect(screen.getByText('Ask Iris')).toBeInTheDocument();
 	});
 
 	it('clicking Ask Iris sends askIrisAboutExercise postMessage', async () => {
-		useExerciseDetailStore.setState({ exerciseData: makeExerciseData() as never });
+		useExerciseDetailStore.setState({ exerciseData: makeExerciseData() as never, isLoading: false });
 		const mockApi = createMockVsCodeApi();
 		render(<ExerciseDetailView vscodeApi={mockApi} />);
 
@@ -149,7 +150,7 @@ describe('ExerciseDetailView', () => {
 	});
 
 	it('clicking back link sends backToCourseDetails postMessage', async () => {
-		useExerciseDetailStore.setState({ exerciseData: makeExerciseData() as never });
+		useExerciseDetailStore.setState({ exerciseData: makeExerciseData() as never, isLoading: false });
 		const mockApi = createMockVsCodeApi();
 		render(<ExerciseDetailView vscodeApi={mockApi} />);
 
@@ -165,7 +166,7 @@ describe('ExerciseDetailView', () => {
 	});
 
 	it('shows startExercise action button when no participation', () => {
-		useExerciseDetailStore.setState({ exerciseData: makeExerciseData() as never });
+		useExerciseDetailStore.setState({ exerciseData: makeExerciseData() as never, isLoading: false });
 		const mockApi = createMockVsCodeApi();
 		render(<ExerciseDetailView vscodeApi={mockApi} />);
 		// ParticipationActions shows "Start" when no participation
@@ -173,7 +174,7 @@ describe('ExerciseDetailView', () => {
 	});
 
 	it('start exercise button sends startExercise postMessage', async () => {
-		useExerciseDetailStore.setState({ exerciseData: makeExerciseData() as never });
+		useExerciseDetailStore.setState({ exerciseData: makeExerciseData() as never, isLoading: false });
 		const mockApi = createMockVsCodeApi();
 		render(<ExerciseDetailView vscodeApi={mockApi} />);
 
@@ -193,6 +194,7 @@ describe('ExerciseDetailView', () => {
 		useExerciseDetailStore.setState({
 			exerciseData: makeExerciseDataWithParticipation() as never,
 			repoStatus: { isConnected: true, hasChanges: true, isPracticeRepo: false },
+			isLoading: false,
 		});
 		const mockApi = createMockVsCodeApi();
 		render(<ExerciseDetailView vscodeApi={mockApi} />);
@@ -203,6 +205,7 @@ describe('ExerciseDetailView', () => {
 		useExerciseDetailStore.setState({
 			exerciseData: makeExerciseDataWithParticipation() as never,
 			repoStatus: { isConnected: true, hasChanges: true, isPracticeRepo: false },
+			isLoading: false,
 		});
 		const mockApi = createMockVsCodeApi();
 		render(<ExerciseDetailView vscodeApi={mockApi} />);
@@ -223,6 +226,7 @@ describe('ExerciseDetailView', () => {
 		useExerciseDetailStore.setState({
 			exerciseData: makeExerciseData() as never,
 			hideDeveloperTools: false,
+			isLoading: false,
 		});
 		const mockApi = createMockVsCodeApi();
 		render(<ExerciseDetailView vscodeApi={mockApi} />);
@@ -233,6 +237,7 @@ describe('ExerciseDetailView', () => {
 		useExerciseDetailStore.setState({
 			exerciseData: makeExerciseData() as never,
 			hideDeveloperTools: true,
+			isLoading: false,
 		});
 		const mockApi = createMockVsCodeApi();
 		render(<ExerciseDetailView vscodeApi={mockApi} />);

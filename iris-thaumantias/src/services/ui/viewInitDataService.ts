@@ -141,6 +141,7 @@ export class ViewInitDataService {
         const courseData = this._getAppStateManager().currentCourseData;
         if (!courseData) {
             logger.error('Course detail state missing course data', LogCategory.VIEW);
+            this._postMessage({ type: ExtensionMsg.ViewInitError, error: 'Course data is not available. Please go back and try again.' });
             return;
         }
 
@@ -171,6 +172,7 @@ export class ViewInitDataService {
         const exerciseData = this._getAppStateManager().currentExerciseData;
         if (!exerciseData) {
             logger.error('Exercise detail state missing exercise data', LogCategory.VIEW);
+            this._postMessage({ type: ExtensionMsg.ViewInitError, error: 'Exercise data is not available. Please go back and try again.' });
             return;
         }
 
