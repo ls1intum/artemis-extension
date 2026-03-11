@@ -24,6 +24,7 @@ interface ExerciseDetailState {
     exerciseData: ExerciseDetailsResponse | null;
     hideDeveloperTools: boolean;
     isLoading: boolean;
+    error: string | null;
 
     // Submission processing
     pendingSubmission: { state: string; participationId: number; buildTimingInfo?: unknown } | null;
@@ -35,6 +36,7 @@ interface ExerciseDetailState {
 
     // Actions
     setExerciseData: (data: ExerciseDetailsResponse, hideDeveloperTools: boolean, repoStatus?: RepoStatus) => void;
+    setError: (error: string | null) => void;
     setLoading: (loading: boolean) => void;
     loadExerciseDetail: (vscodeApi: VsCodeApi, exerciseId: number) => void;
     updateBuildStatus: (payload: ResultSummary) => void;
@@ -77,6 +79,7 @@ export const useExerciseDetailStore = create<ExerciseDetailState>()(
             exerciseData: null,
             hideDeveloperTools: false,
             isLoading: true,
+            error: null,
             pendingSubmission: null,
             repoStatus: null,
             clonedNotice: null,
@@ -87,11 +90,16 @@ export const useExerciseDetailStore = create<ExerciseDetailState>()(
                     exerciseData: data,
                     hideDeveloperTools,
                     isLoading: false,
+                    error: null,
                     pendingSubmission: (data.pendingSubmission as { state: string; participationId: number; buildTimingInfo?: unknown }) ?? null,
                     repoStatus: repoStatus ?? null,
                     clonedNotice: null,
                     dirtyPagesStatus: null,
                 }, false, 'setExerciseData');
+            },
+
+            setError: (error) => {
+                set({ error, isLoading: false }, false, 'setError');
             },
 
             setLoading: (loading) => {

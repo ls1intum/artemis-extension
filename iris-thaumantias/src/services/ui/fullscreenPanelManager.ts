@@ -2,7 +2,8 @@ import * as vscode from 'vscode';
 import { ExtensionMsg, WebviewMsgType } from '../../shared/messageContracts';
 import type { ExtensionToWebviewMessage, CourseDetailData as CourseDetailPayload } from '../../shared/messageContracts';
 import type { CourseData, ArchivedCourse } from '../../shared/messageContracts/domainTypes';
-import { detectWorkspaceForRepoUris } from '../workspace/workspaceDetectionService';
+import { detectWorkspaceForRepoUris, detectWorkspaceExercise } from '../workspace/workspaceDetectionService';
+import type { ExerciseSource } from '../workspace/workspaceDetectionService';
 import type { ExerciseDetailsResponse } from '../../types/apiResponses';
 import { isWebviewMessage } from '../../shared/messageContracts/typeGuards';
 import { getReactWebviewHtml } from '../../utils/webviewHelpers';
@@ -50,7 +51,6 @@ export class FullscreenPanelManager {
                     });
                 }
             },
-            onTitleUpdate: (title) => `Exercise: ${title}`,
         });
     }
 
@@ -78,14 +78,24 @@ export class FullscreenPanelManager {
             onReady: (postSafe) => {
                 const config = vscode.workspace.getConfiguration('artemis');
                 const developerMode = config.get<boolean>('developerMode', false);
-                postSafe({
-                    type: ExtensionMsg.CourseDetailInit,
-                    courseData: courseData,
-                    workspaceExerciseId: null,
-                    hideDeveloperTools: !developerMode,
+                const exercises = (courseData.course?.exercises ?? []) as ExerciseSource[];
+
+                detectWorkspaceExercise(exercises).then((detectedExercise) => {
+                    postSafe({
+                        type: ExtensionMsg.CourseDetailInit,
+                        courseData: courseData,
+                        workspaceExerciseId: detectedExercise?.id ?? null,
+                        hideDeveloperTools: !developerMode,
+                    });
+                }).catch(() => {
+                    postSafe({
+                        type: ExtensionMsg.CourseDetailInit,
+                        courseData: courseData,
+                        workspaceExerciseId: null,
+                        hideDeveloperTools: !developerMode,
+                    });
                 });
             },
-            onTitleUpdate: (title) => `Course: ${title}`,
         });
     }
 
@@ -94,7 +104,6 @@ export class FullscreenPanelManager {
         title: string;
         viewName: string;
         onReady: (postSafe: (msg: ExtensionToWebviewMessage) => void) => void;
-        onTitleUpdate?: (title: string) => string;
     }): void {
         const panel = vscode.window.createWebviewPanel(
             options.viewType,
@@ -151,13 +160,6 @@ export class FullscreenPanelManager {
 
             if (message.type === WebviewMsgType.RequestInit) {
                 options.onReady(postSafe);
-                return;
-            }
-
-            if (message.type === WebviewMsgType.UpdatePanelTitle) {
-                if (options.onTitleUpdate) {
-                    panel.title = options.onTitleUpdate(message.title);
-                }
                 return;
             }
 

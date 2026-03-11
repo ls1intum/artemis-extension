@@ -171,7 +171,7 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
         });
 
         // Start streaming state (thinking indicator will show)
-        store.startStreaming(localId + '-response');
+        store.startStreaming('__thinking__');
 
         // Send to extension
         postCommand(vscodeApi, 'sendMessage', { text });

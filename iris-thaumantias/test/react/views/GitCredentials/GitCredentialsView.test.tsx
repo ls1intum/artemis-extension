@@ -149,7 +149,7 @@ describe('GitCredentialsView', () => {
 			getState: <T = unknown>() => ({ name: 'Saved User', email: 'saved@example.com' }) as T | undefined,
 		});
 		render(<GitCredentialsView vscodeApi={mockApi} />);
-		initView();
+		initView({ name: 'Saved User', email: 'saved@example.com' });
 
 		await waitFor(() => {
 			const nameInput = screen.getByLabelText(/git user name/i) as HTMLInputElement;

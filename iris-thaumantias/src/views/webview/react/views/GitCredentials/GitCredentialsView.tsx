@@ -40,8 +40,8 @@ export function GitCredentialsView({ vscodeApi }: GitCredentialsViewProps) {
     useExtensionMessage((msg) => {
         switch (msg.type) {
             case ExtensionMsg.GitIdentityInfo: {
-                if (msg.name) { setName(msg.name); }
-                if (msg.email) { setEmail(msg.email); }
+                setName(msg.name);
+                setEmail(msg.email);
                 setIsLoaded(true);
                 break;
             }

@@ -15,6 +15,7 @@ import {
     Badge,
     SkeletonList,
     AskIris,
+    ErrorMessage,
 } from '../../components';
 import {
     SubmissionStatus,
@@ -32,11 +33,13 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
         exerciseData,
         hideDeveloperTools,
         isLoading,
+        error,
         repoStatus,
         dirtyPagesStatus,
         clonedNotice,
         pendingSubmission,
         setExerciseData,
+        setError,
         loadExerciseDetail,
         clearClonedNotice,
     } = useExerciseDetailStore();
@@ -54,7 +57,10 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
 
             setExerciseData(msg.exerciseData, msg.hideDeveloperTools, msg.repoStatus);
         }
-    }, [vscodeApi, setExerciseData]);
+        if (msg.type === ExtensionMsg.ViewInitError) {
+            setError(msg.error);
+        }
+    }, [vscodeApi, setExerciseData, setError]);
 
     // Listen for exercise-related extension messages
     useExerciseStatusMessages(vscodeApi);
@@ -69,6 +75,11 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
         } else {
             requestInit(vscodeApi);
         }
+    };
+
+    const handleRetry = () => {
+        setError(null);
+        requestInit(vscodeApi);
     };
 
     const handleFullscreen = () => {
@@ -105,6 +116,16 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
             <div className={styles.exerciseDetailView}>
                 <BackLink onClick={handleBackToCourse}>Back to Course</BackLink>
                 <SkeletonList count={5} />
+            </div>
+        );
+    }
+
+    // Error state
+    if (error) {
+        return (
+            <div className={styles.exerciseDetailView}>
+                <BackLink onClick={handleBackToCourse}>Back to Course</BackLink>
+                <ErrorMessage error={error} onRetry={handleRetry} />
             </div>
         );
     }

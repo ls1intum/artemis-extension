@@ -17,6 +17,7 @@ import {
     SkeletonList,
     AskIris,
     EmptyState,
+    ErrorMessage,
     PageHeader,
 } from '../../components';
 import type { DropdownOption } from '../../components';
@@ -29,9 +30,11 @@ export function CourseDetailView({ vscodeApi }: CourseDetailViewProps) {
         workspaceExerciseId,
         hideDeveloperTools,
         isLoading,
+        error,
         exerciseSearchTerm,
         exerciseSortBy,
         setCourseData,
+        setError,
         setExerciseSearchTerm,
         setExerciseSortBy,
         loadCourseDetail,
@@ -53,7 +56,10 @@ export function CourseDetailView({ vscodeApi }: CourseDetailViewProps) {
         if (msg.type === ExtensionMsg.CourseDetailInit) {
             setCourseData(msg.courseData, msg.workspaceExerciseId, msg.hideDeveloperTools);
         }
-    }, [vscodeApi, setCourseData]);
+        if (msg.type === ExtensionMsg.ViewInitError) {
+            setError(msg.error);
+        }
+    }, [vscodeApi, setCourseData, setError]);
 
     // Persist search/sort state whenever it changes
     useEffect(() => {
@@ -74,6 +80,11 @@ export function CourseDetailView({ vscodeApi }: CourseDetailViewProps) {
         } else {
             requestInit(vscodeApi);
         }
+    };
+
+    const handleRetry = () => {
+        setError(null);
+        requestInit(vscodeApi);
     };
 
     const handleFullscreen = () => {
@@ -140,6 +151,16 @@ export function CourseDetailView({ vscodeApi }: CourseDetailViewProps) {
             <div className={styles.courseDetailContainer}>
                 <BackLink onClick={handleBackToDashboard} actions={backLinkActions}>Back to Dashboard</BackLink>
                 <SkeletonList count={5} />
+            </div>
+        );
+    }
+
+    // Error state
+    if (error) {
+        return (
+            <div className={styles.courseDetailContainer}>
+                <BackLink onClick={handleBackToDashboard} actions={backLinkActions}>Back to Dashboard</BackLink>
+                <ErrorMessage error={error} onRetry={handleRetry} />
             </div>
         );
     }

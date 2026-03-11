@@ -7,11 +7,13 @@ interface CourseDetailState {
     workspaceExerciseId: number | null;
     hideDeveloperTools: boolean;
     isLoading: boolean;
+    error: string | null;
     exerciseSearchTerm: string;
     exerciseSortBy: string;
 
     // Actions
     setCourseData: (data: CourseDetailData, workspaceExerciseId?: number | null, hideDeveloperTools?: boolean) => void;
+    setError: (error: string | null) => void;
     setLoading: (loading: boolean) => void;
     setExerciseSearchTerm: (term: string) => void;
     setExerciseSortBy: (sort: string) => void;
@@ -118,6 +120,7 @@ export const useCourseDetailStore = create<CourseDetailState>()(
             workspaceExerciseId: null,
             hideDeveloperTools: true,
             isLoading: true,
+            error: null,
             exerciseSearchTerm: '',
             exerciseSortBy: 'id-desc',
 
@@ -127,7 +130,12 @@ export const useCourseDetailStore = create<CourseDetailState>()(
                     workspaceExerciseId: workspaceExerciseId ?? null,
                     hideDeveloperTools: hideDeveloperTools ?? true,
                     isLoading: false,
+                    error: null,
                 }, false, 'setCourseData');
+            },
+
+            setError: (error) => {
+                set({ error, isLoading: false }, false, 'setError');
             },
 
             setLoading: (loading) => {
