@@ -132,16 +132,15 @@ export class NavigationCommandModule {
                 ? (courseData.course as CourseDashboardCourse | undefined)
                 : courseData;
 
-            // Fetch exams for the course
-            if (course?.id) {
-                try {
-                    const exams = await this.context.artemisApi.getExamsForCourse(course.id);
-                    course.exams = exams;
-                } catch (error: unknown) {
-                    logger.apiError('Error fetching exams:', error);
-                    // Continue without exams if fetch fails
-                }
-            }
+            // TODO: Exams temporarily disabled
+            // if (course?.id) {
+            //     try {
+            //         const exams = await this.context.artemisApi.getExamsForCourse(course.id);
+            //         course.exams = exams;
+            //     } catch (error: unknown) {
+            //         logger.apiError('Error fetching exams:', error);
+            //     }
+            // }
 
             // Convert to CourseDetailData format expected by state manager
             const courseDetailData: CourseDetailData = {

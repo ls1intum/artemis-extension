@@ -225,8 +225,8 @@ export function CourseDetailView({ vscodeApi }: CourseDetailViewProps) {
                 onClick={handleAskIris}
             />
 
-            {/* Exams Section */}
-            {exams.length > 0 && (
+            {/* TODO: Exams Section - temporarily disabled */}
+            {/* {exams.length > 0 && (
                 <Container
                     header={
                         <div className={styles.sectionHeader}>
@@ -261,7 +261,7 @@ export function CourseDetailView({ vscodeApi }: CourseDetailViewProps) {
                         })}
                     </div>
                 </Container>
-            )}
+            )} */}
 
             {/* Exercises Section */}
             <Container
