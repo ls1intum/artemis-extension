@@ -137,14 +137,15 @@ suite('Artemis WebSocket Service Test Suite', () => {
         // Initial state
         assert.strictEqual(states[0], false);
 
-        // Connect
-        await wsService.connect();
+        // Connect — simulateConnect must fire before awaiting since connect() now waits for onConnect
+        const connectPromise = wsService.connect();
 
         assert.ok(wsService.mockClient, 'Client should be created');
         assert.strictEqual(wsService.mockClient.active, true, 'Client should be active');
 
         // Simulate connection success
         wsService.mockClient.simulateConnect();
+        await connectPromise;
 
         // Should be connected now
         assert.strictEqual(wsService.isConnected(), true);
@@ -154,8 +155,9 @@ suite('Artemis WebSocket Service Test Suite', () => {
     test('should subscribe to topics and receive messages', async () => {
         wsService = new TestableArtemisWebsocketService(authManager);
         await authManager.storeArtemisCredentials('jwt=token', 'https://artemis.example.com', true);
-        await wsService.connect();
+        const p = wsService.connect();
         wsService.mockClient!.simulateConnect();
+        await p;
 
         // Register a handler
         let receivedResult: ResultDTO | undefined;
@@ -194,8 +196,9 @@ suite('Artemis WebSocket Service Test Suite', () => {
     test('should handle disconnection', async () => {
         wsService = new TestableArtemisWebsocketService(authManager);
         await authManager.storeArtemisCredentials('jwt=token', 'https://artemis.example.com', true);
-        await wsService.connect();
+        const p = wsService.connect();
         wsService.mockClient!.simulateConnect();
+        await p;
 
         assert.strictEqual(wsService.isConnected(), true);
 
@@ -208,8 +211,9 @@ suite('Artemis WebSocket Service Test Suite', () => {
     test('should handle STOMP errors', async () => {
         wsService = new TestableArtemisWebsocketService(authManager);
         await authManager.storeArtemisCredentials('jwt=token', 'https://artemis.example.com', true);
-        await wsService.connect();
+        const p = wsService.connect();
         wsService.mockClient!.simulateConnect();
+        await p;
 
         // Simulate error
         wsService.mockClient!.simulateError('Connection lost');
@@ -239,20 +243,26 @@ suite('Artemis WebSocket Service Test Suite', () => {
         // Not connected yet
         assert.strictEqual(wsService.isConnected(), false);
 
-        // Ensure connection
-        const result = await wsService.ensureConnection();
+        // Ensure connection — simulateConnect before awaiting since connect() waits for onConnect
+        const ensurePromise = wsService.ensureConnection();
 
         // Should have tried to connect
         assert.ok(wsService.mockClient);
-
         assert.strictEqual(wsService.mockClient!.active, true);
+
+        // Simulate successful connection so the promise resolves
+        wsService.mockClient!.simulateConnect();
+        const result = await ensurePromise;
+
+        assert.strictEqual(result, true);
     });
 
     test('should subscribe to Iris session and receive messages', async () => {
         wsService = new TestableArtemisWebsocketService(authManager);
         await authManager.storeArtemisCredentials('jwt=token', 'https://artemis.example.com', true);
-        await wsService.connect();
+        const p = wsService.connect();
         wsService.mockClient!.simulateConnect();
+        await p;
 
         const sessionId = 12345;
         const topic = `/user/topic/iris/${sessionId}`;
@@ -284,8 +294,9 @@ suite('Artemis WebSocket Service Test Suite', () => {
     test('should handle Iris session unsubscription', async () => {
         wsService = new TestableArtemisWebsocketService(authManager);
         await authManager.storeArtemisCredentials('jwt=token', 'https://artemis.example.com', true);
-        await wsService.connect();
+        const p = wsService.connect();
         wsService.mockClient!.simulateConnect();
+        await p;
 
         const sessionId = 12345;
         const topic = `/user/topic/iris/${sessionId}`;
@@ -309,5 +320,34 @@ suite('Artemis WebSocket Service Test Suite', () => {
             assert.ok(error instanceof Error);
             assert.ok(error.message.includes('not connected'));
         }
+    });
+
+    test('stale unsubscribe should not remove active subscription', async () => {
+        wsService = new TestableArtemisWebsocketService(authManager);
+        await authManager.storeArtemisCredentials('jwt=token', 'https://artemis.example.com', true);
+        const p = wsService.connect();
+        wsService.mockClient!.simulateConnect();
+        await p;
+
+        const sessionId = 42;
+        const topic = `/user/topic/iris/${sessionId}`;
+
+        // First subscription
+        const unsub1 = wsService.subscribeToIrisSession(sessionId, () => { });
+        assert.ok(wsService.mockClient!.subscriptions.has(topic), 'First subscription should exist');
+
+        // Second subscription for same session — replaces the first
+        const unsub2 = wsService.subscribeToIrisSession(sessionId, () => { });
+        assert.ok(wsService.mockClient!.subscriptions.has(topic), 'Second subscription should exist');
+
+        // Call stale unsubscribe from first subscription — should NOT remove the new entry
+        unsub1();
+        assert.ok(wsService.mockClient!.subscriptions.has(topic),
+            'Active subscription should still exist after stale unsubscribe');
+
+        // Call current unsubscribe — should remove the entry
+        unsub2();
+        assert.strictEqual(wsService.mockClient!.subscriptions.has(topic), false,
+            'Subscription should be removed after current unsubscribe');
     });
 });

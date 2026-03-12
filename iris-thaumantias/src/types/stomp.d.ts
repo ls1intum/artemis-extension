@@ -38,6 +38,8 @@ declare module '@stomp/stompjs' {
         onUnhandledReceipt?: (frame: IFrame) => void;
         onUnhandledFrame?: (frame: IFrame) => void;
         beforeConnect?: () => void | Promise<void>;
+        reconnectTimeMode?: number;
+        maxReconnectDelay?: number;
         // WebSocket factory returns untyped WebSocket instance at library boundary
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         webSocketFactory?: () => any;
@@ -50,7 +52,7 @@ declare module '@stomp/stompjs' {
         active: boolean;
         
         activate(): void;
-        deactivate(): Promise<void>;
+        deactivate(options?: { force?: boolean }): Promise<void>;
         
         publish(params: {
             destination: string;

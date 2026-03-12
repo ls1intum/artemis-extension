@@ -139,7 +139,6 @@ export class IrisSessionManager implements vscode.Disposable {
             logger.session(`Rate limited: ${MIN_RESUBSCRIBE_INTERVAL_MS - timeSinceLastAttempt}ms until next subscribe`);
             return;
         }
-        this._lastResubscribeAttempt = now;
 
         // Unsubscribe from previous session first
         this.unsubscribe();
@@ -149,6 +148,9 @@ export class IrisSessionManager implements vscode.Disposable {
             // NOTE: We do NOT call connect() here! The connection state callback will handle this.
             return;
         }
+
+        // Only consume rate-limit window when we actually attempt to subscribe
+        this._lastResubscribeAttempt = now;
 
         logger.session(`Subscribing to Iris WebSocket session: ${sessionId}`);
         try {

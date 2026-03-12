@@ -70,6 +70,12 @@ export class ArtemisWebsocketService {
     private _connectionStateCallbacks: Map<string, (isConnected: boolean, wasEverConnected: boolean) => void> = new Map();
     private _callbackIdCounter: number = 0;
 
+    // connect() promise resolution — allows callers to await actual connection
+    private _connectPromise?: Promise<void>;
+    private _connectResolve?: () => void;
+    private _connectReject?: (err: Error) => void;
+    private _connectTimeout?: ReturnType<typeof setTimeout>;
+
     constructor(authManager: AuthManager) {
         this._authManager = authManager;
         this._sessionId = this._generateSecureSessionId();
@@ -120,6 +126,7 @@ export class ArtemisWebsocketService {
      * Register a message handler for WebSocket events
      */
     public registerMessageHandler(handler: WebSocketMessageHandler): void {
+        if (this._messageHandlers.includes(handler)) { return; }
         this._messageHandlers.push(handler);
         this._log(`Message handler registered. Total handlers: ${this._messageHandlers.length}`);
     }
@@ -248,12 +255,22 @@ export class ArtemisWebsocketService {
         const canConnect = this._canAttemptConnection();
         if (!canConnect.allowed) {
             this._log(`⚠️ Connection blocked: ${canConnect.reason}`);
-            return;
+            return this._connectPromise;
         }
 
         // Set mutex IMMEDIATELY
         this._isConnecting = true;
         this._lastConnectionAttempt = Date.now();
+
+        // Create promise BEFORE async work so concurrent callers can share it
+        this._connectPromise = new Promise<void>((resolve, reject) => {
+            this._connectResolve = resolve;
+            this._connectReject = reject;
+            this._connectTimeout = setTimeout(() => {
+                this._rejectConnect(new Error('Connection timed out'));
+                this._isConnecting = false;
+            }, this._connectionTimeout);
+        });
 
         try {
             // Now safe to deactivate existing connection
@@ -262,6 +279,7 @@ export class ArtemisWebsocketService {
                 // Temporarily set flag to prevent onDisconnected from triggering reconnect
                 this._isDisconnecting = true;
                 await this._client.deactivate();
+                this._subscriptions.clear();
                 this._client = undefined;
                 this._isDisconnecting = false;
             }
@@ -304,6 +322,8 @@ export class ArtemisWebsocketService {
                 connectHeaders: {},
                 // Exponential backoff - STOMP library handles reconnection
                 reconnectDelay: currentReconnectDelay,
+                reconnectTimeMode: 1, // EXPONENTIAL (ReconnectionTimeMode.EXPONENTIAL)
+                maxReconnectDelay: this._maxReconnectDelay,
                 // Connection timeout - abort and retry after 10 seconds (matching webapp)
                 connectionTimeout: this._connectionTimeout,
                 // Heartbeat settings - must match server (10 seconds)
@@ -343,18 +363,23 @@ export class ArtemisWebsocketService {
 
                 onDisconnect: () => {
                     this._onDisconnected();
+                },
+
+                onWebSocketClose: () => {
+                    this._onDisconnected();
                 }
             };
 
             this._client = this._createClient(stompConfig as StompConfig);
-            this._client.activate();
-
         } catch (error) {
             const errorMessage = error instanceof Error ? error.message : 'Unknown error';
             this._onError(`Failed to connect to WebSocket: ${errorMessage}`);
             this._isConnecting = false;
-            throw error;
+            return this._connectPromise; // Already rejected by _onError → _rejectConnect
         }
+
+        this._client.activate();
+        return this._connectPromise;
     }
 
     /**
@@ -365,6 +390,32 @@ export class ArtemisWebsocketService {
         return new Client(config);
     }
 
+    /** Resolve the pending connect() promise and clear timeout */
+    private _resolveConnect(): void {
+        if (this._connectTimeout) {
+            clearTimeout(this._connectTimeout);
+            this._connectTimeout = undefined;
+        }
+        const resolve = this._connectResolve;
+        this._connectResolve = undefined;
+        this._connectReject = undefined;
+        this._connectPromise = undefined;
+        resolve?.();
+    }
+
+    /** Reject the pending connect() promise and clear timeout */
+    private _rejectConnect(err: Error): void {
+        if (this._connectTimeout) {
+            clearTimeout(this._connectTimeout);
+            this._connectTimeout = undefined;
+        }
+        const reject = this._connectReject;
+        this._connectResolve = undefined;
+        this._connectReject = undefined;
+        this._connectPromise = undefined;
+        reject?.(err);
+    }
+
     /**
      * Disconnect from the WebSocket server.
      * 
@@ -373,6 +424,9 @@ export class ArtemisWebsocketService {
     public async disconnect(): Promise<void> {
         // Set flag to prevent reconnect loop
         this._isDisconnecting = true;
+
+        // Clear any pending connect promise
+        this._rejectConnect(new Error('Disconnected'));
 
         // Clear any pending disconnect notification
         if (this._connectionStateDebounceTimer) {
@@ -500,18 +554,12 @@ export class ArtemisWebsocketService {
         // Use /user/topic/ prefix for user-specific authenticated messages
         const topic = WEBSOCKET_TOPICS.irisSession(sessionId);
 
-        // Check if already subscribed
+        // Replace stale subscription if one exists (e.g. after reconnect)
         if (this._subscriptions.has(topic)) {
-            this._log(`Already subscribed to ${topic}`);
-            // Return unsubscribe function for existing subscription
-            return () => {
-                const sub = this._subscriptions.get(topic);
-                if (sub) {
-                    sub.unsubscribe();
-                    this._subscriptions.delete(topic);
-                    this._log(`Unsubscribed from ${topic}`);
-                }
-            };
+            this._log(`Replacing existing subscription for ${topic}`);
+            const oldSub = this._subscriptions.get(topic);
+            try { oldSub?.unsubscribe(); } catch { /* stale sub, ignore */ }
+            this._subscriptions.delete(topic);
         }
 
         const subscription = this._client.subscribe(topic, (message: IMessage) => {
@@ -531,10 +579,13 @@ export class ArtemisWebsocketService {
         this._subscriptions.set(topic, subscription);
         this._log(`✅ Subscribed to Iris session: ${topic}`);
 
-        // Return unsubscribe function
+        // Return unsubscribe function — capture ref to guard against stale closures
+        const capturedSub = subscription;
         return () => {
-            subscription.unsubscribe();
-            this._subscriptions.delete(topic);
+            capturedSub.unsubscribe();
+            if (this._subscriptions.get(topic) === capturedSub) {
+                this._subscriptions.delete(topic);
+            }
             this._log(`Unsubscribed from ${topic}`);
         };
     }
@@ -681,6 +732,9 @@ export class ArtemisWebsocketService {
         this._connectionGaveUp = false; // Allow future reconnects
         this._wasConnectedOnce = true;
 
+        // Resolve the connect() promise so callers know the socket is usable
+        this._resolveConnect();
+
         // Cancel any pending disconnect notification
         if (this._connectionStateDebounceTimer) {
             clearTimeout(this._connectionStateDebounceTimer);
@@ -709,6 +763,19 @@ export class ArtemisWebsocketService {
      * 4. Does NOT call connect() - STOMP library handles reconnection
      */
     private _onDisconnected(): void {
+        // WebSocket close during handshake: _isConnected is still false but
+        // _isConnecting is true. Reject the pending connect() promise immediately
+        // instead of swallowing the event and letting the timeout expire.
+        if (!this._isConnected && this._isConnecting) {
+            this._rejectConnect(new Error('WebSocket closed during connection'));
+            this._isConnecting = false;
+            return;
+        }
+
+        // Idempotency: if already disconnected, don't double-process
+        // (both onDisconnect and onWebSocketClose may fire for the same event)
+        if (!this._isConnected) { return; }
+
         // SAFETY: Don't process if we're intentionally disconnecting
         if (this._isDisconnecting) {
             this._log('Ignoring onDisconnected during intentional disconnect');
@@ -736,9 +803,22 @@ export class ArtemisWebsocketService {
         this._reconnectAttempts++;
 
         if (this._reconnectAttempts >= MAX_CONNECTION_ATTEMPTS) {
+            // Cancel debounce timer to prevent double notification
+            if (this._connectionStateDebounceTimer) {
+                clearTimeout(this._connectionStateDebounceTimer);
+                this._connectionStateDebounceTimer = undefined;
+                this._pendingDisconnectNotification = false;
+            }
             this._connectionGaveUp = true;
             this._log(`🛑 MAX RECONNECTION ATTEMPTS (${MAX_CONNECTION_ATTEMPTS}) REACHED`);
             this._notifyConnectionStateChange(false);
+            // Stop STOMP's internal reconnection loop
+            if (this._client) {
+                this._isDisconnecting = true;
+                void this._client.deactivate({ force: true }).finally(() => {
+                    this._isDisconnecting = false;
+                });
+            }
         } else {
             const nextDelay = this._getReconnectDelay();
             this._log(`STOMP will attempt reconnection with delay: ${nextDelay}ms (attempt ${this._reconnectAttempts}/${MAX_CONNECTION_ATTEMPTS})`);
@@ -768,6 +848,9 @@ export class ArtemisWebsocketService {
     private _onError(message: string): void {
         this._log(`❌ ${message}`);
         logger.error(message, LogCategory.WEBSOCKET);
+        // Reject the connect() promise if pending
+        this._rejectConnect(new Error(message));
+        this._isConnecting = false;
     }
 
     private _getServerUrl(): string {
