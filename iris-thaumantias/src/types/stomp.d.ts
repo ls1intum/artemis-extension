@@ -1,4 +1,9 @@
 declare module '@stomp/stompjs' {
+    export enum ReconnectionTimeMode {
+        LINEAR = 0,
+        EXPONENTIAL = 1
+    }
+
     export interface IFrame {
         command: string;
         headers: Record<string, string>;
@@ -38,8 +43,10 @@ declare module '@stomp/stompjs' {
         onUnhandledReceipt?: (frame: IFrame) => void;
         onUnhandledFrame?: (frame: IFrame) => void;
         beforeConnect?: () => void | Promise<void>;
-        reconnectTimeMode?: number;
+        reconnectTimeMode?: ReconnectionTimeMode;
         maxReconnectDelay?: number;
+        connectionTimeout?: number;
+        discardWebsocketOnCommFailure?: boolean;
         // WebSocket factory returns untyped WebSocket instance at library boundary
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         webSocketFactory?: () => any;

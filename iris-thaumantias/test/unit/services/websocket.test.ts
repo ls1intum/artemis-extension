@@ -129,6 +129,10 @@ class TestableArtemisWebsocketService extends ArtemisWebsocketService {
         return (this as any)._wasConnectedOnce;
     }
 
+    public get connectionGeneration(): number {
+        return (this as any)._connectionGeneration;
+    }
+
     // Override client creation to use mock
     protected _createClient(config: StompConfig): Client {
         this.mockClient = new MockStompClient(config);
@@ -300,10 +304,14 @@ suite('ArtemisWebsocketService Safety Features', () => {
     test('Max Attempts: should block new connections after giving up', async () => {
         wsService.setInternalState({ connectionGaveUp: true });
 
-        const initialCallCount = wsService.connectCallCount;
-        await wsService.connect();
+        try {
+            await wsService.connect();
+            assert.fail('connect() should have thrown');
+        } catch (error) {
+            assert.ok(error instanceof Error);
+            assert.ok(error.message.includes('Connection blocked'), `Expected 'Connection blocked' in message, got: ${error.message}`);
+        }
 
-        // connect() was called but should return early
         assert.strictEqual(wsService.mockClient, undefined, 'Should not create client after giving up');
     });
 
@@ -579,11 +587,14 @@ suite('ArtemisWebsocketService Reconnection Logic', () => {
             // Give up
             wsService.setInternalState({ connectionGaveUp: true });
 
-            // Can't connect while given up - verify by checking client is not created
-            const clientBeforeReset = wsService.mockClient;
-            await wsService.connect();
-            // Client should still be the same (undefined or previous)
-            assert.strictEqual(wsService.mockClient, clientBeforeReset, 'Should not create new client while given up');
+            // Can't connect while given up - should throw
+            try {
+                await wsService.connect();
+                assert.fail('connect() should have thrown while given up');
+            } catch (error) {
+                assert.ok(error instanceof Error);
+                assert.ok(error.message.includes('Connection blocked'));
+            }
 
             // Reset
             wsService.resetConnectionState();
@@ -1162,5 +1173,120 @@ suite('WebSocket Race Condition Fixes', () => {
             assert.ok(error.message.includes('closed during connection'),
                 `Expected 'closed during connection' in message, got: ${error.message}`);
         }
+    });
+
+    // ========================================================================
+    // Bug 1: disconnect() during connect() aborts connection
+    // ========================================================================
+    test('disconnect() during connect() aborts connection via generation token', async () => {
+        // Start connect
+        const p = wsService.connect();
+        const genAfterConnect = wsService.connectionGeneration;
+
+        // Flush microtasks so connect() creates the client
+        await new Promise(resolve => setTimeout(resolve, 0));
+
+        // disconnect() should increment generation, invalidating the in-flight connect
+        await wsService.disconnect();
+        assert.ok(wsService.connectionGeneration > genAfterConnect,
+            'disconnect() should increment connection generation');
+
+        // The original connect promise was rejected by disconnect's _rejectConnect
+        try {
+            await p;
+            assert.fail('connect() should have been rejected by disconnect');
+        } catch (error) {
+            assert.ok(error instanceof Error);
+        }
+    });
+
+    // ========================================================================
+    // Bug 2: handshake failures increment reconnect attempts
+    // ========================================================================
+    test('handshake failures increment reconnect attempts', async () => {
+        // Start connect
+        const p = wsService.connect();
+        await new Promise(resolve => setTimeout(resolve, 0));
+
+        assert.strictEqual(wsService.reconnectAttemptsCount, 0, 'Should start at 0');
+
+        // Simulate WebSocket close during handshake
+        wsService.mockClient!.simulateWebSocketClose();
+
+        try { await p; } catch { /* expected rejection */ }
+
+        assert.strictEqual(wsService.reconnectAttemptsCount, 1,
+            'Handshake failure should increment reconnect attempts');
+    });
+
+    // ========================================================================
+    // Bug 3: connect() throws when blocked (no in-flight promise)
+    // ========================================================================
+    test('connect() throws when blocked and no in-flight promise', async () => {
+        wsService.setInternalState({ connectionGaveUp: true });
+
+        try {
+            await wsService.connect();
+            assert.fail('connect() should have thrown');
+        } catch (error) {
+            assert.ok(error instanceof Error);
+            assert.ok(error.message.includes('Connection blocked'),
+                `Expected 'Connection blocked' in message, got: ${(error as Error).message}`);
+        }
+    });
+
+    // ========================================================================
+    // Bug 4: intentional disconnect notifies consumers
+    // ========================================================================
+    test('intentional disconnect notifies consumers', async () => {
+        // Connect first
+        const p = wsService.connect();
+        wsService.mockClient!.simulateConnect();
+        await p;
+
+        const states: Array<{ connected: boolean; wasEverConnected?: boolean }> = [];
+        wsService.onConnectionStateChange((isConnected, wasEverConnected) => {
+            states.push({ connected: isConnected, wasEverConnected });
+        });
+        // Clear initial state from registration
+        states.length = 0;
+
+        // Intentional disconnect
+        await wsService.disconnect();
+
+        // Should have received a (false, true) notification
+        assert.ok(states.length >= 1, 'Should have received at least one notification');
+        const disconnectNotification = states.find(s => !s.connected);
+        assert.ok(disconnectNotification, 'Should have received disconnect notification');
+        assert.strictEqual(disconnectNotification!.wasEverConnected, true,
+            'wasEverConnected should be true during disconnect notification');
+    });
+
+    // ========================================================================
+    // Bug 5: _isDisconnecting resets if deactivate() throws
+    // ========================================================================
+    test('_isDisconnecting resets if deactivate() throws', async () => {
+        // Connect first
+        const p = wsService.connect();
+        wsService.mockClient!.simulateConnect();
+        await p;
+
+        // Make deactivate throw
+        wsService.mockClient!.deactivate = async () => {
+            throw new Error('deactivate failed');
+        };
+
+        // Start a new connect — the deactivation of the existing client will throw
+        try {
+            const p2 = wsService.connect();
+            await new Promise(resolve => setTimeout(resolve, 0));
+            await p2;
+        } catch {
+            // Expected — deactivate threw
+        }
+
+        // _isDisconnecting should NOT be stuck as true
+        assert.strictEqual(wsService.isDisconnectingState, false,
+            '_isDisconnecting should be reset even when deactivate() throws');
     });
 });

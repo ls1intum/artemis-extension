@@ -1,4 +1,4 @@
-import { Client, StompConfig, StompSubscription, IFrame, IMessage } from '@stomp/stompjs';
+import { Client, StompConfig, StompSubscription, IFrame, IMessage, ReconnectionTimeMode } from '@stomp/stompjs';
 import WebSocket from 'ws';
 import * as vscode from 'vscode';
 import { AuthManager } from '../../auth';
@@ -48,6 +48,7 @@ export class ArtemisWebsocketService {
     private _isConnected: boolean = false;
     private _isConnecting: boolean = false;
     private _isDisconnecting: boolean = false; // NEW: Prevent reconnect during disconnect
+    private _connectionGeneration: number = 0; // Monotonic token to detect stale connect() continuations
     private _reconnectAttempts: number = 0;
     private _lastConnectionAttempt: number = 0; // NEW: Track last attempt time
     private _connectionGaveUp: boolean = false; // NEW: Track if we gave up
@@ -180,6 +181,9 @@ export class ArtemisWebsocketService {
      * Calculate reconnect delay with exponential backoff.
      * Matches Artemis webapp: starts at 500ms, doubles each attempt, max 10s
      * (ReconnectionTimeMode.EXPONENTIAL behavior)
+     *
+     * NOTE: This is approximate and used for display/logging only.
+     * The STOMP library manages the actual reconnection timing.
      */
     private _getReconnectDelay(): number {
         // Exponential backoff: 500ms * 2^attempts, capped at 10s
@@ -254,13 +258,17 @@ export class ArtemisWebsocketService {
         // SAFETY CHECK FIRST - before doing anything else!
         const canConnect = this._canAttemptConnection();
         if (!canConnect.allowed) {
-            this._log(`⚠️ Connection blocked: ${canConnect.reason}`);
-            return this._connectPromise;
+            this._log(`Connection blocked: ${canConnect.reason}`);
+            if (this._connectPromise) {
+                return this._connectPromise;  // Piggyback on in-flight connect
+            }
+            throw new Error(`Connection blocked: ${canConnect.reason}`);
         }
 
         // Set mutex IMMEDIATELY
         this._isConnecting = true;
         this._lastConnectionAttempt = Date.now();
+        const generation = ++this._connectionGeneration;
 
         // Create promise BEFORE async work so concurrent callers can share it
         this._connectPromise = new Promise<void>((resolve, reject) => {
@@ -278,16 +286,29 @@ export class ArtemisWebsocketService {
                 this._log('Deactivating existing connection before reconnect');
                 // Temporarily set flag to prevent onDisconnected from triggering reconnect
                 this._isDisconnecting = true;
-                await this._client.deactivate();
+                try {
+                    await this._client.deactivate();
+                } finally {
+                    this._isDisconnecting = false;
+                }
                 this._subscriptions.clear();
                 this._client = undefined;
-                this._isDisconnecting = false;
+            }
+
+            if (this._connectionGeneration !== generation) {
+                this._log('Connection aborted: superseded by disconnect/newer connect');
+                return this._connectPromise;
             }
 
             const serverUrl = this._getServerUrl();
             this._log(`Connecting to Artemis WebSocket (attempt ${this._reconnectAttempts + 1}/${MAX_CONNECTION_ATTEMPTS})...`);
 
             const cookie = await this._authManager.getCookieHeader();
+
+            if (this._connectionGeneration !== generation) {
+                this._log('Connection aborted: superseded by disconnect/newer connect');
+                return this._connectPromise;
+            }
 
             if (!cookie) {
                 const errorMsg = 'No authentication cookie available. Please log in first.';
@@ -312,17 +333,12 @@ export class ArtemisWebsocketService {
             const currentReconnectDelay = this._getReconnectDelay();
             this._log(`Reconnect config: delay=${currentReconnectDelay}ms, timeout=${this._connectionTimeout}ms, heartbeat=${this._heartbeatInterval}ms`);
 
-            // StompConfig type doesn't include all options, but they are supported at runtime
-            // See: https://stomp-js.github.io/api-docs/latest/classes/Client.html
-            const stompConfig: StompConfig & {
-                connectionTimeout?: number;
-                discardWebsocketOnCommFailure?: boolean;
-            } = {
+            const stompConfig: StompConfig = {
                 brokerURL: wsUrl,
                 connectHeaders: {},
                 // Exponential backoff - STOMP library handles reconnection
                 reconnectDelay: currentReconnectDelay,
-                reconnectTimeMode: 1, // EXPONENTIAL (ReconnectionTimeMode.EXPONENTIAL)
+                reconnectTimeMode: ReconnectionTimeMode.EXPONENTIAL,
                 maxReconnectDelay: this._maxReconnectDelay,
                 // Connection timeout - abort and retry after 10 seconds (matching webapp)
                 connectionTimeout: this._connectionTimeout,
@@ -353,12 +369,15 @@ export class ArtemisWebsocketService {
                 },
 
                 onStompError: (frame: IFrame) => {
-                    this._onError(`STOMP error: ${frame.headers['message']}`);
+                    const body = frame.body ? ` body=${frame.body.substring(0, 500)}` : '';
+                    this._onError(`STOMP error: ${frame.headers['message']}${body}`);
                 },
 
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- STOMP library onWebSocketError uses generic event type
                 onWebSocketError: (event: any) => {
-                    this._onError(`WebSocket error`);
+                    // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment -- event shape is untyped
+                    const detail = event?.message || event?.type || 'unknown';
+                    this._onError(`WebSocket error: ${detail}`);
                 },
 
                 onDisconnect: () => {
@@ -370,7 +389,7 @@ export class ArtemisWebsocketService {
                 }
             };
 
-            this._client = this._createClient(stompConfig as StompConfig);
+            this._client = this._createClient(stompConfig);
         } catch (error) {
             const errorMessage = error instanceof Error ? error.message : 'Unknown error';
             this._onError(`Failed to connect to WebSocket: ${errorMessage}`);
@@ -422,6 +441,8 @@ export class ArtemisWebsocketService {
      * SAFETY: Sets _isDisconnecting flag to prevent onDisconnected from triggering reconnect.
      */
     public async disconnect(): Promise<void> {
+        // Invalidate any in-flight connect() continuation
+        this._connectionGeneration++;
         // Set flag to prevent reconnect loop
         this._isDisconnecting = true;
 
@@ -457,6 +478,9 @@ export class ArtemisWebsocketService {
             this._client = undefined;
             this._isConnected = false;
             this._isConnecting = false;
+
+            // Notify consumers BEFORE resetting wasConnectedOnce so they see (false, true)
+            this._notifyConnectionStateChange(false);
 
             // Reset all state on intentional disconnect
             this._wasConnectedOnce = false;
@@ -495,9 +519,10 @@ export class ArtemisWebsocketService {
             try {
                 const parsed = parser(JSON.parse(message.body));
                 this._log(logFormatter(parsed));
-                this._messageHandlers.forEach(handler => dispatch(handler, parsed));
+                [...this._messageHandlers].forEach(handler => dispatch(handler, parsed));
             } catch (error) {
-                this._log(`Error processing message on ${topic}: ${error}`);
+                const stack = error instanceof Error ? error.stack : String(error);
+                this._log(`Error processing message on ${topic}: ${stack}`);
             }
         });
 
@@ -571,7 +596,8 @@ export class ArtemisWebsocketService {
                 onMessage(data);
                 this._log(`✅ onMessage callback completed for session ${sessionId}`);
             } catch (error) {
-                this._log(`❌ Error processing Iris message: ${error}`);
+                const stack = error instanceof Error ? error.stack : String(error);
+                this._log(`Error processing Iris message: ${stack}`);
                 logger.error('Full error processing Iris message', LogCategory.WEBSOCKET, error as Error);
             }
         });
@@ -767,8 +793,20 @@ export class ArtemisWebsocketService {
         // _isConnecting is true. Reject the pending connect() promise immediately
         // instead of swallowing the event and letting the timeout expire.
         if (!this._isConnected && this._isConnecting) {
+            this._reconnectAttempts++;
             this._rejectConnect(new Error('WebSocket closed during connection'));
             this._isConnecting = false;
+            if (this._reconnectAttempts >= MAX_CONNECTION_ATTEMPTS) {
+                this._connectionGaveUp = true;
+                this._log(`MAX CONNECTION ATTEMPTS (${MAX_CONNECTION_ATTEMPTS}) REACHED during handshake`);
+                this._notifyConnectionStateChange(false);
+                if (this._client) {
+                    this._isDisconnecting = true;
+                    void this._client.deactivate({ force: true }).finally(() => {
+                        this._isDisconnecting = false;
+                    });
+                }
+            }
             return;
         }
 
@@ -836,7 +874,8 @@ export class ArtemisWebsocketService {
         const callbackCount = this._connectionStateCallbacks.size;
         this._log(`Notifying ${callbackCount} callbacks: connected=${isConnected}`);
 
-        this._connectionStateCallbacks.forEach((callback, id) => {
+        const snapshot = new Map(this._connectionStateCallbacks);
+        snapshot.forEach((callback, id) => {
             try {
                 callback(isConnected, this._wasConnectedOnce);
             } catch (error) {
