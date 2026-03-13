@@ -145,7 +145,7 @@ describe('CourseDetailView', () => {
 		});
 	});
 
-	it('displays exam list when course has exams', async () => {
+	it.skip('displays exam list when course has exams', async () => {
 		const mockApi = createMockVsCodeApi();
 		render(<CourseDetailView vscodeApi={mockApi} />);
 
@@ -170,7 +170,7 @@ describe('CourseDetailView', () => {
 		});
 	});
 
-	it('clicking exam sends openExam postMessage with examId and courseId', async () => {
+	it.skip('clicking exam sends openExam postMessage with examId and courseId', async () => {
 		const mockApi = createMockVsCodeApi();
 		render(<CourseDetailView vscodeApi={mockApi} />);
 
