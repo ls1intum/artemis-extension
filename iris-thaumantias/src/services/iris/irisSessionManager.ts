@@ -132,6 +132,10 @@ export class IrisSessionManager implements vscode.Disposable {
      * SAFETY: This method never calls connect() on the WebSocket service.
      */
     private async _subscribeIfConnected(sessionId: number): Promise<void> {
+        // Always clean up previous subscription first, even if rate-limited,
+        // so fast session switches don't leave the new session unsubscribed.
+        this.unsubscribe();
+
         // Check rate limiting
         const now = Date.now();
         const timeSinceLastAttempt = now - this._lastResubscribeAttempt;
@@ -139,9 +143,6 @@ export class IrisSessionManager implements vscode.Disposable {
             logger.session(`Rate limited: ${MIN_RESUBSCRIBE_INTERVAL_MS - timeSinceLastAttempt}ms until next subscribe`);
             return;
         }
-
-        // Unsubscribe from previous session first
-        this.unsubscribe();
 
         if (!this._websocketService.isConnected()) {
             logger.session('WebSocket not connected, will subscribe when connected');
@@ -191,6 +192,12 @@ export class IrisSessionManager implements vscode.Disposable {
         this._connectionStateUnsubscribe = this._websocketService.onConnectionStateChange((isConnected: boolean) => {
             logger.session(`WebSocket connection state changed: ${isConnected}`);
             this._onDidConnectionStateChange.fire(isConnected);
+
+            if (!isConnected) {
+                // STOMP subscriptions are cleared on disconnect; mark ourselves as unsubscribed
+                // so the reconnect path below will re-attach.
+                this._isSubscribed = false;
+            }
 
             // Only resubscribe if:
             // 1. We just connected

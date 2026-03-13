@@ -76,6 +76,8 @@ export class IrisWebSocketMessageHandler {
             }
 
             vscode.window.showInformationMessage('Reconnecting to WebSocket...');
+            // Reset state in case previous attempts exhausted the limit
+            this._websocketService.resetConnectionState();
             await this._websocketService.connect();
 
             // If we have an active Iris session, resubscribe to it
@@ -85,8 +87,10 @@ export class IrisWebSocketMessageHandler {
                 void irisSessionManager.subscribeToSession(irisSessionManager.currentSessionId);
             }
 
-            this._updateWebSocketStatus(true);
-            vscode.window.showInformationMessage('Successfully reconnected to WebSocket');
+            if (this._websocketService.isConnected()) {
+                this._updateWebSocketStatus(true);
+                vscode.window.showInformationMessage('Successfully reconnected to WebSocket');
+            }
         } catch (error: unknown) {
             logger.error('Failed to reconnect WebSocket', LogCategory.WEBSOCKET, error);
             const errorMessage = error instanceof Error ? error.message : String(error);

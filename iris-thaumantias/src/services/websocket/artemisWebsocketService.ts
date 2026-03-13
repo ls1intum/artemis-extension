@@ -394,7 +394,7 @@ export class ArtemisWebsocketService {
             const errorMessage = error instanceof Error ? error.message : 'Unknown error';
             this._onError(`Failed to connect to WebSocket: ${errorMessage}`);
             this._isConnecting = false;
-            return this._connectPromise; // Already rejected by _onError → _rejectConnect
+            throw error;
         }
 
         this._client.activate();
@@ -477,7 +477,6 @@ export class ArtemisWebsocketService {
             }
             this._client = undefined;
             this._isConnected = false;
-            this._isConnecting = false;
 
             // Notify consumers BEFORE resetting wasConnectedOnce so they see (false, true)
             this._notifyConnectionStateChange(false);
@@ -492,6 +491,7 @@ export class ArtemisWebsocketService {
             this._sessionId = this._generateSecureSessionId();
         }
 
+        this._isConnecting = false;  // Always clear, even if _client was null
         this._isDisconnecting = false;
     }
 

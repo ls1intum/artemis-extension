@@ -142,7 +142,7 @@ export const useExerciseDetailStore = create<ExerciseDetailState>()(
                     participation = findParticipationForResult(updatedData, result);
                 }
                 if (!participation) {
-                    set({ pendingSubmission: null }, false, 'updateBuildStatus');
+                    // Result doesn't belong to this exercise — ignore it
                     return;
                 }
 
@@ -157,9 +157,13 @@ export const useExerciseDetailStore = create<ExerciseDetailState>()(
                         if (!latestSubmission.results) {
                             latestSubmission.results = [];
                         }
-                        const existingIndex = latestSubmission.results.findIndex((r) => r.id === result.id);
-                        if (existingIndex >= 0) {
-                            latestSubmission.results[existingIndex] = result;
+                        if (result.id !== null && result.id !== undefined) {
+                            const existingIndex = latestSubmission.results.findIndex((r) => r.id === result.id);
+                            if (existingIndex >= 0) {
+                                latestSubmission.results[existingIndex] = result;
+                            } else {
+                                latestSubmission.results.push(result);
+                            }
                         } else {
                             latestSubmission.results.push(result);
                         }

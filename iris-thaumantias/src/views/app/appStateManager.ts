@@ -178,6 +178,8 @@ export class AppStateManager {
             this._currentExerciseData = exerciseDetails;
 
             // Check for pending submissions (builds in progress)
+            // TODO: Select participation matching workspace context (practice vs graded)
+            // instead of always using [0]. AppStateManager currently lacks repoStatus info.
             const participation = exerciseDetails.exercise?.studentParticipations?.[0];
             if (participation?.id) {
                 logger.info(`🔍 Checking for pending submission for participation ${participation.id}`, LogCategory.VIEW);
