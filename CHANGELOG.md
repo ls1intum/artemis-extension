@@ -2,10 +2,10 @@
 
 All notable changes to the Artemis VS Code extension will be documented in this file.
 
-## [Unreleased] - 0.4.0
-
+## [0.4.0] - 2026-03-13
 ### Added
 
+- **React Webview Migration**: Complete rewrite of all webview UIs from vanilla HTML/JS to React with Zustand and CSS Modules.
 - **`.noai` File Detection**: Automatically detects `.noai` files in the workspace or git repository root and disables Iris AI assistance when found.
 - **Struggle Detection**: Real-time monitoring system that tracks student coding activity to detect when they're experiencing difficulties. The system analyzes error patterns, inactivity periods, and build failures to identify struggle signals, enabling proactive assistance through Iris. Includes a developer debug panel for monitoring detection metrics in real-time.
 - **Struggle Detection Testing Framework**: Comprehensive test suite for validating struggle detection algorithms using simulated scenarios. Features scenario-based testing with timeline-based events.
@@ -25,8 +25,6 @@ All notable changes to the Artemis VS Code extension will be documented in this 
 - **Memory Leaks and Error Handling**: Fixed connection state callback leaks, added error handlers for async operations, and improved resource disposal in WebSocket services.
 - **ExerciseRegistry**: Now clears stale exercises per-course when fresh data is registered
 - **AuthManager**: 401 responses now properly clear cached auth and prompt re-login
-- **AppStateManager**: Exercise data is now always fetched fresh to show current results
-- **RepositoryCommands**: Cached repository paths are now validated before use
 
 ## [0.3.1] - 2025-12-19
 
