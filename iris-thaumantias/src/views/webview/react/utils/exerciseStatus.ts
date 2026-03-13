@@ -1,12 +1,16 @@
 import type { SubmissionStatusType } from '../components/exercise/SubmissionStatus';
 import type { ParticipationStatusType } from '../components/exercise/ParticipationActions';
+import type { PendingSubmissionInfo } from '../stores/useExerciseDetailStore';
 
 export function determineSubmissionStatus(
-    pendingSubmission: unknown,
+    pendingSubmission: PendingSubmissionInfo | null,
     latestResult: { score?: number; successful?: boolean } | undefined,
     latestSubmission?: { buildFailed?: boolean } | undefined,
 ): SubmissionStatusType {
     if (pendingSubmission) {
+        if (pendingSubmission.state === 'QUEUED') {
+            return 'pending';
+        }
         return 'building';
     }
     if (latestResult) {

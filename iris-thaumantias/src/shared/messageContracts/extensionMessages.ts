@@ -175,7 +175,7 @@ interface ExtensionMsgPayloads {
     websocketUpdate:
         | { updateType: 'newResult'; data: ResultSummary }
         | { updateType: 'newSubmission'; data: SubmissionSummary }
-        | { updateType: 'submissionProcessing'; data: { state: string; participationId: number; buildTimingInfo?: unknown } };
+        | { updateType: 'submissionProcessing'; data: { state: string; participationId: number; buildTimingInfo?: { buildStartDate?: string; estimatedCompletionDate?: string } } };
 
     // Iris Chat
     updateIrisState: {

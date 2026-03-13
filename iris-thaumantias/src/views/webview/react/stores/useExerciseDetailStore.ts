@@ -20,6 +20,15 @@ interface DirtyPagesStatus {
     autoSaveEnabled: boolean;
 }
 
+export interface PendingSubmissionInfo {
+    state: string;
+    participationId: number;
+    buildTimingInfo?: {
+        buildStartDate?: string;
+        estimatedCompletionDate?: string;
+    };
+}
+
 interface ExerciseDetailState {
     exerciseData: ExerciseDetailsResponse | null;
     hideDeveloperTools: boolean;
@@ -27,7 +36,7 @@ interface ExerciseDetailState {
     error: string | null;
 
     // Submission processing
-    pendingSubmission: { state: string; participationId: number; buildTimingInfo?: unknown } | null;
+    pendingSubmission: PendingSubmissionInfo | null;
 
     // Extension→Webview response state
     repoStatus: RepoStatus | null;
@@ -41,7 +50,7 @@ interface ExerciseDetailState {
     loadExerciseDetail: (vscodeApi: VsCodeApi, exerciseId: number) => void;
     updateBuildStatus: (payload: ResultSummary) => void;
     updateSubmission: (payload: SubmissionSummary) => void;
-    updateSubmissionProcessing: (payload: { state: string; participationId: number; buildTimingInfo?: unknown }) => void;
+    updateSubmissionProcessing: (payload: PendingSubmissionInfo) => void;
     setRepoStatus: (status: RepoStatus) => void;
     setClonedNotice: (exerciseTitle: string) => void;
     setDirtyPagesStatus: (status: DirtyPagesStatus) => void;
@@ -91,7 +100,7 @@ export const useExerciseDetailStore = create<ExerciseDetailState>()(
                     hideDeveloperTools,
                     isLoading: false,
                     error: null,
-                    pendingSubmission: (data.pendingSubmission as { state: string; participationId: number; buildTimingInfo?: unknown }) ?? null,
+                    pendingSubmission: (data.pendingSubmission as PendingSubmissionInfo) ?? null,
                     repoStatus: repoStatus ?? null,
                     clonedNotice: null,
                     dirtyPagesStatus: null,

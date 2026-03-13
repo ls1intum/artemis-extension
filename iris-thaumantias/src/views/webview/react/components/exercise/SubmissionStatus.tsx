@@ -1,4 +1,4 @@
-import { ReactNode } from 'react';
+import { ReactNode, useState, useEffect } from 'react';
 import clsx from 'clsx';
 import { Badge } from '../Badge';
 import { Button } from '../Button';
@@ -46,6 +46,8 @@ export interface SubmissionStatusProps {
   loadingTestResults?: boolean;
   className?: string;
   exerciseType?: 'programming' | 'quiz' | 'modeling' | 'text' | 'file-upload';
+  estimatedCompletionDate?: string;
+  buildStartDate?: string;
 }
 
 export function SubmissionStatus({
@@ -68,7 +70,45 @@ export function SubmissionStatus({
   loadingTestResults = false,
   className,
   exerciseType = 'programming',
+  estimatedCompletionDate,
+  buildStartDate,
 }: SubmissionStatusProps) {
+  // ETA countdown for building state
+  const [etaSeconds, setEtaSeconds] = useState<number | null>(null);
+  const [progressPercent, setProgressPercent] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (status !== 'building' || !estimatedCompletionDate || !buildStartDate) {
+      setEtaSeconds(null);
+      setProgressPercent(null);
+      return;
+    }
+
+    const eta = new Date(estimatedCompletionDate).getTime();
+    const start = new Date(buildStartDate).getTime();
+    const totalTime = eta - start;
+
+    if (totalTime <= 0) {
+      setEtaSeconds(null);
+      setProgressPercent(null);
+      return;
+    }
+
+    const update = () => {
+      const now = Date.now();
+      const elapsed = now - start;
+      const remaining = Math.max(0, Math.floor((eta - now) / 1000));
+      const percent = Math.min(100, Math.max(5, (elapsed / totalTime) * 100));
+
+      setEtaSeconds(remaining > 0 ? remaining : null);
+      setProgressPercent(remaining > 0 ? percent : null);
+    };
+
+    update();
+    const interval = setInterval(update, 500);
+    return () => clearInterval(interval);
+  }, [status, estimatedCompletionDate, buildStartDate]);
+
   // Empty state for programming exercises with no submissions
   if (status === 'no-submission' && exerciseType === 'programming') {
     return (
@@ -85,15 +125,29 @@ export function SubmissionStatus({
 
   // Building/pending state
   if (status === 'building' || status === 'pending') {
+    const hasDeterminateProgress = status === 'building' && progressPercent !== null;
+
+    let message: string;
+    if (status === 'pending') {
+      message = 'Build queued, waiting for resources...';
+    } else if (etaSeconds !== null) {
+      message = `Building your submission... (ETA: ${etaSeconds}s)`;
+    } else {
+      message = 'Building your submission...';
+    }
+
     return (
       <div className={clsx(styles.buildStatus, styles.buildStatusBuilding, className)}>
         <div className={styles.buildStatusTitle}>Build in Progress</div>
         <div className={styles.buildStatusInfo}>
-          <div className={styles.buildStatusMessage}>
-            {status === 'building' ? 'Building your submission...' : '⏳ Build queued, waiting for resources...'}
-          </div>
+          <div className={styles.buildStatusMessage}>{message}</div>
           <div className={styles.buildProgressTrack}>
-            <div className={clsx(styles.buildProgressBar, styles.buildProgressBarIndeterminate)} />
+            <div
+              className={clsx(styles.buildProgressBar, {
+                [styles.buildProgressBarIndeterminate]: !hasDeterminateProgress,
+              })}
+              style={hasDeterminateProgress ? { width: `${progressPercent}%` } : undefined}
+            />
           </div>
         </div>
       </div>
