@@ -177,20 +177,37 @@ export class AppStateManager {
             const exerciseDetails = await this._artemisApi.getExerciseDetails(exerciseId);
             this._currentExerciseData = exerciseDetails;
 
-            // Check for pending submissions (builds in progress)
-            // TODO: Select participation matching workspace context (practice vs graded)
-            // instead of always using [0]. AppStateManager currently lacks repoStatus info.
-            const participation = exerciseDetails.exercise?.studentParticipations?.[0];
-            if (participation?.id) {
-                logger.info(`🔍 Checking for pending submission for participation ${participation.id}`, LogCategory.VIEW);
-                const pendingSubmission = await this._artemisApi.getLatestPendingSubmission(participation.id);
+            // Enrich ALL participations with pending submissions and feedbacks
+            // The React view selects participation by testRun/isPractice, not always [0]
+            const participations = exerciseDetails.exercise?.studentParticipations ?? [];
+            for (const participation of participations) {
+                if (!participation.id) { continue; }
 
-                if (pendingSubmission) {
-                    logger.info(`⏳ Found pending submission - build in progress!`, LogCategory.VIEW);
-                    // Store pending submission info for the view to use
-                    this._currentExerciseData.pendingSubmission = pendingSubmission;
-                } else {
-                    logger.info(`✅ No pending submission - latest result is final`, LogCategory.VIEW);
+                // Check for pending submissions (builds in progress)
+                try {
+                    const pendingSubmission = await this._artemisApi.getLatestPendingSubmission(participation.id);
+                    if (pendingSubmission) {
+                        logger.info(`⏳ Found pending submission for participation ${participation.id}`, LogCategory.VIEW);
+                        this._currentExerciseData.pendingSubmission = pendingSubmission;
+                    }
+                } catch { /* ignore */ }
+
+                // Enrich the latest result with detailed feedbacks (test cases)
+                // The exercise details endpoint doesn't include feedbacks — we need the result details API
+                const latestSubmission = [...(participation.submissions ?? [])]
+                    .sort((a, b) => ((b as { id?: number }).id ?? 0) - ((a as { id?: number }).id ?? 0))[0] as { id?: number; results?: Array<{ id?: number; feedbacks?: unknown[] }> } | undefined;
+                const latestResult = [...(latestSubmission?.results ?? [])]
+                    .sort((a, b) => (a.id ?? 0) > (b.id ?? 0) ? -1 : 1)[0];
+                if (latestResult?.id) {
+                    try {
+                        const feedbacks = await this._artemisApi.getResultFeedbacks(participation.id, latestResult.id);
+                        if (feedbacks.length > 0) {
+                            latestResult.feedbacks = feedbacks;
+                            logger.info(`📋 Enriched result ${latestResult.id} with ${feedbacks.length} feedbacks`, LogCategory.VIEW);
+                        }
+                    } catch {
+                        logger.warn(`Could not fetch result details for result ${latestResult.id}`, LogCategory.VIEW);
+                    }
                 }
             }
 

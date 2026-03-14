@@ -1,0 +1,243 @@
+/* Backdrop */
+.backdrop {
+  position: fixed;
+  inset: 0;
+  background: var(--vscode-editor-background);
+  display: flex;
+  align-items: stretch;
+  justify-content: stretch;
+  z-index: 2147483647;
+  animation: fadeIn 0.15s ease-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes scaleIn {
+  from { opacity: 0; transform: scale(0.97); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+/* Full-screen panel */
+.modal {
+  background: var(--vscode-editor-background);
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  animation: scaleIn 0.15s ease-out;
+}
+
+/* Header */
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--vscode-panel-border, #e0e0e0);
+  flex-shrink: 0;
+}
+
+.title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--vscode-foreground);
+}
+
+/* Summary with progress bar */
+.summary {
+  padding: 12px 20px;
+  font-size: 13px;
+  font-weight: 500;
+  border-bottom: 1px solid var(--vscode-panel-border, #e0e0e0);
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.summaryText {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.summarySuccess {
+  color: var(--vscode-testing-iconPassed, #73c991);
+}
+
+.summaryPartial {
+  color: var(--vscode-editorWarning-foreground, #cca700);
+}
+
+.summaryFail {
+  color: var(--vscode-errorForeground, #f48771);
+}
+
+/* Progress bar */
+.progressTrack {
+  width: 100%;
+  height: 6px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+}
+
+.progressFill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.4s ease-out;
+}
+
+.progressFillSuccess {
+  background: var(--vscode-testing-iconPassed, #73c991);
+}
+
+.progressFillWarning {
+  background: var(--vscode-editorWarning-foreground, #cca700);
+}
+
+.progressFillDanger {
+  background: var(--vscode-errorForeground, #f48771);
+}
+
+/* Scrollable test list */
+.testList {
+  padding: 16px 20px;
+  overflow-y: auto;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* Section labels */
+.sectionLabel {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--vscode-foreground);
+  padding: 8px 0 4px;
+  border-bottom: 1px solid var(--vscode-panel-border, #e0e0e0);
+  margin-bottom: 2px;
+}
+
+.sectionLabel:first-child {
+  padding-top: 0;
+}
+
+.sectionLabelFailed {
+  color: var(--vscode-errorForeground, #f48771);
+}
+
+.sectionLabelPassed {
+  color: var(--vscode-testing-iconPassed, #73c991);
+}
+
+/* Individual test item — glassmorphism */
+.testItem {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+.testItemPassed {
+  background: rgba(38, 166, 91, 0.08);
+  border-color: rgba(38, 166, 91, 0.18);
+}
+
+.testItemFailed {
+  background: rgba(229, 83, 83, 0.08);
+  border-color: rgba(229, 83, 83, 0.18);
+}
+
+/* Status icon */
+.testIcon {
+  flex-shrink: 0;
+  margin-top: 1px;
+  line-height: 0;
+  display: flex;
+  align-items: center;
+}
+
+.testIconPassed {
+  color: var(--vscode-testing-iconPassed, #73c991);
+}
+
+.testIconFailed {
+  color: var(--vscode-errorForeground, #f48771);
+}
+
+/* Test content */
+.testContent {
+  flex: 1;
+  min-width: 0;
+}
+
+.testHeader {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.testName {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--vscode-foreground);
+  word-wrap: break-word;
+  flex: 1;
+  min-width: 0;
+}
+
+.typeBadge {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  padding: 1px 5px;
+  border-radius: 3px;
+  letter-spacing: 0.5px;
+  flex-shrink: 0;
+}
+
+.typeBadgeStructural {
+  background: rgba(100, 149, 237, 0.15);
+  color: #6495ed;
+  border: 1px solid rgba(100, 149, 237, 0.3);
+}
+
+.typeBadgeBehavioral {
+  background: rgba(255, 165, 0, 0.15);
+  color: #ff8c00;
+  border: 1px solid rgba(255, 165, 0, 0.3);
+}
+
+.testMessage {
+  font-size: 12px;
+  color: var(--vscode-foreground);
+  opacity: 0.7;
+  word-wrap: break-word;
+  white-space: pre-wrap;
+  margin-top: 4px;
+  font-family: var(--vscode-editor-font-family, monospace);
+  line-height: 1.45;
+}
+
+/* Loading / empty states */
+.loading,
+.empty {
+  font-size: 13px;
+  color: var(--vscode-foreground);
+  opacity: 0.6;
+  text-align: center;
+  padding: 24px 12px;
+}

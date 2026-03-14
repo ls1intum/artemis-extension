@@ -7,7 +7,7 @@ import {
 } from '../types';
 import type {
     CourseDashboardResponse, CourseDashboardEntry, CourseDashboardCourse,
-    ExerciseDetailsResponse, IrisChatSession, IrisChatMessage, IrisSettingsResponse,
+    ExerciseDetailsResponse, FeedbackSummary, IrisChatSession, IrisChatMessage, IrisSettingsResponse,
     ExamSummary, StudentExam,
 } from '../types';
 import { logger, LogLevel, LogCategory } from '../services/loggingService';
@@ -195,6 +195,27 @@ export class ArtemisApiService {
     async getResultDetails(participationId: number, resultId: number): Promise<ArtemisResult> {
         const response = await this.makeRequest(`/api/assessment/participations/${participationId}/results/${resultId}/details`);
         return ArtemisResult.fromJSON(await response.json());
+    }
+
+    // Get detailed result feedbacks as FeedbackSummary (preserves testCase field)
+    async getResultFeedbacks(participationId: number, resultId: number): Promise<FeedbackSummary[]> {
+        const response = await this.makeRequest(`/api/assessment/participations/${participationId}/results/${resultId}/details`);
+        const raw = await response.json() as Record<string, unknown>;
+        const feedbacks = Array.isArray(raw.feedbacks) ? raw.feedbacks : (Array.isArray(raw) ? raw : []);
+        return feedbacks.map((f: Record<string, unknown>) => ({
+            id: typeof f.id === 'number' ? f.id : undefined,
+            text: typeof f.text === 'string' ? f.text : undefined,
+            detailText: typeof f.detailText === 'string' ? f.detailText : undefined,
+            reference: typeof f.reference === 'string' ? f.reference : undefined,
+            credits: typeof f.credits === 'number' ? f.credits : undefined,
+            positive: typeof f.positive === 'boolean' ? f.positive : undefined,
+            type: typeof f.type === 'string' ? f.type : undefined,
+            visibility: typeof f.visibility === 'string' ? f.visibility : undefined,
+            testCase: f.testCase && typeof f.testCase === 'object' ? {
+                id: typeof (f.testCase as Record<string, unknown>).id === 'number' ? (f.testCase as Record<string, unknown>).id as number : undefined,
+                testName: typeof (f.testCase as Record<string, unknown>).testName === 'string' ? (f.testCase as Record<string, unknown>).testName as string : undefined,
+            } : undefined,
+        }));
     }
 
     // Get build logs for a participation (optionally for a specific result)

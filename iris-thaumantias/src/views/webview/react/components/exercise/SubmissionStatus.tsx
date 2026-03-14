@@ -2,7 +2,7 @@ import { ReactNode, useState, useEffect } from 'react';
 import clsx from 'clsx';
 import { Badge } from '../Badge';
 import { Button } from '../Button';
-import { Container } from '../Container';
+import { TestResultsOverlay } from './TestResultsOverlay';
 import styles from './SubmissionStatus.module.css';
 
 export type SubmissionStatusType =
@@ -188,7 +188,7 @@ export function SubmissionStatus({
           <div className={styles.scoreInfo}>
             Score:{' '}
             <span className={clsx(styles.scorePoints, scoreColorClass)}>
-              {score}/{maxScore} ({scorePercentage.toFixed(2)}%)
+              {parseFloat(score.toFixed(1))}/{maxScore} ({scorePercentage.toFixed(1)}%)
             </span>{' '}
             {maxScore === 1 ? 'point' : 'points'}
           </div>
@@ -215,76 +215,13 @@ export function SubmissionStatus({
           </div>
         )}
 
-        {/* Test results modal */}
-        {hasTestInfo && showTestResults && (
-          <div
-            className={clsx(styles.testResultsModal, { [styles.testResultsModalOpen]: showTestResults })}
-            onClick={(e) => {
-              if ((e.target as HTMLElement).classList.contains(styles.testResultsModal)) {
-                onToggleTestResults?.();
-              }
-            }}
-          >
-            <div className={styles.testResultsModalContent}>
-              <div className={styles.testResultsModalHeader}>
-                <div className={styles.testResultsModalTitle}>Test Results</div>
-                <Button variant="icon" onClick={onToggleTestResults}>
-                  ✕
-                </Button>
-              </div>
-              <div className={styles.testResultsModalBody}>
-                {loadingTestResults ? (
-                  <div className={styles.testResultsLoading}>Loading test results...</div>
-                ) : testCases.length > 0 ? (
-                  <div className={styles.testResultsList}>
-                    <div className={styles.testResultsCount}>
-                      {testCases.length} test{testCases.length !== 1 ? 's' : ''}
-                    </div>
-                    {testCases.map((testCase, index) => (
-                      <div
-                        key={index}
-                        className={clsx(styles.testResultItem, {
-                          [styles.testResultItemPassed]: testCase.passed,
-                          [styles.testResultItemFailed]: !testCase.passed,
-                        })}
-                      >
-                        <div
-                          className={clsx(styles.testResultIcon, {
-                            [styles.testResultIconPassed]: testCase.passed,
-                            [styles.testResultIconFailed]: !testCase.passed,
-                          })}
-                        >
-                          {testCase.passed ? '✓' : '✗'}
-                        </div>
-                        <div className={styles.testResultContent}>
-                          <div className={styles.testResultHeader}>
-                            <div className={styles.testResultName}>{testCase.name}</div>
-                            {testCase.type && (
-                              <span
-                                className={clsx(
-                                  styles.testTypeBadge,
-                                  testCase.type === 'structural'
-                                    ? styles.testTypeBadgeStructural
-                                    : styles.testTypeBadgeBehavioral
-                                )}
-                              >
-                                {testCase.type}
-                              </span>
-                            )}
-                          </div>
-                          {testCase.message && (
-                            <div className={styles.testResultMessage}>{testCase.message}</div>
-                          )}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className={styles.testResultsEmpty}>No test results available.</div>
-                )}
-              </div>
-            </div>
-          </div>
+        {hasTestInfo && (
+          <TestResultsOverlay
+            open={showTestResults}
+            onClose={() => onToggleTestResults?.()}
+            testCases={testCases}
+            loading={loadingTestResults}
+          />
         )}
       </div>
     );
@@ -313,7 +250,7 @@ export function SubmissionStatus({
           <div className={styles.scoreInfo}>
             Score:{' '}
             <span className={clsx(styles.scorePoints, scoreColorClass)}>
-              {score}/{maxScore} ({scorePercentage.toFixed(2)}%)
+              {parseFloat(score.toFixed(1))}/{maxScore} ({scorePercentage.toFixed(1)}%)
             </span>{' '}
             {maxScore === 1 ? 'point' : 'points'}
           </div>

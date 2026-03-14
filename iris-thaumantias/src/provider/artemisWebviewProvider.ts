@@ -224,6 +224,18 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
                         this.showLogin();
                         return;
                     }
+
+                    // Re-fetch exercise data to capture any WebSocket updates missed while hidden
+                    if (currentState === 'exercise-detail') {
+                        const exerciseData = this._appStateManager.currentExerciseData as ExerciseDetailsResponse | undefined;
+                        const exerciseId = exerciseData?.exercise?.id;
+                        if (exerciseId) {
+                            try {
+                                await this._appStateManager.showExerciseDetail(exerciseId);
+                            } catch { /* fall through to sendInitData with cached data */ }
+                        }
+                    }
+
                     logger.debug('Sidebar webview became visible, resending view data...', LogCategory.VIEW);
                     this.sendInitData();
                 })().catch(err => {

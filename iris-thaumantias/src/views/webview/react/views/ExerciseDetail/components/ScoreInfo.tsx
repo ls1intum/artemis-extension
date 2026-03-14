@@ -21,7 +21,7 @@ export function ScoreInfo({
     let scoreColorClass = styles.scoreError;
     if (scorePercentage >= 80) {
         scoreColorClass = styles.scoreSuccess;
-    } else if (scorePercentage >= 50) {
+    } else if (scorePercentage >= 40) {
         scoreColorClass = styles.scoreWarning;
     }
 
@@ -29,7 +29,7 @@ export function ScoreInfo({
         <div className={styles.scoreInfo}>
             <div className={styles.scoreDisplay}>
                 <span className={clsx(styles.scoreValue, scoreColorClass)}>
-                    {scoreValue}
+                    {parseFloat(scoreValue.toFixed(1))}
                 </span>
                 <span className={styles.scoreSeparator}>/</span>
                 <span className={styles.scoreMax}>{maxScore}</span>

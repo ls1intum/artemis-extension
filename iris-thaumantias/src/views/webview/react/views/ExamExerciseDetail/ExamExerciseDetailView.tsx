@@ -37,6 +37,7 @@ export function ExamExerciseDetailView({ vscodeApi }: ExamExerciseDetailViewProp
     } = useExerciseDetailStore();
 
     const [showExpiredOverlay, setShowExpiredOverlay] = useState(false);
+    const [showTestResults, setShowTestResults] = useState(false);
 
     // Initialize WebSocket updates
     useWebSocketUpdates();
@@ -131,6 +132,24 @@ export function ExamExerciseDetailView({ vscodeApi }: ExamExerciseDetailViewProp
     const latestResult = [...(latestSubmission?.results ?? [])]
         .sort((a, b) => (b.id ?? 0) - (a.id ?? 0))[0];
 
+    // Use Artemis-provided test case counts when available, fall back to feedbacks
+    const buildFailed = latestSubmission?.buildFailed ?? false;
+    const totalTests = latestResult?.testCaseCount ?? 0;
+    const passedTests = latestResult?.passedTestCaseCount ?? 0;
+    const hasTestInfo = totalTests > 0;
+
+    // Build test cases from feedbacks for detailed display
+    // The result details API returns feedbacks with testCase objects containing testName
+    const feedbacks = latestResult?.feedbacks ?? [];
+    const testFeedbacks = feedbacks.filter((f: { type?: string; text?: string; testCase?: { testName?: string } }) =>
+        f.testCase?.testName || ((!f.type || f.type === 'AUTOMATIC') && f.text && !f.text.startsWith('SCAFeedbackIdentifier:'))
+    );
+    const testCases = testFeedbacks.map((f: { text?: string; positive?: boolean; detailText?: string; testCase?: { testName?: string } }) => ({
+        name: f.testCase?.testName ?? f.text ?? 'Test',
+        passed: f.positive ?? false,
+        message: f.detailText,
+    }));
+
     // result.score is already a percentage (0-100) in Artemis
     const scorePercentage = latestResult?.score ?? 0;
 
@@ -219,6 +238,13 @@ export function ExamExerciseDetailView({ vscodeApi }: ExamExerciseDetailViewProp
                         maxScore={maxPoints}
                         scorePercentage={scorePercentage}
                         exerciseType={exerciseType}
+                        buildFailed={buildFailed}
+                        hasTestInfo={hasTestInfo}
+                        totalTests={totalTests}
+                        passedTests={passedTests}
+                        testCases={testCases}
+                        onToggleTestResults={() => setShowTestResults(prev => !prev)}
+                        showTestResults={showTestResults}
                     />
                 )}
             </Container>

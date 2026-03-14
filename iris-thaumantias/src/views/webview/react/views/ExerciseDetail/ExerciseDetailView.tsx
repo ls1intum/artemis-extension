@@ -46,6 +46,7 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
 
     const [showCommitMessage, setShowCommitMessage] = useState(false);
     const [commitMessage, setCommitMessage] = useState('');
+    const [showTestResults, setShowTestResults] = useState(false);
 
     // Initialize WebSocket updates hook
     useWebSocketUpdates();
@@ -176,12 +177,13 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
     const hasTestInfo = totalTests > 0;
 
     // Build test cases from feedbacks for detailed display
+    // The result details API returns feedbacks with testCase objects containing testName
     const feedbacks = latestResult?.feedbacks ?? [];
     const testFeedbacks = feedbacks.filter(f =>
-        f.type === 'AUTOMATIC' && f.text && !f.text.startsWith('SCAFeedbackIdentifier:')
+        f.testCase?.testName || ((!f.type || f.type === 'AUTOMATIC') && f.text && !f.text.startsWith('SCAFeedbackIdentifier:'))
     );
     const testCases = testFeedbacks.map(f => ({
-        name: f.text ?? 'Test',
+        name: f.testCase?.testName ?? f.text ?? 'Test',
         passed: f.positive ?? false,
         message: f.detailText,
     }));
@@ -409,6 +411,8 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
                         testCases={testCases}
                         estimatedCompletionDate={pendingSubmission?.buildTimingInfo?.estimatedCompletionDate}
                         buildStartDate={pendingSubmission?.buildTimingInfo?.buildStartDate}
+                        onToggleTestResults={() => setShowTestResults(prev => !prev)}
+                        showTestResults={showTestResults}
                     />
                 )}
 
