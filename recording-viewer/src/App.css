@@ -45,6 +45,32 @@
     color: var(--text);
 }
 
+.session-list-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
+}
+
+.session-list-toolbar .path-hint {
+    margin-bottom: 0;
+}
+
+.toolbar-btn {
+    font-family: var(--sans);
+    font-size: 12px;
+    padding: 5px 12px;
+    border-radius: 5px;
+    border: 1px solid var(--border);
+    background: var(--bg-elevated);
+    color: var(--text);
+    cursor: pointer;
+    transition: border-color 0.15s;
+}
+.toolbar-btn:hover {
+    border-color: var(--accent);
+}
+
 .session-table {
     display: flex;
     flex-direction: column;
@@ -53,7 +79,7 @@
 
 .session-table-header {
     display: grid;
-    grid-template-columns: 2fr 1fr 1.5fr 1fr 0.7fr;
+    grid-template-columns: 2fr 1fr 1.5fr 1fr 0.7fr 70px;
     gap: 12px;
     padding: 8px 12px;
     font-size: 11px;
@@ -66,7 +92,8 @@
 
 .session-table-row {
     display: grid;
-    grid-template-columns: 2fr 1fr 1.5fr 1fr 0.7fr;
+    grid-template-columns: 2fr 1fr 1.5fr 1fr 0.7fr 70px;
+    align-items: center;
     gap: 12px;
     padding: 10px 12px;
     font-size: 13px;
@@ -77,18 +104,56 @@
     cursor: pointer;
     text-align: left;
     font-family: var(--sans);
-    transition: background 0.1s, border-color 0.15s;
+    transition: background 0.1s, border-color 0.15s, opacity 0.2s;
     width: 100%;
 }
 .session-table-row:hover {
     background: var(--bg-elevated);
     border-color: var(--border);
 }
+.session-table-row.deleting {
+    opacity: 0.4;
+    pointer-events: none;
+}
 
 .session-id-cell {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+}
+
+.session-actions {
+    display: flex;
+    gap: 4px;
+    justify-content: flex-end;
+}
+
+.action-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border-radius: 5px;
+    border: 1px solid transparent;
+    background: transparent;
+    cursor: pointer;
+    font-size: 14px;
+    transition: background 0.1s, border-color 0.15s;
+    color: var(--text-muted);
+}
+.action-btn:hover {
+    background: var(--bg-elevated);
+    border-color: var(--border);
+}
+
+.open-btn:hover {
+    color: var(--accent-light);
+}
+
+.delete-btn:hover {
+    color: var(--danger);
+    border-color: rgba(239, 68, 68, 0.3);
 }
 
 /* ── Divider ─────────────────────────────────────────────────────────── */

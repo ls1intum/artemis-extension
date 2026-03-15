@@ -3,6 +3,7 @@ import react from '@vitejs/plugin-react'
 import fs from 'fs'
 import path from 'path'
 import os from 'os'
+import { exec } from 'child_process'
 
 const RECORDINGS_DIR = path.join(
     os.homedir(),
@@ -13,15 +14,71 @@ function recordingsApi() {
     return {
         name: 'recordings-api',
         configureServer(server: { middlewares: { use: (fn: Function) => void } }) {
-            server.middlewares.use((req: { url?: string }, res: { setHeader: Function; end: Function; writeHead: Function }, next: Function) => {
+            server.middlewares.use((req: { url?: string; method?: string }, res: { setHeader: Function; end: Function; writeHead: Function }, next: Function) => {
                 if (!req.url?.startsWith('/api/recordings')) {
                     return next()
                 }
 
                 res.setHeader('Content-Type', 'application/json')
+                const method = req.method?.toUpperCase() ?? 'GET'
+
+                // POST /api/recordings/open-folder → open recordings dir in Finder/Explorer
+                if (req.url === '/api/recordings/open-folder' && method === 'POST') {
+                    try {
+                        const dir = fs.existsSync(RECORDINGS_DIR) ? RECORDINGS_DIR : path.dirname(RECORDINGS_DIR)
+                        const cmd = process.platform === 'darwin' ? 'open' : process.platform === 'win32' ? 'explorer' : 'xdg-open'
+                        exec(`${cmd} "${dir}"`)
+                        res.end(JSON.stringify({ ok: true }))
+                    } catch (err) {
+                        res.writeHead(500)
+                        res.end(JSON.stringify({ error: String(err) }))
+                    }
+                    return
+                }
+
+                // POST /api/recordings/:sessionId/open → open session folder in Finder/Explorer
+                const openMatch = req.url.match(/^\/api\/recordings\/([^/]+)\/open$/)
+                if (openMatch && method === 'POST') {
+                    const sessionId = openMatch[1]
+                    const sessionDir = path.join(RECORDINGS_DIR, sessionId)
+                    try {
+                        if (!fs.existsSync(sessionDir)) {
+                            res.writeHead(404)
+                            res.end(JSON.stringify({ error: 'Session not found' }))
+                            return
+                        }
+                        const cmd = process.platform === 'darwin' ? 'open' : process.platform === 'win32' ? 'explorer' : 'xdg-open'
+                        exec(`${cmd} "${sessionDir}"`)
+                        res.end(JSON.stringify({ ok: true }))
+                    } catch (err) {
+                        res.writeHead(500)
+                        res.end(JSON.stringify({ error: String(err) }))
+                    }
+                    return
+                }
+
+                // DELETE /api/recordings/:sessionId → delete session folder
+                const deleteMatch = req.url.match(/^\/api\/recordings\/([^/]+)$/)
+                if (deleteMatch && method === 'DELETE') {
+                    const sessionId = deleteMatch[1]
+                    const sessionDir = path.join(RECORDINGS_DIR, sessionId)
+                    try {
+                        if (!fs.existsSync(sessionDir)) {
+                            res.writeHead(404)
+                            res.end(JSON.stringify({ error: 'Session not found' }))
+                            return
+                        }
+                        fs.rmSync(sessionDir, { recursive: true, force: true })
+                        res.end(JSON.stringify({ ok: true, deleted: sessionId }))
+                    } catch (err) {
+                        res.writeHead(500)
+                        res.end(JSON.stringify({ error: String(err) }))
+                    }
+                    return
+                }
 
                 // GET /api/recordings → list sessions
-                if (req.url === '/api/recordings') {
+                if (req.url === '/api/recordings' && method === 'GET') {
                     try {
                         if (!fs.existsSync(RECORDINGS_DIR)) {
                             res.end(JSON.stringify({ sessions: [], recordingsDir: RECORDINGS_DIR }))
