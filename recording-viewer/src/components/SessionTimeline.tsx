@@ -10,19 +10,24 @@ import {
     ReferenceLine,
     Dot,
 } from 'recharts';
-import type { RecordedEvent, EventType, EqSnapshotEvent, BuildResultEvent } from '../types';
+import type { RecordedEvent, EventType, EqSnapshotEvent, BuildResultEvent, ReplayEqSnapshot } from '../types';
 
 interface Props {
     events: RecordedEvent[];
     sessionStartTime: number;
+    replayEq?: ReplayEqSnapshot[];
 }
 
 interface ChartPoint {
     timeOffset: number;
     timeLabel: string;
-    eq: number;
-    eqPercent: number;
-    confidence: string;
+    eq?: number;
+    eqPercent?: number;
+    confidence?: string;
+    eqSource?: string;
+    triggerType?: string;
+    replayEqPercent?: number;
+    replayConfidence?: string;
 }
 
 interface Marker {
@@ -71,24 +76,93 @@ function formatOffset(ms: number): string {
     return `${m}:${s.toString().padStart(2, '0')}`;
 }
 
-// Custom dot renderer for confidence indication
-function ConfidenceDot(props: Record<string, unknown>) {
+/**
+ * Dot for original EQ line — trigger points get a larger, highlighted ring.
+ * Continuous (save/build) points get a small dot.
+ */
+function EqDot(props: Record<string, unknown>) {
     const { cx, cy, payload } = props as { cx: number; cy: number; payload: ChartPoint };
+    if (payload.eqPercent == null) return null;
+
+    const isTrigger = payload.eqSource === 'trigger';
     const fill = payload.confidence === 'sufficient' ? '#6366f1' : '#94a3b8';
+
+    if (isTrigger) {
+        // Trigger point: larger dot with bright ring
+        return (
+            <>
+                <Dot cx={cx} cy={cy} r={7} fill="none" stroke="#f59e0b" strokeWidth={2} />
+                <Dot cx={cx} cy={cy} r={4} fill={fill} stroke="#1e1e2e" strokeWidth={1.5} />
+            </>
+        );
+    }
+
+    // Continuous point: small dot
+    return <Dot cx={cx} cy={cy} r={3} fill={fill} stroke="#1e1e2e" strokeWidth={1} />;
+}
+
+/**
+ * Dot for original EQ line when replay data is present (dimmed).
+ * Trigger points still get the ring but in gray.
+ */
+function EqDotDimmed(props: Record<string, unknown>) {
+    const { cx, cy, payload } = props as { cx: number; cy: number; payload: ChartPoint };
+    if (payload.eqPercent == null) return null;
+
+    const isTrigger = payload.eqSource === 'trigger';
+
+    if (isTrigger) {
+        return (
+            <>
+                <Dot cx={cx} cy={cy} r={6} fill="none" stroke="#f59e0b" strokeWidth={1.5} strokeOpacity={0.6} />
+                <Dot cx={cx} cy={cy} r={3} fill="#94a3b8" stroke="#1e1e2e" strokeWidth={1} />
+            </>
+        );
+    }
+
+    return <Dot cx={cx} cy={cy} r={2.5} fill="#94a3b8" stroke="#1e1e2e" strokeWidth={1} />;
+}
+
+// Dot for replay line
+function ReplayConfidenceDot(props: Record<string, unknown>) {
+    const { cx, cy, payload } = props as { cx: number; cy: number; payload: ChartPoint };
+    if (payload.replayEqPercent == null) return null;
+    const fill = payload.replayConfidence === 'sufficient' ? '#6366f1' : '#94a3b8';
     return <Dot cx={cx} cy={cy} r={4} fill={fill} stroke="#1e1e2e" strokeWidth={1.5} />;
 }
 
-// Custom tooltip
+// Tooltip showing EQ value + source/trigger info
 function ChartTooltip({ active, payload }: { active?: boolean; payload?: Array<{ payload: ChartPoint }> }) {
     if (!active || !payload?.[0]) return null;
     const data = payload[0].payload;
+    const hasReplay = data.replayEqPercent != null;
+
     return (
         <div className="chart-tooltip">
             <div className="tooltip-time">{data.timeLabel}</div>
-            <div className="tooltip-eq">EQ: {data.eqPercent}%</div>
-            <div className={`tooltip-confidence ${data.confidence}`}>
-                {data.confidence}
-            </div>
+            {data.eqPercent != null && (
+                <div className="tooltip-eq" style={hasReplay ? { color: '#94a3b8' } : undefined}>
+                    {hasReplay ? 'Original' : 'EQ'}: {data.eqPercent}%
+                    {data.confidence && (
+                        <span className={`tooltip-confidence ${data.confidence}`}> ({data.confidence})</span>
+                    )}
+                </div>
+            )}
+            {data.eqSource && (
+                <div style={{ fontSize: 11, color: data.eqSource === 'trigger' ? '#f59e0b' : '#666' }}>
+                    {data.eqSource === 'trigger'
+                        ? `trigger: ${data.triggerType ?? 'unknown'}`
+                        : data.eqSource}
+                </div>
+            )}
+            {data.replayEqPercent != null && (
+                <div className="tooltip-eq" style={{ color: '#6366f1' }}>
+                    Replay: {data.replayEqPercent}%
+                    {data.replayConfidence && (
+                        <span className={`tooltip-confidence ${data.replayConfidence}`}> ({data.replayConfidence})</span>
+                    )}
+                </div>
+            )}
         </div>
     );
 }
@@ -111,12 +185,13 @@ function getMarkerOpacity(type: EventType): number {
     return 0.6;
 }
 
-export function SessionTimeline({ events, sessionStartTime }: Props) {
+export function SessionTimeline({ events, sessionStartTime, replayEq }: Props) {
     const [enabledMarkers, setEnabledMarkers] = useState<Set<EventType>>(
         () => new Set<EventType>(['buildResult']),
     );
 
     const eqEvents = events.filter((e): e is EqSnapshotEvent => e.type === 'eqSnapshot');
+    const hasReplay = replayEq && replayEq.length > 0;
 
     const markers = useMemo<Marker[]>(() => {
         return events
@@ -142,7 +217,7 @@ export function SessionTimeline({ events, sessionStartTime }: Props) {
         });
     };
 
-    if (eqEvents.length === 0) {
+    if (eqEvents.length === 0 && !hasReplay) {
         return (
             <div className="eq-chart empty">
                 <h2>Session Timeline</h2>
@@ -151,23 +226,51 @@ export function SessionTimeline({ events, sessionStartTime }: Props) {
         );
     }
 
-    const data: ChartPoint[] = eqEvents.map(e => {
+    // Build merged data points
+    const mergedMap = new Map<number, ChartPoint>();
+
+    for (const e of eqEvents) {
         const timeOffset = e.timestamp - sessionStartTime;
-        return {
+        mergedMap.set(timeOffset, {
             timeOffset,
             timeLabel: formatOffset(timeOffset),
             eq: e.eq,
             eqPercent: Math.round(e.eq * 100),
             confidence: e.confidence,
-        };
-    });
+            eqSource: e.source,
+            triggerType: e.triggerType,
+        });
+    }
+
+    if (hasReplay) {
+        for (const r of replayEq!) {
+            const timeOffset = r.timestamp - sessionStartTime;
+            const existing = mergedMap.get(timeOffset);
+            if (existing) {
+                existing.replayEqPercent = Math.round(r.eq * 100);
+                existing.replayConfidence = r.confidence;
+            } else {
+                mergedMap.set(timeOffset, {
+                    timeOffset,
+                    timeLabel: formatOffset(timeOffset),
+                    replayEqPercent: Math.round(r.eq * 100),
+                    replayConfidence: r.confidence,
+                });
+            }
+        }
+    }
+
+    const data = [...mergedMap.values()].sort((a, b) => a.timeOffset - b.timeOffset);
 
     // Expand X domain to cover all events so markers outside EQ range are visible
     const allOffsets = events.map(e => e.timestamp - sessionStartTime);
-    const xMin = Math.min(...allOffsets, ...data.map(d => d.timeOffset));
-    const xMax = Math.max(...allOffsets, ...data.map(d => d.timeOffset));
+    const dataOffsets = data.map(d => d.timeOffset);
+    const xMin = Math.min(...allOffsets, ...dataOffsets);
+    const xMax = Math.max(...allOffsets, ...dataOffsets);
     const xPadding = Math.max((xMax - xMin) * 0.03, 1000);
     const xDomain: [number, number] = [Math.max(0, xMin - xPadding), xMax + xPadding];
+
+    const hasTriggerPoints = eqEvents.some(e => e.source === 'trigger');
 
     return (
         <div className="eq-chart">
@@ -230,16 +333,57 @@ export function SessionTimeline({ events, sessionStartTime }: Props) {
                         />
                     ))}
 
+                    {/* Original EQ line */}
                     <Line
                         type="monotone"
                         dataKey="eqPercent"
-                        stroke="#6366f1"
-                        strokeWidth={2}
-                        dot={<ConfidenceDot />}
-                        activeDot={{ r: 6, fill: '#818cf8' }}
+                        stroke={hasReplay ? '#94a3b8' : '#6366f1'}
+                        strokeWidth={hasReplay ? 1.5 : 2}
+                        strokeDasharray={hasReplay ? '6 4' : undefined}
+                        dot={hasReplay ? <EqDotDimmed /> : <EqDot />}
+                        activeDot={hasReplay ? { r: 4, fill: '#94a3b8' } : { r: 6, fill: '#818cf8' }}
+                        connectNulls
                     />
+
+                    {/* Replay EQ line (only when replay data present) */}
+                    {hasReplay && (
+                        <Line
+                            type="monotone"
+                            dataKey="replayEqPercent"
+                            stroke="#6366f1"
+                            strokeWidth={2}
+                            dot={<ReplayConfidenceDot />}
+                            activeDot={{ r: 6, fill: '#818cf8' }}
+                            connectNulls
+                        />
+                    )}
                 </LineChart>
             </ResponsiveContainer>
+
+            {/* Legend */}
+            <div className="chart-legend" style={{ display: 'flex', gap: 16, justifyContent: 'center', marginTop: 8, fontSize: 13, flexWrap: 'wrap' }}>
+                {hasReplay && (
+                    <>
+                        <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <svg width="24" height="2"><line x1="0" y1="1" x2="24" y2="1" stroke="#94a3b8" strokeWidth="1.5" strokeDasharray="6 4" /></svg>
+                            <span style={{ color: '#94a3b8' }}>Original EQ</span>
+                        </span>
+                        <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <svg width="24" height="2"><line x1="0" y1="1" x2="24" y2="1" stroke="#6366f1" strokeWidth="2" /></svg>
+                            <span style={{ color: '#6366f1' }}>Replay EQ</span>
+                        </span>
+                    </>
+                )}
+                {hasTriggerPoints && (
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <svg width="16" height="16">
+                            <circle cx="8" cy="8" r="6" fill="none" stroke="#f59e0b" strokeWidth="2" />
+                            <circle cx="8" cy="8" r="3" fill="#6366f1" />
+                        </svg>
+                        <span style={{ color: '#f59e0b' }}>Trigger evaluation</span>
+                    </span>
+                )}
+            </div>
 
         </div>
     );

@@ -8,19 +8,8 @@ import {
 } from '../types';
 import { ResultDTO } from '../../../types';
 
-/**
- * Lint source denylist — these sources produce errors that are NOT compilation errors.
- * [ADAPTATION] Paper had no linter; filter is engineering-necessary.
- */
-const LINT_SOURCE_DENYLIST: Set<string> = new Set([
-    'eslint',
-    'tslint',
-    'stylelint',
-    'checkstyle',
-    'pmd',
-    'spotbugs',
-    'sonarlint',
-]);
+import { LINT_SOURCE_DENYLIST } from './lintDenylist';
+export { LINT_SOURCE_DENYLIST };
 
 /**
  * Emits CompileEquivalentEvents from save events and build results.

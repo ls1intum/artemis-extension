@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import type { LoadedSession, RecordedEvent, SessionMetadata } from './types';
+import type { LoadedSession, RecordedEvent, SessionMetadata, ReplayEqSnapshot } from './types';
 import { FileDropZone } from './components/FileDropZone';
 import { RecordingInfo } from './components/RecordingInfo';
 import { SessionList } from './components/SessionList';
@@ -14,9 +14,10 @@ function App() {
     const loadFromApi = useCallback(async (sessionId: string) => {
         setLoading(true);
         try {
-            const [eventsRes, metaRes] = await Promise.all([
+            const [eventsRes, metaRes, replayRes] = await Promise.all([
                 fetch(`/api/recordings/${sessionId}/events`),
                 fetch(`/api/recordings/${sessionId}/metadata`),
+                fetch(`/api/recordings/${sessionId}/replay-eq`),
             ]);
 
             const events: RecordedEvent[] = await eventsRes.json();
@@ -24,8 +25,12 @@ function App() {
             if (metaRes.ok) {
                 metadata = await metaRes.json();
             }
+            let replayEq: ReplayEqSnapshot[] | undefined;
+            if (replayRes.ok) {
+                replayEq = await replayRes.json();
+            }
 
-            setSession({ metadata, events, fileName: sessionId });
+            setSession({ metadata, events, fileName: sessionId, replayEq });
         } catch (err) {
             console.error('Failed to load session:', err);
         } finally {
@@ -64,7 +69,7 @@ function App() {
             {session && (
                 <div className="session-view">
                     <SessionInfo session={session} />
-                    <SessionTimeline events={session.events} sessionStartTime={sessionStartTime} />
+                    <SessionTimeline events={session.events} sessionStartTime={sessionStartTime} replayEq={session.replayEq} />
                     <EventStream events={session.events} sessionStartTime={sessionStartTime} />
                 </div>
             )}

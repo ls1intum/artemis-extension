@@ -3,6 +3,13 @@ import react from '@vitejs/plugin-react';
 
 export default defineConfig({
 	plugins: [react()],
+	resolve: {
+		alias: {
+			// Stub the vscode module for tests that import extension-host code
+			// (e.g. replay engine tests that transitively import types.ts → vscode)
+			vscode: new URL('./test/react/__helpers__/vscode.stub.ts', import.meta.url).pathname,
+		},
+	},
 	test: {
 		globals: true,
 		environment: 'happy-dom',

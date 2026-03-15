@@ -131,6 +131,29 @@ function recordingsApi() {
                     return
                 }
 
+                // GET /api/recordings/:sessionId/replay-eq → replay EQ data
+                const replayMatch = req.url.match(/^\/api\/recordings\/([^/]+)\/replay-eq$/)
+                if (replayMatch && method === 'GET') {
+                    const sessionId = replayMatch[1]
+                    const replayPath = path.join(RECORDINGS_DIR, sessionId, 'replay-eq.jsonl')
+                    try {
+                        if (!fs.existsSync(replayPath)) {
+                            res.writeHead(404)
+                            res.end(JSON.stringify({ error: 'replay-eq.jsonl not found' }))
+                            return
+                        }
+                        const lines = fs.readFileSync(replayPath, 'utf-8')
+                            .split('\n')
+                            .filter(l => l.trim().length > 0)
+                        const snapshots = lines.map(l => JSON.parse(l))
+                        res.end(JSON.stringify(snapshots))
+                    } catch (err) {
+                        res.writeHead(500)
+                        res.end(JSON.stringify({ error: String(err) }))
+                    }
+                    return
+                }
+
                 // GET /api/recordings/:sessionId/metadata
                 const metaMatch = req.url.match(/^\/api\/recordings\/([^/]+)\/metadata$/)
                 if (metaMatch) {

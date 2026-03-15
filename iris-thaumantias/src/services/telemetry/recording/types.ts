@@ -103,6 +103,8 @@ export interface EqSnapshotEvent {
     timestamp: number;
     eq: number;
     confidence: 'sufficient' | 'insufficient';
+    source: 'save' | 'build' | 'trigger';
+    triggerType?: string;
 }
 
 export interface SelectionChangeEvent {

@@ -63,7 +63,12 @@ export class TelemetryManager implements vscode.Disposable, WebSocketMessageHand
     private static readonly DEBUG_UPDATE_INTERVAL_MS = 5 * 1000;
 
     // Events
-    private readonly _onDidCalculateEQ = new vscode.EventEmitter<{ eq: number; confidence: EQConfidence }>();
+    private readonly _onDidCalculateEQ = new vscode.EventEmitter<{
+        eq: number;
+        confidence: EQConfidence;
+        source: 'save' | 'build' | 'trigger';
+        triggerType?: TriggerType;
+    }>();
     public readonly onDidCalculateEQ = this._onDidCalculateEQ.event;
 
     constructor() {
@@ -167,6 +172,8 @@ export class TelemetryManager implements vscode.Disposable, WebSocketMessageHand
         const event = this._compileEmitter.handleBuildResult(result);
         if (event) {
             this._eqEngine.addSnapshot(event.snapshot);
+            const { eq, confidence } = this._eqEngine.getCurrentEQ();
+            this._onDidCalculateEQ.fire({ eq, confidence, source: 'build' });
         }
 
         // Step 2: Existing build tracker processing
@@ -287,6 +294,8 @@ export class TelemetryManager implements vscode.Disposable, WebSocketMessageHand
             // Only add from save events; build events are handled in onNewResult
             if (event.source === 'save') {
                 this._eqEngine.addSnapshot(event.snapshot);
+                const { eq, confidence } = this._eqEngine.getCurrentEQ();
+                this._onDidCalculateEQ.fire({ eq, confidence, source: 'save' });
             }
         });
 
@@ -346,7 +355,7 @@ export class TelemetryManager implements vscode.Disposable, WebSocketMessageHand
 
         this._lastTriggerType = triggerType;
         const { eq, confidence } = this._eqEngine.getCurrentEQ();
-        this._onDidCalculateEQ.fire({ eq, confidence });
+        this._onDidCalculateEQ.fire({ eq, confidence, source: 'trigger', triggerType });
 
         const state = this._interventionService.getState();
         const decision = this._decisionEngine.evaluate(eq, confidence, triggerType, state);

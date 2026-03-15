@@ -5,6 +5,7 @@ import { ArtemisWebviewProvider, ChatWebviewProvider, BuildErrorCodeLensProvider
 import { AuthManager } from './auth';
 import { ArtemisApiService } from './api';
 import { ArtemisWebsocketService, TelemetryManager, WebSocketStatusBarService, NoAiDetectionService, ConsentService, ExerciseRegistry, SessionRecorder, RecordingStatusBarService } from './services';
+import { executeReplayCommand } from './services/telemetry/replay';
 import { ProviderRegistry } from './services/ProviderRegistry';
 import { VSCODE_CONFIG, processPlantUml, normalizeRelativePath } from './utils';
 import { logger, LogLevel, LogCategory } from './services/loggingService';
@@ -187,8 +188,8 @@ export async function activate(context: vscode.ExtensionContext) {
 	chatWebviewProvider.websocketMessageHandler.onDidReceiveIrisChatMessage(content => {
 		sessionRecorder.recordIrisChatReceived(content);
 	});
-	telemetryManager.onDidCalculateEQ(({ eq, confidence }) => {
-		sessionRecorder.recordEqSnapshot(eq, confidence);
+	telemetryManager.onDidCalculateEQ(({ eq, confidence, source, triggerType }) => {
+		sessionRecorder.recordEqSnapshot(eq, confidence, source, triggerType);
 	});
 	context.subscriptions.push(sessionRecorder);
 
@@ -204,6 +205,12 @@ export async function activate(context: vscode.ExtensionContext) {
 		await telemetryManager.showStruggleScoreDialog();
 	});
 	context.subscriptions.push(showStruggleScoreCommand);
+
+	// Register session replay command
+	const replaySessionCommand = vscode.commands.registerCommand('artemis.replaySession', async () => {
+		await executeReplayCommand(context.globalStorageUri);
+	});
+	context.subscriptions.push(replaySessionCommand);
 
 	// Register command for CodeLens to navigate to error
 	const goToSourceErrorCommand = vscode.commands.registerCommand(

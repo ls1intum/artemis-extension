@@ -94,6 +94,8 @@ export interface EqSnapshotEvent {
     timestamp: number;
     eq: number;
     confidence: 'sufficient' | 'insufficient';
+    source?: 'save' | 'build' | 'trigger';
+    triggerType?: string;
 }
 
 export interface SelectionChangeEvent {
@@ -137,8 +139,18 @@ export interface SessionMetadata {
     eventCount: number;
 }
 
+export interface ReplayEqSnapshot {
+    timestamp: number;
+    eq: number;
+    confidence: 'sufficient' | 'insufficient';
+    source: 'save' | 'build';
+    errorCount: number;
+    errorFamilies: string[];
+}
+
 export interface LoadedSession {
     metadata: SessionMetadata | null;
     events: RecordedEvent[];
     fileName: string;
+    replayEq?: ReplayEqSnapshot[];
 }

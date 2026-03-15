@@ -198,7 +198,12 @@ export class SessionRecorder implements vscode.Disposable, WebSocketMessageHandl
         });
     }
 
-    recordEqSnapshot(eq: number, confidence: 'sufficient' | 'insufficient'): void {
+    recordEqSnapshot(
+        eq: number,
+        confidence: 'sufficient' | 'insufficient',
+        source: 'save' | 'build' | 'trigger',
+        triggerType?: string,
+    ): void {
         if (!this._isRecording) {
             return;
         }
@@ -207,6 +212,8 @@ export class SessionRecorder implements vscode.Disposable, WebSocketMessageHandl
             timestamp: Date.now(),
             eq,
             confidence,
+            source,
+            triggerType,
         });
     }
 

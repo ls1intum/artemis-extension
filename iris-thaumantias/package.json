@@ -68,6 +68,11 @@
         "icon": "$(graph)"
       },
       {
+        "command": "artemis.replaySession",
+        "title": "Replay Session (EQ Tuning)",
+        "icon": "$(play)"
+      },
+      {
         "command": "artemis.clearTrustedDomains",
         "title": "Artemis: Clear Trusted Domains"
       }
