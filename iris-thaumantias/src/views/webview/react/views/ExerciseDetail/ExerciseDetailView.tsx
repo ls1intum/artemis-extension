@@ -170,14 +170,9 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
     const latestResult = [...(latestSubmission?.results ?? [])]
         .sort((a, b) => (b.id ?? 0) - (a.id ?? 0))[0];
 
-    // Use Artemis-provided test case counts when available, fall back to feedbacks
-    const buildFailed = latestSubmission?.buildFailed ?? false;
-    const totalTests = latestResult?.testCaseCount ?? 0;
-    const passedTests = latestResult?.passedTestCaseCount ?? 0;
-    const hasTestInfo = totalTests > 0;
-
     // Build test cases from feedbacks for detailed display
     // The result details API returns feedbacks with testCase objects containing testName
+    const buildFailed = latestSubmission?.buildFailed ?? false;
     const feedbacks = latestResult?.feedbacks ?? [];
     const testFeedbacks = feedbacks.filter(f =>
         f.testCase?.testName || ((!f.type || f.type === 'AUTOMATIC') && f.text && !f.text.startsWith('SCAFeedbackIdentifier:'))
@@ -187,6 +182,11 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
         passed: f.positive ?? false,
         message: f.detailText,
     }));
+
+    // Use Artemis-provided test case counts when available, fall back to feedbacks
+    const totalTests = latestResult?.testCaseCount || testFeedbacks.length;
+    const passedTests = latestResult?.passedTestCaseCount ?? testFeedbacks.filter(f => f.positive).length;
+    const hasTestInfo = totalTests > 0;
 
     // result.score is already a percentage (0-100) in Artemis
     const scorePercentage = latestResult?.score ?? 0;
@@ -413,6 +413,16 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
                         buildStartDate={pendingSubmission?.buildTimingInfo?.buildStartDate}
                         onToggleTestResults={() => setShowTestResults(prev => !prev)}
                         showTestResults={showTestResults}
+                        onViewBuildLog={() => {
+                            postCommand(vscodeApi, 'openWebsite', {
+                                path: `/courses/${exercise.course?.id}/exercises/${exercise.id}`,
+                            });
+                        }}
+                        onGoToSource={() => {
+                            postCommand(vscodeApi, 'openWebsite', {
+                                path: `/courses/${exercise.course?.id}/exercises/${exercise.id}`,
+                            });
+                        }}
                     />
                 )}
 
