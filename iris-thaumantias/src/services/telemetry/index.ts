@@ -14,3 +14,6 @@ export { CompileEquivalentEmitter, classifyBuildResult, isCompilerDiagnostic, ge
 export { BoundaryTriggerEmitter } from './eventPipeline/boundaryTriggerEmitter';
 export { InterventionDecisionEngine } from './decision/interventionDecisionEngine';
 export { AdaptiveCadence } from './intervention/adaptiveCadence';
+
+// Recording
+export * from './recording';

@@ -8,6 +8,9 @@ import { ExtensionMsg } from '../../shared/messageContracts';
 import type { ExtensionToWebviewMessage } from '../../shared/messageContracts';
 
 export class IrisWebSocketMessageHandler {
+    private readonly _onDidReceiveIrisChatMessage = new vscode.EventEmitter<string>();
+    public readonly onDidReceiveIrisChatMessage = this._onDidReceiveIrisChatMessage.event;
+
     constructor(
         private readonly _websocketService: ArtemisWebsocketService | undefined,
         private readonly _getIrisSessionManager: () => IrisSessionManager | undefined,
@@ -46,6 +49,7 @@ export class IrisWebSocketMessageHandler {
                         helpful: typeof msg['helpful'] === 'boolean' ? msg['helpful'] : null
                     }
                 });
+                this._onDidReceiveIrisChatMessage.fire(content);
                 logger.info('✅ Assistant message sent to webview', LogCategory.WEBSOCKET);
             } else {
                 logger.info('⏭️ Skipping message (either USER message or no content)', LogCategory.WEBSOCKET);

@@ -4,13 +4,14 @@ import * as vscode from 'vscode';
 import { ArtemisWebviewProvider, ChatWebviewProvider, BuildErrorCodeLensProvider } from './provider';
 import { AuthManager } from './auth';
 import { ArtemisApiService } from './api';
-import { ArtemisWebsocketService, TelemetryManager, WebSocketStatusBarService, NoAiDetectionService, ConsentService, ExerciseRegistry } from './services';
+import { ArtemisWebsocketService, TelemetryManager, WebSocketStatusBarService, NoAiDetectionService, ConsentService, ExerciseRegistry, SessionRecorder, RecordingStatusBarService } from './services';
 import { ProviderRegistry } from './services/ProviderRegistry';
 import { VSCODE_CONFIG, processPlantUml, normalizeRelativePath } from './utils';
 import { logger, LogLevel, LogCategory } from './services/loggingService';
 
-// Module-level reference for deactivate() cleanup
+// Module-level references for deactivate() cleanup
 let activeTelemetryManager: TelemetryManager | undefined;
+let activeSessionRecorder: SessionRecorder | undefined;
 
 // This method is called when your extension is activated
 // Your extension is activated the very first time the command is executed
@@ -165,6 +166,38 @@ export async function activate(context: vscode.ExtensionContext) {
 
 	// Add telemetry manager to subscriptions for proper disposal
 	context.subscriptions.push(telemetryManager);
+
+	// Initialize session recorder for extended data collection (research recordings)
+	const sessionRecorder = new SessionRecorder(context.globalStorageUri);
+	activeSessionRecorder = sessionRecorder;
+	if (consentService.isExtendedCollectionEnabled) {
+		sessionRecorder.enable();
+	}
+	consentService.onConsentChanged(level => {
+		if (level === 'extended') {
+			sessionRecorder.enable();
+		} else {
+			sessionRecorder.disable();
+		}
+	});
+	artemisWebsocketService.registerMessageHandler(sessionRecorder);
+	chatWebviewProvider.onDidSendIrisChatMessage(text => {
+		sessionRecorder.recordIrisChatSent(text);
+	});
+	chatWebviewProvider.websocketMessageHandler.onDidReceiveIrisChatMessage(content => {
+		sessionRecorder.recordIrisChatReceived(content);
+	});
+	telemetryManager.onDidCalculateEQ(({ eq, confidence }) => {
+		sessionRecorder.recordEqSnapshot(eq, confidence);
+	});
+	context.subscriptions.push(sessionRecorder);
+
+	// Recording status bar button (visible only when consent is Extended)
+	const recordingStatusBar = new RecordingStatusBarService(
+		sessionRecorder,
+		() => chatWebviewProvider.getSelectedExerciseId(),
+	);
+	context.subscriptions.push(recordingStatusBar);
 
 	// Register command to show struggle score dialog (debug)
 	const showStruggleScoreCommand = vscode.commands.registerCommand('artemis.showStruggleScore', async () => {
@@ -620,6 +653,10 @@ export async function activate(context: vscode.ExtensionContext) {
 export function deactivate() {
 	// Explicit session cleanup — context.subscriptions.dispose() is an additional guarantee,
 	// but deactivate() ensures ordering and explicit state persistence.
+	if (activeSessionRecorder) {
+		void activeSessionRecorder.endSession();
+		activeSessionRecorder = undefined;
+	}
 	if (activeTelemetryManager) {
 		activeTelemetryManager.endCurrentSession();
 		activeTelemetryManager = undefined;

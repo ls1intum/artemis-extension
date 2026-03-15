@@ -61,6 +61,9 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
     private readonly _onDidChangeExerciseContext = new vscode.EventEmitter<ExerciseContextChangeEvent>();
     public readonly onDidChangeExerciseContext = this._onDidChangeExerciseContext.event;
 
+    private readonly _onDidSendIrisChatMessage = new vscode.EventEmitter<string>();
+    public readonly onDidSendIrisChatMessage = this._onDidSendIrisChatMessage.event;
+
 
     // ── Constructor ────────────────────────────────────────────────────
     constructor(
@@ -73,6 +76,7 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
     ) {
         super();
         this._disposables.push(this._onDidChangeExerciseContext);
+        this._disposables.push(this._onDidSendIrisChatMessage);
         this._contextStore = new ContextStore(this._extensionContext);
         this._fileMonitorService = new FileMonitorService();
         this._disposables.push(this._fileMonitorService);
@@ -243,6 +247,13 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
      */
     public getStruggleContext(): StruggleContext | undefined {
         return this._telemetryManager?.getStruggleContext();
+    }
+
+    /**
+     * Access the WebSocket message handler for wiring up received-message events.
+     */
+    public get websocketMessageHandler(): IrisWebSocketMessageHandler {
+        return this._websocketMessageHandler;
     }
 
     /**
@@ -671,6 +682,7 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
         // Delegate to ChatMessageService with struggle context
         if (typeof message.text === 'string') {
             await this._chatMessageService.handleChatMessage(message.text, activeContext, struggleContext);
+            this._onDidSendIrisChatMessage.fire(message.text);
         }
     }
 
