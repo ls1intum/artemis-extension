@@ -22,6 +22,7 @@ export class ArtemisFeedback {
         public readonly credits?: number,
         public readonly type?: 'AUTOMATIC' | 'MANUAL',
         public readonly positive?: boolean,
+        public readonly testCase?: { id?: number; testName?: string },
     ) {}
 
     static fromJSON(data: unknown): ArtemisFeedback {
@@ -29,6 +30,7 @@ export class ArtemisFeedback {
             throw new Error('Invalid ArtemisFeedback data');
         }
         const d = data as Record<string, unknown>;
+        const rawTestCase = d.testCase as Record<string, unknown> | undefined;
         return new ArtemisFeedback(
             typeof d.id === 'number' ? d.id : undefined,
             typeof d.text === 'string' ? d.text : undefined,
@@ -37,6 +39,10 @@ export class ArtemisFeedback {
             typeof d.credits === 'number' ? d.credits : undefined,
             typeof d.type === 'string' ? d.type as 'AUTOMATIC' | 'MANUAL' : undefined,
             typeof d.positive === 'boolean' ? d.positive : undefined,
+            rawTestCase && typeof rawTestCase === 'object' ? {
+                id: typeof rawTestCase.id === 'number' ? rawTestCase.id : undefined,
+                testName: typeof rawTestCase.testName === 'string' ? rawTestCase.testName : undefined,
+            } : undefined,
         );
     }
 }

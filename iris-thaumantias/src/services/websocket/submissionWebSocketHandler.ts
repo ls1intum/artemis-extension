@@ -38,6 +38,7 @@ export class SubmissionWebSocketHandler {
                 credits: f.credits,
                 positive: f.positive,
                 type: f.type,
+                testCase: f.testCase,
             })),
             participationId: result.participation?.id,
         };
