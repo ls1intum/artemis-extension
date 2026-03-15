@@ -14,6 +14,7 @@ const ALL_EVENT_TYPES: EventType[] = [
     'fileSwitch',
     'windowFocus', 'fileSnapshot',
     'irisChatMessage',
+    'selectionChange', 'visibleRangeChange',
 ];
 
 function formatOffset(ms: number): string {
@@ -93,6 +94,19 @@ function EventDetail({ event }: { event: RecordedEvent }) {
             return <span className="event-detail">{event.focused ? 'focused' : 'blurred'}</span>;
         case 'fileSnapshot':
             return <span className="event-detail">{shortenUri(event.uri)}</span>;
+        case 'selectionChange':
+            return (
+                <span className="event-detail">
+                    {shortenUri(event.uri)} | L{event.selections[0]?.startLine ?? 0}:{event.selections[0]?.startCharacter ?? 0}
+                    {event.kind && ` (${event.kind})`}
+                </span>
+            );
+        case 'visibleRangeChange':
+            return (
+                <span className="event-detail">
+                    {shortenUri(event.uri)} | L{event.visibleRanges[0]?.startLine ?? 0}-L{event.visibleRanges[0]?.endLine ?? 0}
+                </span>
+            );
         default:
             return null;
     }

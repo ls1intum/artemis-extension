@@ -18,6 +18,8 @@ import {
     collectDiagnostics,
     collectBuildResult,
     collectWindowFocus,
+    collectSelectionChange,
+    collectVisibleRangeChange,
 } from './eventCollectors';
 import { logger, LogCategory } from '../../loggingService';
 
@@ -37,6 +39,10 @@ export class SessionRecorder implements vscode.Disposable, WebSocketMessageHandl
     private _eventCount = 0;
     private _sessionStartTime: number | undefined;
     private _participantId: string | undefined;
+
+    private _snapshotedUris = new Set<string>();
+    private _selectionDebounceTimer: ReturnType<typeof setTimeout> | undefined;
+    private _visibleRangeDebounceTimer: ReturnType<typeof setTimeout> | undefined;
 
     private _eventListenerDisposables: vscode.Disposable[] = [];
     private readonly _writer: RecordingStorageWriter;
@@ -153,6 +159,7 @@ export class SessionRecorder implements vscode.Disposable, WebSocketMessageHandl
         this._activeExerciseId = undefined;
         this._participantId = undefined;
         this._sessionStartTime = undefined;
+        this._snapshotedUris.clear();
         this._fireStateChange();
     }
 
@@ -252,14 +259,19 @@ export class SessionRecorder implements vscode.Disposable, WebSocketMessageHandl
         });
         this._eventListenerDisposables.push(save);
 
-        // Active editor switch
+        // Active editor switch + snapshot on first open
         const editorSwitch = vscode.window.onDidChangeActiveTextEditor(editor => {
             if (!this._isRecording) { return; }
             const prev = this._lastActiveEditorUri;
-            this._lastActiveEditorUri = editor?.document.uri.toString();
+            const toUri = editor?.document.uri.toString();
+            this._lastActiveEditorUri = toUri;
             // Only record if at least one side is a file
             if (prev || editor?.document.uri.scheme === 'file') {
                 this._record(collectFileSwitch(prev, editor));
+            }
+            // Snapshot file if opened for the first time this session
+            if (editor && editor.document.uri.scheme === 'file' && toUri && !this._snapshotedUris.has(toUri)) {
+                void this._captureFirstOpenSnapshot(editor);
             }
         });
         this._eventListenerDisposables.push(editorSwitch);
@@ -280,9 +292,35 @@ export class SessionRecorder implements vscode.Disposable, WebSocketMessageHandl
             this._record(collectWindowFocus(state));
         });
         this._eventListenerDisposables.push(windowFocus);
+
+        // Selection changes (debounced 200ms)
+        const selectionChange = vscode.window.onDidChangeTextEditorSelection(event => {
+            if (!this._isRecording) { return; }
+            if (event.textEditor.document.uri.scheme !== 'file') { return; }
+            clearTimeout(this._selectionDebounceTimer);
+            this._selectionDebounceTimer = setTimeout(() => {
+                if (!this._isRecording) { return; }
+                this._record(collectSelectionChange(event.textEditor, event.kind));
+            }, 200);
+        });
+        this._eventListenerDisposables.push(selectionChange);
+
+        // Visible range changes (debounced 300ms)
+        const visibleRangeChange = vscode.window.onDidChangeTextEditorVisibleRanges(event => {
+            if (!this._isRecording) { return; }
+            if (event.textEditor.document.uri.scheme !== 'file') { return; }
+            clearTimeout(this._visibleRangeDebounceTimer);
+            this._visibleRangeDebounceTimer = setTimeout(() => {
+                if (!this._isRecording) { return; }
+                this._record(collectVisibleRangeChange(event.textEditor));
+            }, 300);
+        });
+        this._eventListenerDisposables.push(visibleRangeChange);
     }
 
     private _disposeEventListeners(): void {
+        clearTimeout(this._selectionDebounceTimer);
+        clearTimeout(this._visibleRangeDebounceTimer);
         while (this._eventListenerDisposables.length > 0) {
             const disposable = this._eventListenerDisposables.pop();
             disposable?.dispose();
@@ -301,6 +339,7 @@ export class SessionRecorder implements vscode.Disposable, WebSocketMessageHandl
                 const uri = doc.uri.toString();
                 const snapshotPath = this._writer.getSnapshotRelativePath(uri);
                 await this._writer.writeSnapshot(uri, content);
+                this._snapshotedUris.add(uri);
                 this._record({
                     type: 'fileSnapshot',
                     timestamp: Date.now(),
@@ -310,6 +349,24 @@ export class SessionRecorder implements vscode.Disposable, WebSocketMessageHandl
             } catch (err) {
                 logger.error('Failed to capture file snapshot', LogCategory.TELEMETRY, err);
             }
+        }
+    }
+
+    private async _captureFirstOpenSnapshot(editor: vscode.TextEditor): Promise<void> {
+        try {
+            const content = editor.document.getText();
+            const uri = editor.document.uri.toString();
+            const snapshotPath = this._writer.getSnapshotRelativePath(uri);
+            await this._writer.writeSnapshot(uri, content);
+            this._snapshotedUris.add(uri);
+            this._record({
+                type: 'fileSnapshot',
+                timestamp: Date.now(),
+                uri,
+                snapshotPath,
+            });
+        } catch (err) {
+            logger.error('Failed to capture first-open file snapshot', LogCategory.TELEMETRY, err);
         }
     }
 }

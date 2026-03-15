@@ -96,6 +96,21 @@ export interface EqSnapshotEvent {
     confidence: 'sufficient' | 'insufficient';
 }
 
+export interface SelectionChangeEvent {
+    type: 'selectionChange';
+    timestamp: number;
+    uri: string;
+    selections: SerializedRange[];
+    kind: 'keyboard' | 'mouse' | 'command' | undefined;
+}
+
+export interface VisibleRangeChangeEvent {
+    type: 'visibleRangeChange';
+    timestamp: number;
+    uri: string;
+    visibleRanges: SerializedRange[];
+}
+
 export type RecordedEvent =
     | TextChangeEvent
     | SaveEvent
@@ -107,7 +122,9 @@ export type RecordedEvent =
     | SessionStartEvent
     | SessionEndEvent
     | IrisChatMessageEvent
-    | EqSnapshotEvent;
+    | EqSnapshotEvent
+    | SelectionChangeEvent
+    | VisibleRangeChangeEvent;
 
 export type EventType = RecordedEvent['type'];
 

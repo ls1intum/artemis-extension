@@ -14,6 +14,8 @@ import type {
     DiagnosticsEvent,
     BuildResultEvent,
     WindowFocusEvent,
+    SelectionChangeEvent,
+    VisibleRangeChangeEvent,
 } from './types';
 
 // ── Serialization helpers ─────────────────────────────────────────────
@@ -110,5 +112,33 @@ export function collectWindowFocus(state: vscode.WindowState): WindowFocusEvent 
         type: 'windowFocus',
         timestamp: Date.now(),
         focused: state.focused,
+    };
+}
+
+const SELECTION_KIND_MAP: Record<number, 'keyboard' | 'mouse' | 'command'> = {
+    1: 'keyboard',
+    2: 'mouse',
+    3: 'command',
+};
+
+export function collectSelectionChange(
+    editor: vscode.TextEditor,
+    kind: vscode.TextEditorSelectionChangeKind | undefined,
+): SelectionChangeEvent {
+    return {
+        type: 'selectionChange',
+        timestamp: Date.now(),
+        uri: editor.document.uri.toString(),
+        selections: editor.selections.map(serializeRange),
+        kind: kind ? SELECTION_KIND_MAP[kind] : undefined,
+    };
+}
+
+export function collectVisibleRangeChange(editor: vscode.TextEditor): VisibleRangeChangeEvent {
+    return {
+        type: 'visibleRangeChange',
+        timestamp: Date.now(),
+        uri: editor.document.uri.toString(),
+        visibleRanges: editor.visibleRanges.map(serializeRange),
     };
 }

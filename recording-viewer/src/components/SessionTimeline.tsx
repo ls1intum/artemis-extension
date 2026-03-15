@@ -45,6 +45,8 @@ const MARKER_COLORS: Record<EventType, string> = {
     sessionStart: '#a5b4fc',
     sessionEnd: '#f87171',
     irisChatMessage: '#f472b6',
+    selectionChange: '#06b6d4',
+    visibleRangeChange: '#14b8a6',
 };
 
 const MARKER_EVENT_TYPES: EventType[] = [
@@ -58,6 +60,8 @@ const MARKER_EVENT_TYPES: EventType[] = [
     'sessionStart',
     'sessionEnd',
     'irisChatMessage',
+    'selectionChange',
+    'visibleRangeChange',
 ];
 
 function formatOffset(ms: number): string {
@@ -103,7 +107,7 @@ function getMarkerDash(type: EventType): string {
 }
 
 function getMarkerOpacity(type: EventType): number {
-    if (type === 'textChange') return 0.35;
+    if (type === 'textChange' || type === 'selectionChange' || type === 'visibleRangeChange') return 0.3;
     return 0.6;
 }
 
