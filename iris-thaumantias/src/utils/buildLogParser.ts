@@ -32,6 +32,22 @@ export class BuildLogParser {
     }
 
     /**
+     * Parse build logs and extract all errors found
+     * @param logs Array of build log entries
+     * @returns Array of all parsed errors
+     */
+    public static parseAllErrors(logs: BuildLogEntry[]): ParsedBuildError[] {
+        const errors: ParsedBuildError[] = [];
+        for (const entry of logs) {
+            const error = this.parseLogEntry(entry.log);
+            if (error) {
+                errors.push(error);
+            }
+        }
+        return errors;
+    }
+
+    /**
      * Parse a single log entry for error information
      * @param logText The log text to parse
      * @returns Parsed error or null

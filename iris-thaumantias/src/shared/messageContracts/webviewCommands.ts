@@ -49,6 +49,8 @@ export const WebviewCmd = {
     StartPractice: 'startPractice',
     AskIrisAboutExercise: 'askIrisAboutExercise',
     CheckRepositoryStatus: 'checkRepositoryStatus',
+    ViewBuildLog: 'viewBuildLog',
+    GoToSource: 'goToSource',
 
     // Exam
     OpenExam: 'openExam',
@@ -135,6 +137,8 @@ interface WebviewCmdPayloads {
     startPractice: { exerciseId: number; exerciseTitle?: string };
     askIrisAboutExercise: { exerciseId: number; exerciseTitle: string; exerciseShortName?: string; releaseDate?: string; dueDate?: string; courseId?: number; courseTitle?: string; courseShortName?: string };
     checkRepositoryStatus: undefined;
+    viewBuildLog: { participationId: number; resultId?: number };
+    goToSource: { participationId: number; resultId?: number };
 
     // Exam
     openExam: { examId: number; courseId: number };
@@ -214,6 +218,8 @@ export const COMMANDS_REQUIRING_PAYLOAD = new Set<string>([
     WebviewCmd.OpenFile,
     WebviewCmd.ViewArchivedCourse,
     WebviewCmd.RenderPlantUmlInline,
+    WebviewCmd.ViewBuildLog,
+    WebviewCmd.GoToSource,
 ]);
 
 /** Auto-generated command messages */

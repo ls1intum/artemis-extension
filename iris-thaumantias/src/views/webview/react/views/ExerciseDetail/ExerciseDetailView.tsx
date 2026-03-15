@@ -414,14 +414,20 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
                         onToggleTestResults={() => setShowTestResults(prev => !prev)}
                         showTestResults={showTestResults}
                         onViewBuildLog={() => {
-                            postCommand(vscodeApi, 'openWebsite', {
-                                path: `/courses/${exercise.course?.id}/exercises/${exercise.id}`,
-                            });
+                            if (participationId) {
+                                postCommand(vscodeApi, 'viewBuildLog', {
+                                    participationId,
+                                    resultId: latestResult?.id,
+                                });
+                            }
                         }}
                         onGoToSource={() => {
-                            postCommand(vscodeApi, 'openWebsite', {
-                                path: `/courses/${exercise.course?.id}/exercises/${exercise.id}`,
-                            });
+                            if (participationId) {
+                                postCommand(vscodeApi, 'goToSource', {
+                                    participationId,
+                                    resultId: latestResult?.id,
+                                });
+                            }
                         }}
                     />
                 )}

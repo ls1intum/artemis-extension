@@ -18,12 +18,14 @@ import type { WebViewActionHandler } from '../views/app/types';
 import { ViewActionService } from '../views/app/viewActionService';
 import { ViewRouter } from '../views/app/viewRouter';
 import { ExerciseRegistry } from '../services';
-import { WebSocketMessageHandler } from '../types';
+import { WebSocketMessageHandler, ParsedBuildError } from '../types';
 import { findWorkspaceCourseInArchive } from '../services/workspace/workspaceDetectionService';
 import { BaseWebviewProvider } from './baseWebviewProvider';
 import type { BuildErrorCodeLensProvider } from './buildErrorCodeLensProvider';
 import type { TelemetryManager } from '../services/telemetry/telemetryManager';
 import { ExtensionMsg, WebviewMsgType } from '../shared/messageContracts';
+import { BuildLogParser } from '../utils';
+import type { ResultDTO } from '../types';
 import type { ExtensionToWebviewMessage, WebviewToExtensionMessage, CourseDetailData as CourseDetailPayload } from '../shared/messageContracts';
 import type { ExerciseDetail, CourseDetailData, ExerciseDetailsResponse } from '../types/apiResponses';
 import { isWebviewMessage } from '../shared/messageContracts/typeGuards';
@@ -85,6 +87,7 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
         );
         this._submissionWsHandler = new SubmissionWebSocketHandler(
             (msg) => this._postMessageSafe(msg),
+            (result) => this._handleBuildResult(result),
         );
         this._fullscreenPanelManager = new FullscreenPanelManager(
             this._extensionUri,
@@ -591,6 +594,36 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
     private _getServerUrl(): string {
         const config = vscode.workspace.getConfiguration(VSCODE_CONFIG.ARTEMIS_SECTION);
         return config.get<string>(VSCODE_CONFIG.SERVER_URL_KEY, CONFIG.ARTEMIS_SERVER_URL_DEFAULT);
+    }
+
+    private _handleBuildResult(result: ResultDTO): void {
+        const participationId = result.participation?.id;
+        if (!participationId) {
+            return;
+        }
+
+        void (async () => {
+            try {
+                const logs = await this._artemisApi.getBuildLogs(participationId, result.id);
+                const errors = BuildLogParser.parseAllErrors(logs);
+
+                this._buildCodeLens?.clearErrors();
+
+                // Group errors by filePath
+                const errorsByFile = new Map<string, ParsedBuildError[]>();
+                for (const error of errors) {
+                    const existing = errorsByFile.get(error.filePath) ?? [];
+                    existing.push(error);
+                    errorsByFile.set(error.filePath, existing);
+                }
+
+                for (const [filePath, fileErrors] of errorsByFile) {
+                    this._buildCodeLens?.setErrors(filePath, fileErrors);
+                }
+            } catch (err) {
+                logger.error('Failed to fetch build logs for CodeLens:', LogCategory.SUBMISSION, err);
+            }
+        })();
     }
 
 }

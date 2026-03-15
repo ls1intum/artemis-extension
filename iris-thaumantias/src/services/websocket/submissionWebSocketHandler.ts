@@ -12,6 +12,7 @@ import type { ResultSummary, SubmissionSummary } from '../../types/apiResponses'
 export class SubmissionWebSocketHandler {
     constructor(
         private readonly _postMessage: (msg: ExtensionToWebviewMessage) => void,
+        private readonly _onBuildResult?: (result: ResultDTO) => void,
     ) {}
 
     public createHandler(): WSHandler {
@@ -47,6 +48,7 @@ export class SubmissionWebSocketHandler {
             updateType: 'newResult',
             data: summary,
         });
+        this._onBuildResult?.(result);
     }
 
     public handleNewSubmission(submission: ProgrammingSubmission): void {

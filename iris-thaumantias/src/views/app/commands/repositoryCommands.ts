@@ -7,7 +7,7 @@ import type {
     WebviewToExtensionMessage,
     WebCmd,
 } from '../../../shared/messageContracts';
-import { VSCODE_CONFIG, checkWorkspaceFiles, extractErrorMessage } from '../../../utils';
+import { VSCODE_CONFIG, checkWorkspaceFiles, extractErrorMessage, BuildLogParser } from '../../../utils';
 import { normalizeRepositoryUrl, getWorkspaceRepositoryUrl, getWorkspaceStatus, GitService } from '../../../services';
 import { logger, LogCategory } from '../../../services/loggingService';
 
@@ -118,6 +118,8 @@ export class RepositoryCommandModule {
             [WebviewCmd.StartPractice]: this.handleStartPractice,
             [WebviewCmd.StartExercise]: this.handleStartExercise,
             [WebviewCmd.OpenRepository]: this.handleOpenRepository,
+            [WebviewCmd.ViewBuildLog]: this.handleViewBuildLog,
+            [WebviewCmd.GoToSource]: this.handleGoToSource,
         };
     }
 
@@ -695,6 +697,37 @@ export class RepositoryCommandModule {
             vscode.window.showErrorMessage(
                 `Failed to start exercise: ${extractErrorMessage(error)}`
             );
+        }
+    };
+
+    private handleViewBuildLog = async (message: WebviewToExtensionMessage): Promise<void> => {
+        try {
+            const payload = getPayload<WebCmd<'viewBuildLog'>>(message);
+            const { participationId, resultId } = payload;
+            const logs = await this.context.artemisApi.getBuildLogs(participationId, resultId);
+            const logText = logs.map(entry => `[${entry.time}] ${entry.log}`).join('\n');
+            const doc = await vscode.workspace.openTextDocument({ content: logText, language: 'log' });
+            await vscode.window.showTextDocument(doc);
+        } catch (error: unknown) {
+            logger.error('Failed to fetch build logs:', LogCategory.SUBMISSION, error);
+            vscode.window.showErrorMessage('Failed to fetch build logs.');
+        }
+    };
+
+    private handleGoToSource = async (message: WebviewToExtensionMessage): Promise<void> => {
+        try {
+            const payload = getPayload<WebCmd<'goToSource'>>(message);
+            const { participationId, resultId } = payload;
+            const logs = await this.context.artemisApi.getBuildLogs(participationId, resultId);
+            const error = BuildLogParser.parseFirstError(logs);
+            if (error) {
+                await vscode.commands.executeCommand('artemis.goToSourceError', error.filePath, error.line, error.column, error.message);
+            } else {
+                vscode.window.showInformationMessage('No source error location found in build logs');
+            }
+        } catch (err: unknown) {
+            logger.error('Failed to navigate to source error:', LogCategory.SUBMISSION, err);
+            vscode.window.showErrorMessage('Failed to navigate to source error.');
         }
     };
 
