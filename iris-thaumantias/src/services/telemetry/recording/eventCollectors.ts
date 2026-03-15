@@ -7,15 +7,10 @@ import * as vscode from 'vscode';
 import type { ResultDTO } from '../../../types';
 import type {
     SerializedRange,
-    SerializedSelection,
     SerializedDiagnostic,
     TextChangeEvent,
     SaveEvent,
-    SelectionEvent,
-    VisibleRangesEvent,
     FileSwitchEvent,
-    FileOpenEvent,
-    FileCloseEvent,
     DiagnosticsEvent,
     BuildResultEvent,
     WindowFocusEvent,
@@ -29,13 +24,6 @@ export function serializeRange(range: vscode.Range): SerializedRange {
         startCharacter: range.start.character,
         endLine: range.end.line,
         endCharacter: range.end.character,
-    };
-}
-
-export function serializeSelection(selection: vscode.Selection): SerializedSelection {
-    return {
-        anchor: { line: selection.anchor.line, character: selection.anchor.character },
-        active: { line: selection.active.line, character: selection.active.character },
     };
 }
 
@@ -76,25 +64,6 @@ export function collectSave(doc: vscode.TextDocument): SaveEvent {
     };
 }
 
-export function collectSelection(event: vscode.TextEditorSelectionChangeEvent): SelectionEvent {
-    return {
-        type: 'selection',
-        timestamp: Date.now(),
-        uri: event.textEditor.document.uri.toString(),
-        selections: event.selections.map(serializeSelection),
-        kind: event.kind,
-    };
-}
-
-export function collectVisibleRanges(event: vscode.TextEditorVisibleRangesChangeEvent): VisibleRangesEvent {
-    return {
-        type: 'visibleRanges',
-        timestamp: Date.now(),
-        uri: event.textEditor.document.uri.toString(),
-        ranges: event.visibleRanges.map(serializeRange),
-    };
-}
-
 export function collectFileSwitch(
     prev: string | undefined,
     next: vscode.TextEditor | undefined,
@@ -104,23 +73,6 @@ export function collectFileSwitch(
         timestamp: Date.now(),
         fromUri: prev,
         toUri: next?.document.uri.toString(),
-    };
-}
-
-export function collectFileOpen(doc: vscode.TextDocument): FileOpenEvent {
-    return {
-        type: 'fileOpen',
-        timestamp: Date.now(),
-        uri: doc.uri.toString(),
-        languageId: doc.languageId,
-    };
-}
-
-export function collectFileClose(doc: vscode.TextDocument): FileCloseEvent {
-    return {
-        type: 'fileClose',
-        timestamp: Date.now(),
-        uri: doc.uri.toString(),
     };
 }
 

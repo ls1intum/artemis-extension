@@ -14,11 +14,7 @@ import { RecordingStorageWriter } from './storageWriter';
 import {
     collectTextChange,
     collectSave,
-    collectSelection,
-    collectVisibleRanges,
     collectFileSwitch,
-    collectFileOpen,
-    collectFileClose,
     collectDiagnostics,
     collectBuildResult,
     collectWindowFocus,
@@ -256,22 +252,6 @@ export class SessionRecorder implements vscode.Disposable, WebSocketMessageHandl
         });
         this._eventListenerDisposables.push(save);
 
-        // Selection changes
-        const selection = vscode.window.onDidChangeTextEditorSelection(event => {
-            if (!this._isRecording) { return; }
-            if (event.textEditor.document.uri.scheme !== 'file') { return; }
-            this._record(collectSelection(event));
-        });
-        this._eventListenerDisposables.push(selection);
-
-        // Visible ranges
-        const visibleRanges = vscode.window.onDidChangeTextEditorVisibleRanges(event => {
-            if (!this._isRecording) { return; }
-            if (event.textEditor.document.uri.scheme !== 'file') { return; }
-            this._record(collectVisibleRanges(event));
-        });
-        this._eventListenerDisposables.push(visibleRanges);
-
         // Active editor switch
         const editorSwitch = vscode.window.onDidChangeActiveTextEditor(editor => {
             if (!this._isRecording) { return; }
@@ -283,22 +263,6 @@ export class SessionRecorder implements vscode.Disposable, WebSocketMessageHandl
             }
         });
         this._eventListenerDisposables.push(editorSwitch);
-
-        // File open
-        const fileOpen = vscode.workspace.onDidOpenTextDocument(doc => {
-            if (!this._isRecording) { return; }
-            if (doc.uri.scheme !== 'file') { return; }
-            this._record(collectFileOpen(doc));
-        });
-        this._eventListenerDisposables.push(fileOpen);
-
-        // File close
-        const fileClose = vscode.workspace.onDidCloseTextDocument(doc => {
-            if (!this._isRecording) { return; }
-            if (doc.uri.scheme !== 'file') { return; }
-            this._record(collectFileClose(doc));
-        });
-        this._eventListenerDisposables.push(fileClose);
 
         // Diagnostics changes
         const diagnosticsChange = vscode.languages.onDidChangeDiagnostics(event => {

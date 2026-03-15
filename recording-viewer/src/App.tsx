@@ -1,9 +1,10 @@
 import { useState, useCallback } from 'react';
 import type { LoadedSession, RecordedEvent, SessionMetadata } from './types';
 import { FileDropZone } from './components/FileDropZone';
+import { RecordingInfo } from './components/RecordingInfo';
 import { SessionList } from './components/SessionList';
 import { SessionInfo } from './components/SessionInfo';
-import { EqChart } from './components/EqChart';
+import { SessionTimeline } from './components/SessionTimeline';
 import { EventStream } from './components/EventStream';
 
 function App() {
@@ -54,13 +55,16 @@ function App() {
                         <span>or drop files manually</span>
                     </div>
                     <FileDropZone onSessionLoaded={setSession} />
+                    <div style={{ marginTop: 24 }}>
+                        <RecordingInfo />
+                    </div>
                 </>
             )}
 
             {session && (
                 <div className="session-view">
                     <SessionInfo session={session} />
-                    <EqChart events={session.events} sessionStartTime={sessionStartTime} />
+                    <SessionTimeline events={session.events} sessionStartTime={sessionStartTime} />
                     <EventStream events={session.events} sessionStartTime={sessionStartTime} />
                 </div>
             )}

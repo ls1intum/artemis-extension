@@ -11,8 +11,7 @@ const ALL_EVENT_TYPES: EventType[] = [
     'eqSnapshot', 'buildResult',
     'textChange', 'save',
     'diagnostics',
-    'fileSwitch', 'fileOpen', 'fileClose',
-    'selection', 'visibleRanges',
+    'fileSwitch',
     'windowFocus', 'fileSnapshot',
     'irisChatMessage',
 ];
@@ -74,10 +73,6 @@ function EventDetail({ event }: { event: RecordedEvent }) {
                     {shortenUri(event.fromUri)} &rarr; {shortenUri(event.toUri)}
                 </span>
             );
-        case 'fileOpen':
-            return <span className="event-detail">{shortenUri(event.uri)} ({event.languageId})</span>;
-        case 'fileClose':
-            return <span className="event-detail">{shortenUri(event.uri)}</span>;
         case 'sessionStart':
             return (
                 <span className="event-detail">
@@ -98,9 +93,6 @@ function EventDetail({ event }: { event: RecordedEvent }) {
             return <span className="event-detail">{event.focused ? 'focused' : 'blurred'}</span>;
         case 'fileSnapshot':
             return <span className="event-detail">{shortenUri(event.uri)}</span>;
-        case 'selection':
-        case 'visibleRanges':
-            return <span className="event-detail">{shortenUri(event.uri)}</span>;
         default:
             return null;
     }
@@ -114,7 +106,7 @@ export function EventStream({ events, sessionStartTime }: Props) {
             'eqSnapshot', 'buildResult',
             'textChange', 'save',
             'diagnostics',
-            'fileSwitch', 'fileOpen', 'fileClose',
+            'fileSwitch',
             'irisChatMessage',
             'windowFocus',
         ]);

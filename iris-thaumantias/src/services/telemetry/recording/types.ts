@@ -14,11 +14,6 @@ export interface SerializedRange {
     endCharacter: number;
 }
 
-export interface SerializedSelection {
-    anchor: { line: number; character: number };
-    active: { line: number; character: number };
-}
-
 export interface SerializedDiagnostic {
     code: string | number | undefined;
     message: string;
@@ -47,39 +42,11 @@ export interface SaveEvent {
     uri: string;
 }
 
-export interface SelectionEvent {
-    type: 'selection';
-    timestamp: number;
-    uri: string;
-    selections: SerializedSelection[];
-    kind: number | undefined;
-}
-
-export interface VisibleRangesEvent {
-    type: 'visibleRanges';
-    timestamp: number;
-    uri: string;
-    ranges: SerializedRange[];
-}
-
 export interface FileSwitchEvent {
     type: 'fileSwitch';
     timestamp: number;
     fromUri: string | undefined;
     toUri: string | undefined;
-}
-
-export interface FileOpenEvent {
-    type: 'fileOpen';
-    timestamp: number;
-    uri: string;
-    languageId: string;
-}
-
-export interface FileCloseEvent {
-    type: 'fileClose';
-    timestamp: number;
-    uri: string;
 }
 
 export interface DiagnosticsEvent {
@@ -143,11 +110,7 @@ export interface EqSnapshotEvent {
 export type RecordedEvent =
     | TextChangeEvent
     | SaveEvent
-    | SelectionEvent
-    | VisibleRangesEvent
     | FileSwitchEvent
-    | FileOpenEvent
-    | FileCloseEvent
     | DiagnosticsEvent
     | BuildResultEvent
     | WindowFocusEvent

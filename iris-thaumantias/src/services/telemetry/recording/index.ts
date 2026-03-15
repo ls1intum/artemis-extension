@@ -6,6 +6,5 @@ export type {
     RecordedEvent,
     SessionMetadata,
     SerializedRange,
-    SerializedSelection,
     SerializedDiagnostic,
 } from './types';
