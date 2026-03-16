@@ -609,7 +609,6 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
 
                 this._buildCodeLens?.clearErrors();
 
-                // Group errors by filePath
                 const errorsByFile = new Map<string, ParsedBuildError[]>();
                 for (const error of errors) {
                     const existing = errorsByFile.get(error.filePath) ?? [];

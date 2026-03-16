@@ -126,47 +126,44 @@ export const useExerciseDetailStore = create<ExerciseDetailState>()(
                     return;
                 }
 
-                // payload is the newResult data
-                const result = payload;
-
                 const updatedData = structuredClone(state.exerciseData);
 
                 // Find participation: match by participationId first, then by result ID, then fallback
                 let participation: ParticipationSummary | null = null;
-                if (result.participationId && updatedData.exercise?.studentParticipations) {
+                if (payload.participationId && updatedData.exercise?.studentParticipations) {
                     participation = updatedData.exercise.studentParticipations.find(
-                        p => p.id === result.participationId
+                        p => p.id === payload.participationId
                     ) ?? null;
                 }
                 if (!participation) {
-                    participation = findParticipationForResult(updatedData, result);
+                    participation = findParticipationForResult(updatedData, payload);
                 }
                 if (!participation) {
-                    // Result doesn't belong to this exercise — ignore it
                     return;
                 }
 
-                if (participation) {
-                    // Results live on submission.results in Artemis
-                    // Find the latest submission (highest ID) and update its results
-                    const submissions = participation.submissions ?? [];
-                    const latestSubmission = [...submissions]
-                        .sort((a, b) => (b.id ?? 0) - (a.id ?? 0))[0];
+                // Results live on submission.results in Artemis
+                // Find the latest submission (highest ID) and update its results
+                const submissions = participation.submissions ?? [];
+                const latestSubmission = [...submissions]
+                    .sort((a, b) => (b.id ?? 0) - (a.id ?? 0))[0];
 
-                    if (latestSubmission) {
-                        if (!latestSubmission.results) {
-                            latestSubmission.results = [];
-                        }
-                        if (result.id !== null && result.id !== undefined) {
-                            const existingIndex = latestSubmission.results.findIndex((r) => r.id === result.id);
-                            if (existingIndex >= 0) {
-                                latestSubmission.results[existingIndex] = result;
-                            } else {
-                                latestSubmission.results.push(result);
-                            }
+                if (latestSubmission) {
+                    if (payload.buildFailed !== undefined) {
+                        latestSubmission.buildFailed = payload.buildFailed;
+                    }
+                    if (!latestSubmission.results) {
+                        latestSubmission.results = [];
+                    }
+                    if (payload.id !== null && payload.id !== undefined) {
+                        const existingIndex = latestSubmission.results.findIndex((r) => r.id === payload.id);
+                        if (existingIndex >= 0) {
+                            latestSubmission.results[existingIndex] = payload;
                         } else {
-                            latestSubmission.results.push(result);
+                            latestSubmission.results.push(payload);
                         }
+                    } else {
+                        latestSubmission.results.push(payload);
                     }
                 }
 
@@ -179,34 +176,28 @@ export const useExerciseDetailStore = create<ExerciseDetailState>()(
                     return;
                 }
 
-                // payload is the newSubmission data
-                const submission = payload;
-
                 const updatedData = structuredClone(state.exerciseData);
 
-                // Find participation by participationId first, then fallback to first
+                // Find participation by participationId first
                 let participation: ParticipationSummary | undefined;
-                if (submission.participationId && updatedData.exercise?.studentParticipations) {
+                if (payload.participationId && updatedData.exercise?.studentParticipations) {
                     participation = updatedData.exercise.studentParticipations.find(
-                        (p: ParticipationSummary) => p.id === submission.participationId
+                        (p: ParticipationSummary) => p.id === payload.participationId
                     );
                 }
                 if (!participation) {
                     return;
                 }
 
-                if (participation) {
-                    // Update or add submission
-                    if (!participation.submissions) {
-                        participation.submissions = [];
-                    }
+                if (!participation.submissions) {
+                    participation.submissions = [];
+                }
 
-                    const existingIndex = participation.submissions.findIndex((s: SubmissionSummary) => s.id === submission.id);
-                    if (existingIndex >= 0) {
-                        participation.submissions[existingIndex] = submission;
-                    } else {
-                        participation.submissions.push(submission);
-                    }
+                const existingIndex = participation.submissions.findIndex((s: SubmissionSummary) => s.id === payload.id);
+                if (existingIndex >= 0) {
+                    participation.submissions[existingIndex] = payload;
+                } else {
+                    participation.submissions.push(payload);
                 }
 
                 set({ exerciseData: updatedData }, false, 'updateSubmission');

@@ -38,10 +38,15 @@ export class BuildLogParser {
      */
     public static parseAllErrors(logs: BuildLogEntry[]): ParsedBuildError[] {
         const errors: ParsedBuildError[] = [];
+        const seen = new Set<string>();
         for (const entry of logs) {
             const error = this.parseLogEntry(entry.log);
             if (error) {
-                errors.push(error);
+                const key = `${error.filePath}:${error.line}:${error.message}`;
+                if (!seen.has(key)) {
+                    seen.add(key);
+                    errors.push(error);
+                }
             }
         }
         return errors;

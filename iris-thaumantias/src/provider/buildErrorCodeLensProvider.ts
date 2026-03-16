@@ -85,7 +85,6 @@ export class BuildErrorCodeLensProvider implements vscode.CodeLensProvider {
             const line = Math.max(0, error.line - 1); // Convert to 0-based
             const range = new vscode.Range(line, 0, line, 0);
 
-            // Create CodeLens with error message
             const codeLens = new vscode.CodeLens(range, {
                 title: `❌ Artemis Build Error: ${error.message}`,
                 command: 'artemis.goToSourceError',

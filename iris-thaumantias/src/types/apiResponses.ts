@@ -92,6 +92,7 @@ export interface ResultSummary {
     codeIssueCount?: number;
     feedbacks?: FeedbackSummary[];
     participationId?: number;
+    buildFailed?: boolean;
     [key: string]: unknown;
 }
 
