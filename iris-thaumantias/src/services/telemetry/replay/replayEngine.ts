@@ -123,7 +123,9 @@ export function replaySession(
             if (accepted) {
                 const { eq, confidence } = engine.getCurrentEQ();
                 result.push({
-                    timestamp: saveEvent.timestamp,
+                    // Offset by lookahead window to match live timing
+                    // (live records eqSnapshot ~500ms after save, post-stabilization)
+                    timestamp: saveEvent.timestamp + LOOKAHEAD_WINDOW_MS,
                     eq,
                     confidence,
                     source: 'save',

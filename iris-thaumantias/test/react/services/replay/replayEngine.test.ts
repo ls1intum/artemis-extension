@@ -130,8 +130,9 @@ describe('replaySession', () => {
         const result = replaySession(events);
         // Second save is deduped (same families within 5s) → only 2 accepted snapshots
         expect(result).toHaveLength(2);
-        expect(result[0].timestamp).toBe(t + 100);
-        expect(result[1].timestamp).toBe(t + 10_100);
+        // Save timestamps offset by 500ms lookahead window to match live timing
+        expect(result[0].timestamp).toBe(t + 100 + 500);
+        expect(result[1].timestamp).toBe(t + 10_100 + 500);
     });
 
     it('inactivity split after 30min gap', () => {

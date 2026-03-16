@@ -26,6 +26,7 @@ interface ChartPoint {
     confidence?: string;
     eqSource?: string;
     triggerType?: string;
+    triggerEqPercent?: number;
     replayEqPercent?: number;
     replayConfidence?: string;
 }
@@ -83,12 +84,10 @@ function formatOffset(ms: number): string {
 function EqDot(props: Record<string, unknown>) {
     const { cx, cy, payload } = props as { cx: number; cy: number; payload: ChartPoint };
     if (payload.eqPercent == null) return null;
-
-    const isTrigger = payload.eqSource === 'trigger';
+    const isTrigger = payload.eqSource === 'trigger' || payload.triggerEqPercent != null;
     const fill = payload.confidence === 'sufficient' ? '#6366f1' : '#94a3b8';
 
     if (isTrigger) {
-        // Trigger point: larger dot with bright ring
         return (
             <>
                 <Dot cx={cx} cy={cy} r={7} fill="none" stroke="#f59e0b" strokeWidth={2} />
@@ -96,8 +95,6 @@ function EqDot(props: Record<string, unknown>) {
             </>
         );
     }
-
-    // Continuous point: small dot
     return <Dot cx={cx} cy={cy} r={3} fill={fill} stroke="#1e1e2e" strokeWidth={1} />;
 }
 
@@ -108,8 +105,7 @@ function EqDot(props: Record<string, unknown>) {
 function EqDotDimmed(props: Record<string, unknown>) {
     const { cx, cy, payload } = props as { cx: number; cy: number; payload: ChartPoint };
     if (payload.eqPercent == null) return null;
-
-    const isTrigger = payload.eqSource === 'trigger';
+    const isTrigger = payload.eqSource === 'trigger' || payload.triggerEqPercent != null;
 
     if (isTrigger) {
         return (
@@ -119,7 +115,6 @@ function EqDotDimmed(props: Record<string, unknown>) {
             </>
         );
     }
-
     return <Dot cx={cx} cy={cy} r={2.5} fill="#94a3b8" stroke="#1e1e2e" strokeWidth={1} />;
 }
 
@@ -140,9 +135,9 @@ function ChartTooltip({ active, payload }: { active?: boolean; payload?: Array<{
     return (
         <div className="chart-tooltip">
             <div className="tooltip-time">{data.timeLabel}</div>
-            {data.eqPercent != null && (
+            {(data.eqPercent ?? data.triggerEqPercent) != null && (
                 <div className="tooltip-eq" style={hasReplay ? { color: '#94a3b8' } : undefined}>
-                    {hasReplay ? 'Original' : 'EQ'}: {data.eqPercent}%
+                    {hasReplay ? 'Original' : 'EQ'}: {data.eqPercent ?? data.triggerEqPercent}%
                     {data.confidence && (
                         <span className={`tooltip-confidence ${data.confidence}`}> ({data.confidence})</span>
                     )}
@@ -231,22 +226,48 @@ export function SessionTimeline({ events, sessionStartTime, replayEq }: Props) {
 
     for (const e of eqEvents) {
         const timeOffset = e.timestamp - sessionStartTime;
-        mergedMap.set(timeOffset, {
-            timeOffset,
-            timeLabel: formatOffset(timeOffset),
-            eq: e.eq,
-            eqPercent: Math.round(e.eq * 100),
-            confidence: e.confidence,
-            eqSource: e.source,
-            triggerType: e.triggerType,
-        });
+        const isTrigger = e.source === 'trigger';
+        const existing = mergedMap.get(timeOffset);
+
+        if (existing && isTrigger) {
+            // Don't overwrite real data — just tag as trigger
+            existing.triggerType = e.triggerType;
+            existing.triggerEqPercent = Math.round(e.eq * 100);
+        } else {
+            mergedMap.set(timeOffset, {
+                timeOffset,
+                timeLabel: formatOffset(timeOffset),
+                eq: e.eq,
+                eqPercent: Math.round(e.eq * 100),
+                confidence: e.confidence,
+                eqSource: e.source,
+                triggerType: e.triggerType,
+                triggerEqPercent: isTrigger ? Math.round(e.eq * 100) : undefined,
+            });
+        }
     }
 
     if (hasReplay) {
+        // Collect existing offsets sorted for fuzzy matching
+        const existingOffsets = [...mergedMap.keys()].sort((a, b) => a - b);
+
         for (const r of replayEq!) {
             const timeOffset = r.timestamp - sessionStartTime;
-            const existing = mergedMap.get(timeOffset);
-            if (existing) {
+
+            // Fuzzy match: find nearest existing point within 1s
+            let bestKey: number | undefined;
+            let bestDist = Infinity;
+            for (const key of existingOffsets) {
+                const dist = Math.abs(key - timeOffset);
+                if (dist < bestDist) {
+                    bestDist = dist;
+                    bestKey = key;
+                }
+                if (key > timeOffset + 1000) break;
+            }
+
+            if (bestKey !== undefined && bestDist <= 1000) {
+                const existing = mergedMap.get(bestKey)!;
                 existing.replayEqPercent = Math.round(r.eq * 100);
                 existing.replayConfidence = r.confidence;
             } else {
@@ -256,6 +277,16 @@ export function SessionTimeline({ events, sessionStartTime, replayEq }: Props) {
                     replayEqPercent: Math.round(r.eq * 100),
                     replayConfidence: r.confidence,
                 });
+            }
+        }
+
+        // Fill trigger-only gaps: triggers re-read EQ without adding snapshots,
+        // so replay would produce the same value at that moment
+        for (const point of mergedMap.values()) {
+            if (point.eqPercent != null && point.replayEqPercent == null
+                && (point.eqSource === 'trigger' || point.triggerEqPercent != null)) {
+                point.replayEqPercent = point.eqPercent;
+                point.replayConfidence = point.confidence;
             }
         }
     }
