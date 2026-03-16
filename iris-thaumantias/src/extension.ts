@@ -191,6 +191,25 @@ export async function activate(context: vscode.ExtensionContext) {
 	telemetryManager.onDidCalculateEQ(({ eq, confidence, source, triggerType }) => {
 		sessionRecorder.recordEqSnapshot(eq, confidence, source, triggerType);
 	});
+	sessionRecorder.onDidChangeState(state => {
+		if (state.isRecording && state.eventCount <= 1) {
+			// Recording just started — capture EQ engine state for replay seeding
+			const eqState = telemetryManager.getEqEngineState();
+			if (eqState.snapshots.length > 0) {
+				sessionRecorder.recordEqEngineState(
+					eqState.snapshots.map(s => ({
+						timestamp: s.timestamp,
+						hasErrors: s.hasErrors,
+						errorFamilies: [...s.errorFamilies],
+						errorCount: s.errorCount,
+					})),
+					eqState.currentEQ,
+					eqState.pairCount,
+					eqState.confidence,
+				);
+			}
+		}
+	});
 	context.subscriptions.push(sessionRecorder);
 
 	// Recording status bar button (visible only when consent is Extended)

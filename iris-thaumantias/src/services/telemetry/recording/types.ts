@@ -107,6 +107,22 @@ export interface EqSnapshotEvent {
     triggerType?: string;
 }
 
+export interface SerializedErrorSnapshot {
+    timestamp: number;
+    hasErrors: boolean;
+    errorFamilies: string[];
+    errorCount: number;
+}
+
+export interface EqEngineStateEvent {
+    type: 'eqEngineState';
+    timestamp: number;
+    snapshots: SerializedErrorSnapshot[];
+    currentEQ: number;
+    pairCount: number;
+    confidence: 'sufficient' | 'insufficient';
+}
+
 export interface SelectionChangeEvent {
     type: 'selectionChange';
     timestamp: number;
@@ -136,6 +152,7 @@ export type RecordedEvent =
     | SessionEndEvent
     | IrisChatMessageEvent
     | EqSnapshotEvent
+    | EqEngineStateEvent
     | SelectionChangeEvent
     | VisibleRangeChangeEvent;
 

@@ -29,8 +29,9 @@ export class ErrorQuotientEngine {
     /**
      * Add a new error snapshot from a compile-equivalent event.
      * Applies dedup (same families within window) and inactivity split.
+     * @returns true if the snapshot was accepted, false if deduped
      */
-    public addSnapshot(snapshot: ErrorSnapshot): void {
+    public addSnapshot(snapshot: ErrorSnapshot): boolean {
         const last = this._snapshots[this._snapshots.length - 1];
 
         // Inactivity split: >30min gap → clear snapshots (new sub-session)
@@ -40,10 +41,11 @@ export class ErrorQuotientEngine {
 
         // Dedup: skip if within window AND same error families
         if (last && this._shouldDedup(snapshot, last)) {
-            return;
+            return false;
         }
 
         this._snapshots.push(snapshot);
+        return true;
     }
 
     /**
@@ -115,6 +117,14 @@ export class ErrorQuotientEngine {
             pairCount: Math.max(0, this._snapshots.length - 1),
             confidence,
         };
+    }
+
+    /**
+     * Seed the engine with pre-existing snapshots (for replay).
+     * Replaces current state — call before processing any events.
+     */
+    public seedSnapshots(snapshots: ErrorSnapshot[]): void {
+        this._snapshots = [...snapshots];
     }
 
     /**

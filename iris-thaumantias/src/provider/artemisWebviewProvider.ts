@@ -329,6 +329,12 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
                     logger.exercise(`Registered individual exercise: ${exerciseTitle}`);
                 }
 
+                // Start telemetry session so build results feed into EQ engine
+                this._telemetryManager?.startExerciseSession(
+                    exerciseIdFromData,
+                    vscode.workspace.workspaceFolders?.[0]?.uri,
+                );
+
                 const chatProvider = this._providerRegistry.getChatWebviewProvider();
                 if (chatProvider && typeof chatProvider.updateDetectedExercise === 'function') {
                     // Extract date fields from exercise

@@ -9,7 +9,7 @@
 import * as vscode from 'vscode';
 import * as crypto from 'crypto';
 import type { WebSocketMessageHandler, ResultDTO } from '../../../types';
-import type { RecordedEvent, SessionMetadata } from './types';
+import type { RecordedEvent, SessionMetadata, SerializedErrorSnapshot } from './types';
 import { RecordingStorageWriter } from './storageWriter';
 import {
     collectTextChange,
@@ -214,6 +214,25 @@ export class SessionRecorder implements vscode.Disposable, WebSocketMessageHandl
             confidence,
             source,
             triggerType,
+        });
+    }
+
+    recordEqEngineState(
+        snapshots: SerializedErrorSnapshot[],
+        currentEQ: number,
+        pairCount: number,
+        confidence: 'sufficient' | 'insufficient',
+    ): void {
+        if (!this._isRecording) {
+            return;
+        }
+        this._record({
+            type: 'eqEngineState',
+            timestamp: Date.now(),
+            snapshots,
+            currentEQ,
+            pairCount,
+            confidence,
         });
     }
 

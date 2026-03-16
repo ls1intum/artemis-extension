@@ -4,6 +4,7 @@ import {
     InterventionDecision,
     TriggerType,
     EQConfidence,
+    EQState,
     RecommendedAction,
 } from './types';
 import { DiagnosticPersistenceService } from './diagnosticPersistenceService';
@@ -204,6 +205,11 @@ export class TelemetryManager implements vscode.Disposable, WebSocketMessageHand
      * Start a new exercise session — resets all state.
      */
     public startExerciseSession(exerciseId: number, exerciseRoot?: vscode.Uri): void {
+        // Idempotent: skip if already tracking this exercise
+        if (this._activeExerciseId === exerciseId) {
+            return;
+        }
+
         // End previous session if any
         if (this._activeExerciseId !== undefined) {
             this.endExerciseSession();
@@ -401,6 +407,10 @@ export class TelemetryManager implements vscode.Disposable, WebSocketMessageHand
             triggerType: this._lastTriggerType,
             recommendedAction: level,
         };
+    }
+
+    public getEqEngineState(): EQState {
+        return this._eqEngine.getState();
     }
 
     public isEnabled(): boolean {

@@ -6,7 +6,7 @@
  * behavior against serialized recording data.
  */
 
-import type { EQConfig } from '../types';
+import type { EQConfig, ErrorSnapshot } from '../types';
 import { DEFAULT_EQ_CONFIG } from '../types';
 import { ErrorQuotientEngine } from '../metrics/errorQuotientEngine';
 import type {
@@ -15,6 +15,7 @@ import type {
     DiagnosticsEvent,
     SaveEvent,
     BuildResultEvent,
+    EqEngineStateEvent,
 } from '../recording/types';
 import {
     createSnapshotFromDiagnosticState,
@@ -57,7 +58,23 @@ function applyLookaheadDiagnostics(
 }
 
 /**
+ * Deserialize an eqEngineState event's snapshots into ErrorSnapshot objects.
+ */
+function deserializeEngineState(stateEvent: EqEngineStateEvent): ErrorSnapshot[] {
+    return stateEvent.snapshots.map(s => ({
+        timestamp: s.timestamp,
+        hasErrors: s.hasErrors,
+        errorFamilies: new Set(s.errorFamilies),
+        errorCount: s.errorCount,
+    }));
+}
+
+/**
  * Replay a session's recorded events through the EQ pipeline.
+ *
+ * If the events contain an eqEngineState event (recorded at session start),
+ * the engine is seeded with the pre-existing snapshots so that the replay
+ * matches the live EQ curve.
  *
  * @param events - Chronologically ordered RecordedEvent array from events.jsonl
  * @param config - Optional EQConfig override for tuning experiments
@@ -73,6 +90,14 @@ export function replaySession(
 
     for (let i = 0; i < events.length; i++) {
         const event = events[i];
+
+        // Seed engine with pre-existing state from before recording started
+        if (event.type === 'eqEngineState') {
+            const stateEvent = event as EqEngineStateEvent;
+            const snapshots = deserializeEngineState(stateEvent);
+            engine.seedSnapshots(snapshots);
+            continue;
+        }
 
         if (event.type === 'diagnostics') {
             const diagEvent = event as DiagnosticsEvent;
@@ -93,33 +118,37 @@ export function replaySession(
                 diagnosticState,
                 saveEvent.timestamp,
             );
-            engine.addSnapshot(snapshot);
+            const accepted = engine.addSnapshot(snapshot);
 
-            const { eq, confidence } = engine.getCurrentEQ();
-            result.push({
-                timestamp: saveEvent.timestamp,
-                eq,
-                confidence,
-                source: 'save',
-                errorCount: snapshot.errorCount,
-                errorFamilies: [...snapshot.errorFamilies],
-            });
+            if (accepted) {
+                const { eq, confidence } = engine.getCurrentEQ();
+                result.push({
+                    timestamp: saveEvent.timestamp,
+                    eq,
+                    confidence,
+                    source: 'save',
+                    errorCount: snapshot.errorCount,
+                    errorFamilies: [...snapshot.errorFamilies],
+                });
+            }
         }
 
         if (event.type === 'buildResult') {
             const buildEvent = event as BuildResultEvent;
             const snapshot = createSnapshotFromBuildEvent(buildEvent);
-            engine.addSnapshot(snapshot);
+            const accepted = engine.addSnapshot(snapshot);
 
-            const { eq, confidence } = engine.getCurrentEQ();
-            result.push({
-                timestamp: buildEvent.timestamp,
-                eq,
-                confidence,
-                source: 'build',
-                errorCount: snapshot.errorCount,
-                errorFamilies: [...snapshot.errorFamilies],
-            });
+            if (accepted) {
+                const { eq, confidence } = engine.getCurrentEQ();
+                result.push({
+                    timestamp: buildEvent.timestamp,
+                    eq,
+                    confidence,
+                    source: 'build',
+                    errorCount: snapshot.errorCount,
+                    errorFamilies: [...snapshot.errorFamilies],
+                });
+            }
         }
     }
 

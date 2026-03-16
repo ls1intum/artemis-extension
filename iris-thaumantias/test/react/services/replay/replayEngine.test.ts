@@ -128,11 +128,10 @@ describe('replaySession', () => {
             saveEvent(t + 10_100, 'file:///a.ts'),
         ];
         const result = replaySession(events);
-        // Second save is deduped (same families within 5s)
-        // So we get snapshot at t+100 and t+10100 = 2 snapshots
-        expect(result).toHaveLength(3); // 3 saves produce 3 replay snapshots
-        // But the engine's internal dedup means the second addSnapshot is skipped
-        // The replay still records EQ at each save/build event
+        // Second save is deduped (same families within 5s) → only 2 accepted snapshots
+        expect(result).toHaveLength(2);
+        expect(result[0].timestamp).toBe(t + 100);
+        expect(result[1].timestamp).toBe(t + 10_100);
     });
 
     it('inactivity split after 30min gap', () => {
