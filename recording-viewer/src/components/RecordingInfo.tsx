@@ -7,6 +7,8 @@ const categories = [
             { badge: 'textChange', label: 'TextChange', desc: 'Code edits with ranges, offsets, and text content' },
             { badge: 'save', label: 'Save', desc: 'File save operations' },
             { badge: 'fileSwitch', label: 'FileSwitch', desc: 'Active editor switched (from/to URI)' },
+            { badge: 'selectionChange', label: 'SelectionChange', desc: 'Cursor or selection range changes' },
+            { badge: 'visibleRangeChange', label: 'VisibleRangeChange', desc: 'Visible editor range scrolled' },
         ],
     },
     {
@@ -33,6 +35,7 @@ const categories = [
         title: 'EQ Tracking',
         items: [
             { badge: 'eqSnapshot', label: 'EqSnapshot', desc: 'EQ score (0\u20131) + confidence (sufficient/insufficient)' },
+            { badge: 'eqEngineState', label: 'EqEngineState', desc: 'EQ engine state transitions (running/paused/stopped)' },
         ],
     },
     {
@@ -57,7 +60,7 @@ export function RecordingInfo() {
             {open && (
                 <div className="recording-info-body">
                     <p className="recording-info-intro">
-                        Each session captures <strong>10 event types</strong> across 6 categories.
+                        Each session captures <strong>{categories.reduce((n, c) => n + c.items.length, 0)} event types</strong> across {categories.length} categories.
                         Events are stored as JSONL in{' '}
                         <code>globalStorage/recordings/&lt;sessionId&gt;/events.jsonl</code>.
                     </p>

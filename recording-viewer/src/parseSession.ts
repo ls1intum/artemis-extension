@@ -31,8 +31,12 @@ export async function parseDroppedFiles(files: FileList): Promise<LoadedSession>
         const name = file.name.toLowerCase();
 
         if (name === 'metadata.json') {
-            metadata = parseMetadataFile(text);
-        } else if (name.endsWith('.jsonl')) {
+            try {
+                metadata = parseMetadataFile(text);
+            } catch {
+                metadata = null;
+            }
+        } else if (name === 'events.jsonl') {
             events = parseEventsFile(text);
             fileName = file.name;
         }
