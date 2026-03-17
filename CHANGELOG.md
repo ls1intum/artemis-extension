@@ -3,6 +3,14 @@
 All notable changes to the Artemis VS Code extension will be documented in this file.
 
 ## [Unreleased] - 0.4.1
+### Added
+
+- **Session Analyzer**: Session recording system that captures coding activity (text changes, cursor/scroll movements, build results) with continuous EQ score tracking, replay engine, and a standalone viewer app for analyzing recorded sessions.
+
+### Fixed
+
+- **Build Error CodeLens**: Fixed duplicate CodeLens errors, missing testCase field in WebSocket feedback, and wired up build log viewing with go-to-source navigation.
+- **WebSocket Feedback Mapping**: Fixed missing testCase field, buildFailed propagation, and hasTestInfo derivation in WebSocket submission handling.
 
 ## [0.4.0] - 2026-03-13
 ### Added
