@@ -133,6 +133,7 @@ describe('createSnapshotFromBuildEvent', () => {
         expect(snapshot.errorFamilies.has('build:Cannot find symbol')).toBe(true);
         expect(snapshot.errorFamilies.has('build:Method not found')).toBe(true);
         expect(snapshot.errorFamilies.has('build:compiler-error')).toBe(false);
+        expect(snapshot.errorCount).toBe(2);
     });
 
     it('falls back to generic when buildErrorFamilies is empty', () => {
@@ -176,6 +177,7 @@ describe('createSnapshotFromBuildEvent', () => {
         const snapshot = createSnapshotFromBuildEvent(event);
         expect(snapshot.hasErrors).toBe(true);
         expect(snapshot.errorFamilies.has('build:compiler-error')).toBe(true);
+        expect(snapshot.errorCount).toBe(1);
         expect(snapshot.timestamp).toBe(5000);
     });
 
@@ -191,6 +193,21 @@ describe('createSnapshotFromBuildEvent', () => {
         const snapshot = createSnapshotFromBuildEvent(event);
         expect(snapshot.hasErrors).toBe(false);
         expect(snapshot.errorCount).toBe(0);
+    });
+
+    it('multi-family errorCount equals errorFamilies.size', () => {
+        const event: BuildResultEvent = {
+            type: 'buildResult',
+            timestamp: 8000,
+            successful: false,
+            errorCount: 5,
+            failedTests: [],
+            buildFailed: true,
+            buildErrorFamilies: ['build:Cannot find symbol', 'build:Method not found', 'build:Type mismatch'],
+        };
+        const snapshot = createSnapshotFromBuildEvent(event);
+        expect(snapshot.errorCount).toBe(3);
+        expect(snapshot.errorCount).toBe(snapshot.errorFamilies.size);
     });
 
     it('creates hasErrors=false for test failure (not compiler error)', () => {

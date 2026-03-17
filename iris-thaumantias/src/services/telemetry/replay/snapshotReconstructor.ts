@@ -74,7 +74,7 @@ export function createSnapshotFromBuildEvent(event: BuildResultEvent): ErrorSnap
             timestamp: event.timestamp,
             hasErrors: true,
             errorFamilies,
-            errorCount: 1,
+            errorCount: errorFamilies.size,
         };
     }
 

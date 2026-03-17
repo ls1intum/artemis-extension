@@ -11,7 +11,7 @@ function saveEvent(timestamp: number, uri: string): SaveEvent {
     return { type: 'save', timestamp, uri };
 }
 
-function buildEvent(timestamp: number, buildFailed: boolean): BuildResultEvent {
+function buildEvent(timestamp: number, buildFailed: boolean, buildErrorFamilies?: string[]): BuildResultEvent {
     return {
         type: 'buildResult',
         timestamp,
@@ -19,6 +19,7 @@ function buildEvent(timestamp: number, buildFailed: boolean): BuildResultEvent {
         errorCount: buildFailed ? 1 : 0,
         failedTests: [],
         buildFailed,
+        ...(buildErrorFamilies ? { buildErrorFamilies } : {}),
     };
 }
 
@@ -257,6 +258,56 @@ describe('replaySession', () => {
         expect(result[0].errorCount).toBe(1);
         expect(result[0].errorFamilies).toContain('ts:ts2304');
         expect(result[0].errorFamilies).not.toContain('ts:ts2345');
+    });
+
+    it('coalesces rapid saves within 500ms — only last fires', () => {
+        const t = 10_000;
+        const events: RecordedEvent[] = [
+            diagEvent(t, 'file:///a.ts', [compilerDiag('ts2304')]),
+            saveEvent(t + 100, 'file:///a.ts'),   // save 1 — another save within 500ms → coalesced
+            saveEvent(t + 400, 'file:///a.ts'),   // save 2 — no save within 500ms → fires
+        ];
+        const result = replaySession(events);
+        expect(result).toHaveLength(1);
+        expect(result[0].timestamp).toBe(t + 400 + 500);
+    });
+
+    it('three rapid saves — first two coalesced, last fires', () => {
+        const t = 10_000;
+        const events: RecordedEvent[] = [
+            diagEvent(t, 'file:///a.ts', [compilerDiag('ts2304')]),
+            saveEvent(t + 100, 'file:///a.ts'),   // save 1 → coalesced (save 2 within 500ms)
+            saveEvent(t + 300, 'file:///a.ts'),   // save 2 → coalesced (save 3 within 500ms)
+            saveEvent(t + 600, 'file:///a.ts'),   // save 3 → fires (no save within 500ms)
+        ];
+        const result = replaySession(events);
+        expect(result).toHaveLength(1);
+        expect(result[0].timestamp).toBe(t + 600 + 500);
+    });
+
+    it('snapshot timestamp is save_time + 500ms', () => {
+        const t = 10_000;
+        const events: RecordedEvent[] = [
+            diagEvent(t, 'file:///a.ts', [compilerDiag('ts2304')]),
+            saveEvent(t + 100, 'file:///a.ts'),
+        ];
+        const result = replaySession(events);
+        expect(result).toHaveLength(1);
+        expect(result[0].timestamp).toBe(t + 100 + 500);
+    });
+
+    it('dedup boundary at exactly 5s is not deduped', () => {
+        const t = 10_000;
+        const events: RecordedEvent[] = [
+            diagEvent(t, 'file:///a.ts', [compilerDiag('ts2304')]),
+            saveEvent(t + 100, 'file:///a.ts'),
+            // Exactly 5s later (snapshot timestamps differ by exactly DEDUP_WINDOW_MS)
+            diagEvent(t + 5_100, 'file:///a.ts', [compilerDiag('ts2304')]),
+            saveEvent(t + 5_100, 'file:///a.ts'),
+        ];
+        const result = replaySession(events);
+        // At the >= boundary, not deduped — both snapshots accepted
+        expect(result).toHaveLength(2);
     });
 
     it('sufficient confidence after enough pairs', () => {

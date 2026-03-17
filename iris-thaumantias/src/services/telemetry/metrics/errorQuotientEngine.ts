@@ -154,7 +154,7 @@ export class ErrorQuotientEngine {
      */
     private _shouldDedup(newSnapshot: ErrorSnapshot, lastSnapshot: ErrorSnapshot): boolean {
         const timeDiff = newSnapshot.timestamp - lastSnapshot.timestamp;
-        if (timeDiff > this._config.DEDUP_WINDOW_MS) {
+        if (timeDiff >= this._config.DEDUP_WINDOW_MS) {
             return false;
         }
 

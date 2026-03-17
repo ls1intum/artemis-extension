@@ -172,9 +172,11 @@ export class TelemetryManager implements vscode.Disposable, WebSocketMessageHand
         // Step 1: EQ snapshot FIRST (synchronous)
         const event = this._compileEmitter.handleBuildResult(result);
         if (event) {
-            this._eqEngine.addSnapshot(event.snapshot);
-            const { eq, confidence } = this._eqEngine.getCurrentEQ();
-            this._onDidCalculateEQ.fire({ eq, confidence, source: 'build' });
+            const accepted = this._eqEngine.addSnapshot(event.snapshot);
+            if (accepted) {
+                const { eq, confidence } = this._eqEngine.getCurrentEQ();
+                this._onDidCalculateEQ.fire({ eq, confidence, source: 'build' });
+            }
         }
 
         // Step 2: Existing build tracker processing
@@ -299,9 +301,11 @@ export class TelemetryManager implements vscode.Disposable, WebSocketMessageHand
         this._compileEmitter.onDidEmitCompileEquivalent(event => {
             // Only add from save events; build events are handled in onNewResult
             if (event.source === 'save') {
-                this._eqEngine.addSnapshot(event.snapshot);
-                const { eq, confidence } = this._eqEngine.getCurrentEQ();
-                this._onDidCalculateEQ.fire({ eq, confidence, source: 'save' });
+                const accepted = this._eqEngine.addSnapshot(event.snapshot);
+                if (accepted) {
+                    const { eq, confidence } = this._eqEngine.getCurrentEQ();
+                    this._onDidCalculateEQ.fire({ eq, confidence, source: 'save' });
+                }
             }
         });
 

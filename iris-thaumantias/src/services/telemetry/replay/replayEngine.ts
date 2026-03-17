@@ -121,20 +121,29 @@ export function replaySession(
 
         if (event.type === 'save') {
             const saveEvent = event as SaveEvent;
-            // Lookahead stabilization: apply diagnostic events within +500ms
-            applyLookaheadDiagnostics(
-                events,
-                i,
-                saveEvent.timestamp + LOOKAHEAD_WINDOW_MS,
-                diagnosticState,
-            );
+
+            // Coalescing: skip if another save within 500ms (live clears+resets timer)
+            let coalesced = false;
+            for (let j = i + 1; j < events.length; j++) {
+                if (events[j].timestamp > saveEvent.timestamp + LOOKAHEAD_WINDOW_MS) {
+                    break;
+                }
+                if (events[j].type === 'save') {
+                    coalesced = true;
+                    break;
+                }
+            }
+            if (coalesced) {
+                continue;
+            }
+
+            const snapshotTimestamp = saveEvent.timestamp + LOOKAHEAD_WINDOW_MS;
+            applyLookaheadDiagnostics(events, i, snapshotTimestamp, diagnosticState);
 
             const snapshot = createSnapshotFromDiagnosticState(
-                diagnosticState,
-                saveEvent.timestamp,
-                exerciseRoot,
+                diagnosticState, snapshotTimestamp, exerciseRoot,
             );
-            pushIfAccepted(snapshot, 'save', saveEvent.timestamp + LOOKAHEAD_WINDOW_MS);
+            pushIfAccepted(snapshot, 'save', snapshot.timestamp);
         }
 
         if (event.type === 'buildResult') {
