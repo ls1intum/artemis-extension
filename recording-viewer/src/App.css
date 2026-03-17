@@ -9,10 +9,7 @@
 /* ── Session list ────────────────────────────────────────────────────── */
 
 .session-list {
-    background: var(--bg-surface);
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    padding: 20px;
+    padding: 0;
 }
 
 .session-list-status {
@@ -274,10 +271,7 @@
 /* ── Session info ────────────────────────────────────────────────────── */
 
 .session-info {
-    background: var(--bg-surface);
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    padding: 20px;
+    padding: 0;
 }
 
 .session-info h2 {
@@ -335,10 +329,7 @@
 /* ── EQ Chart ────────────────────────────────────────────────────────── */
 
 .eq-chart {
-    background: var(--bg-surface);
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    padding: 20px;
+    padding: 0;
 }
 
 .eq-chart h2 {
@@ -439,10 +430,7 @@
 /* ── Event stream ────────────────────────────────────────────────────── */
 
 .event-stream {
-    background: var(--bg-surface);
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    padding: 20px;
+    padding: 0;
 }
 
 .event-stream h2 {
@@ -591,9 +579,6 @@
 /* ── Recording info ─────────────────────────────────────────────────── */
 
 .recording-info {
-    background: var(--bg-surface);
-    border: 1px solid var(--border);
-    border-radius: 10px;
     overflow: hidden;
 }
 
