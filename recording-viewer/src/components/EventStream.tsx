@@ -1,10 +1,14 @@
-import { useState, useMemo } from 'react';
-import type { RecordedEvent, EventType } from '../types.ts';
+import { useState, useMemo, useRef } from 'react';
+import type { Annotation, RecordedEvent, EventType } from '../types.ts';
 import { formatOffset, shortenUri } from '../utils/format.ts';
 
 interface Props {
     events: RecordedEvent[];
     sessionStartTime: number;
+    annotations: Annotation[];
+    onAddAnnotation: (timestamp: number, text: string) => void;
+    onUpdateAnnotation: (id: string, text: string) => void;
+    onDeleteAnnotation: (id: string) => void;
 }
 
 const ALL_EVENT_TYPES = [
@@ -21,6 +25,10 @@ const ALL_EVENT_TYPES = [
 // Compile error if a new event type is added but not listed above
 type _MissingEventTypes = Exclude<EventType, (typeof ALL_EVENT_TYPES)[number]>;
 void (true satisfies (_MissingEventTypes extends never ? true : never));
+
+type StreamItem =
+    | { kind: 'event'; event: RecordedEvent; index: number }
+    | { kind: 'annotation'; annotation: Annotation };
 
 function EventDetail({ event }: { event: RecordedEvent }) {
     switch (event.type) {
@@ -103,9 +111,182 @@ function EventDetail({ event }: { event: RecordedEvent }) {
     }
 }
 
-export function EventStream({ events, sessionStartTime }: Props) {
+/** Parse "M:SS" or "MM:SS" or raw seconds into milliseconds offset. Returns null on invalid input. */
+function parseTimeInput(input: string): number | null {
+    const trimmed = input.trim();
+    // M:SS or MM:SS
+    const colonMatch = trimmed.match(/^(\d{1,3}):(\d{1,2})$/);
+    if (colonMatch) {
+        const m = parseInt(colonMatch[1], 10);
+        const s = parseInt(colonMatch[2], 10);
+        if (s >= 60) return null;
+        return (m * 60 + s) * 1000;
+    }
+    // plain seconds
+    const num = Number(trimmed);
+    if (!Number.isNaN(num) && num >= 0) {
+        return Math.round(num * 1000);
+    }
+    return null;
+}
+
+function FreeAnnotationForm({ sessionStartTime, onAdd }: {
+    sessionStartTime: number;
+    onAdd: (timestamp: number, text: string) => void;
+}) {
+    const [open, setOpen] = useState(false);
+    const [time, setTime] = useState('');
+    const [text, setText] = useState('');
+    const timeRef = useRef<HTMLInputElement>(null);
+
+    if (!open) {
+        return (
+            <button className="free-annotate-btn" onClick={() => setOpen(true)}>
+                + Add annotation at time...
+            </button>
+        );
+    }
+
+    const offsetMs = parseTimeInput(time);
+    const valid = offsetMs !== null && text.trim().length > 0;
+
+    const submit = () => {
+        if (offsetMs === null || !text.trim()) return;
+        onAdd(sessionStartTime + offsetMs, text.trim());
+        setTime('');
+        setText('');
+        setOpen(false);
+    };
+
+    return (
+        <div className="free-annotation-form">
+            <input
+                ref={timeRef}
+                autoFocus
+                className="annotation-input time-input"
+                placeholder="M:SS"
+                value={time}
+                onChange={e => setTime(e.target.value)}
+                onKeyDown={e => {
+                    if (e.key === 'Enter' && valid) submit();
+                    if (e.key === 'Escape') setOpen(false);
+                }}
+            />
+            <input
+                className="annotation-input"
+                placeholder="Annotation text..."
+                value={text}
+                onChange={e => setText(e.target.value)}
+                onKeyDown={e => {
+                    if (e.key === 'Enter' && valid) submit();
+                    if (e.key === 'Escape') setOpen(false);
+                }}
+            />
+            <button className="annotation-save-btn" disabled={!valid} onClick={submit}>Add</button>
+            <button className="annotation-cancel-btn" onClick={() => setOpen(false)}>Cancel</button>
+        </div>
+    );
+}
+
+function InlineAnnotationInput({ onSubmit, onCancel }: {
+    onSubmit: (text: string) => void;
+    onCancel: () => void;
+}) {
+    const [text, setText] = useState('');
+
+    return (
+        <div className="annotation-input-row">
+            <input
+                autoFocus
+                className="annotation-input"
+                placeholder="Annotation..."
+                value={text}
+                onChange={e => setText(e.target.value)}
+                onKeyDown={e => {
+                    if (e.key === 'Enter' && text.trim()) onSubmit(text.trim());
+                    if (e.key === 'Escape') onCancel();
+                }}
+            />
+            <button
+                className="annotation-save-btn"
+                disabled={!text.trim()}
+                onClick={() => text.trim() && onSubmit(text.trim())}
+            >
+                Save
+            </button>
+            <button className="annotation-cancel-btn" onClick={onCancel}>Cancel</button>
+        </div>
+    );
+}
+
+function AnnotationRow({ annotation, sessionStartTime, onUpdate, onDelete }: {
+    annotation: Annotation;
+    sessionStartTime: number;
+    onUpdate: (id: string, text: string) => void;
+    onDelete: (id: string) => void;
+}) {
+    const [editing, setEditing] = useState(false);
+    const [editText, setEditText] = useState(annotation.text);
+
+    if (editing) {
+        return (
+            <div className="event-row annotation-row editing">
+                <span className="event-time mono">
+                    {formatOffset(annotation.timestamp - sessionStartTime)}
+                </span>
+                <span className="event-badge annotation">NOTE</span>
+                <input
+                    autoFocus
+                    className="annotation-input annotation-edit-input"
+                    value={editText}
+                    onChange={e => setEditText(e.target.value)}
+                    onKeyDown={e => {
+                        if (e.key === 'Enter' && editText.trim()) {
+                            onUpdate(annotation.id, editText.trim());
+                            setEditing(false);
+                        }
+                        if (e.key === 'Escape') {
+                            setEditText(annotation.text);
+                            setEditing(false);
+                        }
+                    }}
+                />
+                <button
+                    className="annotation-save-btn"
+                    disabled={!editText.trim()}
+                    onClick={() => { onUpdate(annotation.id, editText.trim()); setEditing(false); }}
+                >
+                    Save
+                </button>
+                <button
+                    className="annotation-cancel-btn"
+                    onClick={() => { setEditText(annotation.text); setEditing(false); }}
+                >
+                    Cancel
+                </button>
+            </div>
+        );
+    }
+
+    return (
+        <div className="event-row annotation-row">
+            <span className="event-time mono">
+                {formatOffset(annotation.timestamp - sessionStartTime)}
+            </span>
+            <span className="event-badge annotation">NOTE</span>
+            <span className="annotation-text" onClick={() => setEditing(true)} title="Click to edit">
+                {annotation.text}
+            </span>
+            <div className="annotation-actions">
+                <button className="annotation-action-btn edit" onClick={() => setEditing(true)} title="Edit">&#9998;</button>
+                <button className="annotation-action-btn delete" onClick={() => onDelete(annotation.id)} title="Delete">&times;</button>
+            </div>
+        </div>
+    );
+}
+
+export function EventStream({ events, sessionStartTime, annotations, onAddAnnotation, onUpdateAnnotation, onDeleteAnnotation }: Props) {
     const [enabledTypes, setEnabledTypes] = useState<Set<EventType>>(() => {
-        // Start with meaningful events enabled, hide noisy ones
         return new Set<EventType>([
             'sessionStart', 'sessionEnd',
             'eqSnapshot', 'buildResult',
@@ -116,11 +297,33 @@ export function EventStream({ events, sessionStartTime }: Props) {
             'windowFocus',
         ]);
     });
+    const [showAnnotations, setShowAnnotations] = useState(true);
+    const [annotatingTimestamp, setAnnotatingTimestamp] = useState<number | null>(null);
 
-    const filtered = useMemo(
-        () => events.filter(e => enabledTypes.has(e.type)),
-        [events, enabledTypes],
-    );
+    const stream = useMemo<StreamItem[]>(() => {
+        const items: StreamItem[] = [];
+        events.forEach((event, index) => {
+            if (enabledTypes.has(event.type)) {
+                items.push({ kind: 'event', event, index });
+            }
+        });
+        if (showAnnotations) {
+            for (const annotation of annotations) {
+                items.push({ kind: 'annotation', annotation });
+            }
+        }
+        items.sort((a, b) => {
+            const tsA = a.kind === 'event' ? a.event.timestamp : a.annotation.timestamp;
+            const tsB = b.kind === 'event' ? b.event.timestamp : b.annotation.timestamp;
+            if (tsA !== tsB) return tsA - tsB;
+            // annotations after events at same timestamp
+            if (a.kind !== b.kind) return a.kind === 'event' ? -1 : 1;
+            return 0;
+        });
+        return items;
+    }, [events, enabledTypes, annotations, showAnnotations]);
+
+    const eventCount = stream.filter(s => s.kind === 'event').length;
 
     const toggleType = (type: EventType) => {
         setEnabledTypes(prev => {
@@ -136,7 +339,16 @@ export function EventStream({ events, sessionStartTime }: Props) {
 
     return (
         <div className="event-stream">
-            <h2>Event Stream ({filtered.length} / {events.length})</h2>
+            <div className="event-stream-header">
+                <h2>Event Stream ({eventCount} / {events.length})</h2>
+                <button
+                    className={`filter-btn annotation-toggle ${showAnnotations ? 'active' : ''}`}
+                    onClick={() => setShowAnnotations(!showAnnotations)}
+                    title="Toggle annotations"
+                >
+                    {annotations.length} annotation{annotations.length !== 1 ? 's' : ''}
+                </button>
+            </div>
 
             <div className="filter-bar">
                 {ALL_EVENT_TYPES.map(type => (
@@ -150,16 +362,53 @@ export function EventStream({ events, sessionStartTime }: Props) {
                 ))}
             </div>
 
+            <FreeAnnotationForm sessionStartTime={sessionStartTime} onAdd={onAddAnnotation} />
+
             <div className="event-list">
-                {filtered.map((event, i) => (
-                    <div key={`${event.timestamp}-${event.type}-${i}`} className={`event-row ${event.type}`}>
-                        <span className="event-time mono">
-                            {formatOffset(event.timestamp - sessionStartTime)}
-                        </span>
-                        <span className={`event-badge ${event.type}`}>{event.type}</span>
-                        <EventDetail event={event} />
-                    </div>
-                ))}
+                {stream.map((item, i) => {
+                    if (item.kind === 'annotation') {
+                        return (
+                            <AnnotationRow
+                                key={`annot-${item.annotation.id}`}
+                                annotation={item.annotation}
+                                sessionStartTime={sessionStartTime}
+                                onUpdate={onUpdateAnnotation}
+                                onDelete={onDeleteAnnotation}
+                            />
+                        );
+                    }
+
+                    const { event, index } = item;
+                    return (
+                        <div key={`${event.timestamp}-${event.type}-${index}`}>
+                            <div className={`event-row ${event.type}`}>
+                                <span className="event-time mono">
+                                    {formatOffset(event.timestamp - sessionStartTime)}
+                                </span>
+                                <span className={`event-badge ${event.type}`}>{event.type}</span>
+                                <EventDetail event={event} />
+                                <button
+                                    className="annotate-btn"
+                                    title="Add annotation at this timestamp"
+                                    onClick={() => setAnnotatingTimestamp(
+                                        annotatingTimestamp === event.timestamp ? null : event.timestamp
+                                    )}
+                                >
+                                    +
+                                </button>
+                            </div>
+                            {annotatingTimestamp === event.timestamp && (
+                                <InlineAnnotationInput
+                                    onSubmit={text => {
+                                        onAddAnnotation(event.timestamp, text);
+                                        setAnnotatingTimestamp(null);
+                                    }}
+                                    onCancel={() => setAnnotatingTimestamp(null)}
+                                />
+                            )}
+                        </div>
+                    );
+                })}
             </div>
         </div>
     );

@@ -702,3 +702,211 @@
     border: 1px solid var(--border);
     overflow-x: auto;
 }
+
+/* ── Event stream header ────────────────────────────────────────────── */
+
+.event-stream-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
+}
+
+.event-stream-header h2 {
+    margin-bottom: 0;
+}
+
+.annotation-toggle {
+    border-left: 3px solid #38bdf8 !important;
+}
+
+/* ── Annotations ────────────────────────────────────────────────────── */
+
+.annotation-row {
+    background: rgba(56, 189, 248, 0.06);
+    border-left: 3px solid #38bdf8;
+    padding-left: 5px !important;
+}
+.annotation-row:hover {
+    background: rgba(56, 189, 248, 0.1);
+}
+
+.annotation-text {
+    flex: 1;
+    font-size: 12px;
+    color: #38bdf8;
+    cursor: pointer;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.annotation-text:hover {
+    text-decoration: underline;
+    text-decoration-style: dotted;
+}
+
+.annotation-actions {
+    display: flex;
+    gap: 2px;
+    flex-shrink: 0;
+    opacity: 0;
+    transition: opacity 0.15s;
+}
+.annotation-row:hover .annotation-actions {
+    opacity: 1;
+}
+
+.annotation-action-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    border-radius: 3px;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    font-size: 13px;
+    color: var(--text-muted);
+    transition: color 0.1s, background 0.1s;
+}
+.annotation-action-btn.edit:hover {
+    color: #38bdf8;
+    background: rgba(56, 189, 248, 0.1);
+}
+.annotation-action-btn.delete:hover {
+    color: var(--danger);
+    background: rgba(239, 68, 68, 0.1);
+}
+
+.event-badge.annotation {
+    background: rgba(56, 189, 248, 0.2);
+    color: #38bdf8;
+}
+
+/* ── Annotate button on event rows ──────────────────────────────────── */
+
+.annotate-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    border-radius: 3px;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--text-muted);
+    flex-shrink: 0;
+    margin-left: auto;
+    opacity: 0;
+    transition: opacity 0.15s, color 0.1s, background 0.1s;
+}
+.event-row:hover .annotate-btn {
+    opacity: 1;
+}
+.annotate-btn:hover {
+    color: #38bdf8;
+    background: rgba(56, 189, 248, 0.1);
+}
+
+/* ── Inline annotation input ────────────────────────────────────────── */
+
+.annotation-input-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 8px 4px 60px;
+    background: rgba(56, 189, 248, 0.04);
+    border-left: 3px solid rgba(56, 189, 248, 0.4);
+}
+
+.annotation-input {
+    flex: 1;
+    font-family: var(--sans);
+    font-size: 12px;
+    padding: 4px 8px;
+    border-radius: 4px;
+    border: 1px solid var(--border);
+    background: var(--bg-elevated);
+    color: var(--text);
+    outline: none;
+    transition: border-color 0.15s;
+}
+.annotation-input:focus {
+    border-color: #38bdf8;
+}
+
+.annotation-edit-input {
+    flex: 1;
+}
+
+.annotation-save-btn,
+.annotation-cancel-btn {
+    font-family: var(--sans);
+    font-size: 11px;
+    padding: 3px 10px;
+    border-radius: 4px;
+    border: 1px solid var(--border);
+    cursor: pointer;
+    transition: all 0.15s;
+}
+.annotation-save-btn {
+    background: rgba(56, 189, 248, 0.15);
+    color: #38bdf8;
+    border-color: rgba(56, 189, 248, 0.3);
+}
+.annotation-save-btn:hover:not(:disabled) {
+    background: rgba(56, 189, 248, 0.25);
+}
+.annotation-save-btn:disabled {
+    opacity: 0.4;
+    cursor: default;
+}
+.annotation-cancel-btn {
+    background: transparent;
+    color: var(--text-muted);
+}
+.annotation-cancel-btn:hover {
+    color: var(--text);
+    border-color: var(--text-muted);
+}
+
+/* ── Free annotation form ───────────────────────────────────────────── */
+
+.free-annotate-btn {
+    font-family: var(--sans);
+    font-size: 12px;
+    padding: 6px 12px;
+    margin-bottom: 12px;
+    border-radius: 5px;
+    border: 1px dashed rgba(56, 189, 248, 0.3);
+    background: transparent;
+    color: #38bdf8;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s;
+}
+.free-annotate-btn:hover {
+    background: rgba(56, 189, 248, 0.06);
+    border-color: #38bdf8;
+}
+
+.free-annotation-form {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 12px;
+    padding: 8px;
+    border-radius: 6px;
+    background: rgba(56, 189, 248, 0.04);
+    border: 1px solid rgba(56, 189, 248, 0.15);
+}
+
+.free-annotation-form .time-input {
+    width: 70px;
+    flex: none;
+    text-align: center;
+    font-family: var(--mono);
+}

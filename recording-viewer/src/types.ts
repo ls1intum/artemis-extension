@@ -7,6 +7,13 @@ import type { RecordedEvent, SessionMetadata } from './generated/recordingTypes.
 
 export type EventType = RecordedEvent['type'];
 
+export interface Annotation {
+    id: string;
+    timestamp: number;   // absolute ms (same epoch as event timestamps)
+    text: string;
+    createdAt: number;
+}
+
 export interface ReplayEqSnapshot {
     timestamp: number;
     eq: number;
@@ -21,4 +28,5 @@ export interface LoadedSession {
     events: RecordedEvent[];
     fileName: string;
     replayEq?: ReplayEqSnapshot[];
+    annotations?: Annotation[];
 }

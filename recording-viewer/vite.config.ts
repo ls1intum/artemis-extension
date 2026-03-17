@@ -14,7 +14,7 @@ function recordingsApi() {
     return {
         name: 'recordings-api',
         configureServer(server: { middlewares: { use: (fn: Function) => void } }) {
-            server.middlewares.use((req: { url?: string; method?: string }, res: { setHeader: Function; end: Function; writeHead: Function }, next: Function) => {
+            server.middlewares.use((req: { url?: string; method?: string; on: Function }, res: { setHeader: Function; end: Function; writeHead: Function }, next: Function) => {
                 if (!req.url?.startsWith('/api/recordings')) {
                     return next()
                 }
@@ -147,6 +147,56 @@ function recordingsApi() {
                             .filter(l => l.trim().length > 0)
                         const snapshots = lines.map(l => JSON.parse(l))
                         res.end(JSON.stringify(snapshots))
+                    } catch (err) {
+                        res.writeHead(500)
+                        res.end(JSON.stringify({ error: String(err) }))
+                    }
+                    return
+                }
+
+                // GET /api/recordings/:sessionId/annotations → read annotations
+                const annotGetMatch = req.url.match(/^\/api\/recordings\/([^/]+)\/annotations$/)
+                if (annotGetMatch && method === 'GET') {
+                    const sessionId = annotGetMatch[1]
+                    const annotPath = path.join(RECORDINGS_DIR, sessionId, 'annotations.json')
+                    try {
+                        if (!fs.existsSync(annotPath)) {
+                            res.end(JSON.stringify([]))
+                            return
+                        }
+                        const data = fs.readFileSync(annotPath, 'utf-8')
+                        res.end(data)
+                    } catch (err) {
+                        res.writeHead(500)
+                        res.end(JSON.stringify({ error: String(err) }))
+                    }
+                    return
+                }
+
+                // PUT /api/recordings/:sessionId/annotations → save annotations
+                const annotPutMatch = req.url.match(/^\/api\/recordings\/([^/]+)\/annotations$/)
+                if (annotPutMatch && method === 'PUT') {
+                    const sessionId = annotPutMatch[1]
+                    const sessionDir = path.join(RECORDINGS_DIR, sessionId)
+                    const annotPath = path.join(sessionDir, 'annotations.json')
+                    try {
+                        if (!fs.existsSync(sessionDir)) {
+                            res.writeHead(404)
+                            res.end(JSON.stringify({ error: 'Session not found' }))
+                            return
+                        }
+                        let body = ''
+                        req.on('data', (chunk: Buffer) => { body += chunk.toString() })
+                        req.on('end', () => {
+                            try {
+                                const annotations = JSON.parse(body)
+                                fs.writeFileSync(annotPath, JSON.stringify(annotations, null, 2))
+                                res.end(JSON.stringify({ ok: true }))
+                            } catch (err) {
+                                res.writeHead(400)
+                                res.end(JSON.stringify({ error: String(err) }))
+                            }
+                        })
                     } catch (err) {
                         res.writeHead(500)
                         res.end(JSON.stringify({ error: String(err) }))

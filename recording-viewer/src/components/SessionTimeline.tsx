@@ -10,13 +10,14 @@ import {
     ReferenceLine,
     Dot,
 } from 'recharts';
-import type { RecordedEvent, EventType, EqSnapshotEvent, BuildResultEvent, ReplayEqSnapshot } from '../types.ts';
+import type { Annotation, RecordedEvent, EventType, EqSnapshotEvent, BuildResultEvent, ReplayEqSnapshot } from '../types.ts';
 import { formatOffset } from '../utils/format.ts';
 
 interface Props {
     events: RecordedEvent[];
     sessionStartTime: number;
     replayEq?: ReplayEqSnapshot[];
+    annotations?: Annotation[];
 }
 
 interface ChartPoint {
@@ -175,7 +176,7 @@ function getMarkerOpacity(type: EventType): number {
     return 0.6;
 }
 
-export function SessionTimeline({ events, sessionStartTime, replayEq }: Props) {
+export function SessionTimeline({ events, sessionStartTime, replayEq, annotations = [] }: Props) {
     const [enabledMarkers, setEnabledMarkers] = useState<Set<EventType>>(
         () => new Set<EventType>(['buildResult']),
     );
@@ -288,11 +289,12 @@ export function SessionTimeline({ events, sessionStartTime, replayEq }: Props) {
 
     const data = [...mergedMap.values()].sort((a, b) => a.timeOffset - b.timeOffset);
 
-    // Expand X domain to cover all events so markers outside EQ range are visible
+    // Expand X domain to cover all events + annotations so markers outside EQ range are visible
     const allOffsets = events.map(e => e.timestamp - sessionStartTime);
+    const annotOffsets = annotations.map(a => a.timestamp - sessionStartTime);
     const dataOffsets = data.map(d => d.timeOffset);
-    const xMin = Math.min(...allOffsets, ...dataOffsets);
-    const xMax = Math.max(...allOffsets, ...dataOffsets);
+    const xMin = Math.min(...allOffsets, ...dataOffsets, ...annotOffsets);
+    const xMax = Math.max(...allOffsets, ...dataOffsets, ...annotOffsets);
     const xPadding = Math.max((xMax - xMin) * 0.03, 1000);
     const xDomain: [number, number] = [Math.max(0, xMin - xPadding), xMax + xPadding];
 
@@ -359,6 +361,18 @@ export function SessionTimeline({ events, sessionStartTime, replayEq }: Props) {
                         />
                     ))}
 
+                    {annotations.map(a => (
+                        <ReferenceLine
+                            key={`annot-${a.id}`}
+                            x={a.timestamp - sessionStartTime}
+                            stroke="#38bdf8"
+                            strokeDasharray="2 2"
+                            strokeWidth={1.5}
+                            strokeOpacity={0.8}
+                            label={{ value: '\u270E', position: 'insideTopRight', fill: '#38bdf8', fontSize: 11, offset: 4 }}
+                        />
+                    ))}
+
                     {/* Original EQ line */}
                     <Line
                         type="monotone"
@@ -399,6 +413,12 @@ export function SessionTimeline({ events, sessionStartTime, replayEq }: Props) {
                             <span style={{ color: '#6366f1' }}>Replay EQ</span>
                         </span>
                     </>
+                )}
+                {annotations.length > 0 && (
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <svg width="24" height="2"><line x1="0" y1="1" x2="24" y2="1" stroke="#38bdf8" strokeWidth="1.5" strokeDasharray="2 2" /></svg>
+                        <span style={{ color: '#38bdf8' }}>Annotations</span>
+                    </span>
                 )}
                 {hasTriggerPoints && (
                     <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
