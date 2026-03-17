@@ -560,6 +560,16 @@
     margin-left: 4px;
 }
 
+.inline-text {
+    font-family: var(--mono);
+    font-size: 11px;
+    background: var(--bg-elevated);
+    padding: 1px 4px;
+    border-radius: 3px;
+    color: var(--text);
+    white-space: pre;
+}
+
 /* ── Scrollbar ───────────────────────────────────────────────────────── */
 
 .event-list::-webkit-scrollbar {

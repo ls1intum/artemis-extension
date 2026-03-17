@@ -46,19 +46,36 @@ function EventDetail({ event }: { event: RecordedEvent }) {
                     {event.failedTests.length > 0 && ` | ${event.failedTests.length} test(s) failed`}
                 </span>
             );
-        case 'textChange':
+        case 'textChange': {
+            const MAX_INLINE = 16;
+            let insertedAll = '';
+            let deletedTotal = 0;
+            for (const c of event.changes) {
+                insertedAll += c.text;
+                deletedTotal += c.rangeLength;
+            }
+            const hasInsert = insertedAll.length > 0;
+            const hasDelete = deletedTotal > 0;
+
+            const inlineText = insertedAll.length <= MAX_INLINE
+                ? <code className="inline-text">{insertedAll}</code>
+                : <><code className="inline-text">{insertedAll.slice(0, MAX_INLINE)}</code> +{insertedAll.length - MAX_INLINE} chars</>;
+
+            let op: React.ReactNode;
+            if (hasInsert && hasDelete) {
+                op = <span className="change-preview">replaced {deletedTotal} &rarr; {inlineText}</span>;
+            } else if (hasInsert) {
+                op = <span className="change-preview">inserted {inlineText}</span>;
+            } else {
+                op = <span className="change-preview">deleted {deletedTotal} chars</span>;
+            }
+
             return (
                 <span className="event-detail">
-                    {shortenUri(event.uri)} | {event.changes.length} change(s)
-                    {event.changes[0] && (
-                        <span className="change-preview">
-                            {event.changes[0].text.length > 0
-                                ? ` +${event.changes[0].text.length} chars`
-                                : ` -${event.changes[0].rangeLength} chars`}
-                        </span>
-                    )}
+                    {shortenUri(event.uri)} | {op}
                 </span>
             );
+        }
         case 'save':
             return <span className="event-detail">{shortenUri(event.uri)}</span>;
         case 'diagnostics':
