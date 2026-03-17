@@ -1,10 +1,16 @@
 import type { RecordedEvent, SessionMetadata, LoadedSession } from './types';
 
 export function parseEventsFile(text: string): RecordedEvent[] {
-    return text
-        .split('\n')
-        .filter(line => line.trim().length > 0)
-        .map(line => JSON.parse(line) as RecordedEvent);
+    const events: RecordedEvent[] = [];
+    for (const line of text.split('\n')) {
+        if (line.trim().length === 0) continue;
+        try {
+            events.push(JSON.parse(line) as RecordedEvent);
+        } catch {
+            // Skip malformed JSONL lines
+        }
+    }
+    return events;
 }
 
 export function parseMetadataFile(text: string): SessionMetadata {

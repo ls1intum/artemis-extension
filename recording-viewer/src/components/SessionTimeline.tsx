@@ -10,7 +10,8 @@ import {
     ReferenceLine,
     Dot,
 } from 'recharts';
-import type { RecordedEvent, EventType, EqSnapshotEvent, BuildResultEvent, ReplayEqSnapshot } from '../types';
+import type { RecordedEvent, EventType, EqSnapshotEvent, BuildResultEvent, ReplayEqSnapshot } from '../types.ts';
+import { formatOffset } from '../utils/format.ts';
 
 interface Props {
     events: RecordedEvent[];
@@ -41,6 +42,7 @@ interface Marker {
 
 const MARKER_COLORS: Record<EventType, string> = {
     eqSnapshot: '#818cf8',
+    eqEngineState: '#818cf8',
     buildResult: '#4ade80',
     textChange: '#94a3b8',
     save: '#60a5fa',
@@ -69,13 +71,6 @@ const MARKER_EVENT_TYPES: EventType[] = [
     'selectionChange',
     'visibleRangeChange',
 ];
-
-function formatOffset(ms: number): string {
-    const totalSeconds = Math.floor(ms / 1000);
-    const m = Math.floor(totalSeconds / 60);
-    const s = totalSeconds % 60;
-    return `${m}:${s.toString().padStart(2, '0')}`;
-}
 
 /**
  * Dot for original EQ line — trigger points get a larger, highlighted ring.

@@ -96,7 +96,74 @@ describe('createSnapshotFromDiagnosticState', () => {
     });
 });
 
+describe('createSnapshotFromDiagnosticState — exerciseRoot filtering', () => {
+    it('filters out URIs outside exerciseRoot', () => {
+        const state = new Map<string, SerializedDiagnostic[]>();
+        state.set('file:///workspace/a.ts', [makeDiag({ code: 'ts2304' })]);
+        state.set('file:///other/b.ts', [makeDiag({ code: 'ts2345' })]);
+        const snapshot = createSnapshotFromDiagnosticState(state, 1000, 'file:///workspace');
+        expect(snapshot.errorCount).toBe(1);
+        expect(snapshot.errorFamilies.has('ts:ts2304')).toBe(true);
+        expect(snapshot.errorFamilies.has('ts:ts2345')).toBe(false);
+    });
+
+    it('includes all URIs when exerciseRoot is undefined', () => {
+        const state = new Map<string, SerializedDiagnostic[]>();
+        state.set('file:///workspace/a.ts', [makeDiag({ code: 'ts2304' })]);
+        state.set('file:///other/b.ts', [makeDiag({ code: 'ts2345' })]);
+        const snapshot = createSnapshotFromDiagnosticState(state, 1000);
+        expect(snapshot.errorCount).toBe(2);
+        expect(snapshot.errorFamilies.size).toBe(2);
+    });
+});
+
 describe('createSnapshotFromBuildEvent', () => {
+    it('uses buildErrorFamilies when present', () => {
+        const event: BuildResultEvent = {
+            type: 'buildResult',
+            timestamp: 5000,
+            successful: false,
+            errorCount: 3,
+            failedTests: [],
+            buildFailed: true,
+            buildErrorFamilies: ['build:Cannot find symbol', 'build:Method not found'],
+        };
+        const snapshot = createSnapshotFromBuildEvent(event);
+        expect(snapshot.hasErrors).toBe(true);
+        expect(snapshot.errorFamilies.has('build:Cannot find symbol')).toBe(true);
+        expect(snapshot.errorFamilies.has('build:Method not found')).toBe(true);
+        expect(snapshot.errorFamilies.has('build:compiler-error')).toBe(false);
+    });
+
+    it('falls back to generic when buildErrorFamilies is empty', () => {
+        const event: BuildResultEvent = {
+            type: 'buildResult',
+            timestamp: 5000,
+            successful: false,
+            errorCount: 3,
+            failedTests: [],
+            buildFailed: true,
+            buildErrorFamilies: [],
+        };
+        const snapshot = createSnapshotFromBuildEvent(event);
+        expect(snapshot.hasErrors).toBe(true);
+        expect(snapshot.errorFamilies.has('build:compiler-error')).toBe(true);
+    });
+
+    it('falls back to generic when buildErrorFamilies is undefined', () => {
+        const event: BuildResultEvent = {
+            type: 'buildResult',
+            timestamp: 5000,
+            successful: false,
+            errorCount: 3,
+            failedTests: [],
+            buildFailed: true,
+        };
+        const snapshot = createSnapshotFromBuildEvent(event);
+        expect(snapshot.hasErrors).toBe(true);
+        expect(snapshot.errorFamilies.has('build:compiler-error')).toBe(true);
+    });
+
     it('creates hasErrors=true for buildFailed', () => {
         const event: BuildResultEvent = {
             type: 'buildResult',

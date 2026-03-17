@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
-import type { SessionMetadata } from '../types';
+import type { SessionMetadata } from '../types.ts';
+import { formatDuration, formatTime } from '../utils/format.ts';
 
 interface SessionEntry {
     id: string;
@@ -13,21 +14,6 @@ interface SessionListResponse {
 
 interface Props {
     onSelectSession: (sessionId: string) => void;
-}
-
-function formatTime(ts: number): string {
-    return new Date(ts).toLocaleString();
-}
-
-function formatDuration(start: number, end: number | undefined): string {
-    if (!end) return '—';
-    const ms = end - start;
-    const seconds = Math.floor(ms / 1000);
-    const minutes = Math.floor(seconds / 60);
-    const hours = Math.floor(minutes / 60);
-    if (hours > 0) return `${hours}h ${minutes % 60}m`;
-    if (minutes > 0) return `${minutes}m ${seconds % 60}s`;
-    return `${seconds}s`;
 }
 
 export function SessionList({ onSelectSession }: Props) {
@@ -129,9 +115,9 @@ export function SessionList({ onSelectSession }: Props) {
                         <span>{entry.metadata?.exerciseId ?? '—'}</span>
                         <span>{entry.metadata?.startTime ? formatTime(entry.metadata.startTime) : '—'}</span>
                         <span>
-                            {entry.metadata?.startTime
-                                ? formatDuration(entry.metadata.startTime, entry.metadata.endTime)
-                                : '—'}
+                            {entry.metadata?.startTime && entry.metadata.endTime
+                                ? formatDuration(entry.metadata.endTime - entry.metadata.startTime)
+                                : '\u2014'}
                         </span>
                         <span>{entry.metadata?.eventCount ?? '—'}</span>
                         <span className="session-actions">

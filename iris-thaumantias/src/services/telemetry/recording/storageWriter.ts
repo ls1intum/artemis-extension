@@ -5,6 +5,7 @@
  * Never throws — recording must not impact IDE stability.
  */
 
+import * as crypto from 'crypto';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import type { RecordedEvent, SessionMetadata } from './types';
@@ -141,9 +142,10 @@ export class RecordingStorageWriter {
     }
 
     private _sanitizeFileName(uri: string): string {
-        // Extract the last path segment and sanitize it
         const lastSegment = uri.split('/').pop() ?? 'unknown';
-        return lastSegment.replace(/[^a-zA-Z0-9._-]/g, '_');
+        const sanitized = lastSegment.replace(/[^a-zA-Z0-9._-]/g, '_');
+        const hash = crypto.createHash('sha1').update(uri).digest('hex').slice(0, 8);
+        return `${hash}_${sanitized}`;
     }
 
     private _recordError(): void {

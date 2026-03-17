@@ -82,7 +82,8 @@ export class RecordingStatusBarService implements vscode.Disposable {
             return;
         }
 
-        await this._sessionRecorder.startSession(exerciseId);
+        const exerciseRoot = vscode.workspace.workspaceFolders?.[0]?.uri.toString();
+        await this._sessionRecorder.startSession(exerciseId, undefined, exerciseRoot);
         logger.info('Recording started by user', LogCategory.TELEMETRY);
     }
 

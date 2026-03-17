@@ -16,6 +16,7 @@ import type {
     SaveEvent,
     BuildResultEvent,
     EqEngineStateEvent,
+    SessionStartEvent,
 } from '../recording/types';
 import {
     createSnapshotFromDiagnosticState,
@@ -87,9 +88,23 @@ export function replaySession(
     const engine = new ErrorQuotientEngine(config);
     const diagnosticState = new Map<string, SerializedDiagnostic[]>();
     const result: ReplayEqSnapshot[] = [];
+    let exerciseRoot: string | undefined;
+
+    function pushIfAccepted(snapshot: ErrorSnapshot, source: 'save' | 'build', timestamp: number): void {
+        const accepted = engine.addSnapshot(snapshot);
+        if (!accepted) return;
+        const { eq, confidence } = engine.getCurrentEQ();
+        result.push({ timestamp, eq, confidence, source, errorCount: snapshot.errorCount, errorFamilies: [...snapshot.errorFamilies] });
+    }
 
     for (let i = 0; i < events.length; i++) {
         const event = events[i];
+
+        // Extract exercise root from session start for diagnostic filtering
+        if (event.type === 'sessionStart') {
+            exerciseRoot = (event as SessionStartEvent).exerciseRoot;
+            continue;
+        }
 
         // Seed engine with pre-existing state from before recording started
         if (event.type === 'eqEngineState') {
@@ -117,40 +132,15 @@ export function replaySession(
             const snapshot = createSnapshotFromDiagnosticState(
                 diagnosticState,
                 saveEvent.timestamp,
+                exerciseRoot,
             );
-            const accepted = engine.addSnapshot(snapshot);
-
-            if (accepted) {
-                const { eq, confidence } = engine.getCurrentEQ();
-                result.push({
-                    // Offset by lookahead window to match live timing
-                    // (live records eqSnapshot ~500ms after save, post-stabilization)
-                    timestamp: saveEvent.timestamp + LOOKAHEAD_WINDOW_MS,
-                    eq,
-                    confidence,
-                    source: 'save',
-                    errorCount: snapshot.errorCount,
-                    errorFamilies: [...snapshot.errorFamilies],
-                });
-            }
+            pushIfAccepted(snapshot, 'save', saveEvent.timestamp + LOOKAHEAD_WINDOW_MS);
         }
 
         if (event.type === 'buildResult') {
             const buildEvent = event as BuildResultEvent;
             const snapshot = createSnapshotFromBuildEvent(buildEvent);
-            const accepted = engine.addSnapshot(snapshot);
-
-            if (accepted) {
-                const { eq, confidence } = engine.getCurrentEQ();
-                result.push({
-                    timestamp: buildEvent.timestamp,
-                    eq,
-                    confidence,
-                    source: 'build',
-                    errorCount: snapshot.errorCount,
-                    errorFamilies: [...snapshot.errorFamilies],
-                });
-            }
+            pushIfAccepted(snapshot, 'build', buildEvent.timestamp);
         }
     }
 

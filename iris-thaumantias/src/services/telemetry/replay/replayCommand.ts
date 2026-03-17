@@ -74,11 +74,18 @@ export async function executeReplayCommand(globalStorageUri: vscode.Uri): Promis
         return;
     }
 
-    // Parse events
+    // Parse events (skip malformed lines)
     const lines = fs.readFileSync(eventsPath, 'utf-8')
         .split('\n')
         .filter(l => l.trim().length > 0);
-    const events: RecordedEvent[] = lines.map(l => JSON.parse(l));
+    const events: RecordedEvent[] = [];
+    for (const line of lines) {
+        try {
+            events.push(JSON.parse(line));
+        } catch {
+            // Skip malformed JSONL lines
+        }
+    }
 
     // Run replay
     const snapshots = replaySession(events);

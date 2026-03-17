@@ -40,6 +40,7 @@ export class SessionRecorder implements vscode.Disposable, WebSocketMessageHandl
     private _sessionStartTime: number | undefined;
     private _participantId: string | undefined;
 
+    private _exerciseRoot: string | undefined;
     private _snapshotedUris = new Set<string>();
     private _selectionDebounceTimer: ReturnType<typeof setTimeout> | undefined;
     private _visibleRangeDebounceTimer: ReturnType<typeof setTimeout> | undefined;
@@ -88,7 +89,7 @@ export class SessionRecorder implements vscode.Disposable, WebSocketMessageHandl
 
     // ── Session lifecycle ─────────────────────────────────────────────
 
-    async startSession(exerciseId: number, participantId?: string): Promise<void> {
+    async startSession(exerciseId: number, participantId?: string, exerciseRoot?: string): Promise<void> {
         if (!this._isEnabled) {
             return;
         }
@@ -103,6 +104,7 @@ export class SessionRecorder implements vscode.Disposable, WebSocketMessageHandl
         this._activeSessionId = `${exerciseId}-${timestamp}-${hex}`;
         this._activeExerciseId = exerciseId;
         this._participantId = participantId;
+        this._exerciseRoot = exerciseRoot;
         this._eventCount = 0;
         this._sessionStartTime = Date.now();
         this._lastActiveEditorUri = vscode.window.activeTextEditor?.document.uri.toString();
@@ -117,10 +119,14 @@ export class SessionRecorder implements vscode.Disposable, WebSocketMessageHandl
             timestamp: Date.now(),
             exerciseId,
             participantId,
+            exerciseRoot,
         });
 
         // Capture file snapshots of all open file:// documents
         await this._captureOpenFileSnapshots();
+
+        // Capture pre-existing diagnostics so replay sees errors before first diagnostics event
+        this._captureInitialDiagnostics();
 
         logger.info(`Recording session started: ${this._activeSessionId}`, LogCategory.TELEMETRY);
     }
@@ -158,6 +164,7 @@ export class SessionRecorder implements vscode.Disposable, WebSocketMessageHandl
         this._activeSessionId = undefined;
         this._activeExerciseId = undefined;
         this._participantId = undefined;
+        this._exerciseRoot = undefined;
         this._sessionStartTime = undefined;
         this._snapshotedUris.clear();
         this._fireStateChange();
@@ -355,42 +362,39 @@ export class SessionRecorder implements vscode.Disposable, WebSocketMessageHandl
 
     // ── Private: Snapshot capture ─────────────────────────────────────
 
+    private async _snapshotDocument(uri: string, content: string): Promise<void> {
+        const snapshotPath = this._writer.getSnapshotRelativePath(uri);
+        await this._writer.writeSnapshot(uri, content);
+        this._snapshotedUris.add(uri);
+        this._record({ type: 'fileSnapshot', timestamp: Date.now(), uri, snapshotPath });
+    }
+
     private async _captureOpenFileSnapshots(): Promise<void> {
         for (const doc of vscode.workspace.textDocuments) {
             if (doc.uri.scheme !== 'file') {
                 continue;
             }
             try {
-                const content = doc.getText();
-                const uri = doc.uri.toString();
-                const snapshotPath = this._writer.getSnapshotRelativePath(uri);
-                await this._writer.writeSnapshot(uri, content);
-                this._snapshotedUris.add(uri);
-                this._record({
-                    type: 'fileSnapshot',
-                    timestamp: Date.now(),
-                    uri,
-                    snapshotPath,
-                });
+                await this._snapshotDocument(doc.uri.toString(), doc.getText());
             } catch (err) {
                 logger.error('Failed to capture file snapshot', LogCategory.TELEMETRY, err);
             }
         }
     }
 
+    private _captureInitialDiagnostics(): void {
+        const allDiagnostics = vscode.languages.getDiagnostics();
+        for (const [uri, diagnostics] of allDiagnostics) {
+            if (uri.scheme !== 'file' || diagnostics.length === 0) {
+                continue;
+            }
+            this._record(collectDiagnostics(uri));
+        }
+    }
+
     private async _captureFirstOpenSnapshot(editor: vscode.TextEditor): Promise<void> {
         try {
-            const content = editor.document.getText();
-            const uri = editor.document.uri.toString();
-            const snapshotPath = this._writer.getSnapshotRelativePath(uri);
-            await this._writer.writeSnapshot(uri, content);
-            this._snapshotedUris.add(uri);
-            this._record({
-                type: 'fileSnapshot',
-                timestamp: Date.now(),
-                uri,
-                snapshotPath,
-            });
+            await this._snapshotDocument(editor.document.uri.toString(), editor.document.getText());
         } catch (err) {
             logger.error('Failed to capture first-open file snapshot', LogCategory.TELEMETRY, err);
         }

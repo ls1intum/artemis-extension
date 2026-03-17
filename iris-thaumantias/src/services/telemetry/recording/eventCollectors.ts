@@ -90,10 +90,14 @@ export function collectDiagnostics(uri: vscode.Uri): DiagnosticsEvent {
 
 export function collectBuildResult(result: ResultDTO): BuildResultEvent {
     const failedTests: string[] = [];
+    const buildErrorFamilies: string[] = [];
     if (result.feedbacks) {
         for (const fb of result.feedbacks) {
             if (!fb.positive && fb.detailText) {
                 failedTests.push(fb.detailText);
+            }
+            if (fb.positive === false && fb.text) {
+                buildErrorFamilies.push(`build:${fb.text.substring(0, 50)}`);
             }
         }
     }
@@ -104,6 +108,7 @@ export function collectBuildResult(result: ResultDTO): BuildResultEvent {
         errorCount: (result.testCaseCount ?? 0) - (result.passedTestCaseCount ?? 0),
         failedTests,
         buildFailed: result.submission?.buildFailed ?? false,
+        buildErrorFamilies: buildErrorFamilies.length > 0 ? buildErrorFamilies : undefined,
     };
 }
 

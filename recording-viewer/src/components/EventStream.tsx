@@ -1,35 +1,26 @@
 import { useState, useMemo } from 'react';
-import type { RecordedEvent, EventType } from '../types';
+import type { RecordedEvent, EventType } from '../types.ts';
+import { formatOffset, shortenUri } from '../utils/format.ts';
 
 interface Props {
     events: RecordedEvent[];
     sessionStartTime: number;
 }
 
-const ALL_EVENT_TYPES: EventType[] = [
+const ALL_EVENT_TYPES = [
     'sessionStart', 'sessionEnd',
-    'eqSnapshot', 'buildResult',
+    'eqSnapshot', 'eqEngineState', 'buildResult',
     'textChange', 'save',
     'diagnostics',
     'fileSwitch',
     'windowFocus', 'fileSnapshot',
     'irisChatMessage',
     'selectionChange', 'visibleRangeChange',
-];
+] as const satisfies readonly EventType[];
 
-function formatOffset(ms: number): string {
-    const totalSeconds = Math.floor(ms / 1000);
-    const m = Math.floor(totalSeconds / 60);
-    const s = totalSeconds % 60;
-    return `${m}:${s.toString().padStart(2, '0')}`;
-}
-
-function shortenUri(uri: string | undefined): string {
-    if (!uri) return '—';
-    // Show last 2 path segments
-    const parts = uri.replace(/^file:\/\//, '').split('/');
-    return parts.slice(-2).join('/');
-}
+// Compile error if a new event type is added but not listed above
+type _MissingEventTypes = Exclude<EventType, (typeof ALL_EVENT_TYPES)[number]>;
+void (true satisfies (_MissingEventTypes extends never ? true : never));
 
 function EventDetail({ event }: { event: RecordedEvent }) {
     switch (event.type) {
@@ -161,7 +152,7 @@ export function EventStream({ events, sessionStartTime }: Props) {
 
             <div className="event-list">
                 {filtered.map((event, i) => (
-                    <div key={i} className={`event-row ${event.type}`}>
+                    <div key={`${event.timestamp}-${event.type}-${i}`} className={`event-row ${event.type}`}>
                         <span className="event-time mono">
                             {formatOffset(event.timestamp - sessionStartTime)}
                         </span>

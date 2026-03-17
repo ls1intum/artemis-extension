@@ -35,11 +35,15 @@ export function getErrorFamilySerialized(d: SerializedDiagnostic): string {
 export function createSnapshotFromDiagnosticState(
     state: Map<string, SerializedDiagnostic[]>,
     timestamp: number,
+    exerciseRoot?: string,
 ): ErrorSnapshot {
     const errorFamilies = new Set<string>();
     let errorCount = 0;
 
-    for (const diagnostics of state.values()) {
+    for (const [uri, diagnostics] of state.entries()) {
+        if (exerciseRoot && !uri.startsWith(exerciseRoot)) {
+            continue;
+        }
         for (const d of diagnostics) {
             if (isCompilerDiagnosticSerialized(d)) {
                 errorFamilies.add(getErrorFamilySerialized(d));
@@ -63,7 +67,9 @@ export function createSnapshotFromDiagnosticState(
  */
 export function createSnapshotFromBuildEvent(event: BuildResultEvent): ErrorSnapshot {
     if (event.buildFailed) {
-        const errorFamilies = new Set<string>(['build:compiler-error']);
+        const errorFamilies = event.buildErrorFamilies?.length
+            ? new Set<string>(event.buildErrorFamilies)
+            : new Set<string>(['build:compiler-error']);
         return {
             timestamp: event.timestamp,
             hasErrors: true,

@@ -214,6 +214,51 @@ describe('replaySession', () => {
         expect(result[0].errorFamilies).toContain('ts:ts2345');
     });
 
+    it('build error families affect pair scoring', () => {
+        const t = 10_000;
+        const events: RecordedEvent[] = [
+            {
+                type: 'buildResult',
+                timestamp: t,
+                successful: false,
+                errorCount: 1,
+                failedTests: [],
+                buildFailed: true,
+                buildErrorFamilies: ['build:Cannot find symbol foo'],
+            } as BuildResultEvent,
+            {
+                type: 'buildResult',
+                timestamp: t + 10_000,
+                successful: false,
+                errorCount: 1,
+                failedTests: [],
+                buildFailed: true,
+                buildErrorFamilies: ['build:Cannot find symbol foo'],
+            } as BuildResultEvent,
+        ];
+        const result = replaySession(events);
+        expect(result).toHaveLength(2);
+        // Same custom family in both → same-type weight applies → EQ = 1.0
+        expect(result[1].eq).toBe(1.0);
+        expect(result[0].errorFamilies).toContain('build:Cannot find symbol foo');
+    });
+
+    it('exercise root from sessionStart filters diagnostics', () => {
+        const t = 10_000;
+        const events: RecordedEvent[] = [
+            { type: 'sessionStart', timestamp: t - 1000, exerciseId: 1, participantId: undefined, exerciseRoot: 'file:///workspace' },
+            diagEvent(t, 'file:///workspace/a.ts', [compilerDiag('ts2304')]),
+            diagEvent(t + 100, 'file:///other/b.ts', [compilerDiag('ts2345')]),
+            saveEvent(t + 200, 'file:///workspace/a.ts'),
+        ];
+        const result = replaySession(events);
+        expect(result).toHaveLength(1);
+        // Only workspace diagnostic should be counted
+        expect(result[0].errorCount).toBe(1);
+        expect(result[0].errorFamilies).toContain('ts:ts2304');
+        expect(result[0].errorFamilies).not.toContain('ts:ts2345');
+    });
+
     it('sufficient confidence after enough pairs', () => {
         const t = 10_000;
         const events: RecordedEvent[] = [];
