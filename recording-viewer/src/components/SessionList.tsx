@@ -5,6 +5,7 @@ import { formatDuration, formatTime } from '../utils/format.ts';
 interface SessionEntry {
     id: string;
     metadata: SessionMetadata | null;
+    hasReplay: boolean;
 }
 
 interface SessionListResponse {
@@ -21,6 +22,8 @@ export function SessionList({ onSelectSession }: Props) {
     const [error, setError] = useState<string | null>(null);
     const [loading, setLoading] = useState(true);
     const [deleting, setDeleting] = useState<string | null>(null);
+    const [renaming, setRenaming] = useState<string | null>(null);
+    const [renameValue, setRenameValue] = useState('');
 
     const loadSessions = useCallback(() => {
         setLoading(true);
@@ -52,6 +55,42 @@ export function SessionList({ onSelectSession }: Props) {
             setDeleting(null);
         }
     }, []);
+
+    const startRename = useCallback((e: React.MouseEvent, sessionId: string) => {
+        e.stopPropagation();
+        setRenaming(sessionId);
+        setRenameValue(sessionId);
+    }, []);
+
+    const submitRename = useCallback(async (oldId: string) => {
+        const newName = renameValue.trim();
+        if (!newName || newName === oldId) {
+            setRenaming(null);
+            return;
+        }
+        try {
+            const res = await fetch(`/api/recordings/${encodeURIComponent(oldId)}/rename`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name: newName }),
+            });
+            if (res.ok) {
+                setData(prev => prev ? {
+                    ...prev,
+                    sessions: prev.sessions.map(s =>
+                        s.id === oldId ? { ...s, id: newName } : s
+                    ),
+                } : null);
+            } else {
+                const err = await res.json();
+                alert(err.error ?? 'Rename failed');
+            }
+        } catch (err) {
+            console.error('Failed to rename session:', err);
+        } finally {
+            setRenaming(null);
+        }
+    }, [renameValue]);
 
     const openSessionFolder = useCallback(async (e: React.MouseEvent, sessionId: string) => {
         e.stopPropagation();
@@ -101,17 +140,33 @@ export function SessionList({ onSelectSession }: Props) {
                     <span>Start</span>
                     <span>Duration</span>
                     <span>Events</span>
+                    <span>Replay</span>
                     <span></span>
                 </div>
                 {data.sessions.map(entry => (
                     <div
                         key={entry.id}
                         className={`session-table-row ${deleting === entry.id ? 'deleting' : ''}`}
-                        onClick={() => onSelectSession(entry.id)}
+                        onClick={() => renaming !== entry.id && onSelectSession(entry.id)}
                     >
-                        <span className="mono session-id-cell" title={entry.id}>
-                            {entry.id.length > 30 ? entry.id.slice(0, 30) + '...' : entry.id}
-                        </span>
+                        {renaming === entry.id ? (
+                            <input
+                                autoFocus
+                                className="rename-input mono"
+                                value={renameValue}
+                                onClick={e => e.stopPropagation()}
+                                onChange={e => setRenameValue(e.target.value)}
+                                onKeyDown={e => {
+                                    if (e.key === 'Enter') submitRename(entry.id);
+                                    if (e.key === 'Escape') setRenaming(null);
+                                }}
+                                onBlur={() => submitRename(entry.id)}
+                            />
+                        ) : (
+                            <span className="mono session-id-cell" title={entry.id}>
+                                {entry.id.length > 30 ? entry.id.slice(0, 30) + '...' : entry.id}
+                            </span>
+                        )}
                         <span>{entry.metadata?.exerciseId ?? '—'}</span>
                         <span>{entry.metadata?.startTime ? formatTime(entry.metadata.startTime) : '—'}</span>
                         <span>
@@ -120,7 +175,17 @@ export function SessionList({ onSelectSession }: Props) {
                                 : '\u2014'}
                         </span>
                         <span>{entry.metadata?.eventCount ?? '—'}</span>
+                        <span className={`replay-indicator ${entry.hasReplay ? 'has-replay' : ''}`}>
+                            {entry.hasReplay ? 'Yes' : '—'}
+                        </span>
                         <span className="session-actions">
+                            <button
+                                className="action-btn rename-btn"
+                                onClick={e => startRename(e, entry.id)}
+                                title="Rename session"
+                            >
+                                &#9998;
+                            </button>
                             <button
                                 className="action-btn open-btn"
                                 onClick={e => openSessionFolder(e, entry.id)}

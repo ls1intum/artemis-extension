@@ -6,12 +6,13 @@ interface Props {
     events: RecordedEvent[];
     sessionStartTime: number;
     annotations: Annotation[];
+    enabledTypes: Set<EventType>;
     onAddAnnotation: (timestamp: number, text: string) => void;
     onUpdateAnnotation: (id: string, text: string) => void;
     onDeleteAnnotation: (id: string) => void;
 }
 
-const ALL_EVENT_TYPES = [
+export const ALL_EVENT_TYPES = [
     'sessionStart', 'sessionEnd',
     'eqSnapshot', 'eqEngineState', 'buildResult',
     'textChange', 'save',
@@ -302,18 +303,7 @@ function AnnotationRow({ annotation, sessionStartTime, onUpdate, onDelete }: {
     );
 }
 
-export function EventStream({ events, sessionStartTime, annotations, onAddAnnotation, onUpdateAnnotation, onDeleteAnnotation }: Props) {
-    const [enabledTypes, setEnabledTypes] = useState<Set<EventType>>(() => {
-        return new Set<EventType>([
-            'sessionStart', 'sessionEnd',
-            'eqSnapshot', 'buildResult',
-            'textChange', 'save',
-            'diagnostics',
-            'fileSwitch',
-            'irisChatMessage',
-            'windowFocus',
-        ]);
-    });
+export function EventStream({ events, sessionStartTime, annotations, enabledTypes, onAddAnnotation, onUpdateAnnotation, onDeleteAnnotation }: Props) {
     const [showAnnotations, setShowAnnotations] = useState(true);
     const [annotatingTimestamp, setAnnotatingTimestamp] = useState<number | null>(null);
 
@@ -342,18 +332,6 @@ export function EventStream({ events, sessionStartTime, annotations, onAddAnnota
 
     const eventCount = stream.filter(s => s.kind === 'event').length;
 
-    const toggleType = (type: EventType) => {
-        setEnabledTypes(prev => {
-            const next = new Set(prev);
-            if (next.has(type)) {
-                next.delete(type);
-            } else {
-                next.add(type);
-            }
-            return next;
-        });
-    };
-
     return (
         <div className="event-stream">
             <div className="event-stream-header">
@@ -365,18 +343,6 @@ export function EventStream({ events, sessionStartTime, annotations, onAddAnnota
                 >
                     {annotations.length} annotation{annotations.length !== 1 ? 's' : ''}
                 </button>
-            </div>
-
-            <div className="filter-bar">
-                {ALL_EVENT_TYPES.map(type => (
-                    <button
-                        key={type}
-                        className={`filter-btn ${type} ${enabledTypes.has(type) ? 'active' : ''}`}
-                        onClick={() => toggleType(type)}
-                    >
-                        {type}
-                    </button>
-                ))}
             </div>
 
             <FreeAnnotationForm sessionStartTime={sessionStartTime} onAdd={onAddAnnotation} />

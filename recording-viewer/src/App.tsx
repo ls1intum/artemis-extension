@@ -1,17 +1,37 @@
 import { useState, useCallback, useRef } from 'react';
-import type { Annotation, LoadedSession, RecordedEvent, SessionMetadata, ReplayEqSnapshot } from './types';
+import type { Annotation, LoadedSession, RecordedEvent, SessionMetadata, ReplayEqSnapshot, EventType } from './types';
 import { FileDropZone } from './components/FileDropZone';
 import { RecordingInfo } from './components/RecordingInfo';
 import { SessionList } from './components/SessionList';
 import { SessionInfo } from './components/SessionInfo';
 import { SessionTimeline } from './components/SessionTimeline';
-import { EventStream } from './components/EventStream';
+import { EventStream, ALL_EVENT_TYPES } from './components/EventStream';
+
+const DEFAULT_ENABLED: EventType[] = [
+    'sessionStart', 'sessionEnd',
+    'eqSnapshot', 'buildResult',
+    'textChange', 'save',
+    'diagnostics',
+    'fileSwitch',
+    'irisChatMessage',
+    'windowFocus',
+];
 
 function App() {
     const [session, setSession] = useState<LoadedSession | null>(null);
     const [loading, setLoading] = useState(false);
     const [annotations, setAnnotations] = useState<Annotation[]>([]);
+    const [enabledTypes, setEnabledTypes] = useState(() => new Set<EventType>(DEFAULT_ENABLED));
     const activeSessionId = useRef<string | null>(null);
+
+    const toggleType = useCallback((type: EventType) => {
+        setEnabledTypes(prev => {
+            const next = new Set(prev);
+            if (next.has(type)) next.delete(type);
+            else next.add(type);
+            return next;
+        });
+    }, []);
 
     const saveAnnotations = useCallback(async (updated: Annotation[]) => {
         setAnnotations(updated);
@@ -93,7 +113,7 @@ function App() {
     return (
         <div className="app">
             <header className="app-header">
-                <h1>Recording Viewer</h1>
+                <h1>Artemis Extension Session Analyzer</h1>
                 {session && (
                     <button className="reset-btn" onClick={handleBack}>
                         &larr; Back
@@ -124,11 +144,36 @@ function App() {
                         sessionStartTime={sessionStartTime}
                         replayEq={session.replayEq}
                         annotations={annotations}
+                        enabledTypes={enabledTypes}
                     />
+                    <div className="filter-bar shared-filter-bar">
+                        <button
+                            className="filter-btn toggle-all"
+                            onClick={() => setEnabledTypes(new Set(ALL_EVENT_TYPES))}
+                        >
+                            all
+                        </button>
+                        <button
+                            className="filter-btn toggle-all"
+                            onClick={() => setEnabledTypes(new Set())}
+                        >
+                            none
+                        </button>
+                        {ALL_EVENT_TYPES.map(type => (
+                            <button
+                                key={type}
+                                className={`filter-btn ${type} ${enabledTypes.has(type) ? 'active' : ''}`}
+                                onClick={() => toggleType(type)}
+                            >
+                                {type}
+                            </button>
+                        ))}
+                    </div>
                     <EventStream
                         events={session.events}
                         sessionStartTime={sessionStartTime}
                         annotations={annotations}
+                        enabledTypes={enabledTypes}
                         onAddAnnotation={handleAddAnnotation}
                         onUpdateAnnotation={handleUpdateAnnotation}
                         onDeleteAnnotation={handleDeleteAnnotation}

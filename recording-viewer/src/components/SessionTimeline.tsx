@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useMemo } from 'react';
 import {
     LineChart,
     Line,
@@ -18,6 +18,7 @@ interface Props {
     sessionStartTime: number;
     replayEq?: ReplayEqSnapshot[];
     annotations?: Annotation[];
+    enabledTypes: Set<EventType>;
 }
 
 interface ChartPoint {
@@ -57,21 +58,6 @@ const MARKER_COLORS: Record<EventType, string> = {
     selectionChange: '#06b6d4',
     visibleRangeChange: '#14b8a6',
 };
-
-const MARKER_EVENT_TYPES: EventType[] = [
-    'buildResult',
-    'textChange',
-    'save',
-    'diagnostics',
-    'fileSwitch',
-    'windowFocus',
-    'fileSnapshot',
-    'sessionStart',
-    'sessionEnd',
-    'irisChatMessage',
-    'selectionChange',
-    'visibleRangeChange',
-];
 
 /**
  * Dot for original EQ line — trigger points get a larger, highlighted ring.
@@ -176,17 +162,13 @@ function getMarkerOpacity(type: EventType): number {
     return 0.6;
 }
 
-export function SessionTimeline({ events, sessionStartTime, replayEq, annotations = [] }: Props) {
-    const [enabledMarkers, setEnabledMarkers] = useState<Set<EventType>>(
-        () => new Set<EventType>(['buildResult']),
-    );
-
+export function SessionTimeline({ events, sessionStartTime, replayEq, annotations = [], enabledTypes }: Props) {
     const eqEvents = events.filter((e): e is EqSnapshotEvent => e.type === 'eqSnapshot');
     const hasReplay = replayEq && replayEq.length > 0;
 
     const markers = useMemo<Marker[]>(() => {
         return events
-            .filter(e => e.type !== 'eqSnapshot' && enabledMarkers.has(e.type))
+            .filter(e => e.type !== 'eqSnapshot' && enabledTypes.has(e.type))
             .map(e => ({
                 timeOffset: e.timestamp - sessionStartTime,
                 type: e.type,
@@ -194,19 +176,7 @@ export function SessionTimeline({ events, sessionStartTime, replayEq, annotation
                 dashArray: getMarkerDash(e.type),
                 opacity: getMarkerOpacity(e.type),
             }));
-    }, [events, enabledMarkers, sessionStartTime]);
-
-    const toggleMarker = (type: EventType) => {
-        setEnabledMarkers(prev => {
-            const next = new Set(prev);
-            if (next.has(type)) {
-                next.delete(type);
-            } else {
-                next.add(type);
-            }
-            return next;
-        });
-    };
+    }, [events, enabledTypes, sessionStartTime]);
 
     if (eqEvents.length === 0 && !hasReplay) {
         return (
@@ -247,13 +217,15 @@ export function SessionTimeline({ events, sessionStartTime, replayEq, annotation
         // Collect existing offsets sorted for fuzzy matching
         const existingOffsets = [...mergedMap.keys()].sort((a, b) => a - b);
 
+        const claimed = new Set<number>();
         for (const r of replayEq!) {
             const timeOffset = r.timestamp - sessionStartTime;
 
-            // Fuzzy match: find nearest existing point within 1s
+            // Fuzzy match: find nearest unclaimed existing point within 1s
             let bestKey: number | undefined;
             let bestDist = Infinity;
             for (const key of existingOffsets) {
+                if (claimed.has(key)) continue;
                 const dist = Math.abs(key - timeOffset);
                 if (dist < bestDist) {
                     bestDist = dist;
@@ -263,6 +235,7 @@ export function SessionTimeline({ events, sessionStartTime, replayEq, annotation
             }
 
             if (bestKey !== undefined && bestDist <= 1000) {
+                claimed.add(bestKey);
                 const existing = mergedMap.get(bestKey)!;
                 existing.replayEqPercent = Math.round(r.eq * 100);
                 existing.replayConfidence = r.confidence;
@@ -273,16 +246,6 @@ export function SessionTimeline({ events, sessionStartTime, replayEq, annotation
                     replayEqPercent: Math.round(r.eq * 100),
                     replayConfidence: r.confidence,
                 });
-            }
-        }
-
-        // Fill trigger-only gaps: triggers re-read EQ without adding snapshots,
-        // so replay would produce the same value at that moment
-        for (const point of mergedMap.values()) {
-            if (point.eqPercent != null && point.replayEqPercent == null
-                && (point.eqSource === 'trigger' || point.triggerEqPercent != null)) {
-                point.replayEqPercent = point.eqPercent;
-                point.replayConfidence = point.confidence;
             }
         }
     }
@@ -303,31 +266,6 @@ export function SessionTimeline({ events, sessionStartTime, replayEq, annotation
     return (
         <div className="eq-chart">
             <h2>Session Timeline</h2>
-
-            <div className="filter-bar chart-filter-bar">
-                <button
-                    className="filter-btn toggle-all"
-                    onClick={() => setEnabledMarkers(new Set(MARKER_EVENT_TYPES))}
-                >
-                    all
-                </button>
-                <button
-                    className="filter-btn toggle-all"
-                    onClick={() => setEnabledMarkers(new Set())}
-                >
-                    none
-                </button>
-                {MARKER_EVENT_TYPES.map(type => (
-                    <button
-                        key={type}
-                        className={`filter-btn ${type} ${enabledMarkers.has(type) ? 'active' : ''}`}
-                        style={enabledMarkers.has(type) ? { borderLeftColor: MARKER_COLORS[type], borderLeftWidth: 3 } : undefined}
-                        onClick={() => toggleMarker(type)}
-                    >
-                        {type}
-                    </button>
-                ))}
-            </div>
 
             <ResponsiveContainer width="100%" height={300}>
                 <LineChart data={data} margin={{ top: 10, right: 30, left: 10, bottom: 10 }}>

@@ -57,6 +57,47 @@ function recordingsApi() {
                     return
                 }
 
+                // POST /api/recordings/:sessionId/rename → rename session folder
+                const renameMatch = req.url.match(/^\/api\/recordings\/([^/]+)\/rename$/)
+                if (renameMatch && method === 'POST') {
+                    const sessionId = decodeURIComponent(renameMatch[1])
+                    const oldDir = path.join(RECORDINGS_DIR, sessionId)
+                    try {
+                        if (!fs.existsSync(oldDir)) {
+                            res.writeHead(404)
+                            res.end(JSON.stringify({ error: 'Session not found' }))
+                            return
+                        }
+                        let body = ''
+                        req.on('data', (chunk: Buffer) => { body += chunk.toString() })
+                        req.on('end', () => {
+                            try {
+                                const { name } = JSON.parse(body)
+                                if (!name || typeof name !== 'string' || /[/\\]/.test(name)) {
+                                    res.writeHead(400)
+                                    res.end(JSON.stringify({ error: 'Invalid name' }))
+                                    return
+                                }
+                                const newDir = path.join(RECORDINGS_DIR, name)
+                                if (fs.existsSync(newDir)) {
+                                    res.writeHead(409)
+                                    res.end(JSON.stringify({ error: 'Name already exists' }))
+                                    return
+                                }
+                                fs.renameSync(oldDir, newDir)
+                                res.end(JSON.stringify({ ok: true, newId: name }))
+                            } catch (err) {
+                                res.writeHead(400)
+                                res.end(JSON.stringify({ error: String(err) }))
+                            }
+                        })
+                    } catch (err) {
+                        res.writeHead(500)
+                        res.end(JSON.stringify({ error: String(err) }))
+                    }
+                    return
+                }
+
                 // DELETE /api/recordings/:sessionId → delete session folder
                 const deleteMatch = req.url.match(/^\/api\/recordings\/([^/]+)$/)
                 if (deleteMatch && method === 'DELETE') {
@@ -93,7 +134,8 @@ function recordingsApi() {
                                 if (fs.existsSync(metaPath)) {
                                     metadata = JSON.parse(fs.readFileSync(metaPath, 'utf-8'))
                                 }
-                                return { id: e.name, metadata }
+                                const hasReplay = fs.existsSync(path.join(RECORDINGS_DIR, e.name, 'replay-eq.jsonl'))
+                                return { id: e.name, metadata, hasReplay }
                             })
                             .sort((a, b) => {
                                 const tA = a.metadata?.startTime ?? 0
