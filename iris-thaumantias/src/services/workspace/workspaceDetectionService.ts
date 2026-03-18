@@ -45,11 +45,13 @@ export function collectExerciseSources(entries: CourseDashboardEntry[]): Exercis
     for (const entry of entries) {
         for (const raw of (entry.course?.exercises ?? entry.exercises ?? [])) {
             const ex = raw as { id?: number; title?: string; shortName?: string;
+                repositoryUri?: string;
                 studentParticipations?: Array<{ repositoryUri?: string; testRun?: boolean }> };
             if (ex.id && ex.title) {
                 sources.push({
                     id: ex.id, title: ex.title, shortName: ex.shortName,
-                    courseId: entry.course?.id, studentParticipations: ex.studentParticipations,
+                    courseId: entry.course?.id, repositoryUri: ex.repositoryUri,
+                    studentParticipations: ex.studentParticipations,
                 });
             }
         }

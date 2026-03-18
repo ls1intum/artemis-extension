@@ -450,11 +450,7 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
                                 course: entry.course as CourseDetailData['course']
                             });
                             this._postMessageSafe({ type: ExtensionMsg.UpdateLoading, message: 'Loading exercise...' });
-                            try {
-                                await this.openExerciseDetails(detected.id);
-                            } catch (err) {
-                                logger.error('Workspace start page: exercise detail load failed', LogCategory.VIEW, err);
-                            }
+                            await this.openExerciseDetails(detected.id);
                             if (this._appStateManager.currentState === 'exercise-detail') {
                                 return;
                             }
