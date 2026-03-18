@@ -1,11 +1,13 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useMemo } from 'react';
 import type { Annotation, LoadedSession, RecordedEvent, SessionMetadata, ReplayEqSnapshot, EventType } from './types';
 import { FileDropZone } from './components/FileDropZone';
 import { RecordingInfo } from './components/RecordingInfo';
 import { SessionList } from './components/SessionList';
 import { SessionInfo } from './components/SessionInfo';
 import { SessionTimeline } from './components/SessionTimeline';
-import { EventStream, ALL_EVENT_TYPES } from './components/EventStream';
+import { EventStream } from './components/EventStream';
+import { TrackingTimeline } from './components/TrackingTimeline';
+import { ALL_EVENT_TYPES } from './constants';
 
 const DEFAULT_ENABLED: EventType[] = [
     'sessionStart', 'sessionEnd',
@@ -64,6 +66,8 @@ function App() {
 
     const loadFromApi = useCallback(async (sessionId: string) => {
         setLoading(true);
+        setViewMode('timeline');
+        setScrollToTimestamp(null);
         try {
             const [eventsRes, metaRes, replayRes, annotRes] = await Promise.all([
                 fetch(`/api/recordings/${sessionId}/events`),
@@ -99,16 +103,68 @@ function App() {
     const handleFileSession = useCallback((loaded: LoadedSession) => {
         activeSessionId.current = null;
         setAnnotations([]);
+        setViewMode('timeline');
+        setScrollToTimestamp(null);
         setSession(loaded);
     }, []);
 
     const handleBack = useCallback(() => {
         activeSessionId.current = null;
         setAnnotations([]);
+        setViewMode('timeline');
+        setScrollToTimestamp(null);
         setSession(null);
     }, []);
 
-    const sessionStartTime = session?.events[0]?.timestamp ?? 0;
+    // Use metadata.startTime if available, otherwise the earliest event timestamp
+    const sessionStartTime = useMemo(() => {
+        if (!session) return 0;
+        if (session.metadata?.startTime != null) return session.metadata.startTime;
+        if (session.events.length === 0) return 0;
+        let min = session.events[0].timestamp;
+        for (let i = 1; i < session.events.length; i++) {
+            if (session.events[i].timestamp < min) min = session.events[i].timestamp;
+        }
+        return min;
+    }, [session]);
+    const [viewMode, setViewMode] = useState<'timeline' | 'list'>('timeline');
+    const [scrollToTimestamp, setScrollToTimestamp] = useState<number | null>(null);
+
+    const handleViewInList = useCallback((timestamp: number) => {
+        setScrollToTimestamp(timestamp);
+        setViewMode('list');
+    }, []);
+
+    const handleScrollComplete = useCallback(() => {
+        setScrollToTimestamp(null);
+    }, []);
+
+    // Shared xDomain: compute from all events + annotations + replayEq
+    // Uses a loop instead of Math.min(...arr) to avoid stack overflow on large sessions
+    const xDomain = useMemo<[number, number] | undefined>(() => {
+        if (!session || session.events.length === 0) return undefined;
+        let min = Infinity;
+        let max = -Infinity;
+        for (const e of session.events) {
+            const offset = e.timestamp - sessionStartTime;
+            if (offset < min) min = offset;
+            if (offset > max) max = offset;
+        }
+        for (const a of annotations) {
+            const offset = a.timestamp - sessionStartTime;
+            if (offset < min) min = offset;
+            if (offset > max) max = offset;
+        }
+        if (session.replayEq) {
+            for (const r of session.replayEq) {
+                const offset = r.timestamp - sessionStartTime;
+                if (offset < min) min = offset;
+                if (offset > max) max = offset;
+            }
+        }
+        const padding = Math.max((max - min) * 0.03, 1000);
+        return [Math.max(0, min - padding), max + padding];
+    }, [session, annotations, sessionStartTime]);
 
     return (
         <div className="app">
@@ -144,7 +200,7 @@ function App() {
                         sessionStartTime={sessionStartTime}
                         replayEq={session.replayEq}
                         annotations={annotations}
-                        enabledTypes={enabledTypes}
+                        xDomain={xDomain}
                     />
                     <div className="filter-bar shared-filter-bar">
                         <button
@@ -169,15 +225,46 @@ function App() {
                             </button>
                         ))}
                     </div>
-                    <EventStream
-                        events={session.events}
-                        sessionStartTime={sessionStartTime}
-                        annotations={annotations}
-                        enabledTypes={enabledTypes}
-                        onAddAnnotation={handleAddAnnotation}
-                        onUpdateAnnotation={handleUpdateAnnotation}
-                        onDeleteAnnotation={handleDeleteAnnotation}
-                    />
+                    <div className="view-toggle">
+                        <button
+                            className={`view-toggle-btn ${viewMode === 'timeline' ? 'active' : ''}`}
+                            onClick={() => setViewMode('timeline')}
+                        >
+                            Timeline
+                        </button>
+                        <button
+                            className={`view-toggle-btn ${viewMode === 'list' ? 'active' : ''}`}
+                            onClick={() => setViewMode('list')}
+                        >
+                            List
+                        </button>
+                    </div>
+                    {viewMode === 'timeline' && xDomain && (
+                        <TrackingTimeline
+                            events={session.events}
+                            sessionStartTime={sessionStartTime}
+                            xDomain={xDomain}
+                            annotations={annotations}
+                            enabledTypes={enabledTypes}
+                            onAddAnnotation={handleAddAnnotation}
+                            onUpdateAnnotation={handleUpdateAnnotation}
+                            onDeleteAnnotation={handleDeleteAnnotation}
+                            onViewInList={handleViewInList}
+                        />
+                    )}
+                    {viewMode === 'list' && (
+                        <EventStream
+                            events={session.events}
+                            sessionStartTime={sessionStartTime}
+                            annotations={annotations}
+                            enabledTypes={enabledTypes}
+                            onAddAnnotation={handleAddAnnotation}
+                            onUpdateAnnotation={handleUpdateAnnotation}
+                            onDeleteAnnotation={handleDeleteAnnotation}
+                            scrollToTimestamp={scrollToTimestamp}
+                            onScrollComplete={handleScrollComplete}
+                        />
+                    )}
                 </div>
             )}
         </div>

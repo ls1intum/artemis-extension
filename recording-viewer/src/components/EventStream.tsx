@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef } from 'react';
+import { useState, useMemo, useRef, useEffect } from 'react';
 import type { Annotation, RecordedEvent, EventType } from '../types.ts';
 import { formatOffset, shortenUri } from '../utils/format.ts';
 
@@ -10,22 +10,9 @@ interface Props {
     onAddAnnotation: (timestamp: number, text: string) => void;
     onUpdateAnnotation: (id: string, text: string) => void;
     onDeleteAnnotation: (id: string) => void;
+    scrollToTimestamp?: number | null;
+    onScrollComplete?: () => void;
 }
-
-export const ALL_EVENT_TYPES = [
-    'sessionStart', 'sessionEnd',
-    'eqSnapshot', 'eqEngineState', 'buildResult',
-    'textChange', 'save',
-    'diagnostics',
-    'fileSwitch',
-    'windowFocus', 'fileSnapshot',
-    'irisChatMessage',
-    'selectionChange', 'visibleRangeChange',
-] as const satisfies readonly EventType[];
-
-// Compile error if a new event type is added but not listed above
-type _MissingEventTypes = Exclude<EventType, (typeof ALL_EVENT_TYPES)[number]>;
-void (true satisfies (_MissingEventTypes extends never ? true : never));
 
 type StreamItem =
     | { kind: 'event'; event: RecordedEvent; index: number }
@@ -303,9 +290,35 @@ function AnnotationRow({ annotation, sessionStartTime, onUpdate, onDelete }: {
     );
 }
 
-export function EventStream({ events, sessionStartTime, annotations, enabledTypes, onAddAnnotation, onUpdateAnnotation, onDeleteAnnotation }: Props) {
+export function EventStream({ events, sessionStartTime, annotations, enabledTypes, onAddAnnotation, onUpdateAnnotation, onDeleteAnnotation, scrollToTimestamp, onScrollComplete }: Props) {
     const [showAnnotations, setShowAnnotations] = useState(true);
     const [annotatingTimestamp, setAnnotatingTimestamp] = useState<number | null>(null);
+    const listRef = useRef<HTMLDivElement>(null);
+
+    // Scroll to timestamp when requested; clear after 2s animation
+    useEffect(() => {
+        if (scrollToTimestamp == null || !listRef.current) return;
+
+        // Find the closest event row by timestamp
+        const rows = listRef.current.querySelectorAll<HTMLElement>('[data-timestamp]');
+        let closest: HTMLElement | null = null;
+        let closestDist = Infinity;
+        rows.forEach(row => {
+            const ts = Number(row.dataset.timestamp);
+            const dist = Math.abs(ts - scrollToTimestamp);
+            if (dist < closestDist) {
+                closestDist = dist;
+                closest = row;
+            }
+        });
+
+        if (closest) {
+            (closest as HTMLElement).scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+
+        const timer = setTimeout(() => onScrollComplete?.(), 2000);
+        return () => clearTimeout(timer);
+    }, [scrollToTimestamp, onScrollComplete]);
 
     const stream = useMemo<StreamItem[]>(() => {
         const items: StreamItem[] = [];
@@ -347,8 +360,8 @@ export function EventStream({ events, sessionStartTime, annotations, enabledType
 
             <FreeAnnotationForm sessionStartTime={sessionStartTime} onAdd={onAddAnnotation} />
 
-            <div className="event-list">
-                {stream.map((item, i) => {
+            <div className="event-list" ref={listRef}>
+                {stream.map((item) => {
                     if (item.kind === 'annotation') {
                         return (
                             <AnnotationRow
@@ -362,9 +375,10 @@ export function EventStream({ events, sessionStartTime, annotations, enabledType
                     }
 
                     const { event, index } = item;
+                    const isHighlighted = scrollToTimestamp != null && Math.abs(event.timestamp - scrollToTimestamp) < 500;
                     return (
-                        <div key={`${event.timestamp}-${event.type}-${index}`}>
-                            <div className={`event-row ${event.type}`}>
+                        <div key={`${event.timestamp}-${event.type}-${index}`} data-timestamp={event.timestamp}>
+                            <div className={`event-row ${event.type}${isHighlighted ? ' flash-highlight' : ''}`}>
                                 <span className="event-time mono">
                                     {formatOffset(event.timestamp - sessionStartTime)}
                                 </span>

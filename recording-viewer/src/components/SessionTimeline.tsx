@@ -1,4 +1,3 @@
-import { useMemo } from 'react';
 import {
     LineChart,
     Line,
@@ -10,7 +9,7 @@ import {
     ReferenceLine,
     Dot,
 } from 'recharts';
-import type { Annotation, RecordedEvent, EventType, EqSnapshotEvent, BuildResultEvent, ReplayEqSnapshot } from '../types.ts';
+import type { Annotation, RecordedEvent, EqSnapshotEvent, ReplayEqSnapshot } from '../types.ts';
 import { formatOffset } from '../utils/format.ts';
 
 interface Props {
@@ -18,7 +17,7 @@ interface Props {
     sessionStartTime: number;
     replayEq?: ReplayEqSnapshot[];
     annotations?: Annotation[];
-    enabledTypes: Set<EventType>;
+    xDomain?: [number, number];
 }
 
 interface ChartPoint {
@@ -34,30 +33,6 @@ interface ChartPoint {
     replayConfidence?: string;
 }
 
-interface Marker {
-    timeOffset: number;
-    type: EventType;
-    color: string;
-    dashArray: string;
-    opacity: number;
-}
-
-const MARKER_COLORS: Record<EventType, string> = {
-    eqSnapshot: '#818cf8',
-    eqEngineState: '#818cf8',
-    buildResult: '#4ade80',
-    textChange: '#94a3b8',
-    save: '#60a5fa',
-    diagnostics: '#fbbf24',
-    fileSwitch: '#c084fc',
-    windowFocus: '#fbbf24',
-    fileSnapshot: '#4ade80',
-    sessionStart: '#a5b4fc',
-    sessionEnd: '#f87171',
-    irisChatMessage: '#f472b6',
-    selectionChange: '#06b6d4',
-    visibleRangeChange: '#14b8a6',
-};
 
 /**
  * Dot for original EQ line — trigger points get a larger, highlighted ring.
@@ -144,39 +119,10 @@ function ChartTooltip({ active, payload }: { active?: boolean; payload?: Array<{
     );
 }
 
-function getMarkerColor(event: RecordedEvent): string {
-    if (event.type === 'buildResult') {
-        const e = event as BuildResultEvent;
-        return e.successful ? '#22c55e' : e.buildFailed ? '#ef4444' : '#f59e0b';
-    }
-    return MARKER_COLORS[event.type];
-}
 
-function getMarkerDash(type: EventType): string {
-    if (type === 'windowFocus') return '2 3';
-    return '4 4';
-}
-
-function getMarkerOpacity(type: EventType): number {
-    if (type === 'textChange' || type === 'selectionChange' || type === 'visibleRangeChange') return 0.3;
-    return 0.6;
-}
-
-export function SessionTimeline({ events, sessionStartTime, replayEq, annotations = [], enabledTypes }: Props) {
+export function SessionTimeline({ events, sessionStartTime, replayEq, annotations = [], xDomain: externalXDomain }: Props) {
     const eqEvents = events.filter((e): e is EqSnapshotEvent => e.type === 'eqSnapshot');
     const hasReplay = replayEq && replayEq.length > 0;
-
-    const markers = useMemo<Marker[]>(() => {
-        return events
-            .filter(e => e.type !== 'eqSnapshot' && enabledTypes.has(e.type))
-            .map(e => ({
-                timeOffset: e.timestamp - sessionStartTime,
-                type: e.type,
-                color: getMarkerColor(e),
-                dashArray: getMarkerDash(e.type),
-                opacity: getMarkerOpacity(e.type),
-            }));
-    }, [events, enabledTypes, sessionStartTime]);
 
     if (eqEvents.length === 0 && !hasReplay) {
         return (
@@ -252,14 +198,18 @@ export function SessionTimeline({ events, sessionStartTime, replayEq, annotation
 
     const data = [...mergedMap.values()].sort((a, b) => a.timeOffset - b.timeOffset);
 
-    // Expand X domain to cover all events + annotations so markers outside EQ range are visible
-    const allOffsets = events.map(e => e.timestamp - sessionStartTime);
-    const annotOffsets = annotations.map(a => a.timestamp - sessionStartTime);
-    const dataOffsets = data.map(d => d.timeOffset);
-    const xMin = Math.min(...allOffsets, ...dataOffsets, ...annotOffsets);
-    const xMax = Math.max(...allOffsets, ...dataOffsets, ...annotOffsets);
-    const xPadding = Math.max((xMax - xMin) * 0.03, 1000);
-    const xDomain: [number, number] = [Math.max(0, xMin - xPadding), xMax + xPadding];
+    // Use shared xDomain when provided, otherwise compute from EQ data + annotations
+    let xDomain: [number, number];
+    if (externalXDomain) {
+        xDomain = externalXDomain;
+    } else {
+        const dataOffsets = data.map(d => d.timeOffset);
+        const annotOffsets = annotations.map(a => a.timestamp - sessionStartTime);
+        const xMin = Math.min(...dataOffsets, ...annotOffsets);
+        const xMax = Math.max(...dataOffsets, ...annotOffsets);
+        const xPadding = Math.max((xMax - xMin) * 0.03, 1000);
+        xDomain = [Math.max(0, xMin - xPadding), xMax + xPadding];
+    }
 
     const hasTriggerPoints = eqEvents.some(e => e.source === 'trigger');
 
@@ -287,17 +237,6 @@ export function SessionTimeline({ events, sessionStartTime, replayEq, annotation
                         label={{ value: 'EQ', angle: -90, position: 'insideLeft', fill: '#888' }}
                     />
                     <Tooltip content={<ChartTooltip />} />
-
-                    {markers.map((m, i) => (
-                        <ReferenceLine
-                            key={`${m.type}-${i}`}
-                            x={m.timeOffset}
-                            stroke={m.color}
-                            strokeDasharray={m.dashArray}
-                            strokeWidth={1}
-                            strokeOpacity={m.opacity}
-                        />
-                    ))}
 
                     {annotations.map(a => (
                         <ReferenceLine

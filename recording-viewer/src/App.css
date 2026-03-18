@@ -548,6 +548,8 @@
 .event-badge.sessionStart { background: rgba(99, 102, 241, 0.15); color: #a5b4fc; }
 .event-badge.sessionEnd { background: rgba(239, 68, 68, 0.15); color: #f87171; }
 .event-badge.irisChatMessage { background: rgba(236, 72, 153, 0.15); color: #f472b6; }
+.event-badge.selectionChange { background: rgba(6, 182, 212, 0.15); color: #06b6d4; }
+.event-badge.visibleRangeChange { background: rgba(20, 184, 166, 0.15); color: #14b8a6; }
 
 /* ── Event details ───────────────────────────────────────────────────── */
 
@@ -928,4 +930,217 @@
     flex: none;
     text-align: center;
     font-family: var(--mono);
+}
+
+/* ── View toggle ────────────────────────────────────────────────────── */
+
+.view-toggle {
+    display: flex;
+    gap: 2px;
+    background: var(--bg-elevated);
+    border-radius: 6px;
+    padding: 2px;
+    width: fit-content;
+}
+
+.view-toggle-btn {
+    font-family: var(--sans);
+    font-size: 12px;
+    font-weight: 500;
+    padding: 5px 14px;
+    border-radius: 4px;
+    border: none;
+    background: transparent;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+}
+.view-toggle-btn.active {
+    background: var(--bg-surface);
+    color: var(--text);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+}
+.view-toggle-btn:hover:not(.active) {
+    color: var(--text);
+}
+
+/* ── Tracking timeline (swim lanes) ────────────────────────────────── */
+
+.tracking-timeline {
+    padding: 0;
+}
+
+.tracking-timeline.empty {
+    text-align: center;
+    padding: 24px;
+}
+
+.tracking-timeline-grid {
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    overflow: visible;
+}
+
+.lane-labels {
+    display: flex;
+    flex-direction: column;
+    border-right: 1px solid var(--border);
+    background: var(--bg-elevated);
+}
+
+.lane-label {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    padding: 0 10px;
+}
+
+.lane-label.axis-label {
+    border-top: 1px solid var(--border);
+}
+
+.lane-svg-container {
+    overflow: visible;
+    position: relative;
+}
+
+.event-dot {
+    transition: r 0.1s;
+}
+.event-dot:hover {
+    filter: brightness(1.3);
+}
+.event-dot-dense {
+    filter: brightness(1.1);
+}
+
+/* ── Timeline tooltip ───────────────────────────────────────────────── */
+
+.timeline-tooltip {
+    position: absolute;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 8px 12px;
+    font-size: 12px;
+    pointer-events: auto;
+    z-index: 10;
+    min-width: 100px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.tooltip-type {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 4px;
+}
+
+.tooltip-count {
+    font-family: var(--mono);
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text);
+}
+
+.tooltip-link {
+    display: block;
+    margin-top: 6px;
+    font-family: var(--sans);
+    font-size: 11px;
+    color: var(--accent-light);
+    background: none;
+    border: none;
+    padding: 0;
+    cursor: pointer;
+    text-decoration: underline;
+    text-decoration-style: dotted;
+}
+.tooltip-link:hover {
+    color: var(--text);
+}
+
+/* ── Annotation popover (swim lane) ─────────────────────────────────── */
+
+.annotation-popover {
+    position: absolute;
+    background: var(--bg-elevated);
+    border: 1px solid rgba(56, 189, 248, 0.3);
+    border-radius: 6px;
+    padding: 8px;
+    z-index: 20;
+    min-width: 200px;
+    max-width: 320px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.annotation-popover-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+}
+
+.annotation-popover-time {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--text-muted);
+    flex-shrink: 0;
+}
+
+.annotation-popover-text {
+    color: #38bdf8;
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.annotation-popover-edit {
+    display: flex;
+    gap: 4px;
+    flex: 1;
+}
+
+.annotation-popover-close {
+    font-family: var(--sans);
+    font-size: 10px;
+    padding: 2px 8px;
+    border-radius: 3px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--text-muted);
+    cursor: pointer;
+    align-self: flex-end;
+}
+.annotation-popover-close:hover {
+    color: var(--text);
+    border-color: var(--text-muted);
+}
+
+/* ── Tracking annotate form ─────────────────────────────────────────── */
+
+.tracking-annotate-form {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 8px;
+    padding: 8px;
+    border-radius: 6px;
+    background: rgba(56, 189, 248, 0.04);
+    border: 1px solid rgba(56, 189, 248, 0.15);
+}
+
+/* ── Flash highlight animation ──────────────────────────────────────── */
+
+@keyframes flash-highlight {
+    0%   { background: rgba(56, 189, 248, 0.25); }
+    100% { background: transparent; }
+}
+
+.flash-highlight {
+    animation: flash-highlight 2s ease-out;
 }
