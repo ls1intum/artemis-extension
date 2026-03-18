@@ -24,12 +24,12 @@ export async function executeReplayCommand(globalStorageUri: vscode.Uri): Promis
     const sessions: { id: string; metadata: SessionMetadata | null }[] = [];
 
     for (const entry of entries) {
-        if (!entry.isDirectory()) continue;
+        if (!entry.isDirectory()) { continue; }
         const metaPath = path.join(recordingsDir, entry.name, 'metadata.json');
         let metadata: SessionMetadata | null = null;
         if (fs.existsSync(metaPath)) {
             try {
-                metadata = JSON.parse(fs.readFileSync(metaPath, 'utf-8'));
+                metadata = JSON.parse(fs.readFileSync(metaPath, 'utf-8')) as SessionMetadata;
             } catch {
                 // Skip invalid metadata
             }
@@ -64,7 +64,7 @@ export async function executeReplayCommand(globalStorageUri: vscode.Uri): Promis
         placeHolder: 'Select a session to replay',
     });
 
-    if (!picked) return;
+    if (!picked) { return; }
 
     const sessionDir = path.join(recordingsDir, picked.sessionId);
     const eventsPath = path.join(sessionDir, 'events.jsonl');
@@ -81,7 +81,7 @@ export async function executeReplayCommand(globalStorageUri: vscode.Uri): Promis
     const events: RecordedEvent[] = [];
     for (const line of lines) {
         try {
-            events.push(JSON.parse(line));
+            events.push(JSON.parse(line) as RecordedEvent);
         } catch {
             // Skip malformed JSONL lines
         }

@@ -92,7 +92,7 @@ export function replaySession(
 
     function pushIfAccepted(snapshot: ErrorSnapshot, source: 'save' | 'build', timestamp: number): void {
         const accepted = engine.addSnapshot(snapshot);
-        if (!accepted) return;
+        if (!accepted) { return; }
         const { eq, confidence } = engine.getCurrentEQ();
         result.push({ timestamp, eq, confidence, source, errorCount: snapshot.errorCount, errorFamilies: [...snapshot.errorFamilies] });
     }
