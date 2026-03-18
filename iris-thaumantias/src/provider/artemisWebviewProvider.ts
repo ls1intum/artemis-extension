@@ -384,6 +384,7 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
         }).catch(() => { /* don't block dashboard */ }).finally(() => {
             this._appStateManager.archiveCheckComplete = true;
             this.sendInitData();
+            void this._suggestWorkspaceStartPage();
         });
     }
 
@@ -688,6 +689,43 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
     private _getServerUrl(): string {
         const config = vscode.workspace.getConfiguration(VSCODE_CONFIG.ARTEMIS_SECTION);
         return config.get<string>(VSCODE_CONFIG.SERVER_URL_KEY, CONFIG.ARTEMIS_SERVER_URL_DEFAULT);
+    }
+
+    /**
+     * Shows a one-time notification suggesting workspace-aware start page
+     * when a workspace exercise is detected on the dashboard.
+     */
+    private async _suggestWorkspaceStartPage(): Promise<void> {
+        const config = vscode.workspace.getConfiguration(VSCODE_CONFIG.ARTEMIS_SECTION);
+
+        // Only suggest if the user is on the default dashboard start page
+        const startPage = config.get<string>(VSCODE_CONFIG.START_PAGE_KEY, 'dashboard');
+        if (startPage !== 'dashboard') { return; }
+
+        // Check the "don't show again" flag
+        if (!config.get<boolean>(VSCODE_CONFIG.SHOW_START_PAGE_SUGGESTION_KEY, true)) { return; }
+
+        // Check if there's a workspace exercise match in the loaded courses
+        const repoUrl = await getWorkspaceRepositoryUrl();
+        if (!repoUrl) { return; }
+
+        const courses = this._appStateManager.coursesData?.courses || [];
+        if (courses.length === 0) { return; }
+
+        const detected = findExerciseByRepositoryUrl(repoUrl, collectExerciseSources(courses));
+        if (!detected) { return; }
+
+        const result = await vscode.window.showInformationMessage(
+            `Detected "${detected.title}" in your workspace. You can configure Artemis to open it automatically on login.`,
+            'Open Settings',
+            "Don't show again"
+        );
+
+        if (result === 'Open Settings') {
+            await vscode.commands.executeCommand('workbench.action.openSettings', 'artemis.startPage');
+        } else if (result === "Don't show again") {
+            await config.update(VSCODE_CONFIG.SHOW_START_PAGE_SUGGESTION_KEY, false, vscode.ConfigurationTarget.Global);
+        }
     }
 
     private _handleBuildResult(result: ResultDTO): void {

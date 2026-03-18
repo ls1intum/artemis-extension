@@ -179,6 +179,11 @@
           "default": "dashboard",
           "description": "Choose which page to show after logging in"
         },
+        "artemis.showStartPageSuggestion": {
+          "type": "boolean",
+          "default": true,
+          "description": "Suggest configuring the start page when an exercise is detected in the current workspace"
+        },
         "artemis.dataCollectionConsent": {
           "type": "string",
           "enum": [

@@ -36,6 +36,7 @@ export const VSCODE_CONFIG = {
     DEVELOPER_MODE_KEY: 'developerMode',
     SHOW_WEBSOCKET_STATUS_BAR_KEY: 'showWebSocketStatusBar',
     START_PAGE_KEY: 'startPage',
+    SHOW_START_PAGE_SUGGESTION_KEY: 'showStartPageSuggestion',
     DATA_COLLECTION_CONSENT_KEY: 'dataCollectionConsent',
     STRUGGLE_DETECTION: {
         SECTION: 'artemis.struggleDetection',
