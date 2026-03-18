@@ -169,10 +169,12 @@
         },
         "artemis.startPage": {
           "type": "string",
-          "enum": ["dashboard", "course-list"],
+          "enum": ["dashboard", "course-list", "workspace-course", "workspace-exercise"],
           "enumDescriptions": [
             "Show the dashboard with recent courses and exercises (default)",
-            "Show the full list of all your courses"
+            "Show the full list of all your courses",
+            "Show the course page for the exercise open in your workspace",
+            "Show the details of the exercise open in your workspace"
           ],
           "default": "dashboard",
           "description": "Choose which page to show after logging in"

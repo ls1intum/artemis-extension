@@ -19,7 +19,7 @@ import { ViewActionService } from '../views/app/viewActionService';
 import { ViewRouter } from '../views/app/viewRouter';
 import { ExerciseRegistry } from '../services';
 import { WebSocketMessageHandler, ParsedBuildError } from '../types';
-import { findWorkspaceCourseInArchive } from '../services/workspace/workspaceDetectionService';
+import { findWorkspaceCourseInArchive, getWorkspaceRepositoryUrl, findExerciseByRepositoryUrl, collectExerciseSources, type DetectedExercise } from '../services/workspace/workspaceDetectionService';
 import { BaseWebviewProvider } from './baseWebviewProvider';
 import type { BuildErrorCodeLensProvider } from './buildErrorCodeLensProvider';
 import type { TelemetryManager } from '../services/telemetry/telemetryManager';
@@ -401,6 +401,78 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
                 return;
             }
             // Course load failed — fall through to full dashboard flow (implicit retry)
+        }
+
+        if (value === 'workspace-exercise' || value === 'workspace-course') {
+            // Fetch courses and workspace git remote in parallel.
+            // We do NOT call _appStateManager.showDashboard() here because it sets
+            // state to 'dashboard' immediately — if the webview ready signal fires
+            // during the fetch, sendInitData() would flash the dashboard.
+            // Keeping state as 'login' keeps the loading screen visible.
+            this._postMessageSafe({ type: ExtensionMsg.UpdateLoading, message: 'Detecting workspace exercise...' });
+            const [coursesData, repoUrl] = await Promise.all([
+                this._artemisApi.getCoursesForDashboard().catch(() => undefined),
+                getWorkspaceRepositoryUrl(),
+            ]);
+
+            const activeCourses = coursesData?.courses || [];
+            // Collect all course entries (active + potentially archived) for course lookup
+            const allCourses = [...activeCourses];
+            let detected: DetectedExercise | null = null;
+
+            // 1) Search active courses
+            if (activeCourses.length > 0 && repoUrl) {
+                detected = findExerciseByRepositoryUrl(repoUrl, collectExerciseSources(activeCourses));
+            }
+
+            // 2) Fallback: search archived courses
+            if (!detected && repoUrl) {
+                this._postMessageSafe({ type: ExtensionMsg.UpdateLoading, message: 'Checking archived courses...' });
+                try {
+                    const archivedEntry = await findWorkspaceCourseInArchive(this._artemisApi, activeCourses);
+                    if (archivedEntry) {
+                        detected = findExerciseByRepositoryUrl(repoUrl, collectExerciseSources([archivedEntry]));
+                        if (detected) { allCourses.push(archivedEntry); }
+                    }
+                } catch { /* archived search failed — fall through */ }
+            }
+
+            if (detected) {
+                this._appStateManager.seedAuthenticatedSession(userInfo, coursesData);
+
+                if (value === 'workspace-exercise') {
+                    // Require courseId to seed parent course context for "Back to Course" navigation.
+                    // Without it, backToCourseDetails() would crash (no _currentCourseData).
+                    if (detected.courseId) {
+                        const entry = allCourses.find(e => e.course?.id === detected!.courseId);
+                        if (entry?.course) {
+                            this._appStateManager.showCourseDetail({
+                                course: entry.course as CourseDetailData['course']
+                            });
+                            this._postMessageSafe({ type: ExtensionMsg.UpdateLoading, message: 'Loading exercise...' });
+                            try {
+                                await this.openExerciseDetails(detected.id);
+                            } catch (err) {
+                                logger.error('Workspace start page: exercise detail load failed', LogCategory.VIEW, err);
+                            }
+                            if (this._appStateManager.currentState === 'exercise-detail') {
+                                return;
+                            }
+                        }
+                    }
+                } else {
+                    // workspace-course: show course detail directly
+                    if (detected.courseId) {
+                        const entry = allCourses.find(e => e.course?.id === detected!.courseId);
+                        if (entry?.course) {
+                            this.showCourseDetail({
+                                course: entry.course as CourseDetailData['course']
+                            });
+                            return;
+                        }
+                    }
+                }
+            }
         }
 
         // Default: full dashboard with archive check

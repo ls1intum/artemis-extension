@@ -37,6 +37,27 @@ export interface ExerciseSource {
 }
 
 /**
+ * Extracts ExerciseSource objects from course dashboard entries.
+ * Handles both nested (entry.course.exercises) and flat (entry.exercises) shapes.
+ */
+export function collectExerciseSources(entries: CourseDashboardEntry[]): ExerciseSource[] {
+    const sources: ExerciseSource[] = [];
+    for (const entry of entries) {
+        for (const raw of (entry.course?.exercises ?? entry.exercises ?? [])) {
+            const ex = raw as { id?: number; title?: string; shortName?: string;
+                studentParticipations?: Array<{ repositoryUri?: string; testRun?: boolean }> };
+            if (ex.id && ex.title) {
+                sources.push({
+                    id: ex.id, title: ex.title, shortName: ex.shortName,
+                    courseId: entry.course?.id, studentParticipations: ex.studentParticipations,
+                });
+            }
+        }
+    }
+    return sources;
+}
+
+/**
  * Normalizes a git repository URL for comparison.
  * Handles various URL formats:
  * - SSH: git@github.com:user/repo.git

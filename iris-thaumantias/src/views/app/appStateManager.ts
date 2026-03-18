@@ -100,6 +100,16 @@ export class AppStateManager {
         this._archiveCheckComplete = value;
     }
 
+    /**
+     * Seeds authenticated session state without triggering a 'dashboard' state change.
+     * Used by the workspace start-page flow to keep the loading screen visible
+     * while detecting the workspace exercise.
+     */
+    public seedAuthenticatedSession(userInfo: UserInfo, coursesData?: CourseDashboardResponse): void {
+        this._userInfo = userInfo;
+        if (coursesData) { this._coursesData = coursesData; }
+    }
+
     // State transitions
     public async showDashboard(userInfo: UserInfo): Promise<void> {
         this._userInfo = userInfo;
