@@ -100,7 +100,7 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
             () => this._authContextUpdater,
             (msg) => this._postMessageSafe(msg),
             {
-                showDashboard: (userInfo) => this.showDashboard(userInfo),
+                onAuthenticated: (userInfo) => this.navigateToStartPage(userInfo),
                 hideLoadingAndSendServerUrl: () => this.hideLoadingAndSendServerUrl(),
                 showLogin: () => this.showLogin(),
             },
@@ -385,6 +385,26 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
             this._appStateManager.archiveCheckComplete = true;
             this.sendInitData();
         });
+    }
+
+    public async navigateToStartPage(userInfo: UserInfo): Promise<void> {
+        const config = vscode.workspace.getConfiguration(VSCODE_CONFIG.ARTEMIS_SECTION);
+        const value = config.get<string>(VSCODE_CONFIG.START_PAGE_KEY);
+
+        if (value === 'course-list') {
+            // Load user data + courses via state manager (no render, no archive check yet)
+            await this._appStateManager.showDashboard(userInfo);
+            if (this._appStateManager.coursesData) {
+                // Data loaded: switch to course-list and render
+                await this._appStateManager.showCourseList({ skipFetch: true });
+                if (this._view) { this.render(); }
+                return;
+            }
+            // Course load failed — fall through to full dashboard flow (implicit retry)
+        }
+
+        // Default: full dashboard with archive check
+        await this.showDashboard(userInfo);
     }
 
     public showLogin(): void {

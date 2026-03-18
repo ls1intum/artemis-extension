@@ -35,6 +35,7 @@ export const VSCODE_CONFIG = {
     SHOW_SET_DEFAULT_CLONE_PATH_PROMPT_KEY: 'showSetDefaultClonePathPrompt',
     DEVELOPER_MODE_KEY: 'developerMode',
     SHOW_WEBSOCKET_STATUS_BAR_KEY: 'showWebSocketStatusBar',
+    START_PAGE_KEY: 'startPage',
     DATA_COLLECTION_CONSENT_KEY: 'dataCollectionConsent',
     STRUGGLE_DETECTION: {
         SECTION: 'artemis.struggleDetection',

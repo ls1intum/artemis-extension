@@ -36,7 +36,7 @@ export class AuthCommandModule {
 
             vscode.window.showInformationMessage(`Successfully logged in to Artemis as ${user.login || username}`);
 
-            await this.context.actionHandler.showDashboard({
+            await this.context.actionHandler.navigateToStartPage({
                 username: user.login || username,
                 serverUrl: serverUrl,
                 user: user

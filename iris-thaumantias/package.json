@@ -167,6 +167,16 @@
           "default": true,
           "description": "Enable struggle detection to receive helpful hints when you might be stuck on a problem"
         },
+        "artemis.startPage": {
+          "type": "string",
+          "enum": ["dashboard", "course-list"],
+          "enumDescriptions": [
+            "Show the dashboard with recent courses and exercises (default)",
+            "Show the full list of all your courses"
+          ],
+          "default": "dashboard",
+          "description": "Choose which page to show after logging in"
+        },
         "artemis.dataCollectionConsent": {
           "type": "string",
           "enum": [

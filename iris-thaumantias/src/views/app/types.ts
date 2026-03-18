@@ -7,6 +7,7 @@ import type { ExerciseDetail, ExerciseDetailsResponse, CourseDetailData } from '
 export interface WebViewActionHandler {
     showCourseList(): Promise<void>;
     showDashboard(userInfo: UserInfo): Promise<void>;
+    navigateToStartPage(userInfo: UserInfo): Promise<void>;
     showAiConfig(): void;
     showServiceStatus(): void;
     showStruggleDetection(): void;

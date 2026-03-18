@@ -14,7 +14,7 @@ export class AuthFlowHandler {
         private readonly _getAuthContextUpdater: () => ((isAuthenticated: boolean) => Promise<void>) | undefined,
         private readonly _postMessage: (msg: ExtensionToWebviewMessage) => void,
         private readonly _callbacks: {
-            showDashboard: (userInfo: UserInfo) => Promise<void>;
+            onAuthenticated: (userInfo: UserInfo) => Promise<void>;
             hideLoadingAndSendServerUrl: () => void;
             showLogin: () => void;
         },
@@ -56,7 +56,7 @@ export class AuthFlowHandler {
                     const user = await this._artemisApi.getCurrentUser();
                     const serverUrl = this._getServerUrl();
                     logger.info(`Auto-authenticated user: ${user.login}`, LogCategory.AUTH);
-                    await this._callbacks.showDashboard({
+                    await this._callbacks.onAuthenticated({
                         username: user.login || 'User',
                         serverUrl: serverUrl,
                         user: user

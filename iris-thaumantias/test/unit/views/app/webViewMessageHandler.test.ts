@@ -46,6 +46,7 @@ suite('WebViewMessageHandler - handleMessageWithSender', () => {
         openCourseListFullscreen: sinon.SinonStub;
         sendInitData: sinon.SinonStub;
         navigateBack: sinon.SinonStub;
+        navigateToStartPage: sinon.SinonStub;
     };
 
     setup(() => {
@@ -84,6 +85,7 @@ suite('WebViewMessageHandler - handleMessageWithSender', () => {
             openCourseListFullscreen: sandbox.stub().resolves(),
             sendInitData: sandbox.stub(),
             navigateBack: sandbox.stub().resolves(),
+            navigateToStartPage: sandbox.stub().resolves(),
         };
 
         handler = new WebViewMessageHandler(

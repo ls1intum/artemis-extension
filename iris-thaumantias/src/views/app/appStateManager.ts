@@ -105,6 +105,10 @@ export class AppStateManager {
         this._userInfo = userInfo;
         this._currentState = 'dashboard';
 
+        // Clear stale courses before fetching so callers can trust
+        // that non-undefined coursesData reflects a successful load
+        this._coursesData = undefined;
+
         // Always fetch fresh courses data for the dashboard
         try {
             this._coursesData = await this._artemisApi.getCoursesForDashboard();
@@ -127,11 +131,11 @@ export class AppStateManager {
         this._recommendedExtensions = undefined;
     }
 
-    public async showCourseList(): Promise<void> {
+    public async showCourseList(options?: { skipFetch?: boolean }): Promise<void> {
         try {
-            // Always fetch fresh courses data
-            this._coursesData = await this._artemisApi.getCoursesForDashboard();
-
+            if (!options?.skipFetch) {
+                this._coursesData = await this._artemisApi.getCoursesForDashboard();
+            }
             this._currentState = 'course-list';
         } catch (error) {
             logger.error('Error loading courses:', LogCategory.VIEW, error);
