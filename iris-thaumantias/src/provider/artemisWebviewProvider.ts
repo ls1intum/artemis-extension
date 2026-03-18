@@ -716,13 +716,13 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
         if (!detected) { return; }
 
         const result = await vscode.window.showInformationMessage(
-            `Detected "${detected.title}" in your workspace. You can configure Artemis to open it automatically on login.`,
-            'Open Settings',
+            `Detected "${detected.title}" in your workspace. You can configure Artemis to open it automatically on login. You can change this later in Settings.`,
+            'Always open exercise',
             "Don't show again"
         );
 
-        if (result === 'Open Settings') {
-            await vscode.commands.executeCommand('workbench.action.openSettings', 'artemis.startPage');
+        if (result === 'Always open exercise') {
+            await config.update(VSCODE_CONFIG.START_PAGE_KEY, 'workspace-exercise', vscode.ConfigurationTarget.Global);
         } else if (result === "Don't show again") {
             await config.update(VSCODE_CONFIG.SHOW_START_PAGE_SUGGESTION_KEY, false, vscode.ConfigurationTarget.Global);
         }

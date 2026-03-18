@@ -6,6 +6,8 @@ All notable changes to the Artemis VS Code extension will be documented in this 
 ### Added
 
 - **Session Analyzer**: Session recording system that captures coding activity (text changes, cursor/scroll movements, build results) with continuous EQ score tracking, replay engine, and a standalone viewer app for analyzing recorded sessions.
+- **Configurable Start Page**: New `artemis.startPage` setting to choose which page opens after login: Dashboard (default), Course List, or automatically open the course/exercise detected in the current workspace.
+- **Workspace Exercise Detection Prompt**: When an exercise is detected in the workspace, a notification offers to set it as the default start page with a single click. The setting can be changed later in VS Code Settings.
 
 ### Fixed
 
