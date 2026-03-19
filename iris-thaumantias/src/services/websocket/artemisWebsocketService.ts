@@ -903,8 +903,6 @@ export class ArtemisWebsocketService {
         const protocol = url.protocol === 'https:' ? 'wss:' : 'ws:';
 
         // Artemis uses /websocket/websocket to bypass SockJS and use STOMP directly
-        // Source: webapp/app/shared/service/websocket.service.ts line 166
-        // const url = `//${window.location.host}/websocket/websocket`;
         const wsEndpoint = `${protocol}//${url.host}/websocket/websocket`;
 
         this._log(`Using direct STOMP endpoint (no SockJS): ${wsEndpoint}`);

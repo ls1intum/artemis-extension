@@ -707,9 +707,6 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
             const isHelpful = feedback === 'positive';
             await this._artemisApiService.markMessageHelpful(sessionId, messageId, isHelpful);
             logger.info(`Feedback submitted: ${feedback} for message ${messageId} in session ${sessionId}`, LogCategory.IRIS_CHAT);
-
-            // Optional: Show user confirmation
-            // vscode.window.showInformationMessage('Thanks for your feedback!');
         } catch (error) {
             logger.error('Failed to send feedback to server', LogCategory.IRIS_CHAT, error);
             vscode.window.showErrorMessage('Failed to submit feedback. Please try again.');
