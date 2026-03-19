@@ -1297,6 +1297,71 @@
     border-color: var(--accent);
 }
 
+.video-shortcuts-wrapper {
+    position: relative;
+    flex-shrink: 0;
+}
+
+.video-shortcuts-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--text-muted);
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 700;
+    font-family: var(--sans);
+    transition: color 0.1s, border-color 0.15s;
+}
+.video-shortcuts-btn:hover {
+    color: var(--text);
+    border-color: var(--accent);
+}
+
+.video-shortcuts-popup {
+    position: absolute;
+    bottom: calc(100% + 8px);
+    right: 0;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 8px 12px;
+    font-size: 12px;
+    color: var(--text);
+    white-space: nowrap;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    z-index: 20;
+    display: none;
+    flex-direction: column;
+    gap: 4px;
+    pointer-events: none;
+}
+
+.video-shortcuts-wrapper:hover .video-shortcuts-popup {
+    display: flex;
+}
+
+.shortcut-row {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.shortcut-row kbd {
+    font-family: var(--mono);
+    font-size: 10px;
+    padding: 1px 5px;
+    border-radius: 3px;
+    border: 1px solid var(--border);
+    background: var(--bg-surface);
+    color: var(--text-muted);
+}
+
 .video-config-row {
     display: flex;
     align-items: center;

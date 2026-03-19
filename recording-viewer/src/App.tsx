@@ -351,6 +351,7 @@ function App() {
                             onViewInList={handleViewInList}
                             videoTimeRef={videoTimeRef}
                             onSeekVideo={videoSyncConfig ? handleVideoSeek : undefined}
+                            videoTimeAtSessionStartSeconds={videoSyncConfig?.videoTimeAtSessionStartSeconds}
                         />
                     )}
                     {viewMode === 'list' && (

@@ -250,6 +250,14 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPl
                         <option key={s} value={s}>{s === 1 ? '1x' : `${s}x`}</option>
                     ))}
                 </select>
+                <div className="video-shortcuts-wrapper">
+                    <span className="video-shortcuts-btn">?</span>
+                    <div className="video-shortcuts-popup">
+                        <div className="shortcut-row"><kbd>Space</kbd> Play / Pause</div>
+                        <div className="shortcut-row"><kbd>&larr;</kbd> <kbd>&rarr;</kbd> Skip 5s</div>
+                        <div className="shortcut-row"><kbd>Shift</kbd>+<kbd>&larr;</kbd> <kbd>&rarr;</kbd> Skip 0.5s</div>
+                    </div>
+                </div>
             </div>
         </div>
     );

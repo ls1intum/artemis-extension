@@ -15,6 +15,7 @@ interface Props {
     onViewInList?: (timestamp: number) => void;
     videoTimeRef?: React.RefObject<number>;
     onSeekVideo?: (timestamp: number) => void;
+    videoTimeAtSessionStartSeconds?: number;
 }
 
 interface Bin {
@@ -115,6 +116,7 @@ export function TrackingTimeline({
     onViewInList,
     videoTimeRef,
     onSeekVideo,
+    videoTimeAtSessionStartSeconds,
 }: Props) {
     const svgRef = useRef<SVGSVGElement>(null);
     const containerRef = useRef<HTMLDivElement>(null);
@@ -415,6 +417,11 @@ export function TrackingTimeline({
                             </div>
                             <div className="tooltip-time">
                                 {formatOffset(tooltip.bin.firstTimestamp - sessionStartTime)}
+                                {videoTimeAtSessionStartSeconds != null && (
+                                    <span className="tooltip-video-time">
+                                        {' '}| Video: {formatOffset(((tooltip.bin.firstTimestamp - sessionStartTime) / 1000 + videoTimeAtSessionStartSeconds) * 1000)}
+                                    </span>
+                                )}
                             </div>
                             {onViewInList && (
                                 <button
