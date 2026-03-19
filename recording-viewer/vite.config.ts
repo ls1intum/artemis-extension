@@ -150,7 +150,8 @@ function recordingsApi() {
                                     metadata = JSON.parse(fs.readFileSync(metaPath, 'utf-8'))
                                 }
                                 const hasReplay = fs.existsSync(path.join(RECORDINGS_DIR, e.name, 'replay-eq.jsonl'))
-                                return { id: e.name, metadata, hasReplay }
+                                const hasVideo = fs.existsSync(path.join(RECORDINGS_DIR, e.name, 'video.mp4')) || fs.existsSync(path.join(RECORDINGS_DIR, e.name, 'video.webm'))
+                                return { id: e.name, metadata, hasReplay, hasVideo }
                             })
                             .sort((a, b) => {
                                 const tA = a.metadata?.startTime ?? 0
