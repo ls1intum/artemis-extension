@@ -292,9 +292,7 @@ export class NavigationCommandModule {
         try {
             const userInfo = this.context.appStateManager.userInfo;
             if (userInfo) {
-                await this.context.appStateManager.showDashboard(userInfo);
-                // Send updated data to React without re-rendering
-                this.context.actionHandler.sendInitData();
+                await this.context.actionHandler.showDashboard(userInfo);
             }
         } catch (error: unknown) {
             logger.viewError('Reload dashboard error:', error);

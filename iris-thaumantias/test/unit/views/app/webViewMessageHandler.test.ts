@@ -280,7 +280,7 @@ suite('WebViewMessageHandler - handleMessageWithSender', () => {
             const sender = sandbox.stub();
             // Set userInfo so the handler enters the if-branch
             (mockStateManager as any)._userInfo = { login: 'testuser', serverUrl: 'https://example.com' };
-            sandbox.stub(mockStateManager, 'showDashboard').rejects(new Error('API failure'));
+            actionHandler.showDashboard = sandbox.stub().rejects(new Error('API failure'));
 
             await handler.handleMessageWithSender(
                 { type: 'command', command: 'reloadDashboard' } as any,
