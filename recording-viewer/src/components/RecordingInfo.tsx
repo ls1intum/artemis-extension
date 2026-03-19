@@ -32,10 +32,11 @@ const categories = [
         ],
     },
     {
-        title: 'EQ Tracking',
+        title: 'Struggle Detection',
         items: [
             { badge: 'eqSnapshot', label: 'EqSnapshot', desc: 'EQ score (0\u20131) + confidence (sufficient/insufficient)' },
-            { badge: 'eqEngineState', label: 'EqEngineState', desc: 'EQ engine state transitions (running/paused/stopped)' },
+            { badge: 'eqEngineState', label: 'EqEngineState', desc: 'Full EQ engine state (snapshots, pairs, confidence)' },
+            { badge: 'intervention', label: 'Intervention', desc: 'Shown/accepted/dismissed interventions with level and EQ context' },
         ],
     },
     {

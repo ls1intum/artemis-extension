@@ -224,6 +224,29 @@ export class SessionRecorder implements vscode.Disposable, WebSocketMessageHandl
         });
     }
 
+    recordIntervention(
+        action: 'shown' | 'accepted' | 'dismissed',
+        level: 'subtle' | 'notification' | 'proactive',
+        shouldIntervene: boolean,
+        eq: number,
+        confidence: 'sufficient' | 'insufficient',
+        triggerType?: string,
+    ): void {
+        if (!this._isRecording) {
+            return;
+        }
+        this._record({
+            type: 'intervention',
+            timestamp: Date.now(),
+            action,
+            level,
+            shouldIntervene,
+            eq,
+            confidence,
+            triggerType: triggerType as 'execution-error' | 'multiline-paste' | 'idle' | 'selection-maintained' | undefined,
+        });
+    }
+
     recordEqEngineState(
         snapshots: SerializedErrorSnapshot[],
         currentEQ: number,

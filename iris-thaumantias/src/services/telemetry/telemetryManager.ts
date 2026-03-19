@@ -54,8 +54,6 @@ export class TelemetryManager implements vscode.Disposable, WebSocketMessageHand
     private _isEnabled: boolean = true;
     private _activeExerciseId: number | undefined;
     private _lastTriggerType: TriggerType | undefined;
-    private _lastInterventionTriggerType: TriggerType | undefined;
-
     // Debug mode
     private _debugMode: boolean = false;
     private _debugStatusBarItem: vscode.StatusBarItem;
@@ -71,6 +69,18 @@ export class TelemetryManager implements vscode.Disposable, WebSocketMessageHand
         triggerType?: TriggerType;
     }>();
     public readonly onDidCalculateEQ = this._onDidCalculateEQ.event;
+
+    public get onDidShowIntervention() {
+        return this._interventionService.onDidShowIntervention;
+    }
+
+    public get onDidAcceptIntervention() {
+        return this._interventionService.onDidAcceptIntervention;
+    }
+
+    public get onDidDismissIntervention() {
+        return this._interventionService.onDidDismissIntervention;
+    }
 
     constructor() {
         this._outputChannel = vscode.window.createOutputChannel('Artemis Telemetry');
@@ -219,7 +229,6 @@ export class TelemetryManager implements vscode.Disposable, WebSocketMessageHand
 
         this._activeExerciseId = exerciseId;
         this._lastTriggerType = undefined;
-        this._lastInterventionTriggerType = undefined;
 
         // Reset everything
         this._eqEngine.resetSession();
@@ -253,7 +262,6 @@ export class TelemetryManager implements vscode.Disposable, WebSocketMessageHand
 
         this._activeExerciseId = undefined;
         this._lastTriggerType = undefined;
-        this._lastInterventionTriggerType = undefined;
     }
 
     /**
@@ -331,10 +339,9 @@ export class TelemetryManager implements vscode.Disposable, WebSocketMessageHand
         });
 
         // Intervention dismissed → increment adaptive cadence for the trigger that caused it
-        this._interventionService.onDidDismissIntervention(() => {
-            const triggerType = this._lastInterventionTriggerType ?? 'idle';
+        this._interventionService.onDidDismissIntervention(decision => {
+            const triggerType = decision.triggerType ?? 'idle';
             this._adaptiveCadence.incrementIgnoreCount(triggerType);
-            this._lastInterventionTriggerType = undefined;
         });
 
         // Intervention accepted → reset adaptive cadence
@@ -377,9 +384,6 @@ export class TelemetryManager implements vscode.Disposable, WebSocketMessageHand
             }
             return;
         }
-
-        // Save trigger type for dismiss handler (see _setupEventHandlers)
-        this._lastInterventionTriggerType = triggerType;
 
         // Dispatch intervention
         switch (decision.level) {

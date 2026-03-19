@@ -191,6 +191,24 @@ export async function activate(context: vscode.ExtensionContext) {
 	telemetryManager.onDidCalculateEQ(({ eq, confidence, source, triggerType }) => {
 		sessionRecorder.recordEqSnapshot(eq, confidence, source, triggerType);
 	});
+	telemetryManager.onDidShowIntervention(decision => {
+		sessionRecorder.recordIntervention(
+			'shown', decision.level as 'subtle' | 'notification' | 'proactive',
+			decision.shouldIntervene, decision.eq, decision.confidence, decision.triggerType,
+		);
+	});
+	telemetryManager.onDidAcceptIntervention(decision => {
+		sessionRecorder.recordIntervention(
+			'accepted', decision.level as 'subtle' | 'notification' | 'proactive',
+			decision.shouldIntervene, decision.eq, decision.confidence, decision.triggerType,
+		);
+	});
+	telemetryManager.onDidDismissIntervention(decision => {
+		sessionRecorder.recordIntervention(
+			'dismissed', decision.level as 'subtle' | 'notification' | 'proactive',
+			decision.shouldIntervene, decision.eq, decision.confidence, decision.triggerType,
+		);
+	});
 	sessionRecorder.onDidChangeState(state => {
 		if (state.isRecording && state.eventCount <= 1) {
 			// Recording just started — capture EQ engine state for replay seeding

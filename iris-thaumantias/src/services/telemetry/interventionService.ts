@@ -16,10 +16,13 @@ export class InterventionService implements vscode.Disposable {
     private readonly _onDidRequestHelp = new vscode.EventEmitter<CombinedStruggleScore>();
     public readonly onDidRequestHelp = this._onDidRequestHelp.event;
 
-    private readonly _onDidDismissIntervention = new vscode.EventEmitter<void>();
+    private readonly _onDidShowIntervention = new vscode.EventEmitter<InterventionDecision>();
+    public readonly onDidShowIntervention = this._onDidShowIntervention.event;
+
+    private readonly _onDidDismissIntervention = new vscode.EventEmitter<InterventionDecision>();
     public readonly onDidDismissIntervention = this._onDidDismissIntervention.event;
 
-    private readonly _onDidAcceptIntervention = new vscode.EventEmitter<void>();
+    private readonly _onDidAcceptIntervention = new vscode.EventEmitter<InterventionDecision>();
     public readonly onDidAcceptIntervention = this._onDidAcceptIntervention.event;
 
     constructor() {
@@ -48,6 +51,7 @@ export class InterventionService implements vscode.Disposable {
         }
 
         this._onDidRequestHelp.dispose();
+        this._onDidShowIntervention.dispose();
         this._onDidDismissIntervention.dispose();
         this._onDidAcceptIntervention.dispose();
     }
@@ -138,6 +142,7 @@ export class InterventionService implements vscode.Disposable {
         this._statusBarItem.tooltip = `EQ: ${eqPercent}% — Click to open Iris Chat for assistance`;
         this._statusBarItem.backgroundColor = undefined;
         this._statusBarItem.show();
+        this._onDidShowIntervention.fire(decision);
     }
 
     /**
@@ -149,6 +154,7 @@ export class InterventionService implements vscode.Disposable {
         }
 
         this._recordIntervention();
+        this._onDidShowIntervention.fire(decision);
 
         const eqPercent = Math.round(decision.eq * 100);
         this._statusBarItem.text = '$(lightbulb) Stuck? Let me help!';
@@ -166,12 +172,12 @@ export class InterventionService implements vscode.Disposable {
         if (result === 'Open Iris Chat') {
             this._state.lastAccepted = true;
             this._state.lastDismissed = false;
-            this._onDidAcceptIntervention.fire();
+            this._onDidAcceptIntervention.fire(decision);
             await vscode.commands.executeCommand('iris.chatView.focus');
         } else {
             this._state.lastDismissed = true;
             this._state.lastAccepted = false;
-            this._onDidDismissIntervention.fire();
+            this._onDidDismissIntervention.fire(decision);
         }
     }
 
@@ -184,6 +190,7 @@ export class InterventionService implements vscode.Disposable {
         }
 
         this._recordIntervention();
+        this._onDidShowIntervention.fire(decision);
 
         const eqPercent = Math.round(decision.eq * 100);
         this._statusBarItem.text = '$(warning) Help available!';
@@ -202,12 +209,12 @@ export class InterventionService implements vscode.Disposable {
         if (result === 'Get Help Now') {
             this._state.lastAccepted = true;
             this._state.lastDismissed = false;
-            this._onDidAcceptIntervention.fire();
+            this._onDidAcceptIntervention.fire(decision);
             await vscode.commands.executeCommand('iris.chatView.focus');
         } else {
             this._state.lastDismissed = true;
             this._state.lastAccepted = false;
-            this._onDidDismissIntervention.fire();
+            this._onDidDismissIntervention.fire(decision);
         }
     }
 

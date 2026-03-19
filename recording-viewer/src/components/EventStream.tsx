@@ -114,6 +114,21 @@ function EventDetail({ event }: { event: RecordedEvent }) {
                     {shortenUri(event.uri)} | L{event.visibleRanges[0]?.startLine ?? 0}-L{event.visibleRanges[0]?.endLine ?? 0}
                 </span>
             );
+        case 'intervention':
+            return (
+                <span className="event-detail">
+                    {event.action.toUpperCase()} | {event.level}
+                    {' '} EQ: <strong>{Math.round(event.eq * 100)}%</strong>
+                    {event.triggerType && ` | ${event.triggerType}`}
+                </span>
+            );
+        case 'eqEngineState':
+            return (
+                <span className="event-detail">
+                    {event.snapshots.length} snapshot(s) | EQ: <strong>{Math.round(event.currentEQ * 100)}%</strong>
+                    <span className={`confidence-tag ${event.confidence}`}>{event.confidence}</span>
+                </span>
+            );
         default:
             return null;
     }

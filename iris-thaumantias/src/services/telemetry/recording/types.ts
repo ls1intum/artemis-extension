@@ -125,6 +125,17 @@ export interface EqEngineStateEvent {
     confidence: 'sufficient' | 'insufficient';
 }
 
+export interface InterventionEvent {
+    type: 'intervention';
+    timestamp: number;
+    action: 'shown' | 'accepted' | 'dismissed';
+    level: 'subtle' | 'notification' | 'proactive';
+    shouldIntervene: boolean;
+    eq: number;
+    confidence: 'sufficient' | 'insufficient';
+    triggerType?: 'execution-error' | 'multiline-paste' | 'idle' | 'selection-maintained';
+}
+
 export interface SelectionChangeEvent {
     type: 'selectionChange';
     timestamp: number;
@@ -155,6 +166,7 @@ export type RecordedEvent =
     | IrisChatMessageEvent
     | EqSnapshotEvent
     | EqEngineStateEvent
+    | InterventionEvent
     | SelectionChangeEvent
     | VisibleRangeChangeEvent;
 

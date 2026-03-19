@@ -13,13 +13,14 @@ export const MARKER_COLORS: Record<EventType, string> = {
     sessionStart: '#a5b4fc',
     sessionEnd: '#f87171',
     irisChatMessage: '#f472b6',
+    intervention: '#f97316',
     selectionChange: '#06b6d4',
     visibleRangeChange: '#14b8a6',
 };
 
 export const ALL_EVENT_TYPES = [
     'sessionStart', 'sessionEnd',
-    'eqSnapshot', 'eqEngineState', 'buildResult',
+    'eqSnapshot', 'eqEngineState', 'intervention', 'buildResult',
     'textChange', 'save',
     'diagnostics',
     'fileSwitch',
@@ -32,8 +33,8 @@ export const ALL_EVENT_TYPES = [
 type _MissingEventTypes = Exclude<EventType, (typeof ALL_EVENT_TYPES)[number]>;
 void (true satisfies (_MissingEventTypes extends never ? true : never));
 
-/** Event types displayed as swim lanes (excludes EQ types handled by SessionTimeline) */
+/** Event types displayed as swim lanes (excludes EQ/intervention types handled by SessionTimeline) */
 export const SWIM_LANE_TYPES = ALL_EVENT_TYPES.filter(
-    (t): t is Exclude<EventType, 'eqSnapshot' | 'eqEngineState'> =>
-        t !== 'eqSnapshot' && t !== 'eqEngineState'
+    (t): t is Exclude<EventType, 'eqSnapshot' | 'eqEngineState' | 'intervention'> =>
+        t !== 'eqSnapshot' && t !== 'eqEngineState' && t !== 'intervention'
 );
