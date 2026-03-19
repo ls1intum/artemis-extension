@@ -3,123 +3,138 @@ import react from '@vitejs/plugin-react'
 import fs from 'fs'
 import path from 'path'
 import os from 'os'
-import { exec } from 'child_process'
+import { execFile } from 'child_process'
 
 const RECORDINGS_DIR = path.join(
     os.homedir(),
     'Library/Application Support/Code/User/globalStorage/aet-tum.iris-thaumantias/recordings',
 )
 
+function resolveSessionDir(sessionId: string): string | null {
+    let decoded: string
+    try {
+        decoded = decodeURIComponent(sessionId)
+    } catch {
+        return null
+    }
+    const resolved = path.resolve(RECORDINGS_DIR, decoded)
+    if (!resolved.startsWith(RECORDINGS_DIR + path.sep)) return null
+    return resolved
+}
+
+// Track concurrent video uploads per session
+const uploadInProgress = new Map<string, boolean>()
+
+interface ServerResponse {
+    setHeader(name: string, value: string): void;
+    end(data?: string | Buffer): void;
+    writeHead(status: number): void;
+}
+
+interface IncomingRequest {
+    url?: string;
+    method?: string;
+    headers?: Record<string, string | string[] | undefined>;
+    on(event: string, cb: (chunk: Buffer) => void): void;
+    pipe(dest: NodeJS.WritableStream): void;
+}
+
+function sendJson(res: ServerResponse, status: number, data: unknown) {
+    res.setHeader('Content-Type', 'application/json')
+    if (status !== 200) res.writeHead(status)
+    res.end(JSON.stringify(data))
+}
+
 function recordingsApi() {
     return {
         name: 'recordings-api',
-        configureServer(server: { middlewares: { use: (fn: Function) => void } }) {
-            server.middlewares.use((req: { url?: string; method?: string; on: Function }, res: { setHeader: Function; end: Function; writeHead: Function }, next: Function) => {
+        configureServer(server: { middlewares: { use: (fn: (req: IncomingRequest, res: ServerResponse, next: () => void) => void) => void } }) {
+            server.middlewares.use((req: IncomingRequest, res: ServerResponse, next: () => void) => {
                 if (!req.url?.startsWith('/api/recordings')) {
                     return next()
                 }
 
-                res.setHeader('Content-Type', 'application/json')
                 const method = req.method?.toUpperCase() ?? 'GET'
+                // Strip query string for route matching
+                const urlPath = req.url.split('?')[0]
 
-                // POST /api/recordings/open-folder → open recordings dir in Finder/Explorer
-                if (req.url === '/api/recordings/open-folder' && method === 'POST') {
+                // POST /api/recordings/open-folder
+                if (urlPath === '/api/recordings/open-folder' && method === 'POST') {
                     try {
                         const dir = fs.existsSync(RECORDINGS_DIR) ? RECORDINGS_DIR : path.dirname(RECORDINGS_DIR)
                         const cmd = process.platform === 'darwin' ? 'open' : process.platform === 'win32' ? 'explorer' : 'xdg-open'
-                        exec(`${cmd} "${dir}"`)
-                        res.end(JSON.stringify({ ok: true }))
+                        execFile(cmd, [dir])
+                        sendJson(res, 200, { ok: true })
                     } catch (err) {
-                        res.writeHead(500)
-                        res.end(JSON.stringify({ error: String(err) }))
+                        sendJson(res, 500, { error: String(err) })
                     }
                     return
                 }
 
-                // POST /api/recordings/:sessionId/open → open session folder in Finder/Explorer
-                const openMatch = req.url.match(/^\/api\/recordings\/([^/]+)\/open$/)
+                // POST /api/recordings/:sessionId/open
+                const openMatch = urlPath.match(/^\/api\/recordings\/([^/]+)\/open$/)
                 if (openMatch && method === 'POST') {
-                    const sessionId = openMatch[1]
-                    const sessionDir = path.join(RECORDINGS_DIR, sessionId)
+                    const sessionDir = resolveSessionDir(openMatch[1])
+                    if (!sessionDir) { sendJson(res, 400, { error: 'Invalid session ID' }); return }
                     try {
-                        if (!fs.existsSync(sessionDir)) {
-                            res.writeHead(404)
-                            res.end(JSON.stringify({ error: 'Session not found' }))
-                            return
-                        }
+                        if (!fs.existsSync(sessionDir)) { sendJson(res, 404, { error: 'Session not found' }); return }
                         const cmd = process.platform === 'darwin' ? 'open' : process.platform === 'win32' ? 'explorer' : 'xdg-open'
-                        exec(`${cmd} "${sessionDir}"`)
-                        res.end(JSON.stringify({ ok: true }))
+                        execFile(cmd, [sessionDir])
+                        sendJson(res, 200, { ok: true })
                     } catch (err) {
-                        res.writeHead(500)
-                        res.end(JSON.stringify({ error: String(err) }))
+                        sendJson(res, 500, { error: String(err) })
                     }
                     return
                 }
 
-                // POST /api/recordings/:sessionId/rename → rename session folder
-                const renameMatch = req.url.match(/^\/api\/recordings\/([^/]+)\/rename$/)
+                // POST /api/recordings/:sessionId/rename
+                const renameMatch = urlPath.match(/^\/api\/recordings\/([^/]+)\/rename$/)
                 if (renameMatch && method === 'POST') {
-                    const sessionId = decodeURIComponent(renameMatch[1])
-                    const oldDir = path.join(RECORDINGS_DIR, sessionId)
+                    const oldDir = resolveSessionDir(renameMatch[1])
+                    if (!oldDir) { sendJson(res, 400, { error: 'Invalid session ID' }); return }
                     try {
-                        if (!fs.existsSync(oldDir)) {
-                            res.writeHead(404)
-                            res.end(JSON.stringify({ error: 'Session not found' }))
-                            return
-                        }
+                        if (!fs.existsSync(oldDir)) { sendJson(res, 404, { error: 'Session not found' }); return }
                         let body = ''
                         req.on('data', (chunk: Buffer) => { body += chunk.toString() })
                         req.on('end', () => {
                             try {
                                 const { name } = JSON.parse(body)
                                 if (!name || typeof name !== 'string' || /[/\\]/.test(name)) {
-                                    res.writeHead(400)
-                                    res.end(JSON.stringify({ error: 'Invalid name' }))
+                                    sendJson(res, 400, { error: 'Invalid name' })
                                     return
                                 }
                                 const newDir = path.join(RECORDINGS_DIR, name)
-                                if (fs.existsSync(newDir)) {
-                                    res.writeHead(409)
-                                    res.end(JSON.stringify({ error: 'Name already exists' }))
-                                    return
-                                }
+                                if (fs.existsSync(newDir)) { sendJson(res, 409, { error: 'Name already exists' }); return }
                                 fs.renameSync(oldDir, newDir)
-                                res.end(JSON.stringify({ ok: true, newId: name }))
+                                sendJson(res, 200, { ok: true, newId: name })
                             } catch (err) {
-                                res.writeHead(400)
-                                res.end(JSON.stringify({ error: String(err) }))
+                                sendJson(res, 400, { error: String(err) })
                             }
                         })
                     } catch (err) {
-                        res.writeHead(500)
-                        res.end(JSON.stringify({ error: String(err) }))
+                        sendJson(res, 500, { error: String(err) })
                     }
                     return
                 }
 
-                // DELETE /api/recordings/:sessionId → delete session folder
-                const deleteMatch = req.url.match(/^\/api\/recordings\/([^/]+)$/)
+                // DELETE /api/recordings/:sessionId
+                const deleteMatch = urlPath.match(/^\/api\/recordings\/([^/]+)$/)
                 if (deleteMatch && method === 'DELETE') {
-                    const sessionId = deleteMatch[1]
-                    const sessionDir = path.join(RECORDINGS_DIR, sessionId)
+                    const sessionDir = resolveSessionDir(deleteMatch[1])
+                    if (!sessionDir) { sendJson(res, 400, { error: 'Invalid session ID' }); return }
                     try {
-                        if (!fs.existsSync(sessionDir)) {
-                            res.writeHead(404)
-                            res.end(JSON.stringify({ error: 'Session not found' }))
-                            return
-                        }
+                        if (!fs.existsSync(sessionDir)) { sendJson(res, 404, { error: 'Session not found' }); return }
                         fs.rmSync(sessionDir, { recursive: true, force: true })
-                        res.end(JSON.stringify({ ok: true, deleted: sessionId }))
+                        sendJson(res, 200, { ok: true, deleted: deleteMatch[1] })
                     } catch (err) {
-                        res.writeHead(500)
-                        res.end(JSON.stringify({ error: String(err) }))
+                        sendJson(res, 500, { error: String(err) })
                     }
                     return
                 }
 
-                // GET /api/recordings → list sessions
-                if (req.url === '/api/recordings' && method === 'GET') {
+                // GET /api/recordings
+                if (urlPath === '/api/recordings' && method === 'GET') {
+                    res.setHeader('Content-Type', 'application/json')
                     try {
                         if (!fs.existsSync(RECORDINGS_DIR)) {
                             res.end(JSON.stringify({ sessions: [], recordingsDir: RECORDINGS_DIR }))
@@ -140,128 +155,375 @@ function recordingsApi() {
                             .sort((a, b) => {
                                 const tA = a.metadata?.startTime ?? 0
                                 const tB = b.metadata?.startTime ?? 0
-                                return tB - tA // newest first
+                                return tB - tA
                             })
                         res.end(JSON.stringify({ sessions, recordingsDir: RECORDINGS_DIR }))
                     } catch (err) {
-                        res.writeHead(500)
-                        res.end(JSON.stringify({ error: String(err) }))
+                        sendJson(res, 500, { error: String(err) })
                     }
                     return
                 }
 
-                // GET /api/recordings/:sessionId/events → stream events.jsonl as JSON array
-                const eventsMatch = req.url.match(/^\/api\/recordings\/([^/]+)\/events$/)
+                // GET /api/recordings/:sessionId/events
+                const eventsMatch = urlPath.match(/^\/api\/recordings\/([^/]+)\/events$/)
                 if (eventsMatch) {
-                    const sessionId = eventsMatch[1]
-                    const eventsPath = path.join(RECORDINGS_DIR, sessionId, 'events.jsonl')
+                    const sessionDir = resolveSessionDir(eventsMatch[1])
+                    if (!sessionDir) { sendJson(res, 400, { error: 'Invalid session ID' }); return }
+                    const eventsPath = path.join(sessionDir, 'events.jsonl')
                     try {
-                        if (!fs.existsSync(eventsPath)) {
-                            res.writeHead(404)
-                            res.end(JSON.stringify({ error: 'events.jsonl not found' }))
-                            return
-                        }
+                        if (!fs.existsSync(eventsPath)) { sendJson(res, 404, { error: 'events.jsonl not found' }); return }
+                        res.setHeader('Content-Type', 'application/json')
                         const lines = fs.readFileSync(eventsPath, 'utf-8')
                             .split('\n')
                             .filter(l => l.trim().length > 0)
                         const events = lines.map(l => JSON.parse(l))
                         res.end(JSON.stringify(events))
                     } catch (err) {
-                        res.writeHead(500)
-                        res.end(JSON.stringify({ error: String(err) }))
+                        sendJson(res, 500, { error: String(err) })
                     }
                     return
                 }
 
-                // GET /api/recordings/:sessionId/replay-eq → replay EQ data
-                const replayMatch = req.url.match(/^\/api\/recordings\/([^/]+)\/replay-eq$/)
+                // GET /api/recordings/:sessionId/replay-eq
+                const replayMatch = urlPath.match(/^\/api\/recordings\/([^/]+)\/replay-eq$/)
                 if (replayMatch && method === 'GET') {
-                    const sessionId = replayMatch[1]
-                    const replayPath = path.join(RECORDINGS_DIR, sessionId, 'replay-eq.jsonl')
+                    const sessionDir = resolveSessionDir(replayMatch[1])
+                    if (!sessionDir) { sendJson(res, 400, { error: 'Invalid session ID' }); return }
+                    const replayPath = path.join(sessionDir, 'replay-eq.jsonl')
                     try {
-                        if (!fs.existsSync(replayPath)) {
-                            res.writeHead(404)
-                            res.end(JSON.stringify({ error: 'replay-eq.jsonl not found' }))
-                            return
-                        }
+                        if (!fs.existsSync(replayPath)) { sendJson(res, 404, { error: 'replay-eq.jsonl not found' }); return }
+                        res.setHeader('Content-Type', 'application/json')
                         const lines = fs.readFileSync(replayPath, 'utf-8')
                             .split('\n')
                             .filter(l => l.trim().length > 0)
                         const snapshots = lines.map(l => JSON.parse(l))
                         res.end(JSON.stringify(snapshots))
                     } catch (err) {
-                        res.writeHead(500)
-                        res.end(JSON.stringify({ error: String(err) }))
+                        sendJson(res, 500, { error: String(err) })
                     }
                     return
                 }
 
-                // GET /api/recordings/:sessionId/annotations → read annotations
-                const annotGetMatch = req.url.match(/^\/api\/recordings\/([^/]+)\/annotations$/)
+                // GET /api/recordings/:sessionId/annotations
+                const annotGetMatch = urlPath.match(/^\/api\/recordings\/([^/]+)\/annotations$/)
                 if (annotGetMatch && method === 'GET') {
-                    const sessionId = annotGetMatch[1]
-                    const annotPath = path.join(RECORDINGS_DIR, sessionId, 'annotations.json')
+                    const sessionDir = resolveSessionDir(annotGetMatch[1])
+                    if (!sessionDir) { sendJson(res, 400, { error: 'Invalid session ID' }); return }
+                    const annotPath = path.join(sessionDir, 'annotations.json')
                     try {
                         if (!fs.existsSync(annotPath)) {
-                            res.end(JSON.stringify([]))
+                            sendJson(res, 200, [])
                             return
                         }
+                        res.setHeader('Content-Type', 'application/json')
                         const data = fs.readFileSync(annotPath, 'utf-8')
                         res.end(data)
                     } catch (err) {
-                        res.writeHead(500)
-                        res.end(JSON.stringify({ error: String(err) }))
+                        sendJson(res, 500, { error: String(err) })
                     }
                     return
                 }
 
-                // PUT /api/recordings/:sessionId/annotations → save annotations
-                const annotPutMatch = req.url.match(/^\/api\/recordings\/([^/]+)\/annotations$/)
+                // PUT /api/recordings/:sessionId/annotations
+                const annotPutMatch = urlPath.match(/^\/api\/recordings\/([^/]+)\/annotations$/)
                 if (annotPutMatch && method === 'PUT') {
-                    const sessionId = annotPutMatch[1]
-                    const sessionDir = path.join(RECORDINGS_DIR, sessionId)
+                    const sessionDir = resolveSessionDir(annotPutMatch[1])
+                    if (!sessionDir) { sendJson(res, 400, { error: 'Invalid session ID' }); return }
                     const annotPath = path.join(sessionDir, 'annotations.json')
                     try {
-                        if (!fs.existsSync(sessionDir)) {
-                            res.writeHead(404)
-                            res.end(JSON.stringify({ error: 'Session not found' }))
-                            return
-                        }
+                        if (!fs.existsSync(sessionDir)) { sendJson(res, 404, { error: 'Session not found' }); return }
                         let body = ''
                         req.on('data', (chunk: Buffer) => { body += chunk.toString() })
                         req.on('end', () => {
                             try {
                                 const annotations = JSON.parse(body)
                                 fs.writeFileSync(annotPath, JSON.stringify(annotations, null, 2))
-                                res.end(JSON.stringify({ ok: true }))
+                                sendJson(res, 200, { ok: true })
                             } catch (err) {
-                                res.writeHead(400)
-                                res.end(JSON.stringify({ error: String(err) }))
+                                sendJson(res, 400, { error: String(err) })
                             }
                         })
                     } catch (err) {
-                        res.writeHead(500)
-                        res.end(JSON.stringify({ error: String(err) }))
+                        sendJson(res, 500, { error: String(err) })
                     }
                     return
                 }
 
                 // GET /api/recordings/:sessionId/metadata
-                const metaMatch = req.url.match(/^\/api\/recordings\/([^/]+)\/metadata$/)
+                const metaMatch = urlPath.match(/^\/api\/recordings\/([^/]+)\/metadata$/)
                 if (metaMatch) {
-                    const sessionId = metaMatch[1]
-                    const metaPath = path.join(RECORDINGS_DIR, sessionId, 'metadata.json')
+                    const sessionDir = resolveSessionDir(metaMatch[1])
+                    if (!sessionDir) { sendJson(res, 400, { error: 'Invalid session ID' }); return }
+                    const metaPath = path.join(sessionDir, 'metadata.json')
                     try {
-                        if (!fs.existsSync(metaPath)) {
-                            res.writeHead(404)
-                            res.end(JSON.stringify({ error: 'metadata.json not found' }))
-                            return
-                        }
+                        if (!fs.existsSync(metaPath)) { sendJson(res, 404, { error: 'metadata.json not found' }); return }
+                        res.setHeader('Content-Type', 'application/json')
                         const metadata = fs.readFileSync(metaPath, 'utf-8')
                         res.end(metadata)
                     } catch (err) {
-                        res.writeHead(500)
-                        res.end(JSON.stringify({ error: String(err) }))
+                        sendJson(res, 500, { error: String(err) })
+                    }
+                    return
+                }
+
+                // GET /api/recordings/:sessionId/video-sync
+                const videoSyncGetMatch = urlPath.match(/^\/api\/recordings\/([^/]+)\/video-sync$/)
+                if (videoSyncGetMatch && method === 'GET') {
+                    const sessionDir = resolveSessionDir(videoSyncGetMatch[1])
+                    if (!sessionDir) { sendJson(res, 400, { error: 'Invalid session ID' }); return }
+                    try {
+                        const syncPath = path.join(sessionDir, 'video-sync.json')
+                        if (fs.existsSync(syncPath)) {
+                            res.setHeader('Content-Type', 'application/json')
+                            res.end(fs.readFileSync(syncPath, 'utf-8'))
+                            return
+                        }
+                        // Fallback: scan for video file
+                        for (const ext of ['mp4', 'webm'] as const) {
+                            if (fs.existsSync(path.join(sessionDir, `video.${ext}`))) {
+                                sendJson(res, 200, { videoTimeAtSessionStartSeconds: 0, videoExtension: ext })
+                                return
+                            }
+                        }
+                        sendJson(res, 404, { error: 'No video found' })
+                    } catch (err) {
+                        sendJson(res, 500, { error: String(err) })
+                    }
+                    return
+                }
+
+                // PUT /api/recordings/:sessionId/video-sync
+                const videoSyncPutMatch = urlPath.match(/^\/api\/recordings\/([^/]+)\/video-sync$/)
+                if (videoSyncPutMatch && method === 'PUT') {
+                    const sessionDir = resolveSessionDir(videoSyncPutMatch[1])
+                    if (!sessionDir) { sendJson(res, 400, { error: 'Invalid session ID' }); return }
+                    let body = ''
+                    req.on('data', (chunk: Buffer) => { body += chunk.toString() })
+                    req.on('end', () => {
+                        try {
+                            const parsed = JSON.parse(body)
+                            if (!Number.isFinite(parsed.videoTimeAtSessionStartSeconds)) {
+                                sendJson(res, 400, { error: 'videoTimeAtSessionStartSeconds must be a finite number' })
+                                return
+                            }
+                            if (parsed.videoExtension !== 'mp4' && parsed.videoExtension !== 'webm') {
+                                sendJson(res, 400, { error: 'videoExtension must be mp4 or webm' })
+                                return
+                            }
+                            const syncPath = path.join(sessionDir, 'video-sync.json')
+                            const tmpPath = syncPath + '.tmp'
+                            fs.writeFileSync(tmpPath, JSON.stringify(parsed, null, 2))
+                            fs.renameSync(tmpPath, syncPath)
+                            sendJson(res, 200, { ok: true })
+                        } catch (err) {
+                            sendJson(res, 400, { error: String(err) })
+                        }
+                    })
+                    return
+                }
+
+                // PUT /api/recordings/:sessionId/video — upload video file
+                const videoUploadMatch = urlPath.match(/^\/api\/recordings\/([^/]+)\/video$/)
+                if (videoUploadMatch && method === 'PUT') {
+                    const sessionId = videoUploadMatch[1]
+                    const sessionDir = resolveSessionDir(sessionId)
+                    if (!sessionDir) { sendJson(res, 400, { error: 'Invalid session ID' }); return }
+                    if (!fs.existsSync(sessionDir)) { sendJson(res, 404, { error: 'Session not found' }); return }
+
+                    if (uploadInProgress.get(sessionId)) {
+                        sendJson(res, 409, { error: 'Upload already in progress' })
+                        return
+                    }
+
+                    const contentType = (req.headers?.['content-type'] ?? '') as string
+                    let ext: 'mp4' | 'webm'
+                    if (contentType.includes('video/mp4')) ext = 'mp4'
+                    else if (contentType.includes('video/webm')) ext = 'webm'
+                    else { sendJson(res, 400, { error: 'Content-Type must be video/mp4 or video/webm' }); return }
+
+                    uploadInProgress.set(sessionId, true)
+                    const tmpPath = path.join(sessionDir, `video.${ext}.tmp`)
+                    const finalPath = path.join(sessionDir, `video.${ext}`)
+                    const ws = fs.createWriteStream(tmpPath)
+
+                    let headerBuffer = Buffer.alloc(0)
+                    let headerValidated = false
+                    let rejected = false
+                    let requestEnded = false
+
+                    const cleanup = () => {
+                        ws.destroy()
+                        try { fs.unlinkSync(tmpPath) } catch { /* ignore */ }
+                        uploadInProgress.delete(sessionId)
+                    }
+
+                    req.on('data', (chunk: Buffer) => {
+                        if (rejected) return
+
+                        if (!headerValidated) {
+                            headerBuffer = Buffer.concat([headerBuffer, chunk])
+                            const needed = ext === 'mp4' ? 8 : 4
+                            if (headerBuffer.length < needed) return // wait for more data
+
+                            headerValidated = true
+                            let valid = true
+                            if (ext === 'mp4') {
+                                valid = headerBuffer.toString('ascii', 4, 8) === 'ftyp'
+                            } else {
+                                valid = headerBuffer[0] === 0x1A && headerBuffer[1] === 0x45 && headerBuffer[2] === 0xDF && headerBuffer[3] === 0xA3
+                            }
+                            if (!valid) {
+                                rejected = true
+                                cleanup()
+                                sendJson(res, 400, { error: `Invalid ${ext.toUpperCase()} file (bad magic bytes)` })
+                                return
+                            }
+                            // Write accumulated header buffer
+                            ws.write(headerBuffer)
+                            return
+                        }
+                        ws.write(chunk)
+                    })
+
+                    req.on('end', () => {
+                        if (rejected) return
+                        requestEnded = true
+                        ws.end(() => {
+                            try {
+                                // Delete stale alternate extension
+                                const altExt = ext === 'mp4' ? 'webm' : 'mp4'
+                                const altPath = path.join(sessionDir, `video.${altExt}`)
+                                if (fs.existsSync(altPath)) fs.unlinkSync(altPath)
+
+                                // Rename tmp to final
+                                fs.renameSync(tmpPath, finalPath)
+
+                                // Write or preserve video-sync.json
+                                const syncPath = path.join(sessionDir, 'video-sync.json')
+                                if (fs.existsSync(syncPath)) {
+                                    // Preserve existing offset, update extension
+                                    try {
+                                        const existing = JSON.parse(fs.readFileSync(syncPath, 'utf-8'))
+                                        existing.videoExtension = ext
+                                        const tmpSync = syncPath + '.tmp'
+                                        fs.writeFileSync(tmpSync, JSON.stringify(existing, null, 2))
+                                        fs.renameSync(tmpSync, syncPath)
+                                    } catch { /* leave as-is */ }
+                                } else {
+                                    fs.writeFileSync(syncPath, JSON.stringify({
+                                        videoTimeAtSessionStartSeconds: 0,
+                                        videoExtension: ext,
+                                    }, null, 2))
+                                }
+
+                                uploadInProgress.delete(sessionId)
+                                sendJson(res, 200, { ok: true, videoExtension: ext })
+                            } catch (err) {
+                                try { fs.unlinkSync(tmpPath) } catch { /* ignore */ }
+                                uploadInProgress.delete(sessionId)
+                                sendJson(res, 500, { error: String(err) })
+                            }
+                        })
+                    })
+
+                    req.on('error', () => {
+                        if (rejected) return
+                        rejected = true
+                        cleanup()
+                    })
+
+                    // Handle client disconnect/abort (close fires on ALL requests, not just aborts)
+                    req.on('close' as string, () => {
+                        if (rejected || requestEnded) return
+                        // Request closed before 'end' fired — this is a genuine abort
+                        rejected = true
+                        cleanup()
+                    })
+
+                    return
+                }
+
+                // GET /api/recordings/:sessionId/video — serve video with range support
+                const videoServeMatch = urlPath.match(/^\/api\/recordings\/([^/]+)\/video$/)
+                if (videoServeMatch && (method === 'GET' || method === 'HEAD')) {
+                    const sessionDir = resolveSessionDir(videoServeMatch[1])
+                    if (!sessionDir) { sendJson(res, 400, { error: 'Invalid session ID' }); return }
+
+                    try {
+                        // Find the video file
+                        let videoPath: string | null = null
+                        let videoExt: 'mp4' | 'webm' = 'mp4'
+
+                        const syncPath = path.join(sessionDir, 'video-sync.json')
+                        if (fs.existsSync(syncPath)) {
+                            try {
+                                const sync = JSON.parse(fs.readFileSync(syncPath, 'utf-8'))
+                                videoExt = sync.videoExtension === 'webm' ? 'webm' : 'mp4'
+                                const candidate = path.join(sessionDir, `video.${videoExt}`)
+                                if (fs.existsSync(candidate)) videoPath = candidate
+                            } catch { /* fallthrough to scan */ }
+                        }
+
+                        if (!videoPath) {
+                            for (const ext of ['mp4', 'webm'] as const) {
+                                const candidate = path.join(sessionDir, `video.${ext}`)
+                                if (fs.existsSync(candidate)) {
+                                    videoPath = candidate
+                                    videoExt = ext
+                                    break
+                                }
+                            }
+                        }
+
+                        if (!videoPath) { sendJson(res, 404, { error: 'No video file found' }); return }
+
+                        const stat = fs.statSync(videoPath)
+                        const fileSize = stat.size
+                        const mimeType = videoExt === 'webm' ? 'video/webm' : 'video/mp4'
+
+                        res.setHeader('Content-Type', mimeType)
+                        res.setHeader('Cache-Control', 'no-store')
+                        res.setHeader('Accept-Ranges', 'bytes')
+
+                        if (method === 'HEAD') {
+                            res.setHeader('Content-Length', String(fileSize))
+                            res.writeHead(200)
+                            res.end()
+                            return
+                        }
+
+                        const rangeHeader = req.headers?.range as string | undefined
+                        if (rangeHeader) {
+                            const match = rangeHeader.match(/^bytes=(\d+)-(\d*)$/)
+                            if (!match) {
+                                res.setHeader('Content-Range', `bytes */${fileSize}`)
+                                res.writeHead(416)
+                                res.end()
+                                return
+                            }
+                            const start = parseInt(match[1], 10)
+                            const end = match[2] ? parseInt(match[2], 10) : fileSize - 1
+
+                            if (start >= fileSize || end >= fileSize || start > end) {
+                                res.setHeader('Content-Range', `bytes */${fileSize}`)
+                                res.writeHead(416)
+                                res.end()
+                                return
+                            }
+
+                            res.setHeader('Content-Range', `bytes ${start}-${end}/${fileSize}`)
+                            res.setHeader('Content-Length', String(end - start + 1))
+                            res.writeHead(206)
+                            const stream = fs.createReadStream(videoPath, { start, end })
+                            stream.pipe(res as unknown as NodeJS.WritableStream)
+                        } else {
+                            res.setHeader('Content-Length', String(fileSize))
+                            res.writeHead(200)
+                            const stream = fs.createReadStream(videoPath)
+                            stream.pipe(res as unknown as NodeJS.WritableStream)
+                        }
+                    } catch (err) {
+                        sendJson(res, 500, { error: String(err) })
                     }
                     return
                 }

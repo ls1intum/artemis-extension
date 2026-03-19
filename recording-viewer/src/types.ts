@@ -7,6 +7,11 @@ import type { RecordedEvent, SessionMetadata } from './generated/recordingTypes.
 
 export type EventType = RecordedEvent['type'];
 
+export interface VideoSyncConfig {
+    videoTimeAtSessionStartSeconds: number;
+    videoExtension: 'mp4' | 'webm';
+}
+
 export interface Annotation {
     id: string;
     timestamp: number;   // absolute ms (same epoch as event timestamps)

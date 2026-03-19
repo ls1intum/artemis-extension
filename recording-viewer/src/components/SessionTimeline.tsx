@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react';
 import {
     LineChart,
     Line,
@@ -18,6 +19,7 @@ interface Props {
     replayEq?: ReplayEqSnapshot[];
     annotations?: Annotation[];
     xDomain?: [number, number];
+    videoTimeRef?: React.RefObject<number>;
 }
 
 interface ChartPoint {
@@ -120,7 +122,19 @@ function ChartTooltip({ active, payload }: { active?: boolean; payload?: Array<{
 }
 
 
-export function SessionTimeline({ events, sessionStartTime, replayEq, annotations = [], xDomain: externalXDomain }: Props) {
+export function SessionTimeline({ events, sessionStartTime, replayEq, annotations = [], xDomain: externalXDomain, videoTimeRef }: Props) {
+    // Throttled playhead position (updates every 250ms)
+    const [playheadOffset, setPlayheadOffset] = useState<number | null>(null);
+    useEffect(() => {
+        if (!videoTimeRef) return;
+        const interval = setInterval(() => {
+            const ts = videoTimeRef.current;
+            if (ts > 0) {
+                setPlayheadOffset(ts - sessionStartTime);
+            }
+        }, 250);
+        return () => clearInterval(interval);
+    }, [videoTimeRef, sessionStartTime]);
     const eqEvents = events.filter((e): e is EqSnapshotEvent => e.type === 'eqSnapshot');
     const hasReplay = replayEq && replayEq.length > 0;
 
@@ -249,6 +263,15 @@ export function SessionTimeline({ events, sessionStartTime, replayEq, annotation
                             label={{ value: '\u270E', position: 'insideTopRight', fill: '#38bdf8', fontSize: 11, offset: 4 }}
                         />
                     ))}
+
+                    {/* Video playhead */}
+                    {playheadOffset != null && (
+                        <ReferenceLine
+                            x={playheadOffset}
+                            stroke="#ef4444"
+                            strokeWidth={1.5}
+                        />
+                    )}
 
                     {/* Original EQ line */}
                     <Line

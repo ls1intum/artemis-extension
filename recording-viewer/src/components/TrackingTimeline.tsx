@@ -13,6 +13,8 @@ interface Props {
     onUpdateAnnotation: (id: string, text: string) => void;
     onDeleteAnnotation: (id: string) => void;
     onViewInList?: (timestamp: number) => void;
+    videoTimeRef?: React.RefObject<number>;
+    onSeekVideo?: (timestamp: number) => void;
 }
 
 interface Bin {
@@ -111,10 +113,13 @@ export function TrackingTimeline({
     onUpdateAnnotation,
     onDeleteAnnotation,
     onViewInList,
+    videoTimeRef,
+    onSeekVideo,
 }: Props) {
     const svgRef = useRef<SVGSVGElement>(null);
     const containerRef = useRef<HTMLDivElement>(null);
     const svgContainerRef = useRef<HTMLDivElement>(null);
+    const playheadRef = useRef<HTMLDivElement>(null);
     const [svgWidth, setSvgWidth] = useState(0);
     const [tooltip, setTooltip] = useState<TooltipData | null>(null);
     const [annotPopover, setAnnotPopover] = useState<AnnotationPopover | null>(null);
@@ -135,6 +140,30 @@ export function TrackingTimeline({
         observer.observe(el);
         return () => observer.disconnect();
     }, []);
+
+    // Playhead animation loop
+    useEffect(() => {
+        if (!videoTimeRef || !playheadRef.current) return;
+        let rafId: number;
+        const animate = () => {
+            const ts = videoTimeRef.current;
+            const offset = ts - sessionStartTime;
+            const [min, max] = xDomain;
+            const range = max - min;
+            if (range > 0 && playheadRef.current) {
+                const x = ((offset - min) / range) * svgWidth;
+                if (x < 0 || x > svgWidth) {
+                    playheadRef.current.style.display = 'none';
+                } else {
+                    playheadRef.current.style.display = 'block';
+                    playheadRef.current.style.transform = `translateX(${x}px)`;
+                }
+            }
+            rafId = requestAnimationFrame(animate);
+        };
+        rafId = requestAnimationFrame(animate);
+        return () => cancelAnimationFrame(rafId);
+    }, [videoTimeRef, sessionStartTime, xDomain, svgWidth]);
 
     // Visible lanes: only types that are enabled AND have events
     const visibleLanes = useMemo(() => {
@@ -157,12 +186,9 @@ export function TrackingTimeline({
     const totalHeight = visibleLanes.length * LANE_HEIGHT + AXIS_HEIGHT;
 
     // Track whether the mouse is over a dot or the tooltip itself.
-    // We use a "hover intent" flag: tooltip stays visible as long as
-    // either the dot or the tooltip is hovered.
     const [hoveringTooltip, setHoveringTooltip] = useState(false);
     const [pendingTooltip, setPendingTooltip] = useState<TooltipData | null>(null);
 
-    // When the mouse enters a dot, show tooltip immediately
     const handleDotHover = useCallback((e: React.MouseEvent, bin: Bin, laneType: EventType) => {
         const rect = svgContainerRef.current?.getBoundingClientRect();
         if (!rect) return;
@@ -176,12 +202,10 @@ export function TrackingTimeline({
         setPendingTooltip(data);
     }, []);
 
-    // When leaving a dot, schedule hide unless the tooltip is being hovered
     const handleDotLeave = useCallback(() => {
         setPendingTooltip(null);
     }, []);
 
-    // Derive: hide tooltip when neither dot nor tooltip is hovered
     useEffect(() => {
         if (pendingTooltip || hoveringTooltip) return;
         const timer = setTimeout(() => setTooltip(null), 200);
@@ -197,6 +221,19 @@ export function TrackingTimeline({
             annotations: nearAnnotations,
         });
     }, []);
+
+    // Double-click on SVG background → seek video
+    const handleSvgDoubleClick = useCallback((e: React.MouseEvent) => {
+        if (!onSeekVideo || !svgContainerRef.current) return;
+        const rect = svgContainerRef.current.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const [min, max] = xDomain;
+        const range = max - min;
+        if (range <= 0 || svgWidth <= 0) return;
+        const offset = (x / svgWidth) * range + min;
+        const timestamp = sessionStartTime + offset;
+        onSeekVideo(timestamp);
+    }, [onSeekVideo, xDomain, svgWidth, sessionStartTime]);
 
     // Annotation positions, grouped by pixel proximity (5px)
     const annotationGroups = useMemo(() => {
@@ -243,6 +280,7 @@ export function TrackingTimeline({
                         width="100%"
                         height={totalHeight}
                         style={{ display: 'block' }}
+                        onDoubleClick={handleSvgDoubleClick}
                     >
                         {/* Lane backgrounds (alternating) */}
                         {visibleLanes.map((type, i) => (
@@ -351,6 +389,15 @@ export function TrackingTimeline({
                         })}
                     </svg>
 
+                    {/* Video playhead line */}
+                    {videoTimeRef && (
+                        <div
+                            ref={playheadRef}
+                            className="playhead-line"
+                            style={{ height: visibleLanes.length * LANE_HEIGHT, display: 'none' }}
+                        />
+                    )}
+
                     {/* Tooltip */}
                     {tooltip && (
                         <div
@@ -458,6 +505,11 @@ export function TrackingTimeline({
                     )}
                 </div>
             </div>
+
+            {/* Hint for double-click seek */}
+            {onSeekVideo && (
+                <p className="timeline-seek-hint">Double-click timeline to jump video</p>
+            )}
 
             {/* Annotate from dot click */}
             {annotateTimestamp !== null && (

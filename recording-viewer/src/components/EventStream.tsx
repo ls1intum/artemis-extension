@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef, useEffect } from 'react';
+import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import type { Annotation, RecordedEvent, EventType } from '../types.ts';
 import { formatOffset, shortenUri } from '../utils/format.ts';
 
@@ -12,6 +12,9 @@ interface Props {
     onDeleteAnnotation: (id: string) => void;
     scrollToTimestamp?: number | null;
     onScrollComplete?: () => void;
+    videoTimeRef?: React.RefObject<number>;
+    isVideoPlaying?: boolean;
+    onSeekVideo?: (timestamp: number) => void;
 }
 
 type StreamItem =
@@ -290,9 +293,11 @@ function AnnotationRow({ annotation, sessionStartTime, onUpdate, onDelete }: {
     );
 }
 
-export function EventStream({ events, sessionStartTime, annotations, enabledTypes, onAddAnnotation, onUpdateAnnotation, onDeleteAnnotation, scrollToTimestamp, onScrollComplete }: Props) {
+export function EventStream({ events, sessionStartTime, annotations, enabledTypes, onAddAnnotation, onUpdateAnnotation, onDeleteAnnotation, scrollToTimestamp, onScrollComplete, videoTimeRef, isVideoPlaying, onSeekVideo }: Props) {
     const [showAnnotations, setShowAnnotations] = useState(true);
     const [annotatingTimestamp, setAnnotatingTimestamp] = useState<number | null>(null);
+    const [followPlayback, setFollowPlayback] = useState(false);
+    const programmaticScroll = useRef(false);
     const listRef = useRef<HTMLDivElement>(null);
 
     // Scroll to timestamp when requested; clear after 2s animation
@@ -319,6 +324,87 @@ export function EventStream({ events, sessionStartTime, annotations, enabledType
         const timer = setTimeout(() => onScrollComplete?.(), 2000);
         return () => clearTimeout(timer);
     }, [scrollToTimestamp, onScrollComplete]);
+
+    // Pre-sorted timestamps for binary search in follow mode
+    const sortedTimestamps = useMemo(() => {
+        return events
+            .filter(e => enabledTypes.has(e.type))
+            .map(e => e.timestamp)
+            .sort((a, b) => a - b);
+    }, [events, enabledTypes]);
+
+    // Manual scroll detection: disable follow mode.
+    // programmaticScroll flag is set before scrollIntoView and cleared by
+    // 'scrollend' (fires after scroll settles) with rAF fallback.
+    useEffect(() => {
+        const el = listRef.current;
+        if (!el) return;
+        const onScroll = () => {
+            if (programmaticScroll.current) return;
+            setFollowPlayback(false);
+        };
+        const onScrollEnd = () => {
+            programmaticScroll.current = false;
+        };
+        el.addEventListener('scroll', onScroll, { passive: true });
+        el.addEventListener('scrollend', onScrollEnd, { passive: true });
+        return () => {
+            el.removeEventListener('scroll', onScroll);
+            el.removeEventListener('scrollend', onScrollEnd);
+        };
+    }, []);
+
+    // Follow playback mode
+    useEffect(() => {
+        if (!followPlayback || !isVideoPlaying || !videoTimeRef || !listRef.current) return;
+
+        const interval = setInterval(() => {
+            const ts = videoTimeRef.current;
+            if (ts <= 0) return;
+
+            // Binary search for nearest timestamp
+            let lo = 0, hi = sortedTimestamps.length - 1;
+            while (lo < hi) {
+                const mid = (lo + hi) >> 1;
+                if (sortedTimestamps[mid] < ts) lo = mid + 1;
+                else hi = mid;
+            }
+            // Check if lo-1 is closer
+            if (lo > 0 && Math.abs(sortedTimestamps[lo - 1] - ts) < Math.abs(sortedTimestamps[lo] - ts)) {
+                lo = lo - 1;
+            }
+            const nearestTs = sortedTimestamps[lo];
+            if (nearestTs == null) return;
+
+            const rows = listRef.current?.querySelectorAll<HTMLElement>('[data-timestamp]');
+            if (!rows) return;
+            let closest: HTMLElement | null = null;
+            let closestDist = Infinity;
+            rows.forEach(row => {
+                const rowTs = Number(row.dataset.timestamp);
+                const dist = Math.abs(rowTs - nearestTs);
+                if (dist < closestDist) {
+                    closestDist = dist;
+                    closest = row;
+                }
+            });
+
+            if (closest) {
+                programmaticScroll.current = true;
+                (closest as HTMLElement).scrollIntoView({ behavior: 'instant', block: 'nearest' });
+                // Fallback for browsers without scrollend: clear after next frame
+                requestAnimationFrame(() => {
+                    programmaticScroll.current = false;
+                });
+            }
+        }, 1000);
+
+        return () => clearInterval(interval);
+    }, [followPlayback, isVideoPlaying, videoTimeRef, sortedTimestamps]);
+
+    const handleSeekToEvent = useCallback((timestamp: number) => {
+        onSeekVideo?.(timestamp);
+    }, [onSeekVideo]);
 
     const stream = useMemo<StreamItem[]>(() => {
         const items: StreamItem[] = [];
@@ -349,13 +435,24 @@ export function EventStream({ events, sessionStartTime, annotations, enabledType
         <div className="event-stream">
             <div className="event-stream-header">
                 <h2>Event Stream ({eventCount} / {events.length})</h2>
-                <button
-                    className={`filter-btn annotation-toggle ${showAnnotations ? 'active' : ''}`}
-                    onClick={() => setShowAnnotations(!showAnnotations)}
-                    title="Toggle annotations"
-                >
-                    {annotations.length} annotation{annotations.length !== 1 ? 's' : ''}
-                </button>
+                <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                    {onSeekVideo && (
+                        <button
+                            className={`filter-btn follow-playback-btn ${followPlayback ? 'active' : ''}`}
+                            onClick={() => setFollowPlayback(f => !f)}
+                            title="Auto-scroll to current video position"
+                        >
+                            Follow playback
+                        </button>
+                    )}
+                    <button
+                        className={`filter-btn annotation-toggle ${showAnnotations ? 'active' : ''}`}
+                        onClick={() => setShowAnnotations(!showAnnotations)}
+                        title="Toggle annotations"
+                    >
+                        {annotations.length} annotation{annotations.length !== 1 ? 's' : ''}
+                    </button>
+                </div>
             </div>
 
             <FreeAnnotationForm sessionStartTime={sessionStartTime} onAdd={onAddAnnotation} />
@@ -384,6 +481,15 @@ export function EventStream({ events, sessionStartTime, annotations, enabledType
                                 </span>
                                 <span className={`event-badge ${event.type}`}>{event.type}</span>
                                 <EventDetail event={event} />
+                                {onSeekVideo && (
+                                    <button
+                                        className="seek-video-btn"
+                                        title="Jump video to this event"
+                                        onClick={() => handleSeekToEvent(event.timestamp)}
+                                    >
+                                        &#9654;
+                                    </button>
+                                )}
                                 <button
                                     className="annotate-btn"
                                     title="Add annotation at this timestamp"

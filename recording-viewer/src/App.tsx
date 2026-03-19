@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useMemo } from 'react';
-import type { Annotation, LoadedSession, RecordedEvent, SessionMetadata, ReplayEqSnapshot, EventType } from './types';
+import type { Annotation, LoadedSession, RecordedEvent, SessionMetadata, ReplayEqSnapshot, EventType, VideoSyncConfig } from './types';
 import { FileDropZone } from './components/FileDropZone';
 import { RecordingInfo } from './components/RecordingInfo';
 import { SessionList } from './components/SessionList';
@@ -7,6 +7,10 @@ import { SessionInfo } from './components/SessionInfo';
 import { SessionTimeline } from './components/SessionTimeline';
 import { EventStream } from './components/EventStream';
 import { TrackingTimeline } from './components/TrackingTimeline';
+import { VideoPlayer } from './components/VideoPlayer';
+import type { VideoPlayerHandle } from './components/VideoPlayer';
+import { VideoUpload } from './components/VideoUpload';
+import { OffsetConfig } from './components/OffsetConfig';
 import { ALL_EVENT_TYPES } from './constants';
 
 const DEFAULT_ENABLED: EventType[] = [
@@ -25,6 +29,13 @@ function App() {
     const [annotations, setAnnotations] = useState<Annotation[]>([]);
     const [enabledTypes, setEnabledTypes] = useState(() => new Set<EventType>(DEFAULT_ENABLED));
     const activeSessionId = useRef<string | null>(null);
+
+    // Video state
+    const [videoSyncConfig, setVideoSyncConfig] = useState<VideoSyncConfig | null>(null);
+    const [isVideoPlaying, setIsVideoPlaying] = useState(false);
+    const [videoCacheBust, setVideoCacheBust] = useState(0);
+    const videoTimeRef = useRef<number>(0);
+    const videoPlayerRef = useRef<VideoPlayerHandle>(null);
 
     const toggleType = useCallback((type: EventType) => {
         setEnabledTypes(prev => {
@@ -69,11 +80,12 @@ function App() {
         setViewMode('timeline');
         setScrollToTimestamp(null);
         try {
-            const [eventsRes, metaRes, replayRes, annotRes] = await Promise.all([
+            const [eventsRes, metaRes, replayRes, annotRes, videoSyncRes] = await Promise.all([
                 fetch(`/api/recordings/${sessionId}/events`),
                 fetch(`/api/recordings/${sessionId}/metadata`),
                 fetch(`/api/recordings/${sessionId}/replay-eq`),
                 fetch(`/api/recordings/${sessionId}/annotations`),
+                fetch(`/api/recordings/${sessionId}/video-sync`),
             ]);
 
             const events: RecordedEvent[] = await eventsRes.json();
@@ -90,8 +102,17 @@ function App() {
                 loadedAnnotations = await annotRes.json();
             }
 
+            let syncConfig: VideoSyncConfig | null = null;
+            if (videoSyncRes.ok) {
+                syncConfig = await videoSyncRes.json();
+            }
+
             activeSessionId.current = sessionId;
             setAnnotations(loadedAnnotations);
+            setVideoSyncConfig(syncConfig);
+            setVideoCacheBust(Date.now());
+            setIsVideoPlaying(false);
+            videoTimeRef.current = 0;
             setSession({ metadata, events, fileName: sessionId, replayEq, annotations: loadedAnnotations });
         } catch (err) {
             console.error('Failed to load session:', err);
@@ -103,6 +124,9 @@ function App() {
     const handleFileSession = useCallback((loaded: LoadedSession) => {
         activeSessionId.current = null;
         setAnnotations([]);
+        setVideoSyncConfig(null);
+        setIsVideoPlaying(false);
+        videoTimeRef.current = 0;
         setViewMode('timeline');
         setScrollToTimestamp(null);
         setSession(loaded);
@@ -111,9 +135,40 @@ function App() {
     const handleBack = useCallback(() => {
         activeSessionId.current = null;
         setAnnotations([]);
+        setVideoSyncConfig(null);
+        setIsVideoPlaying(false);
+        videoTimeRef.current = 0;
         setViewMode('timeline');
         setScrollToTimestamp(null);
         setSession(null);
+    }, []);
+
+    // Video callbacks
+    const handleVideoSeek = useCallback((timestamp: number) => {
+        videoPlayerRef.current?.seekToSessionTimestamp(timestamp);
+    }, []);
+
+    const handleVideoUploadComplete = useCallback((ext: 'mp4' | 'webm') => {
+        setVideoSyncConfig(prev => ({
+            videoTimeAtSessionStartSeconds: prev?.videoTimeAtSessionStartSeconds ?? 0,
+            videoExtension: ext,
+        }));
+        setVideoCacheBust(Date.now());
+    }, []);
+
+    const handleOffsetChange = useCallback(async (newOffset: number) => {
+        if (!activeSessionId.current || !videoSyncConfig) return;
+        const updated = { ...videoSyncConfig, videoTimeAtSessionStartSeconds: newOffset };
+        setVideoSyncConfig(updated);
+        await fetch(`/api/recordings/${activeSessionId.current}/video-sync`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(updated),
+        }).catch(() => {/* best-effort */});
+    }, [videoSyncConfig]);
+
+    const handleVideoPlayStateChange = useCallback((playing: boolean) => {
+        setIsVideoPlaying(playing);
     }, []);
 
     // Use metadata.startTime if available, otherwise the earliest event timestamp
@@ -140,7 +195,6 @@ function App() {
     }, []);
 
     // Shared xDomain: compute from all events + annotations + replayEq
-    // Uses a loop instead of Math.min(...arr) to avoid stack overflow on large sessions
     const xDomain = useMemo<[number, number] | undefined>(() => {
         if (!session || session.events.length === 0) return undefined;
         let min = Infinity;
@@ -165,6 +219,10 @@ function App() {
         const padding = Math.max((max - min) * 0.03, 1000);
         return [Math.max(0, min - padding), max + padding];
     }, [session, annotations, sessionStartTime]);
+
+    const videoUrl = activeSessionId.current && videoSyncConfig
+        ? `/api/recordings/${encodeURIComponent(activeSessionId.current)}/video?v=${videoCacheBust}`
+        : null;
 
     return (
         <div className="app">
@@ -194,6 +252,36 @@ function App() {
 
             {session && (
                 <div className="session-view">
+                    {activeSessionId.current && videoSyncConfig && videoUrl && (
+                        <div className="video-section">
+                            <VideoPlayer
+                                ref={videoPlayerRef}
+                                sessionStartTime={sessionStartTime}
+                                videoTimeAtSessionStartSeconds={videoSyncConfig.videoTimeAtSessionStartSeconds}
+                                videoUrl={videoUrl}
+                                videoTimeRef={videoTimeRef}
+                                onPlayStateChange={handleVideoPlayStateChange}
+                            />
+                            <div className="video-config-row">
+                                <OffsetConfig
+                                    videoTimeAtSessionStartSeconds={videoSyncConfig.videoTimeAtSessionStartSeconds}
+                                    onOffsetChange={handleOffsetChange}
+                                />
+                                <VideoUpload
+                                    sessionId={activeSessionId.current}
+                                    hasVideo={true}
+                                    onUploadComplete={handleVideoUploadComplete}
+                                />
+                            </div>
+                        </div>
+                    )}
+                    {activeSessionId.current && !videoSyncConfig && (
+                        <VideoUpload
+                            sessionId={activeSessionId.current}
+                            hasVideo={false}
+                            onUploadComplete={handleVideoUploadComplete}
+                        />
+                    )}
                     <SessionInfo session={session} />
                     <SessionTimeline
                         events={session.events}
@@ -201,6 +289,7 @@ function App() {
                         replayEq={session.replayEq}
                         annotations={annotations}
                         xDomain={xDomain}
+                        videoTimeRef={videoTimeRef}
                     />
                     <div className="filter-bar shared-filter-bar">
                         <button
@@ -250,6 +339,8 @@ function App() {
                             onUpdateAnnotation={handleUpdateAnnotation}
                             onDeleteAnnotation={handleDeleteAnnotation}
                             onViewInList={handleViewInList}
+                            videoTimeRef={videoTimeRef}
+                            onSeekVideo={videoSyncConfig ? handleVideoSeek : undefined}
                         />
                     )}
                     {viewMode === 'list' && (
@@ -263,6 +354,9 @@ function App() {
                             onDeleteAnnotation={handleDeleteAnnotation}
                             scrollToTimestamp={scrollToTimestamp}
                             onScrollComplete={handleScrollComplete}
+                            videoTimeRef={videoTimeRef}
+                            isVideoPlaying={isVideoPlaying}
+                            onSeekVideo={videoSyncConfig ? handleVideoSeek : undefined}
                         />
                     )}
                 </div>
