@@ -11,6 +11,7 @@ import { VideoPlayer } from './components/VideoPlayer';
 import type { VideoPlayerHandle } from './components/VideoPlayer';
 import { VideoUpload } from './components/VideoUpload';
 import { OffsetConfig } from './components/OffsetConfig';
+import { FreeAnnotationForm } from './components/FreeAnnotationForm';
 import { ALL_EVENT_TYPES } from './constants';
 
 const DEFAULT_ENABLED: EventType[] = [
@@ -325,19 +326,27 @@ function App() {
                             </button>
                         ))}
                     </div>
-                    <div className="view-toggle">
-                        <button
-                            className={`view-toggle-btn ${viewMode === 'timeline' ? 'active' : ''}`}
-                            onClick={() => setViewMode('timeline')}
-                        >
-                            Timeline
-                        </button>
-                        <button
-                            className={`view-toggle-btn ${viewMode === 'list' ? 'active' : ''}`}
-                            onClick={() => setViewMode('list')}
-                        >
-                            List
-                        </button>
+                    <div className="view-toggle-row">
+                        <div className="view-toggle">
+                            <button
+                                className={`view-toggle-btn ${viewMode === 'timeline' ? 'active' : ''}`}
+                                onClick={() => setViewMode('timeline')}
+                            >
+                                Timeline
+                            </button>
+                            <button
+                                className={`view-toggle-btn ${viewMode === 'list' ? 'active' : ''}`}
+                                onClick={() => setViewMode('list')}
+                            >
+                                List
+                            </button>
+                        </div>
+                        <div className="annotation-bar">
+                            <FreeAnnotationForm sessionStartTime={sessionStartTime} onAdd={handleAddAnnotation} />
+                            <span className={`filter-btn annotation-toggle active`}>
+                                {annotations.length} annotation{annotations.length !== 1 ? 's' : ''}
+                            </span>
+                        </div>
                     </div>
                     {viewMode === 'timeline' && xDomain && (
                         <TrackingTimeline

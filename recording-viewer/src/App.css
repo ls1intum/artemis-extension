@@ -938,6 +938,19 @@
 
 /* ── View toggle ────────────────────────────────────────────────────── */
 
+.view-toggle-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.annotation-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
 .view-toggle {
     display: flex;
     gap: 2px;
