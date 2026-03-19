@@ -220,6 +220,15 @@ function App() {
         return [Math.max(0, min - padding), max + padding];
     }, [session, annotations, sessionStartTime]);
 
+    const sessionEndTime = useMemo(() => {
+        if (!session || session.events.length === 0) return sessionStartTime;
+        let max = session.events[0].timestamp;
+        for (let i = 1; i < session.events.length; i++) {
+            if (session.events[i].timestamp > max) max = session.events[i].timestamp;
+        }
+        return max;
+    }, [session, sessionStartTime]);
+
     const videoUrl = activeSessionId.current && videoSyncConfig
         ? `/api/recordings/${encodeURIComponent(activeSessionId.current)}/video?v=${videoCacheBust}`
         : null;
@@ -257,6 +266,7 @@ function App() {
                             <VideoPlayer
                                 ref={videoPlayerRef}
                                 sessionStartTime={sessionStartTime}
+                                sessionEndTime={sessionEndTime}
                                 videoTimeAtSessionStartSeconds={videoSyncConfig.videoTimeAtSessionStartSeconds}
                                 videoUrl={videoUrl}
                                 videoTimeRef={videoTimeRef}

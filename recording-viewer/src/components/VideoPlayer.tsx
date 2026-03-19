@@ -8,6 +8,7 @@ export interface VideoPlayerHandle {
 
 interface Props {
     sessionStartTime: number;
+    sessionEndTime: number;
     videoTimeAtSessionStartSeconds: number;
     videoUrl: string;
     videoTimeRef: React.RefObject<number>;
@@ -22,7 +23,7 @@ function formatVideoTime(seconds: number): string {
 }
 
 export const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer(
-    { sessionStartTime, videoTimeAtSessionStartSeconds, videoUrl, videoTimeRef, onPlayStateChange },
+    { sessionStartTime, sessionEndTime, videoTimeAtSessionStartSeconds, videoUrl, videoTimeRef, onPlayStateChange },
     ref,
 ) {
     const videoRef = useRef<HTMLVideoElement>(null);
@@ -201,16 +202,31 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPl
                 <span className="video-time mono">
                     {formatVideoTime(currentTime)} / {formatVideoTime(duration)}
                 </span>
-                <input
-                    ref={scrubRef}
-                    type="range"
-                    className="video-scrub-bar"
-                    min={0}
-                    max={duration || 1}
-                    step={0.1}
-                    value={currentTime}
-                    onChange={handleScrub}
-                />
+                <div className="video-scrub-container">
+                    {duration > 0 && (() => {
+                        const sessionStartVideo = videoTimeAtSessionStartSeconds;
+                        const sessionEndVideo = sessionToVideoTime(sessionEndTime);
+                        const left = Math.max(0, sessionStartVideo / duration) * 100;
+                        const right = Math.min(1, sessionEndVideo / duration) * 100;
+                        return (
+                            <div
+                                className="video-session-range"
+                                style={{ left: `${left}%`, width: `${right - left}%` }}
+                                title="Session timeline range"
+                            />
+                        );
+                    })()}
+                    <input
+                        ref={scrubRef}
+                        type="range"
+                        className="video-scrub-bar"
+                        min={0}
+                        max={duration || 1}
+                        step={0.1}
+                        value={currentTime}
+                        onChange={handleScrub}
+                    />
+                </div>
                 <button className="video-mute-btn" onClick={toggleMute} title={muted ? 'Unmute' : 'Mute'}>
                     {muted || volume === 0 ? '\uD83D\uDD07' : '\uD83D\uDD0A'}
                 </button>
