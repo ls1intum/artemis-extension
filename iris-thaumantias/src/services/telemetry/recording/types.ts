@@ -136,6 +136,20 @@ export interface InterventionEvent {
     triggerType?: 'execution-error' | 'multiline-paste' | 'idle' | 'selection-maintained';
 }
 
+export interface ViewNavigationEvent {
+    type: 'viewNavigation';
+    timestamp: number;
+    from: string;
+    to: string;
+}
+
+export interface PanelVisibilityEvent {
+    type: 'panelVisibility';
+    timestamp: number;
+    panel: 'artemis' | 'chat';
+    visible: boolean;
+}
+
 export interface SelectionChangeEvent {
     type: 'selectionChange';
     timestamp: number;
@@ -167,6 +181,8 @@ export type RecordedEvent =
     | EqSnapshotEvent
     | EqEngineStateEvent
     | InterventionEvent
+    | ViewNavigationEvent
+    | PanelVisibilityEvent
     | SelectionChangeEvent
     | VisibleRangeChangeEvent;
 

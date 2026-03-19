@@ -247,6 +247,30 @@ export class SessionRecorder implements vscode.Disposable, WebSocketMessageHandl
         });
     }
 
+    recordViewNavigation(from: string, to: string): void {
+        if (!this._isRecording) {
+            return;
+        }
+        this._record({
+            type: 'viewNavigation',
+            timestamp: Date.now(),
+            from,
+            to,
+        });
+    }
+
+    recordPanelVisibility(panel: 'artemis' | 'chat', visible: boolean): void {
+        if (!this._isRecording) {
+            return;
+        }
+        this._record({
+            type: 'panelVisibility',
+            timestamp: Date.now(),
+            panel,
+            visible,
+        });
+    }
+
     recordEqEngineState(
         snapshots: SerializedErrorSnapshot[],
         currentEQ: number,

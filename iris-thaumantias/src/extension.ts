@@ -209,6 +209,15 @@ export async function activate(context: vscode.ExtensionContext) {
 			decision.shouldIntervene, decision.eq, decision.confidence, decision.triggerType,
 		);
 	});
+	artemisWebviewProvider.onDidChangeViewNavigation(({ from, to }) => {
+		sessionRecorder.recordViewNavigation(from, to);
+	});
+	artemisWebviewProvider.onDidChangePanelVisibility(visible => {
+		sessionRecorder.recordPanelVisibility('artemis', visible);
+	});
+	chatWebviewProvider.onDidChangePanelVisibility(visible => {
+		sessionRecorder.recordPanelVisibility('chat', visible);
+	});
 	sessionRecorder.onDidChangeState(state => {
 		if (state.isRecording && state.eventCount <= 1) {
 			// Recording just started — capture EQ engine state for replay seeding

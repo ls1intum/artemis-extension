@@ -56,6 +56,12 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
     private _buildCodeLens?: BuildErrorCodeLensProvider;
     private _telemetryManager?: TelemetryManager;
 
+    private readonly _onDidChangeViewNavigation = new vscode.EventEmitter<{ from: string; to: string }>();
+    public readonly onDidChangeViewNavigation = this._onDidChangeViewNavigation.event;
+
+    private readonly _onDidChangePanelVisibility = new vscode.EventEmitter<boolean>();
+    public readonly onDidChangePanelVisibility = this._onDidChangePanelVisibility.event;
+
     // ── Constructor ────────────────────────────────────────────────────
     constructor(
         private readonly _extensionUri: vscode.Uri,
@@ -105,6 +111,13 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
                 showLogin: () => this.showLogin(),
             },
         );
+
+        this._appStateManager.onStateChange = (from, to) => {
+            this._onDidChangeViewNavigation.fire({ from, to });
+        };
+
+        this._disposables.push(this._onDidChangeViewNavigation);
+        this._disposables.push(this._onDidChangePanelVisibility);
     }
 
     // ── Post-construction setters ──────────────────────────────────────
@@ -217,6 +230,7 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
 
         // Handle visibility changes — resend data when panel becomes visible
         const visibilityListener = webviewView.onDidChangeVisibility(() => {
+            this._onDidChangePanelVisibility.fire(webviewView.visible);
             if (webviewView.visible) {
                 void (async () => {
                     // Check if auth expired while panel was hidden

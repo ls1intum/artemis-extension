@@ -550,6 +550,8 @@
 .event-badge.irisChatMessage { background: rgba(236, 72, 153, 0.15); color: #f472b6; }
 .event-badge.intervention { background: rgba(249, 115, 22, 0.15); color: #f97316; }
 .event-badge.eqEngineState { background: rgba(99, 102, 241, 0.15); color: #818cf8; }
+.event-badge.viewNavigation { background: rgba(167, 139, 250, 0.15); color: #a78bfa; }
+.event-badge.panelVisibility { background: rgba(251, 191, 36, 0.12); color: #fbbf24; }
 .event-badge.selectionChange { background: rgba(6, 182, 212, 0.15); color: #06b6d4; }
 .event-badge.visibleRangeChange { background: rgba(20, 184, 166, 0.15); color: #14b8a6; }
 

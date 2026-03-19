@@ -129,6 +129,18 @@ function EventDetail({ event }: { event: RecordedEvent }) {
                     <span className={`confidence-tag ${event.confidence}`}>{event.confidence}</span>
                 </span>
             );
+        case 'viewNavigation':
+            return (
+                <span className="event-detail">
+                    {event.from} &rarr; {event.to}
+                </span>
+            );
+        case 'panelVisibility':
+            return (
+                <span className="event-detail">
+                    {event.panel} | {event.visible ? 'visible' : 'hidden'}
+                </span>
+            );
         default:
             return null;
     }

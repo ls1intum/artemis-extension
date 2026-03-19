@@ -64,6 +64,9 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
     private readonly _onDidSendIrisChatMessage = new vscode.EventEmitter<string>();
     public readonly onDidSendIrisChatMessage = this._onDidSendIrisChatMessage.event;
 
+    private readonly _onDidChangePanelVisibility = new vscode.EventEmitter<boolean>();
+    public readonly onDidChangePanelVisibility = this._onDidChangePanelVisibility.event;
+
 
     // ── Constructor ────────────────────────────────────────────────────
     constructor(
@@ -77,6 +80,7 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
         super();
         this._disposables.push(this._onDidChangeExerciseContext);
         this._disposables.push(this._onDidSendIrisChatMessage);
+        this._disposables.push(this._onDidChangePanelVisibility);
         this._contextStore = new ContextStore(this._extensionContext);
         this._fileMonitorService = new FileMonitorService();
         this._disposables.push(this._fileMonitorService);
@@ -188,6 +192,7 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
         this._disposables.push(messageListener);
 
         const visibilityListener = webviewView.onDidChangeVisibility(() => {
+            this._onDidChangePanelVisibility.fire(webviewView.visible);
             if (webviewView.visible) {
                 logger.debug('Iris Chat view became visible, loading data...', LogCategory.VIEW);
                 this._sendInitData();

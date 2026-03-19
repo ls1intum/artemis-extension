@@ -53,7 +53,20 @@ export class AppStateManager {
     private _aiExtensions?: AiExtension[];
     private _recommendedExtensions?: RecommendedExtensionCategory[];
 
+    private _onStateChange?: (from: AppState, to: AppState) => void;
+
     constructor(private readonly _artemisApi: ArtemisApiService) { }
+
+    public set onStateChange(handler: (from: AppState, to: AppState) => void) {
+        this._onStateChange = handler;
+    }
+
+    private _setCurrentState(newState: AppState): void {
+        const prev = this._currentState;
+        if (prev === newState) { return; }
+        this._currentState = newState;
+        this._onStateChange?.(prev, newState);
+    }
 
     // State getters
     get currentState(): AppState {
@@ -113,7 +126,7 @@ export class AppStateManager {
     // State transitions
     public async showDashboard(userInfo: UserInfo): Promise<void> {
         this._userInfo = userInfo;
-        this._currentState = 'dashboard';
+        this._setCurrentState('dashboard');
 
         // Clear stale courses before fetching so callers can trust
         // that non-undefined coursesData reflects a successful load
@@ -132,7 +145,7 @@ export class AppStateManager {
     }
 
     public showLogin(): void {
-        this._currentState = 'login';
+        this._setCurrentState('login');
         this._userInfo = undefined;
         this._coursesData = undefined;
         this._archivedCoursesData = undefined;
@@ -146,7 +159,7 @@ export class AppStateManager {
             if (!options?.skipFetch) {
                 this._coursesData = await this._artemisApi.getCoursesForDashboard();
             }
-            this._currentState = 'course-list';
+            this._setCurrentState('course-list');
         } catch (error) {
             logger.error('Error loading courses:', LogCategory.VIEW, error);
             throw error;
@@ -155,7 +168,7 @@ export class AppStateManager {
 
     public showCourseDetail(courseData: CourseDetailData): void {
         this._currentCourseData = courseData;
-        this._currentState = 'course-detail';
+        this._setCurrentState('course-detail');
     }
 
     public async showArchivedCourseDetail(courseId: number): Promise<void> {
@@ -175,7 +188,7 @@ export class AppStateManager {
             } catch { /* continue without exams */ }
 
             this._currentCourseData = courseData;
-            this._currentState = 'course-detail';
+            this._setCurrentState('course-detail');
         } catch (error) {
             logger.error('Error loading archived course details:', LogCategory.VIEW, error);
             throw error;
@@ -225,7 +238,7 @@ export class AppStateManager {
                 }
             }
 
-            this._currentState = 'exercise-detail';
+            this._setCurrentState('exercise-detail');
         } catch (error) {
             logger.error('Error loading exercise details:', LogCategory.VIEW, error);
             throw error;
@@ -233,7 +246,7 @@ export class AppStateManager {
     }
 
     public backToCourseDetails(): void {
-        this._currentState = 'course-detail';
+        this._setCurrentState('course-detail');
     }
 
     public injectCourseEntry(entry: CourseDashboardEntry): void {
@@ -262,15 +275,15 @@ export class AppStateManager {
 
     public showAiConfig(aiExtensions: AiExtension[]): void {
         this._aiExtensions = aiExtensions;
-        this._currentState = 'ai-config';
+        this._setCurrentState('ai-config');
     }
 
     public showServiceStatus(): void {
-        this._currentState = 'service-status';
+        this._setCurrentState('service-status');
     }
 
     public showStruggleDetection(): void {
-        this._currentState = 'struggle-detection';
+        this._setCurrentState('struggle-detection');
     }
 
     public showRecommendedExtensions(recommendedExtensions?: RecommendedExtensionCategory[]): void {
@@ -282,21 +295,21 @@ export class AppStateManager {
         } else {
             this._recommendedExtensions = getRecommendedExtensionsByCategory();
         }
-        this._currentState = 'recommended-extensions';
+        this._setCurrentState('recommended-extensions');
     }
 
     public showGitCredentials(): void {
-        this._currentState = 'git-credentials';
+        this._setCurrentState('git-credentials');
     }
 
     public showExamStart(examData: ExamData): void {
         this._currentExamData = examData;
-        this._currentState = 'exam-start';
+        this._setCurrentState('exam-start');
     }
 
     public showExamConduction(examData: ExamData): void {
         this._currentExamData = examData;
-        this._currentState = 'exam-conduction';
+        this._setCurrentState('exam-conduction');
     }
 
     public showExamExerciseDetail(
@@ -314,11 +327,11 @@ export class AppStateManager {
             isExamExercise: true,
             studentExam: this._currentExamData?.studentExam
         };
-        this._currentState = 'exam-exercise-detail';
+        this._setCurrentState('exam-exercise-detail');
     }
 
     public backToExam(): void {
-        this._currentState = 'exam-conduction';
+        this._setCurrentState('exam-conduction');
     }
 
     public isLoggedIn(): boolean {

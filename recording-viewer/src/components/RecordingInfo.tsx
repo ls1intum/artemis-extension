@@ -19,9 +19,11 @@ const categories = [
         ],
     },
     {
-        title: 'Window & Snapshots',
+        title: 'Window & Navigation',
         items: [
             { badge: 'windowFocus', label: 'WindowFocus', desc: 'Window focus/blur state changes' },
+            { badge: 'viewNavigation', label: 'ViewNavigation', desc: 'Extension sidebar screen changes (e.g. course-list \u2192 exercise-detail)' },
+            { badge: 'panelVisibility', label: 'PanelVisibility', desc: 'Artemis sidebar or Iris Chat panel shown/hidden' },
             { badge: 'fileSnapshot', label: 'FileSnapshot', desc: 'Initial file content at session start (max 1 MB per file)' },
         ],
     },

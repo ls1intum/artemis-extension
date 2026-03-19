@@ -14,6 +14,8 @@ export const MARKER_COLORS: Record<EventType, string> = {
     sessionEnd: '#f87171',
     irisChatMessage: '#f472b6',
     intervention: '#f97316',
+    viewNavigation: '#a78bfa',
+    panelVisibility: '#fbbf24',
     selectionChange: '#06b6d4',
     visibleRangeChange: '#14b8a6',
 };
@@ -26,6 +28,7 @@ export const ALL_EVENT_TYPES = [
     'fileSwitch',
     'windowFocus', 'fileSnapshot',
     'irisChatMessage',
+    'viewNavigation', 'panelVisibility',
     'selectionChange', 'visibleRangeChange',
 ] as const satisfies readonly EventType[];
 

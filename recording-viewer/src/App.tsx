@@ -21,6 +21,7 @@ const DEFAULT_ENABLED: EventType[] = [
     'fileSwitch',
     'irisChatMessage',
     'windowFocus',
+    'viewNavigation', 'panelVisibility',
 ];
 
 function App() {
