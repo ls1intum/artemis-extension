@@ -1220,6 +1220,62 @@
     cursor: pointer;
 }
 
+.video-mute-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border-radius: 4px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--text);
+    cursor: pointer;
+    font-size: 14px;
+    flex-shrink: 0;
+    transition: background 0.1s, border-color 0.15s;
+}
+.video-mute-btn:hover {
+    background: var(--bg-surface);
+    border-color: var(--accent);
+}
+
+.video-volume-bar {
+    width: 70px;
+    height: 4px;
+    -webkit-appearance: none;
+    appearance: none;
+    background: var(--border);
+    border-radius: 2px;
+    outline: none;
+    cursor: pointer;
+    flex-shrink: 0;
+}
+.video-volume-bar::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--text-muted);
+    cursor: pointer;
+}
+
+.video-speed-select {
+    font-family: var(--mono);
+    font-size: 11px;
+    padding: 2px 4px;
+    border-radius: 4px;
+    border: 1px solid var(--border);
+    background: var(--bg-elevated);
+    color: var(--text);
+    cursor: pointer;
+    flex-shrink: 0;
+    outline: none;
+}
+.video-speed-select:hover {
+    border-color: var(--accent);
+}
+
 .video-config-row {
     display: flex;
     align-items: center;

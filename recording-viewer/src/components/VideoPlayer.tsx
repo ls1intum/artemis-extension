@@ -31,6 +31,11 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPl
     const [playing, setPlaying] = useState(false);
     const [currentTime, setCurrentTime] = useState(0);
     const [duration, setDuration] = useState(0);
+    const [volume, setVolume] = useState(1);
+    const [muted, setMuted] = useState(false);
+    const [playbackRate, setPlaybackRate] = useState(1);
+
+    const SPEED_OPTIONS = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 2];
 
     // Convert between video time and session timestamp
     const videoTimeToSession = useCallback((videoTime: number) => {
@@ -127,6 +132,33 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPl
         video.currentTime = Number(e.target.value);
     }, []);
 
+    const handleVolumeChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+        const video = videoRef.current;
+        if (!video) return;
+        const v = Number(e.target.value);
+        video.volume = v;
+        setVolume(v);
+        if (v > 0 && video.muted) {
+            video.muted = false;
+            setMuted(false);
+        }
+    }, []);
+
+    const toggleMute = useCallback(() => {
+        const video = videoRef.current;
+        if (!video) return;
+        video.muted = !video.muted;
+        setMuted(video.muted);
+    }, []);
+
+    const handleSpeedChange = useCallback((e: React.ChangeEvent<HTMLSelectElement>) => {
+        const video = videoRef.current;
+        if (!video) return;
+        const rate = Number(e.target.value);
+        video.playbackRate = rate;
+        setPlaybackRate(rate);
+    }, []);
+
     // Global keyboard shortcuts: arrows to skip, space to play/pause
     useEffect(() => {
         const onKeyDown = (e: KeyboardEvent) => {
@@ -179,6 +211,29 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPl
                     value={currentTime}
                     onChange={handleScrub}
                 />
+                <button className="video-mute-btn" onClick={toggleMute} title={muted ? 'Unmute' : 'Mute'}>
+                    {muted || volume === 0 ? '\uD83D\uDD07' : '\uD83D\uDD0A'}
+                </button>
+                <input
+                    type="range"
+                    className="video-volume-bar"
+                    min={0}
+                    max={1}
+                    step={0.05}
+                    value={muted ? 0 : volume}
+                    onChange={handleVolumeChange}
+                    title={`Volume: ${Math.round((muted ? 0 : volume) * 100)}%`}
+                />
+                <select
+                    className="video-speed-select"
+                    value={playbackRate}
+                    onChange={handleSpeedChange}
+                    title="Playback speed"
+                >
+                    {SPEED_OPTIONS.map(s => (
+                        <option key={s} value={s}>{s === 1 ? '1x' : `${s}x`}</option>
+                    ))}
+                </select>
             </div>
         </div>
     );
