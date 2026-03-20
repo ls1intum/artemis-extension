@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { AuthManager } from '../../auth';
+import { AuthManager } from './authManager';
 import { ArtemisApiService } from '../../api';
 import { ExtensionMsg } from '../../shared/messageContracts';
 import type { ExtensionToWebviewMessage } from '../../shared/messageContracts';

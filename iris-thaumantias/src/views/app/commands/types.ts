@@ -1,5 +1,5 @@
 import type * as vscode from 'vscode';
-import type { AuthManager } from '../../../auth';
+import type { AuthManager } from '../../../services/auth';
 import type { ArtemisApiService } from '../../../api';
 import type { AppStateManager } from '../appStateManager';
 import type { WebViewActionHandler } from '../types';

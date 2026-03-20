@@ -1,6 +1,6 @@
 import * as assert from 'assert';
 import { ArtemisApiService } from '../../../src/api/artemisApi';
-import { AuthManager } from '../../../src/auth/auth';
+import { AuthManager } from '../../../src/services/auth/authManager';
 import { MockExtensionContext } from '../mocks/vscodeMocks';
 import { ApiError, ArtemisUser, ArtemisParticipation, ArtemisResult, BuildLogEntry, AuthenticationResult, ProgrammingSubmission } from '../../../src/types';
 

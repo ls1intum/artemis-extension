@@ -3,7 +3,7 @@ import * as sinon from 'sinon';
 import * as vscode from 'vscode';
 import { WebViewMessageHandler } from '../../../../src/views/app/webViewMessageHandler';
 import { MockExtensionContext } from '../../mocks/vscodeMocks';
-import { AuthManager } from '../../../../src/auth';
+import { AuthManager } from '../../../../src/services/auth';
 import { ArtemisApiService } from '../../../../src/api';
 import { AppStateManager } from '../../../../src/views/app/appStateManager';
 import type { ExtensionToWebviewMessage, WebviewToExtensionMessage } from '../../../../src/shared/messageContracts';

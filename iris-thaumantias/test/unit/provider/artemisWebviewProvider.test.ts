@@ -4,7 +4,7 @@ import * as sinon from 'sinon';
 import { ArtemisWebviewProvider } from '../../../src/provider/artemisWebviewProvider';
 import type { BuildErrorCodeLensProvider } from '../../../src/provider/buildErrorCodeLensProvider';
 import { MockExtensionContext } from '../mocks/vscodeMocks';
-import { AuthManager } from '../../../src/auth';
+import { AuthManager } from '../../../src/services/auth';
 import { ArtemisApiService } from '../../../src/api';
 import { ArtemisWebsocketService, ExerciseRegistry } from '../../../src/services';
 import { ProviderRegistry } from '../../../src/services/ProviderRegistry';

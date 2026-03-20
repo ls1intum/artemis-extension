@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
-import { CONFIG } from '../utils';
-import { logger, LogCategory } from '../services/loggingService';
+import { CONFIG } from '../../utils';
+import { logger, LogCategory } from '../loggingService';
 
 // Manages authentication cookies (JWT in HttpOnly cookie)
 export class AuthManager {

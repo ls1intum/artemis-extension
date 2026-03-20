@@ -2,7 +2,7 @@
 // Import the module and reference it with the alias vscode in your code below
 import * as vscode from 'vscode';
 import { ArtemisWebviewProvider, ChatWebviewProvider, BuildErrorCodeLensProvider } from './provider';
-import { AuthManager } from './auth';
+import { AuthManager } from './services/auth';
 import { ArtemisApiService } from './api';
 import { ArtemisWebsocketService, TelemetryManager, WebSocketStatusBarService, NoAiDetectionService, ConsentService, ExerciseRegistry, SessionRecorder, RecordingStatusBarService } from './services';
 import { executeReplayCommand } from './services/telemetry/replay';

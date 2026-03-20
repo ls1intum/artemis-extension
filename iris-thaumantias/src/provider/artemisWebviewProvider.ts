@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { AuthManager } from '../auth';
+import { AuthManager } from '../services/auth';
 import { ArtemisApiService } from '../api';
 import { ArtemisWebsocketService } from '../services';
 import { ViewInitDataService } from '../services/ui/viewInitDataService';

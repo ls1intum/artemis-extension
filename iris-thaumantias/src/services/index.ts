@@ -1,4 +1,5 @@
 // Auth
+export { AuthManager } from './auth';
 export { AuthFlowHandler } from './auth';
 export { ConsentService, ConsentLevel } from './auth';
 

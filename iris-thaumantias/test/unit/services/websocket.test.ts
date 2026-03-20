@@ -3,7 +3,7 @@ import * as sinon from 'sinon';
 import { ArtemisWebsocketService } from '../../../src/services/websocket/artemisWebsocketService';
 import { IrisSessionManager } from '../../../src/services/iris/irisSessionManager';
 import { MockExtensionContext } from '../mocks/vscodeMocks';
-import { AuthManager } from '../../../src/auth/auth';
+import { AuthManager } from '../../../src/services/auth/authManager';
 import { ArtemisApiService } from '../../../src/api';
 import { Client, StompConfig, IMessage, StompSubscription } from '@stomp/stompjs';
 import { ActiveContext } from '../../../src/types';
