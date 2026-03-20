@@ -3,10 +3,10 @@ import { promisify } from 'util';
 import { execFile } from 'child_process';
 import type { ArtemisApiService } from '../../api';
 import type { CourseDashboardEntry } from '../../types/apiResponses';
-import type { ContextStore } from '../contextStore';
+import type { ContextStore } from '../iris/contextStore';
 import { ExerciseRegistry } from '../exerciseRegistry';
 import { logger } from '../loggingService';
-import { checkWorkspaceFiles } from '../../utils';
+import { checkWorkspaceFiles } from './workspaceFileChecker';
 
 const execFileAsync = promisify(execFile);
 

@@ -6,7 +6,7 @@ import { detectWorkspaceForRepoUris, detectWorkspaceExercise } from '../workspac
 import type { ExerciseSource } from '../workspace/workspaceDetectionService';
 import type { ExerciseDetailsResponse } from '../../types/apiResponses';
 import { isWebviewMessage } from '../../shared/messageContracts/typeGuards';
-import { getReactWebviewHtml } from '../../utils/webviewHelpers';
+import { getReactWebviewHtml } from './webviewHtml';
 import type { WebViewMessageHandler } from '../../views/app/webViewMessageHandler';
 import { logger, LogCategory } from '../loggingService';
 

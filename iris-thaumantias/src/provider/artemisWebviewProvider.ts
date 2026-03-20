@@ -7,7 +7,7 @@ import { SubmissionWebSocketHandler } from '../services/websocket/submissionWebS
 import { FullscreenPanelManager } from '../services/ui/fullscreenPanelManager';
 import { AuthFlowHandler } from '../services/auth/authFlowHandler';
 import { logger, LogCategory } from '../services/loggingService';
-import { ProviderRegistry } from '../services/ProviderRegistry';
+import { ProviderRegistry } from '../services/ui/providerRegistry';
 import type { IArtemisWebviewProvider } from '../types/IArtemisWebviewProvider';
 import { CONFIG, VSCODE_CONFIG } from '../utils';
 import { AI_EXTENSIONS_BLOCKLIST } from '../utils/aiExtensionsBlocklist';

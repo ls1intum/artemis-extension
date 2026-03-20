@@ -6,3 +6,6 @@ export { IrisSessionManager } from './irisSessionManager';
 export { IrisSessionLifecycleService } from './sessionManagementService';
 export { fetchSessionsWithMessages, importSessionsToStore } from './sessionSyncUtils';
 export type { IrisServiceDeps } from './sessionSyncUtils';
+export { extractIrisMessageContent } from './messageUtils';
+export { IRIS_CHAT_HELP_MARKDOWN } from './helpContent';
+export { ContextStore } from './contextStore';

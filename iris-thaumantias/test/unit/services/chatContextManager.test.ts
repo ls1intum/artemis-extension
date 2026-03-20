@@ -2,7 +2,7 @@ import * as assert from 'assert';
 import * as sinon from 'sinon';
 import * as vscode from 'vscode';
 import { ChatContextManager } from '../../../src/services/iris/chatContextManager';
-import { ContextStore } from '../../../src/services/contextStore';
+import { ContextStore } from '../../../src/services/iris/contextStore';
 import { IrisSessionInitService } from '../../../src/services/iris/chatSessionService';
 import { IrisSessionManager } from '../../../src/services/iris/irisSessionManager';
 import { MockExtensionContext } from '../mocks/vscodeMocks';

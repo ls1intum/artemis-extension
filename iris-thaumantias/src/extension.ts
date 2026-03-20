@@ -6,7 +6,7 @@ import { AuthManager } from './services/auth';
 import { ArtemisApiService } from './api';
 import { ArtemisWebsocketService, TelemetryManager, WebSocketStatusBarService, NoAiDetectionService, ConsentService, ExerciseRegistry, SessionRecorder, RecordingStatusBarService } from './services';
 import { executeReplayCommand } from './services/telemetry/replay';
-import { ProviderRegistry } from './services/ProviderRegistry';
+import { ProviderRegistry } from './services/ui/providerRegistry';
 import { VSCODE_CONFIG, processPlantUml, normalizeRelativePath } from './utils';
 import { logger, LogLevel, LogCategory } from './services/loggingService';
 

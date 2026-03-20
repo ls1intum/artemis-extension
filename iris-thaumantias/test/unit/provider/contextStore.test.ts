@@ -1,6 +1,6 @@
 import * as assert from 'assert';
 import * as vscode from 'vscode';
-import { ContextStore } from '../../../src/services/contextStore';
+import { ContextStore } from '../../../src/services/iris/contextStore';
 import { MockExtensionContext } from '../mocks/vscodeMocks';
 import { ActiveContext } from '../../../src/types';
 

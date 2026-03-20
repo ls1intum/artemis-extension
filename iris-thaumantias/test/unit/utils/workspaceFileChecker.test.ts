@@ -4,7 +4,7 @@ import * as path from 'path';
 import * as os from 'os';
 import * as vscode from 'vscode';
 import { execSync } from 'child_process';
-import { checkWorkspaceFiles } from '../../../src/utils/workspaceFileChecker';
+import { checkWorkspaceFiles } from '../../../src/services/workspace/workspaceFileChecker';
 import { logger, LogCategory } from '../../../src/services/loggingService';
 
 suite('Workspace File Checker Test Suite', () => {

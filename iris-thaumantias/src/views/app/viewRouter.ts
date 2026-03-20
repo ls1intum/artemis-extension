@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import { AppStateManager, type AppState } from './appStateManager';
-import { getReactWebviewHtml } from '../../utils/webviewHelpers';
+import { getReactWebviewHtml } from '../../services/ui/webviewHtml';
 
 /**
  * Maps application state to the appropriate React webview HTML.

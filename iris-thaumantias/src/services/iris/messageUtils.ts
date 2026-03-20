@@ -1,4 +1,4 @@
-import type { IrisChatMessageContent } from '../types/apiResponses';
+import type { IrisChatMessageContent } from '../../types/apiResponses';
 
 export function extractIrisMessageContent(content: unknown): string {
     if (content && Array.isArray(content) && content.length > 0) {

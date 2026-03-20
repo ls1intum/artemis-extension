@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 import { ArtemisWebsocketService } from '../websocket/artemisWebsocketService';
 import { IrisSessionManager } from './irisSessionManager';
 import { ActiveContext } from '../../types';
-import { checkWorkspaceFiles } from '../../utils';
+import { checkWorkspaceFiles } from '../workspace/workspaceFileChecker';
 import { StruggleContext } from '../telemetry';
 import { logger, LogCategory } from '../loggingService';
 import { ExtensionMsg } from '../../shared/messageContracts';

@@ -7,7 +7,7 @@ import { MockExtensionContext } from '../mocks/vscodeMocks';
 import { AuthManager } from '../../../src/services/auth';
 import { ArtemisApiService } from '../../../src/api';
 import { ArtemisWebsocketService, ExerciseRegistry } from '../../../src/services';
-import { ProviderRegistry } from '../../../src/services/ProviderRegistry';
+import { ProviderRegistry } from '../../../src/services/ui/providerRegistry';
 
 class MockAuthManager extends AuthManager {
     constructor(context: vscode.ExtensionContext) {

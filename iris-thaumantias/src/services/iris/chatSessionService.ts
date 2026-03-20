@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import { ActiveContext, ApiError, type IrisChatMessage, type IrisSettingsResponse } from '../../types';
 import type { IrisSessionManager } from './irisSessionManager';
-import { extractIrisMessageContent } from '../../utils/irisMessageUtils';
+import { extractIrisMessageContent } from './messageUtils';
 import { logger, LogCategory } from '../loggingService';
 import { ExtensionMsg } from '../../shared/messageContracts';
 import { fetchSessionsWithMessages, importSessionsToStore } from './sessionSyncUtils';

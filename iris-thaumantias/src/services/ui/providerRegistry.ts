@@ -1,4 +1,4 @@
-import type { IChatWebviewProvider } from '../types/IChatWebviewProvider';
+import type { IChatWebviewProvider } from '../../types/IChatWebviewProvider';
 
 /**
  * Registry for managing extension-wide provider instances.

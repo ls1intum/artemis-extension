@@ -3,7 +3,7 @@ import { ArtemisWebsocketService } from './artemisWebsocketService';
 import { IrisSessionManager } from '../iris/irisSessionManager';
 import type { IrisChatMessage } from '../../types/apiResponses';
 import { logger, LogCategory } from '../loggingService';
-import { extractIrisMessageContent } from '../../utils/irisMessageUtils';
+import { extractIrisMessageContent } from '../iris/messageUtils';
 import { ExtensionMsg } from '../../shared/messageContracts';
 import type { ExtensionToWebviewMessage } from '../../shared/messageContracts';
 

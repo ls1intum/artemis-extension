@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { ContextStore } from '../contextStore';
+import { ContextStore } from './contextStore';
 import { ArtemisApiService } from '../../api';
 import { ExerciseRegistry } from '../exerciseRegistry';
 import { logger, LogLevel } from '../loggingService';

@@ -45,8 +45,8 @@ export { ViewInitDataService } from './ui';
 export { getExamErrorMessage } from './exam';
 
 // Root-level (shared state & cross-cutting)
-export { ContextStore } from './contextStore';
-export { ProviderRegistry, type IProviderRegistry } from './ProviderRegistry';
+export { ContextStore } from './iris';
+export { ProviderRegistry, type IProviderRegistry } from './ui';
 export { ExerciseRegistry, type ExerciseRegistryEntry } from './exerciseRegistry';
 export { logger, LogLevel, LogCategory } from './loggingService';
 

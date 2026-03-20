@@ -1,7 +1,7 @@
 import * as assert from 'assert';
 import * as sinon from 'sinon';
 import { IrisSessionInitService } from '../../../src/services/iris/chatSessionService';
-import { ContextStore } from '../../../src/services/contextStore';
+import { ContextStore } from '../../../src/services/iris/contextStore';
 import { ArtemisApiService } from '../../../src/api';
 import { ActiveContext } from '../../../src/types';
 import { MockExtensionContext } from '../mocks/vscodeMocks';

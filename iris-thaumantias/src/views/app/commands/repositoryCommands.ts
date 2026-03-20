@@ -7,7 +7,8 @@ import type {
     WebviewToExtensionMessage,
     WebCmd,
 } from '../../../shared/messageContracts';
-import { VSCODE_CONFIG, checkWorkspaceFiles, extractErrorMessage, BuildLogParser } from '../../../utils';
+import { VSCODE_CONFIG, extractErrorMessage, BuildLogParser } from '../../../utils';
+import { checkWorkspaceFiles } from '../../../services/workspace/workspaceFileChecker';
 import { normalizeRepositoryUrl, getWorkspaceRepositoryUrl, getWorkspaceStatus, GitService } from '../../../services';
 import { logger, LogCategory } from '../../../services/loggingService';
 

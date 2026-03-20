@@ -3,7 +3,7 @@ import { readFileSync } from 'fs';
 import { join } from 'path';
 
 describe('CSP security invariants', () => {
-    const webviewHelpersPath = join(__dirname, '../../../src/utils/webviewHelpers.ts');
+    const webviewHelpersPath = join(__dirname, '../../../src/services/ui/webviewHtml.ts');
     const src = readFileSync(webviewHelpersPath, 'utf8');
 
     it('uses crypto.randomBytes for nonce generation', () => {

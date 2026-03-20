@@ -1,6 +1,6 @@
 import { ArtemisApiService } from '../../api';
-import { ContextStore } from '../contextStore';
-import { extractIrisMessageContent } from '../../utils/irisMessageUtils';
+import { ContextStore } from './contextStore';
+import { extractIrisMessageContent } from './messageUtils';
 import { logger, LogCategory } from '../loggingService';
 import type { ActiveContext, IrisChatSession, IrisChatMessage } from '../../types';
 import type { ExtensionToWebviewMessage } from '../../shared/messageContracts';

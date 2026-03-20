@@ -8,8 +8,8 @@ import {
     TrackedCourse,
     TrackedExercise,
     type IrisChatMessage,
-} from '../types';
-import { logger } from './loggingService';
+} from '../../types';
+import { logger } from '../loggingService';
 
 interface StoredState {
     version: number;

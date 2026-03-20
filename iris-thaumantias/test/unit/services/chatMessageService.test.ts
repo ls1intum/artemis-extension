@@ -2,10 +2,10 @@ import * as assert from 'assert';
 import * as vscode from 'vscode';
 import * as sinon from 'sinon';
 import { ChatMessageService } from '../../../src/services/iris/chatMessageService';
-import { ContextStore } from '../../../src/services/contextStore';
+import { ContextStore } from '../../../src/services/iris/contextStore';
 import { ArtemisApiService } from '../../../src/api';
 import { MockExtensionContext } from '../mocks/vscodeMocks';
-import * as workspaceFileChecker from '../../../src/utils/workspaceFileChecker';
+import * as workspaceFileChecker from '../../../src/services/workspace/workspaceFileChecker';
 import type { ActiveContext } from '../../../src/types';
 
 suite('ChatMessageService', () => {

@@ -3,7 +3,7 @@ import * as vscode from 'vscode';
 import * as sinon from 'sinon';
 import { FileMonitorService } from '../../../src/services/workspace/fileMonitorService';
 import type { FileMonitorUpdate } from '../../../src/services/workspace/fileMonitorService';
-import * as workspaceFileChecker from '../../../src/utils/workspaceFileChecker';
+import * as workspaceFileChecker from '../../../src/services/workspace/workspaceFileChecker';
 
 suite('FileMonitorService', () => {
     let sandbox: sinon.SinonSandbox;

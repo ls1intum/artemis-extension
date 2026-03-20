@@ -7,7 +7,7 @@ import {
 } from '../types';
 import type { IChatWebviewProvider } from '../types/IChatWebviewProvider';
 import { BaseWebviewProvider } from './baseWebviewProvider';
-import { getReactWebviewHtml } from '../utils/webviewHelpers';
+import { getReactWebviewHtml } from '../services/ui/webviewHtml';
 import { ExtensionMsg, WebviewMsgType, WebviewCmd, getPayload } from '../shared/messageContracts';
 import type { ExtMsg, WebCmd, WebviewToExtensionMessage } from '../shared/messageContracts';
 import { isWebviewMessage } from '../shared/messageContracts/typeGuards';
@@ -33,7 +33,7 @@ import {
 } from '../services';
 import type { IrisServiceDeps } from '../services/iris/sessionSyncUtils';
 import type { ChatContextReason } from '../services/iris/chatContextManager';
-import { IRIS_CHAT_HELP_MARKDOWN } from '../utils/helpContent';
+import { IRIS_CHAT_HELP_MARKDOWN } from '../services/iris/helpContent';
 
 export interface ExerciseContextChangeEvent {
     exerciseId: number;
