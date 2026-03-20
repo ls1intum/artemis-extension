@@ -23,7 +23,7 @@ export interface ReplayEqSnapshot {
     timestamp: number;
     eq: number;
     confidence: 'sufficient' | 'insufficient';
-    source: 'save' | 'build';
+    source: 'save' | 'build' | 'trigger';
     errorCount: number;
     errorFamilies: string[];
 }

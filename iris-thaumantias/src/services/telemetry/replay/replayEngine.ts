@@ -15,6 +15,7 @@ import type {
     DiagnosticsEvent,
     SaveEvent,
     BuildResultEvent,
+    EqSnapshotEvent,
     EqEngineStateEvent,
     SessionStartEvent,
 } from '../recording/types';
@@ -27,7 +28,7 @@ export interface ReplayEqSnapshot {
     timestamp: number;
     eq: number;
     confidence: 'sufficient' | 'insufficient';
-    source: 'save' | 'build';
+    source: 'save' | 'build' | 'trigger';
     errorCount: number;
     errorFamilies: string[];
 }
@@ -112,6 +113,20 @@ export function replaySession(
             const snapshots = deserializeEngineState(stateEvent);
             engine.seedSnapshots(snapshots);
             continue;
+        }
+
+        // Emit replay point at trigger evaluations so the replay line matches the original
+        if (event.type === 'eqSnapshot' && (event as EqSnapshotEvent).source === 'trigger') {
+            const { eq, confidence } = engine.getCurrentEQ();
+            const lastSnapshot = engine.getState().snapshots.at(-1);
+            result.push({
+                timestamp: event.timestamp,
+                eq,
+                confidence,
+                source: 'trigger',
+                errorCount: lastSnapshot?.errorCount ?? 0,
+                errorFamilies: lastSnapshot ? [...lastSnapshot.errorFamilies] : [],
+            });
         }
 
         if (event.type === 'diagnostics') {
