@@ -3,7 +3,7 @@ import 'katex/dist/katex.min.css';
 import { createRoot } from 'react-dom/client';
 import { App } from './App';
 import { ErrorBoundary } from './ErrorBoundary';
-import type { VsCodeApi } from '../../../shared/messageContracts';
+import type { VsCodeApi } from '../../shared/messageContracts';
 
 declare global {
 	interface Window {

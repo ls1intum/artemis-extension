@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ExtensionMsg, postCommand } from '../../../../../shared/messageContracts';
+import { ExtensionMsg, postCommand } from '../../../../shared/messageContracts';
 import { BackLink, Container, Badge, PageHeader, SkeletonList } from '../../components';
 import { useExtensionMessage } from '../../hooks/useExtensionMessage';
 import type { AiConfigViewProps, AiExtensionItem } from './types';

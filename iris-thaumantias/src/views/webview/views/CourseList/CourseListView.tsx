@@ -2,7 +2,7 @@ import { useEffect, useMemo } from 'react';
 import { useCourseListStore } from '../../stores/useCourseListStore';
 import { useExtensionMessage } from '../../hooks/useExtensionMessage';
 import type { CourseListViewProps, CourseListPersistedState, CourseData, ArchivedCourse } from './types';
-import type { CourseDashboardCourse } from '../../../../../types/apiResponses';
+import type { CourseDashboardCourse } from '../../../../types/apiResponses';
 import {
     BackLink,
     IconButton,
@@ -16,7 +16,7 @@ import {
     PageHeader,
 } from '../../components';
 import type { DropdownOption } from '../../components';
-import { ExtensionMsg, postCommand } from '../../../../../shared/messageContracts';
+import { ExtensionMsg, postCommand } from '../../../../shared/messageContracts';
 import styles from './CourseListView.module.css';
 
 export function CourseListView({ vscodeApi }: CourseListViewProps) {

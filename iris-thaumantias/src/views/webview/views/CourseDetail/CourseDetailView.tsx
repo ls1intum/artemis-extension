@@ -2,9 +2,9 @@ import { useEffect } from 'react';
 import { useCourseDetailStore } from '../../stores/useCourseDetailStore';
 import { useExtensionMessage } from '../../hooks/useExtensionMessage';
 import type { CourseDetailViewProps, CourseDetailPersistedState } from './types';
-import { ExtensionMsg, postCommand, requestInit } from '../../../../../shared/messageContracts';
-import type { Exercise, Exam } from '../../../../../shared/messageContracts';
-import { getIcon } from '../../../../../utils/iconMap';
+import { ExtensionMsg, postCommand, requestInit } from '../../../../shared/messageContracts';
+import type { Exercise, Exam } from '../../../../shared/messageContracts';
+import { getIcon } from '../../utils/iconMap';
 import {
     BackLink,
     IconButton,

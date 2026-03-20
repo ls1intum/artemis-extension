@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
-import { useCourseDetailStore } from '../../../src/views/webview/react/stores/useCourseDetailStore';
+import { useCourseDetailStore } from '../../../src/views/webview/stores/useCourseDetailStore';
 import type { CourseDetailData, Exercise, Exam } from '../../../src/shared/messageContracts';
 import { createMockVsCodeApi } from '../__helpers__/vscodeApi';
 

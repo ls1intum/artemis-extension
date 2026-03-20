@@ -4,12 +4,12 @@ import { render, screen, act } from '@testing-library/react';
 // Mock useExamTimer hook — the worker module uses esbuild-plugin-inline-worker
 // which is not available in Vitest's SSR environment.
 // Testing the component behavior through the hook's public interface is the correct approach.
-vi.mock('../../../../src/views/webview/react/hooks/useExamTimer', () => ({
+vi.mock('../../../../src/views/webview/hooks/useExamTimer', () => ({
 	useExamTimer: vi.fn(() => ({ remaining: 0, expired: false })),
 }));
 
-import { ExamTimer } from '../../../../src/views/webview/react/components/ExamTimer/ExamTimer';
-import { useExamTimer } from '../../../../src/views/webview/react/hooks/useExamTimer';
+import { ExamTimer } from '../../../../src/views/webview/components/ExamTimer/ExamTimer';
+import { useExamTimer } from '../../../../src/views/webview/hooks/useExamTimer';
 
 const mockUseExamTimer = vi.mocked(useExamTimer);
 

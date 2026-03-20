@@ -1,9 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { RecommendedExtensionsView } from '../../../../src/views/webview/react/views/RecommendedExtensions/RecommendedExtensionsView';
+import { RecommendedExtensionsView } from '../../../../src/views/webview/views/RecommendedExtensions/RecommendedExtensionsView';
 import { createMockVsCodeApi, dispatchExtensionMessage } from '../../__helpers__/vscodeApi';
-import type { ExtensionCategory } from '../../../../src/views/webview/react/views/RecommendedExtensions/types';
+import type { ExtensionCategory } from '../../../../src/views/webview/views/RecommendedExtensions/types';
 
 function makeCategory(overrides: Partial<ExtensionCategory> = {}): ExtensionCategory {
 	return {

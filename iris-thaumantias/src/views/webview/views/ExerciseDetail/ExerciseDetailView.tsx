@@ -4,8 +4,8 @@ import { useWebSocketUpdates } from '../../hooks/useWebSocketUpdates';
 import { useExtensionMessage } from '../../hooks/useExtensionMessage';
 import { useExerciseStatusMessages } from '../../hooks/useExerciseStatusMessages';
 import type { ExerciseDetailViewProps } from './types';
-import type { ExerciseDetailsResponse } from '../../../../../types/apiResponses';
-import { getIcon } from '../../../../../utils/iconMap';
+import type { ExerciseDetailsResponse } from '../../../../types/apiResponses';
+import { getIcon } from '../../utils/iconMap';
 import ChevronDown from 'lucide-react/dist/esm/icons/chevron-down';
 import {
     BackLink,
@@ -23,7 +23,7 @@ import {
 } from '../../components/exercise';
 import { ProblemStatement, ScoreInfo } from './components';
 import type { ExerciseType } from '../../components/exercise/ParticipationActions';
-import { ExtensionMsg, postCommand, requestInit } from '../../../../../shared/messageContracts';
+import { ExtensionMsg, postCommand, requestInit } from '../../../../shared/messageContracts';
 import { determineSubmissionStatus, determineParticipationStatus } from '../../utils/exerciseStatus';
 import { formatDate } from '../../utils/formatDate';
 import styles from './ExerciseDetailView.module.css';

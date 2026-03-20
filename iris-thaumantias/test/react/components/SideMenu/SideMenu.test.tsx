@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { SideMenu } from '../../../../src/views/webview/react/components/SideMenu/SideMenu';
+import { SideMenu } from '../../../../src/views/webview/components/SideMenu/SideMenu';
 
 const defaultChildren = (
 	<nav>

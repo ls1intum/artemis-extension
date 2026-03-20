@@ -5,7 +5,7 @@ import { Button } from '../../components/Button';
 import { ServiceHealth, type ServiceInfo } from '../../components/ServiceHealth';
 import { useExtensionMessage } from '../../hooks/useExtensionMessage';
 import type { LoginViewProps, LoginPersistedState, LoginViewState } from './types';
-import { ExtensionMsg, postCommand } from '../../../../../shared/messageContracts';
+import { ExtensionMsg, postCommand } from '../../../../shared/messageContracts';
 import { formatServiceName } from '../../utils/formatServiceName';
 import styles from './LoginView.module.css';
 

@@ -8,7 +8,7 @@ import { BackLink, Container, TextInput, Button, PageHeader, SkeletonList } from
 import { useExtensionMessage } from '../../hooks/useExtensionMessage';
 import styles from './GitCredentialsView.module.css';
 import type { GitCredentialsViewProps, GitCredentialsPersistedState } from './types';
-import { ExtensionMsg, postCommand } from '../../../../../shared/messageContracts';
+import { ExtensionMsg, postCommand } from '../../../../shared/messageContracts';
 
 export function GitCredentialsView({ vscodeApi }: GitCredentialsViewProps) {
     // Restore persisted state (form values only)

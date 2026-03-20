@@ -1,8 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { IrisChatView } from '../../../src/views/webview/react/views/IrisChat/IrisChatView';
-import { useChatStore } from '../../../src/views/webview/react/stores/useChatStore';
+import { IrisChatView } from '../../../src/views/webview/views/IrisChat/IrisChatView';
+import { useChatStore } from '../../../src/views/webview/stores/useChatStore';
 import { createMockVsCodeApi, dispatchExtensionMessage } from '../__helpers__/vscodeApi';
 
 /**
@@ -36,7 +36,7 @@ vi.mock('use-stick-to-bottom', () => ({
 }));
 
 // Mock Shiki/CodeBlock to avoid dynamic imports
-vi.mock('../../../src/views/webview/react/views/IrisChat/components/CodeBlock', () => ({
+vi.mock('../../../src/views/webview/views/IrisChat/components/CodeBlock', () => ({
 	CodeBlock: ({ children }: { language?: string; children?: string }) => (
 		<pre data-testid="code-block"><code>{children}</code></pre>
 	),

@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { EmptyState } from '../../../../src/views/webview/react/components/EmptyState/EmptyState';
+import { EmptyState } from '../../../../src/views/webview/components/EmptyState/EmptyState';
 
 describe('EmptyState', () => {
 	it('renders the title text', () => {

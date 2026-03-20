@@ -25,14 +25,14 @@ export default defineConfig({
 			reporter: ['text', 'text-summary', 'html', 'lcov'],
 			reportsDirectory: './coverage/react',
 			include: [
-				'src/views/webview/react/**/*.{ts,tsx}',
+				'src/views/webview/**/*.{ts,tsx}',
 			],
 			exclude: [
 				'**/*.test.{ts,tsx}',
 				'**/*.d.ts',
 				'**/index.ts',
 				'**/types.ts',
-				'src/views/webview/react/**/*.css.ts',
+				'src/views/webview/**/*.css.ts',
 			],
 			// Track only — do NOT fail builds (CONTEXT.md decision)
 			// thresholds: { /* intentionally not set */ }

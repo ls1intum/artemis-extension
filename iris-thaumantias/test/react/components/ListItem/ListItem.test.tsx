@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { ListItem } from '../../../../src/views/webview/react/components/ListItem/ListItem';
+import { ListItem } from '../../../../src/views/webview/components/ListItem/ListItem';
 
 describe('ListItem', () => {
 	it('renders with role="option"', () => {

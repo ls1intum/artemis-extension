@@ -5,8 +5,8 @@ import type {
 	ChatContext,
 	ChatSession,
 	ContextItem,
-} from '../../../../../src/views/webview/react/views/IrisChat/types';
-import { ContextSelector } from '../../../../../src/views/webview/react/views/IrisChat/components/ContextSelector';
+} from '../../../../../src/views/webview/views/IrisChat/types';
+import { ContextSelector } from '../../../../../src/views/webview/views/IrisChat/components/ContextSelector';
 
 function makeContextItem(id: number, title: string, overrides: Partial<ContextItem> = {}): ContextItem {
 	return { id, title, ...overrides };

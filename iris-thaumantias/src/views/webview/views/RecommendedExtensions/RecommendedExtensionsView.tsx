@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ExtensionMsg, postCommand } from '../../../../../shared/messageContracts';
+import { ExtensionMsg, postCommand } from '../../../../shared/messageContracts';
 import { BackLink, Container, Button, Badge, PageHeader, SkeletonList } from '../../components';
 import { useExtensionMessage } from '../../hooks/useExtensionMessage';
 import styles from './RecommendedExtensionsView.module.css';

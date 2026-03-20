@@ -1,18 +1,18 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { ExamExerciseDetailView } from '../../../../src/views/webview/react/views/ExamExerciseDetail/ExamExerciseDetailView';
-import { useExamExerciseDetailStore } from '../../../../src/views/webview/react/stores/useExamExerciseDetailStore';
-import { useExerciseDetailStore } from '../../../../src/views/webview/react/stores/useExerciseDetailStore';
+import { ExamExerciseDetailView } from '../../../../src/views/webview/views/ExamExerciseDetail/ExamExerciseDetailView';
+import { useExamExerciseDetailStore } from '../../../../src/views/webview/stores/useExamExerciseDetailStore';
+import { useExerciseDetailStore } from '../../../../src/views/webview/stores/useExerciseDetailStore';
 import { createMockVsCodeApi, dispatchExtensionMessage } from '../../__helpers__/vscodeApi';
 
 // Mock useWebSocketUpdates — not under test here
-vi.mock('../../../../src/views/webview/react/hooks/useWebSocketUpdates', () => ({
+vi.mock('../../../../src/views/webview/hooks/useWebSocketUpdates', () => ({
 	useWebSocketUpdates: vi.fn(),
 }));
 
 // Mock useExamTimer to avoid Web Worker
-vi.mock('../../../../src/views/webview/react/hooks/useExamTimer', () => ({
+vi.mock('../../../../src/views/webview/hooks/useExamTimer', () => ({
 	useExamTimer: () => ({ remaining: 1800000, expired: false }),
 }));
 

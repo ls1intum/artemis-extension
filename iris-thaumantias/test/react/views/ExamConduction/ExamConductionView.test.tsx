@@ -1,12 +1,12 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, waitFor, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { ExamConductionView } from '../../../../src/views/webview/react/views/ExamConduction/ExamConductionView';
-import { useExamConductionStore } from '../../../../src/views/webview/react/stores/useExamConductionStore';
+import { ExamConductionView } from '../../../../src/views/webview/views/ExamConduction/ExamConductionView';
+import { useExamConductionStore } from '../../../../src/views/webview/stores/useExamConductionStore';
 import { createMockVsCodeApi, dispatchExtensionMessage } from '../../__helpers__/vscodeApi';
 
 // Mock useExamTimer used by ExamTimer component
-vi.mock('../../../../src/views/webview/react/hooks/useExamTimer', () => ({
+vi.mock('../../../../src/views/webview/hooks/useExamTimer', () => ({
 	useExamTimer: () => ({ remaining: 300000, expired: false }),
 }));
 

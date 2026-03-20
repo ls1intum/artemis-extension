@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
-import type { VsCodeApi } from '../../../shared/messageContracts';
-import { WebviewMsgType } from '../../../shared/messageContracts';
+import type { VsCodeApi } from '../../shared/messageContracts';
+import { WebviewMsgType } from '../../shared/messageContracts';
 import { GitCredentialsView } from './views/GitCredentials';
 import { ServiceStatusView } from './views/ServiceStatus';
 import { RecommendedExtensionsView } from './views/RecommendedExtensions';

@@ -2,7 +2,7 @@
   "$schema": "https://unpkg.com/knip@5/schema.json",
   "entry": [
     "src/extension.ts",
-    "src/views/webview/react/index.tsx"
+    "src/views/webview/index.tsx"
   ],
   "project": [
     "src/**/*.{ts,tsx}"

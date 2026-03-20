@@ -4,7 +4,7 @@ import type {
     HealthCheckResult,
     ServiceStatusPersistedState,
 } from './types';
-import { ExtensionMsg, postCommand } from '../../../../../shared/messageContracts';
+import { ExtensionMsg, postCommand } from '../../../../shared/messageContracts';
 import { useExtensionMessage } from '../../hooks/useExtensionMessage';
 import {
     BackLink,

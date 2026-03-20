@@ -3,33 +3,33 @@ import { render, screen, act } from '@testing-library/react';
 
 // Mock the Web Worker-based exam timer hook — the esbuild-plugin-inline-worker
 // transform is not available in Vitest's SSR environment.
-vi.mock('../../../src/views/webview/react/hooks/useExamTimer', () => ({
+vi.mock('../../../src/views/webview/hooks/useExamTimer', () => ({
     useExamTimer: vi.fn(() => ({ remaining: 3_600_000, expired: false })),
 }));
 
 // View components
-import { GitCredentialsView } from '../../../src/views/webview/react/views/GitCredentials/GitCredentialsView';
-import { ServiceStatusView } from '../../../src/views/webview/react/views/ServiceStatus/ServiceStatusView';
-import { RecommendedExtensionsView } from '../../../src/views/webview/react/views/RecommendedExtensions/RecommendedExtensionsView';
+import { GitCredentialsView } from '../../../src/views/webview/views/GitCredentials/GitCredentialsView';
+import { ServiceStatusView } from '../../../src/views/webview/views/ServiceStatus/ServiceStatusView';
+import { RecommendedExtensionsView } from '../../../src/views/webview/views/RecommendedExtensions/RecommendedExtensionsView';
 
-import { DashboardView } from '../../../src/views/webview/react/views/Dashboard/DashboardView';
-import { CourseListView } from '../../../src/views/webview/react/views/CourseList/CourseListView';
-import { CourseDetailView } from '../../../src/views/webview/react/views/CourseDetail/CourseDetailView';
-import { ExerciseDetailView } from '../../../src/views/webview/react/views/ExerciseDetail/ExerciseDetailView';
-import { ExamStartView } from '../../../src/views/webview/react/views/ExamStart/ExamStartView';
-import { ExamConductionView } from '../../../src/views/webview/react/views/ExamConduction/ExamConductionView';
-import { ExamExerciseDetailView } from '../../../src/views/webview/react/views/ExamExerciseDetail/ExamExerciseDetailView';
-import { IrisChatView } from '../../../src/views/webview/react/views/IrisChat/IrisChatView';
+import { DashboardView } from '../../../src/views/webview/views/Dashboard/DashboardView';
+import { CourseListView } from '../../../src/views/webview/views/CourseList/CourseListView';
+import { CourseDetailView } from '../../../src/views/webview/views/CourseDetail/CourseDetailView';
+import { ExerciseDetailView } from '../../../src/views/webview/views/ExerciseDetail/ExerciseDetailView';
+import { ExamStartView } from '../../../src/views/webview/views/ExamStart/ExamStartView';
+import { ExamConductionView } from '../../../src/views/webview/views/ExamConduction/ExamConductionView';
+import { ExamExerciseDetailView } from '../../../src/views/webview/views/ExamExerciseDetail/ExamExerciseDetailView';
+import { IrisChatView } from '../../../src/views/webview/views/IrisChat/IrisChatView';
 
 // Zustand stores
-import { useDashboardStore } from '../../../src/views/webview/react/stores/useDashboardStore';
-import { useCourseListStore } from '../../../src/views/webview/react/stores/useCourseListStore';
-import { useCourseDetailStore } from '../../../src/views/webview/react/stores/useCourseDetailStore';
-import { useExerciseDetailStore } from '../../../src/views/webview/react/stores/useExerciseDetailStore';
-import { useExamStartStore } from '../../../src/views/webview/react/stores/useExamStartStore';
-import { useExamConductionStore } from '../../../src/views/webview/react/stores/useExamConductionStore';
-import { useExamExerciseDetailStore } from '../../../src/views/webview/react/stores/useExamExerciseDetailStore';
-import { useChatStore } from '../../../src/views/webview/react/stores/useChatStore';
+import { useDashboardStore } from '../../../src/views/webview/stores/useDashboardStore';
+import { useCourseListStore } from '../../../src/views/webview/stores/useCourseListStore';
+import { useCourseDetailStore } from '../../../src/views/webview/stores/useCourseDetailStore';
+import { useExerciseDetailStore } from '../../../src/views/webview/stores/useExerciseDetailStore';
+import { useExamStartStore } from '../../../src/views/webview/stores/useExamStartStore';
+import { useExamConductionStore } from '../../../src/views/webview/stores/useExamConductionStore';
+import { useExamExerciseDetailStore } from '../../../src/views/webview/stores/useExamExerciseDetailStore';
+import { useChatStore } from '../../../src/views/webview/stores/useChatStore';
 
 // Test helpers
 import { createMockVsCodeApi, dispatchExtensionMessage } from '../__helpers__/vscodeApi';

@@ -1,7 +1,7 @@
 import { ListItem } from '../../../components/ListItem/ListItem';
 import { Badge } from '../../../components/Badge/Badge';
-import { getIcon } from '../../../../../../utils/iconMap';
-import type { ExerciseDetail } from '../../../../../../shared/messageContracts';
+import { getIcon } from '../../../utils/iconMap';
+import type { ExerciseDetail } from '../../../../../shared/messageContracts';
 import styles from './ExerciseList.module.css';
 
 interface ExerciseListProps {

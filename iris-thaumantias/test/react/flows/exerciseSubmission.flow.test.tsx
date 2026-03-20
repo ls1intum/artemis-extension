@@ -1,8 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { ExerciseDetailView } from '../../../src/views/webview/react/views/ExerciseDetail/ExerciseDetailView';
-import { useExerciseDetailStore } from '../../../src/views/webview/react/stores/useExerciseDetailStore';
+import { ExerciseDetailView } from '../../../src/views/webview/views/ExerciseDetail/ExerciseDetailView';
+import { useExerciseDetailStore } from '../../../src/views/webview/stores/useExerciseDetailStore';
 import { createMockVsCodeApi, dispatchExtensionMessage } from '../__helpers__/vscodeApi';
 
 /**
@@ -15,12 +15,12 @@ import { createMockVsCodeApi, dispatchExtensionMessage } from '../__helpers__/vs
  */
 
 // Mock useWebSocketUpdates — not under test here
-vi.mock('../../../src/views/webview/react/hooks/useWebSocketUpdates', () => ({
+vi.mock('../../../src/views/webview/hooks/useWebSocketUpdates', () => ({
 	useWebSocketUpdates: vi.fn(),
 }));
 
 // Mock useExamTimer (used transitively)
-vi.mock('../../../src/views/webview/react/hooks/useExamTimer', () => ({
+vi.mock('../../../src/views/webview/hooks/useExamTimer', () => ({
 	useExamTimer: () => ({ remaining: 0, expired: false }),
 }));
 

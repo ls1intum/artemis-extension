@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from 'react';
-import { ExtensionMsg, postCommand } from '../../../../../shared/messageContracts';
-import type { VsCodeApi } from '../../../../../shared/messageContracts';
+import { ExtensionMsg, postCommand } from '../../../../shared/messageContracts';
+import type { VsCodeApi } from '../../../../shared/messageContracts';
 import { useChatStore } from '../../stores/useChatStore';
 import { useExtensionMessage } from '../../hooks/useExtensionMessage';
 import { ChatMessageList } from './components/ChatMessageList';

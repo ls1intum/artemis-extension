@@ -8,7 +8,7 @@ import { ExamTimer } from '../../components/ExamTimer/ExamTimer';
 import { TimerExpiredOverlay } from '../../components/TimerExpiredOverlay/TimerExpiredOverlay';
 import { BackLink, Container, Button, SkeletonList, ErrorMessage, Badge } from '../../components';
 import type { ExamStartViewProps } from './types';
-import { ExtensionMsg, postCommand, requestInit } from '../../../../../shared/messageContracts';
+import { ExtensionMsg, postCommand, requestInit } from '../../../../shared/messageContracts';
 import styles from './ExamStartView.module.css';
 
 export function ExamStartView({ vscodeApi }: ExamStartViewProps) {

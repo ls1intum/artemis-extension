@@ -22,7 +22,7 @@ import { ProblemStatement, ScoreInfo, TestResults } from '../ExerciseDetail/comp
 import type { ExamExerciseDetailViewProps } from './types';
 import type { ExerciseType } from '../../components/exercise/ParticipationActions';
 import type { BuildState } from '../../components/exercise/BuildProgress';
-import { ExtensionMsg, postCommand, requestInit } from '../../../../../shared/messageContracts';
+import { ExtensionMsg, postCommand, requestInit } from '../../../../shared/messageContracts';
 import { determineSubmissionStatus, determineParticipationStatus } from '../../utils/exerciseStatus';
 import styles from './ExamExerciseDetailView.module.css';
 

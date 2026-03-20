@@ -2,7 +2,7 @@
  * Type definitions for GitCredentials view.
  */
 
-import type { VsCodeApi } from '../../../../../shared/messageContracts';
+import type { VsCodeApi } from '../../../../shared/messageContracts';
 
 /**
  * Persisted state for GitCredentials view (saved via vscode.setState).

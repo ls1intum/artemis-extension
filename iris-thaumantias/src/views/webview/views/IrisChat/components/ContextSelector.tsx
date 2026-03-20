@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import clsx from 'clsx';
 import FolderGit2 from 'lucide-react/dist/esm/icons/folder-git-2';
 import type { ChatContext, ChatSession, ContextItem } from '../types';
-import type { ChatContextType } from '../../../../../../types/context';
+import type { ChatContextType } from '../../../../../types/context';
 import styles from './ContextSelector.module.css';
 
 interface ContextSelectorProps {

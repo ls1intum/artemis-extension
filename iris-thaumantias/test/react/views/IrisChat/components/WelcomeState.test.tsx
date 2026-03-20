@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { WelcomeState } from '../../../../../src/views/webview/react/views/IrisChat/components/WelcomeState';
+import { WelcomeState } from '../../../../../src/views/webview/views/IrisChat/components/WelcomeState';
 
 describe('WelcomeState', () => {
 	let root: HTMLDivElement;

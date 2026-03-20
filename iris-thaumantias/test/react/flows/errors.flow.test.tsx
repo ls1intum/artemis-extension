@@ -7,9 +7,9 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { ServiceHealth } from '../../../src/views/webview/react/components/ServiceHealth/ServiceHealth';
-import type { ServiceInfo } from '../../../src/views/webview/react/components/ServiceHealth/ServiceHealth';
-import { ErrorMessage } from '../../../src/views/webview/react/components/ErrorMessage/ErrorMessage';
+import { ServiceHealth } from '../../../src/views/webview/components/ServiceHealth/ServiceHealth';
+import type { ServiceInfo } from '../../../src/views/webview/components/ServiceHealth/ServiceHealth';
+import { ErrorMessage } from '../../../src/views/webview/components/ErrorMessage/ErrorMessage';
 
 // ============================================================================
 // Error Boundary

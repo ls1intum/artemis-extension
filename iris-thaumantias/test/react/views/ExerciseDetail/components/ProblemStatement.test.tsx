@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { ProblemStatement } from '../../../../../src/views/webview/react/views/ExerciseDetail/components/ProblemStatement';
+import { ProblemStatement } from '../../../../../src/views/webview/views/ExerciseDetail/components/ProblemStatement';
 import { createMockVsCodeApi } from '../../../__helpers__/vscodeApi';
 
 // Mock DOMPurify so sanitization is a passthrough for simpler assertion
@@ -14,7 +14,7 @@ vi.mock('dompurify', () => ({
 }));
 
 // Mock processProblemStatement to return the markdown as-is for simple test cases
-vi.mock('../../../../../src/views/webview/react/utils/problemStatementProcessor', () => ({
+vi.mock('../../../../../src/views/webview/utils/problemStatementProcessor', () => ({
 	processProblemStatement: (markdown: string) => markdown,
 }));
 

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useDashboardStore } from '../../stores/useDashboardStore';
 import type { DashboardViewProps, RecentCourseNode, Exercise } from './types';
-import type { CourseDashboardCourse } from '../../../../../types/apiResponses';
+import type { CourseDashboardCourse } from '../../../../types/apiResponses';
 import {
     Container,
     Button,
@@ -21,9 +21,9 @@ import GitBranch from 'lucide-react/dist/esm/icons/git-branch';
 import Bug from 'lucide-react/dist/esm/icons/bug';
 import LogOut from 'lucide-react/dist/esm/icons/log-out';
 import ChevronRight from 'lucide-react/dist/esm/icons/chevron-right';
-import { getIcon } from '../../../../../utils/iconMap';
+import { getIcon } from '../../utils/iconMap';
 import SquareArrowOutUpRight from 'lucide-react/dist/esm/icons/square-arrow-out-up-right';
-import { ExtensionMsg, postCommand } from '../../../../../shared/messageContracts';
+import { ExtensionMsg, postCommand } from '../../../../shared/messageContracts';
 import { useExtensionMessage } from '../../hooks/useExtensionMessage';
 import styles from './DashboardView.module.css';
 

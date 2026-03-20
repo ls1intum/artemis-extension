@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import type { ChatMessage } from '../../../../../src/views/webview/react/views/IrisChat/types';
+import type { ChatMessage } from '../../../../../src/views/webview/views/IrisChat/types';
 
 // Mock streamdown since it's an ESM package
 vi.mock('streamdown', () => ({
@@ -12,7 +12,7 @@ vi.mock('streamdown', () => ({
 
 // Mock CodeBlock to avoid Shiki complexity in MessageBubble tests
 vi.mock(
-	'../../../../../src/views/webview/react/views/IrisChat/components/CodeBlock',
+	'../../../../../src/views/webview/views/IrisChat/components/CodeBlock',
 	() => ({
 		CodeBlock: ({ language, children }: { language?: string; children?: string }) => (
 			<pre data-testid="code-block" data-language={language}><code>{children}</code></pre>
@@ -22,7 +22,7 @@ vi.mock(
 
 // Mock StreamingMessage to isolate MessageBubble behavior
 vi.mock(
-	'../../../../../src/views/webview/react/views/IrisChat/components/StreamingMessage',
+	'../../../../../src/views/webview/views/IrisChat/components/StreamingMessage',
 	() => ({
 		StreamingMessage: ({ chunks }: { chunks: string[] }) => (
 			<div data-testid="streaming-message">{chunks.join('')}</div>
@@ -30,7 +30,7 @@ vi.mock(
 	})
 );
 
-import { MessageBubble } from '../../../../../src/views/webview/react/views/IrisChat/components/MessageBubble';
+import { MessageBubble } from '../../../../../src/views/webview/views/IrisChat/components/MessageBubble';
 
 function makeMessage(overrides: Partial<ChatMessage> = {}): ChatMessage {
 	return {

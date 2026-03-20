@@ -8,7 +8,7 @@ import type {
     ReferencedFilesData,
     StreamingState
 } from '../views/IrisChat/types';
-import type { ExtMsg } from '../../../../shared/messageContracts';
+import type { ExtMsg } from '../../../shared/messageContracts';
 
 interface ChatState {
     // Context

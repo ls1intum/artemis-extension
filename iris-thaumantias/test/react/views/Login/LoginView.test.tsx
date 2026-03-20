@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { LoginView } from '../../../../src/views/webview/react/views/Login/LoginView';
+import { LoginView } from '../../../../src/views/webview/views/Login/LoginView';
 import { createMockVsCodeApi, dispatchExtensionMessage } from '../../__helpers__/vscodeApi';
 
 describe('LoginView', () => {

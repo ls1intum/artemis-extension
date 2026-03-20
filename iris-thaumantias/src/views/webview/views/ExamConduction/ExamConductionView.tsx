@@ -12,7 +12,7 @@ import { PageHeader } from '../../components/PageHeader/PageHeader';
 import { Badge } from '../../components/Badge/Badge';
 import { IconButton } from '../../components/Button/IconButton';
 import { useExtensionMessage } from '../../hooks/useExtensionMessage';
-import { ExtensionMsg, postCommand, requestInit } from '../../../../../shared/messageContracts';
+import { ExtensionMsg, postCommand, requestInit } from '../../../../shared/messageContracts';
 import styles from './ExamConductionView.module.css';
 
 /**

@@ -2,8 +2,8 @@ import { useEffect, useMemo, useRef } from 'react';
 import { Container } from '../../../components/Container';
 import { Button } from '../../../components/Button';
 import { useExtensionMessage } from '../../../hooks/useExtensionMessage';
-import { processProblemStatement } from '../../../../../../utils/problemStatementProcessor';
-import { ExtensionMsg, postCommand } from '../../../../../../shared/messageContracts';
+import { processProblemStatement } from '../../../utils/problemStatementProcessor';
+import { ExtensionMsg, postCommand } from '../../../../../shared/messageContracts';
 import type { ProblemStatementProps } from '../types';
 import styles from './ProblemStatement.module.css';
 

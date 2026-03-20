@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
-import { BuildProgress } from '../../../../src/views/webview/react/components/exercise/BuildProgress';
+import { BuildProgress } from '../../../../src/views/webview/components/exercise/BuildProgress';
 
 describe('BuildProgress', () => {
 	it('renders nothing when status is idle', () => {
