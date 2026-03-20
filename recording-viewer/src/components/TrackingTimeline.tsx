@@ -1,7 +1,7 @@
 import { useMemo, useRef, useState, useEffect, useCallback } from 'react';
 import type { Annotation, RecordedEvent, EventType } from '../types';
 import { MARKER_COLORS, SWIM_LANE_TYPES } from '../constants';
-import { formatOffset } from '../utils/format';
+import { formatOffset, shortenUri } from '../utils/format';
 
 interface Props {
     events: RecordedEvent[];
@@ -23,6 +23,7 @@ interface Bin {
     count: number;
     breakdown: Map<EventType, number>;
     firstTimestamp: number;   // absolute timestamp of earliest event in bin
+    events: RecordedEvent[];  // actual events in this bin
 }
 
 interface TooltipData {
@@ -70,11 +71,12 @@ function buildBins(
         if (existing) {
             existing.count++;
             existing.breakdown.set(type, (existing.breakdown.get(type) ?? 0) + 1);
+            existing.events.push(e);
             if (e.timestamp < existing.firstTimestamp) existing.firstTimestamp = e.timestamp;
         } else {
             const breakdown = new Map<EventType, number>();
             breakdown.set(type, 1);
-            binMap.set(px, { x: px, count: 1, breakdown, firstTimestamp: e.timestamp });
+            binMap.set(px, { x: px, count: 1, breakdown, firstTimestamp: e.timestamp, events: [e] });
         }
     }
     return [...binMap.values()];
@@ -102,6 +104,59 @@ function generateTicks(xDomain: [number, number], svgWidth: number): number[] {
         ticks.push(t);
     }
     return ticks;
+}
+
+const MAX_TOOLTIP_EVENTS = 5;
+
+function eventSummary(event: RecordedEvent, sessionStartTime: number): React.ReactNode {
+    const time = formatOffset(event.timestamp - sessionStartTime);
+    switch (event.type) {
+        case 'textChange': {
+            let inserted = 0, deleted = 0;
+            for (const c of event.changes) { inserted += c.text.length; deleted += c.rangeLength; }
+            const op = inserted > 0 && deleted > 0 ? `replaced ${deleted} → ${inserted} chars`
+                : inserted > 0 ? `+${inserted} chars` : `-${deleted} chars`;
+            return <><span className="tt-time">{time}</span> {shortenUri(event.uri)} | {op}</>;
+        }
+        case 'save':
+            return <><span className="tt-time">{time}</span> {shortenUri(event.uri)}</>;
+        case 'diagnostics':
+            return <><span className="tt-time">{time}</span> {shortenUri(event.uri)} | {event.diagnostics.length} diagnostic(s)</>;
+        case 'fileSwitch':
+            return <><span className="tt-time">{time}</span> {shortenUri(event.fromUri)} → {shortenUri(event.toUri)}</>;
+        case 'buildResult':
+            return <><span className="tt-time">{time}</span> {event.buildFailed ? 'BUILD FAILED' : event.successful ? 'PASSED' : `${event.errorCount} error(s)`}</>;
+        case 'eqSnapshot':
+            return <><span className="tt-time">{time}</span> EQ: {Math.round(event.eq * 100)}% ({event.confidence})</>;
+        case 'eqEngineState':
+            return <><span className="tt-time">{time}</span> EQ: {Math.round(event.currentEQ * 100)}% | {event.snapshots.length} snapshot(s)</>;
+        case 'sessionStart':
+            return <><span className="tt-time">{time}</span> Exercise {event.exerciseId}{event.participantId ? ` | ${event.participantId}` : ''}</>;
+        case 'sessionEnd':
+            return <><span className="tt-time">{time}</span> Exercise {event.exerciseId}</>;
+        case 'irisChatMessage':
+            return <><span className="tt-time">{time}</span> {event.direction === 'sent' ? 'SENT' : 'RECV'}: {event.content.length > 50 ? event.content.slice(0, 50) + '...' : event.content}</>;
+        case 'windowFocus':
+            return <><span className="tt-time">{time}</span> {event.focused ? 'focused' : 'blurred'}</>;
+        case 'fileSnapshot':
+            return <><span className="tt-time">{time}</span> {shortenUri(event.uri)}</>;
+        case 'selectionChange':
+            return <><span className="tt-time">{time}</span> {shortenUri(event.uri)} | L{event.selections[0]?.startLine ?? 0}{event.kind ? ` (${event.kind})` : ''}</>;
+        case 'visibleRangeChange':
+            return <><span className="tt-time">{time}</span> {shortenUri(event.uri)} | L{event.visibleRanges[0]?.startLine ?? 0}-L{event.visibleRanges[0]?.endLine ?? 0}</>;
+        case 'intervention':
+            return <><span className="tt-time">{time}</span> {event.action} | {event.level} | EQ: {Math.round(event.eq * 100)}%{event.triggerType ? ` | ${event.triggerType}` : ''}</>;
+        case 'viewNavigation':
+            return <><span className="tt-time">{time}</span> {event.from} → {event.to}</>;
+        case 'panelVisibility':
+            return <><span className="tt-time">{time}</span> {event.panel} | {event.visible ? 'visible' : 'hidden'}</>;
+        case 'terminalCommand':
+            return <><span className="tt-time">{time}</span> <code>{event.command.length > 40 ? event.command.slice(0, 40) + '...' : event.command}</code> exit: {event.exitCode ?? '?'}</>;
+        case 'terminalOpenClose':
+            return <><span className="tt-time">{time}</span> {event.action} | {event.terminalName}</>;
+        default:
+            return <span className="tt-time">{time}</span>;
+    }
 }
 
 export function TrackingTimeline({
@@ -414,13 +469,22 @@ export function TrackingTimeline({
                             <div className="tooltip-type">
                                 <span className={`event-badge ${tooltip.laneType}`}>{tooltip.laneType}</span>
                                 <span className="tooltip-count">&times;{tooltip.bin.count}</span>
-                            </div>
-                            <div className="tooltip-time">
-                                {formatOffset(tooltip.bin.firstTimestamp - sessionStartTime)}
                                 {videoTimeAtSessionStartSeconds != null && (
                                     <span className="tooltip-video-time">
                                         {' '}| Video: {formatOffset(((tooltip.bin.firstTimestamp - sessionStartTime) / 1000 + videoTimeAtSessionStartSeconds) * 1000)}
                                     </span>
+                                )}
+                            </div>
+                            <div className="tooltip-events">
+                                {tooltip.bin.events.slice(0, MAX_TOOLTIP_EVENTS).map((evt, i) => (
+                                    <div key={i} className="tooltip-event-line">
+                                        {eventSummary(evt, sessionStartTime)}
+                                    </div>
+                                ))}
+                                {tooltip.bin.events.length > MAX_TOOLTIP_EVENTS && (
+                                    <div className="tooltip-event-line tooltip-more">
+                                        +{tooltip.bin.events.length - MAX_TOOLTIP_EVENTS} more
+                                    </div>
                                 )}
                             </div>
                             {onViewInList && (

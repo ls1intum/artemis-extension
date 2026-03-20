@@ -1085,7 +1085,8 @@
     font-size: 12px;
     pointer-events: auto;
     z-index: 10;
-    min-width: 100px;
+    min-width: 160px;
+    max-width: 420px;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
 }
 
@@ -1101,6 +1102,43 @@
     font-size: 12px;
     font-weight: 600;
     color: var(--text);
+}
+
+.tooltip-events {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    margin-top: 4px;
+    max-width: 380px;
+}
+
+.tooltip-event-line {
+    font-size: 11px;
+    color: var(--text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    line-height: 1.5;
+}
+
+.tooltip-event-line code {
+    font-family: var(--mono);
+    font-size: 10px;
+    background: rgba(255, 255, 255, 0.06);
+    padding: 1px 3px;
+    border-radius: 2px;
+}
+
+.tooltip-event-line .tt-time {
+    color: var(--text-muted);
+    font-family: var(--mono);
+    font-size: 10px;
+    margin-right: 4px;
+}
+
+.tooltip-more {
+    color: var(--text-muted);
+    font-style: italic;
 }
 
 .tooltip-link {
