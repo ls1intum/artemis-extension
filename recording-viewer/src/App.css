@@ -972,6 +972,87 @@
     border: 1px solid rgba(56, 189, 248, 0.15);
 }
 
+/* ── Label bar ──────────────────────────────────────────────────────── */
+
+.label-bar {
+    display: flex;
+    align-items: center;
+    gap: 3px;
+}
+
+.label-divider {
+    width: 1px;
+    height: 14px;
+    background: var(--border);
+    margin: 0 3px;
+    flex-shrink: 0;
+}
+
+.label-quick-btn {
+    font-family: var(--sans);
+    font-size: 10px;
+    padding: 2px 6px;
+    border-radius: 3px;
+    border: 1px solid color-mix(in srgb, var(--label-color) 40%, transparent);
+    background: color-mix(in srgb, var(--label-color) 8%, transparent);
+    color: var(--label-color);
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s;
+    white-space: nowrap;
+    line-height: 1.4;
+}
+.label-quick-btn:hover {
+    background: color-mix(in srgb, var(--label-color) 18%, transparent);
+    border-color: var(--label-color);
+}
+
+.label-quick-btn.label-freetext {
+    --label-color: #38bdf8;
+    border-style: dashed;
+}
+
+.annotation-count {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--text-muted);
+    background: var(--bg-elevated);
+    padding: 2px 6px;
+    border-radius: 3px;
+    margin-left: 2px;
+    flex-shrink: 0;
+}
+
+.label-selected-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 4px;
+    border: 1px solid var(--label-color);
+    color: var(--label-color);
+    background: color-mix(in srgb, var(--label-color) 10%, transparent);
+    flex-shrink: 0;
+}
+
+.label-clear-btn {
+    background: none;
+    border: none;
+    color: inherit;
+    cursor: pointer;
+    font-size: 14px;
+    padding: 0;
+    line-height: 1;
+    opacity: 0.7;
+}
+.label-clear-btn:hover {
+    opacity: 1;
+}
+
+.annotation-label {
+    min-width: 80px;
+}
+
 .free-annotation-form .time-input {
     width: 70px;
     flex: none;
@@ -984,14 +1065,7 @@
 .view-toggle-row {
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-}
-
-.annotation-bar {
-    display: flex;
-    align-items: center;
-    gap: 8px;
+    gap: 10px;
 }
 
 .view-toggle {

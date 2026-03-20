@@ -12,10 +12,33 @@ export interface VideoSyncConfig {
     videoExtension: 'mp4' | 'webm';
 }
 
+export type StruggleLevel = 'confident' | 'light-struggle' | 'medium-struggle' | 'high-struggle' | 'blocked';
+export type ContextMarker = 'idle' | 'trial-error' | 'reading' | 'off-task' | 'using-ai';
+export type AnnotationLabel = StruggleLevel | ContextMarker;
+
+export const STRUGGLE_LABELS: { value: StruggleLevel; label: string; color: string }[] = [
+    { value: 'confident', label: 'Confident', color: '#4ade80' },
+    { value: 'light-struggle', label: 'Light struggle', color: '#a3e635' },
+    { value: 'medium-struggle', label: 'Medium struggle', color: '#fbbf24' },
+    { value: 'high-struggle', label: 'High struggle', color: '#f97316' },
+    { value: 'blocked', label: 'Blocked', color: '#ef4444' },
+];
+
+export const CONTEXT_LABELS: { value: ContextMarker; label: string; color: string }[] = [
+    { value: 'idle', label: 'Idle', color: '#94a3b8' },
+    { value: 'trial-error', label: 'Trial & error', color: '#c084fc' },
+    { value: 'reading', label: 'Reading', color: '#60a5fa' },
+    { value: 'off-task', label: 'Off-task', color: '#fb7185' },
+    { value: 'using-ai', label: 'Using AI', color: '#2dd4bf' },
+];
+
+export const ALL_LABELS = [...STRUGGLE_LABELS, ...CONTEXT_LABELS];
+
 export interface Annotation {
     id: string;
     timestamp: number;   // absolute ms (same epoch as event timestamps)
     text: string;
+    label?: AnnotationLabel;
     createdAt: number;
 }
 

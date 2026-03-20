@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useMemo } from 'react';
-import type { Annotation, LoadedSession, RecordedEvent, SessionMetadata, ReplayEqSnapshot, EventType, VideoSyncConfig } from './types';
+import type { Annotation, AnnotationLabel, LoadedSession, RecordedEvent, SessionMetadata, ReplayEqSnapshot, EventType, VideoSyncConfig } from './types';
 import { FileDropZone } from './components/FileDropZone';
 import { RecordingInfo } from './components/RecordingInfo';
 import { SessionList } from './components/SessionList';
@@ -59,11 +59,12 @@ function App() {
         }
     }, []);
 
-    const handleAddAnnotation = useCallback((timestamp: number, text: string) => {
+    const handleAddAnnotation = useCallback((timestamp: number, text: string, label?: AnnotationLabel) => {
         const annotation: Annotation = {
             id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
             timestamp,
             text,
+            label,
             createdAt: Date.now(),
         };
         saveAnnotations([...annotations, annotation]);
@@ -341,12 +342,12 @@ function App() {
                                 List
                             </button>
                         </div>
-                        <div className="annotation-bar">
-                            <FreeAnnotationForm sessionStartTime={sessionStartTime} onAdd={handleAddAnnotation} />
-                            <span className={`filter-btn annotation-toggle active`}>
-                                {annotations.length} annotation{annotations.length !== 1 ? 's' : ''}
-                            </span>
-                        </div>
+                        <FreeAnnotationForm
+                            sessionStartTime={sessionStartTime}
+                            onAdd={handleAddAnnotation}
+                            videoTimeRef={videoSyncConfig ? videoTimeRef : undefined}
+                            annotationCount={annotations.length}
+                        />
                     </div>
                     {viewMode === 'timeline' && xDomain && (
                         <TrackingTimeline

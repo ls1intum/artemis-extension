@@ -1,5 +1,6 @@
 import { useMemo, useRef, useState, useEffect, useCallback } from 'react';
 import type { Annotation, RecordedEvent, EventType } from '../types';
+import { ALL_LABELS } from '../types';
 import { MARKER_COLORS, SWIM_LANE_TYPES } from '../constants';
 import { formatOffset, shortenUri } from '../utils/format';
 
@@ -365,21 +366,27 @@ export function TrackingTimeline({
                         ))}
 
                         {/* Annotation vertical lines */}
-                        {annotationGroups.map((group, gi) => (
-                            <line
-                                key={`annot-${gi}`}
-                                x1={group.x}
-                                y1={0}
-                                x2={group.x}
-                                y2={visibleLanes.length * LANE_HEIGHT}
-                                stroke="#38bdf8"
-                                strokeWidth={1.5}
-                                strokeDasharray="3 3"
-                                strokeOpacity={0.7}
-                                style={{ cursor: 'pointer' }}
-                                onClick={(e) => handleAnnotLineClick(e, group.annotations)}
-                            />
-                        ))}
+                        {annotationGroups.map((group, gi) => {
+                            const firstLabel = group.annotations.find(a => a.label)?.label;
+                            const labelColor = firstLabel
+                                ? ALL_LABELS.find(l => l.value === firstLabel)?.color ?? '#38bdf8'
+                                : '#38bdf8';
+                            return (
+                                <line
+                                    key={`annot-${gi}`}
+                                    x1={group.x}
+                                    y1={0}
+                                    x2={group.x}
+                                    y2={visibleLanes.length * LANE_HEIGHT}
+                                    stroke={labelColor}
+                                    strokeWidth={1.5}
+                                    strokeDasharray="3 3"
+                                    strokeOpacity={0.7}
+                                    style={{ cursor: 'pointer' }}
+                                    onClick={(e) => handleAnnotLineClick(e, group.annotations)}
+                                />
+                            );
+                        })}
 
                         {/* Event dots per lane */}
                         {visibleLanes.map((type, laneIdx) => {

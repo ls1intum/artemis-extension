@@ -1,5 +1,6 @@
 import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import type { Annotation, RecordedEvent, EventType } from '../types.ts';
+import { ALL_LABELS } from '../types.ts';
 import { formatOffset, shortenUri } from '../utils/format.ts';
 
 interface Props {
@@ -257,12 +258,20 @@ function AnnotationRow({ annotation, sessionStartTime, onUpdate, onDelete }: {
         );
     }
 
+    const labelInfo = annotation.label ? ALL_LABELS.find(l => l.value === annotation.label) : null;
+
     return (
         <div className="event-row annotation-row">
             <span className="event-time mono">
                 {formatOffset(annotation.timestamp - sessionStartTime)}
             </span>
-            <span className="event-badge annotation">NOTE</span>
+            {labelInfo ? (
+                <span className="event-badge annotation-label" style={{ background: labelInfo.color + '25', color: labelInfo.color }}>
+                    {labelInfo.label}
+                </span>
+            ) : (
+                <span className="event-badge annotation">NOTE</span>
+            )}
             <span className="annotation-text" onClick={() => setEditing(true)} title="Click to edit">
                 {annotation.text}
             </span>
