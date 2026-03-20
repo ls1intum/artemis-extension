@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { AuthManager } from '../services/auth';
+import { AuthManager } from '../services/auth/authManager';
 import { CONFIG, VSCODE_CONFIG } from '../utils';
 import {
     ApiError, ArtemisUser, ArtemisResult, ArtemisParticipation, AuthenticationResult,
