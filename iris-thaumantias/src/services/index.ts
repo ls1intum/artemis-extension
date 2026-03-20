@@ -9,6 +9,8 @@ export { ChatMessageService } from './iris';
 export { IrisSessionInitService } from './iris';
 export { IrisSessionManager } from './iris';
 export { IrisSessionLifecycleService } from './iris';
+export { fetchSessionsWithMessages, importSessionsToStore } from './iris';
+export type { IrisServiceDeps } from './iris';
 
 // WebSocket
 export { ArtemisWebsocketService } from './websocket';

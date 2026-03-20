@@ -26,8 +26,9 @@ import type { TelemetryManager } from '../services/telemetry/telemetryManager';
 import { ExtensionMsg, WebviewMsgType } from '../shared/messageContracts';
 import { BuildLogParser } from '../utils';
 import type { ResultDTO } from '../types';
-import type { ExtensionToWebviewMessage, WebviewToExtensionMessage, CourseDetailData as CourseDetailPayload } from '../shared/messageContracts';
-import type { ExerciseDetail, CourseDetailData, ExerciseDetailsResponse } from '../types/apiResponses';
+import type { ExtensionToWebviewMessage, WebviewToExtensionMessage, CourseDetailData } from '../shared/messageContracts';
+import { toCourseDetailData } from '../shared/messageContracts';
+import type { ExerciseDetail, ExerciseDetailsResponse } from '../types/apiResponses';
 import { isWebviewMessage } from '../shared/messageContracts/typeGuards';
 
 /**
@@ -461,9 +462,7 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
                     if (detected.courseId) {
                         const entry = allCourses.find(e => e.course?.id === detected!.courseId);
                         if (entry?.course) {
-                            this._appStateManager.showCourseDetail({
-                                course: entry.course as CourseDetailData['course']
-                            });
+                            this._appStateManager.showCourseDetail(toCourseDetailData(entry.course));
                             this._postMessageSafe({ type: ExtensionMsg.UpdateLoading, message: 'Loading exercise...' });
                             await this.openExerciseDetails(detected.id);
                             if (this._appStateManager.currentState === 'exercise-detail') {
@@ -476,9 +475,7 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
                     if (detected.courseId) {
                         const entry = allCourses.find(e => e.course?.id === detected!.courseId);
                         if (entry?.course) {
-                            this.showCourseDetail({
-                                course: entry.course as CourseDetailData['course']
-                            });
+                            this.showCourseDetail(toCourseDetailData(entry.course));
                             return;
                         }
                     }
@@ -622,7 +619,7 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
     }
 
     public async openCourseFullscreen(courseData: CourseDetailData): Promise<void> {
-        this._fullscreenPanelManager.openCourseFullscreen(courseData as CourseDetailPayload);
+        this._fullscreenPanelManager.openCourseFullscreen(courseData);
     }
 
     public async openCourseListFullscreen(): Promise<void> {

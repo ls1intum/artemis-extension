@@ -8,6 +8,7 @@
  */
 
 export * from './domainTypes';
+export * from './domainMappers';
 export * from './extensionMessages';
 export * from './webviewCommands';
 export * from './typeGuards';

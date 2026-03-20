@@ -164,27 +164,3 @@ export interface StudentExam {
     startedDate?: string;
     [key: string]: unknown;
 }
-
-
-/**
- * Archived course structure (courses from previous semesters).
- */
-export interface ArchivedCourse {
-    id: number;
-    title: string;
-    semester?: string;
-    color?: string;
-    [key: string]: unknown;
-}
-
-/**
- * Full course detail data with exercises and exams.
- */
-export interface CourseDetailData {
-    course: CourseDashboardCourse & {
-        exercises?: ExerciseDetail[];
-        exams?: ExamSummary[];
-        isArchived?: boolean;
-    };
-    [key: string]: unknown;
-}

@@ -3,7 +3,7 @@ import { ContextStore } from '../contextStore';
 import { ArtemisApiService } from '../../api';
 import { ExerciseRegistry } from '../exerciseRegistry';
 import { logger, LogLevel } from '../loggingService';
-import type { IrisChatSession } from '../../types';
+import { fetchSessionsWithMessages } from './sessionSyncUtils';
 
 export class ChatDiagnosticsService {
     constructor(
@@ -138,34 +138,8 @@ export class ChatDiagnosticsService {
 
             report += '🌐 FETCHING SESSIONS FROM ARTEMIS...\n\n';
 
-            // Fetch session metadata first
-            let artemisSessionsMetadata: IrisChatSession[] = [];
-            if (activeContext.type === 'course') {
-                artemisSessionsMetadata = await this._artemisApiService.getCourseChatSessions(activeContext.id);
-            } else if (activeContext.type === 'exercise') {
-                artemisSessionsMetadata = await this._artemisApiService.getExerciseChatSessions(activeContext.id);
-            } else {
-                report += `❌ Unsupported context type: ${activeContext.type}\n`;
-            }
-
-            // Fetch messages for all sessions
-            const artemisSessionsListFromServer: IrisChatSession[] = await Promise.all(
-                artemisSessionsMetadata.map(async (session) => {
-                    try {
-                        const messages = await this._artemisApiService!.getChatMessages(session.id);
-                        return {
-                            ...session,
-                            messages: messages
-                        };
-                    } catch (error) {
-                        logger.warn(`Failed to fetch messages for session ${session.id}:`, undefined, error);
-                        return {
-                            ...session,
-                            messages: []
-                        };
-                    }
-                })
-            );
+            // Fetch sessions with messages using shared utility
+            const artemisSessionsListFromServer = await fetchSessionsWithMessages(this._artemisApiService, activeContext);
 
             report += `📊 TOTAL SESSIONS FOUND: ${artemisSessionsListFromServer.length}\n`;
             report += `   (All sessions are for ${activeContext.type} ${activeContext.id}: ${activeContext.title})\n`;

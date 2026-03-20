@@ -1,23 +1,19 @@
 import * as vscode from 'vscode';
-import { ContextStore } from '../contextStore';
-import { ArtemisApiService } from '../../api';
-import { ActiveContext, ApiError, type IrisChatSession, type IrisChatMessage, type IrisSettingsResponse } from '../../types';
+import { ActiveContext, ApiError, type IrisChatMessage, type IrisSettingsResponse } from '../../types';
 import type { IrisSessionManager } from './irisSessionManager';
 import { extractIrisMessageContent } from '../../utils/irisMessageUtils';
 import { logger, LogCategory } from '../loggingService';
 import { ExtensionMsg } from '../../shared/messageContracts';
-import type { ExtensionToWebviewMessage } from '../../shared/messageContracts';
+import { fetchSessionsWithMessages, importSessionsToStore } from './sessionSyncUtils';
+import type { IrisServiceDeps } from './sessionSyncUtils';
 
 export class IrisSessionInitService {
     private _contextLoadToken = 0;
 
     constructor(
-        private readonly _contextStore: ContextStore,
-        private readonly _artemisApiService: ArtemisApiService | undefined,
-        private readonly _postMessage: (message: ExtensionToWebviewMessage) => void,
+        private readonly deps: IrisServiceDeps,
         private readonly _onSessionLoaded: () => Promise<void>,
         private readonly _onCreateNewSession: () => void,
-        private readonly _onPostSnapshot: () => void
     ) { }
 
     public get contextLoadToken(): number {
@@ -32,12 +28,12 @@ export class IrisSessionInitService {
         if (loadToken !== this._contextLoadToken) {
             return false;
         }
-        const current = this._contextStore.getActiveContext();
+        const current = this.deps.contextStore.getActiveContext();
         return !!current && current.type === expected.type && current.id === expected.id;
     }
 
     public async checkAndLoadIrisSettings(context: ActiveContext): Promise<boolean> {
-        if (!this._artemisApiService) {
+        if (!this.deps.artemisApiService) {
             logger.warn('Artemis API service not available', LogCategory.IRIS_CHAT);
             return false;
         }
@@ -46,8 +42,8 @@ export class IrisSessionInitService {
             logger.info(`Checking Iris settings for ${context.type}: ${context.title}`, LogCategory.IRIS_CHAT);
 
             // Step 1: Check if Iris is globally enabled (server profile)
-            const profileInfo = await this._artemisApiService.getProfileInfo();
-            if (!this._artemisApiService.isIrisProfileActive(profileInfo)) {
+            const profileInfo = await this.deps.artemisApiService.getProfileInfo();
+            if (!this.deps.artemisApiService.isIrisProfileActive(profileInfo)) {
                 logger.info('Iris profile not active on server (global check failed)', LogCategory.IRIS_CHAT);
                 return false;
             }
@@ -55,14 +51,14 @@ export class IrisSessionInitService {
             // Step 2: Fetch course-level settings based on context type
             let settings: IrisSettingsResponse;
             if (context.type === 'course') {
-                settings = await this._artemisApiService.getIrisCourseChatSettings(context.id);
+                settings = await this.deps.artemisApiService.getIrisCourseChatSettings(context.id);
             } else if (context.type === 'exercise') {
                 const courseId = await this.resolveCourseIdForExercise(context);
                 if (!courseId) {
                     logger.warn('Unable to resolve course for exercise context; cannot check Iris settings', LogCategory.IRIS_CHAT);
                     return false;
                 }
-                settings = await this._artemisApiService.getIrisCourseChatSettings(courseId);
+                settings = await this.deps.artemisApiService.getIrisCourseChatSettings(courseId);
             } else {
                 logger.warn(`Unsupported context type for Iris: ${context.type}`, LogCategory.IRIS_CHAT);
                 return false;
@@ -103,16 +99,16 @@ export class IrisSessionInitService {
             return context.courseId;
         }
 
-        const tracked = this._contextStore.getExerciseById(context.id);
+        const tracked = this.deps.contextStore.getExerciseById(context.id);
         if (tracked?.courseId) {
             return tracked.courseId;
         }
 
         try {
-            const exerciseDetails = await this._artemisApiService?.getExerciseDetails(context.id);
+            const exerciseDetails = await this.deps.artemisApiService?.getExerciseDetails(context.id);
             const resolvedCourseId = exerciseDetails?.exercise?.course?.id;
             if (resolvedCourseId) {
-                this._contextStore.registerExercise({
+                this.deps.contextStore.registerExercise({
                     id: context.id,
                     title: context.title,
                     shortName: context.shortName,
@@ -127,15 +123,15 @@ export class IrisSessionInitService {
     }
 
     public async loadAllSessionsForContext(): Promise<void> {
-        const activeContext = this._contextStore.getActiveContext();
+        const activeContext = this.deps.contextStore.getActiveContext();
 
         logger.info('Starting loadAllSessionsForContext', LogCategory.SESSION);
         logger.info('Active context:', LogCategory.SESSION, activeContext);
 
-        if (!activeContext || !this._artemisApiService) {
+        if (!activeContext || !this.deps.artemisApiService) {
             logger.info('Cannot load sessions: missing context or API service', LogCategory.SESSION, {
                 hasContext: !!activeContext,
-                hasApiService: !!this._artemisApiService
+                hasApiService: !!this.deps.artemisApiService
             });
             return;
         }
@@ -160,11 +156,11 @@ export class IrisSessionInitService {
             if (!isEnabled) {
                 logger.info('Iris is disabled, not loading sessions', LogCategory.IRIS_CHAT);
                 // Clear any existing sessions and show disabled overlay
-                this._postMessage({
+                this.deps.postMessage({
                     type: ExtensionMsg.ClearChatMessages
                 });
                 const contextLabel = activeContext.type === 'course' ? 'course' : 'exercise';
-                this._postMessage({
+                this.deps.postMessage({
                     type: ExtensionMsg.ShowDisabledState,
                     message: `Iris chat is not enabled for this ${contextLabel}. Please contact your instructor.`
                 });
@@ -172,47 +168,14 @@ export class IrisSessionInitService {
             }
 
             // Hide disabled overlay if it was previously shown
-            this._postMessage({
+            this.deps.postMessage({
                 type: ExtensionMsg.HideDisabledState
             });
 
-            // Step 1: Fetch session metadata (fast, lightweight)
-            let artemisSessionsMetadata: IrisChatSession[] = [];
-            if (activeContext.type === 'course') {
-                artemisSessionsMetadata = await this._artemisApiService.getCourseChatSessions(activeContext.id);
-            } else if (activeContext.type === 'exercise') {
-                artemisSessionsMetadata = await this._artemisApiService.getExerciseChatSessions(activeContext.id);
-            } else {
-                logger.info(`Unsupported context type: ${activeContext.type}`, LogCategory.IRIS_CHAT);
-                return;
-            }
+            // Step 1+2: Fetch sessions with messages using shared utility
+            const sessionsFromServer = await fetchSessionsWithMessages(this.deps.artemisApiService, activeContext);
 
-            logger.info(`Fetched ${artemisSessionsMetadata.length} session(s) metadata from Artemis`, LogCategory.IRIS_CHAT);
-
-            // Step 2: Fetch messages for each session (to display in list)
-            const artemisSessionsListFromServer: IrisChatSession[] = await Promise.all(
-                artemisSessionsMetadata.map(async (session) => {
-                    if (!this._artemisApiService) {
-                        return { ...session, messages: [] };
-                    }
-                    try {
-                        logger.info(`Fetching messages for session ${session.id}...`, LogCategory.IRIS_CHAT);
-                        const messages = await this._artemisApiService.getChatMessages(session.id);
-                        return {
-                            ...session,
-                            messages: messages
-                        };
-                    } catch (error) {
-                        logger.warn(`Failed to fetch messages for session ${session.id}:`, LogCategory.IRIS_CHAT, error);
-                        return {
-                            ...session,
-                            messages: []
-                        };
-                    }
-                })
-            );
-
-            logger.info(`Fetched messages for all ${artemisSessionsListFromServer.length} sessions`, LogCategory.IRIS_CHAT);
+            logger.info(`Fetched ${sessionsFromServer.length} session(s) with messages from Artemis`, LogCategory.IRIS_CHAT);
 
             // CLEAR all existing sessions for this context to avoid stale data
             if (!this.isCurrentContext(targetContext, loadToken)) {
@@ -222,59 +185,19 @@ export class IrisSessionInitService {
 
             const contextKey = `${targetContext.type}:${targetContext.id}`;
             logger.info(`Clearing all existing sessions for context ${contextKey} before loading fresh data from Artemis`, LogCategory.IRIS_CHAT);
-            this._contextStore.clearSessionsForContext(contextKey);
+            this.deps.contextStore.clearSessionsForContext(contextKey);
 
             // Clear chat messages immediately after clearing sessions to avoid showing old messages
-            this._postMessage({ type: ExtensionMsg.ClearChatMessages });
+            this.deps.postMessage({ type: ExtensionMsg.ClearChatMessages });
 
-            // Import all sessions from Artemis
-            if (artemisSessionsListFromServer.length > 0) {
-                // Sort sessions by creation date (newest first)
-                artemisSessionsListFromServer.sort((a, b) => {
-                    const dateA = a.creationDate ? new Date(a.creationDate).getTime() : 0;
-                    const dateB = b.creationDate ? new Date(b.creationDate).getTime() : 0;
-                    return dateB - dateA;
-                });
-
-                logger.info(`Importing ${artemisSessionsListFromServer.length} sessions from Artemis`, LogCategory.IRIS_CHAT);
-
-                for (const artemisSession of artemisSessionsListFromServer) {
-
-                    if (!this.isCurrentContext(targetContext, loadToken)) {
-                        logger.info('Context changed while importing sessions, aborting load', LogCategory.IRIS_CHAT);
-                        return;
-                    }
-
-                    // Create local session for each Artemis session
-                    const messageCount = artemisSession.messages?.length || 0;
-                    const createdAt = artemisSession.creationDate ? new Date(artemisSession.creationDate).getTime() : Date.now();
-
-                    // Create preview from first user message or use default
-                    let preview = 'New conversation';
-                    if (artemisSession.messages && artemisSession.messages.length > 0) {
-                        const firstUserMsg = artemisSession.messages.find((m: IrisChatMessage) => m.sender === 'USER');
-                        if (firstUserMsg?.content?.[0]?.textContent) {
-                            preview = firstUserMsg.content[0].textContent.substring(0, 50);
-                        }
-                    }
-
-                    logger.info(`Importing session ${artemisSession.id}: ${messageCount} messages, preview: "${preview}"`, LogCategory.IRIS_CHAT);
-
-                    // Create local session with Artemis session ID and messages
-                    this._contextStore.createSessionWithDetails(
-                        preview,
-                        messageCount,
-                        createdAt,
-                        artemisSession.id,
-                        artemisSession.messages || []
-                    );
-                }
-
-                logger.info(`Imported ${artemisSessionsListFromServer.length} sessions for ${activeContext.type} ${activeContext.id}`, LogCategory.IRIS_CHAT);
+            // Import all sessions from Artemis using shared utility
+            const importedCount = importSessionsToStore(sessionsFromServer, this.deps.contextStore);
+            if (importedCount > 0) {
+                logger.info(`Imported ${importedCount} sessions for ${activeContext.type} ${activeContext.id}`, LogCategory.IRIS_CHAT);
             }
 
             // Get the latest snapshot after importing sessions
-            const updatedSnapshot = this._contextStore.snapshot();
+            const updatedSnapshot = this.deps.contextStore.snapshot();
 
             // If there are sessions, switch to the first one and load its messages
             if (updatedSnapshot.sessions.length > 0) {
@@ -284,7 +207,7 @@ export class IrisSessionInitService {
                 }
 
                 // Switch to the first (most recent) session
-                this._contextStore.switchToFirstSession();
+                this.deps.contextStore.switchToFirstSession();
 
                 // Load messages for the first session
                 if (!this.isCurrentContext(targetContext, loadToken)) {
@@ -309,7 +232,7 @@ export class IrisSessionInitService {
                 return;
             }
 
-            this._onPostSnapshot();
+            this.deps.postSnapshot();
 
         } catch (error: unknown) {
             logger.error('Error loading sessions for context:', LogCategory.SESSION, error);
@@ -322,7 +245,7 @@ export class IrisSessionInitService {
 
             // Fall back to creating a new session
             this._onCreateNewSession();
-            this._onPostSnapshot();
+            this.deps.postSnapshot();
         }
     }
 
@@ -336,7 +259,7 @@ export class IrisSessionInitService {
             contextTitle: context.title
         });
 
-        if (!this._artemisApiService) {
+        if (!this.deps.artemisApiService) {
             logger.error('No Artemis API service available', LogCategory.WEBSOCKET);
             return;
         }
@@ -344,7 +267,7 @@ export class IrisSessionInitService {
         try {
             logger.info(`Initializing Iris session for ${context.type}: ${context.title} (ID: ${context.id})`, LogCategory.IRIS_CHAT);
 
-            const snapshot = this._contextStore.snapshot();
+            const snapshot = this.deps.contextStore.snapshot();
             const activeLocalSession = snapshot.activeSession;
 
             logger.info('Active local session:', LogCategory.IRIS_CHAT, {
@@ -358,14 +281,14 @@ export class IrisSessionInitService {
 
             if (!activeLocalSession?.artemisSessionId) {
                 logger.info(`Storing NEW Artemis session ID mapping: ${sessionId}`, LogCategory.IRIS_CHAT);
-                this._contextStore.setArtemisSessionId(sessionId);
-                this._onPostSnapshot();
+                this.deps.contextStore.setArtemisSessionId(sessionId);
+                this.deps.postSnapshot();
             }
 
             logger.info(`Iris session initialized with ID: ${sessionId}`, LogCategory.WEBSOCKET);
 
             logger.info(`Fetching messages for session: ${sessionId}`, LogCategory.IRIS_CHAT);
-            const messages = await this._artemisApiService.getChatMessages(sessionId);
+            const messages = await this.deps.artemisApiService.getChatMessages(sessionId);
             logger.info(`Received ${messages?.length || 0} messages from Iris`, LogCategory.IRIS_CHAT);
 
             if (activeLocalSession?.messageCount && activeLocalSession.messageCount > 0 &&
@@ -373,8 +296,8 @@ export class IrisSessionInitService {
                 logger.warn(`Warning: Expected ${activeLocalSession.messageCount} messages but got none. Stored session might be stale.`, LogCategory.IRIS_CHAT);
                 logger.warn('Clearing stale Artemis session ID mapping...', LogCategory.IRIS_CHAT);
 
-                this._contextStore.setArtemisSessionId(undefined);
-                this._onPostSnapshot();
+                this.deps.contextStore.setArtemisSessionId(undefined);
+                this.deps.postSnapshot();
 
                 vscode.window.showWarningMessage(
                     'This conversation\'s messages could not be found on the server. They may have been deleted. The session mapping has been reset.',
@@ -407,7 +330,7 @@ export class IrisSessionInitService {
                     };
                 });
 
-                this._postMessage({
+                this.deps.postMessage({
                     type: ExtensionMsg.LoadMessages,
                     messages: formattedMessages
                 });

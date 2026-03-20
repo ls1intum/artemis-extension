@@ -1,24 +1,19 @@
 import * as vscode from 'vscode';
-import { ArtemisApiService } from '../../api';
 import { ArtemisWebsocketService } from '../websocket/artemisWebsocketService';
 import { IrisSessionManager } from './irisSessionManager';
-import { ContextStore } from '../contextStore';
 import { ActiveContext } from '../../types';
 import { checkWorkspaceFiles } from '../../utils';
 import { StruggleContext } from '../telemetry';
 import { logger, LogCategory } from '../loggingService';
 import { ExtensionMsg } from '../../shared/messageContracts';
-import type { ExtensionToWebviewMessage } from '../../shared/messageContracts';
+import type { IrisServiceDeps } from './sessionSyncUtils';
 
 export class ChatMessageService {
     constructor(
-        private readonly _contextStore: ContextStore,
-        private readonly _artemisApiService: ArtemisApiService | undefined,
+        private readonly deps: IrisServiceDeps,
         private readonly _websocketService: ArtemisWebsocketService | undefined,
         private readonly _getIrisSessionManager: () => IrisSessionManager | undefined,
-        private readonly _postMessage: (message: ExtensionToWebviewMessage) => void,
         private readonly _initializeIrisSession: (context: ActiveContext) => Promise<void>,
-        private readonly _postSnapshot: () => void
     ) { }
 
     public async handleChatMessage(messageText: string, activeContext: ActiveContext, struggleContext?: StruggleContext): Promise<void> {
@@ -40,7 +35,7 @@ export class ChatMessageService {
             })}`);
         }
 
-        if (!this._artemisApiService) {
+        if (!this.deps.artemisApiService) {
             vscode.window.showErrorMessage('Artemis API service not available');
             return;
         }
@@ -66,7 +61,7 @@ export class ChatMessageService {
                 messageLength: messageText.length,
                 hasUncommittedFiles: uncommittedFiles ? uncommittedFiles.size : 0
             })}`);
-            await this._artemisApiService.sendChatMessage(
+            await this.deps.artemisApiService.sendChatMessage(
                 irisSessionManager.currentSessionId,
                 messageText,
                 uncommittedFiles
@@ -75,15 +70,15 @@ export class ChatMessageService {
             logger.websocket('✅ Message sent to Iris, waiting for WebSocket response...');
 
             // Note: The assistant's response will arrive via WebSocket
-            this._contextStore.incrementActiveSessionMessageCount();
-            this._postSnapshot();
+            this.deps.contextStore.incrementActiveSessionMessageCount();
+            this.deps.postSnapshot();
 
         } catch (error: unknown) {
             const errorMessage = error instanceof Error ? error.message : String(error);
             logger.error('Error sending chat message', LogCategory.IRIS_CHAT, error);
             vscode.window.showErrorMessage(`Failed to send message: ${errorMessage}`);
 
-            this._postMessage({
+            this.deps.postMessage({
                 type: ExtensionMsg.AddMessage,
                 message: {
                     role: 'assistant',
@@ -182,7 +177,7 @@ export class ChatMessageService {
                     .filter(f => f.status === 'excluded')
                     .map(f => ({ path: f.path, reason: f.reason || 'Excluded' }));
 
-                this._postMessage({
+                this.deps.postMessage({
                     type: ExtensionMsg.UpdateReferencedFiles,
                     includedFiles: Array.from(uncommittedFiles.keys()),
                     excludedFiles: excludedFiles,

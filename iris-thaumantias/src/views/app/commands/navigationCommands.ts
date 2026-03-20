@@ -7,11 +7,12 @@ import type {
     WebviewToExtensionMessage,
     WebCmd,
     ExerciseDetail,
+    CourseDetailData,
 } from '../../../shared/messageContracts';
+import { toCourseDetailData } from '../../../shared/messageContracts';
 import type {
     CourseDashboardCourse,
     CourseDashboardEntry,
-    CourseDetailData,
     ExamSummary,
     ExerciseDetailsResponse,
 } from '../../../types/apiResponses';
@@ -143,13 +144,9 @@ export class NavigationCommandModule {
             // }
 
             // Convert to CourseDetailData format expected by state manager
-            const courseDetailData: CourseDetailData = {
-                course: ('course' in courseData ? courseData.course! : courseData) as CourseDashboardCourse & {
-                    exercises?: ExerciseDetail[];
-                    exams?: ExamSummary[];
-                    isArchived?: boolean;
-                }
-            };
+            const courseDetailData = toCourseDetailData(
+                ('course' in courseData ? courseData.course! : courseData) as CourseDashboardCourse
+            );
 
             this.context.appStateManager.showCourseDetail(courseDetailData);
 
@@ -310,15 +307,13 @@ export class NavigationCommandModule {
                 const dashboardDTO = await this.context.artemisApi.getCourseForDashboard(courseId);
 
                 // Build CourseDetailData structure expected by showCourseDetail
-                const courseData: CourseDetailData = {
-                    course: dashboardDTO.course as CourseDashboardCourse
-                };
+                const courseData = toCourseDetailData(dashboardDTO.course as CourseDashboardCourse);
 
                 // Fetch exams separately (not included in dashboard endpoint)
                 try {
                     const exams = await this.context.artemisApi.getExamsForCourse(courseId);
                     if (courseData.course) {
-                        courseData.course.exams = exams as ExamSummary[];
+                        courseData.course.exams = exams as typeof courseData.course.exams;
                     }
                 } catch (error: unknown) {
                     logger.apiError('Error fetching exams during reload:', error);
@@ -391,7 +386,7 @@ export class NavigationCommandModule {
                 if (courseId) {
                     const courseEntry = coursesData.courses.find(c => c.course?.id === courseId);
                     if (courseEntry?.course) {
-                        parentCourseDetailData = { course: courseEntry.course };
+                        parentCourseDetailData = toCourseDetailData(courseEntry.course);
                         logger.view(`[Navigation] Found parent course for exercise ${exerciseId} via courseId: ${courseEntry.course.title}`);
                     }
                 }
@@ -403,7 +398,7 @@ export class NavigationCommandModule {
                         const foundExercise = exercises.find((ex) => ex?.id === exerciseId);
 
                         if (foundExercise && courseEntry.course) {
-                            parentCourseDetailData = { course: courseEntry.course };
+                            parentCourseDetailData = toCourseDetailData(courseEntry.course);
                             logger.view(`[Navigation] Found parent course for exercise ${exerciseId}: ${courseEntry.course.title}`);
                             break;
                         }

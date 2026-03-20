@@ -47,13 +47,15 @@ suite('ChatMessageService', () => {
 
     function createService(apiService?: ArtemisApiService | undefined): ChatMessageService {
         service = new ChatMessageService(
-            contextStore,
-            apiService === undefined && arguments.length > 0 ? undefined : (mockApiService as any),
+            {
+                contextStore,
+                artemisApiService: apiService === undefined && arguments.length > 0 ? undefined : (mockApiService as any),
+                postMessage: postMessageSpy,
+                postSnapshot: postSnapshotSpy,
+            },
             { isConnected: () => true, ensureConnection: sandbox.stub().resolves(true) } as any,
             () => mockSessionManager as any,
-            postMessageSpy,
             initializeIrisSessionStub,
-            postSnapshotSpy,
         );
         return service;
     }

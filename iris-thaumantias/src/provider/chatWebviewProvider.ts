@@ -31,6 +31,7 @@ import {
     ExerciseRegistry,
     detectAndRegisterWorkspaceExercise
 } from '../services';
+import type { IrisServiceDeps } from '../services/iris/sessionSyncUtils';
 import type { ChatContextReason } from '../services/iris/chatContextManager';
 import { IRIS_CHAT_HELP_MARKDOWN } from '../utils/helpContent';
 
@@ -84,39 +85,37 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
         this._contextStore = new ContextStore(this._extensionContext);
         this._fileMonitorService = new FileMonitorService();
         this._disposables.push(this._fileMonitorService);
+
+        // Shared dependency bag for Iris services
+        const deps: IrisServiceDeps = {
+            contextStore: this._contextStore,
+            artemisApiService: this._artemisApiService,
+            postMessage: (msg) => this._postMessageSafe(msg),
+            postSnapshot: () => this._postSnapshot(),
+        };
+
         this._chatDiagnosticsService = new ChatDiagnosticsService(this._contextStore, this._artemisApiService, this._exerciseRegistry);
         this._chatSessionService = new IrisSessionInitService(
-            this._contextStore,
-            this._artemisApiService,
-            (message) => this._postMessageSafe(message),
+            deps,
             () => this._loadIrisMessages(),
             () => this.createNewSession(),
-            () => this._postSnapshot()
         );
         this._chatMessageService = new ChatMessageService(
-            this._contextStore,
-            this._artemisApiService,
+            deps,
             this._websocketService,
             () => this._irisSessionManager,
-            (message) => this._postMessageSafe(message),
             (context) => this._irisSessionManager
                 ? this._chatSessionService.initializeIrisSessionAndLoadMessages(context, this._irisSessionManager)
                 : Promise.resolve(),
-            () => this._postSnapshot()
         );
         this._chatContextManager = new ChatContextManager(
-            this._contextStore,
+            deps,
             this._chatSessionService,
             () => this._irisSessionManager,
-            (message) => this._postMessageSafe(message),
-            () => this._postSnapshot()
         );
         this._sessionManagementService = new IrisSessionLifecycleService(
-            this._contextStore,
-            this._artemisApiService,
+            deps,
             () => this._irisSessionManager,
-            (message) => this._postMessageSafe(message),
-            () => this._postSnapshot(),
             () => this._loadIrisMessages(),
             () => this._handleSwitchToWorkspaceContext(),
         );

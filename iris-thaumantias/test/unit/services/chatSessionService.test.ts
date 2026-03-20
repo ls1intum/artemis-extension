@@ -34,12 +34,14 @@ suite('IrisSessionInitService Test Suite', () => {
         onPostSnapshotSpy = sinon.spy();
 
         chatSessionService = new IrisSessionInitService(
-            contextStore,
-            mockApiService as any,
-            postMessageSpy,
+            {
+                contextStore,
+                artemisApiService: mockApiService as any,
+                postMessage: postMessageSpy,
+                postSnapshot: onPostSnapshotSpy,
+            },
             onSessionLoadedSpy,
             onCreateNewSessionSpy,
-            onPostSnapshotSpy
         );
     });
 
@@ -139,12 +141,14 @@ suite('IrisSessionInitService Test Suite', () => {
     suite('Iris Settings Check', () => {
         test('should return false when API service is not available', async () => {
             const serviceWithoutApi = new IrisSessionInitService(
-                contextStore,
-                undefined,
-                postMessageSpy,
+                {
+                    contextStore,
+                    artemisApiService: undefined,
+                    postMessage: postMessageSpy,
+                    postSnapshot: onPostSnapshotSpy,
+                },
                 onSessionLoadedSpy,
                 onCreateNewSessionSpy,
-                onPostSnapshotSpy
             );
 
             const context: ActiveContext = {
@@ -352,12 +356,14 @@ suite('IrisSessionInitService Test Suite', () => {
 
         test('should not load sessions when API service is not available', async () => {
             const serviceWithoutApi = new IrisSessionInitService(
-                contextStore,
-                undefined,
-                postMessageSpy,
+                {
+                    contextStore,
+                    artemisApiService: undefined,
+                    postMessage: postMessageSpy,
+                    postSnapshot: onPostSnapshotSpy,
+                },
                 onSessionLoadedSpy,
                 onCreateNewSessionSpy,
-                onPostSnapshotSpy
             );
 
             const context: ActiveContext = {
@@ -418,23 +424,14 @@ suite('IrisSessionInitService Test Suite', () => {
                 settings: { enabled: true }
             });
 
-            const sessionsMetadata = [
-                { id: 1, creationDate: '2024-01-01T10:00:00Z' },
-                { id: 2, creationDate: '2024-01-02T10:00:00Z' }
-            ];
-
-            mockApiService.getCourseChatSessions.resolves(sessionsMetadata);
-            mockApiService.getChatMessages.withArgs(1).resolves([
-                { sender: 'USER', content: [{ textContent: 'Hello' }] }
-            ]);
-            mockApiService.getChatMessages.withArgs(2).resolves([
-                { sender: 'USER', content: [{ textContent: 'Hi there' }] }
+            mockApiService.getCourseChatSessionsWithMessages.resolves([
+                { id: 1, creationDate: '2024-01-01T10:00:00Z', messages: [{ sender: 'USER', content: [{ textContent: 'Hello' }] }] },
+                { id: 2, creationDate: '2024-01-02T10:00:00Z', messages: [{ sender: 'USER', content: [{ textContent: 'Hi there' }] }] }
             ]);
 
             await chatSessionService.loadAllSessionsForContext();
 
-            assert.ok(mockApiService.getCourseChatSessions.calledOnceWith(101));
-            assert.ok(mockApiService.getChatMessages.calledTwice);
+            assert.ok(mockApiService.getCourseChatSessionsWithMessages.calledOnceWith(101));
             assert.ok(onSessionLoadedSpy.calledOnce);
             assert.ok(onPostSnapshotSpy.calledOnce);
 
@@ -459,18 +456,13 @@ suite('IrisSessionInitService Test Suite', () => {
                 settings: { enabled: true }
             });
 
-            const sessionsMetadata = [
-                { id: 1, creationDate: '2024-01-01T10:00:00Z' }
-            ];
-
-            mockApiService.getExerciseChatSessions.resolves(sessionsMetadata);
-            mockApiService.getChatMessages.resolves([
-                { sender: 'USER', content: [{ textContent: 'Question' }] }
+            mockApiService.getExerciseChatSessionsWithMessages.resolves([
+                { id: 1, creationDate: '2024-01-01T10:00:00Z', messages: [{ sender: 'USER', content: [{ textContent: 'Question' }] }] }
             ]);
 
             await chatSessionService.loadAllSessionsForContext();
 
-            assert.ok(mockApiService.getExerciseChatSessions.calledOnceWith(123));
+            assert.ok(mockApiService.getExerciseChatSessionsWithMessages.calledOnceWith(123));
             assert.ok(onSessionLoadedSpy.calledOnce);
         });
 
@@ -490,7 +482,7 @@ suite('IrisSessionInitService Test Suite', () => {
                 settings: { enabled: true }
             });
 
-            mockApiService.getCourseChatSessions.resolves([]);
+            mockApiService.getCourseChatSessionsWithMessages.resolves([]);
 
             await chatSessionService.loadAllSessionsForContext();
 
@@ -517,14 +509,11 @@ suite('IrisSessionInitService Test Suite', () => {
                 settings: { enabled: true }
             });
 
-            const sessionsMetadata = [
-                { id: 1, creationDate: '2024-01-01T10:00:00Z' },
-                { id: 2, creationDate: '2024-01-03T10:00:00Z' }, // Newest
-                { id: 3, creationDate: '2024-01-02T10:00:00Z' }
-            ];
-
-            mockApiService.getCourseChatSessions.resolves(sessionsMetadata);
-            mockApiService.getChatMessages.resolves([]);
+            mockApiService.getCourseChatSessionsWithMessages.resolves([
+                { id: 1, creationDate: '2024-01-01T10:00:00Z', messages: [] },
+                { id: 2, creationDate: '2024-01-03T10:00:00Z', messages: [] }, // Newest
+                { id: 3, creationDate: '2024-01-02T10:00:00Z', messages: [] }
+            ]);
 
             await chatSessionService.loadAllSessionsForContext();
 
@@ -552,7 +541,7 @@ suite('IrisSessionInitService Test Suite', () => {
                 settings: { enabled: true }
             });
 
-            mockApiService.getCourseChatSessions.callsFake(async () => {
+            mockApiService.getCourseChatSessionsWithMessages.callsFake(async () => {
                 // Change context during loading
                 const context2: ActiveContext = {
                     type: 'exercise',
@@ -589,7 +578,7 @@ suite('IrisSessionInitService Test Suite', () => {
                 settings: { enabled: true }
             });
 
-            mockApiService.getCourseChatSessions.rejects(new Error('API Error'));
+            mockApiService.getCourseChatSessionsWithMessages.rejects(new Error('API Error'));
 
             await chatSessionService.loadAllSessionsForContext();
 
@@ -622,10 +611,9 @@ suite('IrisSessionInitService Test Suite', () => {
                 settings: { enabled: true }
             });
 
-            mockApiService.getCourseChatSessions.resolves([
-                { id: 1, creationDate: '2024-01-01T10:00:00Z' }
+            mockApiService.getCourseChatSessionsWithMessages.resolves([
+                { id: 1, creationDate: '2024-01-01T10:00:00Z', messages: [] }
             ]);
-            mockApiService.getChatMessages.resolves([]);
 
             await chatSessionService.loadAllSessionsForContext();
 
@@ -653,7 +641,7 @@ suite('IrisSessionInitService Test Suite', () => {
                 settings: { enabled: true }
             });
 
-            mockApiService.getCourseChatSessions.resolves([]);
+            mockApiService.getCourseChatSessionsWithMessages.resolves([]);
 
             await chatSessionService.loadAllSessionsForContext();
 

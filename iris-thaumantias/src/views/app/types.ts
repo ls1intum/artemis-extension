@@ -1,5 +1,6 @@
 import type { UserInfo } from './appStateManager';
-import type { ExerciseDetail, ExerciseDetailsResponse, CourseDetailData } from '../../types/apiResponses';
+import type { ExerciseDetail, ExerciseDetailsResponse } from '../../types/apiResponses';
+import type { CourseDetailData } from '../../shared/messageContracts';
 
 /**
  * Interface implemented by classes that can perform actions requested from the webview.

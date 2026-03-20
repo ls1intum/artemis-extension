@@ -34,10 +34,14 @@ suite('ChatContextManager Test Suite', () => {
         showWarningMessageStub = sinon.stub(vscode.window, 'showWarningMessage');
 
         chatContextManager = new ChatContextManager(
-            contextStore,
+            {
+                contextStore,
+                artemisApiService: undefined,
+                postMessage: postMessageSpy,
+                postSnapshot: sinon.spy(),
+            },
             chatSessionService as any,
             () => irisSessionManager as any,
-            postMessageSpy
         );
     });
 
@@ -492,10 +496,14 @@ suite('ChatContextManager Test Suite', () => {
 
         test('should handle when IrisSessionManager is not available', () => {
             const managerWithoutIris = new ChatContextManager(
-                contextStore,
+                {
+                    contextStore,
+                    artemisApiService: undefined,
+                    postMessage: postMessageSpy,
+                    postSnapshot: sinon.spy(),
+                },
                 chatSessionService as any,
                 () => undefined,
-                postMessageSpy
             );
 
             // Should not throw

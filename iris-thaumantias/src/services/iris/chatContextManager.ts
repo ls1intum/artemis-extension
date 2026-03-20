@@ -1,11 +1,10 @@
 import * as vscode from 'vscode';
-import { ContextStore } from '../contextStore';
 import { IrisSessionInitService } from './chatSessionService';
 import { IrisSessionManager } from './irisSessionManager';
 import { ActiveContext, ChatContextType, TrackedExercise } from '../../types';
 import { logger, LogCategory } from '../loggingService';
 import { ExtensionMsg } from '../../shared/messageContracts';
-import type { ExtensionToWebviewMessage } from '../../shared/messageContracts';
+import type { IrisServiceDeps } from './sessionSyncUtils';
 
 export type ChatContextReason =
     | 'user-selected'
@@ -28,11 +27,9 @@ export interface SwitchContextParams {
 
 export class ChatContextManager {
     constructor(
-        private readonly _contextStore: ContextStore,
+        private readonly deps: IrisServiceDeps,
         private readonly _chatSessionService: IrisSessionInitService,
         private readonly _getIrisSessionManager: () => IrisSessionManager | undefined,
-        private readonly _postMessage: (message: ExtensionToWebviewMessage) => void,
-        private readonly _postSnapshot?: () => void,
     ) { }
 
     /**
@@ -46,7 +43,7 @@ export class ChatContextManager {
 
         // Step 1: Register in context store
         if (params.type === 'exercise') {
-            this._contextStore.registerExercise({
+            this.deps.contextStore.registerExercise({
                 id: params.id,
                 title: params.title,
                 shortName: params.shortName,
@@ -57,7 +54,7 @@ export class ChatContextManager {
                 isWorkspace: isWorkspaceRelated,
             });
         } else {
-            this._contextStore.registerCourse({
+            this.deps.contextStore.registerCourse({
                 id: params.id,
                 title: params.title,
                 shortName: params.shortName,
@@ -66,7 +63,7 @@ export class ChatContextManager {
         }
 
         // Step 2: Set active context (ensureSession=false — sessions loaded below)
-        this._contextStore.setActiveContext({
+        this.deps.contextStore.setActiveContext({
             type: params.type,
             id: params.id,
             title: params.title,
@@ -98,13 +95,13 @@ export class ChatContextManager {
         itemShortName?: string
     ): void {
         const courseId = contextType === 'exercise'
-            ? this._contextStore.getExerciseById(itemId)?.courseId
+            ? this.deps.contextStore.getExerciseById(itemId)?.courseId
             : undefined;
         this.switchContext({ type: contextType, id: itemId, title: itemName, shortName: itemShortName, courseId });
     }
 
     public handleCourseSelection(courseId: number): void {
-        const snapshot = this._contextStore.snapshot();
+        const snapshot = this.deps.contextStore.snapshot();
         const course = snapshot.allCourses.find(c => c.id === courseId)
             ?? snapshot.recentCourses.find(c => c.id === courseId);
         this.switchContext({
@@ -116,7 +113,7 @@ export class ChatContextManager {
     }
 
     public handleExerciseSelection(exerciseId: number): void {
-        const tracked = this._contextStore.getExerciseById(exerciseId);
+        const tracked = this.deps.contextStore.getExerciseById(exerciseId);
         this.switchContext({
             type: 'exercise',
             id: exerciseId,
@@ -159,11 +156,11 @@ export class ChatContextManager {
     // ── Non-switch helpers ──────────────────────────────────────────────
 
     public handleSwitchContext(): void {
-        this._contextStore.unlockActiveContext();
+        this.deps.contextStore.unlockActiveContext();
     }
 
     public handleSwitchToWorkspaceContext(): TrackedExercise | undefined {
-        const workspaceExercise = this._contextStore.getWorkspaceExercise();
+        const workspaceExercise = this.deps.contextStore.getWorkspaceExercise();
 
         if (!workspaceExercise) {
             vscode.window.showWarningMessage('No workspace exercise detected. Open a workspace folder with a git repository.');
@@ -174,14 +171,14 @@ export class ChatContextManager {
     }
 
     public clearContext(): void {
-        this._contextStore.clearActiveContext();
-        this._postSnapshot?.();
+        this.deps.contextStore.clearActiveContext();
+        this.deps.postSnapshot();
     }
 
     public getSelectedContext(): ActiveContext | null {
-        const active = this._contextStore.getActiveContext();
+        const active = this.deps.contextStore.getActiveContext();
         if (active?.type === 'exercise' && !active.courseId) {
-            const tracked = this._contextStore.getExerciseById(active.id);
+            const tracked = this.deps.contextStore.getExerciseById(active.id);
             if (tracked?.courseId) {
                 return { ...active, courseId: tracked.courseId };
             }
@@ -190,12 +187,12 @@ export class ChatContextManager {
     }
 
     public getSelectedExerciseId(): number | undefined {
-        const active = this._contextStore.getActiveContext();
+        const active = this.deps.contextStore.getActiveContext();
         return active?.type === 'exercise' ? active.id : undefined;
     }
 
     public getSelectedExercise(): { title: string; id: number } | undefined {
-        const active = this._contextStore.getActiveContext();
+        const active = this.deps.contextStore.getActiveContext();
         if (active?.type === 'exercise') {
             return { id: active.id, title: active.title };
         }
@@ -228,6 +225,6 @@ export class ChatContextManager {
     }
 
     private _clearChatMessages(): void {
-        this._postMessage({ type: ExtensionMsg.ClearChatMessages });
+        this.deps.postMessage({ type: ExtensionMsg.ClearChatMessages });
     }
 }
