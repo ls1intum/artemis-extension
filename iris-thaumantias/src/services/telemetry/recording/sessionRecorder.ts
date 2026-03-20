@@ -23,6 +23,20 @@ import {
 } from './eventCollectors';
 import { logger, LogCategory } from '../../loggingService';
 
+interface PendingExecution {
+    output: string;
+    startTime: number;
+    truncated: boolean;
+    readerDone: boolean;
+    endInfo: {
+        exitCode: number | undefined;
+        terminalName: string;
+        command: string;
+        cwd: string | undefined;
+    } | undefined;
+    aborted: boolean;
+}
+
 export interface RecordingState {
     isEnabled: boolean;
     isRecording: boolean;
@@ -44,6 +58,8 @@ export class SessionRecorder implements vscode.Disposable, WebSocketMessageHandl
     private _snapshotedUris = new Set<string>();
     private _selectionDebounceTimer: ReturnType<typeof setTimeout> | undefined;
     private _visibleRangeDebounceTimer: ReturnType<typeof setTimeout> | undefined;
+    private _pendingExecutions = new Map<vscode.TerminalShellExecution, PendingExecution>();
+    private static readonly MAX_OUTPUT_CHARS = 10240;
 
     private _eventListenerDisposables: vscode.Disposable[] = [];
     private readonly _writer: RecordingStorageWriter;
@@ -167,6 +183,10 @@ export class SessionRecorder implements vscode.Disposable, WebSocketMessageHandl
         this._exerciseRoot = undefined;
         this._sessionStartTime = undefined;
         this._snapshotedUris.clear();
+        for (const entry of this._pendingExecutions.values()) {
+            entry.aborted = true;
+        }
+        this._pendingExecutions.clear();
         this._fireStateChange();
     }
 
@@ -396,6 +416,60 @@ export class SessionRecorder implements vscode.Disposable, WebSocketMessageHandl
             }, 300);
         });
         this._eventListenerDisposables.push(visibleRangeChange);
+
+        // Terminal open
+        const terminalOpen = vscode.window.onDidOpenTerminal(terminal => {
+            if (!this._isRecording) { return; }
+            this._record({
+                type: 'terminalOpenClose',
+                timestamp: Date.now(),
+                action: 'opened',
+                terminalName: terminal.name,
+            });
+        });
+        this._eventListenerDisposables.push(terminalOpen);
+
+        // Terminal close
+        const terminalClose = vscode.window.onDidCloseTerminal(terminal => {
+            if (!this._isRecording) { return; }
+            this._record({
+                type: 'terminalOpenClose',
+                timestamp: Date.now(),
+                action: 'closed',
+                terminalName: terminal.name,
+            });
+        });
+        this._eventListenerDisposables.push(terminalClose);
+
+        // Terminal shell execution start — begin collecting output
+        const shellExecStart = vscode.window.onDidStartTerminalShellExecution(event => {
+            if (!this._isRecording) { return; }
+            const entry: PendingExecution = {
+                output: '', startTime: Date.now(), truncated: false,
+                readerDone: false, endInfo: undefined, aborted: false,
+            };
+            this._pendingExecutions.set(event.execution, entry);
+            void this._collectExecutionOutput(event.execution, entry);
+        });
+        this._eventListenerDisposables.push(shellExecStart);
+
+        // Terminal shell execution end — emit once reader is also done
+        const shellExecEnd = vscode.window.onDidEndTerminalShellExecution(event => {
+            if (!this._isRecording) { return; }
+            const entry = this._pendingExecutions.get(event.execution);
+            if (!entry) { return; }
+            this._pendingExecutions.delete(event.execution);
+            entry.endInfo = {
+                exitCode: event.exitCode,
+                terminalName: event.terminal.name,
+                command: event.execution.commandLine.value,
+                cwd: event.execution.cwd?.toString(),
+            };
+            if (entry.readerDone) {
+                this._emitTerminalCommand(entry);
+            }
+        });
+        this._eventListenerDisposables.push(shellExecEnd);
     }
 
     private _disposeEventListeners(): void {
@@ -437,6 +511,48 @@ export class SessionRecorder implements vscode.Disposable, WebSocketMessageHandl
             }
             this._record(collectDiagnostics(uri));
         }
+    }
+
+    private async _collectExecutionOutput(
+        execution: vscode.TerminalShellExecution,
+        entry: PendingExecution,
+    ): Promise<void> {
+        try {
+            for await (const data of execution.read()) {
+                if (entry.aborted) { return; }
+                if (!entry.truncated) {
+                    const remaining = SessionRecorder.MAX_OUTPUT_CHARS - entry.output.length;
+                    if (data.length <= remaining) {
+                        entry.output += data;
+                    } else {
+                        entry.output += data.substring(0, remaining);
+                        entry.truncated = true;
+                    }
+                }
+            }
+        } catch (err) {
+            logger.error('Failed to read terminal execution output', LogCategory.TELEMETRY, err);
+        }
+        entry.readerDone = true;
+        if (entry.endInfo && !entry.aborted) {
+            this._emitTerminalCommand(entry);
+        }
+    }
+
+    private _emitTerminalCommand(entry: PendingExecution): void {
+        if (!entry.endInfo || !this._isRecording) { return; }
+        const now = Date.now();
+        this._record({
+            type: 'terminalCommand',
+            timestamp: now,
+            command: entry.endInfo.command,
+            exitCode: entry.endInfo.exitCode,
+            output: entry.output,
+            outputTruncated: entry.truncated,
+            cwd: entry.endInfo.cwd,
+            terminalName: entry.endInfo.terminalName,
+            durationMs: now - entry.startTime,
+        });
     }
 
     private async _captureFirstOpenSnapshot(editor: vscode.TextEditor): Promise<void> {

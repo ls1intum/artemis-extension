@@ -18,6 +18,8 @@ export const MARKER_COLORS: Record<EventType, string> = {
     panelVisibility: '#fbbf24',
     selectionChange: '#06b6d4',
     visibleRangeChange: '#14b8a6',
+    terminalCommand: '#22d3ee',
+    terminalOpenClose: '#67e8f9',
 };
 
 export const ALL_EVENT_TYPES = [
@@ -30,6 +32,7 @@ export const ALL_EVENT_TYPES = [
     'irisChatMessage',
     'viewNavigation', 'panelVisibility',
     'selectionChange', 'visibleRangeChange',
+    'terminalCommand', 'terminalOpenClose',
 ] as const satisfies readonly EventType[];
 
 // Compile error if a new event type is added but not listed above

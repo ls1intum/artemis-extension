@@ -165,6 +165,25 @@ export interface VisibleRangeChangeEvent {
     visibleRanges: SerializedRange[];
 }
 
+export interface TerminalCommandEvent {
+    type: 'terminalCommand';
+    timestamp: number;
+    command: string;
+    exitCode: number | undefined;
+    output: string;
+    outputTruncated: boolean;
+    cwd: string | undefined;
+    terminalName: string;
+    durationMs: number;
+}
+
+export interface TerminalOpenCloseEvent {
+    type: 'terminalOpenClose';
+    timestamp: number;
+    action: 'opened' | 'closed';
+    terminalName: string;
+}
+
 // ── Discriminated union ───────────────────────────────────────────────
 
 export type RecordedEvent =
@@ -184,7 +203,9 @@ export type RecordedEvent =
     | ViewNavigationEvent
     | PanelVisibilityEvent
     | SelectionChangeEvent
-    | VisibleRangeChangeEvent;
+    | VisibleRangeChangeEvent
+    | TerminalCommandEvent
+    | TerminalOpenCloseEvent;
 
 // ── Session metadata ──────────────────────────────────────────────────
 

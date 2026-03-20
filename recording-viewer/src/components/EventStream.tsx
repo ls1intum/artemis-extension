@@ -21,6 +21,20 @@ type StreamItem =
     | { kind: 'event'; event: RecordedEvent; index: number }
     | { kind: 'annotation'; annotation: Annotation };
 
+// Strip ANSI escape sequences and common shell integration markers from terminal output
+function stripAnsi(text: string): string {
+    /* eslint-disable no-control-regex */
+    return text
+        // OSC sequences (e.g. \x1b]633;....\x07)
+        .replace(/\x1b\][^\x07]*\x07/g, '')
+        // CSI sequences (e.g. \x1b[1m, \x1b[27m)
+        .replace(/\x1b\[[0-9;]*[A-Za-z]/g, '')
+        // Carriage returns used for line clearing
+        .replace(/\r(?!\n)/g, '')
+        .trim();
+    /* eslint-enable no-control-regex */
+}
+
 function EventDetail({ event }: { event: RecordedEvent }) {
     switch (event.type) {
         case 'eqSnapshot':
@@ -141,6 +155,23 @@ function EventDetail({ event }: { event: RecordedEvent }) {
                     {event.panel} | {event.visible ? 'visible' : 'hidden'}
                 </span>
             );
+        case 'terminalCommand': {
+            const exitOk = event.exitCode === 0;
+            return (
+                <span className="event-detail terminal-detail">
+                    <code>{event.command.length > 60 ? event.command.slice(0, 60) + '...' : event.command}</code>
+                    {' '}exit: <strong className={exitOk ? 'terminal-exit-ok' : 'terminal-exit-fail'}>{event.exitCode ?? '?'}</strong>
+                    {' '}({Math.round(event.durationMs / 1000)}s)
+                    {event.outputTruncated && ' [truncated]'}
+                </span>
+            );
+        }
+        case 'terminalOpenClose':
+            return (
+                <span className="event-detail">
+                    {event.action} | {event.terminalName}
+                </span>
+            );
         default:
             return null;
     }
@@ -246,6 +277,7 @@ function AnnotationRow({ annotation, sessionStartTime, onUpdate, onDelete }: {
 export function EventStream({ events, sessionStartTime, annotations, enabledTypes, onAddAnnotation, onUpdateAnnotation, onDeleteAnnotation, scrollToTimestamp, onScrollComplete, videoTimeRef, isVideoPlaying, onSeekVideo }: Props) {
     const [showAnnotations, setShowAnnotations] = useState(true);
     const [annotatingTimestamp, setAnnotatingTimestamp] = useState<number | null>(null);
+    const [expandedTerminals, setExpandedTerminals] = useState<Set<number>>(new Set());
     const [followPlayback, setFollowPlayback] = useState(false);
     const programmaticScroll = useRef(false);
     const listRef = useRef<HTMLDivElement>(null);
@@ -421,19 +453,31 @@ export function EventStream({ events, sessionStartTime, annotations, enabledType
 
                     const { event, index } = item;
                     const isHighlighted = scrollToTimestamp != null && Math.abs(event.timestamp - scrollToTimestamp) < 500;
+                    const isTermCmd = event.type === 'terminalCommand';
+                    const isTermExpanded = isTermCmd && expandedTerminals.has(index);
                     return (
                         <div key={`${event.timestamp}-${event.type}-${index}`} data-timestamp={event.timestamp}>
-                            <div className={`event-row ${event.type}${isHighlighted ? ' flash-highlight' : ''}`}>
+                            <div
+                                className={`event-row ${event.type}${isHighlighted ? ' flash-highlight' : ''}${isTermCmd ? ' clickable' : ''}`}
+                                onClick={isTermCmd ? () => setExpandedTerminals(prev => {
+                                    const next = new Set(prev);
+                                    if (next.has(index)) next.delete(index); else next.add(index);
+                                    return next;
+                                }) : undefined}
+                            >
                                 <span className="event-time mono">
                                     {formatOffset(event.timestamp - sessionStartTime)}
                                 </span>
                                 <span className={`event-badge ${event.type}`}>{event.type}</span>
                                 <EventDetail event={event} />
+                                {isTermCmd && (
+                                    <span className="expand-hint">{isTermExpanded ? '▾' : '▸'}</span>
+                                )}
                                 {onSeekVideo && (
                                     <button
                                         className="seek-video-btn"
                                         title="Jump video to this event"
-                                        onClick={() => handleSeekToEvent(event.timestamp)}
+                                        onClick={e => { e.stopPropagation(); handleSeekToEvent(event.timestamp); }}
                                     >
                                         &#9654;
                                     </button>
@@ -441,13 +485,19 @@ export function EventStream({ events, sessionStartTime, annotations, enabledType
                                 <button
                                     className="annotate-btn"
                                     title="Add annotation at this timestamp"
-                                    onClick={() => setAnnotatingTimestamp(
-                                        annotatingTimestamp === event.timestamp ? null : event.timestamp
-                                    )}
+                                    onClick={e => {
+                                        e.stopPropagation();
+                                        setAnnotatingTimestamp(
+                                            annotatingTimestamp === event.timestamp ? null : event.timestamp
+                                        );
+                                    }}
                                 >
                                     +
                                 </button>
                             </div>
+                            {isTermExpanded && event.type === 'terminalCommand' && (
+                                <pre className="terminal-output">{stripAnsi(event.output)}</pre>
+                            )}
                             {annotatingTimestamp === event.timestamp && (
                                 <InlineAnnotationInput
                                     onSubmit={text => {

@@ -513,6 +513,9 @@
 .event-row:hover {
     background: var(--bg-elevated);
 }
+.event-row.clickable {
+    cursor: pointer;
+}
 
 .event-time {
     flex-shrink: 0;
@@ -554,6 +557,8 @@
 .event-badge.panelVisibility { background: rgba(251, 191, 36, 0.12); color: #fbbf24; }
 .event-badge.selectionChange { background: rgba(6, 182, 212, 0.15); color: #06b6d4; }
 .event-badge.visibleRangeChange { background: rgba(20, 184, 166, 0.15); color: #14b8a6; }
+.event-badge.terminalCommand { background: rgba(34, 211, 238, 0.15); color: #22d3ee; }
+.event-badge.terminalOpenClose { background: rgba(103, 232, 249, 0.12); color: #67e8f9; }
 
 /* ── Event details ───────────────────────────────────────────────────── */
 
@@ -598,6 +603,44 @@
     border-radius: 3px;
     color: var(--text);
     white-space: pre;
+}
+
+/* ── Terminal command output ─────────────────────────────────────────── */
+
+.terminal-detail {
+    cursor: pointer;
+    user-select: none;
+}
+
+.terminal-detail .expand-hint {
+    color: var(--text-muted);
+    font-size: 10px;
+    margin-left: 6px;
+}
+
+.terminal-exit-ok { color: #4ade80; }
+.terminal-exit-fail { color: #f87171; }
+
+.terminal-output {
+    margin: 4px 0 4px 60px;
+    padding: 8px 10px;
+    background: var(--bg-surface, #1a1a2e);
+    border: 1px solid var(--border, #2a2a3e);
+    border-radius: 4px;
+    font-family: var(--mono);
+    font-size: 11px;
+    line-height: 1.4;
+    color: var(--text-muted);
+    white-space: pre-wrap;
+    word-break: break-all;
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.terminal-output:empty::after {
+    content: '(no output)';
+    font-style: italic;
+    opacity: 0.5;
 }
 
 /* ── Scrollbar ───────────────────────────────────────────────────────── */
