@@ -106,6 +106,21 @@ export class GitService {
     }
 
     /**
+     * Read git identity with local-then-global fallback per field.
+     * Always returns both fields (empty string if not configured).
+     */
+    public async readIdentity(cwd: string): Promise<GitIdentity> {
+        const opts: GitCommandOptions = { cwd };
+        const name = await this.getConfigValue('user.name', opts)
+            || await this.getConfigValue('user.name', opts, true)
+            || '';
+        const email = await this.getConfigValue('user.email', opts)
+            || await this.getConfigValue('user.email', opts, true)
+            || '';
+        return { name, email };
+    }
+
+    /**
      * Set git identity globally
      */
     public async setGlobalIdentity(identity: GitIdentity): Promise<void> {

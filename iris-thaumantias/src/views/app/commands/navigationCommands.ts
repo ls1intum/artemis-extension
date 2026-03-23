@@ -487,11 +487,7 @@ export class NavigationCommandModule {
                 return;
             }
 
-            // Extract courseId and examId from exam data (added as context fields)
-            // Type assertion needed as ExamData interface may extend with these fields
-            const examDataWithContext = examData as { courseId?: unknown; examId?: unknown };
-            const courseId = examDataWithContext.courseId;
-            const examId = examDataWithContext.examId;
+            const { courseId, examId } = examData;
 
             if (typeof courseId !== 'number' || typeof examId !== 'number') {
                 logger.viewError('[EXAMMODE] Invalid exam context - missing courseId or examId');

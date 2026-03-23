@@ -2,28 +2,30 @@ import * as vscode from 'vscode';
 import { AppStateManager } from '../../views/app/appStateManager';
 import type { TelemetryManager } from '../telemetry/telemetryManager';
 import type { WebViewMessageHandler } from '../../views/app/webViewMessageHandler';
-import { ExtensionMsg, WebviewCmd } from '../../shared/messageContracts';
-import type { ExtensionToWebviewMessage, WebviewToExtensionMessage, CourseDetailData as CourseDetailPayload } from '../../shared/messageContracts';
+import { ExtensionMsg } from '../../shared/messageContracts';
+import type { ExtensionToWebviewMessage, CourseDetailData as CourseDetailPayload } from '../../shared/messageContracts';
 import type { CourseDashboardEntry, ExerciseDetail, ExerciseDetailsResponse } from '../../types/apiResponses';
 import { detectWorkspaceExercise, detectWorkspaceForRepoUris, type ExerciseSource } from '../workspace/workspaceDetectionService';
+import { GitService } from '../workspace/gitService';
 import { logger, LogCategory } from '../loggingService';
 import { VSCODE_CONFIG, CONFIG } from '../../utils';
 
 export class ViewInitDataService {
     private _initGeneration = 0;
+    private readonly _gitService = new GitService();
 
     constructor(
-        private readonly _getAppStateManager: () => AppStateManager,
-        private readonly _getTelemetryManager: () => TelemetryManager | undefined,
-        private readonly _getMessageHandler: () => WebViewMessageHandler,
+        private readonly _appStateManager: AppStateManager,
+        private readonly _telemetryManager: TelemetryManager | undefined,
+        private readonly _messageHandler: WebViewMessageHandler,
         private readonly _postMessage: (msg: ExtensionToWebviewMessage) => void,
     ) {}
 
     public sendInitData(): void {
         ++this._initGeneration;
-        const state = this._getAppStateManager().currentState;
+        const state = this._appStateManager.currentState;
         if (state !== 'exercise-detail') {
-            this._getMessageHandler().clearRepositoryContext();
+            this._messageHandler.clearRepositoryContext();
         }
         switch (state) {
             case 'dashboard':              return this.sendDashboardInit();
@@ -43,7 +45,7 @@ export class ViewInitDataService {
     }
 
     public sendDashboardInit(): void {
-        const coursesData = this._getAppStateManager().coursesData;
+        const coursesData = this._appStateManager.coursesData;
         const courses = coursesData?.courses || [];
 
         const recentCourseNodes = courses.map((courseItem: CourseDashboardEntry) => {
@@ -80,7 +82,7 @@ export class ViewInitDataService {
         // null = "no match" (shown to user), undefined = "still loading" (keeps skeleton).
         // We only publish null once the archived-course check has finished,
         // so the UI doesn't flash "no exercise" before a late-arriving archived match.
-        const noMatch = this._getAppStateManager().archiveCheckComplete ? null : undefined;
+        const noMatch = this._appStateManager.archiveCheckComplete ? null : undefined;
 
         if (allExercises.length === 0) {
             this._postMessage({
@@ -113,7 +115,7 @@ export class ViewInitDataService {
     }
 
     public sendCourseListInit(): void {
-        const appState = this._getAppStateManager();
+        const appState = this._appStateManager;
         const coursesData = appState.coursesData;
         const courses = coursesData?.courses || [];
         const archivedCourses = appState.archivedCoursesData || undefined;
@@ -138,7 +140,7 @@ export class ViewInitDataService {
     }
 
     public sendCourseDetailInit(): void {
-        const courseData = this._getAppStateManager().currentCourseData;
+        const courseData = this._appStateManager.currentCourseData;
         if (!courseData) {
             logger.error('Course detail state missing course data', LogCategory.VIEW);
             this._postMessage({ type: ExtensionMsg.ViewInitError, error: 'Course data is not available. Please go back and try again.' });
@@ -169,7 +171,7 @@ export class ViewInitDataService {
     }
 
     public sendExerciseDetailInit(): void {
-        const exerciseData = this._getAppStateManager().currentExerciseData;
+        const exerciseData = this._appStateManager.currentExerciseData;
         if (!exerciseData) {
             logger.error('Exercise detail state missing exercise data', LogCategory.VIEW);
             this._postMessage({ type: ExtensionMsg.ViewInitError, error: 'Exercise data is not available. Please go back and try again.' });
@@ -188,7 +190,7 @@ export class ViewInitDataService {
                 if (gen !== this._initGeneration) { return; }
                 // Set repo context so workspace listeners can auto-detect changes on file save
                 if (repoStatus.matchedUri && exerciseId !== undefined) {
-                    const handler = this._getMessageHandler();
+                    const handler = this._messageHandler;
                     handler.setRepositoryContext(repoStatus.matchedUri, exerciseId);
                 }
                 this._postMessage({
@@ -200,7 +202,7 @@ export class ViewInitDataService {
             }).catch((error) => {
                 if (gen !== this._initGeneration) { return; }
                 logger.error('Failed to detect workspace status for exercise detail', LogCategory.VIEW, error);
-                this._getMessageHandler().clearRepositoryContext();
+                this._messageHandler.clearRepositoryContext();
                 this._postMessage({
                     type: ExtensionMsg.ExerciseDetailInit,
                     exerciseData: exerciseData as ExerciseDetailsResponse,
@@ -208,7 +210,7 @@ export class ViewInitDataService {
                 });
             });
         } else {
-            this._getMessageHandler().clearRepositoryContext();
+            this._messageHandler.clearRepositoryContext();
             this._postMessage({
                 type: ExtensionMsg.ExerciseDetailInit,
                 exerciseData: exerciseData as ExerciseDetailsResponse,
@@ -218,7 +220,7 @@ export class ViewInitDataService {
     }
 
     public sendExamConductionInit(): void {
-        const examData = this._getAppStateManager().currentExamData;
+        const examData = this._appStateManager.currentExamData;
         if (!examData) {
             logger.error('Exam conduction state missing exam data', LogCategory.VIEW);
             this._postMessage({ type: ExtensionMsg.ViewInitError, error: 'Exam data is not available. Please go back and try again.' });
@@ -271,7 +273,7 @@ export class ViewInitDataService {
     }
 
     public sendExamStartInit(): void {
-        const examData = this._getAppStateManager().currentExamData;
+        const examData = this._appStateManager.currentExamData;
         if (!examData) {
             logger.error('Exam start state missing exam data', LogCategory.VIEW);
             this._postMessage({ type: ExtensionMsg.ViewInitError, error: 'Exam data is not available. Please go back and try again.' });
@@ -287,7 +289,7 @@ export class ViewInitDataService {
     }
 
     public sendExamExerciseDetailInit(): void {
-        const appState = this._getAppStateManager();
+        const appState = this._appStateManager;
         const exerciseData = appState.currentExerciseData;
         const examData = appState.currentExamData;
 
@@ -332,12 +334,12 @@ export class ViewInitDataService {
     }
 
     public sendAiConfigInit(): void {
-        const aiExtensions = this._getAppStateManager().aiExtensions || [];
+        const aiExtensions = this._appStateManager.aiExtensions || [];
         this._postMessage({ type: ExtensionMsg.AiConfigInit, aiExtensions });
     }
 
     public sendStruggleDetectionInit(): void {
-        const telemetry = this._getTelemetryManager();
+        const telemetry = this._telemetryManager;
         const ctx = telemetry?.getStruggleContext();
         this._postMessage({
             type: ExtensionMsg.StruggleDetectionInit,
@@ -351,12 +353,12 @@ export class ViewInitDataService {
     }
 
     public sendServiceStatusInit(): void {
-        const serverUrl = this._getAppStateManager().userInfo?.serverUrl;
+        const serverUrl = this._appStateManager.userInfo?.serverUrl;
         this._postMessage({ type: ExtensionMsg.ServiceStatusInit, serverUrl });
     }
 
     public sendRecommendedExtensionsInit(): void {
-        const categories = this._getAppStateManager().recommendedExtensions || [];
+        const categories = this._appStateManager.recommendedExtensions || [];
         const mappedCategories = categories.map(category => ({
             ...category,
             extensions: category.extensions.map(ext => ({
@@ -368,12 +370,16 @@ export class ViewInitDataService {
     }
 
     public sendGitCredentialsInit(): void {
-        // Safe cast: RequestGitIdentity has undefined payload, so the literal
-        // is structurally correct as a WebviewToExtensionMessage command variant.
-        this._getMessageHandler().handleMessage({
-            type: 'command',
-            command: WebviewCmd.RequestGitIdentity,
-        } as WebviewToExtensionMessage);
+        const gen = this._initGeneration;
+        const cwd = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? process.cwd();
+        this._gitService.readIdentity(cwd).then(({ name, email }) => {
+            if (gen !== this._initGeneration) { return; }
+            this._postMessage({ type: ExtensionMsg.GitIdentityInfo, name, email });
+        }).catch((error) => {
+            if (gen !== this._initGeneration) { return; }
+            logger.error('Failed to read git identity', LogCategory.VIEW, error);
+            this._postMessage({ type: ExtensionMsg.GitIdentityInfo, name: '', email: '' });
+        });
     }
 
     public sendLoginInit(): void {

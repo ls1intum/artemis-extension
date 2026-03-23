@@ -100,9 +100,9 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
         );
         this._messageHandler.setAuthContextUpdater(this._authContextUpdater);
         this._viewInitDataService = new ViewInitDataService(
-            () => this._appStateManager,
-            () => this._telemetryManager,
-            () => this._messageHandler,
+            this._appStateManager,
+            this._telemetryManager,
+            this._messageHandler,
             (msg) => this._postMessageSafe(msg),
         );
         this._buildDiagnosticsService = new BuildDiagnosticsService(this._artemisApi);
