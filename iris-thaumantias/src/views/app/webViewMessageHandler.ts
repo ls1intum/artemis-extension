@@ -6,7 +6,6 @@ import type { WebViewActionHandler } from './types';
 import type { CommandContext, CommandHandler } from './commands/types';
 import { getCommand } from '../../shared/messageContracts';
 import type { WebviewToExtensionMessage, ExtensionToWebviewMessage } from '../../shared/messageContracts';
-import type { BuildErrorCodeLensProvider } from '../../provider/buildErrorCodeLensProvider';
 import { AuthCommandModule } from './commands/authCommands';
 import { NavigationCommandModule } from './commands/navigationCommands';
 import { RepositoryCommandModule } from './commands/repositoryCommands';
@@ -33,11 +32,10 @@ export class WebViewMessageHandler {
         private readonly artemisApi: ArtemisApiService,
         private readonly appStateManager: AppStateManager,
         private readonly actionHandler: WebViewActionHandler,
-        private readonly buildCodeLens?: BuildErrorCodeLensProvider,
+        extensionContext: vscode.ExtensionContext,
+        exerciseRegistry: ExerciseRegistry,
+        providerRegistry: IProviderRegistry,
         websocketService?: ArtemisWebsocketService,
-        extensionContext?: vscode.ExtensionContext,
-        exerciseRegistry?: ExerciseRegistry,
-        providerRegistry?: IProviderRegistry
     ) {
         this._websocketService = websocketService;
         const context: CommandContext = {
@@ -47,11 +45,10 @@ export class WebViewMessageHandler {
             actionHandler: this.actionHandler,
             sendMessage: (message: ExtensionToWebviewMessage) => this._sendMessage(message),
             updateAuthContext: (isAuthenticated: boolean) => this.updateAuthContext(isAuthenticated),
-            buildCodeLens: this.buildCodeLens,
             getWebsocketService: () => this._websocketService,
-            extensionContext: extensionContext!,
-            exerciseRegistry: exerciseRegistry!,
-            providerRegistry: providerRegistry!
+            extensionContext,
+            exerciseRegistry,
+            providerRegistry,
         };
 
         const modules = [

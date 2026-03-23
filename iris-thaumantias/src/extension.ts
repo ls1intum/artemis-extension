@@ -86,17 +86,16 @@ export async function activate(context: vscode.ExtensionContext) {
 	const exerciseRegistry = new ExerciseRegistry();
 	const providerRegistry = new ProviderRegistry();
 
-	const artemisWebviewProvider = new ArtemisWebviewProvider(context.extensionUri, context, authManager, artemisApiService, exerciseRegistry, providerRegistry);
-	artemisWebviewProvider.setAuthContextUpdater(updateAuthContext);
-	artemisWebviewProvider.setWebsocketService(artemisWebsocketService);
-	artemisWebviewProvider.setBuildDiagnostics(buildErrorCodeLensProvider);
-	artemisWebviewProvider.setTelemetryManager(telemetryManager);
+	const artemisWebviewProvider = new ArtemisWebviewProvider(
+		context.extensionUri, context, authManager, artemisApiService,
+		exerciseRegistry, providerRegistry,
+		artemisWebsocketService, buildErrorCodeLensProvider, telemetryManager, updateAuthContext,
+	);
 	context.subscriptions.push(
 		vscode.window.registerWebviewViewProvider(ArtemisWebviewProvider.viewType, artemisWebviewProvider)
 	);
 
-	const chatWebviewProvider = new ChatWebviewProvider(context.extensionUri, context, artemisApiService, artemisWebsocketService, noAiDetectionService, exerciseRegistry);
-	chatWebviewProvider.setTelemetryManager(telemetryManager);
+	const chatWebviewProvider = new ChatWebviewProvider(context.extensionUri, context, artemisApiService, artemisWebsocketService, noAiDetectionService, exerciseRegistry, telemetryManager);
 	chatWebviewProvider.onDidChangeExerciseContext(({ exerciseId, exerciseRoot }) => {
 		telemetryManager.startExerciseSession(exerciseId, exerciseRoot);
 	});

@@ -6,7 +6,7 @@ import type { BuildErrorCodeLensProvider } from '../../../src/provider/buildErro
 import { MockExtensionContext } from '../mocks/vscodeMocks';
 import { AuthManager } from '../../../src/services/auth';
 import { ArtemisApiService } from '../../../src/api';
-import { ArtemisWebsocketService, ExerciseRegistry } from '../../../src/services';
+import { ArtemisWebsocketService, ExerciseRegistry, TelemetryManager } from '../../../src/services';
 import { ProviderRegistry } from '../../../src/services/ui/providerRegistry';
 
 class MockAuthManager extends AuthManager {
@@ -121,13 +121,22 @@ suite('ArtemisWebviewProvider Test Suite', () => {
         mockAuthManager = new MockAuthManager(mockContext);
         mockApiService = new MockArtemisApiService(mockAuthManager);
 
+        const mockWebsocket = new MockArtemisWebsocketService(mockAuthManager);
+        const mockCodeLens = {} as unknown as BuildErrorCodeLensProvider;
+        const mockTelemetry = new TelemetryManager();
+        const mockUpdateAuth = async (_isAuthenticated: boolean) => {};
+
         provider = new ArtemisWebviewProvider(
             vscode.Uri.file('/'),
             mockContext,
             mockAuthManager,
             mockApiService,
             new ExerciseRegistry(),
-            new ProviderRegistry()
+            new ProviderRegistry(),
+            mockWebsocket,
+            mockCodeLens,
+            mockTelemetry,
+            mockUpdateAuth,
         );
     });
 
@@ -135,53 +144,24 @@ suite('ArtemisWebviewProvider Test Suite', () => {
         assert.ok(provider);
     });
 
-    test('should set websocket service', () => {
-        const mockWebsocket = new MockArtemisWebsocketService(mockAuthManager);
-        provider.setWebsocketService(mockWebsocket);
-    });
-
     test('should register websocket handler and connect when opening exercise', async () => {
-        const mockWebsocket = new MockArtemisWebsocketService(mockAuthManager);
-        let handlerRegistered = false;
+        const ws = new MockArtemisWebsocketService(mockAuthManager);
         let connectCalls = 0;
-        mockWebsocket.registerMessageHandler = (handler: any) => {
-            handlerRegistered = !!handler;
-        };
-        mockWebsocket.isConnected = () => false;
-        mockWebsocket.connect = async () => {
-            connectCalls++;
-        };
+        ws.isConnected = () => false;
+        ws.connect = async () => { connectCalls++; };
 
-        provider.setWebsocketService(mockWebsocket);
+        const mockCodeLens = {} as unknown as BuildErrorCodeLensProvider;
+        const p = new ArtemisWebviewProvider(
+            vscode.Uri.file('/'), mockContext, mockAuthManager, mockApiService,
+            new ExerciseRegistry(), new ProviderRegistry(),
+            ws, mockCodeLens, new TelemetryManager(), async () => {},
+        );
 
         const mockView = new MockWebviewView();
-        provider.resolveWebviewView(mockView, {} as any, {} as any);
-        await provider.openExerciseDetails(1);
+        p.resolveWebviewView(mockView, {} as any, {} as any);
+        await p.openExerciseDetails(1);
 
-        assert.ok(handlerRegistered, 'websocket handler should be registered');
         assert.strictEqual(connectCalls, 1, 'connect should be called when not connected');
-    });
-
-    test('should set auth context updater', () => {
-        const updater = async (auth: boolean) => { };
-        const originalHandler: any = (provider as any)._messageHandler;
-        let forwarded: any;
-        (provider as any)._messageHandler = {
-            setAuthContextUpdater: (cb: any) => {
-                forwarded = cb;
-            },
-            setWebsocketService: () => { }
-        };
-
-        provider.setAuthContextUpdater(updater);
-        assert.strictEqual(forwarded, updater, 'auth updater should be passed to message handler');
-
-        (provider as any)._messageHandler = originalHandler;
-    });
-
-    test('should set build diagnostics', () => {
-        const codeLens = {} as unknown as BuildErrorCodeLensProvider;
-        provider.setBuildDiagnostics(codeLens);
     });
 
     test('should resolve webview view', async () => {
@@ -239,13 +219,22 @@ suite('Panel hide/show state persistence', () => {
         // Stub hasAuthCookie to return true (authenticated state) by default
         sandbox.stub(mockAuthManager, 'hasAuthCookie').resolves(true);
 
+        const mockWebsocket = new MockArtemisWebsocketService(mockAuthManager);
+        const mockCodeLens = {} as unknown as BuildErrorCodeLensProvider;
+        const mockTelemetry = new TelemetryManager();
+        const mockUpdateAuth = async (_isAuthenticated: boolean) => {};
+
         provider = new ArtemisWebviewProvider(
             vscode.Uri.file('/'),
             mockContext,
             mockAuthManager,
             mockApiService,
             new ExerciseRegistry(),
-            new ProviderRegistry()
+            new ProviderRegistry(),
+            mockWebsocket,
+            mockCodeLens,
+            mockTelemetry,
+            mockUpdateAuth,
         );
 
         spyWebview = new SpyWebview();

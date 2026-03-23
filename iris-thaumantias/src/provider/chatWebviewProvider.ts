@@ -54,7 +54,6 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
     private _chatContextManager: ChatContextManager;
     private _sessionManagementService: IrisSessionLifecycleService;
     private _websocketMessageHandler: IrisWebSocketMessageHandler;
-    private _telemetryManager?: TelemetryManager;
     private _noAiDetectionService: NoAiDetectionService;
     private _currentExerciseId?: number;
 
@@ -76,6 +75,7 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
         private readonly _websocketService: ArtemisWebsocketService | undefined,
         noAiDetectionService: NoAiDetectionService,
         private readonly _exerciseRegistry: ExerciseRegistry,
+        private readonly _telemetryManager?: TelemetryManager,
     ) {
         super(LogCategory.IRIS_CHAT);
         this._disposables.push(this._onDidChangeExerciseContext);
@@ -146,18 +146,6 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
                 this._postNoAiStatus(isNoAiDetected);
             })
         );
-    }
-
-    // ── Post-construction setters ──────────────────────────────────────
-
-    /**
-     * Set the telemetry manager for struggle detection integration
-     */
-    public setTelemetryManager(telemetryManager: TelemetryManager): void {
-        this._telemetryManager = telemetryManager;
-
-        // Start exercise session when context is selected
-        logger.info('Telemetry manager connected', LogCategory.TELEMETRY);
     }
 
     // ── Lifecycle ──────────────────────────────────────────────────────

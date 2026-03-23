@@ -57,10 +57,10 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
     private _buildDiagnosticsService: BuildDiagnosticsService;
     private _exerciseOpeningService: ExerciseOpeningService;
     private _startPageResolver: StartPageResolver;
-    private _authContextUpdater?: (isAuthenticated: boolean) => Promise<void>;
-    private _websocketService?: ArtemisWebsocketService;
-    private _websocketHandler?: WebSocketMessageHandler;
-    private _telemetryManager?: TelemetryManager;
+    private readonly _authContextUpdater: (isAuthenticated: boolean) => Promise<void>;
+    private readonly _websocketService: ArtemisWebsocketService;
+    private _websocketHandler: WebSocketMessageHandler;
+    private readonly _telemetryManager: TelemetryManager;
 
     private readonly _onDidChangeViewNavigation = new vscode.EventEmitter<{ from: string; to: string }>();
     public readonly onDidChangeViewNavigation = this._onDidChangeViewNavigation.event;
@@ -76,8 +76,16 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
         private readonly _artemisApi: ArtemisApiService,
         private readonly _exerciseRegistry: ExerciseRegistry,
         private readonly _providerRegistry: ProviderRegistry,
+        websocketService: ArtemisWebsocketService,
+        buildErrorCodeLensProvider: BuildErrorCodeLensProvider,
+        telemetryManager: TelemetryManager,
+        updateAuthContext: (isAuthenticated: boolean) => Promise<void>,
     ) {
         super();
+        this._websocketService = websocketService;
+        this._telemetryManager = telemetryManager;
+        this._authContextUpdater = updateAuthContext;
+
         this._appStateManager = new AppStateManager(this._artemisApi);
         this._viewActionService = new ViewActionService(this._appStateManager);
         this._messageHandler = new WebViewMessageHandler(
@@ -85,12 +93,12 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
             this._artemisApi,
             this._appStateManager,
             this,
-            undefined,  // buildCodeLens will be set later
-            undefined,  // websocketService will be set later
             this._extensionContext,
             this._exerciseRegistry,
-            this._providerRegistry
+            this._providerRegistry,
+            this._websocketService,
         );
+        this._messageHandler.setAuthContextUpdater(this._authContextUpdater);
         this._viewInitDataService = new ViewInitDataService(
             () => this._appStateManager,
             () => this._telemetryManager,
@@ -98,7 +106,8 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
             (msg) => this._postMessageSafe(msg),
         );
         this._buildDiagnosticsService = new BuildDiagnosticsService(this._artemisApi);
-        this._exerciseOpeningService = new ExerciseOpeningService(this._exerciseRegistry, this._providerRegistry);
+        this._buildDiagnosticsService.setCodeLensProvider(buildErrorCodeLensProvider);
+        this._exerciseOpeningService = new ExerciseOpeningService(this._exerciseRegistry, this._providerRegistry, this._telemetryManager);
         this._startPageResolver = new StartPageResolver(this._artemisApi);
         this._submissionWsHandler = new SubmissionWebSocketHandler(
             (msg) => this._postMessageSafe(msg),
@@ -121,70 +130,16 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
             },
         );
 
+        // Wire WebSocket subscription handler
+        this._websocketHandler = this._submissionWsHandler.createHandler();
+        this._websocketService.registerMessageHandler(this._websocketHandler);
+
         this._appStateManager.onStateChange = (from, to) => {
             this._onDidChangeViewNavigation.fire({ from, to });
         };
 
         this._disposables.push(this._onDidChangeViewNavigation);
         this._disposables.push(this._onDidChangePanelVisibility);
-    }
-
-    // ── Post-construction setters ──────────────────────────────────────
-
-    /**
-     * Set the CodeLens provider
-     */
-    public setBuildDiagnostics(codeLensProvider: BuildErrorCodeLensProvider): void {
-        this._buildDiagnosticsService.setCodeLensProvider(codeLensProvider);
-        // Dispose old handler to release workspace listeners before recreating
-        this._messageHandler.dispose();
-        // Recreate message handler with CodeLens provider
-        this._messageHandler = new WebViewMessageHandler(
-            this._authManager,
-            this._artemisApi,
-            this._appStateManager,
-            this,
-            codeLensProvider,
-            this._websocketService,
-            this._extensionContext,
-            this._exerciseRegistry,
-            this._providerRegistry
-        );
-        // Re-apply auth context updater to new handler instance
-        if (this._authContextUpdater) {
-            this._messageHandler.setAuthContextUpdater(this._authContextUpdater);
-        }
-    }
-
-    /**
-     * Set the telemetry manager for struggle detection data
-     */
-    public setTelemetryManager(telemetryManager: TelemetryManager): void {
-        this._telemetryManager = telemetryManager;
-        this._exerciseOpeningService.setTelemetryManager(telemetryManager);
-    }
-
-    /**
-     * Set the authentication context updater function
-     */
-    public setAuthContextUpdater(updater: (isAuthenticated: boolean) => Promise<void>): void {
-        this._authContextUpdater = updater;
-        // Also pass it to the message handler
-        this._messageHandler.setAuthContextUpdater(updater);
-    }
-
-    /**
-     * Set the WebSocket service for real-time updates
-     */
-    public setWebsocketService(websocketService: ArtemisWebsocketService): void {
-        this._websocketService = websocketService;
-
-        // Pass WebSocket service to message handler so commands can access it
-        this._messageHandler.setWebsocketService(websocketService);
-
-        // Register the submission WebSocket handler
-        this._websocketHandler = this._submissionWsHandler.createHandler();
-        this._websocketService.registerMessageHandler(this._websocketHandler);
     }
 
     // ── Lifecycle ──────────────────────────────────────────────────────

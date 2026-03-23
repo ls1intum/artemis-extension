@@ -93,9 +93,9 @@ suite('WebViewMessageHandler - handleMessageWithSender', () => {
             mockApiService,
             mockStateManager,
             actionHandler,
-            undefined,
-            undefined,
-            mockContext
+            mockContext,
+            {} as any,  // exerciseRegistry
+            {} as any,  // providerRegistry
         );
     });
 
