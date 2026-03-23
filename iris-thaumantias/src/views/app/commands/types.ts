@@ -1,11 +1,8 @@
 import type * as vscode from 'vscode';
-import type { AuthManager } from '../../../services/auth';
 import type { ArtemisApiService } from '../../../api';
 import type { AppStateManager } from '../appStateManager';
 import type { WebViewActionHandler } from '../types';
-import type { ArtemisWebsocketService } from '../../../services';
-import type { ExerciseRegistry } from '../../../services';
-import type { IProviderRegistry } from '../../../services/ui/providerRegistry';
+import type { AuthManager, ArtemisWebsocketService, ExerciseRegistry, IProviderRegistry } from '../../../services';
 import type { WebviewToExtensionMessage, ExtensionToWebviewMessage } from '../../../shared/messageContracts';
 import type { BuildErrorCodeLensProvider } from '../../../provider/buildErrorCodeLensProvider';
 

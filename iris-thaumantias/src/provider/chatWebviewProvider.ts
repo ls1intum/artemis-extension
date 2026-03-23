@@ -7,11 +7,9 @@ import {
 } from '../types';
 import type { IChatWebviewProvider } from '../types/IChatWebviewProvider';
 import { BaseWebviewProvider } from './baseWebviewProvider';
-import { getReactWebviewHtml } from '../services/ui/webviewHtml';
 import { ExtensionMsg, WebviewMsgType, WebviewCmd, getPayload } from '../shared/messageContracts';
 import type { ExtMsg, WebCmd, WebviewToExtensionMessage } from '../shared/messageContracts';
 import { isWebviewMessage } from '../shared/messageContracts/typeGuards';
-import { logger, LogCategory } from '../services/loggingService';
 import { openSettings, openFileInWorkspace } from '../views/app/commands/utilityCommands';
 import { ArtemisApiService } from '../api';
 import {
@@ -29,11 +27,13 @@ import {
     StruggleContext,
     NoAiDetectionService,
     ExerciseRegistry,
-    detectAndRegisterWorkspaceExercise
+    detectAndRegisterWorkspaceExercise,
+    getReactWebviewHtml,
+    IRIS_CHAT_HELP_MARKDOWN,
+    logger, LogCategory,
+    type IrisServiceDeps,
+    type ChatContextReason,
 } from '../services';
-import type { IrisServiceDeps } from '../services/iris/sessionSyncUtils';
-import type { ChatContextReason } from '../services/iris/chatContextManager';
-import { IRIS_CHAT_HELP_MARKDOWN } from '../services/iris/helpContent';
 
 export interface ExerciseContextChangeEvent {
     exerciseId: number;

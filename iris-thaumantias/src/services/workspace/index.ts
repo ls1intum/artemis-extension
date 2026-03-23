@@ -11,6 +11,8 @@ export {
     isExerciseInCurrentWorkspace,
     detectAndRegisterWorkspaceExercise,
     detectWorkspaceForRepoUris,
+    findWorkspaceCourseInArchive,
+    collectExerciseSources,
     type DetectedExercise,
     type ExerciseSource,
     type WorkspaceStatus,

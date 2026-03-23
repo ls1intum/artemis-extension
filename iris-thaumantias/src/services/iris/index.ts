@@ -9,3 +9,4 @@ export type { IrisServiceDeps } from './sessionSyncUtils';
 export { extractIrisMessageContent } from './messageUtils';
 export { IRIS_CHAT_HELP_MARKDOWN } from './helpContent';
 export { ContextStore } from './contextStore';
+export type { ChatContextReason } from './chatContextManager';

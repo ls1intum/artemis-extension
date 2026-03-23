@@ -11,7 +11,9 @@ export { IrisSessionInitService } from './iris';
 export { IrisSessionManager } from './iris';
 export { IrisSessionLifecycleService } from './iris';
 export { fetchSessionsWithMessages, importSessionsToStore } from './iris';
+export { IRIS_CHAT_HELP_MARKDOWN } from './iris';
 export type { IrisServiceDeps } from './iris';
+export type { ChatContextReason } from './iris';
 
 // WebSocket
 export { ArtemisWebsocketService } from './websocket';
@@ -32,6 +34,8 @@ export {
     isExerciseInCurrentWorkspace,
     detectAndRegisterWorkspaceExercise,
     detectWorkspaceForRepoUris,
+    findWorkspaceCourseInArchive,
+    collectExerciseSources,
     type DetectedExercise,
     type ExerciseSource,
     type WorkspaceStatus,
@@ -40,6 +44,7 @@ export {
 // UI
 export { FullscreenPanelManager } from './ui';
 export { ViewInitDataService } from './ui';
+export { getReactWebviewHtml } from './ui';
 
 // Exam
 export { getExamErrorMessage } from './exam';

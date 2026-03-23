@@ -4,11 +4,9 @@ import * as vscode from 'vscode';
 import { ArtemisWebviewProvider, ChatWebviewProvider, BuildErrorCodeLensProvider } from './provider';
 import { AuthManager } from './services/auth';
 import { ArtemisApiService } from './api';
-import { ArtemisWebsocketService, TelemetryManager, WebSocketStatusBarService, NoAiDetectionService, ConsentService, ExerciseRegistry, SessionRecorder, RecordingStatusBarService } from './services';
+import { ArtemisWebsocketService, TelemetryManager, WebSocketStatusBarService, NoAiDetectionService, ConsentService, ExerciseRegistry, SessionRecorder, RecordingStatusBarService, ProviderRegistry, logger, LogLevel, LogCategory } from './services';
 import { executeReplayCommand } from './services/telemetry/replay';
-import { ProviderRegistry } from './services/ui/providerRegistry';
 import { VSCODE_CONFIG, processPlantUml, normalizeRelativePath } from './utils';
-import { logger, LogLevel, LogCategory } from './services/loggingService';
 
 // Module-level references for deactivate() cleanup
 let activeTelemetryManager: TelemetryManager | undefined;

@@ -1,33 +1,35 @@
 import * as vscode from 'vscode';
-import { AuthManager } from '../services/auth';
 import { ArtemisApiService } from '../api';
-import { ArtemisWebsocketService } from '../services';
-import { ViewInitDataService } from '../services/ui/viewInitDataService';
-import { SubmissionWebSocketHandler } from '../services/websocket/submissionWebSocketHandler';
-import { FullscreenPanelManager } from '../services/ui/fullscreenPanelManager';
-import { AuthFlowHandler } from '../services/auth/authFlowHandler';
-import { logger, LogCategory } from '../services/loggingService';
-import { ProviderRegistry } from '../services/ui/providerRegistry';
+import {
+    AuthManager,
+    AuthFlowHandler,
+    ArtemisWebsocketService,
+    ViewInitDataService,
+    SubmissionWebSocketHandler,
+    FullscreenPanelManager,
+    ProviderRegistry,
+    ExerciseRegistry,
+    findWorkspaceCourseInArchive,
+    getWorkspaceRepositoryUrl,
+    findExerciseByRepositoryUrl,
+    collectExerciseSources,
+    logger, LogCategory,
+    type DetectedExercise,
+    type TelemetryManager,
+} from '../services';
 import type { IArtemisWebviewProvider } from '../types/IArtemisWebviewProvider';
-import { CONFIG, VSCODE_CONFIG } from '../utils';
-import { AI_EXTENSIONS_BLOCKLIST } from '../utils/aiExtensionsBlocklist';
-import { getRecommendedExtensionsByCategory } from '../utils/recommendedExtensions';
+import { CONFIG, VSCODE_CONFIG, AI_EXTENSIONS_BLOCKLIST, getRecommendedExtensionsByCategory, BuildLogParser } from '../utils';
 import { AppStateManager, type UserInfo } from '../views/app/appStateManager';
 import { WebViewMessageHandler } from '../views/app/webViewMessageHandler';
 import type { WebViewActionHandler } from '../views/app/types';
 import { ViewActionService } from '../views/app/viewActionService';
 import { ViewRouter } from '../views/app/viewRouter';
-import { ExerciseRegistry } from '../services';
 import { WebSocketMessageHandler, ParsedBuildError } from '../types';
-import { findWorkspaceCourseInArchive, getWorkspaceRepositoryUrl, findExerciseByRepositoryUrl, collectExerciseSources, type DetectedExercise } from '../services/workspace/workspaceDetectionService';
 import { BaseWebviewProvider } from './baseWebviewProvider';
 import type { BuildErrorCodeLensProvider } from './buildErrorCodeLensProvider';
-import type { TelemetryManager } from '../services/telemetry/telemetryManager';
-import { ExtensionMsg, WebviewMsgType } from '../shared/messageContracts';
-import { BuildLogParser } from '../utils';
+import { ExtensionMsg, WebviewMsgType, toCourseDetailData } from '../shared/messageContracts';
 import type { ResultDTO } from '../types';
 import type { ExtensionToWebviewMessage, WebviewToExtensionMessage, CourseDetailData } from '../shared/messageContracts';
-import { toCourseDetailData } from '../shared/messageContracts';
 import type { ExerciseDetail, ExerciseDetailsResponse } from '../types/apiResponses';
 import { isWebviewMessage } from '../shared/messageContracts/typeGuards';
 
