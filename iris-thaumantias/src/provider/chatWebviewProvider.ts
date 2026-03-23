@@ -1,14 +1,13 @@
 import * as vscode from 'vscode';
 import {
     ActiveContext,
-    StoredSession,
     ChatContextType,
-    ContextSnapshot,
 } from '../types';
 import type { IChatWebviewProvider } from '../types/IChatWebviewProvider';
 import { BaseWebviewProvider } from './baseWebviewProvider';
+import { ChatViewStatePresenter } from './chatViewStatePresenter';
 import { ExtensionMsg, WebviewCmd, getPayload } from '../shared/messageContracts';
-import type { ExtMsg, WebCmd, WebviewToExtensionMessage } from '../shared/messageContracts';
+import type { WebCmd, WebviewToExtensionMessage } from '../shared/messageContracts';
 import { openSettings, openFileInWorkspace } from '../views/app/commands/utilityCommands';
 import { ArtemisApiService } from '../api';
 import {
@@ -46,6 +45,7 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
 
     // ── Instance properties ────────────────────────────────────────────
     private readonly _contextStore: ContextStore;
+    private readonly _viewStatePresenter: ChatViewStatePresenter;
     private _fileMonitorService: FileMonitorService;
     private _irisSessionManager?: IrisSessionManager;
     private _chatDiagnosticsService: ChatDiagnosticsService;
@@ -82,6 +82,7 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
         this._disposables.push(this._onDidSendIrisChatMessage);
         this._disposables.push(this._onDidChangePanelVisibility);
         this._contextStore = new ContextStore(this._extensionContext);
+        this._viewStatePresenter = new ChatViewStatePresenter(this._contextStore, (msg) => this._postMessageSafe(msg));
         this._fileMonitorService = new FileMonitorService();
         this._disposables.push(this._fileMonitorService);
 
@@ -90,7 +91,7 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
             contextStore: this._contextStore,
             artemisApiService: this._artemisApiService,
             postMessage: (msg) => this._postMessageSafe(msg),
-            postSnapshot: () => this._postSnapshot(),
+            postSnapshot: () => this._viewStatePresenter.postSnapshot(),
         };
 
         this._chatDiagnosticsService = new ChatDiagnosticsService(this._contextStore, this._artemisApiService, this._exerciseRegistry);
@@ -231,7 +232,7 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
     // ── Init data ──────────────────────────────────────────────────────
 
     private async _sendInitData(): Promise<void> {
-        this._postSnapshot();
+        this._viewStatePresenter.postSnapshot();
         await this._detectWorkspaceExercise();
         void this._loadIrisMessagesIfNeeded();
         void this._fileMonitorService.triggerUpdate();
@@ -280,7 +281,7 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
         this._postMessageSafe({ type: ExtensionMsg.ClearChatMessages });
 
         // Post updated snapshot
-        this._postSnapshot();
+        this._viewStatePresenter.postSnapshot();
 
         logger.info('All Iris sessions cleared', LogCategory.IRIS_CHAT);
     }
@@ -303,12 +304,12 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
             source: 'system-default',
             isWorkspace: /\\(Workspace\\)/i.test(exerciseTitle),
         });
-        this._postSnapshot();
+        this._viewStatePresenter.postSnapshot();
     }
 
     public removeDetectedExercise(exerciseId: number): void {
         this._contextStore.removeExercise(exerciseId);
-        this._postSnapshot();
+        this._viewStatePresenter.postSnapshot();
     }
 
     public updateDetectedCourse(courseTitle: string, courseId: number, shortName?: string): void {
@@ -318,12 +319,12 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
             shortName,
             source: 'system-default',
         });
-        this._postSnapshot();
+        this._viewStatePresenter.postSnapshot();
     }
 
     public removeDetectedCourse(courseId: number): void {
         this._contextStore.removeCourse(courseId);
-        this._postSnapshot();
+        this._viewStatePresenter.postSnapshot();
     }
 
     public createNewSession(): void {
@@ -504,56 +505,12 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
         });
     }
 
-    private _serializeSession(session: StoredSession) {
-        return {
-            id: session.id,
-            artemisSessionId: session.artemisSessionId,
-            preview: session.preview,
-            messageCount: session.messageCount,
-            createdAt: session.createdAt,
-            lastActivity: session.lastActivity,
-        };
-    }
-
-    private _serializeSnapshot(snapshot: ContextSnapshot): ExtMsg<'updateIrisState'>['state'] {
-        return {
-            context: snapshot.activeContext,
-            activeSessionId: snapshot.activeSession?.id ?? null,
-            sessions: snapshot.sessions.map(session => this._serializeSession(session)),
-            recentExercises: snapshot.recentExercises,
-            recentCourses: snapshot.recentCourses,
-            allExercises: snapshot.allExercises,
-            allCourses: snapshot.allCourses,
-        };
-    }
-
-    private _postSnapshot(options: { showContextPicker?: boolean } = {}): void {
-        const snapshot = this._contextStore.snapshot();
-        const payload = this._serializeSnapshot(snapshot);
-
-        // Include developer mode flag
-        const config = vscode.workspace.getConfiguration('artemis');
-        const showDiagnostics = config.get<boolean>('developerMode', false);
-
-        this._postMessageSafe({
-            type: ExtensionMsg.UpdateIrisState,
-            state: payload,
-            showDiagnostics,
-        });
-
-        if (options.showContextPicker) {
-            this._postMessageSafe({
-                type: ExtensionMsg.ShowContextPicker,
-                state: payload,
-            });
-        }
-    }
 
     private async _detectWorkspaceExercise(): Promise<void> {
         await detectAndRegisterWorkspaceExercise(
             this._artemisApiService,
             this._contextStore,
-            () => this._postSnapshot(),
+            () => this._viewStatePresenter.postSnapshot(),
             this._exerciseRegistry,
         );
     }

@@ -10,25 +10,27 @@ import {
     ProviderRegistry,
     ExerciseRegistry,
     findWorkspaceCourseInArchive,
+    collectExerciseSources,
+    BuildDiagnosticsService,
+    ExerciseOpeningService,
+    StartPageResolver,
     getWorkspaceRepositoryUrl,
     findExerciseByRepositoryUrl,
-    collectExerciseSources,
     logger, LogCategory,
-    type DetectedExercise,
     type TelemetryManager,
+    type StartPageResult,
 } from '../services';
 import type { IArtemisWebviewProvider } from '../types/IArtemisWebviewProvider';
-import { CONFIG, VSCODE_CONFIG, AI_EXTENSIONS_BLOCKLIST, getRecommendedExtensionsByCategory, BuildLogParser } from '../utils';
+import { CONFIG, VSCODE_CONFIG, AI_EXTENSIONS_BLOCKLIST, getRecommendedExtensionsByCategory } from '../utils';
 import { AppStateManager, type UserInfo } from '../views/app/appStateManager';
 import { WebViewMessageHandler } from '../views/app/webViewMessageHandler';
 import type { WebViewActionHandler } from '../views/app/types';
 import { ViewActionService } from '../views/app/viewActionService';
 import { ViewRouter } from '../views/app/viewRouter';
-import { WebSocketMessageHandler, ParsedBuildError } from '../types';
+import { WebSocketMessageHandler } from '../types';
 import { BaseWebviewProvider } from './baseWebviewProvider';
 import type { BuildErrorCodeLensProvider } from './buildErrorCodeLensProvider';
 import { ExtensionMsg, toCourseDetailData } from '../shared/messageContracts';
-import type { ResultDTO } from '../types';
 import type { ExtensionToWebviewMessage, WebviewToExtensionMessage, CourseDetailData } from '../shared/messageContracts';
 import type { ExerciseDetail, ExerciseDetailsResponse } from '../types/apiResponses';
 
@@ -52,10 +54,12 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
     private _submissionWsHandler: SubmissionWebSocketHandler;
     private _fullscreenPanelManager: FullscreenPanelManager;
     private _authFlowHandler: AuthFlowHandler;
+    private _buildDiagnosticsService: BuildDiagnosticsService;
+    private _exerciseOpeningService: ExerciseOpeningService;
+    private _startPageResolver: StartPageResolver;
     private _authContextUpdater?: (isAuthenticated: boolean) => Promise<void>;
     private _websocketService?: ArtemisWebsocketService;
     private _websocketHandler?: WebSocketMessageHandler;
-    private _buildCodeLens?: BuildErrorCodeLensProvider;
     private _telemetryManager?: TelemetryManager;
 
     private readonly _onDidChangeViewNavigation = new vscode.EventEmitter<{ from: string; to: string }>();
@@ -93,9 +97,12 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
             () => this._messageHandler,
             (msg) => this._postMessageSafe(msg),
         );
+        this._buildDiagnosticsService = new BuildDiagnosticsService(this._artemisApi);
+        this._exerciseOpeningService = new ExerciseOpeningService(this._exerciseRegistry, this._providerRegistry);
+        this._startPageResolver = new StartPageResolver(this._artemisApi);
         this._submissionWsHandler = new SubmissionWebSocketHandler(
             (msg) => this._postMessageSafe(msg),
-            (result) => this._handleBuildResult(result),
+            (result) => this._buildDiagnosticsService.handleBuildResult(result),
         );
         this._fullscreenPanelManager = new FullscreenPanelManager(
             this._extensionUri,
@@ -128,7 +135,7 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
      * Set the CodeLens provider
      */
     public setBuildDiagnostics(codeLensProvider: BuildErrorCodeLensProvider): void {
-        this._buildCodeLens = codeLensProvider;
+        this._buildDiagnosticsService.setCodeLensProvider(codeLensProvider);
         // Dispose old handler to release workspace listeners before recreating
         this._messageHandler.dispose();
         // Recreate message handler with CodeLens provider
@@ -154,6 +161,7 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
      */
     public setTelemetryManager(telemetryManager: TelemetryManager): void {
         this._telemetryManager = telemetryManager;
+        this._exerciseOpeningService.setTelemetryManager(telemetryManager);
     }
 
     /**
@@ -324,41 +332,12 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
                 }
             }
 
-            // Notify Iris chat about the detected exercise
-            const exerciseData = this._appStateManager.currentExerciseData;
+            // Handle post-open side effects (registry, telemetry, chat notify).
+            // openExerciseDetails always sets ExerciseDetailsResponse (not ExamExerciseData),
+            // so the cast is safe. Exam exercises go through openExamExerciseDetails instead.
+            const exerciseData = this._appStateManager.currentExerciseData as ExerciseDetailsResponse | undefined;
             if (exerciseData?.exercise) {
-                const exercise = exerciseData.exercise;
-                const exerciseTitle = exercise.title || 'Untitled';
-                const exerciseIdFromData = exercise.id || exerciseId;
-
-                // Register this exercise in the registry with its repository URL
-                const participations = exercise.studentParticipations || [];
-                if (participations.length > 0 && participations[0]?.repositoryUri) {
-                    const registry = this._exerciseRegistry;
-                    registry.registerExercise(
-                        exerciseIdFromData,
-                        exerciseTitle,
-                        participations[0].repositoryUri,
-                        exercise.shortName || '',
-                        exercise.course?.id
-                    );
-                    logger.exercise(`Registered individual exercise: ${exerciseTitle}`);
-                }
-
-                // Start telemetry session so build results feed into EQ engine
-                this._telemetryManager?.startExerciseSession(
-                    exerciseIdFromData,
-                    vscode.workspace.workspaceFolders?.[0]?.uri,
-                );
-
-                const chatProvider = this._providerRegistry.getChatWebviewProvider();
-                if (chatProvider && typeof chatProvider.updateDetectedExercise === 'function') {
-                    // Extract date fields from exercise
-                    const releaseDate = exercise.releaseDate || exercise.startDate;
-                    const dueDate = exercise.dueDate;
-                    const shortName = exercise.shortName;
-                    chatProvider.updateDetectedExercise(exerciseTitle, exerciseIdFromData, releaseDate, dueDate, shortName || '', exercise.course?.id);
-                }
+                this._exerciseOpeningService.handleExerciseOpened(exerciseData, exerciseId);
             }
         }
     }
@@ -405,83 +384,42 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
     }
 
     public async navigateToStartPage(userInfo: UserInfo): Promise<void> {
-        const config = vscode.workspace.getConfiguration(VSCODE_CONFIG.ARTEMIS_SECTION);
-        const value = config.get<string>(VSCODE_CONFIG.START_PAGE_KEY);
+        const result = await this._startPageResolver.resolve(userInfo);
 
-        if (value === 'course-list') {
-            // Load user data + courses via state manager (no render, no archive check yet)
-            await this._appStateManager.showDashboard(userInfo);
-            if (this._appStateManager.coursesData) {
-                // Data loaded: switch to course-list and render
+        switch (result.type) {
+            case 'course-list':
+                // Seed with already-fetched data to avoid a second API call
+                this._appStateManager.seedAuthenticatedSession(userInfo, result.coursesData);
                 await this._appStateManager.showCourseList({ skipFetch: true });
                 if (this._view) { this.render(); }
                 return;
-            }
-            // Course load failed — fall through to full dashboard flow (implicit retry)
-        }
 
-        if (value === 'workspace-exercise' || value === 'workspace-course') {
-            // Fetch courses and workspace git remote in parallel.
-            // We do NOT call _appStateManager.showDashboard() here because it sets
-            // state to 'dashboard' immediately — if the webview ready signal fires
-            // during the fetch, sendInitData() would flash the dashboard.
-            // Keeping state as 'login' keeps the loading screen visible.
-            this._postMessageSafe({ type: ExtensionMsg.UpdateLoading, message: 'Detecting workspace exercise...' });
-            const [coursesData, repoUrl] = await Promise.all([
-                this._artemisApi.getCoursesForDashboard().catch(() => undefined),
-                getWorkspaceRepositoryUrl(),
-            ]);
-
-            const activeCourses = coursesData?.courses || [];
-            // Collect all course entries (active + potentially archived) for course lookup
-            const allCourses = [...activeCourses];
-            let detected: DetectedExercise | null = null;
-
-            // 1) Search active courses
-            if (activeCourses.length > 0 && repoUrl) {
-                detected = findExerciseByRepositoryUrl(repoUrl, collectExerciseSources(activeCourses));
-            }
-
-            // 2) Fallback: search archived courses
-            if (!detected && repoUrl) {
-                this._postMessageSafe({ type: ExtensionMsg.UpdateLoading, message: 'Checking archived courses...' });
-                try {
-                    const archivedEntry = await findWorkspaceCourseInArchive(this._artemisApi, activeCourses);
-                    if (archivedEntry) {
-                        detected = findExerciseByRepositoryUrl(repoUrl, collectExerciseSources([archivedEntry]));
-                        if (detected) { allCourses.push(archivedEntry); }
-                    }
-                } catch { /* archived search failed — fall through */ }
-            }
-
-            if (detected) {
-                this._appStateManager.seedAuthenticatedSession(userInfo, coursesData);
-
-                if (value === 'workspace-exercise') {
-                    // Require courseId to seed parent course context for "Back to Course" navigation.
-                    // Without it, backToCourseDetails() would crash (no _currentCourseData).
-                    if (detected.courseId) {
-                        const entry = allCourses.find(e => e.course?.id === detected!.courseId);
-                        if (entry?.course) {
-                            this._appStateManager.showCourseDetail(toCourseDetailData(entry.course));
-                            this._postMessageSafe({ type: ExtensionMsg.UpdateLoading, message: 'Loading exercise...' });
-                            await this.openExerciseDetails(detected.id);
-                            if (this._appStateManager.currentState === 'exercise-detail') {
-                                return;
-                            }
-                        }
-                    }
-                } else {
-                    // workspace-course: show course detail directly
-                    if (detected.courseId) {
-                        const entry = allCourses.find(e => e.course?.id === detected!.courseId);
-                        if (entry?.course) {
-                            this.showCourseDetail(toCourseDetailData(entry.course));
-                            return;
-                        }
+            case 'workspace-exercise': {
+                this._appStateManager.seedAuthenticatedSession(userInfo, result.coursesData);
+                const entry = result.allCourses.find(e => e.course?.id === result.courseId);
+                if (entry?.course) {
+                    this._appStateManager.showCourseDetail(toCourseDetailData(entry.course));
+                    this._postMessageSafe({ type: ExtensionMsg.UpdateLoading, message: 'Loading exercise...' });
+                    await this.openExerciseDetails(result.exerciseId);
+                    if (this._appStateManager.currentState === 'exercise-detail') {
+                        return;
                     }
                 }
+                break;
             }
+
+            case 'workspace-course': {
+                this._appStateManager.seedAuthenticatedSession(userInfo, result.coursesData);
+                const entry = result.allCourses.find(e => e.course?.id === result.courseId);
+                if (entry?.course) {
+                    this.showCourseDetail(toCourseDetailData(entry.course));
+                    return;
+                }
+                break;
+            }
+
+            case 'dashboard':
+                break;
         }
 
         // Default: full dashboard with archive check
@@ -708,35 +646,6 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
         } else if (result === "Don't show again") {
             await config.update(VSCODE_CONFIG.SHOW_START_PAGE_SUGGESTION_KEY, false, vscode.ConfigurationTarget.Global);
         }
-    }
-
-    private _handleBuildResult(result: ResultDTO): void {
-        const participationId = result.participation?.id;
-        if (!participationId) {
-            return;
-        }
-
-        void (async () => {
-            try {
-                const logs = await this._artemisApi.getBuildLogs(participationId, result.id);
-                const errors = BuildLogParser.parseAllErrors(logs);
-
-                this._buildCodeLens?.clearErrors();
-
-                const errorsByFile = new Map<string, ParsedBuildError[]>();
-                for (const error of errors) {
-                    const existing = errorsByFile.get(error.filePath) ?? [];
-                    existing.push(error);
-                    errorsByFile.set(error.filePath, existing);
-                }
-
-                for (const [filePath, fileErrors] of errorsByFile) {
-                    this._buildCodeLens?.setErrors(filePath, fileErrors);
-                }
-            } catch (err) {
-                logger.error('Failed to fetch build logs for CodeLens:', LogCategory.SUBMISSION, err);
-            }
-        })();
     }
 
 }

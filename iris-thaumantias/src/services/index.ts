@@ -45,6 +45,9 @@ export {
 export { FullscreenPanelManager } from './ui';
 export { ViewInitDataService } from './ui';
 export { getReactWebviewHtml } from './ui';
+export { BuildDiagnosticsService } from './ui';
+export { ExerciseOpeningService } from './ui';
+export { StartPageResolver, type StartPageResult } from './ui';
 
 // Exam
 export { getExamErrorMessage } from './exam';
