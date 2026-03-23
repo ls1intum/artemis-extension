@@ -1,17 +1,29 @@
 import * as vscode from 'vscode';
-import type { ExtensionToWebviewMessage } from '../shared/messageContracts';
+import type { ExtensionToWebviewMessage, WebviewToExtensionMessage } from '../shared/messageContracts';
+import { WebviewMsgType } from '../shared/messageContracts';
+import { isWebviewMessage } from '../shared/messageContracts/typeGuards';
+import { logger, LogCategory } from '../services/loggingService';
 
 /**
  * Shared base class for webview providers.
  * Encapsulates the ready-signal handshake (queuing messages until the
- * webview's React shell has signalled readiness).
+ * webview's React shell has signalled readiness) and common message
+ * handling boilerplate (type-guard, error logging, ready/requestInit).
  */
 export abstract class BaseWebviewProvider {
     protected _view?: vscode.WebviewView;
     protected readonly _disposables: vscode.Disposable[] = [];
 
+    constructor(protected readonly _logCategory: LogCategory = LogCategory.VIEW) {}
+
     /** Subclasses must implement to (re-)render the webview HTML. */
     public abstract render(): void | Promise<void>;
+
+    /** Called when the webview signals ready or requests re-init. */
+    protected abstract _onReady(): void;
+
+    /** Called for command-type messages after boilerplate handling. */
+    protected abstract _handleCommand(message: Extract<WebviewToExtensionMessage, { type: 'command' }>): void;
 
     /** Re-render the webview to pick up theme / config changes. */
     public refreshTheme(): void {
@@ -80,6 +92,43 @@ export abstract class BaseWebviewProvider {
                 this._pendingMessages.shift();
             }
         }
+    }
+
+    /**
+     * Common message handler: type-guard, error logging, ready/requestInit,
+     * then delegates command messages to the subclass via `_handleCommand`.
+     */
+    protected _handleMessage(message: unknown): void {
+        if (!isWebviewMessage(message)) {
+            return;
+        }
+
+        const typedMessage = message as WebviewToExtensionMessage;
+
+        if (typedMessage.type === WebviewMsgType.Error) {
+            const errorPayload = typedMessage.payload;
+            logger.error('Webview ErrorBoundary crash report', this._logCategory, {
+                message: errorPayload?.message,
+                stack: errorPayload?.stack,
+                componentStack: errorPayload?.componentStack,
+            });
+            return;
+        }
+
+        if (typedMessage.type === WebviewMsgType.Ready) {
+            this._markReady();
+            this._onReady();
+            return;
+        }
+
+        if (typedMessage.type === WebviewMsgType.RequestInit) {
+            this._onReady();
+            return;
+        }
+
+        if (typedMessage.type !== 'command') { return; }
+
+        this._handleCommand(typedMessage);
     }
 
     private _flushPendingMessages(): void {

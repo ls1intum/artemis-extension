@@ -27,11 +27,10 @@ import { ViewRouter } from '../views/app/viewRouter';
 import { WebSocketMessageHandler, ParsedBuildError } from '../types';
 import { BaseWebviewProvider } from './baseWebviewProvider';
 import type { BuildErrorCodeLensProvider } from './buildErrorCodeLensProvider';
-import { ExtensionMsg, WebviewMsgType, toCourseDetailData } from '../shared/messageContracts';
+import { ExtensionMsg, toCourseDetailData } from '../shared/messageContracts';
 import type { ResultDTO } from '../types';
 import type { ExtensionToWebviewMessage, WebviewToExtensionMessage, CourseDetailData } from '../shared/messageContracts';
 import type { ExerciseDetail, ExerciseDetailsResponse } from '../types/apiResponses';
-import { isWebviewMessage } from '../shared/messageContracts/typeGuards';
 
 /**
  * Main webview provider for the Artemis sidebar panel.
@@ -645,44 +644,14 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
         this._fullscreenPanelManager.openCourseListFullscreen(mappedCourses, archivedCourses);
     }
 
-    // ── Private: Message handling ──────────────────────────────────────
+    // ── BaseWebviewProvider hooks ──────────────────────────────────────
 
-    private _handleMessage(message: unknown): void {
-        if (!isWebviewMessage(message)) {
-            return;
-        }
+    protected _onReady(): void {
+        this.sendInitData();
+    }
 
-        const typedMessage = message as WebviewToExtensionMessage;
-
-        // Log error reports from webview ErrorBoundary
-        if (typedMessage.type === WebviewMsgType.Error) {
-            const errorPayload = typedMessage.payload;
-            logger.error('Webview ErrorBoundary crash report', LogCategory.VIEW, {
-                message: errorPayload?.message,
-                stack: errorPayload?.stack,
-                componentStack: errorPayload?.componentStack,
-            });
-            return;
-        }
-
-        // Handle ready signal from React webview
-        if (typedMessage.type === WebviewMsgType.Ready) {
-            this._markReady();
-            this.sendInitData();
-            return;
-        }
-
-        // Handle re-init requests (e.g. retry after error)
-        if (typedMessage.type === WebviewMsgType.RequestInit) {
-            this.sendInitData();
-            return;
-        }
-
-        // Only command messages have command/payload properties
-        if (typedMessage.type !== 'command') {return;}
-
-        // Forward commands to the message handler (preserving type/command/payload)
-        this._messageHandler.handleMessage(typedMessage);
+    protected _handleCommand(message: Extract<WebviewToExtensionMessage, { type: 'command' }>): void {
+        this._messageHandler.handleMessage(message);
     }
 
     // ── Private: Helpers ───────────────────────────────────────────────

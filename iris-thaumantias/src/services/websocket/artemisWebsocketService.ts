@@ -88,15 +88,7 @@ export class ArtemisWebsocketService {
      */
     private _generateSecureSessionId(): string {
         const bytes = new Uint8Array(6);
-        // Use crypto.getRandomValues if available, otherwise fallback
-        if (typeof crypto !== 'undefined' && crypto.getRandomValues) {
-            crypto.getRandomValues(bytes);
-        } else {
-            // Fallback for Node.js environment
-            for (let i = 0; i < 6; i++) {
-                bytes[i] = Math.floor(Math.random() * 256);
-            }
-        }
+        crypto.getRandomValues(bytes);
         return Array.from(bytes, byte => byte.toString(16).padStart(2, '0')).join('');
     }
 

@@ -7,9 +7,8 @@ import {
 } from '../types';
 import type { IChatWebviewProvider } from '../types/IChatWebviewProvider';
 import { BaseWebviewProvider } from './baseWebviewProvider';
-import { ExtensionMsg, WebviewMsgType, WebviewCmd, getPayload } from '../shared/messageContracts';
+import { ExtensionMsg, WebviewCmd, getPayload } from '../shared/messageContracts';
 import type { ExtMsg, WebCmd, WebviewToExtensionMessage } from '../shared/messageContracts';
-import { isWebviewMessage } from '../shared/messageContracts/typeGuards';
 import { openSettings, openFileInWorkspace } from '../views/app/commands/utilityCommands';
 import { ArtemisApiService } from '../api';
 import {
@@ -78,7 +77,7 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
         noAiDetectionService: NoAiDetectionService,
         private readonly _exerciseRegistry: ExerciseRegistry,
     ) {
-        super();
+        super(LogCategory.IRIS_CHAT);
         this._disposables.push(this._onDidChangeExerciseContext);
         this._disposables.push(this._onDidSendIrisChatMessage);
         this._disposables.push(this._onDidChangePanelVisibility);
@@ -381,46 +380,17 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
         this._chatContextManager.clearContext();
     }
 
-    // ── Private: Message handling ──────────────────────────────────────
+    // ── BaseWebviewProvider hooks ──────────────────────────────────────
 
-    private _handleMessage(message: unknown): void {
-        if (!isWebviewMessage(message)) {
-            return;
-        }
+    protected _onReady(): void {
+        this._sendInitData();
+    }
 
-        const typedMessage = message as WebviewToExtensionMessage;
-
-        // Log error reports from webview ErrorBoundary
-        if (typedMessage.type === WebviewMsgType.Error) {
-            const errorPayload = typedMessage.payload;
-            logger.error('Chat webview ErrorBoundary crash report', LogCategory.IRIS_CHAT, {
-                message: errorPayload?.message,
-                stack: errorPayload?.stack,
-                componentStack: errorPayload?.componentStack,
-            });
-            return;
-        }
-
-        // Handle React ready signal
-        if (typedMessage.type === WebviewMsgType.Ready) {
-            this._markReady();
-            this._sendInitData();
-            return;
-        }
-
-        // Handle re-init requests (e.g. retry after error)
-        if (typedMessage.type === WebviewMsgType.RequestInit) {
-            this._sendInitData();
-            return;
-        }
-
-        // Only command messages have command/payload properties
-        if (typedMessage.type !== 'command') {return;}
-
+    protected _handleCommand(message: Extract<WebviewToExtensionMessage, { type: 'command' }>): void {
         try {
-            switch (typedMessage.command) {
+            switch (message.command) {
                 case WebviewCmd.SendMessage: {
-                    const { text } = getPayload<WebCmd<'sendMessage'>>(typedMessage);
+                    const { text } = getPayload<WebCmd<'sendMessage'>>(message);
                     void this._handleChatMessage({ text }).catch(err => {
                         logger.error('Error handling chat message', LogCategory.IRIS_CHAT, err);
                         vscode.window.showErrorMessage('Failed to send message. Please try again.');
@@ -428,7 +398,7 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
                     break;
                 }
                 case WebviewCmd.SelectChatContext: {
-                    const { context, itemId, itemName, itemShortName } = getPayload<WebCmd<'selectChatContext'>>(typedMessage);
+                    const { context, itemId, itemName, itemShortName } = getPayload<WebCmd<'selectChatContext'>>(message);
                     if (context && typeof itemId === 'number' && typeof itemName === 'string') {
                         this._handleContextSelection(context, itemId, itemName, itemShortName);
                     }
@@ -438,7 +408,7 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
                     this.createNewSession();
                     break;
                 case WebviewCmd.SwitchSession: {
-                    const { sessionId } = getPayload<WebCmd<'switchSession'>>(typedMessage);
+                    const { sessionId } = getPayload<WebCmd<'switchSession'>>(message);
                     if (typeof sessionId === 'string') {
                         this.switchToSession(sessionId);
                     }
@@ -472,7 +442,7 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
                     });
                     break;
                 case WebviewCmd.MessageFeedback: {
-                    const { sessionId, messageId, feedback } = getPayload<WebCmd<'messageFeedback'>>(typedMessage);
+                    const { sessionId, messageId, feedback } = getPayload<WebCmd<'messageFeedback'>>(message);
                     void this._handleMessageFeedback({
                         sessionId: typeof sessionId === 'number' ? sessionId : undefined,
                         messageId: typeof messageId === 'number' ? messageId : undefined,
@@ -486,9 +456,9 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
                     this._handleOpenHelpPopup();
                     break;
                 default:
-                    void this._handleUtilityCommand(typedMessage).then(handled => {
+                    void this._handleUtilityCommand(message).then(handled => {
                         if (!handled) {
-                            logger.debug('Unhandled message in chat view', LogCategory.IRIS_CHAT, typedMessage);
+                            logger.debug('Unhandled message in chat view', LogCategory.IRIS_CHAT, message);
                         }
                     }).catch(err => {
                         logger.error('Error handling utility command', LogCategory.IRIS_CHAT, err);
@@ -497,7 +467,7 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
             }
         } catch (error) {
             logger.error('Error handling chat command', LogCategory.IRIS_CHAT, error);
-            vscode.window.showErrorMessage(`Error processing command: ${typedMessage.command}`);
+            vscode.window.showErrorMessage(`Error processing command: ${message.command}`);
         }
     }
 

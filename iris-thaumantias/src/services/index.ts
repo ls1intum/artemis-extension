@@ -55,5 +55,61 @@ export { ProviderRegistry, type IProviderRegistry } from './ui';
 export { ExerciseRegistry, type ExerciseRegistryEntry } from './exerciseRegistry';
 export { logger, LogLevel, LogCategory } from './loggingService';
 
-// Telemetry
-export * from './telemetry';
+// Telemetry — types
+export type {
+    TrackedDiagnostic,
+    DiagnosticStruggleScore,
+    InactivityPattern,
+    RecommendedAction,
+    LocalStruggleContext,
+    ServerStruggleContext,
+    CombinedStruggleScore,
+    StruggleContext,
+    BuildResult,
+    InterventionState,
+    ErrorSnapshot,
+    EQState,
+    EQConfidence,
+    EQConfig,
+    TriggerType,
+    TriggerConfig,
+    AdaptiveState,
+    BuildResultClassification,
+    CompileEquivalentEvent,
+    InterventionDecision,
+} from './telemetry';
+// Telemetry — values
+export {
+    DEFAULT_EQ_CONFIG,
+    DEFAULT_TRIGGER_CONFIG,
+    DiagnosticPersistenceService,
+    InactivityService,
+    ThrashingDetector,
+    BuildResultTracker,
+    InterventionService,
+    InterventionFilter,
+    TelemetryManager,
+    ErrorQuotientEngine,
+    CompileEquivalentEmitter,
+    classifyBuildResult,
+    isCompilerDiagnostic,
+    getErrorFamily,
+    isLikelyManualPaste,
+    BoundaryTriggerEmitter,
+    InterventionDecisionEngine,
+    AdaptiveCadence,
+} from './telemetry';
+// Telemetry — recording values
+export {
+    SessionRecorder,
+    RecordingStatusBarService,
+    RecordingStorageWriter,
+} from './telemetry';
+// Telemetry — recording types
+export type {
+    RecordingState,
+    RecordedEvent,
+    SessionMetadata,
+    SerializedRange,
+    SerializedDiagnostic,
+} from './telemetry';

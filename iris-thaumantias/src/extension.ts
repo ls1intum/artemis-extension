@@ -51,15 +51,9 @@ export async function activate(context: vscode.ExtensionContext) {
 
 		// Connect/disconnect WebSocket based on authentication status
 		if (isAuthenticated) {
-			// Wait a bit to ensure auth cookie is stored before connecting
-			setTimeout(async () => {
-				try {
-					await artemisWebsocketService.connect();
-				} catch (error) {
-					logger.error('Failed to connect to Artemis WebSocket', LogCategory.WEBSOCKET, error);
-					// Don't block login if WebSocket fails
-				}
-			}, 500); // 500ms delay to ensure auth is complete
+			void artemisWebsocketService.connect().catch(error => {
+				logger.error('Failed to connect to Artemis WebSocket', LogCategory.WEBSOCKET, error);
+			});
 		} else {
 			await artemisWebsocketService.disconnect();
 		}
@@ -79,15 +73,9 @@ export async function activate(context: vscode.ExtensionContext) {
 			if (isAuthenticated) {
 				const cookie = await authManager.getCookieHeader();
 				if (cookie) {
-					// Wait a bit before connecting to ensure everything is ready
-					setTimeout(async () => {
-						try {
-							await artemisWebsocketService.connect();
-						} catch (error) {
-							logger.error('Failed to connect to Artemis WebSocket on startup', LogCategory.WEBSOCKET, error);
-							// Don't block - user can still use the extension
-						}
-					}, 1000); // 1 second delay for startup connection
+					void artemisWebsocketService.connect().catch(error => {
+						logger.error('Failed to connect to Artemis WebSocket on startup', LogCategory.WEBSOCKET, error);
+					});
 				}
 			}
 		} catch (error) {
