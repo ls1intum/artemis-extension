@@ -4,3 +4,4 @@ export * from './plantUmlProcessor';
 export * from './buildLogParser';
 export * from './pathUtils';
 export * from './errorUtils';
+export * from './recommendedExtensions';
