@@ -36,6 +36,7 @@ export async function activate(context: vscode.ExtensionContext) {
 	const updateAuthContext = async (isAuthenticated: boolean) => {
 		await vscode.commands.executeCommand('setContext', 'iris:authenticated', isAuthenticated);
 		if (isAuthenticated) {
+			artemisApiService.resetAuthExpiredGuard();
 			void artemisWebsocketService.connect().catch(error => {
 				logger.error('Failed to connect to Artemis WebSocket', LogCategory.WEBSOCKET, error);
 			});
@@ -105,6 +106,20 @@ export async function activate(context: vscode.ExtensionContext) {
 
 	providerRegistry.setChatWebviewProvider(chatWebviewProvider);
 	context.subscriptions.push(telemetryManager);
+
+	// Wire 401 handler: full auth teardown + sidebar reset + user notification
+	artemisApiService.onAuthExpired = () => {
+		void updateAuthContext(false);
+		artemisWebviewProvider.showLogin();
+		vscode.window.showWarningMessage(
+			'Your session has expired. Please log in again.',
+			'Log In'
+		).then(action => {
+			if (action === 'Log In') {
+				vscode.commands.executeCommand('artemis.login');
+			}
+		});
+	};
 
 	// ── Session recorder wiring ──────────────────────────────────────
 	const { sessionRecorder, disposable: recorderDisposable } = wireSessionRecorder({

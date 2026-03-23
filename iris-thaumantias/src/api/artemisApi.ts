@@ -14,9 +14,24 @@ import { logger, LogLevel, LogCategory } from '../services/loggingService';
 
 export class ArtemisApiService {
     private authManager: AuthManager;
+    private _onAuthExpired?: () => void | Promise<void>;
+    private _authExpiredFired = false;
 
     constructor(authManager: AuthManager) {
         this.authManager = authManager;
+    }
+
+    /**
+     * Set the handler invoked on 401 responses. Called at most once until reset
+     * (e.g. by a successful re-authentication).
+     */
+    public set onAuthExpired(handler: (() => void | Promise<void>) | undefined) {
+        this._onAuthExpired = handler;
+    }
+
+    /** Reset the one-shot guard so the next 401 fires the callback again. */
+    public resetAuthExpiredGuard(): void {
+        this._authExpiredFired = false;
     }
 
     protected getServerUrl(): string {
@@ -40,20 +55,15 @@ export class ArtemisApiService {
 
         if (!response.ok) {
             if (response.status === 401) {
-                // Token expired or invalid - clear cached credentials
                 await this.authManager.clear();
-
-                // Notify user and prompt for re-login
-                const loginAction = 'Log In';
-                vscode.window.showWarningMessage(
-                    'Your session has expired. Please log in again.',
-                    loginAction
-                ).then(action => {
-                    if (action === loginAction) {
-                        vscode.commands.executeCommand('artemis.login');
-                    }
-                });
-
+                // Fire callback at most once to prevent duplicate prompts from concurrent 401s.
+                // Fire-and-forget so the ApiError throws immediately without blocking on UI.
+                if (!this._authExpiredFired && this._onAuthExpired) {
+                    this._authExpiredFired = true;
+                    void Promise.resolve(this._onAuthExpired()).catch(err => {
+                        logger.error('Error in onAuthExpired handler', LogCategory.AUTH, err);
+                    });
+                }
                 throw new ApiError('Authentication failed. Please log in again.', 401);
             }
 
