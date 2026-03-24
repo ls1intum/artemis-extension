@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
-import type { ChatMessage, StreamingState } from '../../../../../src/views/webview/views/IrisChat/types';
+import type { ChatMessage, StreamingState } from '../../../../../src/webview/views/IrisChat/types';
 
 // Mock use-stick-to-bottom (ESM package used via useAutoScroll)
 vi.mock('use-stick-to-bottom', () => ({
@@ -21,7 +21,7 @@ vi.mock('streamdown', () => ({
 
 // Mock CodeBlock to avoid Shiki complexity
 vi.mock(
-	'../../../../../src/views/webview/views/IrisChat/components/CodeBlock',
+	'../../../../../src/webview/views/IrisChat/components/CodeBlock',
 	() => ({
 		CodeBlock: ({ language, children }: { language?: string; children?: string }) => (
 			<pre data-language={language}><code>{children}</code></pre>
@@ -29,7 +29,7 @@ vi.mock(
 	})
 );
 
-import { ChatMessageList } from '../../../../../src/views/webview/views/IrisChat/components/ChatMessageList';
+import { ChatMessageList } from '../../../../../src/webview/views/IrisChat/components/ChatMessageList';
 
 const defaultStreaming: StreamingState = {
 	isStreaming: false,

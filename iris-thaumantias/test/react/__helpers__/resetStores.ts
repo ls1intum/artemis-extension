@@ -1,11 +1,11 @@
-import { useDashboardStore } from '../../../src/views/webview/stores/useDashboardStore';
-import { useChatStore } from '../../../src/views/webview/stores/useChatStore';
-import { useCourseListStore } from '../../../src/views/webview/stores/useCourseListStore';
-import { useCourseDetailStore } from '../../../src/views/webview/stores/useCourseDetailStore';
-import { useExerciseDetailStore } from '../../../src/views/webview/stores/useExerciseDetailStore';
-import { useExamStartStore } from '../../../src/views/webview/stores/useExamStartStore';
-import { useExamConductionStore } from '../../../src/views/webview/stores/useExamConductionStore';
-import { useExamExerciseDetailStore } from '../../../src/views/webview/stores/useExamExerciseDetailStore';
+import { useDashboardStore } from '../../../src/webview/stores/useDashboardStore';
+import { useChatStore } from '../../../src/webview/stores/useChatStore';
+import { useCourseListStore } from '../../../src/webview/stores/useCourseListStore';
+import { useCourseDetailStore } from '../../../src/webview/stores/useCourseDetailStore';
+import { useExerciseDetailStore } from '../../../src/webview/stores/useExerciseDetailStore';
+import { useExamStartStore } from '../../../src/webview/stores/useExamStartStore';
+import { useExamConductionStore } from '../../../src/webview/stores/useExamConductionStore';
+import { useExamExerciseDetailStore } from '../../../src/webview/stores/useExamExerciseDetailStore';
 import { createMockVsCodeApi } from './vscodeApi';
 
 // Capture initial state of each store at module import time — before any test runs

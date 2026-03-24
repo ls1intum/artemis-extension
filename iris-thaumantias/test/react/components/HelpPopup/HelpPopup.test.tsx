@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { HelpPopup } from '../../../../src/views/webview/components/HelpPopup/HelpPopup';
+import { HelpPopup } from '../../../../src/webview/components/HelpPopup/HelpPopup';
 
 describe('HelpPopup', () => {
 	it('renders the default trigger help button', () => {

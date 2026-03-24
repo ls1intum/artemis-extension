@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { render, screen } from '@testing-library/react';
-import { ThinkingIndicator } from '../../../../../src/views/webview/views/IrisChat/components/ThinkingIndicator';
+import { ThinkingIndicator } from '../../../../../src/webview/views/IrisChat/components/ThinkingIndicator';
 
 describe('ThinkingIndicator', () => {
 	it('renders when isVisible is true (default)', () => {

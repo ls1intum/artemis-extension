@@ -2,8 +2,8 @@
  * Webview -> Extension command contracts.
  */
 
-import type { CourseDashboardCourse, ExerciseDetail } from '../../types/apiResponses';
-import type { ChatContextType } from '../../types/context';
+import type { CourseDashboardCourse, ExerciseDetail } from '../types/apiResponses';
+import type { ChatContextType } from '../types/context';
 
 /** Non-command webview message types (ready, requestInit, updatePanelTitle, error) */
 export const WebviewMsgType = {

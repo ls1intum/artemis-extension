@@ -143,8 +143,8 @@ iris-thaumantias/
 
 **Key Directories:**
 
-- **`src/views/app/`** — Extension host logic (state management, routing, command handlers)
-- **`src/views/webview/react/`** — React components and Zustand stores
+- **`src/extension/controller/`** — Extension host logic (state management, routing, command handlers)
+- **`src/webview/`** — React components and Zustand stores
 - **`src/shared/`** — Code shared between extension and webview (message contracts, types)
 - **`dist/`** — Build output (2 bundles: extension.js and webview-react.js)
 
@@ -157,7 +157,7 @@ This section describes the conventions for adding a new React view to the extens
 ### 1. Create View Directory
 
 ```
-src/views/webview/react/views/YourViewName/
+src/webview/views/YourViewName/
 ├── YourViewNameView.tsx       # Main view component
 ├── YourViewNameView.module.css # CSS Modules stylesheet
 ├── types.ts                    # View-specific types
@@ -208,12 +208,12 @@ export type WebviewToExtensionMessage =
 
 ### 3. Create Zustand Store (if needed)
 
-Create `src/views/webview/react/stores/useYourViewStore.ts`:
+Create `src/webview/stores/useYourViewStore.ts`:
 
 ```typescript
 import { create } from 'zustand';
 import { devtools } from 'zustand/middleware';
-import type { VsCodeApi } from '../../../../shared/messageContracts';
+import type { VsCodeApi } from '../../shared/messageContracts';
 
 interface YourViewState {
     data: YourDataType | null;
@@ -267,11 +267,11 @@ export const useYourViewStore = create<YourViewState>()(
 
 ### 4. Implement View Component
 
-Create `src/views/webview/react/views/YourViewName/YourViewNameView.tsx`:
+Create `src/webview/views/YourViewName/YourViewNameView.tsx`:
 
 ```typescript
 import { useEffect } from 'react';
-import type { VsCodeApi } from '../../../../shared/messageContracts';
+import type { VsCodeApi } from '../../../shared/messageContracts';
 import { useYourViewStore } from '../../stores/useYourViewStore';
 import styles from './YourViewNameView.module.css';
 
@@ -319,7 +319,7 @@ export function YourViewNameView({ vscodeApi }: YourViewNameViewProps) {
 
 ### 5. Register View in App.tsx
 
-Add view import and switch case in `src/views/webview/react/App.tsx`:
+Add view import and switch case in `src/webview/App.tsx`:
 
 ```typescript
 import { YourViewNameView } from './views/YourViewName';
@@ -338,7 +338,7 @@ export function App({ vscodeApi }: AppProps) {
 
 ### 6. Update ViewRouter State Mapping
 
-Add state mapping in `src/views/app/viewRouter.ts`:
+Add state mapping in `src/extension/controller/viewRouter.ts`:
 
 ```typescript
 private _stateToViewName(state: string): string {
@@ -353,7 +353,7 @@ private _stateToViewName(state: string): string {
 
 ### 7. Add Command Handlers (if needed)
 
-Add message handler in `src/views/app/commands/messageHandler.ts` or the appropriate command file:
+Add message handler in `src/extension/controller/commands/` in the appropriate command file:
 
 ```typescript
 case 'yourCommand':
@@ -364,7 +364,7 @@ case 'yourCommand':
 
 ### 8. Update AppStateManager (if needed)
 
-Add state transition method in `src/views/app/appStateManager.ts`:
+Add state transition method in `src/extension/controller/appStateManager.ts`:
 
 ```typescript
 public async transitionToYourView(params: YourParams): Promise<void> {
@@ -720,7 +720,7 @@ npm run build:analyze
    - External: `vscode` module
 
 2. **Webview React Context (`webviewReactCtx`)**
-   - Entry: `src/views/webview/react/index.tsx`
+   - Entry: `src/webview/index.tsx`
    - Output: `dist/webview-react.js`, `dist/webview-react.css`
    - Platform: `browser`
    - Format: `iife`

@@ -1,8 +1,8 @@
 import * as assert from 'assert';
 import * as vscode from 'vscode';
-import { ContextStore } from '../../../src/services/iris/contextStore';
+import { ContextStore } from '../../../src/extension/services/iris/contextStore';
 import { MockExtensionContext } from '../mocks/vscodeMocks';
-import { ActiveContext } from '../../../src/types';
+import { ActiveContext } from '../../../src/extension/types';
 
 suite('ContextStore Test Suite', () => {
     let contextStore: ContextStore;

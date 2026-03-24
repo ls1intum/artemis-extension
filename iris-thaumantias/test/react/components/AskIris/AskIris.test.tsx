@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { AskIris } from '../../../../src/views/webview/components/AskIris/AskIris';
+import { AskIris } from '../../../../src/webview/components/AskIris/AskIris';
 
 const defaultProps = {
 	description: 'Open the Iris chat to discuss this course or get guidance.',

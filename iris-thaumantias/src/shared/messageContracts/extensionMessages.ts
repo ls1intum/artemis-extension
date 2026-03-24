@@ -7,9 +7,9 @@ import type {
     StudentExam,
     ResultSummary,
     SubmissionSummary,
-} from '../../types/apiResponses';
+} from '../types/apiResponses';
 import type { CourseData, ArchivedCourse, CourseDetailData, RecentCourseNode } from './domainTypes';
-import type { ChatContextType } from '../../types/context';
+import type { ChatContextType } from '../types/context';
 
 /** All Extension->Webview message types (const object for string-literal compatibility) */
 export const ExtensionMsg = {

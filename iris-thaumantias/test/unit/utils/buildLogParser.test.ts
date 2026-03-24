@@ -1,6 +1,6 @@
 import * as assert from 'assert';
-import { BuildLogParser } from '../../../src/utils/buildLogParser';
-import { BuildLogEntry } from '../../../src/types/artemis';
+import { BuildLogParser } from '../../../src/extension/utils/buildLogParser';
+import { BuildLogEntry } from '../../../src/extension/types/artemis';
 
 suite('BuildLogParser Test Suite', () => {
 

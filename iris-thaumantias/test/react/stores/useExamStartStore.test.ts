@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
-import { useExamStartStore } from '../../../src/views/webview/stores/useExamStartStore';
-import type { StudentExam } from '../../../src/types/apiResponses';
+import { useExamStartStore } from '../../../src/webview/stores/useExamStartStore';
+import type { StudentExam } from '../../../src/extension/types';
 
 const makeStudentExam = (overrides: Partial<StudentExam> = {}): StudentExam => ({
 	id: 1,

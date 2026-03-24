@@ -1,8 +1,8 @@
 import * as assert from 'assert';
-import { ArtemisApiService } from '../../../src/api/artemisApi';
-import { AuthManager } from '../../../src/services/auth/authManager';
+import { ArtemisApiService } from '../../../src/extension/api/artemisApi';
+import { AuthManager } from '../../../src/extension/services/auth/authManager';
 import { MockExtensionContext } from '../mocks/vscodeMocks';
-import { ApiError, ArtemisUser, ArtemisParticipation, ArtemisResult, BuildLogEntry, AuthenticationResult, ProgrammingSubmission } from '../../../src/types';
+import { ApiError, ArtemisUser, ArtemisParticipation, ArtemisResult, BuildLogEntry, AuthenticationResult, ProgrammingSubmission } from '../../../src/extension/types';
 
 // Mock fetch
 const originalFetch = global.fetch;

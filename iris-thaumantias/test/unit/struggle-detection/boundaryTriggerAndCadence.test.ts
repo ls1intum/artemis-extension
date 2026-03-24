@@ -12,11 +12,11 @@
 
 import * as assert from 'assert';
 import * as sinon from 'sinon';
-import { BoundaryTriggerEmitter } from '../../../src/services/telemetry/eventPipeline/boundaryTriggerEmitter';
-import { isLikelyManualPaste } from '../../../src/services/telemetry/eventPipeline/compileEquivalentEmitter';
-import { InactivityService } from '../../../src/services/telemetry/inactivityService';
-import { AdaptiveCadence } from '../../../src/services/telemetry/intervention/adaptiveCadence';
-import { TriggerType, DEFAULT_TRIGGER_CONFIG } from '../../../src/services/telemetry/types';
+import { BoundaryTriggerEmitter } from '../../../src/extension/services/telemetry/eventPipeline/boundaryTriggerEmitter';
+import { isLikelyManualPaste } from '../../../src/extension/services/telemetry/eventPipeline/compileEquivalentEmitter';
+import { InactivityService } from '../../../src/extension/services/telemetry/inactivityService';
+import { AdaptiveCadence } from '../../../src/extension/services/telemetry/intervention/adaptiveCadence';
+import { TriggerType, DEFAULT_TRIGGER_CONFIG } from '../../../src/extension/services/telemetry/types';
 
 // ============================================================================
 // Mock Helpers

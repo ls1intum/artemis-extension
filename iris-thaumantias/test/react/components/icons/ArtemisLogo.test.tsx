@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { render } from '@testing-library/react';
-import { ArtemisLogo } from '../../../../src/views/webview/components/icons/ArtemisLogo';
+import { ArtemisLogo } from '../../../../src/webview/components/icons/ArtemisLogo';
 
 describe('ArtemisLogo', () => {
 	it('renders an SVG element', () => {
