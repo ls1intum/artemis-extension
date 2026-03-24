@@ -122,13 +122,25 @@ function now(): number {
     return Date.now();
 }
 
+export interface ActiveContextChangeEvent {
+    current: ActiveContext | null;
+    previous: ActiveContext | null;
+}
+
 export class ContextStore {
     private state: StoredState;
     private options: Required<ContextStoreOptions>;
 
+    private readonly _onDidChangeActiveContext = new vscode.EventEmitter<ActiveContextChangeEvent>();
+    public readonly onDidChangeActiveContext = this._onDidChangeActiveContext.event;
+
     constructor(private readonly context: vscode.ExtensionContext, options?: ContextStoreOptions) {
         this.options = { ...DEFAULT_OPTIONS, ...(options ?? {}) };
         this.state = this.loadState();
+    }
+
+    public dispose(): void {
+        this._onDidChangeActiveContext.dispose();
     }
 
     private loadState(): StoredState {
@@ -318,6 +330,7 @@ export class ContextStore {
         logger.context('ensureSession:', ensureSession);
         logger.context('Previous active context:', this.state.activeContext);
 
+        const previous = this.state.activeContext;
         this.state.activeContext = {
             ...context,
             selectedAt: now(),
@@ -329,6 +342,7 @@ export class ContextStore {
             this.ensureSessionForActive();
         }
         this.saveState();
+        this._fireContextChangeIfNeeded(previous, this.state.activeContext);
         return this.snapshot();
     }
 
@@ -344,9 +358,11 @@ export class ContextStore {
     }
 
     public clearActiveContext(): ContextSnapshot {
+        const previous = this.state.activeContext;
         this.state.activeContext = null;
         this.state.activeSessionId = null;
         this.saveState();
+        this._fireContextChangeIfNeeded(previous, null);
         return this.snapshot();
     }
 
@@ -653,6 +669,8 @@ export class ContextStore {
     }
 
     private autoSelectContext(): void {
+        const previous = this.state.activeContext;
+
         const bestExercise = [...this.state.recentExercises]
             .sort(byPriorityThenRecency)[0];
         if (bestExercise) {
@@ -667,6 +685,7 @@ export class ContextStore {
                 selectedAt: now(),
             };
             this.ensureSessionForActive();
+            this._fireContextChangeIfNeeded(previous, this.state.activeContext);
             return;
         }
 
@@ -683,6 +702,7 @@ export class ContextStore {
                 selectedAt: now(),
             };
             this.ensureSessionForActive();
+            this._fireContextChangeIfNeeded(previous, this.state.activeContext);
         }
     }
 
@@ -771,6 +791,13 @@ export class ContextStore {
         }
 
         return priority;
+    }
+
+    private _fireContextChangeIfNeeded(previous: ActiveContext | null, current: ActiveContext | null): void {
+        const changed = previous?.type !== current?.type || previous?.id !== current?.id;
+        if (changed) {
+            this._onDidChangeActiveContext.fire({ current, previous });
+        }
     }
 
     private calculateCoursePriority(course: TrackedCourse): number {

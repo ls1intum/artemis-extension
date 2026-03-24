@@ -53,7 +53,6 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
     private _chatContextManager: ChatContextManager;
     private _websocketMessageHandler: IrisWebSocketMessageHandler;
     private _noAiDetectionService: NoAiDetectionService;
-    private _currentExerciseId?: number;
 
     private readonly _onDidChangeExerciseContext = new vscode.EventEmitter<ExerciseContextChangeEvent>();
     public readonly onDidChangeExerciseContext = this._onDidChangeExerciseContext.event;
@@ -80,6 +79,18 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
         this._disposables.push(this._onDidSendIrisChatMessage);
         this._disposables.push(this._onDidChangePanelVisibility);
         this._contextStore = new ContextStore(this._extensionContext);
+        this._disposables.push(this._contextStore);
+        this._disposables.push(
+            this._contextStore.onDidChangeActiveContext(({ current, previous }) => {
+                if (current?.type === 'exercise') {
+                    this._onDidChangeExerciseContext.fire({
+                        exerciseId: current.id,
+                        previousExerciseId: previous?.type === 'exercise' ? previous.id : undefined,
+                        exerciseRoot: vscode.workspace.workspaceFolders?.[0]?.uri,
+                    });
+                }
+            })
+        );
         this._viewStatePresenter = new ChatViewStatePresenter(this._contextStore, (msg) => this._postMessageSafe(msg));
         this._fileMonitorService = new FileMonitorService();
         this._disposables.push(this._fileMonitorService);
@@ -346,15 +357,7 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
         courseId?: number,
     ): void {
         this._chatContextManager.setExerciseContext(exerciseId, exerciseTitle, reason, shortName, releaseDate, dueDate, courseId);
-
-        // Fire exercise context change event for TelemetryManager
-        const previousExerciseId = this._currentExerciseId;
-        this._currentExerciseId = exerciseId;
-        this._onDidChangeExerciseContext.fire({
-            exerciseId,
-            previousExerciseId,
-            exerciseRoot: vscode.workspace.workspaceFolders?.[0]?.uri,
-        });
+        // Telemetry event is now fired by the onDidChangeActiveContext subscription
     }
 
     public clearContext(): void {

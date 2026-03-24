@@ -52,7 +52,7 @@ export { StartPageResolver, type StartPageResult } from './ui';
 export { getExamErrorMessage } from './exam';
 
 // Root-level (shared state & cross-cutting)
-export { ContextStore } from './iris';
+export { ContextStore, type ActiveContextChangeEvent } from './iris';
 export { ProviderRegistry, type IProviderRegistry } from './ui';
 export { ExerciseRegistry, type ExerciseRegistryEntry } from './exerciseRegistry';
 export { logger, LogLevel, LogCategory } from './loggingService';
