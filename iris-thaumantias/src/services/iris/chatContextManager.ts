@@ -108,7 +108,7 @@ export class ChatContextManager {
             });
         }
 
-        // Step 2: Set active context (ensureSession=false — sessions loaded below)
+        // Step 2: Set active context
         this.deps.contextStore.setActiveContext({
             type: params.type,
             id: params.id,
@@ -118,7 +118,7 @@ export class ChatContextManager {
             source,
             locked: isWorkspaceRelated,
             selectedAt: Date.now(),
-        }, false);
+        });
 
         // Step 3: Finalize — reset WS subscription, clear UI, reload sessions
         this._resetSessionForContextChange();

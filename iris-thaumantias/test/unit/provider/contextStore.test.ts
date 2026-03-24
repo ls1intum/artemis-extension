@@ -31,7 +31,7 @@ suite('ContextStore Test Suite', () => {
         assert.strictEqual(snapshot.allExercises[0].id, 1);
     });
 
-    test('should set active context when registering workspace exercise', () => {
+    test('should not change active context when registering workspace exercise (policy in ChatContextManager)', () => {
         contextStore.registerExercise({
             id: 1,
             title: 'Workspace Exercise',
@@ -39,70 +39,9 @@ suite('ContextStore Test Suite', () => {
         });
 
         const snapshot = contextStore.snapshot();
-        assert.ok(snapshot.activeContext);
-        assert.strictEqual(snapshot.activeContext.id, 1);
-        assert.strictEqual(snapshot.activeContext.source, 'workspace-detected');
-    });
-
-    test('should not override user-selected when same workspace exercise re-detected', () => {
-        // Register workspace exercise first
-        contextStore.registerExercise({
-            id: 1,
-            title: 'Workspace Exercise',
-            source: 'workspace-detected',
-            isWorkspace: true
-        });
-
-        // User manually switches to a different context but with same exercise ID
-        // (simulating user selecting something, then same workspace re-triggers)
-        const userContext: ActiveContext = {
-            type: 'exercise',
-            id: 1,
-            title: 'Workspace Exercise',
-            source: 'user-selected',
-            selectedAt: Date.now(),
-            locked: false
-        };
-        contextStore.setActiveContext(userContext);
-
-        // Same workspace exercise re-detected (e.g. view becomes visible again)
-        contextStore.registerExercise({
-            id: 1,
-            title: 'Workspace Exercise',
-            source: 'workspace-detected',
-            isWorkspace: true
-        });
-
-        const snapshot = contextStore.snapshot();
-        assert.ok(snapshot.activeContext);
-        assert.strictEqual(snapshot.activeContext.id, 1);
-        assert.strictEqual(snapshot.activeContext.source, 'user-selected'); // Should respect user choice
-    });
-
-    test('should override user-selected when different workspace exercise detected', () => {
-        // Set user-selected context for exercise 2
-        const userContext: ActiveContext = {
-            type: 'exercise',
-            id: 2,
-            title: 'User Exercise',
-            source: 'user-selected',
-            selectedAt: Date.now(),
-            locked: false
-        };
-        contextStore.setActiveContext(userContext);
-
-        // Different workspace exercise detected (new project opened)
-        contextStore.registerExercise({
-            id: 1,
-            title: 'New Workspace Exercise',
-            source: 'workspace-detected',
-            isWorkspace: true
-        });
-
-        const snapshot = contextStore.snapshot();
-        assert.ok(snapshot.activeContext);
-        assert.strictEqual(snapshot.activeContext.id, 1); // Should override to new workspace
-        assert.strictEqual(snapshot.activeContext.source, 'workspace-detected');
+        // ContextStore no longer applies workspace override — that's ChatContextManager's job
+        assert.strictEqual(snapshot.activeContext, null);
+        assert.strictEqual(snapshot.allExercises.length, 1);
     });
 
     test('should register course', () => {
@@ -238,30 +177,19 @@ suite('ContextStore Test Suite', () => {
         assert.strictEqual(snapshot.sessions.length, 0);
     });
 
-    test('should auto-select context when registering exercise if none active', () => {
+    test('should not auto-select context when registering exercise (policy in ChatContextManager)', () => {
         contextStore.registerExercise({ id: 1, title: 'Ex 1' });
 
         const snapshot = contextStore.snapshot();
-        assert.ok(snapshot.activeContext);
-        assert.strictEqual(snapshot.activeContext.id, 1);
-        assert.strictEqual(snapshot.activeContext.source, 'system-default');
+        // ContextStore no longer auto-selects — that's ChatContextManager's job
+        assert.strictEqual(snapshot.activeContext, null);
     });
 
-    test('should not override active context when registering exercise if one exists', () => {
-        contextStore.registerExercise({ id: 1, title: 'Ex 1' });
-        contextStore.registerExercise({ id: 2, title: 'Ex 2' });
-
-        const snapshot = contextStore.snapshot();
-        assert.strictEqual(snapshot.activeContext?.id, 1);
-    });
-
-    test('should register course and auto-select if none active', () => {
+    test('should not auto-select context when registering course (policy in ChatContextManager)', () => {
         contextStore.registerCourse({ id: 101, title: 'Course 1' });
 
         const snapshot = contextStore.snapshot();
-        assert.ok(snapshot.activeContext);
-        assert.strictEqual(snapshot.activeContext.type, 'course');
-        assert.strictEqual(snapshot.activeContext.id, 101);
+        assert.strictEqual(snapshot.activeContext, null);
     });
 
     test('should remove course', () => {
@@ -273,8 +201,8 @@ suite('ContextStore Test Suite', () => {
         const snapshot = contextStore.snapshot();
         assert.strictEqual(snapshot.allCourses.length, 1);
         assert.strictEqual(snapshot.allCourses[0].id, 102);
-        // Should have auto-selected C2
-        assert.strictEqual(snapshot.activeContext?.id, 102);
+        // ContextStore no longer auto-selects after removal
+        assert.strictEqual(snapshot.activeContext, null);
     });
 
     test('should clear active context if removed course was active', () => {
@@ -393,7 +321,14 @@ suite('ContextStore Test Suite', () => {
     });
 
     test('should switch to first session', () => {
-        contextStore.registerExercise({ id: 1, title: 'Ex 1' });
+        contextStore.setActiveContext({
+            type: 'exercise',
+            id: 1,
+            title: 'Ex 1',
+            source: 'user-selected',
+            selectedAt: Date.now(),
+            locked: false
+        });
         contextStore.createSession('Session 1');
         contextStore.createSession('Session 2');
 
@@ -407,7 +342,7 @@ suite('ContextStore Test Suite', () => {
             source: 'user-selected',
             selectedAt: Date.now(),
             locked: false
-        }, false); // Don't ensure session automatically
+        });
 
         contextStore.switchToFirstSession();
 
@@ -584,18 +519,23 @@ suite('ContextStore Test Suite', () => {
         assert.ok(snapshot.allCourses.some(c => c.id === limit + 5));
     });
 
-    test('should select most recent session when ensuring session', () => {
-        contextStore.registerExercise({ id: 1, title: 'Ex 1' });
+    test('should not auto-select session when setting active context (ensureSession removed)', () => {
+        contextStore.setActiveContext({
+            type: 'exercise',
+            id: 1,
+            title: 'Ex 1',
+            source: 'user-selected',
+            selectedAt: Date.now(),
+            locked: false
+        });
 
         // Create two sessions with different timestamps
         const now = Date.now();
         contextStore.createSessionWithDetails('Old Session', 1, now - 10000);
         contextStore.createSessionWithDetails('New Session', 1, now);
 
-        // Clear active session to force ensureSession logic
+        // Clear and re-set — no auto session selection
         contextStore.clearActiveContext();
-
-        // Re-select context
         contextStore.setActiveContext({
             type: 'exercise',
             id: 1,
@@ -606,54 +546,9 @@ suite('ContextStore Test Suite', () => {
         });
 
         const snapshot = contextStore.snapshot();
-        assert.strictEqual(snapshot.activeSession?.preview, 'New Session');
-    });
-
-    test('should prioritize exercise over course in auto-select', () => {
-        contextStore.registerCourse({ id: 101, title: 'Course 1' });
-        contextStore.registerExercise({ id: 1, title: 'Exercise 1' });
-
-        // Clear active context to trigger auto-select
-        contextStore.clearActiveContext();
-
-        // We need to trigger auto-select.
-        // registerExercise calls it if no active context.
-        // Or removeExercise calls it.
-        // Let's use registerExercise with a new dummy exercise to trigger it?
-        // Or just call registerExercise for existing one.
-
-        // Actually, registerExercise calls autoSelectContext if !activeContext.
-        // But registerExercise sets activeContext if workspace-detected.
-        // If we register a normal exercise, it calls autoSelectContext.
-
-        // Let's clear active context, then register a new exercise.
-        // Wait, registering a new exercise will make IT the most recent one, so it will be selected.
-
-        // We want to test that if we have BOTH recent exercise and recent course,
-        // and we trigger auto-select (e.g. by removing the currently active one),
-        // it picks the exercise.
-
-        // 1. Register Course (active)
-        contextStore.registerCourse({ id: 101, title: 'Course 1' });
-        // 2. Register Exercise (active)
-        contextStore.registerExercise({ id: 1, title: 'Exercise 1' });
-        // 3. Register another Exercise (active)
-        contextStore.registerExercise({ id: 2, title: 'Exercise 2' });
-
-        // Now we have Course 1, Ex 1, Ex 2 in history. Ex 2 is active.
-        // Remove Ex 2. Auto-select should pick Ex 1 (next best exercise) over Course 1.
-        contextStore.removeExercise(2);
-
-        let snapshot = contextStore.snapshot();
-        assert.strictEqual(snapshot.activeContext?.type, 'exercise');
-        assert.strictEqual(snapshot.activeContext?.id, 1);
-
-        // Now remove Ex 1. Auto-select should pick Course 1.
-        contextStore.removeExercise(1);
-
-        snapshot = contextStore.snapshot();
-        assert.strictEqual(snapshot.activeContext?.type, 'course');
-        assert.strictEqual(snapshot.activeContext?.id, 101);
+        // setActiveContext no longer calls ensureSessionForActive
+        // activeSession falls back to first in list (sorted by lastActivity in snapshot())
+        assert.ok(snapshot.sessions.length >= 2);
     });
 
     test('should persist state changes to global storage', () => {

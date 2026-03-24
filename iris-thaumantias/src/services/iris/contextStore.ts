@@ -242,44 +242,9 @@ export class ContextStore {
     }
 
     public registerExercise(input: ExerciseInput): ContextSnapshot {
-
-        const entry = this.upsertExercise(input);
+        this.upsertExercise(input);
         this.recalculateExercisePriorities();
         this.trimExerciseHistory();
-
-        if (input.source === 'workspace-detected') {
-            // Override the active context if:
-            // 1. There is no active context, OR
-            // 2. A different exercise was detected (new workspace opened), OR
-            // 3. The active context is NOT user-selected (respect user choice only for same workspace)
-            const isDifferentExercise = !this.state.activeContext ||
-                this.state.activeContext.id !== entry.id;
-            const shouldOverride = isDifferentExercise ||
-                this.state.activeContext!.source !== 'user-selected';
-
-            if (shouldOverride) {
-                logger.context('Source is workspace-detected, setting active context to workspace exercise');
-                this.setActiveContext({
-                    type: 'exercise',
-                    id: entry.id,
-                    title: entry.title,
-                    shortName: entry.shortName,
-                    courseId: entry.courseId,
-                    source: 'workspace-detected',
-                    locked: true,
-                    selectedAt: now(),
-                });
-            } else {
-                logger.context('Same workspace exercise re-detected, user has explicitly selected another context - NOT overriding');
-            }
-        } else if (!this.state.activeContext) {
-            logger.context('No active context exists, calling autoSelectContext()');
-            this.autoSelectContext();
-            logger.context('After autoSelectContext, active context is:', this.state.activeContext);
-        } else {
-            logger.context('Active context already exists, not changing it:', this.state.activeContext);
-        }
-
         this.saveState();
         return this.snapshot();
     }
@@ -288,11 +253,6 @@ export class ContextStore {
         this.upsertCourse(input);
         this.recalculateCoursePriorities();
         this.trimCourseHistory();
-
-        if (!this.state.activeContext) {
-            this.autoSelectContext();
-        }
-
         this.saveState();
         return this.snapshot();
     }
@@ -304,7 +264,6 @@ export class ContextStore {
         const active = this.state.activeContext;
         if (active?.type === 'exercise' && active.id === exerciseId) {
             this.clearActiveContext();
-            this.autoSelectContext();
         }
 
         this.saveState();
@@ -318,16 +277,14 @@ export class ContextStore {
         const active = this.state.activeContext;
         if (active?.type === 'course' && active.id === courseId) {
             this.clearActiveContext();
-            this.autoSelectContext();
         }
 
         this.saveState();
         return this.snapshot();
     }
 
-    public setActiveContext(context: ActiveContext, ensureSession: boolean = true): ContextSnapshot {
+    public setActiveContext(context: ActiveContext): ContextSnapshot {
         logger.context('setActiveContext called with:', context);
-        logger.context('ensureSession:', ensureSession);
         logger.context('Previous active context:', this.state.activeContext);
 
         const previous = this.state.activeContext;
@@ -338,9 +295,6 @@ export class ContextStore {
 
         logger.context('New active context set to:', this.state.activeContext);
 
-        if (ensureSession) {
-            this.ensureSessionForActive();
-        }
         this.saveState();
         this._fireContextChangeIfNeeded(previous, this.state.activeContext);
         return this.snapshot();
@@ -651,59 +605,6 @@ export class ContextStore {
         // Spread both objects assuming they're object types
         next[index] = { ...(list[index] as object), ...(value as object) } as T;
         return next;
-    }
-
-    private ensureSessionForActive(): void {
-        const active = this.state.activeContext;
-        if (!active) {
-            return;
-        }
-        const key = getContextKey(active.type, active.id);
-        const sessions = this.state.sessions[key];
-        if (!sessions || sessions.length === 0) {
-            this.createSession();
-        } else {
-            const sortedSessions = [...sessions].sort(byLastActivityDesc);
-            this.state.activeSessionId = sortedSessions[0].id;
-        }
-    }
-
-    private autoSelectContext(): void {
-        const previous = this.state.activeContext;
-
-        const bestExercise = [...this.state.recentExercises]
-            .sort(byPriorityThenRecency)[0];
-        if (bestExercise) {
-            this.state.activeContext = {
-                type: 'exercise',
-                id: bestExercise.id,
-                title: bestExercise.title,
-                shortName: bestExercise.shortName,
-                courseId: bestExercise.courseId,
-                source: 'system-default',
-                locked: false,
-                selectedAt: now(),
-            };
-            this.ensureSessionForActive();
-            this._fireContextChangeIfNeeded(previous, this.state.activeContext);
-            return;
-        }
-
-        const bestCourse = [...this.state.recentCourses]
-            .sort(byPriorityThenRecency)[0];
-        if (bestCourse) {
-            this.state.activeContext = {
-                type: 'course',
-                id: bestCourse.id,
-                title: bestCourse.title,
-                shortName: bestCourse.shortName,
-                source: 'system-default',
-                locked: false,
-                selectedAt: now(),
-            };
-            this.ensureSessionForActive();
-            this._fireContextChangeIfNeeded(previous, this.state.activeContext);
-        }
     }
 
     private trimExerciseHistory(): void {
