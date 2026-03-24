@@ -1,33 +1,20 @@
 import * as vscode from 'vscode';
 import { ArtemisApiService } from '../api';
-import {
-    AuthManager,
-    AuthFlowHandler,
-    ArtemisWebsocketService,
-    ViewInitDataService,
-    SubmissionWebSocketHandler,
-    FullscreenPanelManager,
-    ProviderRegistry,
-    ExerciseRegistry,
-    findWorkspaceCourseInArchive,
-    collectExerciseSources,
-    BuildDiagnosticsService,
-    ExerciseOpeningService,
-    StartPageResolver,
-    getWorkspaceRepositoryUrl,
-    findExerciseByRepositoryUrl,
-    logger, LogCategory,
-    type TelemetryManager,
-    type StartPageResult,
-} from '../services';
-import type { IArtemisWebviewProvider } from '../types/IArtemisWebviewProvider';
+import { AuthManager, AuthFlowHandler } from '../services/auth';
+import { ArtemisWebsocketService, SubmissionWebSocketHandler } from '../services/websocket';
+import { ViewInitDataService, FullscreenPanelManager, BuildDiagnosticsService, ExerciseOpeningService, StartPageResolver, ProviderRegistry } from '../services/ui';
+import type { StartPageResult } from '../services/ui';
+import { ExerciseRegistry } from '../services/exerciseRegistry';
+import { findWorkspaceCourseInArchive, collectExerciseSources, getWorkspaceRepositoryUrl, findExerciseByRepositoryUrl } from '../services/workspace';
+import { logger, LogCategory } from '../services/loggingService';
+import type { TelemetryManager } from '../services/telemetry';
 import { CONFIG, VSCODE_CONFIG, AI_EXTENSIONS_BLOCKLIST, getRecommendedExtensionsByCategory } from '../utils';
 import { AppStateManager, type UserInfo } from '../controller/appStateManager';
 import { WebViewMessageHandler } from '../controller/webViewMessageHandler';
 import type { WebViewActionHandler } from '../controller/types';
 import { ViewActionService } from '../controller/viewActionService';
 import { ViewRouter } from '../controller/viewRouter';
-import { fetchAndEnrichExerciseDetails, fetchArchivedCourseDetail } from '../controller/dataLoader';
+import { fetchAndEnrichExerciseDetails, fetchArchivedCourseDetail } from '../controller/exerciseDataLoader';
 import { WebSocketMessageHandler } from '../types';
 import { BaseWebviewProvider } from './baseWebviewProvider';
 import type { BuildErrorCodeLensProvider } from './buildErrorCodeLensProvider';
@@ -42,7 +29,7 @@ import type { ExerciseDetail, ExerciseDetailsResponse } from '../types';
  * state sync, and service integration. A future refactor could extract
  * render-data preparation into a dedicated ViewDataService.
  */
-export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscode.WebviewViewProvider, WebViewActionHandler, IArtemisWebviewProvider, vscode.Disposable {
+export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscode.WebviewViewProvider, WebViewActionHandler, vscode.Disposable {
     // ── Static properties ──────────────────────────────────────────────
     public static readonly viewType = CONFIG.WEBVIEW.VIEW_TYPE;
 

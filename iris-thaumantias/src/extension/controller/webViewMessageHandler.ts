@@ -1,6 +1,10 @@
 import * as vscode from 'vscode';
 import { ArtemisApiService } from '../api';
-import { AuthManager, ArtemisWebsocketService, ExerciseRegistry, logger, LogLevel, LogCategory, type IProviderRegistry } from '../services';
+import { AuthManager } from '../services/auth';
+import { ArtemisWebsocketService } from '../services/websocket';
+import { ExerciseRegistry } from '../services/exerciseRegistry';
+import { logger, LogLevel, LogCategory } from '../services/loggingService';
+import type { IProviderRegistry } from '../services/ui';
 import { AppStateManager } from './appStateManager';
 import type { WebViewActionHandler } from './types';
 import type { CommandContext, CommandHandler } from './commands/types';

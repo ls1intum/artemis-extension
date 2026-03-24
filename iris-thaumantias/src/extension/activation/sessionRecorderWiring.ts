@@ -1,6 +1,8 @@
 import * as vscode from 'vscode';
-import type { ArtemisWebsocketService, TelemetryManager, ConsentService, SessionRecorder } from '../services';
-import { RecordingStatusBarService as RecordingStatusBarServiceImpl, SessionRecorder as SessionRecorderImpl } from '../services';
+import type { ConsentService } from '../services/auth';
+import type { ArtemisWebsocketService } from '../services/websocket';
+import type { TelemetryManager, SessionRecorder } from '../services/telemetry';
+import { RecordingStatusBarService as RecordingStatusBarServiceImpl, SessionRecorder as SessionRecorderImpl } from '../services/telemetry';
 import type { ArtemisWebviewProvider, ChatWebviewProvider } from '../provider';
 
 export interface RecorderWiringDeps {

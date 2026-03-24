@@ -1,8 +1,7 @@
 import type { ActiveContext } from '../../shared/types/context';
 
 /**
- * Minimal interface for ChatWebviewProvider as consumed by ProviderRegistry and its callers.
- * Extracted to sever the circular import: ProviderRegistry -> chatWebviewProvider -> services/index -> ProviderRegistry.
+ * Minimal interface for ChatWebviewProvider, consumed by ProviderRegistry for dependency inversion.
  */
 export interface IChatWebviewProvider {
     getSelectedContext(): ActiveContext | null;

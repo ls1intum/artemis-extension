@@ -174,22 +174,6 @@ For a complete list and more information, visit [https://artemisapp.github.io](h
 
 ### Building the Extension
 
-#### Using Build Script
-
-**Full Build with Validation:**
-```bash
-./build-extension.sh
-```
-This script will:
-- Clean previous builds
-- Install dependencies
-- Run type checking
-- Run linting
-- Build the production bundle
-- Package as .vsix (if vsce is installed)
-
-#### Manual Build
-
 1. Clone the repository:
    ```bash
    git clone https://github.com/ls1intum/artemis-extension.git
@@ -232,79 +216,65 @@ vsce package
 
 ```
 artemis-extension/
-├── README.md                  # This file (developer documentation)
-├── DOCUMENTATION.md           # Documentation strategy guide
-└── iris-thaumantias/          # Extension package directory
-    ├── README.md              # User documentation (Marketplace)
-    ├── package.json           # Extension manifest
-    ├── tsconfig.json          # TypeScript configuration
-    ├── esbuild.js             # Build configuration
-    ├── eslint.config.mjs      # Linting configuration
-    ├── src/
-    │   ├── extension.ts       # Extension entry point & activation
-    │   ├── api/               # Artemis REST API client
-    │   │   └── artemisApi.ts  # API methods for courses, exercises, etc.
-    │   ├── auth/              # Authentication handling
-    │   │   └── auth.ts        # Login, token management, secret storage
-    │   ├── services/          # Core services
-    │   │   └── artemisWebsocketService.ts  # WebSocket for real-time updates
-    │   ├── views/             # Webview UI layer
-    │   │   ├── provider/      # Webview provider classes
-    │   │   │   ├── artemisWebviewProvider.ts  # Main Artemis view
-    │   │   │   └── chatWebviewProvider.ts     # Iris chat view
-    │   │   ├── templates/     # HTML template generators
-    │   │   │   ├── loginView.ts
-    │   │   │   ├── dashboardView.ts
-    │   │   │   ├── courseListView.ts
-    │   │   │   ├── exerciseDetailView.ts
-    │   │   │   └── irisChatView.ts
-    │   │   └── app/           # Application state & routing
-    │   │       ├── appStateManager.ts     # Global state management
-    │   │       ├── viewRouter.ts          # View navigation
-    │   │       ├── webViewMessageHandler.ts  # Message passing
-    │   │       └── commands/              # Command handlers
-    │   ├── types/             # TypeScript type definitions
-    │   │   ├── artemis.ts     # Artemis domain types
-    │   │   └── stomp.d.ts     # WebSocket/STOMP types
-    │   └── utils/             # Utility functions
-    │       ├── constants.ts
-    │       ├── plantUmlProcessor.ts
-    │       └── recommendedExtensions.ts
-    ├── media/
-    │   ├── artemis-logo.png   # Extension icons
-    │   └── styles/            # CSS stylesheets
-    │       ├── base.css
-    │       └── views/         # View-specific styles
-    └── dist/                  # Compiled output (generated)
-        └── extension.js       # Bundled extension
+├── README.md                     # This file (developer documentation)
+├── CONTRIBUTING.md               # Contribution guidelines
+├── iris-thaumantias/             # VS Code extension package
+│   ├── src/
+│   │   ├── extension.ts          # Entry point & activation
+│   │   ├── extension/            # Extension host code
+│   │   │   ├── activation/       # Command registration, wiring
+│   │   │   ├── api/              # Artemis REST API client
+│   │   │   ├── controller/       # Message handling, state, routing
+│   │   │   │   └── commands/     # Command handlers by domain
+│   │   │   ├── models/           # Domain model classes
+│   │   │   ├── provider/         # Webview providers, CodeLens
+│   │   │   ├── services/         # Business logic by domain
+│   │   │   │   ├── auth/         # Authentication & consent
+│   │   │   │   ├── iris/         # AI chat features
+│   │   │   │   ├── telemetry/    # Struggle detection, recording
+│   │   │   │   ├── ui/           # UI orchestration services
+│   │   │   │   ├── websocket/    # Real-time updates (STOMP)
+│   │   │   │   └── workspace/    # Git, file monitoring
+│   │   │   ├── types/            # Domain types & ambient shims
+│   │   │   └── utils/            # Shared utilities
+│   │   ├── shared/               # Cross-runtime types
+│   │   │   ├── messageContracts/ # Extension↔Webview messaging
+│   │   │   └── types/            # Shared API response types
+│   │   └── webview/              # React frontend
+│   │       ├── components/       # Reusable UI components
+│   │       ├── views/            # Page-level views
+│   │       ├── stores/           # Zustand state stores
+│   │       ├── hooks/            # Custom React hooks
+│   │       └── styles/           # Base CSS
+│   ├── test/                     # Test suites
+│   │   ├── unit/                 # Extension host tests
+│   │   └── react/                # React component tests
+│   └── docs/                     # Developer guide, ADRs, diagrams
+└── recording-viewer/             # Standalone session recording viewer (Vite/React)
 ```
 
 ### Key Architecture Components
 
-#### Extension Entry Point
-- **`extension.ts`**: Activates the extension, registers commands, and initializes webview providers
+#### Runtime Split
+The codebase separates into three runtimes:
+- **`extension/`**: VS Code extension host (Node.js) — services, providers, controllers
+- **`webview/`**: React frontend rendered in VS Code webview panels
+- **`shared/`**: Types and message contracts used by both runtimes
 
-#### API Layer
-- **`artemisApi.ts`**: Handles all REST API communication with Artemis server
-- Supports authentication, course retrieval, exercise management, and Iris interactions
+#### Extension Host
+- **`controller/`**: Coordinates webview messages via command modules, manages app state
+- **`provider/`**: VS Code webview providers (sidebar, chat, fullscreen panels)
+- **`services/`**: Domain-organized business logic (auth, iris, telemetry, websocket, workspace, ui)
+- **`api/`**: REST client for Artemis server communication
 
-#### Authentication
-- **`auth.ts`**: Manages user login, JWT tokens, and secure credential storage
-- Uses VS Code's Secret Storage API for security
-
-#### Services
-- **`artemisWebsocketService.ts`**: Maintains WebSocket connection for real-time notifications
-- Uses STOMP protocol over WebSocket for message handling
-
-#### Views
-- **Providers**: Create and manage webview panels
-- **Templates**: Generate HTML for different views
-- **App State**: Manages application state and view routing
-- **Commands**: Handle user actions from webviews
+#### Webview (React)
+- **`views/`**: Page components (Dashboard, CourseList, ExerciseDetail, IrisChat, etc.)
+- **`components/`**: Shared UI components (Button, Badge, List, etc.)
+- **`stores/`**: Zustand stores hydrated from extension messages
 
 #### Styling
-- Webviews inherit the active VS Code theme through native color tokens
-- `media/styles/base.css` defines shared variables mapped to VS Code theme colors
+- CSS Modules for component-scoped styles
+- VS Code theme integration via native CSS custom properties
 
 ### Available Scripts
 
@@ -313,7 +283,8 @@ artemis-extension/
 - `npm run package` - Build production bundle
 - `npm run lint` - Run ESLint
 - `npm run check-types` - Type check without emitting
-- `npm run test` - Run tests
+- `npm run test:unit` - Run unit tests
+- `npm run test:react` - Run React tests
 
 ### Running the Extension Locally
 

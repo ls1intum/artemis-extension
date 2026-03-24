@@ -1,7 +1,9 @@
 import * as vscode from 'vscode';
 import type { AuthManager } from '../services/auth';
 import type { ArtemisApiService } from '../api';
-import type { ArtemisWebsocketService, IProviderRegistry, TelemetryManager } from '../services';
+import type { ArtemisWebsocketService } from '../services/websocket';
+import type { IProviderRegistry } from '../services/ui';
+import type { TelemetryManager } from '../services/telemetry';
 import type { ArtemisWebviewProvider, ChatWebviewProvider } from '../provider';
 import { logger, LogCategory } from '../services/loggingService';
 import { processPlantUml, normalizeRelativePath } from '../utils';

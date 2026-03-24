@@ -9,7 +9,7 @@ import type {
 } from '../../../shared/messageContracts';
 import { VSCODE_CONFIG, extractErrorMessage, BuildLogParser } from '../../utils';
 import { checkWorkspaceFiles } from '../../services/workspace/workspaceFileChecker';
-import { normalizeRepositoryUrl, getWorkspaceRepositoryUrl, getWorkspaceStatus, GitService } from '../../services';
+import { normalizeRepositoryUrl, getWorkspaceRepositoryUrl, getWorkspaceStatus, GitService } from '../../services/workspace';
 import { logger, LogCategory } from '../../services/loggingService';
 
 const GIT_IDENTITY_NOT_CONFIGURED = 'GIT_IDENTITY_NOT_CONFIGURED';

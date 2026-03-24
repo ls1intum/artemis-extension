@@ -6,7 +6,9 @@ import type { BuildErrorCodeLensProvider } from '../../../src/extension/provider
 import { MockExtensionContext } from '../mocks/vscodeMocks';
 import { AuthManager } from '../../../src/extension/services/auth';
 import { ArtemisApiService } from '../../../src/extension/api';
-import { ArtemisWebsocketService, ExerciseRegistry, TelemetryManager } from '../../../src/extension/services';
+import { ArtemisWebsocketService } from '../../../src/extension/services/websocket';
+import { ExerciseRegistry } from '../../../src/extension/services/exerciseRegistry';
+import { TelemetryManager } from '../../../src/extension/services/telemetry';
 import { ProviderRegistry } from '../../../src/extension/services/ui/providerRegistry';
 
 class MockAuthManager extends AuthManager {

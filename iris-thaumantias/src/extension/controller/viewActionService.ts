@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 import { logger, LogCategory } from '../services/loggingService';
 import type { ArtemisApiService } from '../api';
 import { AppStateManager } from './appStateManager';
-import { fetchAndEnrichExerciseDetails } from './dataLoader';
+import { fetchAndEnrichExerciseDetails } from './exerciseDataLoader';
 import type { ExerciseDetail } from '../types';
 
 /**

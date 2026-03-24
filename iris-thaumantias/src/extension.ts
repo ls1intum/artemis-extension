@@ -2,11 +2,17 @@ import * as vscode from 'vscode';
 import { ArtemisWebviewProvider, ChatWebviewProvider, BuildErrorCodeLensProvider } from './extension/provider';
 import { AuthManager } from './extension/services/auth';
 import { ArtemisApiService } from './extension/api';
-import { ArtemisWebsocketService, TelemetryManager, WebSocketStatusBarService, NoAiDetectionService, ConsentService, ExerciseRegistry, ProviderRegistry, logger, LogCategory } from './extension/services';
+import { ArtemisWebsocketService, WebSocketStatusBarService } from './extension/services/websocket';
+import { TelemetryManager } from './extension/services/telemetry';
+import type { SessionRecorder } from './extension/services/telemetry';
+import { NoAiDetectionService } from './extension/services/workspace';
+import { ConsentService } from './extension/services/auth';
+import { ExerciseRegistry } from './extension/services/exerciseRegistry';
+import { ProviderRegistry } from './extension/services/ui';
+import { logger, LogCategory } from './extension/services/loggingService';
 import { VSCODE_CONFIG } from './extension/utils';
 import { registerAllCommands } from './extension/activation/extensionCommands';
 import { wireSessionRecorder } from './extension/activation/sessionRecorderWiring';
-import type { SessionRecorder } from './extension/services';
 
 // Module-level references for deactivate() cleanup
 let activeTelemetryManager: TelemetryManager | undefined;

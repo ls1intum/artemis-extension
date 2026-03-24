@@ -2,7 +2,10 @@ import type * as vscode from 'vscode';
 import type { ArtemisApiService } from '../../api';
 import type { AppStateManager } from '../appStateManager';
 import type { WebViewActionHandler } from '../types';
-import type { AuthManager, ArtemisWebsocketService, ExerciseRegistry, IProviderRegistry } from '../../services';
+import type { AuthManager } from '../../services/auth';
+import type { ArtemisWebsocketService } from '../../services/websocket';
+import type { ExerciseRegistry } from '../../services/exerciseRegistry';
+import type { IProviderRegistry } from '../../services/ui';
 import type { WebviewToExtensionMessage, ExtensionToWebviewMessage } from '../../../shared/messageContracts';
 
 export type CommandHandler = (message: WebviewToExtensionMessage) => Promise<void>;

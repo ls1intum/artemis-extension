@@ -10,27 +10,14 @@ import { ExtensionMsg, WebviewCmd, getPayload } from '../../shared/messageContra
 import type { WebCmd, WebviewToExtensionMessage } from '../../shared/messageContracts';
 import { openSettings, openFileInWorkspace } from '../controller/commands/utilityCommands';
 import { ArtemisApiService } from '../api';
-import {
-    ArtemisWebsocketService,
-    FileMonitorService,
-    IrisWebSocketSessionClient,
-    ChatDiagnosticsService,
-    IrisChatSessionService,
-    ChatMessageService,
-    ChatContextManager,
-    IrisWebSocketMessageHandler,
-    ContextStore,
-    TelemetryManager,
-    StruggleContext,
-    NoAiDetectionService,
-    ExerciseRegistry,
-    detectAndRegisterWorkspaceExercise,
-    getReactWebviewHtml,
-    IRIS_CHAT_HELP_MARKDOWN,
-    logger, LogCategory,
-    type IrisServiceDeps,
-    type ChatContextReason,
-} from '../services';
+import { ArtemisWebsocketService, IrisWebSocketMessageHandler } from '../services/websocket';
+import { FileMonitorService, NoAiDetectionService, detectAndRegisterWorkspaceExercise } from '../services/workspace';
+import { IrisWebSocketSessionClient, ChatDiagnosticsService, IrisChatSessionService, ChatMessageService, ChatContextManager, ContextStore, IRIS_CHAT_HELP_MARKDOWN } from '../services/iris';
+import type { IrisServiceDeps, ChatContextReason } from '../services/iris';
+import { TelemetryManager, type StruggleContext } from '../services/telemetry';
+import { ExerciseRegistry } from '../services/exerciseRegistry';
+import { getReactWebviewHtml } from '../services/ui';
+import { logger, LogCategory } from '../services/loggingService';
 
 export interface ExerciseContextChangeEvent {
     exerciseId: number;

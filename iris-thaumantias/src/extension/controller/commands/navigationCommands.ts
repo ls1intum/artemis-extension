@@ -10,7 +10,7 @@ import type {
     CourseDetailData,
 } from '../../../shared/messageContracts';
 import { toCourseDetailData } from '../../../shared/messageContracts';
-import { fetchAndEnrichExerciseDetails, fetchArchivedCourseDetail } from '../dataLoader';
+import { fetchAndEnrichExerciseDetails, fetchArchivedCourseDetail } from '../exerciseDataLoader';
 import type {
     CourseDashboardCourse,
     CourseDashboardEntry,
