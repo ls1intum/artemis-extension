@@ -59,6 +59,59 @@ const DEFAULT_OPTIONS: Required<ContextStoreOptions> = {
     courseHistoryLimit: 30,
 };
 
+// ── Priority constants ────────────────────────────────────────────
+const PRIORITY = {
+    WORKSPACE_BOOST: 1000,
+    RECENTLY_RELEASED: 100,
+    DUE_SOON_MAX: 200,
+    DUE_SOON_FLOOR: 170,
+    VIEWED_RECENTLY: 50,
+    FULLY_SCORED_PENALTY: -100,
+    COURSE_VIEWED_RECENTLY: 100,
+} as const;
+
+const TIME_WINDOW = {
+    RECENT_RELEASE_DAYS: 7,
+    DUE_SOON_DAYS: 7,
+    VIEWED_RECENTLY_HOURS: 24,
+} as const;
+
+const ARCHIVE_LIMITS = {
+    ALL_EXERCISES: 1000,
+    ALL_COURSES: 400,
+} as const;
+
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
+const MS_PER_HOUR = 60 * 60 * 1000;
+
+// ── Comparators ───────────────────────────────────────────────────
+
+/** Sort by priority descending, break ties by most-recently-viewed. */
+function byPriorityThenRecency(
+    a: { priority: number; lastViewed?: number },
+    b: { priority: number; lastViewed?: number },
+): number {
+    return b.priority - a.priority || (b.lastViewed ?? 0) - (a.lastViewed ?? 0);
+}
+
+/** Sort by lastViewed descending (most recent first). */
+function byLastViewedDesc(
+    a: { lastViewed?: number },
+    b: { lastViewed?: number },
+): number {
+    return (b.lastViewed ?? 0) - (a.lastViewed ?? 0);
+}
+
+/** Sort by lastActivity descending (most recent first). */
+function byLastActivityDesc(
+    a: { lastActivity: number },
+    b: { lastActivity: number },
+): number {
+    return b.lastActivity - a.lastActivity;
+}
+
+// ── Utilities ─────────────────────────────────────────────────────
+
 const SESSION_KEY_SEPARATOR = ':';
 
 function getContextKey(type: ChatContextType, id: number): string {
@@ -138,10 +191,10 @@ export class ContextStore {
             sessions.find(session => session.id === this.state.activeSessionId) ?? sessions[0] ?? null;
 
         const recentExercises = [...this.state.recentExercises]
-            .sort((a, b) => b.priority - a.priority || (b.lastViewed ?? 0) - (a.lastViewed ?? 0))
+            .sort(byPriorityThenRecency)
             .slice(0, this.options.maxRecentExercises);
         const recentCourses = [...this.state.recentCourses]
-            .sort((a, b) => b.priority - a.priority || (b.lastViewed ?? 0) - (a.lastViewed ?? 0))
+            .sort(byPriorityThenRecency)
             .slice(0, this.options.maxRecentCourses);
 
         const allExercises = [...this.state.allExercises].sort((a, b) =>
@@ -393,12 +446,7 @@ export class ContextStore {
         const key = getContextKey(active.type, active.id);
         const sessions = this.state.sessions[key] ?? [];
         if (sessions.length > 0) {
-            // Sort sessions by lastActivity, newest first
-            const sortedSessions = [...sessions].sort((a, b) => {
-                const dateA = new Date(a.lastActivity).getTime();
-                const dateB = new Date(b.lastActivity).getTime();
-                return dateB - dateA;
-            });
+            const sortedSessions = [...sessions].sort(byLastActivityDesc);
             this.state.activeSessionId = sortedSessions[0].id;
             this.saveState();
         }
@@ -599,19 +647,14 @@ export class ContextStore {
         if (!sessions || sessions.length === 0) {
             this.createSession();
         } else {
-            // Sort sessions by lastActivity, newest first
-            const sortedSessions = [...sessions].sort((a, b) => {
-                const dateA = new Date(a.lastActivity).getTime();
-                const dateB = new Date(b.lastActivity).getTime();
-                return dateB - dateA;
-            });
+            const sortedSessions = [...sessions].sort(byLastActivityDesc);
             this.state.activeSessionId = sortedSessions[0].id;
         }
     }
 
     private autoSelectContext(): void {
         const bestExercise = [...this.state.recentExercises]
-            .sort((a, b) => b.priority - a.priority || (b.lastViewed ?? 0) - (a.lastViewed ?? 0))[0];
+            .sort(byPriorityThenRecency)[0];
         if (bestExercise) {
             this.state.activeContext = {
                 type: 'exercise',
@@ -628,7 +671,7 @@ export class ContextStore {
         }
 
         const bestCourse = [...this.state.recentCourses]
-            .sort((a, b) => b.priority - a.priority || (b.lastViewed ?? 0) - (a.lastViewed ?? 0))[0];
+            .sort(byPriorityThenRecency)[0];
         if (bestCourse) {
             this.state.activeContext = {
                 type: 'course',
@@ -646,26 +689,26 @@ export class ContextStore {
     private trimExerciseHistory(): void {
         if (this.state.recentExercises.length > this.options.exerciseHistoryLimit) {
             this.state.recentExercises = this.state.recentExercises
-                .sort((a, b) => b.priority - a.priority || (b.lastViewed ?? 0) - (a.lastViewed ?? 0))
+                .sort(byPriorityThenRecency)
                 .slice(0, this.options.exerciseHistoryLimit);
         }
-        if (this.state.allExercises.length > 1000) {
+        if (this.state.allExercises.length > ARCHIVE_LIMITS.ALL_EXERCISES) {
             this.state.allExercises = this.state.allExercises
-                .sort((a, b) => (b.lastViewed ?? 0) - (a.lastViewed ?? 0))
-                .slice(0, 1000);
+                .sort(byLastViewedDesc)
+                .slice(0, ARCHIVE_LIMITS.ALL_EXERCISES);
         }
     }
 
     private trimCourseHistory(): void {
         if (this.state.recentCourses.length > this.options.courseHistoryLimit) {
             this.state.recentCourses = this.state.recentCourses
-                .sort((a, b) => b.priority - a.priority || (b.lastViewed ?? 0) - (a.lastViewed ?? 0))
+                .sort(byPriorityThenRecency)
                 .slice(0, this.options.courseHistoryLimit);
         }
-        if (this.state.allCourses.length > 400) {
+        if (this.state.allCourses.length > ARCHIVE_LIMITS.ALL_COURSES) {
             this.state.allCourses = this.state.allCourses
-                .sort((a, b) => (b.lastViewed ?? 0) - (a.lastViewed ?? 0))
-                .slice(0, 400);
+                .sort(byLastViewedDesc)
+                .slice(0, ARCHIVE_LIMITS.ALL_COURSES);
         }
     }
 
@@ -686,42 +729,45 @@ export class ContextStore {
     private calculateExercisePriority(exercise: TrackedExercise): number {
         const current = now();
         let priority = 0;
-        const msPerDay = 24 * 60 * 60 * 1000;
 
         if (exercise.isWorkspace) {
-            priority += 1000;
+            priority += PRIORITY.WORKSPACE_BOOST;
         }
 
         if (exercise.releaseDate) {
             const releaseTime = new Date(exercise.releaseDate).getTime();
-            const daysSinceRelease = (current - releaseTime) / msPerDay;
-            if (daysSinceRelease >= 0 && daysSinceRelease <= 7) {
-                priority += 100;
+            const daysSinceRelease = (current - releaseTime) / MS_PER_DAY;
+            if (daysSinceRelease >= 0 && daysSinceRelease <= TIME_WINDOW.RECENT_RELEASE_DAYS) {
+                priority += PRIORITY.RECENTLY_RELEASED;
             }
         }
 
         if (exercise.dueDate) {
             const dueTime = new Date(exercise.dueDate).getTime();
-            const daysUntilDue = (dueTime - current) / msPerDay;
-            if (daysUntilDue >= 0 && daysUntilDue <= 7) {
-                priority += Math.max(200 - Math.floor(daysUntilDue * 30 / 7), 170);
+            const daysUntilDue = (dueTime - current) / MS_PER_DAY;
+            if (daysUntilDue >= 0 && daysUntilDue <= TIME_WINDOW.DUE_SOON_DAYS) {
+                // Higher urgency closer to deadline (scales from DUE_SOON_MAX down to DUE_SOON_FLOOR)
+                const dueSoonSpread = PRIORITY.DUE_SOON_MAX - PRIORITY.DUE_SOON_FLOOR;
+                const urgencyDecay = Math.floor(daysUntilDue * dueSoonSpread / TIME_WINDOW.DUE_SOON_DAYS);
+                priority += Math.max(PRIORITY.DUE_SOON_MAX - urgencyDecay, PRIORITY.DUE_SOON_FLOOR);
             }
         }
 
         if (exercise.lastViewed) {
-            const hoursSinceView = (current - exercise.lastViewed) / (60 * 60 * 1000);
-            if (hoursSinceView <= 24) {
-                priority += 50;
+            const hoursSinceView = (current - exercise.lastViewed) / MS_PER_HOUR;
+            if (hoursSinceView <= TIME_WINDOW.VIEWED_RECENTLY_HOURS) {
+                priority += PRIORITY.VIEWED_RECENTLY;
             }
         }
 
+        // Tiny tiebreaker: newer releases rank slightly higher
         if (exercise.releaseDate) {
             const releaseTime = new Date(exercise.releaseDate).getTime();
-            priority += Math.floor(releaseTime / msPerDay / 1000);
+            priority += Math.floor(releaseTime / MS_PER_DAY / 1000);
         }
 
         if (exercise.score === 100) {
-            priority -= 100;
+            priority += PRIORITY.FULLY_SCORED_PENALTY;
         }
 
         return priority;
@@ -732,13 +778,14 @@ export class ContextStore {
         let priority = 0;
 
         if (course.lastViewed) {
-            const hoursSinceView = (current - course.lastViewed) / (60 * 60 * 1000);
-            if (hoursSinceView <= 24) {
-                priority += 100;
+            const hoursSinceView = (current - course.lastViewed) / MS_PER_HOUR;
+            if (hoursSinceView <= TIME_WINDOW.VIEWED_RECENTLY_HOURS) {
+                priority += PRIORITY.COURSE_VIEWED_RECENTLY;
             }
         }
 
-        priority += Math.floor(((course.lastViewed ?? current) / (24 * 60 * 60 * 1000)) / 1000);
+        // Tiny tiebreaker: more recently viewed courses rank slightly higher
+        priority += Math.floor(((course.lastViewed ?? current) / MS_PER_DAY) / 1000);
         return priority;
     }
 }

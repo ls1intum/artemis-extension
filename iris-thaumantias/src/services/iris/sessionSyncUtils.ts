@@ -51,11 +51,10 @@ export function importSessionsToStore(
         return 0;
     }
 
-    // Sort by creation date (newest first)
     sessions.sort((a, b) => {
-        const dateA = a.creationDate ? new Date(a.creationDate).getTime() : 0;
-        const dateB = b.creationDate ? new Date(b.creationDate).getTime() : 0;
-        return dateB - dateA;
+        const timeA = a.creationDate ? new Date(a.creationDate).getTime() : 0;
+        const timeB = b.creationDate ? new Date(b.creationDate).getTime() : 0;
+        return timeB - timeA; // newest first
     });
 
     for (const session of sessions) {
