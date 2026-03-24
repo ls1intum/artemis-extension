@@ -3,7 +3,6 @@ import { promisify } from 'util';
 import { execFile } from 'child_process';
 import type { ArtemisApiService } from '../../api';
 import type { CourseDashboardEntry } from '../../types/apiResponses';
-import type { ContextStore } from '../iris/contextStore';
 import { ExerciseRegistry } from '../exerciseRegistry';
 import { logger } from '../loggingService';
 import { checkWorkspaceFiles } from './workspaceFileChecker';
@@ -370,10 +369,22 @@ export async function findWorkspaceCourseInArchive(
  * Detect workspace exercise with registry population fallback, then register it in a ContextStore.
  * Used by ChatWebviewProvider to auto-detect the workspace exercise on load.
  */
+export interface WorkspaceRegistrationCallbacks {
+    registerExercise: (input: {
+        id: number;
+        title: string;
+        shortName?: string;
+        courseId?: number;
+        repositoryUri?: string;
+        source: 'workspace-detected';
+        isWorkspace: true;
+    }) => void;
+    clearStaleWorkspaceContext: () => void;
+}
+
 export async function detectAndRegisterWorkspaceExercise(
     artemisApiService: ArtemisApiService | undefined,
-    contextStore: ContextStore,
-    postSnapshot: () => void,
+    callbacks: WorkspaceRegistrationCallbacks,
     exerciseRegistry: ExerciseRegistry,
 ): Promise<void> {
 
@@ -435,19 +446,14 @@ export async function detectAndRegisterWorkspaceExercise(
         }
 
         if (!detected) {
-            const current = contextStore.getActiveContext();
-            if (current && current.source === 'workspace-detected') {
-                logger.irisChat(`Clearing stale workspace context: ${current.title}`);
-                contextStore.clearActiveContext();
-                postSnapshot();
-            }
+            callbacks.clearStaleWorkspaceContext();
             return;
         }
 
         const baseTitle = detected.title.replace(/ \(Workspace\)$/i, '');
         const displayTitle = `${baseTitle} (Workspace)`;
 
-        contextStore.registerExercise({
+        callbacks.registerExercise({
             id: detected.id,
             title: displayTitle,
             shortName: detected.shortName,
@@ -456,8 +462,6 @@ export async function detectAndRegisterWorkspaceExercise(
             source: 'workspace-detected',
             isWorkspace: true,
         });
-
-        postSnapshot();
     } catch {
         // Not a git repository or command failed - ignore silently
     }

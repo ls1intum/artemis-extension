@@ -1,9 +1,56 @@
 import { IrisChatSessionService } from './chatSessionService';
 import { IrisWebSocketSessionClient } from './irisWebSocketSessionClient';
-import { ActiveContext, ChatContextType, TrackedExercise } from '../../types';
+import { ActiveContext, ChatContextType, ContextSnapshot, TrackedExercise } from '../../types';
 import { logger, LogCategory } from '../loggingService';
 import { ExtensionMsg } from '../../shared/messageContracts';
 import type { IrisServiceDeps } from './sessionSyncUtils';
+
+// ── Policy helpers (pure functions) ──────────────────────────────
+
+export function pickBestContext(snapshot: ContextSnapshot): ActiveContext | null {
+    const exercises = [...snapshot.recentExercises].sort((a, b) =>
+        b.priority - a.priority || (b.lastViewed ?? 0) - (a.lastViewed ?? 0)
+    );
+    const best = exercises[0];
+    if (best) {
+        return {
+            type: 'exercise',
+            id: best.id,
+            title: best.title,
+            shortName: best.shortName,
+            courseId: best.courseId,
+            source: 'system-default',
+            locked: false,
+            selectedAt: Date.now(),
+        };
+    }
+
+    const courses = [...snapshot.recentCourses].sort((a, b) =>
+        b.priority - a.priority || (b.lastViewed ?? 0) - (a.lastViewed ?? 0)
+    );
+    const bestCourse = courses[0];
+    if (bestCourse) {
+        return {
+            type: 'course',
+            id: bestCourse.id,
+            title: bestCourse.title,
+            shortName: bestCourse.shortName,
+            source: 'system-default',
+            locked: false,
+            selectedAt: Date.now(),
+        };
+    }
+
+    return null;
+}
+
+export function shouldOverrideWithWorkspace(
+    active: ActiveContext | null,
+    detected: TrackedExercise,
+): boolean {
+    const isDifferentExercise = !active || active.id !== detected.id;
+    return isDifferentExercise || active!.source !== 'user-selected';
+}
 
 export type ChatContextReason =
     | 'user-selected'
@@ -147,6 +194,86 @@ export class ChatContextManager {
         shortName?: string,
     ): void {
         this.switchContext({ type: 'course', id: courseId, title: courseTitle, shortName, reason });
+    }
+
+    // ── Registration with auto-select policy ───────────────────────────
+
+    public registerExerciseAndAutoSelect(input: {
+        id: number;
+        title: string;
+        shortName?: string;
+        courseId?: number;
+        releaseDate?: string;
+        dueDate?: string;
+        source?: 'workspace-detected' | 'user-selected' | 'system-default';
+        isWorkspace?: boolean;
+    }): void {
+        this.deps.contextStore.registerExercise(input);
+
+        if (input.source === 'workspace-detected') {
+            const active = this.deps.contextStore.getActiveContext();
+            const exercise = this.deps.contextStore.getExerciseById(input.id);
+            if (exercise && shouldOverrideWithWorkspace(active, exercise)) {
+                logger.context('Source is workspace-detected, setting active context to workspace exercise');
+                this.deps.contextStore.setActiveContext({
+                    type: 'exercise',
+                    id: exercise.id,
+                    title: exercise.title,
+                    shortName: exercise.shortName,
+                    courseId: exercise.courseId,
+                    source: 'workspace-detected',
+                    locked: true,
+                    selectedAt: Date.now(),
+                });
+            }
+        } else if (!this.deps.contextStore.getActiveContext()) {
+            this._autoSelectFromSnapshot();
+        }
+
+        this.deps.postSnapshot();
+    }
+
+    public registerCourseAndAutoSelect(input: {
+        id: number;
+        title: string;
+        shortName?: string;
+        source?: 'workspace-detected' | 'user-selected' | 'system-default';
+    }): void {
+        this.deps.contextStore.registerCourse(input);
+
+        if (!this.deps.contextStore.getActiveContext()) {
+            this._autoSelectFromSnapshot();
+        }
+
+        this.deps.postSnapshot();
+    }
+
+    public removeExerciseAndAutoSelect(exerciseId: number): void {
+        this.deps.contextStore.removeExercise(exerciseId);
+
+        if (!this.deps.contextStore.getActiveContext()) {
+            this._autoSelectFromSnapshot();
+        }
+
+        this.deps.postSnapshot();
+    }
+
+    public removeCourseAndAutoSelect(courseId: number): void {
+        this.deps.contextStore.removeCourse(courseId);
+
+        if (!this.deps.contextStore.getActiveContext()) {
+            this._autoSelectFromSnapshot();
+        }
+
+        this.deps.postSnapshot();
+    }
+
+    private _autoSelectFromSnapshot(): void {
+        const snapshot = this.deps.contextStore.snapshot();
+        const best = pickBestContext(snapshot);
+        if (best) {
+            this.deps.contextStore.setActiveContext(best);
+        }
     }
 
     // ── Non-switch helpers ──────────────────────────────────────────────

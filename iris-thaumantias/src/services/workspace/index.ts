@@ -16,4 +16,5 @@ export {
     type DetectedExercise,
     type ExerciseSource,
     type WorkspaceStatus,
+    type WorkspaceRegistrationCallbacks,
 } from './workspaceDetectionService';

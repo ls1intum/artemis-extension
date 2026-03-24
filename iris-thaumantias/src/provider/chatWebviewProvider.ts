@@ -282,7 +282,7 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
         shortName?: string,
         courseId?: number,
     ): void {
-        this._contextStore.registerExercise({
+        this._chatContextManager.registerExerciseAndAutoSelect({
             id: exerciseId,
             title: exerciseTitle,
             shortName,
@@ -292,27 +292,23 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
             source: 'system-default',
             isWorkspace: /\\(Workspace\\)/i.test(exerciseTitle),
         });
-        this._viewStatePresenter.postSnapshot();
     }
 
     public removeDetectedExercise(exerciseId: number): void {
-        this._contextStore.removeExercise(exerciseId);
-        this._viewStatePresenter.postSnapshot();
+        this._chatContextManager.removeExerciseAndAutoSelect(exerciseId);
     }
 
     public updateDetectedCourse(courseTitle: string, courseId: number, shortName?: string): void {
-        this._contextStore.registerCourse({
+        this._chatContextManager.registerCourseAndAutoSelect({
             id: courseId,
             title: courseTitle,
             shortName,
             source: 'system-default',
         });
-        this._viewStatePresenter.postSnapshot();
     }
 
     public removeDetectedCourse(courseId: number): void {
-        this._contextStore.removeCourse(courseId);
-        this._viewStatePresenter.postSnapshot();
+        this._chatContextManager.removeCourseAndAutoSelect(courseId);
     }
 
     public createNewSession(): void {
@@ -496,8 +492,17 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
     private async _detectWorkspaceExercise(): Promise<void> {
         await detectAndRegisterWorkspaceExercise(
             this._artemisApiService,
-            this._contextStore,
-            () => this._viewStatePresenter.postSnapshot(),
+            {
+                registerExercise: (input) => this._chatContextManager.registerExerciseAndAutoSelect(input),
+                clearStaleWorkspaceContext: () => {
+                    const current = this._contextStore.getActiveContext();
+                    if (current && current.source === 'workspace-detected') {
+                        logger.info(`Clearing stale workspace context: ${current.title}`, LogCategory.IRIS_CHAT);
+                        this._contextStore.clearActiveContext();
+                        this._viewStatePresenter.postSnapshot();
+                    }
+                },
+            },
             this._exerciseRegistry,
         );
     }
