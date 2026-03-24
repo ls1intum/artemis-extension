@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { ArtemisWebsocketService } from '../websocket/artemisWebsocketService';
 import { IrisWebSocketSessionClient } from './irisWebSocketSessionClient';
+import { IrisChatSessionService } from './chatSessionService';
 import { ActiveContext } from '../../types';
 import { checkWorkspaceFiles } from '../workspace/workspaceFileChecker';
 import { StruggleContext } from '../telemetry';
@@ -13,7 +14,7 @@ export class ChatMessageService {
         private readonly deps: IrisServiceDeps,
         private readonly _websocketService: ArtemisWebsocketService | undefined,
         private readonly _getIrisWebSocketSessionClient: () => IrisWebSocketSessionClient | undefined,
-        private readonly _initializeIrisSession: (context: ActiveContext) => Promise<void>,
+        private readonly _chatSessionService: IrisChatSessionService,
     ) { }
 
     public async handleChatMessage(messageText: string, activeContext: ActiveContext, struggleContext?: StruggleContext): Promise<void> {
@@ -134,7 +135,9 @@ export class ChatMessageService {
 
         if (!irisSessionManager?.currentSessionId) {
             logger.websocket('🆕 No active session found, initializing new Iris session...');
-            await this._initializeIrisSession(activeContext);
+            if (irisSessionManager) {
+                await this._chatSessionService.initializeIrisSessionAndLoadMessages(activeContext, irisSessionManager);
+            }
         } else {
             logger.websocket(`✅ Using existing Iris session: ${irisSessionManager.currentSessionId}`);
         }

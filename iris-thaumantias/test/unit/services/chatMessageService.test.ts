@@ -2,6 +2,7 @@ import * as assert from 'assert';
 import * as vscode from 'vscode';
 import * as sinon from 'sinon';
 import { ChatMessageService } from '../../../src/services/iris/chatMessageService';
+import { IrisChatSessionService } from '../../../src/services/iris/chatSessionService';
 import { ContextStore } from '../../../src/services/iris/contextStore';
 import { ArtemisApiService } from '../../../src/api';
 import { MockExtensionContext } from '../mocks/vscodeMocks';
@@ -13,7 +14,7 @@ suite('ChatMessageService', () => {
     let contextStore: ContextStore;
     let mockApiService: sinon.SinonStubbedInstance<ArtemisApiService>;
     let postMessageSpy: sinon.SinonSpy;
-    let initializeIrisSessionStub: sinon.SinonStub;
+    let mockChatSessionService: sinon.SinonStubbedInstance<IrisChatSessionService>;
     let postSnapshotSpy: sinon.SinonSpy;
     let checkWorkspaceFilesStub: sinon.SinonStub;
     let configGetStub: sinon.SinonStub;
@@ -55,7 +56,7 @@ suite('ChatMessageService', () => {
             },
             { isConnected: () => true, ensureConnection: sandbox.stub().resolves(true) } as any,
             () => mockSessionManager as any,
-            initializeIrisSessionStub,
+            mockChatSessionService as any,
         );
         return service;
     }
@@ -70,7 +71,8 @@ suite('ChatMessageService', () => {
         mockApiService.sendChatMessage.resolves();
 
         postMessageSpy = sinon.spy();
-        initializeIrisSessionStub = sinon.stub().resolves();
+        mockChatSessionService = sinon.createStubInstance(IrisChatSessionService);
+        mockChatSessionService.initializeIrisSessionAndLoadMessages.resolves();
         postSnapshotSpy = sinon.spy();
 
         mockSessionManager = { currentSessionId: 42 };

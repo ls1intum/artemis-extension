@@ -113,9 +113,7 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
             deps,
             this._websocketService,
             () => this._irisSessionManager,
-            (context) => this._irisSessionManager
-                ? this._chatSessionService.initializeIrisSessionAndLoadMessages(context, this._irisSessionManager)
-                : Promise.resolve(),
+            this._chatSessionService,
         );
         this._chatContextManager = new ChatContextManager(
             deps,
