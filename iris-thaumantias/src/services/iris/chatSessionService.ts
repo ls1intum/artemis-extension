@@ -12,7 +12,6 @@ export class IrisChatSessionService {
     constructor(
         private readonly deps: IrisServiceDeps,
         private readonly _getIrisWebSocketSessionClient: () => IrisWebSocketSessionClient | undefined,
-        private readonly _resetToWorkspace: () => void,
     ) { }
 
     public get contextLoadToken(): number {
@@ -304,14 +303,6 @@ export class IrisChatSessionService {
 
     public createNewSession(): void {
         logger.info('Creating new session', LogCategory.IRIS_CHAT);
-
-        // If workspace exercise exists and we're not in workspace context, switch back
-        const workspaceExercise = this.deps.contextStore.getWorkspaceExercise();
-        const currentContext = this.deps.contextStore.getActiveContext();
-        if (workspaceExercise && currentContext?.source !== 'workspace-detected') {
-            this._resetToWorkspace();
-            return; // switchContext in the provider already handles session creation
-        }
 
         const irisSessionManager = this._getIrisWebSocketSessionClient();
         if (irisSessionManager) {

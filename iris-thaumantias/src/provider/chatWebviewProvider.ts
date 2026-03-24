@@ -107,7 +107,6 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
         this._chatSessionService = new IrisChatSessionService(
             deps,
             () => this._irisSessionManager,
-            () => this._handleSwitchToWorkspaceContext(),
         );
         this._chatMessageService = new ChatMessageService(
             deps,
@@ -317,6 +316,13 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
     }
 
     public createNewSession(): void {
+        // If workspace exercise exists and we're not in workspace context, switch back
+        const workspaceExercise = this._contextStore.getWorkspaceExercise();
+        const currentContext = this._contextStore.getActiveContext();
+        if (workspaceExercise && currentContext?.source !== 'workspace-detected') {
+            this._handleSwitchToWorkspaceContext();
+            return;
+        }
         this._chatSessionService.createNewSession();
     }
 
@@ -542,52 +548,44 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
     }
 
     private async _handleChatMessage(message: { text?: string }): Promise<void> {
-        // Check if .noai file is detected first
-        if (this._noAiDetectionService.isNoAiEnabled) {
-            logger.warn('Chat blocked: .noai file detected', LogCategory.IRIS_CHAT);
-            this._postNoAiStatus(true);
-            return;
-        }
+        if (typeof message.text !== 'string') { return; }
 
-        const activeContext = this._contextStore.getActiveContext();
-        if (!activeContext) {
-            logger.warn('No active context', LogCategory.IRIS_CHAT);
-            vscode.window.showErrorMessage('Please select a course or exercise context first');
-            return;
-        }
-
-        // Check if Iris is enabled
-        const isEnabled = await this._chatSessionService.checkAndLoadIrisSettings(activeContext);
-        if (!isEnabled) {
-            // Show disabled overlay when trying to send a message with Iris disabled
-            const contextLabel = activeContext.type === 'course' ? 'course' : 'exercise';
-            this._postMessageSafe({
-                type: ExtensionMsg.ShowDisabledState,
-                message: `Iris chat is not enabled for this ${contextLabel}. Please contact your instructor.`
+        try {
+            const result = await this._chatMessageService.sendMessage({
+                text: message.text,
+                isNoAiEnabled: this._noAiDetectionService.isNoAiEnabled,
+                struggleContext: this.getStruggleContext(),
             });
-            return;
-        }
 
-        // Get struggle context if available
-        const struggleContext = this.getStruggleContext();
-
-        // Delegate to ChatMessageService with struggle context
-        if (typeof message.text === 'string') {
-            try {
-                await this._chatMessageService.handleChatMessage(message.text, activeContext, struggleContext);
-                this._onDidSendIrisChatMessage.fire(message.text);
-            } catch (error: unknown) {
-                const errorMessage = error instanceof Error ? error.message : String(error);
-                vscode.window.showErrorMessage(`Failed to send message: ${errorMessage}`);
-                this._postMessageSafe({
-                    type: ExtensionMsg.AddMessage,
-                    message: {
-                        role: 'assistant',
-                        content: `Error: ${errorMessage}`,
-                        timestamp: Date.now()
-                    }
-                });
+            if (result.sent) {
+                this._onDidSendIrisChatMessage.fire(message.text!);
+            } else {
+                switch (result.reason) {
+                    case 'no-ai':
+                        this._postNoAiStatus(true);
+                        break;
+                    case 'no-context':
+                        vscode.window.showErrorMessage('Please select a course or exercise context first');
+                        break;
+                    case 'iris-disabled':
+                        this._postMessageSafe({
+                            type: ExtensionMsg.ShowDisabledState,
+                            message: `Iris chat is not enabled for this ${result.contextLabel}. Please contact your instructor.`
+                        });
+                        break;
+                }
             }
+        } catch (error: unknown) {
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            vscode.window.showErrorMessage(`Failed to send message: ${errorMessage}`);
+            this._postMessageSafe({
+                type: ExtensionMsg.AddMessage,
+                message: {
+                    role: 'assistant',
+                    content: `Error: ${errorMessage}`,
+                    timestamp: Date.now()
+                }
+            });
         }
     }
 

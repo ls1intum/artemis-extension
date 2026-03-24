@@ -9,6 +9,16 @@ import { logger, LogCategory } from '../loggingService';
 import { ExtensionMsg } from '../../shared/messageContracts';
 import type { IrisServiceDeps } from './sessionSyncUtils';
 
+export interface SendMessageInput {
+    text: string;
+    isNoAiEnabled: boolean;
+    struggleContext?: StruggleContext;
+}
+
+export type SendMessageResult =
+    | { sent: true }
+    | { sent: false; reason: 'no-ai' | 'no-context' | 'iris-disabled'; contextLabel?: string };
+
 export class ChatMessageService {
     constructor(
         private readonly deps: IrisServiceDeps,
@@ -17,7 +27,29 @@ export class ChatMessageService {
         private readonly _chatSessionService: IrisChatSessionService,
     ) { }
 
-    public async handleChatMessage(messageText: string, activeContext: ActiveContext, struggleContext?: StruggleContext): Promise<void> {
+    public async sendMessage(input: SendMessageInput): Promise<SendMessageResult> {
+        if (input.isNoAiEnabled) {
+            logger.warn('Chat blocked: .noai file detected', LogCategory.IRIS_CHAT);
+            return { sent: false, reason: 'no-ai' };
+        }
+
+        const activeContext = this.deps.contextStore.getActiveContext();
+        if (!activeContext) {
+            logger.warn('No active context', LogCategory.IRIS_CHAT);
+            return { sent: false, reason: 'no-context' };
+        }
+
+        const isEnabled = await this._chatSessionService.checkAndLoadIrisSettings(activeContext);
+        if (!isEnabled) {
+            const contextLabel = activeContext.type === 'course' ? 'course' : 'exercise';
+            return { sent: false, reason: 'iris-disabled', contextLabel };
+        }
+
+        await this._sendToIris(input.text, activeContext, input.struggleContext);
+        return { sent: true };
+    }
+
+    private async _sendToIris(messageText: string, activeContext: ActiveContext, struggleContext?: StruggleContext): Promise<void> {
         logger.websocket(`📤 handleChatMessage called with: ${JSON.stringify({ text: messageText?.substring(0, 50) })}`);
 
         if (!messageText) {

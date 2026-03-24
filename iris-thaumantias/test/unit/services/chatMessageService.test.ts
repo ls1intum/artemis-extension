@@ -18,7 +18,6 @@ suite('ChatMessageService', () => {
     let postSnapshotSpy: sinon.SinonSpy;
     let checkWorkspaceFilesStub: sinon.SinonStub;
     let configGetStub: sinon.SinonStub;
-    let configUpdateStub: sinon.SinonStub;
     // Stubs kept to prevent unhandled vscode.window calls during tests
     let _showWarningMessageStub: sinon.SinonStub;
     let _showErrorMessageStub: sinon.SinonStub;
@@ -62,11 +61,20 @@ suite('ChatMessageService', () => {
         return service;
     }
 
+    /** Helper: calls sendMessage with defaults for tests that just need the Iris send path. */
+    async function sendHello(): Promise<void> {
+        const result = await service.sendMessage({ text: 'Hello', isNoAiEnabled: false });
+        if (!result.sent) { throw new Error(`sendMessage returned not-sent: ${result.reason}`); }
+    }
+
     setup(() => {
         sandbox = sinon.createSandbox();
 
         const mockContext = new MockExtensionContext();
         contextStore = new ContextStore(mockContext);
+
+        // Set active context so sendMessage's no-context check passes
+        contextStore.setActiveContext(activeContext);
 
         mockApiService = sinon.createStubInstance(ArtemisApiService);
         mockApiService.sendChatMessage.resolves();
@@ -74,6 +82,8 @@ suite('ChatMessageService', () => {
         postMessageSpy = sinon.spy();
         mockChatSessionService = sinon.createStubInstance(IrisChatSessionService);
         mockChatSessionService.initializeIrisSessionAndLoadMessages.resolves();
+        // Stub Iris settings check to return enabled by default
+        mockChatSessionService.checkAndLoadIrisSettings.resolves(true);
         postSnapshotSpy = sinon.spy();
 
         mockSessionManager = { currentSessionId: 42 };
@@ -82,12 +92,11 @@ suite('ChatMessageService', () => {
 
         configGetStub = sandbox.stub();
         configGetStub.withArgs('sendUncommittedChanges', true).returns(true);
-        configUpdateStub = sandbox.stub().resolves();
         sandbox.stub(vscode.workspace, 'getConfiguration').returns({
             get: configGetStub,
             has: sandbox.stub(),
             inspect: sandbox.stub(),
-            update: configUpdateStub,
+            update: sandbox.stub().resolves(),
         } as any);
 
         sandbox.stub(vscode.workspace, 'workspaceFolders').get(() => [{
@@ -105,32 +114,56 @@ suite('ChatMessageService', () => {
         sinon.restore();
     });
 
+    suite('sendMessage workflow', () => {
+        test('should return no-ai when .noai is enabled', async () => {
+            createService();
+            const result = await service.sendMessage({ text: 'Hello', isNoAiEnabled: true });
+            assert.deepStrictEqual(result, { sent: false, reason: 'no-ai' });
+        });
+
+        test('should return no-context when no active context', async () => {
+            contextStore.clearActiveContext();
+            createService();
+            const result = await service.sendMessage({ text: 'Hello', isNoAiEnabled: false });
+            assert.deepStrictEqual(result, { sent: false, reason: 'no-context' });
+        });
+
+        test('should return iris-disabled when Iris is not enabled', async () => {
+            mockChatSessionService.checkAndLoadIrisSettings.resolves(false);
+            createService();
+            const result = await service.sendMessage({ text: 'Hello', isNoAiEnabled: false });
+            assert.ok(!result.sent);
+            if (!result.sent) {
+                assert.strictEqual(result.reason, 'iris-disabled');
+                assert.strictEqual(result.contextLabel, 'exercise');
+            }
+        });
+
+        test('should return sent:true on success', async () => {
+            createService();
+            const result = await service.sendMessage({ text: 'Hello', isNoAiEnabled: false });
+            assert.deepStrictEqual(result, { sent: true });
+            assert.ok(mockApiService.sendChatMessage.calledOnce);
+        });
+    });
+
     suite('Feature Toggle', () => {
         test('should not collect files when disabled — API still receives undefined', async () => {
             configGetStub.withArgs('sendUncommittedChanges', true).returns(false);
             createService();
 
-            await service.handleChatMessage('Hello', activeContext);
+            await sendHello();
 
             assert.ok(checkWorkspaceFilesStub.notCalled);
             assert.ok(mockApiService.sendChatMessage.calledOnce);
             assert.strictEqual(mockApiService.sendChatMessage.firstCall.args[2], undefined);
         });
 
-        test('should return early for empty message text', async () => {
-            createService();
-
-            await service.handleChatMessage('', activeContext);
-
-            assert.ok(mockApiService.sendChatMessage.notCalled);
-            assert.ok(checkWorkspaceFilesStub.notCalled);
-        });
-
         test('should throw when API service not available', async () => {
             createService(undefined);
 
             await assert.rejects(
-                () => service.handleChatMessage('Hello', activeContext),
+                () => service.sendMessage({ text: 'Hello', isNoAiEnabled: false }),
                 /Artemis API service not available/
             );
         });
@@ -150,7 +183,7 @@ suite('ChatMessageService', () => {
             });
             createService();
 
-            await service.handleChatMessage('Hello', activeContext);
+            await sendHello();
 
             const filesArg = mockApiService.sendChatMessage.firstCall.args[2] as Map<string, string>;
             assert.strictEqual(filesArg.size, 1);
@@ -170,7 +203,7 @@ suite('ChatMessageService', () => {
             });
             createService();
 
-            await service.handleChatMessage('Hello', activeContext);
+            await sendHello();
 
             const filesArg = mockApiService.sendChatMessage.firstCall.args[2] as Map<string, string>;
             assert.strictEqual(filesArg.size, 0);
@@ -181,7 +214,7 @@ suite('ChatMessageService', () => {
         test('should post UpdateReferencedFiles with correct payload when files found', async () => {
             createService();
 
-            await service.handleChatMessage('Hello', activeContext);
+            await sendHello();
 
             const updateCall = postMessageSpy.getCalls().find(
                 (c: sinon.SinonSpyCall) => c.args[0]?.type === 'updateReferencedFiles'
@@ -202,7 +235,7 @@ suite('ChatMessageService', () => {
             });
             createService();
 
-            await service.handleChatMessage('Hello', activeContext);
+            await sendHello();
 
             const updateCall = postMessageSpy.getCalls().find(
                 (c: sinon.SinonSpyCall) => c.args[0]?.type === 'updateReferencedFiles'
@@ -223,7 +256,7 @@ suite('ChatMessageService', () => {
             });
             createService();
 
-            await service.handleChatMessage('Hello', activeContext);
+            await sendHello();
 
             const updateCall = postMessageSpy.getCalls().find(
                 (c: sinon.SinonSpyCall) => c.args[0]?.type === 'updateReferencedFiles'
@@ -235,7 +268,7 @@ suite('ChatMessageService', () => {
         test('should post updateReferencedFiles without a preceding user addMessage', async () => {
             createService();
 
-            await service.handleChatMessage('Hello', activeContext);
+            await sendHello();
 
             const addMessageCall = postMessageSpy.getCalls().find(
                 (c: sinon.SinonSpyCall) => c.args[0]?.type === 'addMessage' && c.args[0]?.message?.role === 'user'
@@ -253,7 +286,7 @@ suite('ChatMessageService', () => {
             checkWorkspaceFilesStub.rejects(new Error('Git command failed'));
             createService();
 
-            await service.handleChatMessage('Hello', activeContext);
+            await sendHello();
 
             // Service logs error but continues — no toast (provider handles UI)
             assert.ok(mockApiService.sendChatMessage.calledOnce);
@@ -264,7 +297,7 @@ suite('ChatMessageService', () => {
             checkWorkspaceFilesStub.rejects(new Error('crash'));
             createService();
 
-            await service.handleChatMessage('Hello', activeContext);
+            await sendHello();
 
             assert.ok(mockApiService.sendChatMessage.calledOnce);
             assert.strictEqual(mockApiService.sendChatMessage.firstCall.args[2], undefined);

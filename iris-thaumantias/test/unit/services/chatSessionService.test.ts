@@ -15,7 +15,7 @@ suite('IrisChatSessionService Test Suite', () => {
     let mockIrisWebSocketSessionClient: sinon.SinonStubbedInstance<IrisWebSocketSessionClient>;
     let postMessageSpy: sinon.SinonSpy;
     let onPostSnapshotSpy: sinon.SinonSpy;
-    let resetToWorkspaceSpy: sinon.SinonSpy;
+    // resetToWorkspaceSpy removed — workspace redirect moved to provider
     let mockContext: MockExtensionContext;
 
     setup(() => {
@@ -35,8 +35,6 @@ suite('IrisChatSessionService Test Suite', () => {
         // Create spies for callbacks
         postMessageSpy = sinon.spy();
         onPostSnapshotSpy = sinon.spy();
-        resetToWorkspaceSpy = sinon.spy();
-
         chatSessionService = new IrisChatSessionService(
             {
                 contextStore,
@@ -45,7 +43,6 @@ suite('IrisChatSessionService Test Suite', () => {
                 postSnapshot: onPostSnapshotSpy,
             },
             () => mockIrisWebSocketSessionClient as any,
-            resetToWorkspaceSpy,
         );
     });
 
@@ -152,7 +149,6 @@ suite('IrisChatSessionService Test Suite', () => {
                     postSnapshot: onPostSnapshotSpy,
                 },
                 () => mockIrisWebSocketSessionClient as any,
-                resetToWorkspaceSpy,
             );
 
             const context: ActiveContext = {
@@ -367,7 +363,6 @@ suite('IrisChatSessionService Test Suite', () => {
                     postSnapshot: onPostSnapshotSpy,
                 },
                 () => mockIrisWebSocketSessionClient as any,
-                resetToWorkspaceSpy,
             );
 
             const context: ActiveContext = {
@@ -693,28 +688,7 @@ suite('IrisChatSessionService Test Suite', () => {
             assert.ok(postMessageSpy.calledWith(sinon.match({ type: 'clearChatMessages' })));
         });
 
-        test('should redirect to workspace when workspace exercise exists and not in workspace context', () => {
-            contextStore.registerExercise({
-                id: 123,
-                title: 'Workspace Exercise',
-                isWorkspace: true,
-            });
-            const context: ActiveContext = {
-                type: 'exercise',
-                id: 456,
-                title: 'Other Exercise',
-                source: 'user-selected',
-                locked: false,
-                selectedAt: Date.now()
-            };
-            contextStore.setActiveContext(context);
-
-            chatSessionService.createNewSession();
-
-            assert.ok(resetToWorkspaceSpy.calledOnce);
-            // Should not call resetSession since we redirected
-            assert.ok(mockIrisWebSocketSessionClient.resetSession.notCalled);
-        });
+        // Workspace redirect test removed — redirect logic moved to provider
 
         test('should create server session and store ID', async () => {
             const context: ActiveContext = {
