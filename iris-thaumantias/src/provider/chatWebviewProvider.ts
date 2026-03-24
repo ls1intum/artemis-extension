@@ -402,13 +402,13 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
                     this._handleSwitchToWorkspaceContext();
                     break;
                 case WebviewCmd.OpenDiagnostics:
-                    this._chatDiagnosticsService.handleOpenDiagnostics().catch(err => {
+                    void this._handleOpenDiagnostics().catch(err => {
                         logger.error('Error opening diagnostics', LogCategory.IRIS_CHAT, err);
                         vscode.window.showErrorMessage('Failed to open diagnostics report');
                     });
                     break;
                 case WebviewCmd.DebugSessions:
-                    this._chatDiagnosticsService.handleDebugSessions().catch((err: unknown) => {
+                    void this._handleDebugSessions().catch((err: unknown) => {
                         logger.error('Error debugging sessions', LogCategory.IRIS_CHAT, err);
                         vscode.window.showErrorMessage('Failed to fetch debug session data');
                     });
@@ -614,8 +614,46 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
         }
     }
 
+    private async _handleOpenDiagnostics(): Promise<void> {
+        const report = this._chatDiagnosticsService.generateDiagnosticsReport();
+        const document = await vscode.workspace.openTextDocument({ content: report, language: 'plaintext' });
+        await vscode.window.showTextDocument(document, { preview: false, viewColumn: vscode.ViewColumn.Active });
+    }
+
+    private async _handleDebugSessions(): Promise<void> {
+        const activeContext = this._contextStore.getActiveContext();
+        if (!activeContext) {
+            vscode.window.showWarningMessage('No context selected. Please select an exercise or course first.');
+            return;
+        }
+
+        const { report, sessionCount } = await this._chatDiagnosticsService.generateDebugSessionsReport();
+        const document = await vscode.workspace.openTextDocument({ content: report, language: 'json' });
+        await vscode.window.showTextDocument(document, { preview: false, viewColumn: vscode.ViewColumn.Active });
+        vscode.window.showInformationMessage(`Found ${sessionCount} session(s) on Artemis`);
+    }
+
     private async _handleReconnectWebSocket(): Promise<void> {
-        await this._websocketMessageHandler.handleReconnectWebSocket();
+        if (!this._websocketService) {
+            vscode.window.showErrorMessage('WebSocket service not available');
+            return;
+        }
+        if (this._websocketService.isConnected()) {
+            vscode.window.showInformationMessage('WebSocket is already connected');
+            this._websocketMessageHandler.updateWebSocketStatus(true);
+            return;
+        }
+
+        vscode.window.showInformationMessage('Reconnecting to WebSocket...');
+        const result = await this._websocketMessageHandler.handleReconnectWebSocket();
+        switch (result.status) {
+            case 'reconnected':
+                vscode.window.showInformationMessage('Successfully reconnected to WebSocket');
+                break;
+            case 'failed':
+                vscode.window.showErrorMessage(`Failed to reconnect: ${result.error}`);
+                break;
+        }
     }
 
     private async _handleResetSessions(): Promise<void> {

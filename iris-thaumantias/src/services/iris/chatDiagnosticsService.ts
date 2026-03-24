@@ -1,9 +1,13 @@
-import * as vscode from 'vscode';
 import { ContextStore } from './contextStore';
 import { ArtemisApiService } from '../../api';
 import { ExerciseRegistry } from '../exerciseRegistry';
-import { logger, LogLevel } from '../loggingService';
+import { logger } from '../loggingService';
 import { fetchSessionsWithMessages } from './sessionSyncUtils';
+
+export interface DebugSessionsResult {
+    report: string;
+    sessionCount: number;
+}
 
 export class ChatDiagnosticsService {
     constructor(
@@ -12,7 +16,7 @@ export class ChatDiagnosticsService {
         private readonly _exerciseRegistry: ExerciseRegistry,
     ) { }
 
-    public async handleOpenDiagnostics(): Promise<void> {
+    public generateDiagnosticsReport(): string {
         const snapshot = this._contextStore.snapshot();
         let report = '='.repeat(80) + '\n';
         report += '🐛 IRIS CHAT DIAGNOSTICS\n';
@@ -102,105 +106,78 @@ export class ChatDiagnosticsService {
             report += '  Registry is empty\n';
         }
 
-        const document = await vscode.workspace.openTextDocument({
-            content: report,
-            language: 'plaintext',
-        });
-        await vscode.window.showTextDocument(document, {
-            preview: false,
-            viewColumn: vscode.ViewColumn.Active,
-        });
+        return report;
     }
 
-    public async handleDebugSessions(): Promise<void> {
+    public async generateDebugSessionsReport(): Promise<DebugSessionsResult> {
         const activeContext = this._contextStore.getActiveContext();
         if (!activeContext) {
-            vscode.window.showWarningMessage('No context selected. Please select an exercise or course first.');
-            return;
+            throw new Error('No context selected. Please select an exercise or course first.');
         }
 
         if (!this._artemisApiService) {
-            vscode.window.showErrorMessage('Artemis API service not available');
-            return;
+            throw new Error('Artemis API service not available');
         }
 
-        try {
-            let report = '='.repeat(80) + '\n';
-            report += '🔍 RAW ARTEMIS SESSION DEBUG DATA\n';
-            report += 'Generated at: ' + new Date().toISOString() + '\n';
-            report += '='.repeat(80) + '\n\n';
+        let report = '='.repeat(80) + '\n';
+        report += '🔍 RAW ARTEMIS SESSION DEBUG DATA\n';
+        report += 'Generated at: ' + new Date().toISOString() + '\n';
+        report += '='.repeat(80) + '\n\n';
 
-            report += '📌 CURRENT CONTEXT:\n';
-            report += `  Type: ${activeContext.type}\n`;
-            report += `  ID: ${activeContext.id}\n`;
-            report += `  Title: ${activeContext.title}\n`;
-            report += `  Short Name: ${activeContext.shortName ?? '—'}\n\n`;
+        report += '📌 CURRENT CONTEXT:\n';
+        report += `  Type: ${activeContext.type}\n`;
+        report += `  ID: ${activeContext.id}\n`;
+        report += `  Title: ${activeContext.title}\n`;
+        report += `  Short Name: ${activeContext.shortName ?? '—'}\n\n`;
 
-            report += '🌐 FETCHING SESSIONS FROM ARTEMIS...\n\n';
+        report += '🌐 FETCHING SESSIONS FROM ARTEMIS...\n\n';
 
-            // Fetch sessions with messages using shared utility
-            const artemisSessionsListFromServer = await fetchSessionsWithMessages(this._artemisApiService, activeContext);
+        const artemisSessionsListFromServer = await fetchSessionsWithMessages(this._artemisApiService, activeContext);
 
-            report += `📊 TOTAL SESSIONS FOUND: ${artemisSessionsListFromServer.length}\n`;
-            report += `   (All sessions are for ${activeContext.type} ${activeContext.id}: ${activeContext.title})\n`;
-            report += '='.repeat(80) + '\n\n';
+        report += `📊 TOTAL SESSIONS FOUND: ${artemisSessionsListFromServer.length}\n`;
+        report += `   (All sessions are for ${activeContext.type} ${activeContext.id}: ${activeContext.title})\n`;
+        report += '='.repeat(80) + '\n\n';
 
-            // Also check local storage
-            const snapshot = this._contextStore.snapshot();
-            const contextKey = `${activeContext.type}:${activeContext.id}`;
-            const localSessions = snapshot.sessions.filter(s => s.contextKey === contextKey);
+        const snapshot = this._contextStore.snapshot();
+        const contextKey = `${activeContext.type}:${activeContext.id}`;
+        const localSessions = snapshot.sessions.filter(s => s.contextKey === contextKey);
 
-            report += `💾 LOCAL STORAGE INFO:\n`;
-            report += `   Context Key: ${contextKey}\n`;
-            report += `   Local Sessions for this context: ${localSessions.length}\n`;
-            report += `   All Local Sessions (all contexts): ${snapshot.sessions.length}\n`;
-            if (snapshot.sessions.length > localSessions.length) {
-                const otherContexts = new Set(snapshot.sessions.map(s => s.contextKey).filter(k => k !== contextKey));
-                report += `   ⚠️  WARNING: Found sessions from other contexts: ${Array.from(otherContexts).join(', ')}\n`;
-            }
-            report += '\n';
-
-            // Show what snapshot.sessions contains (this is what the UI displays)
-            report += `📋 SNAPSHOT SESSIONS (what UI shows):\n`;
-            report += `   Total in snapshot: ${snapshot.sessions.length}\n`;
-            if (snapshot.sessions.length > 0) {
-                snapshot.sessions.forEach((s, idx) => {
-                    report += `   ${idx + 1}. Session ${s.id} (artemisId: ${s.artemisSessionId}) - contextKey: ${s.contextKey}\n`;
-                    report += `      Preview: "${s.preview}"\n`;
-                    report += `      Messages: ${s.messageCount}\n`;
-                });
-            }
-            report += '\n' + '='.repeat(80) + '\n\n';
-
-            if (artemisSessionsListFromServer.length === 0) {
-                report += '⚠️  No sessions found on Artemis for this context.\n';
-            } else {
-                artemisSessionsListFromServer.forEach((session, idx) => {
-                    report += `SESSION ${idx + 1}:\n`;
-                    report += '-'.repeat(80) + '\n';
-                    report += JSON.stringify(session, null, 2);
-                    report += '\n\n';
-                });
-            }
-
-            report += '='.repeat(80) + '\n';
-            report += 'END OF DEBUG DATA\n';
-            report += '='.repeat(80) + '\n';
-
-            const document = await vscode.workspace.openTextDocument({
-                content: report,
-                language: 'json',
-            });
-            await vscode.window.showTextDocument(document, {
-                preview: false,
-                viewColumn: vscode.ViewColumn.Active,
-            });
-
-            vscode.window.showInformationMessage(`Found ${artemisSessionsListFromServer.length} session(s) on Artemis`);
-        } catch (error: unknown) {
-            const errorMessage = error instanceof Error ? error.message : String(error);
-            logger.error('Error fetching debug session data:', undefined, error);
-            vscode.window.showErrorMessage(`Failed to fetch sessions from Artemis: ${errorMessage}`);
+        report += `💾 LOCAL STORAGE INFO:\n`;
+        report += `   Context Key: ${contextKey}\n`;
+        report += `   Local Sessions for this context: ${localSessions.length}\n`;
+        report += `   All Local Sessions (all contexts): ${snapshot.sessions.length}\n`;
+        if (snapshot.sessions.length > localSessions.length) {
+            const otherContexts = new Set(snapshot.sessions.map(s => s.contextKey).filter(k => k !== contextKey));
+            report += `   ⚠️  WARNING: Found sessions from other contexts: ${Array.from(otherContexts).join(', ')}\n`;
         }
+        report += '\n';
+
+        report += `📋 SNAPSHOT SESSIONS (what UI shows):\n`;
+        report += `   Total in snapshot: ${snapshot.sessions.length}\n`;
+        if (snapshot.sessions.length > 0) {
+            snapshot.sessions.forEach((s, idx) => {
+                report += `   ${idx + 1}. Session ${s.id} (artemisId: ${s.artemisSessionId}) - contextKey: ${s.contextKey}\n`;
+                report += `      Preview: "${s.preview}"\n`;
+                report += `      Messages: ${s.messageCount}\n`;
+            });
+        }
+        report += '\n' + '='.repeat(80) + '\n\n';
+
+        if (artemisSessionsListFromServer.length === 0) {
+            report += '⚠️  No sessions found on Artemis for this context.\n';
+        } else {
+            artemisSessionsListFromServer.forEach((session, idx) => {
+                report += `SESSION ${idx + 1}:\n`;
+                report += '-'.repeat(80) + '\n';
+                report += JSON.stringify(session, null, 2);
+                report += '\n\n';
+            });
+        }
+
+        report += '='.repeat(80) + '\n';
+        report += 'END OF DEBUG DATA\n';
+        report += '='.repeat(80) + '\n';
+
+        return { report, sessionCount: artemisSessionsListFromServer.length };
     }
 }

@@ -7,6 +7,12 @@ import { extractIrisMessageContent } from '../iris/messageUtils';
 import { ExtensionMsg } from '../../shared/messageContracts';
 import type { ExtensionToWebviewMessage } from '../../shared/messageContracts';
 
+export type ReconnectResult =
+    | { status: 'reconnected' }
+    | { status: 'already-connected' }
+    | { status: 'no-service' }
+    | { status: 'failed'; error: string };
+
 export class IrisWebSocketMessageHandler {
     private readonly _onDidReceiveIrisChatMessage = new vscode.EventEmitter<string>();
     public readonly onDidReceiveIrisChatMessage = this._onDidReceiveIrisChatMessage.event;
@@ -65,21 +71,17 @@ export class IrisWebSocketMessageHandler {
         return typeof data === 'object' && data !== null && 'type' in data && typeof (data as { type: unknown }).type === 'string';
     }
 
-    public async handleReconnectWebSocket(): Promise<void> {
+    public async handleReconnectWebSocket(): Promise<ReconnectResult> {
         if (!this._websocketService) {
-            vscode.window.showErrorMessage('WebSocket service not available');
-            return;
+            return { status: 'no-service' };
         }
 
         try {
-            const isConnected = this._websocketService.isConnected();
-            if (isConnected) {
-                vscode.window.showInformationMessage('WebSocket is already connected');
+            if (this._websocketService.isConnected()) {
                 this._updateWebSocketStatus(true);
-                return;
+                return { status: 'already-connected' };
             }
 
-            vscode.window.showInformationMessage('Reconnecting to WebSocket...');
             // Reset state in case previous attempts exhausted the limit
             this._websocketService.resetConnectionState();
             await this._websocketService.connect();
@@ -93,13 +95,14 @@ export class IrisWebSocketMessageHandler {
 
             if (this._websocketService.isConnected()) {
                 this._updateWebSocketStatus(true);
-                vscode.window.showInformationMessage('Successfully reconnected to WebSocket');
+                return { status: 'reconnected' };
             }
+
+            return { status: 'failed', error: 'Connection attempt did not establish' };
         } catch (error: unknown) {
             logger.error('Failed to reconnect WebSocket', LogCategory.WEBSOCKET, error);
-            const errorMessage = error instanceof Error ? error.message : String(error);
-            vscode.window.showErrorMessage(`Failed to reconnect: ${errorMessage}`);
             this._updateWebSocketStatus(false);
+            return { status: 'failed', error: error instanceof Error ? error.message : String(error) };
         }
     }
 
