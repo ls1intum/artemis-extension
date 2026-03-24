@@ -155,10 +155,10 @@ export class ArtemisApiService {
             for (const participation of exerciseData.exercise!.studentParticipations!) {
                 const submissions = participation.submissions ?? [];
                 const totalResults = submissions.reduce((sum, s) => sum + (s.results?.length ?? 0), 0);
-                logger.info(`📊 Participation ${participation.id}: ${submissions.length} submissions, ${totalResults} results`, LogCategory.API);
+                logger.info(`Participation ${participation.id}: ${submissions.length} submissions, ${totalResults} results`, LogCategory.API);
             }
         } else {
-            logger.warn('⚠️ No student participations found in exercise details response', LogCategory.API);
+            logger.warn('No student participations found in exercise details response', LogCategory.API);
         }
 
         return exerciseData;

@@ -2,9 +2,25 @@ import * as vscode from 'vscode';
 import { AppStateManager, type AppState } from './appStateManager';
 import { getReactWebviewHtml } from '../../services';
 
+/** Maps AppState values to React view entry-point names. */
+const STATE_TO_VIEW: Record<AppState, string> = {
+    'login': 'login',
+    'dashboard': 'dashboard',
+    'course-list': 'courseList',
+    'course-detail': 'courseDetail',
+    'exercise-detail': 'exerciseDetail',
+    'exam-exercise-detail': 'examExerciseDetail',
+    'ai-config': 'aiConfig',
+    'service-status': 'serviceStatus',
+    'struggle-detection': 'struggleDetection',
+    'recommended-extensions': 'recommendedExtensions',
+    'git-credentials': 'gitCredentials',
+    'exam-start': 'examStart',
+    'exam-conduction': 'examConduction',
+};
+
 /**
  * Maps application state to the appropriate React webview HTML.
- * All views are now React-based — no legacy HTML generation.
  */
 export class ViewRouter {
     constructor(
@@ -19,48 +35,7 @@ export class ViewRouter {
             throw new Error('Webview is not initialized');
         }
 
-        const state = this._appStateManager.currentState;
-        const viewName = this._stateToViewName(state);
-
+        const viewName = STATE_TO_VIEW[this._appStateManager.currentState];
         return getReactWebviewHtml(webview, this._extensionContext.extensionUri, viewName);
-    }
-
-    /**
-     * Map AppState values to React view names.
-     */
-    private _stateToViewName(state: AppState): string {
-        // Map kebab-case state names to camelCase view names
-        switch (state) {
-            case 'git-credentials':
-                return 'gitCredentials';
-            case 'service-status':
-                return 'serviceStatus';
-            case 'recommended-extensions':
-                return 'recommendedExtensions';
-            case 'login':
-                return 'login';
-            case 'dashboard':
-                return 'dashboard';
-            case 'course-list':
-                return 'courseList';
-            case 'course-detail':
-                return 'courseDetail';
-            case 'exercise-detail':
-                return 'exerciseDetail';
-            case 'exam-exercise-detail':
-                return 'examExerciseDetail';
-            case 'ai-config':
-                return 'aiConfig';
-            case 'struggle-detection':
-                return 'struggleDetection';
-            case 'exam-start':
-                return 'examStart';
-            case 'exam-conduction':
-                return 'examConduction';
-            default: {
-                const _exhaustive: never = state;
-                throw new Error(`Unhandled app state: ${_exhaustive}`);
-            }
-        }
     }
 }

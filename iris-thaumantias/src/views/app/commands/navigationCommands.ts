@@ -64,7 +64,7 @@ export class NavigationCommandModule {
                 vscode.window.showErrorMessage('Could not determine Artemis server URL.');
             }
         } catch (error: unknown) {
-            logger.viewError('[EXAMMODE] Error opening exam in browser:', error);
+            logger.viewError('Error opening exam in browser:', error);
             vscode.window.showErrorMessage('Failed to open exam in browser.');
         }
     };
@@ -72,24 +72,24 @@ export class NavigationCommandModule {
     private handleOpenExam = async (message: WebviewToExtensionMessage): Promise<void> => {
         try {
             const { courseId, examId } = getPayload<WebCmd<'openExam'>>(message);
-            logger.view(`[EXAMMODE] Handling openExam for course ${courseId}, exam ${examId}`);
+            logger.view(`Handling openExam for course ${courseId}, exam ${examId}`);
             const studentExam = await this.context.artemisApi.getOwnStudentExam(courseId, examId);
-            logger.view(`[EXAMMODE] Fetched student exam:`, studentExam);
+            logger.view(`Fetched student exam:`, studentExam);
 
             if (studentExam.started) {
-                logger.view(`[EXAMMODE] Exam already started, proceeding to conduction`);
+                logger.view(`Exam already started, proceeding to conduction`);
                 // If already started, go directly to conduction (to be implemented)
                 // For now, we can reuse the start exam logic which will fetch conduction details
                 const studentExamId = studentExam.id ?? 0;
                 await this._startExamWithPayload({ courseId, examId, studentExamId });
             } else {
-                logger.view(`[EXAMMODE] Exam not started, showing start view`);
+                logger.view(`Exam not started, showing start view`);
                 // Show start exam view
                 this.context.appStateManager.showExamStart({ studentExam, courseId, examId });
                 this.context.actionHandler.render();
             }
         } catch (error: unknown) {
-            logger.viewError('[EXAMMODE] Error opening exam:', error);
+            logger.viewError('Error opening exam:', error);
             const userMessage = getExamErrorMessage(error);
             vscode.window.showErrorMessage(userMessage);
         }
@@ -99,17 +99,17 @@ export class NavigationCommandModule {
     private async _startExamWithPayload(payload: { courseId: number; examId: number; studentExamId: number }): Promise<void> {
         try {
             const { courseId, examId, studentExamId } = payload;
-            logger.view(`[EXAMMODE] Starting exam ${examId} for student exam ${studentExamId}`);
+            logger.view(`Starting exam ${examId} for student exam ${studentExamId}`);
             const conductionDetails = await this.context.artemisApi.startStudentExam(courseId, examId, studentExamId);
 
-            logger.view('[EXAMMODE] Exam started, conduction details:', conductionDetails);
+            logger.view('Exam started, conduction details:', conductionDetails);
 
             // Show conduction view
             this.context.appStateManager.showExamConduction({ studentExam: conductionDetails, courseId, examId });
             this.context.actionHandler.render();
 
         } catch (error: unknown) {
-            logger.viewError('[EXAMMODE] Error starting exam:', error);
+            logger.viewError('Error starting exam:', error);
             vscode.window.showErrorMessage('Failed to start exam.');
         }
     }
@@ -467,12 +467,12 @@ export class NavigationCommandModule {
     private handleRefreshExam = async (message: WebviewToExtensionMessage): Promise<void> => {
         try {
             const { courseId, examId, studentExamId } = getPayload<WebCmd<'refreshExam'>>(message);
-            logger.view(`[EXAMMODE] Refreshing exam status for course ${courseId}, exam ${examId}`);
+            logger.view(`Refreshing exam status for course ${courseId}, exam ${examId}`);
 
             const studentExam = await this.context.artemisApi.getOwnStudentExam(courseId, examId);
 
             if (studentExam.started) {
-                logger.view(`[EXAMMODE] Exam started in browser, proceeding to conduction`);
+                logger.view(`Exam started in browser, proceeding to conduction`);
                 // Proceed to conduction by fetching details
                 const effectiveStudentExamId = studentExamId || studentExam.id || 0;
                 await this._startExamWithPayload({ courseId, examId, studentExamId: effectiveStudentExamId });
@@ -480,7 +480,7 @@ export class NavigationCommandModule {
                 vscode.window.showInformationMessage('Exam has not been started yet. Please start it in the browser.');
             }
         } catch (error: unknown) {
-            logger.viewError('[EXAMMODE] Error refreshing exam:', error);
+            logger.viewError('Error refreshing exam:', error);
             vscode.window.showErrorMessage('Failed to refresh exam status.');
         }
     };
@@ -489,18 +489,18 @@ export class NavigationCommandModule {
         try {
             const examData = this.context.appStateManager.currentExamData;
             if (!examData) {
-                logger.viewError('[EXAMMODE] No exam data available for reload');
+                logger.viewError('No exam data available for reload');
                 return;
             }
 
             const { courseId, examId } = examData;
 
             if (typeof courseId !== 'number' || typeof examId !== 'number') {
-                logger.viewError('[EXAMMODE] Invalid exam context - missing courseId or examId');
+                logger.viewError('Invalid exam context - missing courseId or examId');
                 return;
             }
 
-            logger.view(`[EXAMMODE] Reloading exam conduction for course ${courseId}, exam ${examId}`);
+            logger.view(`Reloading exam conduction for course ${courseId}, exam ${examId}`);
 
             const studentExam = await this.context.artemisApi.getOwnStudentExam(courseId, examId);
 
@@ -512,7 +512,7 @@ export class NavigationCommandModule {
                 vscode.window.showWarningMessage('Exam has not been started yet.');
             }
         } catch (error: unknown) {
-            logger.viewError('[EXAMMODE] Error reloading exam conduction:', error);
+            logger.viewError('Error reloading exam conduction:', error);
             vscode.window.showErrorMessage('Failed to reload exam conduction.');
         }
     };

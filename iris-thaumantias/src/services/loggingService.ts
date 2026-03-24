@@ -382,7 +382,7 @@ class LoggingService {
      * Log a telemetry-related message
      */
     public telemetry(message: string, ...args: unknown[]): void {
-        this.output(LogLevel.INFO, `📊 ${message}`, LogCategory.TELEMETRY, ...args);
+        this.output(LogLevel.INFO, message, LogCategory.TELEMETRY, ...args);
     }
 
     /**

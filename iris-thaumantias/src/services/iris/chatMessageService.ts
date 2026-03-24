@@ -27,7 +27,7 @@ export class ChatMessageService {
         logger.websocket(`✅ Active context: ${JSON.stringify({ type: activeContext.type, id: activeContext.id, title: activeContext.title })}`);
 
         if (struggleContext) {
-            logger.websocket(`📊 Struggle context: ${JSON.stringify({
+            logger.websocket(`Struggle context: ${JSON.stringify({
                 isStruggling: struggleContext.isStruggling,
                 eq: struggleContext.eq,
                 eqConfidence: struggleContext.eqConfidence,

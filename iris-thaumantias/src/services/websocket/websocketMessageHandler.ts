@@ -18,17 +18,17 @@ export class IrisWebSocketMessageHandler {
     ) { }
 
     public handleIrisWebSocketMessage(data: unknown): void {
-        logger.info(`🔔 Received Iris WebSocket message: ${JSON.stringify(data, null, 2)}`, LogCategory.WEBSOCKET);
+        logger.info(`Received Iris WebSocket message: ${JSON.stringify(data, null, 2)}`, LogCategory.WEBSOCKET);
 
         // Runtime type guard for the incoming WebSocket payload
         if (!this._isIrisWebSocketPayload(data)) {
-            logger.info(`⚠️ Unknown message type or format: ${JSON.stringify(data)}`, LogCategory.WEBSOCKET);
+            logger.info(`Unknown message type or format: ${JSON.stringify(data)}`, LogCategory.WEBSOCKET);
             return;
         }
 
         // Handle different message types
         if (data.type === 'MESSAGE' && data.message) {
-            logger.info('📦 Processing MESSAGE type', LogCategory.WEBSOCKET);
+            logger.info('Processing MESSAGE type', LogCategory.WEBSOCKET);
             // Extract content from the message
             const msg = data.message;
             const content = extractIrisMessageContent(msg.content);
@@ -50,13 +50,13 @@ export class IrisWebSocketMessageHandler {
                     }
                 });
                 this._onDidReceiveIrisChatMessage.fire(content);
-                logger.info('✅ Assistant message sent to webview', LogCategory.WEBSOCKET);
+                logger.info('Assistant message sent to webview', LogCategory.WEBSOCKET);
             } else {
-                logger.info('⏭️ Skipping message (either USER message or no content)', LogCategory.WEBSOCKET);
+                logger.info('Skipping message (either USER message or no content)', LogCategory.WEBSOCKET);
             }
         } else if (data.type === 'STATUS') {
             // Handle status updates (e.g., "Iris is thinking...")
-            logger.info(`📊 Iris status update: ${JSON.stringify(data)}`, LogCategory.WEBSOCKET);
+            logger.info(`Iris status update: ${JSON.stringify(data)}`, LogCategory.WEBSOCKET);
             // TODO: Show status indicator in UI
         }
     }
