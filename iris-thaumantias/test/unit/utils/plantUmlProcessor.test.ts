@@ -1,5 +1,5 @@
 import * as assert from 'assert';
-import { processPlantUml } from '../../../src/utils/plantUmlProcessor';
+import { processPlantUml } from '../../../src/extension/utils/plantUmlProcessor';
 
 suite('PlantUML Processor Test Suite', () => {
     test('should replace simple testsColor', () => {

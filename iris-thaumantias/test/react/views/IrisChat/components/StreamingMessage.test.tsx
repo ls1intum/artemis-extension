@@ -24,7 +24,7 @@ vi.mock('streamdown', () => ({
 
 // Mock CodeBlock to avoid Shiki in these tests
 vi.mock(
-	'../../../../../src/views/webview/views/IrisChat/components/CodeBlock',
+	'../../../../../src/webview/views/IrisChat/components/CodeBlock',
 	() => ({
 		CodeBlock: ({ language, children }: { language?: string; children?: string }) => (
 			<pre data-testid="code-block" data-language={language}><code>{children}</code></pre>
@@ -32,7 +32,7 @@ vi.mock(
 	})
 );
 
-import { StreamingMessage } from '../../../../../src/views/webview/views/IrisChat/components/StreamingMessage';
+import { StreamingMessage } from '../../../../../src/webview/views/IrisChat/components/StreamingMessage';
 
 describe('StreamingMessage', () => {
 	it('renders without crashing', () => {

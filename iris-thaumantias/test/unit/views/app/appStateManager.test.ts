@@ -1,6 +1,6 @@
 import * as assert from 'assert';
-import { AppStateManager } from '../../../../src/views/app/appStateManager';
-import type { ExerciseDetailsResponse } from '../../../../src/types/apiResponses';
+import { AppStateManager } from '../../../../src/extension/controller/appStateManager';
+import type { ExerciseDetailsResponse } from '../../../../src/extension/types';
 
 suite('AppStateManager Test Suite', () => {
     let stateManager: AppStateManager;

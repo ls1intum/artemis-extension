@@ -59,7 +59,7 @@ async function main() {
 	// Build React webview (Browser)
 	const webviewReactCtx = await esbuild.context({
 		entryPoints: [
-			'src/views/webview/index.tsx'
+			'src/webview/index.tsx'
 		],
 		bundle: true,
 		format: 'iife',

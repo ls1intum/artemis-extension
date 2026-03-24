@@ -1,4 +1,4 @@
-import type { CourseDashboardCourse } from '../../types/apiResponses';
+import type { CourseDashboardCourse } from '../types/apiResponses';
 import type { CourseDetailData } from './domainTypes';
 
 /**

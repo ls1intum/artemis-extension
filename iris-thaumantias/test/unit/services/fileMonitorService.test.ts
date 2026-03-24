@@ -1,9 +1,9 @@
 import * as assert from 'assert';
 import * as vscode from 'vscode';
 import * as sinon from 'sinon';
-import { FileMonitorService } from '../../../src/services/workspace/fileMonitorService';
-import type { FileMonitorUpdate } from '../../../src/services/workspace/fileMonitorService';
-import * as workspaceFileChecker from '../../../src/services/workspace/workspaceFileChecker';
+import { FileMonitorService } from '../../../src/extension/services/workspace/fileMonitorService';
+import type { FileMonitorUpdate } from '../../../src/extension/services/workspace/fileMonitorService';
+import * as workspaceFileChecker from '../../../src/extension/services/workspace/workspaceFileChecker';
 
 suite('FileMonitorService', () => {
     let sandbox: sinon.SinonSandbox;

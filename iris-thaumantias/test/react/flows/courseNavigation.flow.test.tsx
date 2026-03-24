@@ -1,10 +1,10 @@
 import { describe, it, expect } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { CourseListView } from '../../../src/views/webview/views/CourseList/CourseListView';
-import { CourseDetailView } from '../../../src/views/webview/views/CourseDetail/CourseDetailView';
-import { useCourseListStore } from '../../../src/views/webview/stores/useCourseListStore';
-import { useCourseDetailStore } from '../../../src/views/webview/stores/useCourseDetailStore';
+import { CourseListView } from '../../../src/webview/views/CourseList/CourseListView';
+import { CourseDetailView } from '../../../src/webview/views/CourseDetail/CourseDetailView';
+import { useCourseListStore } from '../../../src/webview/stores/useCourseListStore';
+import { useCourseDetailStore } from '../../../src/webview/stores/useCourseDetailStore';
 import { createMockVsCodeApi, dispatchExtensionMessage } from '../__helpers__/vscodeApi';
 import type { CourseData } from '../../../src/shared/messageContracts';
 

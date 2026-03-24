@@ -9,8 +9,8 @@
 
 import * as sinon from 'sinon';
 
-import { ErrorQuotientEngine } from '../../../src/services/telemetry/metrics/errorQuotientEngine';
-import { ErrorSnapshot, EQConfidence, RecommendedAction } from '../../../src/services/telemetry/types';
+import { ErrorQuotientEngine } from '../../../src/extension/services/telemetry/metrics/errorQuotientEngine';
+import { ErrorSnapshot, EQConfidence, RecommendedAction } from '../../../src/extension/services/telemetry/types';
 
 import {
     StruggleScenario,

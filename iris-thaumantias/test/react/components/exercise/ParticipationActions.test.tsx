@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { ParticipationActions } from '../../../../src/views/webview/components/exercise/ParticipationActions';
+import { ParticipationActions } from '../../../../src/webview/components/exercise/ParticipationActions';
 
 describe('ParticipationActions', () => {
 	describe('programming exercise - not started', () => {

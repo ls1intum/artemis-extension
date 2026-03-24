@@ -1,8 +1,8 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { List } from '../../../../src/views/webview/components/List/List';
-import { ListItem } from '../../../../src/views/webview/components/ListItem/ListItem';
+import { List } from '../../../../src/webview/components/List/List';
+import { ListItem } from '../../../../src/webview/components/ListItem/ListItem';
 
 describe('List', () => {
 	it('renders with role="listbox"', () => {

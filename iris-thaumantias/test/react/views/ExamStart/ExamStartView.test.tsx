@@ -1,17 +1,17 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, waitFor, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { ExamStartView } from '../../../../src/views/webview/views/ExamStart/ExamStartView';
-import { useExamStartStore } from '../../../../src/views/webview/stores/useExamStartStore';
+import { ExamStartView } from '../../../../src/webview/views/ExamStart/ExamStartView';
+import { useExamStartStore } from '../../../../src/webview/stores/useExamStartStore';
 import { createMockVsCodeApi, dispatchExtensionMessage } from '../../__helpers__/vscodeApi';
 
 // Mock useExamTimer to avoid Web Worker
-vi.mock('../../../../src/views/webview/hooks/useExamTimer', () => ({
+vi.mock('../../../../src/webview/hooks/useExamTimer', () => ({
 	useExamTimer: () => ({ remaining: 60000, expired: false }),
 }));
 
 // Mock useRelativeTime to avoid date calculations in tests
-vi.mock('../../../../src/views/webview/hooks/useRelativeTime', () => ({
+vi.mock('../../../../src/webview/hooks/useRelativeTime', () => ({
 	useRelativeTime: (date: Date | null) => (date ? date.toISOString() : 'N/A'),
 }));
 

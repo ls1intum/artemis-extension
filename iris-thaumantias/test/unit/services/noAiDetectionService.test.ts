@@ -1,7 +1,7 @@
 import * as assert from 'assert';
 import * as vscode from 'vscode';
 import * as sinon from 'sinon';
-import { NoAiDetectionService, FileExistsChecker } from '../../../src/services/workspace/noAiDetectionService';
+import { NoAiDetectionService, FileExistsChecker } from '../../../src/extension/services/workspace/noAiDetectionService';
 
 suite('NoAiDetectionService', () => {
     let sandbox: sinon.SinonSandbox;

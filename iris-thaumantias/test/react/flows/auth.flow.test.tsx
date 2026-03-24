@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { fireEvent } from '@testing-library/react';
-import { LoginView } from '../../../src/views/webview/views/Login/LoginView';
+import { LoginView } from '../../../src/webview/views/Login/LoginView';
 import { createMockVsCodeApi, dispatchExtensionMessage } from '../__helpers__/vscodeApi';
 
 /**
