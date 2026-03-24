@@ -1,88 +1,28 @@
 import * as assert from 'assert';
 import { AppStateManager } from '../../../../src/views/app/appStateManager';
-import { AuthManager } from '../../../../src/services/auth';
-import { ArtemisApiService } from '../../../../src/api';
-import { MockExtensionContext } from '../../mocks/vscodeMocks';
-
-class MockAuthManager extends AuthManager {
-    constructor(context: any) {
-        super(context);
-    }
-}
-
-class MockArtemisApiService extends ArtemisApiService {
-    public getCoursesForDashboardCalled = false;
-    public getCourseDetailsCalled = false;
-    public getExerciseDetailsCalled = false;
-    public lastCourseId: number | undefined;
-    public lastExerciseId: number | undefined;
-
-    constructor(authManager: AuthManager) {
-        super(authManager);
-    }
-
-    async getCoursesForDashboard() {
-        this.getCoursesForDashboardCalled = true;
-        return {
-            courses: [
-                { course: { id: 1, title: 'Test Course 1' } },
-                { course: { id: 2, title: 'Test Course 2' } }
-            ]
-        };
-    }
-
-    async getCourseForDashboard(courseId: number) {
-        this.getCourseDetailsCalled = true;
-        this.lastCourseId = courseId;
-        return { course: { id: courseId, title: 'Test Course' } };
-    }
-
-    async getExamsForCourse(_courseId: number) {
-        return [];
-    }
-
-    async getCourseDetails(courseId: number) {
-        this.getCourseDetailsCalled = true;
-        this.lastCourseId = courseId;
-        return {
-            id: courseId,
-            title: 'Test Course',
-            exercises: []
-        };
-    }
-
-    async getExerciseDetails(exerciseId: number) {
-        this.getExerciseDetailsCalled = true;
-        this.lastExerciseId = exerciseId;
-        return {
-            exercise: {
-                id: exerciseId,
-                title: 'Test Exercise',
-                type: 'programming'
-            }
-        };
-    }
-}
+import type { ExerciseDetailsResponse } from '../../../../src/types/apiResponses';
 
 suite('AppStateManager Test Suite', () => {
     let stateManager: AppStateManager;
-    let mockContext: MockExtensionContext;
-    let mockAuthManager: MockAuthManager;
-    let mockApiService: MockArtemisApiService;
 
     setup(() => {
-        mockContext = new MockExtensionContext();
-        mockAuthManager = new MockAuthManager(mockContext);
-        mockApiService = new MockArtemisApiService(mockAuthManager);
-        stateManager = new AppStateManager(mockApiService);
+        stateManager = new AppStateManager();
     });
 
-    test('should transition to dashboard state', async () => {
+    test('should transition to dashboard state', () => {
         const userInfo = { username: 'test', serverUrl: 'https://test.artemis.de' };
-        await stateManager.showDashboard(userInfo);
+        stateManager.showDashboard(userInfo);
 
         assert.strictEqual(stateManager.currentState, 'dashboard');
         assert.strictEqual(stateManager.userInfo?.username, 'test');
+    });
+
+    test('should store courses data when provided to showDashboard', () => {
+        const userInfo = { username: 'test', serverUrl: 'https://test.artemis.de' };
+        const coursesData = { courses: [{ course: { id: 1, title: 'Test Course' } }] };
+        stateManager.showDashboard(userInfo, coursesData);
+
+        assert.strictEqual(stateManager.coursesData, coursesData);
     });
 
     test('should transition to course-detail state', () => {
@@ -93,19 +33,52 @@ suite('AppStateManager Test Suite', () => {
         assert.strictEqual(stateManager.currentCourseData, courseData);
     });
 
-    test('should fetch and show archived course detail', async () => {
-        await stateManager.showArchivedCourseDetail(123);
-
-        assert.strictEqual(stateManager.currentState, 'course-detail');
-        assert.ok(mockApiService.getCourseDetailsCalled);
-        assert.strictEqual(mockApiService.lastCourseId, 123);
-    });
-
-    test('should transition to exercise-detail state', async () => {
-        await stateManager.showExerciseDetail(456);
+    test('should transition to exercise-detail state with data', () => {
+        const exerciseData = {
+            exercise: { id: 456, title: 'Test Exercise', type: 'programming' }
+        } as ExerciseDetailsResponse;
+        stateManager.showExerciseDetail(exerciseData);
 
         assert.strictEqual(stateManager.currentState, 'exercise-detail');
-        assert.ok(mockApiService.getExerciseDetailsCalled);
-        assert.strictEqual(mockApiService.lastExerciseId, 456);
+        assert.strictEqual(stateManager.currentExerciseData, exerciseData);
+    });
+
+    test('should transition to course-list state', () => {
+        const coursesData = { courses: [{ course: { id: 1, title: 'Course' } }] };
+        stateManager.showCourseList(coursesData);
+
+        assert.strictEqual(stateManager.currentState, 'course-list');
+        assert.strictEqual(stateManager.coursesData, coursesData);
+    });
+
+    test('should set archived courses', () => {
+        const archived = [{ id: 1, title: 'Old Course' }];
+        stateManager.setArchivedCourses(archived);
+
+        assert.strictEqual(stateManager.archivedCoursesData, archived);
+    });
+
+    test('should clear state on showLogin', () => {
+        const userInfo = { username: 'test', serverUrl: 'https://test.artemis.de' };
+        stateManager.showDashboard(userInfo);
+        stateManager.showLogin();
+
+        assert.strictEqual(stateManager.currentState, 'login');
+        assert.strictEqual(stateManager.userInfo, undefined);
+        assert.strictEqual(stateManager.coursesData, undefined);
+    });
+
+    test('should fire onStateChange callback', () => {
+        const transitions: { from: string; to: string }[] = [];
+        stateManager.onStateChange = (from, to) => { transitions.push({ from, to }); };
+
+        stateManager.showDashboard({ username: 'test', serverUrl: 'https://test.artemis.de' });
+        stateManager.showCourseList();
+
+        assert.strictEqual(transitions.length, 2);
+        assert.strictEqual(transitions[0].from, 'login');
+        assert.strictEqual(transitions[0].to, 'dashboard');
+        assert.strictEqual(transitions[1].from, 'dashboard');
+        assert.strictEqual(transitions[1].to, 'course-list');
     });
 });

@@ -1,9 +1,6 @@
-import { ArtemisApiService } from '../../api';
-import { logger, LogCategory } from '../../services/loggingService';
 import { getRecommendedExtensionsByCategory, type RecommendedExtensionCategory } from '../../utils/recommendedExtensions';
-import type { CourseDashboardResponse, CourseDashboardEntry, CourseDashboardCourse, ExamSummary, ExerciseDetailsResponse, StudentExam, ExerciseDetail } from '../../types/apiResponses';
+import type { CourseDashboardResponse, CourseDashboardEntry, ExerciseDetailsResponse, StudentExam, ExerciseDetail } from '../../types/apiResponses';
 import type { ArchivedCourse, CourseDetailData } from '../../shared/messageContracts';
-import { toCourseDetailData } from '../../shared/messageContracts';
 import type { ArtemisUser } from '../../types';
 
 export type AppState = 'login' | 'dashboard' | 'course-list' | 'course-detail' | 'exercise-detail' | 'exam-exercise-detail' | 'ai-config' | 'service-status' | 'struggle-detection' | 'recommended-extensions' | 'git-credentials' | 'exam-start' | 'exam-conduction';
@@ -57,7 +54,7 @@ export class AppStateManager {
 
     private _onStateChange?: (from: AppState, to: AppState) => void;
 
-    constructor(private readonly _artemisApi: ArtemisApiService) { }
+    constructor() { }
 
     public set onStateChange(handler: (from: AppState, to: AppState) => void) {
         this._onStateChange = handler;
@@ -126,24 +123,14 @@ export class AppStateManager {
     }
 
     // State transitions
-    public async showDashboard(userInfo: UserInfo): Promise<void> {
+    public showDashboard(userInfo: UserInfo, coursesData?: CourseDashboardResponse): void {
         this._userInfo = userInfo;
+        this._coursesData = coursesData;
         this._setCurrentState('dashboard');
+    }
 
-        // Clear stale courses before fetching so callers can trust
-        // that non-undefined coursesData reflects a successful load
-        this._coursesData = undefined;
-
-        // Always fetch fresh courses data for the dashboard
-        try {
-            this._coursesData = await this._artemisApi.getCoursesForDashboard();
-
-            // The registry is populated lazily when needed (e.g., when viewing course details, for Iris chat)
-            // For workspace detection, we search coursesData directly (see _handleDetectWorkspaceExercise)
-        } catch (error) {
-            logger.error('Error loading courses for dashboard:', LogCategory.VIEW, error);
-            // Continue anyway, dashboard will show "Loading courses..."
-        }
+    public setCoursesData(coursesData: CourseDashboardResponse): void {
+        this._coursesData = coursesData;
     }
 
     public showLogin(): void {
@@ -156,16 +143,9 @@ export class AppStateManager {
         this._recommendedExtensions = undefined;
     }
 
-    public async showCourseList(options?: { skipFetch?: boolean }): Promise<void> {
-        try {
-            if (!options?.skipFetch) {
-                this._coursesData = await this._artemisApi.getCoursesForDashboard();
-            }
-            this._setCurrentState('course-list');
-        } catch (error) {
-            logger.error('Error loading courses:', LogCategory.VIEW, error);
-            throw error;
-        }
+    public showCourseList(coursesData?: CourseDashboardResponse): void {
+        if (coursesData) { this._coursesData = coursesData; }
+        this._setCurrentState('course-list');
     }
 
     public showCourseDetail(courseData: CourseDetailData): void {
@@ -173,76 +153,9 @@ export class AppStateManager {
         this._setCurrentState('course-detail');
     }
 
-    public async showArchivedCourseDetail(courseId: number): Promise<void> {
-        try {
-            const dashboardDTO = await this._artemisApi.getCourseForDashboard(courseId);
-            const courseData = toCourseDetailData(
-                dashboardDTO.course as CourseDashboardCourse,
-                { isArchived: true }
-            );
-
-            // Fetch exams separately (same pattern as handleReloadCourseDetail)
-            try {
-                const exams = await this._artemisApi.getExamsForCourse(courseId);
-                courseData.course.exams = exams as typeof courseData.course.exams;
-            } catch { /* continue without exams */ }
-
-            this._currentCourseData = courseData;
-            this._setCurrentState('course-detail');
-        } catch (error) {
-            logger.error('Error loading archived course details:', LogCategory.VIEW, error);
-            throw error;
-        }
-    }
-
-    public async showExerciseDetail(exerciseId: number): Promise<void> {
-        try {
-            // ALWAYS fetch fresh data to ensure we have the latest results
-            // Exercise data changes frequently (new submissions, build results)
-            // and stale data can occur when WebSocket fails or disconnects
-            logger.info(`🔄 Fetching fresh exercise data for exercise ${exerciseId}`, LogCategory.VIEW);
-            const exerciseDetails = await this._artemisApi.getExerciseDetails(exerciseId);
-            this._currentExerciseData = exerciseDetails;
-
-            // Enrich ALL participations with pending submissions and feedbacks
-            // The React view selects participation by testRun/isPractice, not always [0]
-            const participations = exerciseDetails.exercise?.studentParticipations ?? [];
-            for (const participation of participations) {
-                if (!participation.id) { continue; }
-
-                // Check for pending submissions (builds in progress)
-                try {
-                    const pendingSubmission = await this._artemisApi.getLatestPendingSubmission(participation.id);
-                    if (pendingSubmission) {
-                        logger.info(`⏳ Found pending submission for participation ${participation.id}`, LogCategory.VIEW);
-                        this._currentExerciseData.pendingSubmission = pendingSubmission;
-                    }
-                } catch { /* ignore */ }
-
-                // Enrich the latest result with detailed feedbacks (test cases)
-                // The exercise details endpoint doesn't include feedbacks — we need the result details API
-                const latestSubmission = [...(participation.submissions ?? [])]
-                    .sort((a, b) => ((b as { id?: number }).id ?? 0) - ((a as { id?: number }).id ?? 0))[0] as { id?: number; results?: Array<{ id?: number; feedbacks?: unknown[] }> } | undefined;
-                const latestResult = [...(latestSubmission?.results ?? [])]
-                    .sort((a, b) => (a.id ?? 0) > (b.id ?? 0) ? -1 : 1)[0];
-                if (latestResult?.id) {
-                    try {
-                        const feedbacks = await this._artemisApi.getResultFeedbacks(participation.id, latestResult.id);
-                        if (feedbacks.length > 0) {
-                            latestResult.feedbacks = feedbacks;
-                            logger.info(`📋 Enriched result ${latestResult.id} with ${feedbacks.length} feedbacks`, LogCategory.VIEW);
-                        }
-                    } catch {
-                        logger.warn(`Could not fetch result details for result ${latestResult.id}`, LogCategory.VIEW);
-                    }
-                }
-            }
-
-            this._setCurrentState('exercise-detail');
-        } catch (error) {
-            logger.error('Error loading exercise details:', LogCategory.VIEW, error);
-            throw error;
-        }
+    public showExerciseDetail(exerciseData: ExerciseDetailsResponse): void {
+        this._currentExerciseData = exerciseData;
+        this._setCurrentState('exercise-detail');
     }
 
     public backToCourseDetails(): void {
@@ -257,20 +170,8 @@ export class AppStateManager {
         this._coursesData.courses.push(entry);
     }
 
-    public async loadArchivedCourses(): Promise<void> {
-        try {
-            const courses = await this._artemisApi.getArchivedCourses();
-            // Map CourseDashboardCourse to ArchivedCourse (subset of fields)
-            this._archivedCoursesData = courses.map(course => ({
-                id: course.id!,
-                title: course.title || '',
-                semester: course.semester,
-                color: course.color
-            }));
-        } catch (error) {
-            logger.error('Error loading archived courses:', LogCategory.VIEW, error);
-            throw error;
-        }
+    public setArchivedCourses(courses: ArchivedCourse[]): void {
+        this._archivedCoursesData = courses;
     }
 
     public showAiConfig(aiExtensions: AiExtension[]): void {

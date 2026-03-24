@@ -27,6 +27,7 @@ import { WebViewMessageHandler } from '../views/app/webViewMessageHandler';
 import type { WebViewActionHandler } from '../views/app/types';
 import { ViewActionService } from '../views/app/viewActionService';
 import { ViewRouter } from '../views/app/viewRouter';
+import { fetchAndEnrichExerciseDetails, fetchArchivedCourseDetail } from '../views/app/dataLoader';
 import { WebSocketMessageHandler } from '../types';
 import { BaseWebviewProvider } from './baseWebviewProvider';
 import type { BuildErrorCodeLensProvider } from './buildErrorCodeLensProvider';
@@ -86,8 +87,8 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
         this._telemetryManager = telemetryManager;
         this._authContextUpdater = updateAuthContext;
 
-        this._appStateManager = new AppStateManager(this._artemisApi);
-        this._viewActionService = new ViewActionService(this._appStateManager);
+        this._appStateManager = new AppStateManager();
+        this._viewActionService = new ViewActionService(this._appStateManager, this._artemisApi);
         this._messageHandler = new WebViewMessageHandler(
             this._authManager,
             this._artemisApi,
@@ -213,7 +214,8 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
                         const exerciseId = exerciseData?.exercise?.id;
                         if (exerciseId) {
                             try {
-                                await this._appStateManager.showExerciseDetail(exerciseId);
+                                const freshData = await fetchAndEnrichExerciseDetails(this._artemisApi, exerciseId);
+                                this._appStateManager.showExerciseDetail(freshData);
                             } catch { /* fall through to sendInitData with cached data */ }
                         }
                     }
@@ -316,7 +318,16 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
     }
 
     public async showDashboard(userInfo: UserInfo): Promise<void> {
-        await this._appStateManager.showDashboard(userInfo);
+        // Set state immediately so concurrent logic sees 'dashboard' during fetch
+        this._appStateManager.showDashboard(userInfo);
+
+        // Fetch courses and populate (swallow error — dashboard renders with empty state)
+        try {
+            const coursesData = await this._artemisApi.getCoursesForDashboard();
+            this._appStateManager.setCoursesData(coursesData);
+        } catch (error) {
+            logger.error('Error loading courses for dashboard', LogCategory.VIEW, error);
+        }
 
         if (this._view) {
             this.render();
@@ -345,7 +356,7 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
             case 'course-list':
                 // Seed with already-fetched data to avoid a second API call
                 this._appStateManager.seedAuthenticatedSession(userInfo, result.coursesData);
-                await this._appStateManager.showCourseList({ skipFetch: true });
+                this._appStateManager.showCourseList();
                 if (this._view) { this.render(); }
                 return;
 
@@ -393,7 +404,8 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
 
     public async showCourseList(): Promise<void> {
         try {
-            await this._appStateManager.showCourseList();
+            const coursesData = await this._artemisApi.getCoursesForDashboard();
+            this._appStateManager.showCourseList(coursesData);
             if (this._view) {
                 this.render();
             }

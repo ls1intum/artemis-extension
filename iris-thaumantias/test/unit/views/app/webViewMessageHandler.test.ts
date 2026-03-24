@@ -64,7 +64,7 @@ suite('WebViewMessageHandler - handleMessageWithSender', () => {
         mockContext = new MockExtensionContext();
         mockAuthManager = new MockAuthManager(mockContext);
         mockApiService = new MockArtemisApiService(mockAuthManager);
-        mockStateManager = new AppStateManager(mockApiService);
+        mockStateManager = new AppStateManager();
 
         actionHandler = {
             showDashboard: sandbox.stub().resolves(),

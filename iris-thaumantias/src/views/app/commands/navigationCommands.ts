@@ -10,6 +10,7 @@ import type {
     CourseDetailData,
 } from '../../../shared/messageContracts';
 import { toCourseDetailData } from '../../../shared/messageContracts';
+import { fetchAndEnrichExerciseDetails, fetchArchivedCourseDetail } from '../dataLoader';
 import type {
     CourseDashboardCourse,
     CourseDashboardEntry,
@@ -252,10 +253,14 @@ export class NavigationCommandModule {
         try {
             vscode.window.showInformationMessage('Loading archived courses...');
 
-            await this.context.appStateManager.loadArchivedCourses();
-
-            // Send typed message for React views
-            const archivedCourses = this.context.appStateManager.archivedCoursesData || [];
+            const courses = await this.context.artemisApi.getArchivedCourses();
+            const archivedCourses = courses.map(course => ({
+                id: course.id!,
+                title: course.title || '',
+                semester: course.semester,
+                color: course.color
+            }));
+            this.context.appStateManager.setArchivedCourses(archivedCourses);
             this.context.sendMessage({
                 type: ExtensionMsg.ArchivedCoursesLoaded,
                 archivedCourses
@@ -275,8 +280,8 @@ export class NavigationCommandModule {
 
     private handleReloadCourses = async (_message: WebviewToExtensionMessage): Promise<void> => {
         try {
-            await this.context.appStateManager.showCourseList();
-            // Send updated data to React without re-rendering
+            const coursesData = await this.context.artemisApi.getCoursesForDashboard();
+            this.context.appStateManager.showCourseList(coursesData);
             this.context.actionHandler.sendInitData();
         } catch (error: unknown) {
             logger.viewError('Reload courses error:', error);
@@ -350,8 +355,8 @@ export class NavigationCommandModule {
             }
 
             if (exerciseId) {
-                await this.context.appStateManager.showExerciseDetail(exerciseId);
-                // Send updated data to React without re-rendering
+                const data = await fetchAndEnrichExerciseDetails(this.context.artemisApi, exerciseId);
+                this.context.appStateManager.showExerciseDetail(data);
                 this.context.actionHandler.sendInitData();
             }
         } catch (error: unknown) {
@@ -366,7 +371,8 @@ export class NavigationCommandModule {
         try {
             vscode.window.showInformationMessage('Loading archived course details...');
 
-            await this.context.appStateManager.showArchivedCourseDetail(courseId);
+            const courseData = await fetchArchivedCourseDetail(this.context.artemisApi, courseId);
+            this.context.appStateManager.showCourseDetail(courseData);
             this.context.actionHandler.render();
         } catch (error: unknown) {
             logger.viewError('View archived course error:', error);

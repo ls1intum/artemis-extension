@@ -1,13 +1,18 @@
 import * as vscode from 'vscode';
-import { logger, LogLevel, LogCategory } from '../../services/loggingService';
+import { logger, LogCategory } from '../../services/loggingService';
+import type { ArtemisApiService } from '../../api';
 import { AppStateManager } from './appStateManager';
+import { fetchAndEnrichExerciseDetails } from './dataLoader';
 import type { ExerciseDetail } from '../../types/apiResponses';
 
 /**
  * Hosts actions triggered from the webview that reach beyond simple rendering.
  */
 export class ViewActionService {
-    constructor(private readonly _appStateManager: AppStateManager) { }
+    constructor(
+        private readonly _appStateManager: AppStateManager,
+        private readonly _artemisApi: ArtemisApiService,
+    ) { }
 
     public async openJsonInEditor(data: Record<string, unknown>): Promise<void> {
         try {
@@ -32,7 +37,8 @@ export class ViewActionService {
      */
     public async openExerciseDetails(exerciseId: number): Promise<boolean> {
         try {
-            await this._appStateManager.showExerciseDetail(exerciseId);
+            const data = await fetchAndEnrichExerciseDetails(this._artemisApi, exerciseId);
+            this._appStateManager.showExerciseDetail(data);
             return true;
         } catch (error) {
             logger.error('Error fetching exercise details:', LogCategory.VIEW, error);
