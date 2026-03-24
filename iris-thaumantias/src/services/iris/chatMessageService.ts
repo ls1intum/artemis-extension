@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import { ArtemisWebsocketService } from '../websocket/artemisWebsocketService';
-import { IrisSessionManager } from './irisSessionManager';
+import { IrisWebSocketSessionClient } from './irisWebSocketSessionClient';
 import { ActiveContext } from '../../types';
 import { checkWorkspaceFiles } from '../workspace/workspaceFileChecker';
 import { StruggleContext } from '../telemetry';
@@ -12,7 +12,7 @@ export class ChatMessageService {
     constructor(
         private readonly deps: IrisServiceDeps,
         private readonly _websocketService: ArtemisWebsocketService | undefined,
-        private readonly _getIrisSessionManager: () => IrisSessionManager | undefined,
+        private readonly _getIrisWebSocketSessionClient: () => IrisWebSocketSessionClient | undefined,
         private readonly _initializeIrisSession: (context: ActiveContext) => Promise<void>,
     ) { }
 
@@ -47,7 +47,7 @@ export class ChatMessageService {
             // Get or create Iris session
             await this._ensureIrisSession(activeContext);
 
-            const irisSessionManager = this._getIrisSessionManager();
+            const irisSessionManager = this._getIrisWebSocketSessionClient();
             if (!irisSessionManager?.currentSessionId) {
                 throw new Error('Failed to initialize Iris session');
             }
@@ -126,7 +126,7 @@ export class ChatMessageService {
     }
 
     private async _ensureIrisSession(activeContext: ActiveContext): Promise<void> {
-        const irisSessionManager = this._getIrisSessionManager();
+        const irisSessionManager = this._getIrisWebSocketSessionClient();
         logger.websocket(`🔑 Checking for existing Iris session... ${JSON.stringify({
             hasSessionId: !!irisSessionManager?.currentSessionId,
             sessionId: irisSessionManager?.currentSessionId

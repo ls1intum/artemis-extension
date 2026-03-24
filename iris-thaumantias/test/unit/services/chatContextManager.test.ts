@@ -3,15 +3,15 @@ import * as sinon from 'sinon';
 import * as vscode from 'vscode';
 import { ChatContextManager } from '../../../src/services/iris/chatContextManager';
 import { ContextStore } from '../../../src/services/iris/contextStore';
-import { IrisSessionInitService } from '../../../src/services/iris/chatSessionService';
-import { IrisSessionManager } from '../../../src/services/iris/irisSessionManager';
+import { IrisChatSessionService } from '../../../src/services/iris/chatSessionService';
+import { IrisWebSocketSessionClient } from '../../../src/services/iris/irisWebSocketSessionClient';
 import { MockExtensionContext } from '../mocks/vscodeMocks';
 
 suite('ChatContextManager Test Suite', () => {
     let chatContextManager: ChatContextManager;
     let contextStore: ContextStore;
-    let chatSessionService: sinon.SinonStubbedInstance<IrisSessionInitService>;
-    let irisSessionManager: sinon.SinonStubbedInstance<IrisSessionManager>;
+    let chatSessionService: sinon.SinonStubbedInstance<IrisChatSessionService>;
+    let irisSessionManager: sinon.SinonStubbedInstance<IrisWebSocketSessionClient>;
     let postMessageSpy: sinon.SinonSpy;
     let mockContext: MockExtensionContext;
     let showInformationMessageStub: sinon.SinonStub;
@@ -22,10 +22,10 @@ suite('ChatContextManager Test Suite', () => {
         contextStore = new ContextStore(mockContext);
 
         // Create stubbed services
-        chatSessionService = sinon.createStubInstance(IrisSessionInitService);
+        chatSessionService = sinon.createStubInstance(IrisChatSessionService);
         chatSessionService.loadAllSessionsForContext.resolves();
 
-        irisSessionManager = sinon.createStubInstance(IrisSessionManager);
+        irisSessionManager = sinon.createStubInstance(IrisWebSocketSessionClient);
 
         postMessageSpy = sinon.spy();
 
@@ -494,7 +494,7 @@ suite('ChatContextManager Test Suite', () => {
             assert.strictEqual(snapshot.activeContext.courseId, undefined);
         });
 
-        test('should handle when IrisSessionManager is not available', () => {
+        test('should handle when IrisWebSocketSessionClient is not available', () => {
             const managerWithoutIris = new ChatContextManager(
                 {
                     contextStore,

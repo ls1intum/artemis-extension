@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
-import { IrisSessionInitService } from './chatSessionService';
-import { IrisSessionManager } from './irisSessionManager';
+import { IrisChatSessionService } from './chatSessionService';
+import { IrisWebSocketSessionClient } from './irisWebSocketSessionClient';
 import { ActiveContext, ChatContextType, TrackedExercise } from '../../types';
 import { logger, LogCategory } from '../loggingService';
 import { ExtensionMsg } from '../../shared/messageContracts';
@@ -28,8 +28,8 @@ export interface SwitchContextParams {
 export class ChatContextManager {
     constructor(
         private readonly deps: IrisServiceDeps,
-        private readonly _chatSessionService: IrisSessionInitService,
-        private readonly _getIrisSessionManager: () => IrisSessionManager | undefined,
+        private readonly _chatSessionService: IrisChatSessionService,
+        private readonly _getIrisWebSocketSessionClient: () => IrisWebSocketSessionClient | undefined,
     ) { }
 
     /**
@@ -218,7 +218,7 @@ export class ChatContextManager {
     }
 
     private _resetSessionForContextChange(): void {
-        const irisSessionManager = this._getIrisSessionManager();
+        const irisSessionManager = this._getIrisWebSocketSessionClient();
         if (irisSessionManager) {
             irisSessionManager.resetSession();
         }

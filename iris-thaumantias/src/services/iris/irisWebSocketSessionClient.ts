@@ -26,7 +26,7 @@ const MIN_RESUBSCRIBE_INTERVAL_MS = 3000;
  * 3. Does NOT call connect() - only subscribes if already connected
  * 4. Tracks subscription state to prevent duplicate subscriptions
  */
-export class IrisSessionManager implements vscode.Disposable {
+export class IrisWebSocketSessionClient implements vscode.Disposable {
     private _currentArtemisSessionId?: number;
     private _irisUnsubscribe?: () => void;
     private _connectionStateUnsubscribe?: () => void;

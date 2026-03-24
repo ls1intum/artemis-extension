@@ -1,7 +1,7 @@
 import * as assert from 'assert';
 import * as sinon from 'sinon';
 import { ArtemisWebsocketService } from '../../../src/services/websocket/artemisWebsocketService';
-import { IrisSessionManager } from '../../../src/services/iris/irisSessionManager';
+import { IrisWebSocketSessionClient } from '../../../src/services/iris/irisWebSocketSessionClient';
 import { MockExtensionContext } from '../mocks/vscodeMocks';
 import { AuthManager } from '../../../src/services/auth/authManager';
 import { ArtemisApiService } from '../../../src/api';
@@ -634,14 +634,14 @@ suite('ArtemisWebsocketService Reconnection Logic', () => {
 });
 
 // ============================================================================
-// Test Suite: IrisSessionManager Safety Features
+// Test Suite: IrisWebSocketSessionClient Safety Features
 // ============================================================================
 
-suite('IrisSessionManager Safety Features', () => {
+suite('IrisWebSocketSessionClient Safety Features', () => {
     let wsService: TestableArtemisWebsocketService;
     let authManager: AuthManager;
     let apiService: sinon.SinonStubbedInstance<ArtemisApiService>;
-    let sessionManager: IrisSessionManager;
+    let sessionManager: IrisWebSocketSessionClient;
     let context: MockExtensionContext;
     let clock: sinon.SinonFakeTimers | undefined;
 
@@ -662,7 +662,7 @@ suite('IrisSessionManager Safety Features', () => {
         wsService.mockClient!.simulateConnect();
         await p;
 
-        sessionManager = new IrisSessionManager(apiService as any, wsService);
+        sessionManager = new IrisWebSocketSessionClient(apiService as any, wsService);
     });
 
     teardown(async () => {
@@ -679,10 +679,10 @@ suite('IrisSessionManager Safety Features', () => {
     });
 
     // ========================================================================
-    // Test 1: Rate Limiting for IrisSessionManager
+    // Test 1: Rate Limiting for IrisWebSocketSessionClient
     // ========================================================================
     test('Rate Limiting: resubscription should have min 3s interval', async () => {
-        // Don't use fake timers for this test - they interfere with IrisSessionManager's Date.now()
+        // Don't use fake timers for this test - they interfere with IrisWebSocketSessionClient's Date.now()
         
         // Initialize session (this calls _subscribeIfConnected and subscribes)
         // API returns { id: 123 }, so topic will be /user/topic/iris/123
@@ -713,7 +713,7 @@ suite('IrisSessionManager Safety Features', () => {
     }).timeout(5000);  // Increase timeout since we're waiting for real
 
     // ========================================================================
-    // Test 2: No connect() Calls from IrisSessionManager
+    // Test 2: No connect() Calls from IrisWebSocketSessionClient
     // ========================================================================
     test('No connect() Calls: _subscribeIfConnected should NEVER call connect()', async () => {
         // Disconnect WebSocket
@@ -723,7 +723,7 @@ suite('IrisSessionManager Safety Features', () => {
         const connectSpy = sinon.spy(wsService, 'connect');
 
         // Create new session manager (constructor registers callback)
-        const newSessionManager = new IrisSessionManager(apiService as any, wsService);
+        const newSessionManager = new IrisWebSocketSessionClient(apiService as any, wsService);
 
         // Try to initialize session (WebSocket not connected)
         await newSessionManager.initializeSession(createTestContext('exercise', 100, 'Test'));
@@ -732,7 +732,7 @@ suite('IrisSessionManager Safety Features', () => {
         newSessionManager.subscribeToSession(100);
 
         // connect() should NEVER have been called
-        assert.strictEqual(connectSpy.callCount, 0, 'IrisSessionManager should NEVER call connect()');
+        assert.strictEqual(connectSpy.callCount, 0, 'IrisWebSocketSessionClient should NEVER call connect()');
         sinon.assert.notCalled(connectSpy);
 
         newSessionManager.dispose();
@@ -742,11 +742,11 @@ suite('IrisSessionManager Safety Features', () => {
     // Test 3: Proper Cleanup on dispose
     // ========================================================================
     test('Proper Cleanup: dispose() should unsubscribe connection state callback', async () => {
-        // IrisSessionManager registers a callback in constructor
+        // IrisWebSocketSessionClient registers a callback in constructor
         const callbackCountBefore = wsService.connectionStateCallbacksCount;
 
         // Create and dispose session manager
-        const tempManager = new IrisSessionManager(apiService as any, wsService);
+        const tempManager = new IrisWebSocketSessionClient(apiService as any, wsService);
 
         // Should have registered a callback
         const callbackCountAfterCreate = wsService.connectionStateCallbacksCount;
@@ -769,14 +769,14 @@ suite('IrisSessionManager Safety Features', () => {
 });
 
 // ============================================================================
-// Test Suite: IrisSessionManager Subscription Management
+// Test Suite: IrisWebSocketSessionClient Subscription Management
 // ============================================================================
 
-suite('IrisSessionManager Subscription Management', () => {
+suite('IrisWebSocketSessionClient Subscription Management', () => {
     let wsService: TestableArtemisWebsocketService;
     let authManager: AuthManager;
     let apiService: sinon.SinonStubbedInstance<ArtemisApiService>;
-    let sessionManager: IrisSessionManager;
+    let sessionManager: IrisWebSocketSessionClient;
     let context: MockExtensionContext;
     let clock: sinon.SinonFakeTimers;
 
@@ -815,7 +815,7 @@ suite('IrisSessionManager Subscription Management', () => {
         wsService.mockClient!.simulateConnect();
         await p;
 
-        sessionManager = new IrisSessionManager(apiService as any, wsService);
+        sessionManager = new IrisWebSocketSessionClient(apiService as any, wsService);
 
         // Initialize session - should subscribe
         await sessionManager.initializeSession(createTestContext('exercise', 100, 'Test'));
@@ -830,7 +830,7 @@ suite('IrisSessionManager Subscription Management', () => {
 
     test('Subscribe when connected: should NOT subscribe if WebSocket is disconnected', async () => {
         // Don't connect WebSocket
-        sessionManager = new IrisSessionManager(apiService as any, wsService);
+        sessionManager = new IrisWebSocketSessionClient(apiService as any, wsService);
 
         // Initialize session - should NOT throw, but also not subscribe
         await sessionManager.initializeSession(createTestContext('exercise', 100, 'Test'));
@@ -851,7 +851,7 @@ suite('IrisSessionManager Subscription Management', () => {
         wsService.mockClient!.simulateConnect();
         await p;
 
-        sessionManager = new IrisSessionManager(apiService as any, wsService);
+        sessionManager = new IrisWebSocketSessionClient(apiService as any, wsService);
         await sessionManager.initializeSession(createTestContext('exercise', 100, 'Test'));
 
         // API returns { id: 123 }, so subscription is for session 123
@@ -895,7 +895,7 @@ suite('IrisSessionManager Subscription Management', () => {
         wsService.mockClient!.simulateConnect();
         await p;
 
-        sessionManager = new IrisSessionManager(apiService as any, wsService);
+        sessionManager = new IrisWebSocketSessionClient(apiService as any, wsService);
         await sessionManager.initializeSession(createTestContext('exercise', 100, 'Test'));
 
         const topic = '/user/topic/iris/123';
@@ -917,7 +917,7 @@ suite('IrisSessionManager Subscription Management', () => {
         wsService.mockClient!.simulateConnect();
         await p;
 
-        sessionManager = new IrisSessionManager(apiService as any, wsService);
+        sessionManager = new IrisWebSocketSessionClient(apiService as any, wsService);
         await sessionManager.initializeSession(createTestContext('exercise', 100, 'Test'));
 
         const topic = '/user/topic/iris/123';
@@ -943,7 +943,7 @@ suite('WebSocket Integration Tests', () => {
     let wsService: TestableArtemisWebsocketService;
     let authManager: AuthManager;
     let apiService: sinon.SinonStubbedInstance<ArtemisApiService>;
-    let sessionManager: IrisSessionManager;
+    let sessionManager: IrisWebSocketSessionClient;
     let context: MockExtensionContext;
     let clock: sinon.SinonFakeTimers;
 
@@ -982,7 +982,7 @@ suite('WebSocket Integration Tests', () => {
         assert.strictEqual(wsService.isConnected(), true);
 
         // 2. Create session manager and subscribe
-        sessionManager = new IrisSessionManager(apiService as any, wsService);
+        sessionManager = new IrisWebSocketSessionClient(apiService as any, wsService);
         await sessionManager.initializeSession(createTestContext('exercise', 100, 'Test'));
 
         // 3. Register message handler
@@ -1004,7 +1004,7 @@ suite('WebSocket Integration Tests', () => {
         assert.strictEqual(wsService.isConnected(), false);
     });
 
-    test('Connection state propagation: WebSocket state changes should propagate to IrisSessionManager', async () => {
+    test('Connection state propagation: WebSocket state changes should propagate to IrisWebSocketSessionClient', async () => {
         // Start clock with current time
         clock = sinon.useFakeTimers(Date.now());
 
@@ -1014,7 +1014,7 @@ suite('WebSocket Integration Tests', () => {
 
         // Create session manager - it will immediately receive the connected state
         // via onConnectionStateChange callback from WebSocket service
-        sessionManager = new IrisSessionManager(apiService as any, wsService);
+        sessionManager = new IrisWebSocketSessionClient(apiService as any, wsService);
 
         // Register our listener AFTER session manager is created
         const connectionStates: boolean[] = [];
@@ -1046,7 +1046,7 @@ suite('WebSocket Integration Tests', () => {
         wsService.mockClient!.simulateConnect();
         await p;
 
-        sessionManager = new IrisSessionManager(apiService as any, wsService);
+        sessionManager = new IrisWebSocketSessionClient(apiService as any, wsService);
 
         // Get initial callback count (1 from session manager constructor)
         const initialCallbackCount = wsService.connectionStateCallbacksCount;

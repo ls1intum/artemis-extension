@@ -1,19 +1,21 @@
 import * as assert from 'assert';
 import * as sinon from 'sinon';
-import { IrisSessionInitService } from '../../../src/services/iris/chatSessionService';
+import * as vscode from 'vscode';
+import { IrisChatSessionService } from '../../../src/services/iris/chatSessionService';
 import { ContextStore } from '../../../src/services/iris/contextStore';
 import { ArtemisApiService } from '../../../src/api';
+import { IrisWebSocketSessionClient } from '../../../src/services/iris/irisWebSocketSessionClient';
 import { ActiveContext } from '../../../src/types';
 import { MockExtensionContext } from '../mocks/vscodeMocks';
 
-suite('IrisSessionInitService Test Suite', () => {
-    let chatSessionService: IrisSessionInitService;
+suite('IrisChatSessionService Test Suite', () => {
+    let chatSessionService: IrisChatSessionService;
     let contextStore: ContextStore;
     let mockApiService: sinon.SinonStubbedInstance<ArtemisApiService>;
+    let mockIrisWebSocketSessionClient: sinon.SinonStubbedInstance<IrisWebSocketSessionClient>;
     let postMessageSpy: sinon.SinonSpy;
-    let onSessionLoadedSpy: sinon.SinonSpy;
-    let onCreateNewSessionSpy: sinon.SinonSpy;
     let onPostSnapshotSpy: sinon.SinonSpy;
+    let resetToWorkspaceSpy: sinon.SinonSpy;
     let mockContext: MockExtensionContext;
 
     setup(() => {
@@ -27,21 +29,23 @@ suite('IrisSessionInitService Test Suite', () => {
         mockApiService.getProfileInfo.resolves({ activeProfiles: [], activeModuleFeatures: ['iris'] });
         mockApiService.isIrisProfileActive.returns(true);
 
+        // Create stubbed IrisWebSocketSessionClient
+        mockIrisWebSocketSessionClient = sinon.createStubInstance(IrisWebSocketSessionClient);
+
         // Create spies for callbacks
         postMessageSpy = sinon.spy();
-        onSessionLoadedSpy = sinon.stub().resolves();
-        onCreateNewSessionSpy = sinon.spy();
         onPostSnapshotSpy = sinon.spy();
+        resetToWorkspaceSpy = sinon.spy();
 
-        chatSessionService = new IrisSessionInitService(
+        chatSessionService = new IrisChatSessionService(
             {
                 contextStore,
                 artemisApiService: mockApiService as any,
                 postMessage: postMessageSpy,
                 postSnapshot: onPostSnapshotSpy,
             },
-            onSessionLoadedSpy,
-            onCreateNewSessionSpy,
+            () => mockIrisWebSocketSessionClient as any,
+            resetToWorkspaceSpy,
         );
     });
 
@@ -140,15 +144,15 @@ suite('IrisSessionInitService Test Suite', () => {
 
     suite('Iris Settings Check', () => {
         test('should return false when API service is not available', async () => {
-            const serviceWithoutApi = new IrisSessionInitService(
+            const serviceWithoutApi = new IrisChatSessionService(
                 {
                     contextStore,
                     artemisApiService: undefined,
                     postMessage: postMessageSpy,
                     postSnapshot: onPostSnapshotSpy,
                 },
-                onSessionLoadedSpy,
-                onCreateNewSessionSpy,
+                () => mockIrisWebSocketSessionClient as any,
+                resetToWorkspaceSpy,
             );
 
             const context: ActiveContext = {
@@ -355,15 +359,15 @@ suite('IrisSessionInitService Test Suite', () => {
         });
 
         test('should not load sessions when API service is not available', async () => {
-            const serviceWithoutApi = new IrisSessionInitService(
+            const serviceWithoutApi = new IrisChatSessionService(
                 {
                     contextStore,
                     artemisApiService: undefined,
                     postMessage: postMessageSpy,
                     postSnapshot: onPostSnapshotSpy,
                 },
-                onSessionLoadedSpy,
-                onCreateNewSessionSpy,
+                () => mockIrisWebSocketSessionClient as any,
+                resetToWorkspaceSpy,
             );
 
             const context: ActiveContext = {
@@ -429,11 +433,14 @@ suite('IrisSessionInitService Test Suite', () => {
                 { id: 2, creationDate: '2024-01-02T10:00:00Z', messages: [{ sender: 'USER', content: [{ textContent: 'Hi there' }] }] }
             ]);
 
+            // Stub initializeSession for the _loadIrisMessages call
+            mockIrisWebSocketSessionClient.initializeSession.resolves(1);
+            mockApiService.getChatMessages.resolves([]);
+
             await chatSessionService.loadAllSessionsForContext();
 
             assert.ok(mockApiService.getCourseChatSessionsWithMessages.calledOnceWith(101));
-            assert.ok(onSessionLoadedSpy.calledOnce);
-            assert.ok(onPostSnapshotSpy.calledOnce);
+            assert.ok(onPostSnapshotSpy.called);
 
             const snapshot = contextStore.snapshot();
             assert.strictEqual(snapshot.sessions.length, 2);
@@ -460,10 +467,12 @@ suite('IrisSessionInitService Test Suite', () => {
                 { id: 1, creationDate: '2024-01-01T10:00:00Z', messages: [{ sender: 'USER', content: [{ textContent: 'Question' }] }] }
             ]);
 
+            mockIrisWebSocketSessionClient.initializeSession.resolves(1);
+            mockApiService.getChatMessages.resolves([]);
+
             await chatSessionService.loadAllSessionsForContext();
 
             assert.ok(mockApiService.getExerciseChatSessionsWithMessages.calledOnceWith(123));
-            assert.ok(onSessionLoadedSpy.calledOnce);
         });
 
         test('should create new session when no sessions exist', async () => {
@@ -484,10 +493,14 @@ suite('IrisSessionInitService Test Suite', () => {
 
             mockApiService.getCourseChatSessionsWithMessages.resolves([]);
 
+            // Stub createNewSession for the fallback
+            mockIrisWebSocketSessionClient.createNewSession.resolves(42);
+
             await chatSessionService.loadAllSessionsForContext();
 
-            assert.ok(onCreateNewSessionSpy.calledOnce);
-            assert.ok(onPostSnapshotSpy.calledOnce);
+            // Should have called resetSession (via createNewSession)
+            assert.ok(mockIrisWebSocketSessionClient.resetSession.calledOnce);
+            assert.ok(onPostSnapshotSpy.called);
 
             const snapshot = contextStore.snapshot();
             assert.strictEqual(snapshot.sessions.length, 1);
@@ -514,6 +527,9 @@ suite('IrisSessionInitService Test Suite', () => {
                 { id: 2, creationDate: '2024-01-03T10:00:00Z', messages: [] }, // Newest
                 { id: 3, creationDate: '2024-01-02T10:00:00Z', messages: [] }
             ]);
+
+            mockIrisWebSocketSessionClient.initializeSession.resolves(2);
+            mockApiService.getChatMessages.resolves([]);
 
             await chatSessionService.loadAllSessionsForContext();
 
@@ -558,8 +574,8 @@ suite('IrisSessionInitService Test Suite', () => {
 
             await chatSessionService.loadAllSessionsForContext();
 
-            // Should not call callbacks if context changed
-            assert.ok(onCreateNewSessionSpy.notCalled);
+            // Should not call createNewSession or resetSession if context changed
+            assert.ok(mockIrisWebSocketSessionClient.resetSession.notCalled);
         });
 
         test('should handle errors and create fallback session', async () => {
@@ -580,11 +596,13 @@ suite('IrisSessionInitService Test Suite', () => {
 
             mockApiService.getCourseChatSessionsWithMessages.rejects(new Error('API Error'));
 
+            mockIrisWebSocketSessionClient.createNewSession.resolves(42);
+
             await chatSessionService.loadAllSessionsForContext();
 
-            // Should create fallback session
-            assert.ok(onCreateNewSessionSpy.calledOnce);
-            assert.ok(onPostSnapshotSpy.calledOnce);
+            // Should create fallback session (via createNewSession -> resetSession)
+            assert.ok(mockIrisWebSocketSessionClient.resetSession.calledOnce);
+            assert.ok(onPostSnapshotSpy.called);
         });
 
         test('should clear existing sessions before loading fresh data', async () => {
@@ -615,6 +633,9 @@ suite('IrisSessionInitService Test Suite', () => {
                 { id: 1, creationDate: '2024-01-01T10:00:00Z', messages: [] }
             ]);
 
+            mockIrisWebSocketSessionClient.initializeSession.resolves(1);
+            mockApiService.getChatMessages.resolves([]);
+
             await chatSessionService.loadAllSessionsForContext();
 
             const snapshotAfter = contextStore.snapshot();
@@ -642,12 +663,212 @@ suite('IrisSessionInitService Test Suite', () => {
             });
 
             mockApiService.getCourseChatSessionsWithMessages.resolves([]);
+            mockIrisWebSocketSessionClient.createNewSession.resolves(42);
 
             await chatSessionService.loadAllSessionsForContext();
 
             assert.ok(postMessageSpy.calledWith(
                 sinon.match({ type: 'hideDisabledState' })
             ));
+        });
+    });
+
+    suite('createNewSession', () => {
+        test('should reset session instead of just unsubscribing', () => {
+            const context: ActiveContext = {
+                type: 'course',
+                id: 101,
+                title: 'Test Course',
+                source: 'user-selected',
+                locked: false,
+                selectedAt: Date.now()
+            };
+            contextStore.setActiveContext(context);
+
+            mockIrisWebSocketSessionClient.createNewSession.resolves(42);
+
+            chatSessionService.createNewSession();
+
+            assert.ok(mockIrisWebSocketSessionClient.resetSession.calledOnce);
+            assert.ok(postMessageSpy.calledWith(sinon.match({ type: 'clearChatMessages' })));
+        });
+
+        test('should redirect to workspace when workspace exercise exists and not in workspace context', () => {
+            contextStore.registerExercise({
+                id: 123,
+                title: 'Workspace Exercise',
+                isWorkspace: true,
+            });
+            const context: ActiveContext = {
+                type: 'exercise',
+                id: 456,
+                title: 'Other Exercise',
+                source: 'user-selected',
+                locked: false,
+                selectedAt: Date.now()
+            };
+            contextStore.setActiveContext(context);
+
+            chatSessionService.createNewSession();
+
+            assert.ok(resetToWorkspaceSpy.calledOnce);
+            // Should not call resetSession since we redirected
+            assert.ok(mockIrisWebSocketSessionClient.resetSession.notCalled);
+        });
+
+        test('should create server session and store ID', async () => {
+            const context: ActiveContext = {
+                type: 'course',
+                id: 101,
+                title: 'Test Course',
+                source: 'user-selected',
+                locked: false,
+                selectedAt: Date.now()
+            };
+            contextStore.setActiveContext(context);
+
+            mockIrisWebSocketSessionClient.createNewSession.resolves(42);
+
+            chatSessionService.createNewSession();
+
+            // Wait for the async createNewSession promise
+            await new Promise(resolve => setTimeout(resolve, 10));
+
+            assert.ok(mockIrisWebSocketSessionClient.createNewSession.calledOnce);
+        });
+    });
+
+    suite('switchToSession', () => {
+        test('should reset session, switch, and load messages', async () => {
+            const context: ActiveContext = {
+                type: 'course',
+                id: 101,
+                title: 'Test Course',
+                source: 'user-selected',
+                locked: false,
+                selectedAt: Date.now()
+            };
+            contextStore.setActiveContext(context);
+            contextStore.createSession();
+            const snapshot = contextStore.snapshot();
+            const sessionId = snapshot.sessions[0].id;
+
+            mockIrisWebSocketSessionClient.initializeSession.resolves(1);
+            mockApiService.getChatMessages.resolves([]);
+
+            chatSessionService.switchToSession(sessionId);
+
+            assert.ok(mockIrisWebSocketSessionClient.resetSession.calledOnce);
+            assert.ok(postMessageSpy.calledWith(sinon.match({ type: 'clearChatMessages' })));
+        });
+    });
+
+    suite('handleResetSessions', () => {
+        let showWarningStub: sinon.SinonStub;
+        let showInfoStub: sinon.SinonStub;
+        let showErrorStub: sinon.SinonStub;
+
+        setup(() => {
+            showWarningStub = sinon.stub(vscode.window, 'showWarningMessage');
+            showInfoStub = sinon.stub(vscode.window, 'showInformationMessage');
+            showErrorStub = sinon.stub(vscode.window, 'showErrorMessage');
+        });
+
+        test('should abort when user cancels confirmation', async () => {
+            showWarningStub.resolves(undefined);
+
+            await chatSessionService.handleResetSessions();
+
+            assert.ok(mockApiService.getCourseChatSessionsWithMessages.notCalled);
+        });
+
+        test('should clear sessions and reload from Artemis', async () => {
+            const context: ActiveContext = {
+                type: 'course',
+                id: 101,
+                title: 'Test Course',
+                source: 'user-selected',
+                locked: false,
+                selectedAt: Date.now()
+            };
+            contextStore.setActiveContext(context);
+
+            showWarningStub.resolves('Yes, Reset & Reload');
+
+            mockApiService.getCourseChatSessionsWithMessages.resolves([
+                { id: 1, creationDate: '2024-01-01T10:00:00Z', messages: [{ sender: 'USER', content: [{ textContent: 'Hi' }] }] }
+            ]);
+
+            mockIrisWebSocketSessionClient.initializeSession.resolves(1);
+            mockApiService.getChatMessages.resolves([]);
+
+            await chatSessionService.handleResetSessions();
+
+            assert.ok(showInfoStub.calledWith(sinon.match(/Successfully reloaded 1 session/)));
+            // Must post snapshot so UI reflects reloaded sessions
+            assert.ok(onPostSnapshotSpy.called, 'Should post snapshot after reload');
+            const snapshot = contextStore.snapshot();
+            assert.strictEqual(snapshot.sessions.length, 1, 'Should have 1 reloaded session');
+        });
+
+        test('should call resetSession when clearing all sessions', async () => {
+            const context: ActiveContext = {
+                type: 'course',
+                id: 101,
+                title: 'Test Course',
+                source: 'user-selected',
+                locked: false,
+                selectedAt: Date.now()
+            };
+            contextStore.setActiveContext(context);
+
+            showWarningStub.resolves('Yes, Reset & Reload');
+            mockApiService.getCourseChatSessionsWithMessages.resolves([]);
+
+            await chatSessionService.handleResetSessions();
+
+            // _clearAllSessions should call resetSession to avoid stale session IDs
+            assert.ok(mockIrisWebSocketSessionClient.resetSession.calledOnce, 'Should reset session during clear');
+        });
+
+        test('should show message when no sessions found on server', async () => {
+            const context: ActiveContext = {
+                type: 'course',
+                id: 101,
+                title: 'Test Course',
+                source: 'user-selected',
+                locked: false,
+                selectedAt: Date.now()
+            };
+            contextStore.setActiveContext(context);
+
+            showWarningStub.resolves('Yes, Reset & Reload');
+
+            mockApiService.getCourseChatSessionsWithMessages.resolves([]);
+
+            await chatSessionService.handleResetSessions();
+
+            assert.ok(showInfoStub.calledWith('No sessions found on Artemis for this context'));
+        });
+
+        test('should show error on API failure', async () => {
+            const context: ActiveContext = {
+                type: 'course',
+                id: 101,
+                title: 'Test Course',
+                source: 'user-selected',
+                locked: false,
+                selectedAt: Date.now()
+            };
+            contextStore.setActiveContext(context);
+
+            showWarningStub.resolves('Yes, Reset & Reload');
+
+            mockApiService.getCourseChatSessionsWithMessages.rejects(new Error('Server down'));
+
+            await chatSessionService.handleResetSessions();
+
+            assert.ok(showErrorStub.calledWith(sinon.match(/Failed to reload sessions/)));
         });
     });
 });

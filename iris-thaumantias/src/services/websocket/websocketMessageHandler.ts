@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import { ArtemisWebsocketService } from './artemisWebsocketService';
-import { IrisSessionManager } from '../iris/irisSessionManager';
+import { IrisWebSocketSessionClient } from '../iris/irisWebSocketSessionClient';
 import type { IrisChatMessage } from '../../types/apiResponses';
 import { logger, LogCategory } from '../loggingService';
 import { extractIrisMessageContent } from '../iris/messageUtils';
@@ -13,7 +13,7 @@ export class IrisWebSocketMessageHandler {
 
     constructor(
         private readonly _websocketService: ArtemisWebsocketService | undefined,
-        private readonly _getIrisSessionManager: () => IrisSessionManager | undefined,
+        private readonly _getIrisWebSocketSessionClient: () => IrisWebSocketSessionClient | undefined,
         private readonly _postMessage: (message: ExtensionToWebviewMessage) => void
     ) { }
 
@@ -85,7 +85,7 @@ export class IrisWebSocketMessageHandler {
             await this._websocketService.connect();
 
             // If we have an active Iris session, resubscribe to it
-            const irisSessionManager = this._getIrisSessionManager();
+            const irisSessionManager = this._getIrisWebSocketSessionClient();
             if (irisSessionManager?.currentSessionId && this._websocketService.isConnected()) {
                 logger.info(`Resubscribing to Iris session after reconnect: ${irisSessionManager.currentSessionId}`, LogCategory.IRIS_CHAT);
                 void irisSessionManager.subscribeToSession(irisSessionManager.currentSessionId);

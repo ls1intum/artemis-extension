@@ -13,12 +13,11 @@ import { ArtemisApiService } from '../api';
 import {
     ArtemisWebsocketService,
     FileMonitorService,
-    IrisSessionManager,
+    IrisWebSocketSessionClient,
     ChatDiagnosticsService,
-    IrisSessionInitService,
+    IrisChatSessionService,
     ChatMessageService,
     ChatContextManager,
-    IrisSessionLifecycleService,
     IrisWebSocketMessageHandler,
     ContextStore,
     TelemetryManager,
@@ -47,12 +46,11 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
     private readonly _contextStore: ContextStore;
     private readonly _viewStatePresenter: ChatViewStatePresenter;
     private _fileMonitorService: FileMonitorService;
-    private _irisSessionManager?: IrisSessionManager;
+    private _irisSessionManager?: IrisWebSocketSessionClient;
     private _chatDiagnosticsService: ChatDiagnosticsService;
-    private _chatSessionService: IrisSessionInitService;
+    private _chatSessionService: IrisChatSessionService;
     private _chatMessageService: ChatMessageService;
     private _chatContextManager: ChatContextManager;
-    private _sessionManagementService: IrisSessionLifecycleService;
     private _websocketMessageHandler: IrisWebSocketMessageHandler;
     private _noAiDetectionService: NoAiDetectionService;
     private _currentExerciseId?: number;
@@ -95,10 +93,10 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
         };
 
         this._chatDiagnosticsService = new ChatDiagnosticsService(this._contextStore, this._artemisApiService, this._exerciseRegistry);
-        this._chatSessionService = new IrisSessionInitService(
+        this._chatSessionService = new IrisChatSessionService(
             deps,
-            () => this._loadIrisMessages(),
-            () => this.createNewSession(),
+            () => this._irisSessionManager,
+            () => this._handleSwitchToWorkspaceContext(),
         );
         this._chatMessageService = new ChatMessageService(
             deps,
@@ -113,12 +111,6 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
             this._chatSessionService,
             () => this._irisSessionManager,
         );
-        this._sessionManagementService = new IrisSessionLifecycleService(
-            deps,
-            () => this._irisSessionManager,
-            () => this._loadIrisMessages(),
-            () => this._handleSwitchToWorkspaceContext(),
-        );
         this._websocketMessageHandler = new IrisWebSocketMessageHandler(
             this._websocketService,
             () => this._irisSessionManager,
@@ -126,7 +118,7 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
         );
 
         if (this._artemisApiService && this._websocketService) {
-            this._irisSessionManager = new IrisSessionManager(this._artemisApiService, this._websocketService);
+            this._irisSessionManager = new IrisWebSocketSessionClient(this._artemisApiService, this._websocketService);
             this._disposables.push(this._irisSessionManager);
 
             this._irisSessionManager.onDidReceiveMessage(data => this._websocketMessageHandler.handleIrisWebSocketMessage(data));
@@ -259,7 +251,7 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
         logger.info('Clearing all local Iris sessions...', LogCategory.IRIS_CHAT);
 
         if (this._irisSessionManager) {
-            this._irisSessionManager.unsubscribe();
+            this._irisSessionManager.resetSession();
         }
 
         // Clear all sessions in the context store
@@ -316,11 +308,11 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
     }
 
     public createNewSession(): void {
-        this._sessionManagementService.createNewSession();
+        this._chatSessionService.createNewSession();
     }
 
     public switchToSession(sessionId: string): void {
-        this._sessionManagementService.switchToSession(sessionId);
+        this._chatSessionService.switchToSession(sessionId);
     }
 
     public getSelectedContext(): ActiveContext | null {
@@ -507,28 +499,6 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
         this._chatContextManager.handleContextSelection(contextType, itemId, itemName, itemShortName);
     }
 
-    private async _loadIrisMessages(): Promise<void> {
-        const activeContext = this._contextStore.getActiveContext();
-        if (!activeContext || !this._artemisApiService || !this._view || !this._irisSessionManager) {
-            return;
-        }
-
-        const loadToken = this._chatSessionService.contextLoadToken;
-
-        try {
-            await this._chatSessionService.initializeIrisSessionAndLoadMessages(activeContext, this._irisSessionManager);
-        } catch (error: unknown) {
-            // If context changed during load, silently discard the error
-            if (this._chatSessionService.contextLoadToken !== loadToken) {
-                logger.info('Context changed during message load, discarding error', LogCategory.IRIS_CHAT);
-                return;
-            }
-            logger.error('Failed to load Iris messages', LogCategory.IRIS_CHAT, error);
-            const errorMessage = error instanceof Error ? error.message : String(error);
-            vscode.window.showWarningMessage(`Could not load previous messages: ${errorMessage}`);
-        }
-    }
-
     private async _loadIrisMessagesIfNeeded(): Promise<void> {
         logger.debug('_loadIrisMessagesIfNeeded called', LogCategory.IRIS_CHAT);
         const activeContext = this._contextStore.getActiveContext();
@@ -637,6 +607,6 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
     }
 
     private async _handleResetSessions(): Promise<void> {
-        await this._sessionManagementService.handleResetSessions();
+        await this._chatSessionService.handleResetSessions();
     }
 }

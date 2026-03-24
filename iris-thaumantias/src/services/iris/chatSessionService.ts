@@ -1,19 +1,19 @@
 import * as vscode from 'vscode';
 import { ActiveContext, ApiError, type IrisChatMessage, type IrisSettingsResponse } from '../../types';
-import type { IrisSessionManager } from './irisSessionManager';
+import type { IrisWebSocketSessionClient } from './irisWebSocketSessionClient';
 import { extractIrisMessageContent } from './messageUtils';
 import { logger, LogCategory } from '../loggingService';
 import { ExtensionMsg } from '../../shared/messageContracts';
 import { fetchSessionsWithMessages, importSessionsToStore } from './sessionSyncUtils';
 import type { IrisServiceDeps } from './sessionSyncUtils';
 
-export class IrisSessionInitService {
+export class IrisChatSessionService {
     private _contextLoadToken = 0;
 
     constructor(
         private readonly deps: IrisServiceDeps,
-        private readonly _onSessionLoaded: () => Promise<void>,
-        private readonly _onCreateNewSession: () => void,
+        private readonly _getIrisWebSocketSessionClient: () => IrisWebSocketSessionClient | undefined,
+        private readonly _resetToWorkspace: () => void,
     ) { }
 
     public get contextLoadToken(): number {
@@ -122,6 +122,8 @@ export class IrisSessionInitService {
         }
     }
 
+    // ── System-driven: load sessions on context switch ─────────────────
+
     public async loadAllSessionsForContext(): Promise<void> {
         const activeContext = this.deps.contextStore.getActiveContext();
 
@@ -172,58 +174,17 @@ export class IrisSessionInitService {
                 type: ExtensionMsg.HideDisabledState
             });
 
-            // Step 1+2: Fetch sessions with messages using shared utility
-            const sessionsFromServer = await fetchSessionsWithMessages(this.deps.artemisApiService, activeContext);
+            const count = await this._fetchImportAndActivate(targetContext, loadToken);
+            if (count === -1) { return; } // context changed
 
-            logger.info(`Fetched ${sessionsFromServer.length} session(s) with messages from Artemis`, LogCategory.IRIS_CHAT);
-
-            // CLEAR all existing sessions for this context to avoid stale data
-            if (!this.isCurrentContext(targetContext, loadToken)) {
-                logger.info('Context changed before clearing sessions, aborting load', LogCategory.IRIS_CHAT);
-                return;
-            }
-
-            const contextKey = `${targetContext.type}:${targetContext.id}`;
-            logger.info(`Clearing all existing sessions for context ${contextKey} before loading fresh data from Artemis`, LogCategory.IRIS_CHAT);
-            this.deps.contextStore.clearSessionsForContext(contextKey);
-
-            // Clear chat messages immediately after clearing sessions to avoid showing old messages
-            this.deps.postMessage({ type: ExtensionMsg.ClearChatMessages });
-
-            // Import all sessions from Artemis using shared utility
-            const importedCount = importSessionsToStore(sessionsFromServer, this.deps.contextStore);
-            if (importedCount > 0) {
-                logger.info(`Imported ${importedCount} sessions for ${activeContext.type} ${activeContext.id}`, LogCategory.IRIS_CHAT);
-            }
-
-            // Get the latest snapshot after importing sessions
-            const updatedSnapshot = this.deps.contextStore.snapshot();
-
-            // If there are sessions, switch to the first one and load its messages
-            if (updatedSnapshot.sessions.length > 0) {
-                if (!this.isCurrentContext(targetContext, loadToken)) {
-                    logger.info('Context changed before switching to first session, aborting load', LogCategory.IRIS_CHAT);
-                    return;
-                }
-
-                // Switch to the first (most recent) session
-                this.deps.contextStore.switchToFirstSession();
-
-                // Load messages for the first session
-                if (!this.isCurrentContext(targetContext, loadToken)) {
-                    logger.info('Context changed before loading messages, aborting load', LogCategory.IRIS_CHAT);
-                    return;
-                }
-
-                await this._onSessionLoaded();
-            } else {
+            if (count === 0) {
                 // No sessions exist, create a new one
                 logger.info('No sessions found, creating a new one', LogCategory.IRIS_CHAT);
                 if (!this.isCurrentContext(targetContext, loadToken)) {
                     logger.info('Context changed before creating new session, aborting load', LogCategory.IRIS_CHAT);
                     return;
                 }
-                this._onCreateNewSession();
+                this.createNewSession();
             }
 
             // Post updated snapshot to show sessions in UI
@@ -244,14 +205,15 @@ export class IrisSessionInitService {
             }
 
             // Fall back to creating a new session
-            this._onCreateNewSession();
+            this.createNewSession();
             this.deps.postSnapshot();
         }
     }
 
     public async initializeIrisSessionAndLoadMessages(
         context: ActiveContext,
-        irisSessionManager: IrisSessionManager,
+        irisSessionManager: IrisWebSocketSessionClient,
+        contextGuard?: () => boolean,
     ): Promise<void> {
         logger.info('initializeIrisSessionAndLoadMessages called', LogCategory.WEBSOCKET, {
             contextType: context.type,
@@ -279,6 +241,8 @@ export class IrisSessionInitService {
 
             const sessionId = await irisSessionManager.initializeSession(context, activeLocalSession?.artemisSessionId);
 
+            if (contextGuard && !contextGuard()) { return; }
+
             if (!activeLocalSession?.artemisSessionId) {
                 logger.info(`Storing NEW Artemis session ID mapping: ${sessionId}`, LogCategory.IRIS_CHAT);
                 this.deps.contextStore.setArtemisSessionId(sessionId);
@@ -290,6 +254,8 @@ export class IrisSessionInitService {
             logger.info(`Fetching messages for session: ${sessionId}`, LogCategory.IRIS_CHAT);
             const messages = await this.deps.artemisApiService.getChatMessages(sessionId);
             logger.info(`Received ${messages?.length || 0} messages from Iris`, LogCategory.IRIS_CHAT);
+
+            if (contextGuard && !contextGuard()) { return; }
 
             if (activeLocalSession?.messageCount && activeLocalSession.messageCount > 0 &&
                 (!messages || messages.length === 0)) {
@@ -304,7 +270,8 @@ export class IrisSessionInitService {
                     'Create New Conversation'
                 ).then(selection => {
                     if (selection === 'Create New Conversation') {
-                        this._onCreateNewSession();
+                        if (contextGuard && !contextGuard()) { return; }
+                        this.createNewSession();
                     }
                 });
             }
@@ -345,5 +312,198 @@ export class IrisSessionInitService {
             const errorMessage = error instanceof Error ? error.message : String(error);
             throw new Error(`Failed to connect to Iris: ${errorMessage}`);
         }
+    }
+
+    // ── User-driven: create / switch / reset ──────────────────────────
+
+    public createNewSession(): void {
+        logger.info('Creating new session', LogCategory.IRIS_CHAT);
+
+        // If workspace exercise exists and we're not in workspace context, switch back
+        const workspaceExercise = this.deps.contextStore.getWorkspaceExercise();
+        const currentContext = this.deps.contextStore.getActiveContext();
+        if (workspaceExercise && currentContext?.source !== 'workspace-detected') {
+            this._resetToWorkspace();
+            return; // switchContext in the provider already handles session creation
+        }
+
+        const irisSessionManager = this._getIrisWebSocketSessionClient();
+        if (irisSessionManager) {
+            irisSessionManager.resetSession();
+        }
+
+        this.deps.contextStore.createSession();
+        this.deps.postSnapshot();
+
+        this.deps.postMessage({ type: ExtensionMsg.ClearChatMessages });
+
+        // Create a brand new Iris session on the server
+        const activeContext = this.deps.contextStore.getActiveContext();
+        if (activeContext && irisSessionManager) {
+            irisSessionManager.createNewSession(activeContext)
+                .then(sessionId => {
+                    this._storeArtemisSessionId(sessionId);
+                    vscode.window.showInformationMessage('New conversation started!');
+                })
+                .catch((err: unknown) => {
+                    logger.error('Error creating new Iris session:', LogCategory.IRIS_CHAT, err);
+                    const errorMessage = err instanceof Error ? err.message : String(err);
+                    vscode.window.showErrorMessage(`Failed to create new conversation: ${errorMessage}`);
+                });
+        }
+    }
+
+    public switchToSession(sessionId: string): void {
+        logger.info('Switching to session:', LogCategory.IRIS_CHAT, sessionId);
+
+        const irisSessionManager = this._getIrisWebSocketSessionClient();
+        if (irisSessionManager) {
+            irisSessionManager.resetSession();
+        }
+
+        this.deps.contextStore.switchSession(sessionId);
+        this.deps.postSnapshot();
+
+        this.deps.postMessage({ type: ExtensionMsg.ClearChatMessages });
+
+        // Load messages for the switched session
+        this._loadIrisMessages().catch(err => {
+            logger.error('Error loading messages for switched session:', LogCategory.IRIS_CHAT, err);
+        });
+    }
+
+    public async handleResetSessions(): Promise<void> {
+        const confirmation = await vscode.window.showWarningMessage(
+            'This will clear all local Iris chat session data and reload all sessions from Artemis. Continue?',
+            { modal: true },
+            'Yes, Reset & Reload'
+        );
+
+        if (confirmation !== 'Yes, Reset & Reload') {
+            return;
+        }
+
+        this._clearAllSessions();
+
+        // If there's an active context, reload all sessions from Artemis
+        const activeContext = this.deps.contextStore.getActiveContext();
+        if (!activeContext || !this.deps.artemisApiService) {
+            return;
+        }
+
+        const targetContext: ActiveContext = { ...activeContext };
+        const loadToken = this.incrementLoadToken();
+
+        try {
+            logger.info('Fetching all Iris sessions from Artemis for context:', LogCategory.IRIS_CHAT, activeContext.title);
+
+            const count = await this._fetchImportAndActivate(targetContext, loadToken);
+            if (count === -1) { return; } // context changed
+
+            this.deps.postSnapshot();
+
+            if (count > 0) {
+                vscode.window.showInformationMessage(`Successfully reloaded ${count} session(s) from Artemis`);
+            } else {
+                vscode.window.showInformationMessage('No sessions found on Artemis for this context');
+            }
+        } catch (error: unknown) {
+            logger.error('Error resetting sessions from Artemis:', LogCategory.IRIS_CHAT, error);
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            vscode.window.showErrorMessage(`Failed to reload sessions: ${errorMessage}`);
+        }
+    }
+
+    // ── Private helpers ───────────────────────────────────────────────
+
+    /**
+     * Shared fetch→import→activate flow used by both loadAllSessionsForContext
+     * and handleResetSessions. Returns the number of imported sessions, or -1
+     * if the context changed during the operation.
+     */
+    private async _fetchImportAndActivate(
+        targetContext: ActiveContext,
+        loadToken: number,
+    ): Promise<number> {
+        const sessions = await fetchSessionsWithMessages(this.deps.artemisApiService!, targetContext);
+
+        logger.info(`Fetched ${sessions.length} session(s) with messages from Artemis`, LogCategory.IRIS_CHAT);
+
+        if (!this.isCurrentContext(targetContext, loadToken)) {
+            logger.info('Context changed before clearing sessions, aborting load', LogCategory.IRIS_CHAT);
+            return -1;
+        }
+
+        const contextKey = `${targetContext.type}:${targetContext.id}`;
+        logger.info(`Clearing all existing sessions for context ${contextKey} before loading fresh data from Artemis`, LogCategory.IRIS_CHAT);
+        this.deps.contextStore.clearSessionsForContext(contextKey);
+
+        this.deps.postMessage({ type: ExtensionMsg.ClearChatMessages });
+
+        const count = importSessionsToStore(sessions, this.deps.contextStore);
+        if (count > 0) {
+            logger.info(`Imported ${count} sessions for ${targetContext.type} ${targetContext.id}`, LogCategory.IRIS_CHAT);
+        }
+
+        if (count > 0) {
+            if (!this.isCurrentContext(targetContext, loadToken)) {
+                logger.info('Context changed before switching to first session, aborting load', LogCategory.IRIS_CHAT);
+                return -1;
+            }
+
+            this.deps.contextStore.switchToFirstSession();
+
+            if (!this.isCurrentContext(targetContext, loadToken)) {
+                logger.info('Context changed before loading messages, aborting load', LogCategory.IRIS_CHAT);
+                return -1;
+            }
+
+            await this._loadIrisMessages();
+        }
+
+        return count;
+    }
+
+    private async _loadIrisMessages(): Promise<void> {
+        const activeContext = this.deps.contextStore.getActiveContext();
+        const irisSessionManager = this._getIrisWebSocketSessionClient();
+        if (!activeContext || !this.deps.artemisApiService || !irisSessionManager) {
+            return;
+        }
+
+        const loadToken = this._contextLoadToken;
+
+        try {
+            await this.initializeIrisSessionAndLoadMessages(
+                activeContext,
+                irisSessionManager,
+                () => this.isCurrentContext(activeContext, loadToken),
+            );
+        } catch (error: unknown) {
+            if (this._contextLoadToken !== loadToken) {
+                logger.info('Context changed during message load, discarding error', LogCategory.IRIS_CHAT);
+                return;
+            }
+            logger.error('Failed to load Iris messages', LogCategory.IRIS_CHAT, error);
+            vscode.window.showWarningMessage(`Could not load previous messages: ${error instanceof Error ? error.message : String(error)}`);
+        }
+    }
+
+    private _storeArtemisSessionId(artemisSessionId: number): void {
+        this.deps.contextStore.setArtemisSessionId(artemisSessionId);
+        this.deps.postSnapshot();
+    }
+
+    private _clearAllSessions(): void {
+        logger.info('Clearing all local sessions', LogCategory.IRIS_CHAT);
+
+        const irisSessionManager = this._getIrisWebSocketSessionClient();
+        if (irisSessionManager) {
+            irisSessionManager.resetSession();
+        }
+
+        this.deps.contextStore.clearAllSessions();
+        this.deps.postSnapshot();
+        this.deps.postMessage({ type: ExtensionMsg.ClearChatMessages });
     }
 }
