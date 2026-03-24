@@ -494,14 +494,7 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
             this._artemisApiService,
             {
                 registerExercise: (input) => this._chatContextManager.registerExerciseAndAutoSelect(input),
-                clearStaleWorkspaceContext: () => {
-                    const current = this._contextStore.getActiveContext();
-                    if (current && current.source === 'workspace-detected') {
-                        logger.info(`Clearing stale workspace context: ${current.title}`, LogCategory.IRIS_CHAT);
-                        this._contextStore.clearActiveContext();
-                        this._viewStatePresenter.postSnapshot();
-                    }
-                },
+                clearStaleWorkspaceContext: () => this._chatContextManager.clearStaleWorkspaceContext(),
             },
             this._exerciseRegistry,
         );

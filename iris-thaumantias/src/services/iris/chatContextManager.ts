@@ -225,6 +225,7 @@ export class ChatContextManager {
                     locked: true,
                     selectedAt: Date.now(),
                 });
+                this.deps.contextStore.switchToFirstSession();
             }
         } else if (!this.deps.contextStore.getActiveContext()) {
             this._autoSelectFromSnapshot();
@@ -273,6 +274,16 @@ export class ChatContextManager {
         const best = pickBestContext(snapshot);
         if (best) {
             this.deps.contextStore.setActiveContext(best);
+            this.deps.contextStore.switchToFirstSession();
+        }
+    }
+
+    public clearStaleWorkspaceContext(): void {
+        const current = this.deps.contextStore.getActiveContext();
+        if (current && current.source === 'workspace-detected') {
+            logger.context(`Clearing stale workspace context: ${current.title}`);
+            this.deps.contextStore.clearActiveContext();
+            this.deps.postSnapshot();
         }
     }
 

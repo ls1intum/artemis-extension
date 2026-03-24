@@ -508,4 +508,169 @@ suite('ChatContextManager Test Suite', () => {
             assert.ok(snapshot.activeContext);
         });
     });
+
+    suite('Registration with auto-select policy', () => {
+        test('should auto-select exercise when no active context', () => {
+            chatContextManager.registerExerciseAndAutoSelect({
+                id: 123,
+                title: 'Test Exercise',
+                source: 'system-default',
+            });
+
+            const snapshot = contextStore.snapshot();
+            assert.ok(snapshot.activeContext);
+            assert.strictEqual(snapshot.activeContext.id, 123);
+            assert.strictEqual(snapshot.activeContext.source, 'system-default');
+        });
+
+        test('should not change active context when one already exists', () => {
+            contextStore.setActiveContext({
+                type: 'exercise',
+                id: 999,
+                title: 'Existing',
+                source: 'user-selected',
+                locked: false,
+                selectedAt: Date.now(),
+            });
+
+            chatContextManager.registerExerciseAndAutoSelect({
+                id: 123,
+                title: 'New Exercise',
+                source: 'system-default',
+            });
+
+            const snapshot = contextStore.snapshot();
+            assert.strictEqual(snapshot.activeContext?.id, 999);
+        });
+
+        test('should override with workspace exercise when different exercise active', () => {
+            contextStore.setActiveContext({
+                type: 'exercise',
+                id: 999,
+                title: 'Other',
+                source: 'user-selected',
+                locked: false,
+                selectedAt: Date.now(),
+            });
+
+            chatContextManager.registerExerciseAndAutoSelect({
+                id: 123,
+                title: 'Workspace Exercise',
+                source: 'workspace-detected',
+                isWorkspace: true,
+            });
+
+            const snapshot = contextStore.snapshot();
+            assert.strictEqual(snapshot.activeContext?.id, 123);
+            assert.strictEqual(snapshot.activeContext?.source, 'workspace-detected');
+        });
+
+        test('should not override when same workspace exercise re-detected and user-selected', () => {
+            contextStore.setActiveContext({
+                type: 'exercise',
+                id: 123,
+                title: 'Workspace Exercise',
+                source: 'user-selected',
+                locked: false,
+                selectedAt: Date.now(),
+            });
+
+            chatContextManager.registerExerciseAndAutoSelect({
+                id: 123,
+                title: 'Workspace Exercise',
+                source: 'workspace-detected',
+                isWorkspace: true,
+            });
+
+            const snapshot = contextStore.snapshot();
+            assert.strictEqual(snapshot.activeContext?.source, 'user-selected');
+        });
+
+        test('should auto-select course when no active context', () => {
+            chatContextManager.registerCourseAndAutoSelect({
+                id: 101,
+                title: 'Test Course',
+                source: 'system-default',
+            });
+
+            const snapshot = contextStore.snapshot();
+            assert.ok(snapshot.activeContext);
+            assert.strictEqual(snapshot.activeContext.id, 101);
+            assert.strictEqual(snapshot.activeContext.type, 'course');
+        });
+
+        test('should auto-select after removing active exercise', () => {
+            chatContextManager.registerExerciseAndAutoSelect({ id: 1, title: 'Ex 1' });
+            chatContextManager.registerExerciseAndAutoSelect({ id: 2, title: 'Ex 2' });
+
+            // Ex 1 should be auto-selected (first registered, no active)
+            assert.strictEqual(contextStore.getActiveContext()?.id, 1);
+
+            // Now set Ex 2 as active and remove it
+            contextStore.setActiveContext({
+                type: 'exercise',
+                id: 2,
+                title: 'Ex 2',
+                source: 'user-selected',
+                locked: false,
+                selectedAt: Date.now(),
+            });
+            chatContextManager.removeExerciseAndAutoSelect(2);
+
+            const snapshot = contextStore.snapshot();
+            assert.ok(snapshot.activeContext);
+            assert.strictEqual(snapshot.activeContext.id, 1);
+        });
+
+        test('should auto-select after removing active course', () => {
+            chatContextManager.registerCourseAndAutoSelect({ id: 101, title: 'Course 1' });
+            chatContextManager.registerCourseAndAutoSelect({ id: 102, title: 'Course 2' });
+
+            contextStore.setActiveContext({
+                type: 'course',
+                id: 101,
+                title: 'Course 1',
+                source: 'user-selected',
+                locked: false,
+                selectedAt: Date.now(),
+            });
+
+            chatContextManager.removeCourseAndAutoSelect(101);
+
+            const snapshot = contextStore.snapshot();
+            assert.ok(snapshot.activeContext);
+            assert.strictEqual(snapshot.activeContext.id, 102);
+        });
+
+        test('should clear stale workspace context', () => {
+            contextStore.setActiveContext({
+                type: 'exercise',
+                id: 123,
+                title: 'Workspace Exercise',
+                source: 'workspace-detected',
+                locked: true,
+                selectedAt: Date.now(),
+            });
+
+            chatContextManager.clearStaleWorkspaceContext();
+
+            assert.strictEqual(contextStore.getActiveContext(), null);
+        });
+
+        test('should not clear non-workspace context', () => {
+            contextStore.setActiveContext({
+                type: 'exercise',
+                id: 123,
+                title: 'User Exercise',
+                source: 'user-selected',
+                locked: false,
+                selectedAt: Date.now(),
+            });
+
+            chatContextManager.clearStaleWorkspaceContext();
+
+            assert.ok(contextStore.getActiveContext());
+            assert.strictEqual(contextStore.getActiveContext()?.id, 123);
+        });
+    });
 });
