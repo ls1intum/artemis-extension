@@ -1,4 +1,3 @@
-import * as vscode from 'vscode';
 import { IrisChatSessionService } from './chatSessionService';
 import { IrisWebSocketSessionClient } from './irisWebSocketSessionClient';
 import { ActiveContext, ChatContextType, TrackedExercise } from '../../types';
@@ -77,9 +76,6 @@ export class ChatContextManager {
         // Step 3: Finalize — reset WS subscription, clear UI, reload sessions
         this._resetSessionForContextChange();
         this._clearChatMessages();
-
-        const label = params.type === 'exercise' ? 'Exercise' : 'Course';
-        vscode.window.showInformationMessage(`${label} context set to: ${params.title}`);
 
         this._chatSessionService.loadAllSessionsForContext().catch((err: unknown) => {
             logger.error('Error loading Iris sessions:', LogCategory.IRIS_CHAT, err);
@@ -160,14 +156,7 @@ export class ChatContextManager {
     }
 
     public handleSwitchToWorkspaceContext(): TrackedExercise | undefined {
-        const workspaceExercise = this.deps.contextStore.getWorkspaceExercise();
-
-        if (!workspaceExercise) {
-            vscode.window.showWarningMessage('No workspace exercise detected. Open a workspace folder with a git repository.');
-            return undefined;
-        }
-
-        return workspaceExercise;
+        return this.deps.contextStore.getWorkspaceExercise();
     }
 
     public clearContext(): void {

@@ -1,4 +1,3 @@
-import * as vscode from 'vscode';
 import { ActiveContext, ApiError, type IrisChatMessage, type IrisSettingsResponse } from '../../types';
 import type { IrisWebSocketSessionClient } from './irisWebSocketSessionClient';
 import { extractIrisMessageContent } from './messageUtils';
@@ -197,7 +196,6 @@ export class IrisChatSessionService {
 
         } catch (error: unknown) {
             logger.error('Error loading sessions for context:', LogCategory.SESSION, error);
-            vscode.window.showWarningMessage(`Could not load sessions: ${error instanceof Error ? error.message : String(error)}`);
 
             if (!this.isCurrentContext(targetContext, loadToken)) {
                 logger.info('Context changed during error handling, skipping fallback session creation', LogCategory.IRIS_CHAT);
@@ -264,16 +262,6 @@ export class IrisChatSessionService {
 
                 this.deps.contextStore.setArtemisSessionId(undefined);
                 this.deps.postSnapshot();
-
-                vscode.window.showWarningMessage(
-                    'This conversation\'s messages could not be found on the server. They may have been deleted. The session mapping has been reset.',
-                    'Create New Conversation'
-                ).then(selection => {
-                    if (selection === 'Create New Conversation') {
-                        if (contextGuard && !contextGuard()) { return; }
-                        this.createNewSession();
-                    }
-                });
             }
 
             if (messages && messages.length > 0) {
@@ -305,8 +293,6 @@ export class IrisChatSessionService {
             } else {
                 logger.info('No messages to load or view not ready', LogCategory.IRIS_CHAT);
             }
-
-            vscode.window.showInformationMessage(`Connected to Iris for ${context.title}`);
         } catch (error: unknown) {
             logger.error('Error initializing Iris session', LogCategory.IRIS_CHAT, error);
             const errorMessage = error instanceof Error ? error.message : String(error);
@@ -343,12 +329,9 @@ export class IrisChatSessionService {
             irisSessionManager.createNewSession(activeContext)
                 .then(sessionId => {
                     this._storeArtemisSessionId(sessionId);
-                    vscode.window.showInformationMessage('New conversation started!');
                 })
                 .catch((err: unknown) => {
                     logger.error('Error creating new Iris session:', LogCategory.IRIS_CHAT, err);
-                    const errorMessage = err instanceof Error ? err.message : String(err);
-                    vscode.window.showErrorMessage(`Failed to create new conversation: ${errorMessage}`);
                 });
         }
     }
@@ -372,46 +355,25 @@ export class IrisChatSessionService {
         });
     }
 
-    public async handleResetSessions(): Promise<void> {
-        const confirmation = await vscode.window.showWarningMessage(
-            'This will clear all local Iris chat session data and reload all sessions from Artemis. Continue?',
-            { modal: true },
-            'Yes, Reset & Reload'
-        );
-
-        if (confirmation !== 'Yes, Reset & Reload') {
-            return;
-        }
-
+    public async resetAndReloadSessions(): Promise<number> {
         this._clearAllSessions();
 
         // If there's an active context, reload all sessions from Artemis
         const activeContext = this.deps.contextStore.getActiveContext();
         if (!activeContext || !this.deps.artemisApiService) {
-            return;
+            return 0;
         }
 
         const targetContext: ActiveContext = { ...activeContext };
         const loadToken = this.incrementLoadToken();
 
-        try {
-            logger.info('Fetching all Iris sessions from Artemis for context:', LogCategory.IRIS_CHAT, activeContext.title);
+        logger.info('Fetching all Iris sessions from Artemis for context:', LogCategory.IRIS_CHAT, activeContext.title);
 
-            const count = await this._fetchImportAndActivate(targetContext, loadToken);
-            if (count === -1) { return; } // context changed
+        const count = await this._fetchImportAndActivate(targetContext, loadToken);
+        if (count === -1) { return 0; } // context changed
 
-            this.deps.postSnapshot();
-
-            if (count > 0) {
-                vscode.window.showInformationMessage(`Successfully reloaded ${count} session(s) from Artemis`);
-            } else {
-                vscode.window.showInformationMessage('No sessions found on Artemis for this context');
-            }
-        } catch (error: unknown) {
-            logger.error('Error resetting sessions from Artemis:', LogCategory.IRIS_CHAT, error);
-            const errorMessage = error instanceof Error ? error.message : String(error);
-            vscode.window.showErrorMessage(`Failed to reload sessions: ${errorMessage}`);
-        }
+        this.deps.postSnapshot();
+        return count;
     }
 
     // ── Private helpers ───────────────────────────────────────────────
@@ -485,7 +447,6 @@ export class IrisChatSessionService {
                 return;
             }
             logger.error('Failed to load Iris messages', LogCategory.IRIS_CHAT, error);
-            vscode.window.showWarningMessage(`Could not load previous messages: ${error instanceof Error ? error.message : String(error)}`);
         }
     }
 

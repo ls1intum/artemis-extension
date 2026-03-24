@@ -37,8 +37,7 @@ export class ChatMessageService {
         }
 
         if (!this.deps.artemisApiService) {
-            vscode.window.showErrorMessage('Artemis API service not available');
-            return;
+            throw new Error('Artemis API service not available');
         }
 
         try {
@@ -75,18 +74,8 @@ export class ChatMessageService {
             this.deps.postSnapshot();
 
         } catch (error: unknown) {
-            const errorMessage = error instanceof Error ? error.message : String(error);
             logger.error('Error sending chat message', LogCategory.IRIS_CHAT, error);
-            vscode.window.showErrorMessage(`Failed to send message: ${errorMessage}`);
-
-            this.deps.postMessage({
-                type: ExtensionMsg.AddMessage,
-                message: {
-                    role: 'assistant',
-                    content: `Error: ${errorMessage}`,
-                    timestamp: Date.now()
-                }
-            });
+            throw error;
         }
     }
 
@@ -118,11 +107,9 @@ export class ChatMessageService {
                 logger.websocket('✅ WebSocket connected successfully');
             } else {
                 logger.warn('⚠️ WebSocket connection not established', LogCategory.WEBSOCKET);
-                vscode.window.showWarningMessage('WebSocket connection not available. You may not receive responses in real-time.');
             }
         } catch (error) {
             logger.error('❌ Failed to connect WebSocket', LogCategory.WEBSOCKET, error as Error);
-            vscode.window.showWarningMessage('WebSocket connection failed. You may not receive responses in real-time.');
         }
     }
 
@@ -191,33 +178,6 @@ export class ChatMessageService {
             return uncommittedFiles;
         } catch (error: unknown) {
             logger.error('Error collecting uncommitted files', LogCategory.IRIS_CHAT, error);
-
-            const errorMessage = error instanceof Error ? error.message : '';
-            const errorCode = (error as { code?: string }).code;
-
-            // Show user-friendly error message based on error type
-            if (errorMessage.includes('Git')) {
-                vscode.window.showWarningMessage(
-                    'Failed to collect uncommitted files from Git. Iris will only see your repository content.',
-                    'OK'
-                );
-            } else if (errorCode === 'ENOENT') {
-                vscode.window.showWarningMessage(
-                    'Some files could not be read. Iris might not have full context of your changes.',
-                    'OK'
-                );
-            } else {
-                vscode.window.showWarningMessage(
-                    'Could not collect uncommitted changes. Iris will work with repository content only.',
-                    'Disable Feature',
-                    'OK'
-                ).then(selection => {
-                    if (selection === 'Disable Feature') {
-                        void vscode.workspace.getConfiguration('artemis.iris').update('sendUncommittedChanges', false, true);
-                    }
-                }, err => logger.error('Error showing uncommitted files warning', LogCategory.IRIS_CHAT, err));
-            }
-
             // Continue without uncommitted files - this is not a critical error
             return undefined;
         }

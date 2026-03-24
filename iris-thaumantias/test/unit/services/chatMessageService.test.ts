@@ -19,8 +19,9 @@ suite('ChatMessageService', () => {
     let checkWorkspaceFilesStub: sinon.SinonStub;
     let configGetStub: sinon.SinonStub;
     let configUpdateStub: sinon.SinonStub;
-    let showWarningMessageStub: sinon.SinonStub;
-    let showErrorMessageStub: sinon.SinonStub;
+    // Stubs kept to prevent unhandled vscode.window calls during tests
+    let _showWarningMessageStub: sinon.SinonStub;
+    let _showErrorMessageStub: sinon.SinonStub;
     let mockSessionManager: { currentSessionId: number | undefined };
     let service: ChatMessageService;
 
@@ -95,8 +96,8 @@ suite('ChatMessageService', () => {
             index: 0,
         }]);
 
-        showWarningMessageStub = sandbox.stub(vscode.window, 'showWarningMessage').resolves(undefined as any);
-        showErrorMessageStub = sandbox.stub(vscode.window, 'showErrorMessage').resolves(undefined as any);
+        _showWarningMessageStub = sandbox.stub(vscode.window, 'showWarningMessage').resolves(undefined as any);
+        _showErrorMessageStub = sandbox.stub(vscode.window, 'showErrorMessage').resolves(undefined as any);
     });
 
     teardown(() => {
@@ -125,13 +126,13 @@ suite('ChatMessageService', () => {
             assert.ok(checkWorkspaceFilesStub.notCalled);
         });
 
-        test('should show error when API service not available', async () => {
+        test('should throw when API service not available', async () => {
             createService(undefined);
 
-            await service.handleChatMessage('Hello', activeContext);
-
-            assert.ok(showErrorMessageStub.calledOnce);
-            assert.ok((showErrorMessageStub.firstCall.args[0] as string).includes('Artemis API service not available'));
+            await assert.rejects(
+                () => service.handleChatMessage('Hello', activeContext),
+                /Artemis API service not available/
+            );
         });
     });
 
@@ -248,47 +249,15 @@ suite('ChatMessageService', () => {
     });
 
     suite('Error Handling', () => {
-        test('should show Git-specific warning for Git errors', async () => {
+        test('should continue without files on file collection error', async () => {
             checkWorkspaceFilesStub.rejects(new Error('Git command failed'));
             createService();
 
             await service.handleChatMessage('Hello', activeContext);
 
-            assert.ok(showWarningMessageStub.calledOnce);
-            assert.ok(
-                (showWarningMessageStub.firstCall.args[0] as string).includes('Failed to collect uncommitted files from Git'),
-            );
-        });
-
-        test('should show ENOENT-specific warning for file-not-found errors', async () => {
-            const error: any = new Error('File not found');
-            error.code = 'ENOENT';
-            checkWorkspaceFilesStub.rejects(error);
-            createService();
-
-            await service.handleChatMessage('Hello', activeContext);
-
-            assert.ok(showWarningMessageStub.calledOnce);
-            assert.ok(
-                (showWarningMessageStub.firstCall.args[0] as string).includes('Some files could not be read'),
-            );
-        });
-
-        test('should offer Disable Feature for generic errors and honor the choice', async () => {
-            checkWorkspaceFilesStub.rejects(new Error('Unknown error'));
-            showWarningMessageStub.resolves('Disable Feature');
-            createService();
-
-            await service.handleChatMessage('Hello', activeContext);
-
-            const args = showWarningMessageStub.firstCall.args;
-            assert.ok(args.includes('Disable Feature'));
-            assert.ok(args.includes('OK'));
-
-            // Wait for the .then() handler
-            await new Promise(resolve => setTimeout(resolve, 0));
-
-            assert.ok(configUpdateStub.calledWith('sendUncommittedChanges', false, true));
+            // Service logs error but continues — no toast (provider handles UI)
+            assert.ok(mockApiService.sendChatMessage.calledOnce);
+            assert.strictEqual(mockApiService.sendChatMessage.firstCall.args[2], undefined);
         });
 
         test('should still send message to API with undefined files on error', async () => {

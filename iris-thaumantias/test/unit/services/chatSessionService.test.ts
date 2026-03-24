@@ -763,25 +763,7 @@ suite('IrisChatSessionService Test Suite', () => {
         });
     });
 
-    suite('handleResetSessions', () => {
-        let showWarningStub: sinon.SinonStub;
-        let showInfoStub: sinon.SinonStub;
-        let showErrorStub: sinon.SinonStub;
-
-        setup(() => {
-            showWarningStub = sinon.stub(vscode.window, 'showWarningMessage');
-            showInfoStub = sinon.stub(vscode.window, 'showInformationMessage');
-            showErrorStub = sinon.stub(vscode.window, 'showErrorMessage');
-        });
-
-        test('should abort when user cancels confirmation', async () => {
-            showWarningStub.resolves(undefined);
-
-            await chatSessionService.handleResetSessions();
-
-            assert.ok(mockApiService.getCourseChatSessionsWithMessages.notCalled);
-        });
-
+    suite('resetAndReloadSessions', () => {
         test('should clear sessions and reload from Artemis', async () => {
             const context: ActiveContext = {
                 type: 'course',
@@ -793,8 +775,6 @@ suite('IrisChatSessionService Test Suite', () => {
             };
             contextStore.setActiveContext(context);
 
-            showWarningStub.resolves('Yes, Reset & Reload');
-
             mockApiService.getCourseChatSessionsWithMessages.resolves([
                 { id: 1, creationDate: '2024-01-01T10:00:00Z', messages: [{ sender: 'USER', content: [{ textContent: 'Hi' }] }] }
             ]);
@@ -802,9 +782,9 @@ suite('IrisChatSessionService Test Suite', () => {
             mockIrisWebSocketSessionClient.initializeSession.resolves(1);
             mockApiService.getChatMessages.resolves([]);
 
-            await chatSessionService.handleResetSessions();
+            const count = await chatSessionService.resetAndReloadSessions();
 
-            assert.ok(showInfoStub.calledWith(sinon.match(/Successfully reloaded 1 session/)));
+            assert.strictEqual(count, 1);
             // Must post snapshot so UI reflects reloaded sessions
             assert.ok(onPostSnapshotSpy.called, 'Should post snapshot after reload');
             const snapshot = contextStore.snapshot();
@@ -822,16 +802,15 @@ suite('IrisChatSessionService Test Suite', () => {
             };
             contextStore.setActiveContext(context);
 
-            showWarningStub.resolves('Yes, Reset & Reload');
             mockApiService.getCourseChatSessionsWithMessages.resolves([]);
 
-            await chatSessionService.handleResetSessions();
+            await chatSessionService.resetAndReloadSessions();
 
             // _clearAllSessions should call resetSession to avoid stale session IDs
             assert.ok(mockIrisWebSocketSessionClient.resetSession.calledOnce, 'Should reset session during clear');
         });
 
-        test('should show message when no sessions found on server', async () => {
+        test('should return 0 when no sessions found on server', async () => {
             const context: ActiveContext = {
                 type: 'course',
                 id: 101,
@@ -841,17 +820,15 @@ suite('IrisChatSessionService Test Suite', () => {
                 selectedAt: Date.now()
             };
             contextStore.setActiveContext(context);
-
-            showWarningStub.resolves('Yes, Reset & Reload');
 
             mockApiService.getCourseChatSessionsWithMessages.resolves([]);
 
-            await chatSessionService.handleResetSessions();
+            const count = await chatSessionService.resetAndReloadSessions();
 
-            assert.ok(showInfoStub.calledWith('No sessions found on Artemis for this context'));
+            assert.strictEqual(count, 0);
         });
 
-        test('should show error on API failure', async () => {
+        test('should propagate error on API failure', async () => {
             const context: ActiveContext = {
                 type: 'course',
                 id: 101,
@@ -862,13 +839,12 @@ suite('IrisChatSessionService Test Suite', () => {
             };
             contextStore.setActiveContext(context);
 
-            showWarningStub.resolves('Yes, Reset & Reload');
-
             mockApiService.getCourseChatSessionsWithMessages.rejects(new Error('Server down'));
 
-            await chatSessionService.handleResetSessions();
-
-            assert.ok(showErrorStub.calledWith(sinon.match(/Failed to reload sessions/)));
+            await assert.rejects(
+                () => chatSessionService.resetAndReloadSessions(),
+                /Server down/
+            );
         });
     });
 });

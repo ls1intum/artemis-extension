@@ -526,17 +526,19 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
 
     private _handleSwitchToWorkspaceContext(): void {
         const workspaceExercise = this._chatContextManager.handleSwitchToWorkspaceContext();
-        if (workspaceExercise) {
-            this.setExerciseContext(
-                workspaceExercise.id,
-                workspaceExercise.title,
-                'workspace-detected',
-                workspaceExercise.shortName,
-                workspaceExercise.releaseDate,
-                workspaceExercise.dueDate,
-                workspaceExercise.courseId
-            );
+        if (!workspaceExercise) {
+            vscode.window.showWarningMessage('No workspace exercise detected. Open a workspace folder with a git repository.');
+            return;
         }
+        this.setExerciseContext(
+            workspaceExercise.id,
+            workspaceExercise.title,
+            'workspace-detected',
+            workspaceExercise.shortName,
+            workspaceExercise.releaseDate,
+            workspaceExercise.dueDate,
+            workspaceExercise.courseId
+        );
     }
 
     private async _handleChatMessage(message: { text?: string }): Promise<void> {
@@ -571,8 +573,21 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
 
         // Delegate to ChatMessageService with struggle context
         if (typeof message.text === 'string') {
-            await this._chatMessageService.handleChatMessage(message.text, activeContext, struggleContext);
-            this._onDidSendIrisChatMessage.fire(message.text);
+            try {
+                await this._chatMessageService.handleChatMessage(message.text, activeContext, struggleContext);
+                this._onDidSendIrisChatMessage.fire(message.text);
+            } catch (error: unknown) {
+                const errorMessage = error instanceof Error ? error.message : String(error);
+                vscode.window.showErrorMessage(`Failed to send message: ${errorMessage}`);
+                this._postMessageSafe({
+                    type: ExtensionMsg.AddMessage,
+                    message: {
+                        role: 'assistant',
+                        content: `Error: ${errorMessage}`,
+                        timestamp: Date.now()
+                    }
+                });
+            }
         }
     }
 
@@ -608,6 +623,22 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
     }
 
     private async _handleResetSessions(): Promise<void> {
-        await this._chatSessionService.handleResetSessions();
+        const confirmation = await vscode.window.showWarningMessage(
+            'This will clear all local Iris chat session data and reload all sessions from Artemis. Continue?',
+            { modal: true },
+            'Yes, Reset & Reload'
+        );
+
+        if (confirmation !== 'Yes, Reset & Reload') {
+            return;
+        }
+
+        const count = await this._chatSessionService.resetAndReloadSessions();
+
+        if (count > 0) {
+            vscode.window.showInformationMessage(`Successfully reloaded ${count} session(s) from Artemis`);
+        } else {
+            vscode.window.showInformationMessage('No sessions found on Artemis for this context');
+        }
     }
 }

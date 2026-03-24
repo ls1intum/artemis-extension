@@ -14,8 +14,9 @@ suite('ChatContextManager Test Suite', () => {
     let irisSessionManager: sinon.SinonStubbedInstance<IrisWebSocketSessionClient>;
     let postMessageSpy: sinon.SinonSpy;
     let mockContext: MockExtensionContext;
-    let showInformationMessageStub: sinon.SinonStub;
-    let showWarningMessageStub: sinon.SinonStub;
+    // vscode.window stubs kept to prevent unhandled calls
+    let _showInformationMessageStub: sinon.SinonStub;
+    let _showWarningMessageStub: sinon.SinonStub;
 
     setup(() => {
         mockContext = new MockExtensionContext();
@@ -30,8 +31,8 @@ suite('ChatContextManager Test Suite', () => {
         postMessageSpy = sinon.spy();
 
         // Stub vscode.window methods
-        showInformationMessageStub = sinon.stub(vscode.window, 'showInformationMessage');
-        showWarningMessageStub = sinon.stub(vscode.window, 'showWarningMessage');
+        _showInformationMessageStub = sinon.stub(vscode.window, 'showInformationMessage');
+        _showWarningMessageStub = sinon.stub(vscode.window, 'showWarningMessage');
 
         chatContextManager = new ChatContextManager(
             {
@@ -62,7 +63,6 @@ suite('ChatContextManager Test Suite', () => {
             assert.strictEqual(snapshot.activeContext.source, 'user-selected');
 
             assert.ok(postMessageSpy.calledWith({ type: 'clearChatMessages' }));
-            assert.ok(showInformationMessageStub.calledWith('Exercise context set to: Test Exercise'));
             assert.ok(chatSessionService.loadAllSessionsForContext.calledOnce);
         });
 
@@ -77,7 +77,6 @@ suite('ChatContextManager Test Suite', () => {
             assert.strictEqual(snapshot.activeContext.shortName, 'CS101');
 
             assert.ok(postMessageSpy.calledWith({ type: 'clearChatMessages' }));
-            assert.ok(showInformationMessageStub.calledWith('Course context set to: Test Course'));
         });
 
         test('should register exercise when selecting exercise context', () => {
@@ -131,7 +130,7 @@ suite('ChatContextManager Test Suite', () => {
             const snapshot = contextStore.snapshot();
             assert.ok(snapshot.activeContext);
             assert.strictEqual(snapshot.activeContext.type, 'lecture');
-            assert.ok(showInformationMessageStub.calledWith('Course context set to: Test Lecture'));
+            // Toast is now shown by the provider, not the service
         });
 
         test('should handle session loading errors gracefully', async () => {
@@ -208,7 +207,6 @@ suite('ChatContextManager Test Suite', () => {
             assert.strictEqual(snapshot.activeContext.source, 'user-selected');
 
             assert.ok(postMessageSpy.calledWith({ type: 'clearChatMessages' }));
-            assert.ok(showInformationMessageStub.called);
             assert.ok(chatSessionService.loadAllSessionsForContext.calledOnce);
         });
 
@@ -259,7 +257,7 @@ suite('ChatContextManager Test Suite', () => {
             assert.ok(exercise);
         });
 
-        test('should show information message with exercise title', () => {
+        test('should set active context with exercise title', () => {
             contextStore.registerExercise({
                 id: 123,
                 title: 'My Exercise'
@@ -267,10 +265,9 @@ suite('ChatContextManager Test Suite', () => {
 
             chatContextManager.handleExerciseSelection(123);
 
-            // Check that info message was called (title may vary based on registration order)
-            assert.ok(showInformationMessageStub.called);
-            const call = showInformationMessageStub.getCall(0);
-            assert.ok(call.args[0].includes('Exercise context set to:'));
+            const snapshot = contextStore.snapshot();
+            assert.ok(snapshot.activeContext);
+            assert.strictEqual(snapshot.activeContext.title, 'My Exercise');
         });
 
         test('should reset Iris session on exercise selection', () => {
@@ -372,7 +369,7 @@ suite('ChatContextManager Test Suite', () => {
             assert.strictEqual(result.id, 123);
         });
 
-        test('should return undefined and show warning when no workspace exercise found', () => {
+        test('should return undefined when no workspace exercise found', () => {
             contextStore.registerExercise({
                 id: 123,
                 title: 'Regular Exercise'
@@ -381,9 +378,7 @@ suite('ChatContextManager Test Suite', () => {
             const result = chatContextManager.handleSwitchToWorkspaceContext();
 
             assert.strictEqual(result, undefined);
-            assert.ok(showWarningMessageStub.calledWith(
-                'No workspace exercise detected. Open a workspace folder with a git repository.'
-            ));
+            // Warning toast is now shown by the provider, not the service
         });
 
         test('should prefer recent workspace exercise over all exercises', () => {
