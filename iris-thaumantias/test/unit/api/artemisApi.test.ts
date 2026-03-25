@@ -2,7 +2,7 @@ import * as assert from 'assert';
 import { ArtemisApiService } from '../../../src/extension/api/artemisApi';
 import { AuthManager } from '../../../src/extension/services/auth/authManager';
 import { MockExtensionContext } from '../mocks/vscodeMocks';
-import { ApiError, ArtemisUser, ArtemisParticipation, ArtemisResult, BuildLogEntry, AuthenticationResult, ProgrammingSubmission } from '../../../src/extension/types';
+import { ApiError } from '../../../src/extension/types';
 
 // Mock fetch
 const originalFetch = global.fetch;
@@ -57,7 +57,7 @@ suite('Artemis API Service Test Suite', () => {
         };
 
         const user = await apiService.getCurrentUser();
-        assert.ok(user instanceof ArtemisUser);
+        assert.ok(user);
         assert.strictEqual(user.id, 1);
         assert.strictEqual(user.login, 'test');
     });
@@ -202,7 +202,7 @@ suite('Artemis API Service Test Suite', () => {
 
         const participations = await apiService.getParticipations();
         assert.strictEqual(participations.length, 1);
-        assert.ok(participations[0] instanceof ArtemisParticipation);
+        assert.ok(participations[0]);
         assert.strictEqual(participations[0].id, 1);
         assert.strictEqual(participations[0].type, 'student');
     });
@@ -221,7 +221,7 @@ suite('Artemis API Service Test Suite', () => {
 
         const results = await apiService.getResults(participationId);
         assert.strictEqual(results.length, 1);
-        assert.ok(results[0] instanceof ArtemisResult);
+        assert.ok(results[0]);
         assert.strictEqual(results[0].id, 1);
         assert.strictEqual(results[0].score, 100);
     });
@@ -240,7 +240,7 @@ suite('Artemis API Service Test Suite', () => {
         };
 
         const details = await apiService.getResultDetails(participationId, resultId);
-        assert.ok(details instanceof ArtemisResult);
+        assert.ok(details);
         assert.strictEqual(details.id, 10);
     });
 
@@ -258,7 +258,7 @@ suite('Artemis API Service Test Suite', () => {
 
         const logs = await apiService.getBuildLogs(participationId);
         assert.strictEqual(logs.length, 1);
-        assert.ok(logs[0] instanceof BuildLogEntry);
+        assert.ok(logs[0]);
         assert.strictEqual(logs[0].time, '2023-01-01');
         assert.strictEqual(logs[0].log, 'Build started');
     });
@@ -349,7 +349,7 @@ suite('Artemis API Service Test Suite', () => {
         };
 
         const participation = await apiService.startExerciseParticipation(exerciseId);
-        assert.ok(participation instanceof ArtemisParticipation);
+        assert.ok(participation);
         assert.strictEqual(participation.id, 100);
     });
 
@@ -366,7 +366,7 @@ suite('Artemis API Service Test Suite', () => {
         };
 
         const participation = await apiService.startPracticeParticipation(exerciseId);
-        assert.ok(participation instanceof ArtemisParticipation);
+        assert.ok(participation);
         assert.strictEqual(participation.id, 101);
     });
 
@@ -394,7 +394,7 @@ suite('Artemis API Service Test Suite', () => {
         };
 
         const result = await apiService.authenticate('user', 'pass');
-        assert.ok(result instanceof AuthenticationResult);
+        assert.ok(result);
         assert.strictEqual(result.success, true);
         assert.strictEqual(result.token, mockToken);
         // The cookie might be processed/cleaned by AuthManager or ArtemisApiService
@@ -564,7 +564,7 @@ suite('Artemis API Service Test Suite', () => {
         };
 
         const submission = await apiService.getLatestPendingSubmission(participationId);
-        assert.ok(submission instanceof ProgrammingSubmission);
+        assert.ok(submission);
         assert.strictEqual(submission.id, 100);
         assert.strictEqual(submission.submissionDate, '2023-01-01');
     });

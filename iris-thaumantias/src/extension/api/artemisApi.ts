@@ -2,8 +2,13 @@ import * as vscode from 'vscode';
 import { AuthManager } from '../services/auth/authManager';
 import { CONFIG, VSCODE_CONFIG } from '../utils';
 import {
-    ApiError, ArtemisUser, ArtemisResult, ArtemisParticipation, AuthenticationResult,
-    IrisHealthStatus, ProfileInfo, PROFILE_IRIS, ProgrammingSubmission, BuildLogEntry,
+    ApiError, PROFILE_IRIS,
+    parseArtemisUser, parseArtemisResult, parseArtemisParticipation,
+    parseIrisHealthStatus, parseProfileInfo, parseProgrammingSubmission, parseBuildLogEntry,
+} from '../types';
+import type {
+    ArtemisUser, ArtemisResult, ArtemisParticipation, AuthenticationResult,
+    IrisHealthStatus, ProfileInfo, ProgrammingSubmission, BuildLogEntry,
 } from '../types';
 import type {
     CourseDashboardResponse, CourseDashboardEntry, CourseDashboardCourse,
@@ -104,7 +109,7 @@ export class ArtemisApiService {
     // Get current user information
     async getCurrentUser(): Promise<ArtemisUser> {
         const response = await this.makeRequest('/api/core/public/account');
-        return ArtemisUser.fromJSON(await response.json());
+        return parseArtemisUser(await response.json());
     }
 
     // Get all courses for the current user
@@ -181,7 +186,7 @@ export class ArtemisApiService {
             }
 
             // Parse JSON
-            return ProgrammingSubmission.fromJSON(JSON.parse(text));
+            return parseProgrammingSubmission(JSON.parse(text));
         } catch (error) {
             // If no pending submission exists, API may return 404 or empty response
             logger.info(`No pending submission for participation ${participationId}: ${error}`, LogCategory.API);
@@ -192,19 +197,19 @@ export class ArtemisApiService {
     // Get participations for the current user
     async getParticipations(): Promise<ArtemisParticipation[]> {
         const data: unknown = await (await this.makeRequest('/api/core/participations')).json();
-        return (data as unknown[]).map(p => ArtemisParticipation.fromJSON(p));
+        return (data as unknown[]).map(p => parseArtemisParticipation(p));
     }
 
     // Get results for a participation
     async getResults(participationId: number): Promise<ArtemisResult[]> {
         const data: unknown = await (await this.makeRequest(`/api/core/participations/${participationId}/results`)).json();
-        return (data as unknown[]).map(r => ArtemisResult.fromJSON(r));
+        return (data as unknown[]).map(r => parseArtemisResult(r));
     }
 
     // Get detailed result information including test cases and feedback
     async getResultDetails(participationId: number, resultId: number): Promise<ArtemisResult> {
         const response = await this.makeRequest(`/api/assessment/participations/${participationId}/results/${resultId}/details`);
-        return ArtemisResult.fromJSON(await response.json());
+        return parseArtemisResult(await response.json());
     }
 
     // Get detailed result feedbacks as FeedbackSummary (preserves testCase field)
@@ -236,7 +241,7 @@ export class ArtemisApiService {
         }
         const response = await this.makeRequest(endpoint);
         const data: unknown = await response.json();
-        return (data as unknown[]).map(e => BuildLogEntry.fromJSON(e));
+        return (data as unknown[]).map(e => parseBuildLogEntry(e));
     }
 
     // Check if user is authenticated
@@ -283,7 +288,7 @@ export class ArtemisApiService {
             `/api/exercise/exercises/${exerciseId}/participations`,
             { method: 'POST' }
         );
-        return ArtemisParticipation.fromJSON(await response.json());
+        return parseArtemisParticipation(await response.json());
     }
 
     // Start practice participation in an exercise
@@ -292,7 +297,7 @@ export class ArtemisApiService {
             `/api/exercise/exercises/${exerciseId}/participations/practice`,
             { method: 'POST' }
         );
-        return ArtemisParticipation.fromJSON(await response.json());
+        return parseArtemisParticipation(await response.json());
     }
 
     // Authenticate user with username and password
@@ -362,7 +367,7 @@ export class ArtemisApiService {
         // Store the credentials
         await this.authManager.storeArtemisCredentials(jwtCookie, this.getServerUrl(), rememberMe);
 
-        return new AuthenticationResult(true, data.access_token, jwtCookie);
+        return { success: true, token: data.access_token, cookie: jwtCookie };
     }
 
     // Validate the current authentication by calling the user endpoint
@@ -386,13 +391,13 @@ export class ArtemisApiService {
     // Check Iris health status (course-scoped)
     async checkIrisHealth(courseId: number): Promise<IrisHealthStatus> {
         const response = await this.makeRequest(`/api/iris/courses/${courseId}/status`);
-        return IrisHealthStatus.fromJSON(await response.json());
+        return parseIrisHealthStatus(await response.json());
     }
 
     // Get server profile information (includes activeProfiles to check if Iris is globally enabled)
     async getProfileInfo(): Promise<ProfileInfo> {
         const response = await this.makeRequest('/management/info');
-        return ProfileInfo.fromJSON(await response.json());
+        return parseProfileInfo(await response.json());
     }
 
     // Check if Iris is active on the server (module feature or legacy profile)

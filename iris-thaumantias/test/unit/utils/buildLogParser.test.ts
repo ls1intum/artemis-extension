@@ -1,11 +1,11 @@
 import * as assert from 'assert';
 import { BuildLogParser } from '../../../src/extension/utils/buildLogParser';
-import { BuildLogEntry } from '../../../src/extension/types/artemis';
+import type { BuildLogEntry } from '../../../src/extension/types';
 
 suite('BuildLogParser Test Suite', () => {
 
     function createLogEntry(log: string): BuildLogEntry {
-        return new BuildLogEntry(1, new Date().toISOString(), log);
+        return { id: 1, time: new Date().toISOString(), log };
     }
 
     test('should parse Gradle error format', () => {

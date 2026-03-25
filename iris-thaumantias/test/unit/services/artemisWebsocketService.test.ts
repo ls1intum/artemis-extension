@@ -2,7 +2,7 @@ import * as assert from 'assert';
 import { ArtemisWebsocketService } from '../../../src/extension/services/websocket/artemisWebsocketService';
 import { MockExtensionContext } from '../mocks/vscodeMocks';
 import { AuthManager } from '../../../src/extension/services/auth/authManager';
-import { ResultDTO } from '../../../src/extension/types/artemis';
+import type { ResultDTO } from '../../../src/extension/types';
 import { Client, StompConfig, IMessage, StompSubscription } from '@stomp/stompjs';
 
 // Mock Stomp Client

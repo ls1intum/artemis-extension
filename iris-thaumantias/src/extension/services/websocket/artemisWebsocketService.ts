@@ -5,11 +5,11 @@ import { AuthManager } from '../auth';
 import { CONFIG, VSCODE_CONFIG, WEBSOCKET_TOPICS } from '../../utils';
 import { logger, LogCategory } from '../loggingService';
 import {
-    ResultDTO,
-    ProgrammingSubmission,
-    SubmissionProcessingMessage,
-    WebSocketMessageHandler
+    parseResultDTO,
+    parseProgrammingSubmission,
+    parseSubmissionProcessingMessage,
 } from '../../types';
+import type { WebSocketMessageHandler } from '../../types';
 
 /**
  * Delay in milliseconds before emitting non-connected states to consumers.
@@ -528,7 +528,7 @@ export class ArtemisWebsocketService {
     public subscribeToPersonalResults(): void {
         this._subscribeToTopic(
             WEBSOCKET_TOPICS.NEW_RESULTS,
-            (data) => ResultDTO.fromJSON(data),
+            (data) => parseResultDTO(data),
             (handler, result) => handler.onNewResult?.(result),
             (result) => `Received new result: score=${result.score}, successful=${result.successful}`,
         );
@@ -540,7 +540,7 @@ export class ArtemisWebsocketService {
     public subscribeToPersonalSubmissions(): void {
         this._subscribeToTopic(
             WEBSOCKET_TOPICS.NEW_SUBMISSIONS,
-            (data) => ProgrammingSubmission.fromJSON(data),
+            (data) => parseProgrammingSubmission(data),
             (handler, submission) => handler.onNewSubmission?.(submission),
             (submission) => `Received new submission: ${submission.id}`,
         );
@@ -552,7 +552,7 @@ export class ArtemisWebsocketService {
     public subscribeToSubmissionProcessing(): void {
         this._subscribeToTopic(
             WEBSOCKET_TOPICS.SUBMISSION_PROCESSING,
-            (data) => SubmissionProcessingMessage.fromJSON(data),
+            (data) => parseSubmissionProcessingMessage(data),
             (handler, msg) => handler.onSubmissionProcessing?.(msg),
             (msg) => `Received submission processing update: participationId=${msg.participationId}`,
         );
