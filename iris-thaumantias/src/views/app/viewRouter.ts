@@ -81,7 +81,12 @@ export class ViewRouter {
             case 'course-detail':
                 return await this._courseDetailView.generateHtml(this._appStateManager.currentCourseData, hideDeveloperTools, webview);
             case 'exercise-detail':
-                return this._exerciseDetailView.generateHtml(this._appStateManager.currentExerciseData, hideDeveloperTools, webview);
+                return this._exerciseDetailView.generateHtml(
+                    this._appStateManager.currentExerciseData,
+                    hideDeveloperTools,
+                    webview,
+                    this._appStateManager.currentRenderResult
+                );
             case 'exam-exercise-detail': {
                 // Use the dedicated ExamExerciseDetailView
                 const exerciseData = this._appStateManager.currentExerciseData;

@@ -11,6 +11,7 @@ import { SubmissionStatusComponent } from "./components/submissionStatusComponen
 import { ParticipationActionsComponent } from "./components/participationActionsComponent";
 import { RepositoryStatusScripts } from "./components/repositoryStatusScripts";
 import { BuildProgressComponent } from "./components/buildProgressComponent";
+import { RenderResult } from "../../services/problemStatementRenderService";
 
 export class ExerciseDetailView {
     private _extensionContext: vscode.ExtensionContext;
@@ -32,7 +33,8 @@ export class ExerciseDetailView {
     public generateHtml(
         exerciseData: any,
         hideDeveloperTools: boolean = false,
-        webview?: vscode.Webview
+        webview?: vscode.Webview,
+        renderedProblemStatement?: RenderResult
     ): string {
         const styles = readCssFiles(
             "components/backLink/back-link.css",
@@ -65,7 +67,8 @@ export class ExerciseDetailView {
             exerciseData,
             hideDeveloperTools,
             styles,
-            webviewComponentsScriptTag
+            webviewComponentsScriptTag,
+            renderedProblemStatement
         );
     }
 
@@ -105,7 +108,8 @@ export class ExerciseDetailView {
         exerciseData: any,
         hideDeveloperTools: boolean,
         styles: string,
-        webviewComponentsScriptTag: string
+        webviewComponentsScriptTag: string,
+        renderedProblemStatement?: RenderResult
     ): string {
         const exercise = exerciseData?.exercise;
 
@@ -121,9 +125,26 @@ export class ExerciseDetailView {
         const uploadMessageIcon = this._getUploadMessageIcon();
         const starAssistIcon = IconDefinitions.getIcon("star_4_edges");
 
-        // Process markdown problem statement
-        const { html: problemStatement, downloadLinks, plantUmlDiagrams } =
-            processMarkdown(exercise.problemStatement || "No description available");
+        // Problem statement rendering: prefer server-side, fallback to client-side
+        let problemStatement: string;
+        let downloadLinks: Array<{ text: string; url: string }> = [];
+        let plantUmlDiagrams: string[] = [];
+        const isServerRendered = renderedProblemStatement?.source === 'server';
+
+        if (isServerRendered) {
+            problemStatement = renderedProblemStatement!.html;
+            // Server handles PlantUML inline, download links handled by link interception
+        } else if (renderedProblemStatement?.source === 'client') {
+            problemStatement = renderedProblemStatement.html;
+            downloadLinks = renderedProblemStatement.downloadLinks || [];
+            plantUmlDiagrams = renderedProblemStatement.plantUmlDiagrams || [];
+        } else {
+            // Direct client-side fallback (no pre-rendered result provided)
+            const result = processMarkdown(exercise.problemStatement || "No description available");
+            problemStatement = result.html;
+            downloadLinks = result.downloadLinks;
+            plantUmlDiagrams = result.plantUmlDiagrams;
+        }
 
         // Course information
         const course = exercise.course;
@@ -282,8 +303,8 @@ export class ExerciseDetailView {
                 header: {
                     title: 'Exercise Description'
                 },
-                bodyHtml: `<div class="problem-statement">${problemStatement}</div>
-        ${downloadLinks.length > 0
+                bodyHtml: `<div class="problem-statement" data-render-source="${isServerRendered ? 'server' : 'client'}">${problemStatement}</div>
+        ${!isServerRendered && downloadLinks.length > 0
                         ? `
         <div class="downloads-section">
             <div class="downloads-section-title">Downloads</div>
@@ -481,7 +502,11 @@ export class ExerciseDetailView {
             return latestContext;
         }
         
-        // Store PlantUML diagrams for rendering
+        // Rendering mode flag
+        const isServerRendered = ${isServerRendered};
+        const serverUrl = ${JSON.stringify(exerciseData?.exercise?.course ? '' : '')};
+
+        // Store PlantUML diagrams for rendering (client mode only)
         const plantUmlDiagrams = ${JSON.stringify(plantUmlDiagrams)};
         
         // Timeout for test results fetching to prevent infinite loading
@@ -544,9 +569,9 @@ export class ExerciseDetailView {
             }
         });
         
-        // Auto-render all PlantUML diagrams on page load
-        if (plantUmlDiagrams.length > 0) {
-            vscode.postMessage({ command: 'webviewLog', level: 'info', text: '[PlantUML] 📊 Found ' + plantUmlDiagrams.length + ' diagram(s), auto-rendering...' });
+        // Auto-render all PlantUML diagrams on page load (client mode only — server mode has inline SVGs)
+        if (!isServerRendered && plantUmlDiagrams.length > 0) {
+            vscode.postMessage({ command: 'webviewLog', level: 'info', text: '[PlantUML] Found ' + plantUmlDiagrams.length + ' diagram(s), auto-rendering...' });
             plantUmlDiagrams.forEach((diagram, index) => {
                 renderPlantUmlDiagram(index, diagram);
             });
@@ -897,6 +922,52 @@ export class ExerciseDetailView {
         // Build progress management (from BuildProgressComponent)
         ${BuildProgressComponent.generateScript()}
 
+        // Link interception for server-rendered problem statements
+        function interceptServerLinks(container) {
+            if (!container) return;
+            container.querySelectorAll('a[href]').forEach(function(a) {
+                a.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    var href = a.getAttribute('href');
+                    if (!href) return;
+                    if (href.startsWith('#')) {
+                        // Hash link: local scroll
+                        var target = document.querySelector(href);
+                        if (target) target.scrollIntoView();
+                    } else if (href.indexOf('/api/core/files/') !== -1) {
+                        // File download
+                        var filename = href.split('/').pop() || 'download';
+                        vscode.postMessage({ command: 'downloadFile', url: href, filename: filename });
+                    } else if (href.startsWith('http://') || href.startsWith('https://') || href.startsWith('/')) {
+                        // HTTP(S) or relative Artemis link: open in browser
+                        vscode.postMessage({ command: 'openExternalLink', url: href });
+                    }
+                });
+            });
+        }
+
+        // Initialize link interception for server-rendered content on page load
+        if (isServerRendered) {
+            var psEl = document.querySelector('.problem-statement');
+            if (psEl) interceptServerLinks(psEl);
+        }
+
+        // Interactive script bootstrap for server-rendered content
+        ${isServerRendered && renderedProblemStatement?.interactiveScript
+            ? `(function() {
+            try {
+                var scriptB64 = ${JSON.stringify(Buffer.from(renderedProblemStatement.interactiveScript, 'utf8').toString('base64'))};
+                var bytes = Uint8Array.from(atob(scriptB64), function(c) { return c.charCodeAt(0); });
+                var code = new TextDecoder().decode(bytes);
+                var s = document.createElement('script');
+                s.textContent = code;
+                document.body.appendChild(s);
+            } catch (e) {
+                vscode.postMessage({ command: 'webviewLog', level: 'error', text: '[ProblemStatement] Failed to bootstrap interactive script: ' + e });
+            }
+        })();`
+            : ''}
+
         // Listen for messages from the extension
         window.addEventListener('message', function(event) {
             const message = event.data;
@@ -1019,6 +1090,31 @@ export class ExerciseDetailView {
                         } else {
                             unsavedBanner.style.display = 'none';
                         }
+                    }
+                    break;
+                case 'problemStatementUpdated':
+                    // Server-side re-render (e.g., after new build result)
+                    const psContainer = document.querySelector('.problem-statement');
+                    if (psContainer) {
+                        psContainer.innerHTML = message.html;
+                        psContainer.setAttribute('data-render-source', 'server');
+                        // Re-init interactive script if provided
+                        if (message.scriptPayload) {
+                            try {
+                                const bytes = Uint8Array.from(atob(message.scriptPayload), function(c) { return c.charCodeAt(0); });
+                                const code = new TextDecoder().decode(bytes);
+                                const s = document.createElement('script');
+                                s.textContent = code;
+                                document.body.appendChild(s);
+                            } catch (e) {
+                                vscode.postMessage({ command: 'webviewLog', level: 'error', text: '[ProblemStatement] Failed to load interactive script: ' + e });
+                            }
+                        }
+                        // Re-attach link interception for server-rendered content
+                        interceptServerLinks(psContainer);
+                        // Hide client-side downloads section (server handles links inline)
+                        var dlSection = document.querySelector('.downloads-section');
+                        if (dlSection) { dlSection.style.display = 'none'; }
                     }
                     break;
             }

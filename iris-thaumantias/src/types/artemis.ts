@@ -91,6 +91,12 @@ export interface ArtemisFeedback {
     credits?: number;
     type?: 'AUTOMATIC' | 'MANUAL';
     positive?: boolean;
+    testCase?: {
+        id: number;
+        testName: string;
+        type?: string;
+        visibility?: string;
+    };
 }
 
 // WebView message types

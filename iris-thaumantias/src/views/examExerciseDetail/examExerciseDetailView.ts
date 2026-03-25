@@ -11,6 +11,7 @@ import { SubmissionStatusComponent } from "../exerciseDetail/components/submissi
 import { ParticipationActionsComponent } from "../exerciseDetail/components/participationActionsComponent";
 import { RepositoryStatusScripts } from "../exerciseDetail/components/repositoryStatusScripts";
 import { BuildProgressComponent } from "../exerciseDetail/components/buildProgressComponent";
+import { RenderResult } from "../../services/problemStatementRenderService";
 
 export interface ExamContext {
     isExamExercise: boolean;
@@ -40,7 +41,8 @@ export class ExamExerciseDetailView {
         exerciseData: any,
         hideDeveloperTools: boolean = false,
         webview?: vscode.Webview,
-        examContext?: ExamContext
+        examContext?: ExamContext,
+        renderedProblemStatement?: RenderResult
     ): string {
         const styles = readCssFiles(
             "components/backLink/back-link.css",
@@ -74,7 +76,8 @@ export class ExamExerciseDetailView {
             hideDeveloperTools,
             styles,
             webviewComponentsScriptTag,
-            examContext
+            examContext,
+            renderedProblemStatement
         );
     }
 
@@ -119,7 +122,8 @@ export class ExamExerciseDetailView {
         hideDeveloperTools: boolean,
         styles: string,
         webviewComponentsScriptTag: string,
-        examContext?: ExamContext
+        examContext?: ExamContext,
+        renderedProblemStatement?: RenderResult
     ): string {
         const isExam = examContext?.isExamExercise ?? false;
 
@@ -138,9 +142,21 @@ export class ExamExerciseDetailView {
         const uploadMessageIcon = this._getUploadMessageIcon();
         const starAssistIcon = IconDefinitions.getIcon("star_4_edges");
 
-        // Process markdown problem statement
-        const { html: problemStatement, downloadLinks, plantUmlDiagrams } =
-            processMarkdown(exercise.problemStatement || "No description available");
+        // Problem statement: exam mode always uses client-side rendering
+        let problemStatement: string;
+        let downloadLinks: Array<{ text: string; url: string }> = [];
+        let plantUmlDiagrams: string[] = [];
+
+        if (renderedProblemStatement?.source === 'client') {
+            problemStatement = renderedProblemStatement.html;
+            downloadLinks = renderedProblemStatement.downloadLinks || [];
+            plantUmlDiagrams = renderedProblemStatement.plantUmlDiagrams || [];
+        } else {
+            const result = processMarkdown(exercise.problemStatement || "No description available");
+            problemStatement = result.html;
+            downloadLinks = result.downloadLinks;
+            plantUmlDiagrams = result.plantUmlDiagrams;
+        }
 
         // Course information
         const course = exercise.course;

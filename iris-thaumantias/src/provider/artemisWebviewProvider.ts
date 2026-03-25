@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 import { AuthManager } from '../auth';
 import { ArtemisApiService } from '../api';
 import { ArtemisWebsocketService } from '../services';
-import { logger, LogLevel, LogCategory } from '../services/loggingService';
+import { logger, LogCategory } from '../services/loggingService';
 import { ProviderRegistry } from '../services/ProviderRegistry';
 import { CONFIG, VSCODE_CONFIG } from '../utils';
 import { AI_EXTENSIONS_BLOCKLIST } from '../utils/aiExtensionsBlocklist';
@@ -16,6 +16,7 @@ import { ExerciseDetailView } from '../views/exerciseDetail/exerciseDetailView';
 import { CourseDetailView } from '../views/courseDetail/courseDetailView';
 import { ExerciseRegistry } from '../services';
 import { WebSocketMessageHandler, ResultDTO, ProgrammingSubmission, SubmissionProcessingMessage } from '../types';
+import { ProblemStatementRenderService } from '../services/problemStatementRenderService';
 
 export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebViewActionHandler {
     public static readonly viewType = CONFIG.WEBVIEW.VIEW_TYPE;
@@ -29,6 +30,7 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
     private _websocketService?: ArtemisWebsocketService;
     private _websocketHandler?: WebSocketMessageHandler;
     private _buildCodeLens?: any; // BuildErrorCodeLensProvider
+    private _renderService: ProblemStatementRenderService;
 
     constructor(
         private readonly _extensionUri: vscode.Uri,
@@ -38,6 +40,16 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
     ) {
         this._appStateManager = new AppStateManager(this._artemisApi);
         this._viewActionService = new ViewActionService(this._appStateManager);
+        this._renderService = new ProblemStatementRenderService(this._artemisApi);
+
+        // Re-render problem statement on theme change (dark mode affects PlantUML)
+        vscode.window.onDidChangeActiveColorTheme(() => {
+            this._renderService.invalidateAll();
+            if (this._appStateManager.currentState === 'exercise-detail') {
+                this._backgroundRenderProblemStatement();
+            }
+        });
+
         this._messageHandler = new WebViewMessageHandler(
             this._authManager,
             this._artemisApi,
@@ -116,8 +128,14 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
     public async openExerciseDetails(exerciseId: number): Promise<void> {
         const didUpdate = await this._viewActionService.openExerciseDetails(exerciseId);
 
+        logger.info(`[SSR] openExerciseDetails called, didUpdate=${didUpdate}`, LogCategory.GENERAL);
         if (didUpdate) {
+            // Render immediately with client-side fallback (progressive enhancement)
             this.render();
+
+            // Fire background server render for progressive upgrade
+            logger.info('[SSR] Firing _backgroundRenderProblemStatement', LogCategory.GENERAL);
+            this._backgroundRenderProblemStatement();
 
             // Ensure WebSocket is connected for real-time updates
             if (this._websocketService && !this._websocketService.isConnected()) {
@@ -544,6 +562,118 @@ export class ArtemisWebviewProvider implements vscode.WebviewViewProvider, WebVi
                 command: 'newResult',
                 result: result
             });
+        }
+
+        // Trigger debounced server-side re-render of problem statement
+        this._reRenderProblemStatement(result);
+    }
+
+    private async _backgroundRenderProblemStatement(): Promise<void> {
+        const exerciseData = this._appStateManager.currentExerciseData;
+        if (!exerciseData) {
+            logger.info('[SSR] No exercise data, skipping background render', LogCategory.GENERAL);
+            return;
+        }
+
+        const exercise = exerciseData.exercise || exerciseData;
+        if (!exercise?.problemStatement) {
+            logger.info(`[SSR] No problemStatement on exercise (keys: ${Object.keys(exercise).join(', ')})`, LogCategory.GENERAL);
+            return;
+        }
+
+        logger.info(`[SSR] Starting background render for exercise ${exercise.id}`, LogCategory.GENERAL);
+
+        const exerciseId = exercise.id;
+
+        try {
+            const participations = exercise.studentParticipations || [];
+            const participation = participations[0];
+
+            const rendered = await this._renderService.render(
+                exercise,
+                participation,
+                undefined, // No detailed feedbacks on initial load
+                undefined, // Not exam mode (exam exercises use a different path)
+                this._appStateManager.userInfo?.user?.langKey
+            );
+
+            // Guard: verify same exercise is still active after await
+            const currentExercise = this._appStateManager.currentExerciseData?.exercise || this._appStateManager.currentExerciseData;
+            if (currentExercise?.id !== exerciseId) {return;}
+
+            if (rendered.source === 'server' && this._view) {
+                const scriptPayload = rendered.interactiveScript
+                    ? Buffer.from(rendered.interactiveScript, 'utf8').toString('base64')
+                    : undefined;
+
+                this._appStateManager.currentRenderResult = rendered;
+                this._view.webview.postMessage({
+                    command: 'problemStatementUpdated',
+                    html: rendered.html,
+                    scriptPayload,
+                });
+            }
+        } catch (error) {
+            logger.info(`[SSR] Background render failed: ${error}`, LogCategory.GENERAL);
+        }
+    }
+
+    private async _reRenderProblemStatement(result: ResultDTO): Promise<void> {
+        const exerciseData = this._appStateManager.currentExerciseData;
+        if (!exerciseData) {return;}
+
+        const exercise = exerciseData.exercise || exerciseData;
+        if (!exercise?.problemStatement) {return;}
+
+        const exerciseId = exercise.id;
+
+        // Don't re-render in exam mode
+        if (this._appStateManager.currentState === 'exam-exercise-detail') {return;}
+
+        // Verify the result belongs to this exercise's participations
+        const exerciseParticipationIds = (exercise.studentParticipations || []).map((p: any) => p.id);
+        if (result.participation?.id && !exerciseParticipationIds.includes(result.participation.id)) {return;}
+
+        try {
+            const participationId = result.participation?.id;
+            if (!participationId || !result.id) {return;}
+
+            const resultDetails = await this._artemisApi.getResultDetails(participationId, result.id);
+            const feedbacks = resultDetails?.feedbacks;
+
+            // Guard: verify same exercise is still active after await
+            const currentExercise = this._appStateManager.currentExerciseData?.exercise || this._appStateManager.currentExerciseData;
+            if (currentExercise?.id !== exerciseId) {return;}
+
+            const participations = exercise.studentParticipations || [];
+            const participation = participations.find((p: any) => p.id === participationId) || participations[0];
+
+            const rendered = await this._renderService.debouncedRender(
+                exercise.id,
+                exercise,
+                participation,
+                feedbacks,
+                this._appStateManager.userInfo?.user?.langKey
+            );
+
+            // Guard again after second await
+            const stillCurrent = this._appStateManager.currentExerciseData?.exercise || this._appStateManager.currentExerciseData;
+            if (stillCurrent?.id !== exerciseId) {return;}
+
+            if (rendered.source === 'server' && this._view) {
+                const scriptPayload = rendered.interactiveScript
+                    ? Buffer.from(rendered.interactiveScript, 'utf8').toString('base64')
+                    : undefined;
+
+                this._appStateManager.currentRenderResult = rendered;
+                this._view.webview.postMessage({
+                    command: 'problemStatementUpdated',
+                    html: rendered.html,
+                    scriptPayload,
+                });
+            }
+        } catch (error) {
+            logger.warn('Failed to re-render problem statement', LogCategory.GENERAL);
         }
     }
 

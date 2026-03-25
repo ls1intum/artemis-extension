@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import { AuthManager } from '../auth';
 import { CONFIG, VSCODE_CONFIG } from '../utils';
 import { IrisHealthStatus, ProfileInfo, PROFILE_IRIS } from '../types';
+import { ProblemStatementRenderRequest, RenderedProblemStatementDTO } from '../types/problemStatementRendering';
 import { logger, LogLevel, LogCategory } from '../services/loggingService';
 
 export class ArtemisApiService {
@@ -592,5 +593,18 @@ export class ArtemisApiService {
             }
         );
         return response.json();
+    }
+
+    // ── Problem Statement Rendering ──
+
+    async renderProblemStatement(request: ProblemStatementRenderRequest): Promise<RenderedProblemStatementDTO> {
+        const response = await this.makeRequest(
+            CONFIG.API.ENDPOINTS.RENDER_PROBLEM_STATEMENT,
+            {
+                method: 'POST',
+                body: JSON.stringify(request),
+            }
+        );
+        return response.json() as Promise<RenderedProblemStatementDTO>;
     }
 }

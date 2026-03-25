@@ -1289,6 +1289,28 @@
             font-size: 13px;
         }
 
+        /* CSS bridge: map VS Code theme variables to Artemis server CSS variables */
+        .artemis-problem-statement {
+            --body-color: var(--theme-foreground);
+            --border-color: var(--theme-border);
+            --link-color: var(--theme-link-color);
+            --success: var(--theme-success);
+            --danger: var(--theme-error);
+            --secondary: var(--vscode-descriptionForeground);
+            --info: var(--vscode-notificationsInfoIcon-foreground);
+            --body-bg: var(--theme-card-background);
+            --artemis-pre-background: var(--theme-code-background);
+            --artemis-pre-color: var(--theme-code-foreground);
+            --artemis-pre-border: var(--theme-border);
+            --markdown-preview-blockquote: var(--vscode-descriptionForeground);
+            --markdown-preview-blockquote-border: var(--theme-border);
+
+            white-space: normal;
+            font-size: 14px;
+            line-height: 1.6;
+            margin: 0;
+        }
+
         .downloads-section {
             margin-top: 20px;
         }

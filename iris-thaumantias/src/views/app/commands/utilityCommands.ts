@@ -23,6 +23,8 @@ export class UtilityCommandModule {
             fetchBuildLogsForError: this.handleFetchBuildLogsForError,
             clearBuildErrors: this.handleClearBuildErrors,
             webviewLog: this.handleWebviewLog,
+            openExternalLink: this.handleOpenExternalLink,
+            downloadFile: this.handleDownloadFile,
         };
     }
 
@@ -388,5 +390,31 @@ export class UtilityCommandModule {
                 logger.info(text, logCategory);
                 break;
         }
+    };
+
+    private handleOpenExternalLink = async (message: any): Promise<void> => {
+        if (!message?.url) {return;}
+        let url: string = message.url;
+        // If relative URL, prepend server URL
+        if (url.startsWith('/')) {
+            const config = vscode.workspace.getConfiguration('artemis');
+            const serverUrl = config.get<string>('serverUrl') || 'https://artemis.tum.de';
+            url = serverUrl + url;
+        }
+        // Only allow http/https schemes
+        if (!url.startsWith('http://') && !url.startsWith('https://')) {return;}
+        await vscode.env.openExternal(vscode.Uri.parse(url));
+    };
+
+    private handleDownloadFile = async (message: any): Promise<void> => {
+        if (!message?.url) {return;}
+        let url: string = message.url;
+        if (url.startsWith('/')) {
+            const config = vscode.workspace.getConfiguration('artemis');
+            const serverUrl = config.get<string>('serverUrl') || 'https://artemis.tum.de';
+            url = serverUrl + url;
+        }
+        if (!url.startsWith('http://') && !url.startsWith('https://')) {return;}
+        await vscode.env.openExternal(vscode.Uri.parse(url));
     };
 }

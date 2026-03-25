@@ -1,6 +1,7 @@
 import { ArtemisApiService } from '../../api';
 import { logger, LogLevel, LogCategory } from '../../services/loggingService';
 import { getRecommendedExtensionsByCategory, type RecommendedExtensionCategory } from '../../utils/recommendedExtensions';
+import { RenderResult } from '../../services/problemStatementRenderService';
 
 export type AppState = 'login' | 'dashboard' | 'course-list' | 'course-detail' | 'exercise-detail' | 'exam-exercise-detail' | 'ai-config' | 'service-status' | 'struggle-detection' | 'recommended-extensions' | 'git-credentials' | 'exam-start' | 'exam-conduction';
 
@@ -34,6 +35,7 @@ export class AppStateManager {
     private _currentExamData?: any;
     private _aiExtensions?: AiExtension[];
     private _recommendedExtensions?: RecommendedExtensionCategory[];
+    private _currentRenderResult?: RenderResult;
 
     constructor(private readonly _artemisApi: ArtemisApiService) { }
 
@@ -64,6 +66,14 @@ export class AppStateManager {
 
     get currentExamData(): any {
         return this._currentExamData;
+    }
+
+    get currentRenderResult(): RenderResult | undefined {
+        return this._currentRenderResult;
+    }
+
+    set currentRenderResult(result: RenderResult | undefined) {
+        this._currentRenderResult = result;
     }
 
     get aiExtensions(): AiExtension[] | undefined {
@@ -98,6 +108,7 @@ export class AppStateManager {
         this._archivedCoursesData = undefined;
         this._currentCourseData = undefined;
         this._currentExerciseData = undefined;
+        this._currentRenderResult = undefined;
         this._recommendedExtensions = undefined;
     }
 
@@ -149,6 +160,7 @@ export class AppStateManager {
             logger.view(`🔄 Fetching fresh exercise data for exercise ${exerciseId}`);
             const exerciseDetails = await this._artemisApi.getExerciseDetails(exerciseId);
             this._currentExerciseData = exerciseDetails;
+            this._currentRenderResult = undefined; // Clear stale render from previous exercise
 
             // Check for pending submissions (builds in progress)
             const participation = exerciseDetails.exercise?.studentParticipations?.[0];
@@ -200,6 +212,7 @@ export class AppStateManager {
 
     public clearCurrentExerciseData(): void {
         this._currentExerciseData = undefined;
+        this._currentRenderResult = undefined;
     }
 
     public clearDashboardData(): void {
