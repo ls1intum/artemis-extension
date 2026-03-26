@@ -298,10 +298,10 @@
     height: auto !important;
 }
 
-/* PlantUML dark theme has low-contrast borders (#606060).
-   Bump brightness slightly so diagram elements are visible in VS Code dark themes. */
+/* PlantUML dark theme has low-contrast strokes (#606060, #808080) on dark backgrounds.
+   Boost brightness so borders and connection lines are clearly visible. */
 :global(.artemis-diagram) svg {
-    filter: brightness(1.3);
+    filter: brightness(1.8);
 }
 
 /* Server CSS only mode: no bridge overrides, just raw server styles */
