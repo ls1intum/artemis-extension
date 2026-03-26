@@ -56,6 +56,7 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
         html: string;
         interactiveScript?: string;
     } | null>(null);
+    const [useServerCssOnly, setUseServerCssOnly] = useState(false);
 
     // Listen for exerciseDetailInit messages
     useExtensionMessage((msg) => {
@@ -461,7 +462,7 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
                 markdown={problemStatementHtml}
                 serverRenderedHtml={serverRenderedPS?.html}
                 serverInteractiveScript={serverRenderedPS?.interactiveScript}
-                devMode={!hideDeveloperTools}
+                useServerCssOnly={useServerCssOnly}
                 downloadLinks={downloadLinks}
                 vscodeApi={vscodeApi}
             />
@@ -473,6 +474,14 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
                         <Button variant="secondary" onClick={handleOpenRawJSON}>
                             Open Raw JSON
                         </Button>
+                        {serverRenderedPS && (
+                            <Button
+                                variant="secondary"
+                                onClick={() => setUseServerCssOnly(prev => !prev)}
+                            >
+                                SSR CSS: {useServerCssOnly ? 'Server only' : 'VS Code bridge'}
+                            </Button>
+                        )}
                     </div>
                 </Container>
             )}

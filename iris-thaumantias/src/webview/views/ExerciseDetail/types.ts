@@ -23,7 +23,7 @@ export interface ProblemStatementProps {
     markdown: string;
     serverRenderedHtml?: string;
     serverInteractiveScript?: string;
-    devMode?: boolean;
+    useServerCssOnly?: boolean;
     downloadLinks?: Array<{ name: string; url: string }>;
     onDownload?: (url: string, name: string) => void;
     vscodeApi?: VsCodeApi;
