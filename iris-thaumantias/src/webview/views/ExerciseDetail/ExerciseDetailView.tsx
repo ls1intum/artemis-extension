@@ -75,8 +75,6 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
         }
         // Progressive upgrade: server-rendered problem statement arrived
         if (msg.type === ExtensionMsg.ProblemStatementRendered) {
-            // eslint-disable-next-line no-console
-            console.log('[SSR] ProblemStatementRendered message received, html length:', msg.html?.length);
             setServerRenderedPS({ html: msg.html, interactiveScript: msg.interactiveScript });
         }
     }, [vscodeApi, setExerciseData, setError]);
