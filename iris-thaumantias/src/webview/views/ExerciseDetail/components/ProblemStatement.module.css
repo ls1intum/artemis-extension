@@ -331,15 +331,15 @@
    Server SSR uses #808080 for arrows/text, but Artemis web renders green.
    Also bump subpixel border widths so class boxes are visible when scaled. */
 
-/* Entity borders: stroke-width:0.5 is invisible when SVG is scaled down */
+/* Entity borders: stroke-width:0.5 becomes subpixel when SVG is scaled down */
 :global(body.vscode-light) :global(.artemis-diagram) svg :global(.entity) rect,
 :global(body.vscode-high-contrast-light) :global(.artemis-diagram) svg :global(.entity) rect {
-    stroke-width: 1 !important;
+    stroke-width: 2 !important;
 }
 
 :global(body.vscode-light) :global(.artemis-diagram) svg :global(.entity) line,
 :global(body.vscode-high-contrast-light) :global(.artemis-diagram) svg :global(.entity) line {
-    stroke-width: 1 !important;
+    stroke-width: 2 !important;
 }
 
 /* Attribute/method text: gray → green to match Artemis web */
