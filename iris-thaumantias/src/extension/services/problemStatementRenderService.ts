@@ -126,7 +126,7 @@ export class ProblemStatementRenderService {
         const token = ++this.requestCounter;
 
         try {
-            logger.info(`[SSR] Requesting server render for exercise ${exerciseId}`, LogCategory.GENERAL);
+            logger.info(`[SSR] Requesting server render for exercise ${exerciseId} (darkMode=${request.darkMode}, locale=${request.locale})`, LogCategory.GENERAL);
             const dto = await this.api.renderProblemStatement(request);
 
             if (token !== this.requestCounter) {
