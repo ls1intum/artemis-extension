@@ -281,21 +281,18 @@
     color: var(--vscode-textLink-foreground);
 }
 
-/* Server PlantUML diagrams: ensure they fit within the container */
+/* Server PlantUML diagrams: ensure they fit within the container.
+   Match the server's own CSS: max-width:100%;height:auto — nothing more.
+   Do NOT override width (width:auto breaks SVG stroke rendering). */
 :global(.artemis-diagram) {
     max-width: 100%;
     overflow-x: auto;
 }
 
-:global(.artemis-diagram) svg {
-    max-width: 100%;
-    height: auto !important;
-    width: auto !important;
-}
-
+:global(.artemis-diagram) svg,
 :global(.artemis-problem-statement) svg {
     max-width: 100%;
-    height: auto !important;
+    height: auto;
 }
 
 /* Server CSS only mode: no bridge overrides, just raw server styles */
