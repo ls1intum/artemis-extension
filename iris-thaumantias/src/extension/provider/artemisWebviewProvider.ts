@@ -131,6 +131,15 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
 
         this._disposables.push(this._onDidChangeViewNavigation);
         this._disposables.push(this._onDidChangePanelVisibility);
+
+        // Re-render SSR when VS Code theme changes (darkMode parameter differs)
+        this._disposables.push(
+            vscode.window.onDidChangeActiveColorTheme(() => {
+                this._renderService.invalidateAll();
+                this._appStateManager.serverRenderedProblemStatement = null;
+                this._backgroundRenderProblemStatement();
+            }),
+        );
     }
 
     // ── Lifecycle ──────────────────────────────────────────────────────
