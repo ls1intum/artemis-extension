@@ -327,22 +327,47 @@
     fill: #ccc !important;
 }
 
-/* PlantUML light theme fixes: #808080 arrows are too faint on white.
-   Darken to #444 while keeping distinct from the #000 dependency arrows. */
+/* PlantUML light theme fixes: match Artemis web appearance.
+   Server SSR uses #808080 for arrows/text, but Artemis web renders green.
+   Also bump subpixel border widths so class boxes are visible when scaled. */
 
+/* Entity borders: stroke-width:0.5 is invisible when SVG is scaled down */
+:global(body.vscode-light) :global(.artemis-diagram) svg :global(.entity) rect,
+:global(body.vscode-high-contrast-light) :global(.artemis-diagram) svg :global(.entity) rect {
+    stroke-width: 1 !important;
+}
+
+:global(body.vscode-light) :global(.artemis-diagram) svg :global(.entity) line,
+:global(body.vscode-high-contrast-light) :global(.artemis-diagram) svg :global(.entity) line {
+    stroke-width: 1 !important;
+}
+
+/* Attribute/method text: gray → green to match Artemis web */
+:global(body.vscode-light) :global(.artemis-diagram) svg :global(.entity) text[fill="#808080"],
+:global(body.vscode-high-contrast-light) :global(.artemis-diagram) svg :global(.entity) text[fill="#808080"] {
+    fill: #28a745 !important;
+}
+
+/* Extension/composition arrows: gray → green to match Artemis web */
 :global(body.vscode-light) :global(.artemis-diagram) svg :global(.link) path[style*="808080"],
 :global(body.vscode-high-contrast-light) :global(.artemis-diagram) svg :global(.link) path[style*="808080"] {
-    stroke: #444 !important;
+    stroke: #28a745 !important;
 }
 
 :global(body.vscode-light) :global(.artemis-diagram) svg :global(.link) polygon[style*="808080"],
 :global(body.vscode-high-contrast-light) :global(.artemis-diagram) svg :global(.link) polygon[style*="808080"] {
-    stroke: #444 !important;
+    stroke: #28a745 !important;
 }
 
 :global(body.vscode-light) :global(.artemis-diagram) svg :global(.link) polygon[fill="#808080"],
 :global(body.vscode-high-contrast-light) :global(.artemis-diagram) svg :global(.link) polygon[fill="#808080"] {
-    fill: #444 !important;
+    fill: #28a745 !important;
+}
+
+/* Arrow stroke width: match entity border bump for consistency */
+:global(body.vscode-light) :global(.artemis-diagram) svg :global(.link) path,
+:global(body.vscode-high-contrast-light) :global(.artemis-diagram) svg :global(.link) path {
+    stroke-width: 1.5 !important;
 }
 
 /* Server CSS only mode: no bridge overrides, just raw server styles */
