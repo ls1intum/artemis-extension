@@ -281,6 +281,23 @@
     color: var(--vscode-textLink-foreground);
 }
 
+/* Server PlantUML diagrams: ensure they fit within the container */
+:global(.artemis-diagram) {
+    max-width: 100%;
+    overflow-x: auto;
+}
+
+:global(.artemis-diagram) svg {
+    max-width: 100%;
+    height: auto !important;
+    width: auto !important;
+}
+
+:global(.artemis-problem-statement) svg {
+    max-width: 100%;
+    height: auto !important;
+}
+
 /* Server CSS only mode: no bridge overrides, just raw server styles */
 .problemStatementServerCssOnly {
     max-width: 800px;
