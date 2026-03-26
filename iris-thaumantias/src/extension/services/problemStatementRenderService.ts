@@ -87,6 +87,7 @@ export class ProblemStatementRenderService {
         feedbacks?: FeedbackLike[],
         isExamExercise?: boolean,
         userLangKey?: string,
+        darkModeOverride?: boolean,
     ): Promise<ServerRenderResult | undefined> {
         const markdown = exercise.problemStatement || '';
         const exerciseId = exercise.id;
@@ -98,7 +99,7 @@ export class ProblemStatementRenderService {
         // Server feature flag: permanently disabled after 404/405/501
         if (this.serverSupportsRendering === false) { return undefined; }
 
-        const darkMode = isDarkMode();
+        const darkMode = darkModeOverride ?? isDarkMode();
         const locale = getLocale(userLangKey);
         const testInputs = feedbacks ? mapFeedbacksToTestInputs(feedbacks) : undefined;
         const resultSummary = participation ? buildResultSummary(participation, exercise) : undefined;

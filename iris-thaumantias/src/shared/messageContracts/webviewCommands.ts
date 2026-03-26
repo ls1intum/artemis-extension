@@ -99,6 +99,7 @@ export const WebviewCmd = {
 
     // Dev tools
     PreviewSsrHtml: 'previewSsrHtml',
+    FreshSsrPreview: 'freshSsrPreview',
 } as const;
 
 /** Union of all Webview->Extension command strings */
@@ -189,6 +190,7 @@ interface WebviewCmdPayloads {
 
     // Dev tools
     previewSsrHtml: { html: string };
+    freshSsrPreview: { darkMode: boolean };
 }
 
 /** Commands that require a non-undefined payload object. */
@@ -225,6 +227,7 @@ export const COMMANDS_REQUIRING_PAYLOAD = new Set<string>([
     WebviewCmd.ViewArchivedCourse,
     WebviewCmd.RenderPlantUmlInline,
     WebviewCmd.PreviewSsrHtml,
+    WebviewCmd.FreshSsrPreview,
     WebviewCmd.ViewBuildLog,
     WebviewCmd.GoToSource,
 ]);

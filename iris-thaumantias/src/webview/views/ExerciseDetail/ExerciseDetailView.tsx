@@ -481,9 +481,15 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
                                 </Button>
                                 <Button
                                     variant="secondary"
-                                    onClick={() => postCommand(vscodeApi, 'previewSsrHtml', { html: serverRenderedPS.html })}
+                                    onClick={() => postCommand(vscodeApi, 'freshSsrPreview', { darkMode: false })}
                                 >
-                                    Preview SSR
+                                    Preview Light
+                                </Button>
+                                <Button
+                                    variant="secondary"
+                                    onClick={() => postCommand(vscodeApi, 'freshSsrPreview', { darkMode: true })}
+                                >
+                                    Preview Dark
                                 </Button>
                             </>
                         )}

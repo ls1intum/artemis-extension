@@ -8,6 +8,8 @@ import type {
 } from '../../../shared/messageContracts';
 import { extractErrorMessage, CONFIG, VSCODE_CONFIG } from '../../utils';
 import { logger, LogCategory } from '../../services/loggingService';
+import type { ExerciseDetailsResponse } from '../../types';
+import { ProblemStatementRenderService } from '../../services/problemStatementRenderService';
 
 /**
  * Open VS Code settings filtered by the given setting ID.
@@ -61,6 +63,7 @@ export class UtilityCommandModule {
             [WebviewCmd.OpenImagePreview]: this.handleOpenImagePreview,
             [WebviewCmd.OpenFile]: this.handleOpenFile,
             [WebviewCmd.PreviewSsrHtml]: this.handlePreviewSsrHtml,
+            [WebviewCmd.FreshSsrPreview]: this.handleFreshSsrPreview,
         };
     }
 
@@ -292,6 +295,41 @@ export class UtilityCommandModule {
         } catch (error: unknown) {
             logger.error('Failed to open file:', LogCategory.VIEW, error);
             vscode.window.showErrorMessage(`Failed to open file: ${extractErrorMessage(error)}`);
+        }
+    };
+
+    private handleFreshSsrPreview = async (message: WebviewToExtensionMessage): Promise<void> => {
+        try {
+            const { darkMode } = getPayload<WebCmd<'freshSsrPreview'>>(message);
+            const exerciseData = this.context.appStateManager.currentExerciseData as ExerciseDetailsResponse | undefined;
+            if (!exerciseData?.exercise) { return; }
+
+            const renderService = new ProblemStatementRenderService(this.context.artemisApi);
+            const exercise = exerciseData.exercise;
+            const participation = exercise.studentParticipations?.[0];
+            const latestSubmission = [...(participation?.submissions ?? [])]
+                .sort((a, b) => ((b as { id?: number }).id ?? 0) - ((a as { id?: number }).id ?? 0))[0] as { results?: Array<{ id?: number; feedbacks?: unknown[] }> } | undefined;
+            const latestResult = [...(latestSubmission?.results ?? [])]
+                .sort((a, b) => ((b as { id?: number }).id ?? 0) - ((a as { id?: number }).id ?? 0))[0];
+            const feedbacks = latestResult?.feedbacks as Array<{ testCase?: { id?: number; testName?: string }; text?: string; detailText?: string; credits?: number; positive?: boolean }> | undefined;
+
+            const rendered = await renderService.render(exercise, participation, feedbacks, false, undefined, darkMode);
+            if (!rendered) { return; }
+
+            const label = darkMode ? 'Dark' : 'Light';
+            const bg = darkMode ? '#1e1e1e' : '#fff';
+            const color = darkMode ? '#e0e0e0' : '#212529';
+            const panel = vscode.window.createWebviewPanel(
+                'ssrPreview',
+                `SSR Preview (${label})`,
+                vscode.ViewColumn.One,
+                { enableScripts: false },
+            );
+            panel.webview.html = `<!DOCTYPE html>
+<html><head><meta charset="UTF-8"></head>
+<body style="padding:20px;background:${bg};color:${color};">${rendered.html}</body></html>`;
+        } catch (error: unknown) {
+            logger.error('Failed to fetch fresh SSR preview:', LogCategory.VIEW, error);
         }
     };
 
