@@ -51,6 +51,7 @@ export class AppStateManager {
     private _currentExamData?: ExamData;
     private _aiExtensions?: AiExtension[];
     private _recommendedExtensions?: RecommendedExtensionCategory[];
+    private _serverRenderedPS: { html: string; interactiveScript?: string } | null = null;
 
     private _onStateChange?: (from: AppState, to: AppState) => void;
 
@@ -94,6 +95,14 @@ export class AppStateManager {
 
     get currentExamData(): ExamData | undefined {
         return this._currentExamData;
+    }
+
+    get serverRenderedProblemStatement(): { html: string; interactiveScript?: string } | null {
+        return this._serverRenderedPS;
+    }
+
+    set serverRenderedProblemStatement(value: { html: string; interactiveScript?: string } | null) {
+        this._serverRenderedPS = value;
     }
 
     get aiExtensions(): AiExtension[] | undefined {
@@ -155,6 +164,7 @@ export class AppStateManager {
 
     public showExerciseDetail(exerciseData: ExerciseDetailsResponse): void {
         this._currentExerciseData = exerciseData;
+        this._serverRenderedPS = null; // Clear stale render from previous exercise
         this._setCurrentState('exercise-detail');
     }
 

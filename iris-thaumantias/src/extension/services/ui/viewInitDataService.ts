@@ -198,6 +198,7 @@ export class ViewInitDataService {
                     exerciseData: exerciseData as ExerciseDetailsResponse,
                     hideDeveloperTools: !this._isDeveloperMode(),
                     repoStatus,
+                    serverRenderedProblemStatement: this._appStateManager.serverRenderedProblemStatement ?? undefined,
                 });
             }).catch((error) => {
                 if (gen !== this._initGeneration) { return; }
@@ -207,6 +208,7 @@ export class ViewInitDataService {
                     type: ExtensionMsg.ExerciseDetailInit,
                     exerciseData: exerciseData as ExerciseDetailsResponse,
                     hideDeveloperTools: !this._isDeveloperMode(),
+                    serverRenderedProblemStatement: this._appStateManager.serverRenderedProblemStatement ?? undefined,
                 });
             });
         } else {
@@ -215,6 +217,7 @@ export class ViewInitDataService {
                 type: ExtensionMsg.ExerciseDetailInit,
                 exerciseData: exerciseData as ExerciseDetailsResponse,
                 hideDeveloperTools: !this._isDeveloperMode(),
+                serverRenderedProblemStatement: this._appStateManager.serverRenderedProblemStatement ?? undefined,
             });
         }
     }
