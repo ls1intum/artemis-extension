@@ -268,10 +268,9 @@
     margin-bottom: 8px;
 }
 
-/* Server inline code: override hard-coded pink color for dark themes */
+/* Server inline code: keep server's pink color, just fix background + font for dark mode */
 :global(.artemis-problem-statement) :not(pre) > code {
-    color: var(--vscode-textPreformat-foreground) !important;
-    background: var(--vscode-textCodeBlock-background) !important;
+    background: rgba(128, 128, 128, 0.15) !important;
     font-family: var(--vscode-editor-font-family);
 }
 
