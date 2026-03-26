@@ -15,7 +15,6 @@ export function ProblemStatement({
     markdown,
     serverRenderedHtml,
     serverInteractiveScript,
-    useServerCssOnly = false,
     downloadLinks = [],
     onDownload,
     vscodeApi,
@@ -129,7 +128,9 @@ export function ProblemStatement({
         }
     }, [processedHtml, vscodeApi]);
 
-    const containerClass = isServerRendered && useServerCssOnly
+    // Server-rendered: use minimal container (server CSS handles everything)
+    // Client-rendered: use full .problemStatement styling
+    const containerClass = isServerRendered
         ? styles.problemStatementServerCssOnly
         : styles.problemStatement;
 

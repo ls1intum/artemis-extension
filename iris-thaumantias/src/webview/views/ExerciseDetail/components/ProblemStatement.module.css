@@ -223,60 +223,7 @@
     flex-wrap: wrap;
 }
 
-/* CSS bridge: map VS Code theme variables to Artemis server CSS variables.
-   The server embeds its own <style> with rules under .artemis-problem-statement.
-   We override the CSS custom properties so those rules use VS Code theme colors,
-   and override a few hard-coded server styles to match the extension look. */
-:global(.artemis-problem-statement) {
-    /* Variable mappings */
-    --body-color: var(--vscode-editor-foreground);
-    --border-color: var(--vscode-widget-border);
-    --link-color: var(--vscode-textLink-foreground);
-    --success: var(--vscode-terminal-ansiGreen);
-    --danger: var(--vscode-errorForeground);
-    --secondary: var(--vscode-descriptionForeground);
-    --info: var(--vscode-notificationsInfoIcon-foreground);
-    --body-bg: var(--vscode-editor-background);
-    --artemis-pre-background: var(--vscode-textCodeBlock-background);
-    --artemis-pre-color: var(--vscode-editor-foreground);
-    --artemis-pre-border: var(--vscode-widget-border);
-    --markdown-preview-blockquote: var(--vscode-descriptionForeground);
-    --markdown-preview-blockquote-border: var(--vscode-widget-border);
-
-    /* Override server's hard-coded font to use VS Code's font */
-    font-family: var(--vscode-font-family) !important;
-    font-size: var(--vscode-font-size) !important;
-    max-width: 800px;
-}
-
-/* Server headings: override weight + add bottom border to match client style */
-:global(.artemis-problem-statement) h1,
-:global(.artemis-problem-statement) h2,
-:global(.artemis-problem-statement) h3 {
-    font-weight: 600;
-    margin-top: 24px;
-    margin-bottom: 12px;
-    border-bottom: 1px solid var(--vscode-widget-border);
-    padding-bottom: 8px;
-}
-
-:global(.artemis-problem-statement) h4,
-:global(.artemis-problem-statement) h5,
-:global(.artemis-problem-statement) h6 {
-    font-weight: 600;
-    margin-top: 20px;
-    margin-bottom: 8px;
-}
-
-/* Server inline code: let server's pink color through, fix background + font for dark mode.
-   Needs high specificity to beat .problemStatement code above. */
-.problemStatement :global(.artemis-problem-statement) :not(pre) > code {
-    color: #d63384 !important;
-    background: rgba(128, 128, 128, 0.15) !important;
-    font-family: var(--vscode-editor-font-family);
-}
-
-/* Server CSS only mode: no bridge overrides, just raw server styles */
+/* Server-rendered content: minimal container, server CSS handles everything */
 .problemStatementServerCssOnly {
     max-width: 800px;
 }

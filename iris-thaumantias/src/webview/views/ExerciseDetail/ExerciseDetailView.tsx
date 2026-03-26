@@ -56,8 +56,6 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
         html: string;
         interactiveScript?: string;
     } | null>(null);
-    const [useServerCssOnly, setUseServerCssOnly] = useState(false);
-
     // Listen for exerciseDetailInit messages
     useExtensionMessage((msg) => {
         if (msg.type === ExtensionMsg.ExerciseDetailInit) {
@@ -462,7 +460,6 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
                 markdown={problemStatementHtml}
                 serverRenderedHtml={serverRenderedPS?.html}
                 serverInteractiveScript={serverRenderedPS?.interactiveScript}
-                useServerCssOnly={useServerCssOnly}
                 downloadLinks={downloadLinks}
                 vscodeApi={vscodeApi}
             />
@@ -476,12 +473,6 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
                         </Button>
                         {serverRenderedPS && (
                             <>
-                                <Button
-                                    variant="secondary"
-                                    onClick={() => setUseServerCssOnly(prev => !prev)}
-                                >
-                                    SSR CSS: {useServerCssOnly ? 'Server only' : 'VS Code bridge'}
-                                </Button>
                                 <Button
                                     variant="secondary"
                                     onClick={() => postCommand(vscodeApi, 'openInEditor', { data: serverRenderedPS.html, language: 'html' })}
