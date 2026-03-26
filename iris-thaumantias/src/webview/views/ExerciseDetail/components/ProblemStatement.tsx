@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Container } from '../../../components/Container';
 import { Button } from '../../../components/Button';
 import { useExtensionMessage } from '../../../hooks/useExtensionMessage';
@@ -15,12 +15,14 @@ export function ProblemStatement({
     markdown,
     serverRenderedHtml,
     serverInteractiveScript,
+    devMode = false,
     downloadLinks = [],
     onDownload,
     vscodeApi,
 }: ProblemStatementProps) {
     const contentRef = useRef<HTMLDivElement>(null);
     const renderNonce = useRef(0);
+    const [useServerCssOnly, setUseServerCssOnly] = useState(false);
 
     // Use server-rendered HTML if available, otherwise process client-side
     const processedHtml = useMemo(
@@ -128,11 +130,15 @@ export function ProblemStatement({
         }
     }, [processedHtml, vscodeApi]);
 
+    const containerClass = isServerRendered && useServerCssOnly
+        ? styles.problemStatementServerCssOnly
+        : styles.problemStatement;
+
     return (
         <Container header={<h3>Exercise Description</h3>}>
             <div
                 ref={contentRef}
-                className={styles.problemStatement}
+                className={containerClass}
                 dangerouslySetInnerHTML={{ __html: processedHtml }}
             />
             {downloadLinks && downloadLinks.length > 0 && (
@@ -149,6 +155,16 @@ export function ProblemStatement({
                             </Button>
                         ))}
                     </div>
+                </div>
+            )}
+            {devMode && isServerRendered && (
+                <div className={styles.ssrDevToggle}>
+                    <Button
+                        variant="secondary"
+                        onClick={() => setUseServerCssOnly(prev => !prev)}
+                    >
+                        CSS: {useServerCssOnly ? 'Server only' : 'VS Code bridge'}
+                    </Button>
                 </div>
             )}
         </Container>
