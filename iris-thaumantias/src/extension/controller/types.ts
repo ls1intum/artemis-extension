@@ -22,4 +22,5 @@ export interface WebViewActionHandler {
     openCourseListFullscreen(): Promise<void>;
     render(): void;
     sendInitData(): void;
+    backgroundRenderProblemStatement(): void;
 }

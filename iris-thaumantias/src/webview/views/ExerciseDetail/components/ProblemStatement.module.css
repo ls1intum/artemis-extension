@@ -299,28 +299,31 @@
 }
 
 /* PlantUML dark theme fixes: borders (#606060) and arrows (#808080) are too dark.
-   Target specific SVG elements for better contrast in VS Code dark themes. */
+   Target specific SVG elements for better contrast in VS Code dark themes.
+   Scoped to dark/high-contrast only — light mode uses the server's original colors. */
 
-/* Class box borders: lighten from #606060 */
-:global(.artemis-diagram) svg :global(.entity) rect[style*="606060"] {
+:global(body.vscode-dark) :global(.artemis-diagram) svg :global(.entity) rect[style*="606060"],
+:global(body.vscode-high-contrast) :global(.artemis-diagram) svg :global(.entity) rect[style*="606060"] {
     stroke: #aaa !important;
 }
 
-/* Separator lines inside class boxes */
-:global(.artemis-diagram) svg :global(.entity) line[style*="606060"] {
+:global(body.vscode-dark) :global(.artemis-diagram) svg :global(.entity) line[style*="606060"],
+:global(body.vscode-high-contrast) :global(.artemis-diagram) svg :global(.entity) line[style*="606060"] {
     stroke: #aaa !important;
 }
 
-/* Arrow/connection paths: lighten from #808080 to match Artemis dark mode look */
-:global(.artemis-diagram) svg :global(.link) path {
+:global(body.vscode-dark) :global(.artemis-diagram) svg :global(.link) path,
+:global(body.vscode-high-contrast) :global(.artemis-diagram) svg :global(.link) path {
     stroke: #ccc !important;
 }
 
-/* Arrowhead fills and strokes */
-:global(.artemis-diagram) svg :global(.link) polygon {
+:global(body.vscode-dark) :global(.artemis-diagram) svg :global(.link) polygon,
+:global(body.vscode-high-contrast) :global(.artemis-diagram) svg :global(.link) polygon {
     stroke: #ccc !important;
 }
-:global(.artemis-diagram) svg :global(.link) polygon[fill="#808080"] {
+
+:global(body.vscode-dark) :global(.artemis-diagram) svg :global(.link) polygon[fill="#808080"],
+:global(body.vscode-high-contrast) :global(.artemis-diagram) svg :global(.link) polygon[fill="#808080"] {
     fill: #ccc !important;
 }
 

@@ -256,6 +256,10 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
         this._viewInitDataService.sendInitData();
     }
 
+    public backgroundRenderProblemStatement(): void {
+        this._backgroundRenderProblemStatement();
+    }
+
     // ── Public API ─────────────────────────────────────────────────────
 
     // WebViewActionHandler interface implementation
