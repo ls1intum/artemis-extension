@@ -635,13 +635,20 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
         const participations = exercise.studentParticipations || [];
         const participation = participations[0];
 
+        // Find the latest submission/result (highest ID) — same logic as exerciseDataLoader
+        const latestSubmission = [...(participation?.submissions ?? [])]
+            .sort((a, b) => ((b as { id?: number }).id ?? 0) - ((a as { id?: number }).id ?? 0))[0] as { results?: Array<{ id?: number; feedbacks?: unknown[] }> } | undefined;
+        const latestResult = [...(latestSubmission?.results ?? [])]
+            .sort((a, b) => ((b as { id?: number }).id ?? 0) - ((a as { id?: number }).id ?? 0))[0];
+
         logger.info(`[SSR] Starting background render for exercise ${exerciseId}`, LogCategory.GENERAL);
 
         try {
+            const feedbacks = latestResult?.feedbacks as Array<{ testCase?: { id?: number; testName?: string }; text?: string; detailText?: string; credits?: number; positive?: boolean }> | undefined;
             const rendered = await this._renderService.render(
                 exercise,
                 participation,
-                participation?.submissions?.[0]?.results?.[0]?.feedbacks,
+                feedbacks,
                 false,
                 this._appStateManager.userInfo?.user?.langKey,
             );
