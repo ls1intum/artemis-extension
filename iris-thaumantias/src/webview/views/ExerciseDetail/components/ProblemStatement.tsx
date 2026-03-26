@@ -129,7 +129,7 @@ export function ProblemStatement({
     }, [processedHtml, vscodeApi]);
 
     return (
-        <Container header={<h3>Exercise Description</h3>}>
+        <Container header={<h3>Exercise Description {isServerRendered ? '(SSR)' : '(Client)'}</h3>}>
             <div
                 ref={contentRef}
                 className={styles.problemStatement}
