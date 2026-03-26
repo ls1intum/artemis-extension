@@ -60,10 +60,10 @@ export function getReactWebviewHtml(webview: vscode.Webview, extensionUri: vscod
          default-src 'none'          - deny everything not explicitly allowed
          script-src 'nonce-...'      - only scripts with matching nonce attribute
          style-src unsafe-inline     - allow server-rendered <style> + inline style= attrs
-         img-src cspSource https:    - webview-origin images + HTTPS (Artemis images)
+         img-src cspSource https: data: - webview images + HTTPS + data URIs (task icons)
          font-src cspSource          - webview-origin fonts (KaTeX fonts in dist/)
     -->
-    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src ${webview.cspSource} https:; font-src ${webview.cspSource}; style-src ${webview.cspSource} 'unsafe-inline'; script-src 'nonce-${nonce}';">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src ${webview.cspSource} https: data:; font-src ${webview.cspSource}; style-src ${webview.cspSource} 'unsafe-inline'; script-src 'nonce-${nonce}';">
     <title>Artemis</title>
     <link rel="stylesheet" type="text/css" href="${reactStyleUri}">
 </head>
