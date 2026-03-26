@@ -327,6 +327,24 @@
     fill: #ccc !important;
 }
 
+/* PlantUML light theme fixes: #808080 arrows are too faint on white.
+   Darken to #444 while keeping distinct from the #000 dependency arrows. */
+
+:global(body.vscode-light) :global(.artemis-diagram) svg :global(.link) path[style*="808080"],
+:global(body.vscode-high-contrast-light) :global(.artemis-diagram) svg :global(.link) path[style*="808080"] {
+    stroke: #444 !important;
+}
+
+:global(body.vscode-light) :global(.artemis-diagram) svg :global(.link) polygon[style*="808080"],
+:global(body.vscode-high-contrast-light) :global(.artemis-diagram) svg :global(.link) polygon[style*="808080"] {
+    stroke: #444 !important;
+}
+
+:global(body.vscode-light) :global(.artemis-diagram) svg :global(.link) polygon[fill="#808080"],
+:global(body.vscode-high-contrast-light) :global(.artemis-diagram) svg :global(.link) polygon[fill="#808080"] {
+    fill: #444 !important;
+}
+
 /* Server CSS only mode: no bridge overrides, just raw server styles */
 .problemStatementServerCssOnly {
     max-width: 800px;
