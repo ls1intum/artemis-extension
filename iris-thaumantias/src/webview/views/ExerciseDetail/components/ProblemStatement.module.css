@@ -31,7 +31,7 @@
     margin-bottom: 8px;
 }
 
-/* Inline code */
+/* Inline code (client-rendered content) */
 .problemStatement code {
     background: var(--vscode-textCodeBlock-background);
     color: var(--vscode-textPreformat-foreground);
@@ -268,8 +268,10 @@
     margin-bottom: 8px;
 }
 
-/* Server inline code: keep server's pink color, just fix background + font for dark mode */
-:global(.artemis-problem-statement) :not(pre) > code {
+/* Server inline code: let server's pink color through, fix background + font for dark mode.
+   Needs high specificity to beat .problemStatement code above. */
+.problemStatement :global(.artemis-problem-statement) :not(pre) > code {
+    color: #d63384 !important;
     background: rgba(128, 128, 128, 0.15) !important;
     font-family: var(--vscode-editor-font-family);
 }
