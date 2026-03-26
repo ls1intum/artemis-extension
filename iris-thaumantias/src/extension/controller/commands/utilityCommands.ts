@@ -98,7 +98,14 @@ export class UtilityCommandModule {
     private handleOpenInEditor = async (message: WebviewToExtensionMessage): Promise<void> => {
         try {
             const payload = getPayload<WebCmd<'openInEditor'>>(message);
-            await this.context.actionHandler.openJsonInEditor(payload.data);
+            // Support opening raw strings (e.g., SSR HTML) with a language hint
+            if (typeof payload.data === 'string') {
+                const language = ('language' in payload && typeof payload.language === 'string') ? payload.language : 'plaintext';
+                const document = await vscode.workspace.openTextDocument({ content: payload.data, language });
+                await vscode.window.showTextDocument(document, { preview: false, viewColumn: vscode.ViewColumn.One });
+            } else {
+                await this.context.actionHandler.openJsonInEditor(payload.data);
+            }
         } catch (error: unknown) {
             logger.error('Failed to open in editor:', LogCategory.VIEW, error);
             vscode.window.showErrorMessage(`Failed to open in editor: ${extractErrorMessage(error)}`);

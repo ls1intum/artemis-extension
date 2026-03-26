@@ -150,7 +150,7 @@ interface WebviewCmdPayloads {
     openWebsite: { path?: string };
     openSettings: { setting: string };
     openBugReport: undefined;
-    openInEditor: { data: Record<string, unknown> };
+    openInEditor: { data: Record<string, unknown> | string; language?: string };
     copyToClipboard: { text: string };
     openExternalLink: { url: string };
     openImagePreview: { uri: string };

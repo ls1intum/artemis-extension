@@ -475,12 +475,20 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
                             Open Raw JSON
                         </Button>
                         {serverRenderedPS && (
-                            <Button
-                                variant="secondary"
-                                onClick={() => setUseServerCssOnly(prev => !prev)}
-                            >
-                                SSR CSS: {useServerCssOnly ? 'Server only' : 'VS Code bridge'}
-                            </Button>
+                            <>
+                                <Button
+                                    variant="secondary"
+                                    onClick={() => setUseServerCssOnly(prev => !prev)}
+                                >
+                                    SSR CSS: {useServerCssOnly ? 'Server only' : 'VS Code bridge'}
+                                </Button>
+                                <Button
+                                    variant="secondary"
+                                    onClick={() => postCommand(vscodeApi, 'openInEditor', { data: serverRenderedPS.html, language: 'html' })}
+                                >
+                                    View SSR HTML
+                                </Button>
+                            </>
                         )}
                     </div>
                 </Container>
