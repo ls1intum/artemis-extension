@@ -96,6 +96,9 @@ export const WebviewCmd = {
 
     // PlantUML inline rendering
     RenderPlantUmlInline: 'renderPlantUmlInline',
+
+    // Dev tools
+    PreviewSsrHtml: 'previewSsrHtml',
 } as const;
 
 /** Union of all Webview->Extension command strings */
@@ -183,6 +186,9 @@ interface WebviewCmdPayloads {
 
     // PlantUML inline rendering
     renderPlantUmlInline: { plantUml: string; index: number; nonce: number };
+
+    // Dev tools
+    previewSsrHtml: { html: string };
 }
 
 /** Commands that require a non-undefined payload object. */
@@ -218,6 +224,7 @@ export const COMMANDS_REQUIRING_PAYLOAD = new Set<string>([
     WebviewCmd.OpenFile,
     WebviewCmd.ViewArchivedCourse,
     WebviewCmd.RenderPlantUmlInline,
+    WebviewCmd.PreviewSsrHtml,
     WebviewCmd.ViewBuildLog,
     WebviewCmd.GoToSource,
 ]);

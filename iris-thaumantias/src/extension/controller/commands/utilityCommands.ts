@@ -60,6 +60,7 @@ export class UtilityCommandModule {
             [WebviewCmd.OpenExternalLink]: this.handleOpenExternalLink,
             [WebviewCmd.OpenImagePreview]: this.handleOpenImagePreview,
             [WebviewCmd.OpenFile]: this.handleOpenFile,
+            [WebviewCmd.PreviewSsrHtml]: this.handlePreviewSsrHtml,
         };
     }
 
@@ -291,6 +292,23 @@ export class UtilityCommandModule {
         } catch (error: unknown) {
             logger.error('Failed to open file:', LogCategory.VIEW, error);
             vscode.window.showErrorMessage(`Failed to open file: ${extractErrorMessage(error)}`);
+        }
+    };
+
+    private handlePreviewSsrHtml = async (message: WebviewToExtensionMessage): Promise<void> => {
+        try {
+            const { html } = getPayload<WebCmd<'previewSsrHtml'>>(message);
+            const panel = vscode.window.createWebviewPanel(
+                'ssrPreview',
+                'SSR Preview',
+                vscode.ViewColumn.One,
+                { enableScripts: false },
+            );
+            panel.webview.html = `<!DOCTYPE html>
+<html><head><meta charset="UTF-8"></head>
+<body style="padding:20px;background:#fff;color:#212529;">${html}</body></html>`;
+        } catch (error: unknown) {
+            logger.error('Failed to preview SSR HTML:', LogCategory.VIEW, error);
         }
     };
 

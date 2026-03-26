@@ -488,6 +488,12 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
                                 >
                                     View SSR HTML
                                 </Button>
+                                <Button
+                                    variant="secondary"
+                                    onClick={() => postCommand(vscodeApi, 'previewSsrHtml', { html: serverRenderedPS.html })}
+                                >
+                                    Preview SSR
+                                </Button>
                             </>
                         )}
                     </div>
