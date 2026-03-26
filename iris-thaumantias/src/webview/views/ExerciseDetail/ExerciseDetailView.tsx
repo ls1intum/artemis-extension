@@ -51,15 +51,31 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
     // Initialize WebSocket updates hook
     useWebSocketUpdates();
 
+    // Server-side rendered problem statement (progressive enhancement)
+    const [serverRenderedPS, setServerRenderedPS] = useState<{
+        html: string;
+        interactiveScript?: string;
+    } | null>(null);
+
     // Listen for exerciseDetailInit messages
     useExtensionMessage((msg) => {
         if (msg.type === ExtensionMsg.ExerciseDetailInit) {
             if (!msg.exerciseData) { return; }
 
             setExerciseData(msg.exerciseData, msg.hideDeveloperTools, msg.repoStatus);
+            // Use cached server render if available on init
+            if (msg.serverRenderedProblemStatement) {
+                setServerRenderedPS(msg.serverRenderedProblemStatement);
+            } else {
+                setServerRenderedPS(null);
+            }
         }
         if (msg.type === ExtensionMsg.ViewInitError) {
             setError(msg.error);
+        }
+        // Progressive upgrade: server-rendered problem statement arrived
+        if (msg.type === ExtensionMsg.ProblemStatementRendered) {
+            setServerRenderedPS({ html: msg.html, interactiveScript: msg.interactiveScript });
         }
     }, [vscodeApi, setExerciseData, setError]);
 
@@ -443,6 +459,8 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
             {/* Problem Statement */}
             <ProblemStatement
                 markdown={problemStatementHtml}
+                serverRenderedHtml={serverRenderedPS?.html}
+                serverInteractiveScript={serverRenderedPS?.interactiveScript}
                 downloadLinks={downloadLinks}
                 vscodeApi={vscodeApi}
             />

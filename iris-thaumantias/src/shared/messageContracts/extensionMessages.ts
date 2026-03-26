@@ -67,6 +67,9 @@ export const ExtensionMsg = {
     PlantUmlRendered: 'plantUmlRendered',
     PlantUmlError: 'plantUmlError',
 
+    // Server-side problem statement rendering
+    ProblemStatementRendered: 'problemStatementRendered',
+
 } as const;
 
 /** Union of all Extension->Webview message type strings */
@@ -95,6 +98,7 @@ interface ExtensionMsgPayloads {
         exerciseData: ExerciseDetailsResponse;
         hideDeveloperTools: boolean;
         repoStatus?: { isConnected: boolean; hasChanges: boolean; isPracticeRepo: boolean };
+        serverRenderedProblemStatement?: { html: string; interactiveScript?: string };
     };
     examStartInit: {
         studentExam: StudentExam;
@@ -262,6 +266,9 @@ interface ExtensionMsgPayloads {
     // PlantUML
     plantUmlRendered: { index: number; svg: string; nonce: number };
     plantUmlError: { index: number; error: string; nonce: number };
+
+    // Server-side problem statement rendering
+    problemStatementRendered: { html: string; interactiveScript?: string };
 }
 
 /** Auto-generated discriminated union of all Extension->Webview messages */

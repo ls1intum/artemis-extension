@@ -36,3 +36,9 @@ export type {
     SubmissionProcessingMessage,
     ResultDTO,
 } from './submissions';
+export type {
+    TestFeedbackInput,
+    ResultSummaryInput,
+    ProblemStatementRenderRequest,
+    RenderedProblemStatementDTO,
+} from './problemStatementRendering';

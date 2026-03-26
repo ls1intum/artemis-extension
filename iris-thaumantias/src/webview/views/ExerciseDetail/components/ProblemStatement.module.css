@@ -222,3 +222,20 @@
     gap: 8px;
     flex-wrap: wrap;
 }
+
+/* CSS bridge: map VS Code theme variables to Artemis server CSS variables */
+:global(.artemis-problem-statement) {
+    --body-color: var(--vscode-editor-foreground);
+    --border-color: var(--vscode-panel-border);
+    --link-color: var(--vscode-textLink-foreground);
+    --success: var(--vscode-terminal-ansiGreen);
+    --danger: var(--vscode-errorForeground);
+    --secondary: var(--vscode-descriptionForeground);
+    --info: var(--vscode-notificationsInfoIcon-foreground);
+    --body-bg: var(--vscode-editor-background);
+    --artemis-pre-background: var(--vscode-textCodeBlock-background);
+    --artemis-pre-color: var(--vscode-editor-foreground);
+    --artemis-pre-border: var(--vscode-panel-border);
+    --markdown-preview-blockquote: var(--vscode-descriptionForeground);
+    --markdown-preview-blockquote-border: var(--vscode-panel-border);
+}

@@ -13,6 +13,8 @@ import styles from './ProblemStatement.module.css';
  */
 export function ProblemStatement({
     markdown,
+    serverRenderedHtml,
+    serverInteractiveScript,
     downloadLinks = [],
     onDownload,
     vscodeApi,
@@ -20,8 +22,12 @@ export function ProblemStatement({
     const contentRef = useRef<HTMLDivElement>(null);
     const renderNonce = useRef(0);
 
-    // Process HTML through KaTeX, sanitizer, and marker pipeline
-    const processedHtml = useMemo(() => processProblemStatement(markdown), [markdown]);
+    // Use server-rendered HTML if available, otherwise process client-side
+    const processedHtml = useMemo(
+        () => serverRenderedHtml || processProblemStatement(markdown),
+        [markdown, serverRenderedHtml]
+    );
+    const isServerRendered = !!serverRenderedHtml;
 
     // Event delegation for links and images
     useEffect(() => {
@@ -57,10 +63,22 @@ export function ProblemStatement({
         return () => container.removeEventListener('click', handleClick);
     }, [processedHtml, vscodeApi]);
 
-    // PlantUML async rendering: request rendering from extension
+    // Execute interactive script for server-rendered content (task feedback modal)
+    useEffect(() => {
+        if (!isServerRendered || !serverInteractiveScript || !contentRef.current) {return;}
+        try {
+            const scriptEl = document.createElement('script');
+            scriptEl.textContent = serverInteractiveScript;
+            contentRef.current.appendChild(scriptEl);
+        } catch {
+            // Interactive script failed — task feedback modal won't be available
+        }
+    }, [isServerRendered, serverInteractiveScript]);
+
+    // PlantUML async rendering: request rendering from extension (client-mode only)
     useEffect(() => {
         const container = contentRef.current;
-        if (!container || !vscodeApi) {return;}
+        if (!container || !vscodeApi || isServerRendered) {return;}
 
         const plantUmlElements = container.querySelectorAll('.plantuml-placeholder[data-plantuml]');
         if (plantUmlElements.length === 0) {return;}

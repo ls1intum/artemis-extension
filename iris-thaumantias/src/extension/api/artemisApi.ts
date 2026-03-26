@@ -16,6 +16,7 @@ import type {
     ExamSummary, StudentExam,
 } from '../types';
 import { logger, LogLevel, LogCategory } from '../services/loggingService';
+import type { ProblemStatementRenderRequest, RenderedProblemStatementDTO } from '../domain/problemStatementRendering';
 
 export class ArtemisApiService {
     private authManager: AuthManager;
@@ -630,5 +631,18 @@ export class ArtemisApiService {
             }
         );
         return response.json() as Promise<StudentExam>;
+    }
+
+    // ── Problem Statement Rendering ──
+
+    async renderProblemStatement(request: ProblemStatementRenderRequest): Promise<RenderedProblemStatementDTO> {
+        const response = await this.makeRequest(
+            CONFIG.API.ENDPOINTS.RENDER_PROBLEM_STATEMENT,
+            {
+                method: 'POST',
+                body: JSON.stringify(request),
+            }
+        );
+        return response.json() as Promise<RenderedProblemStatementDTO>;
     }
 }

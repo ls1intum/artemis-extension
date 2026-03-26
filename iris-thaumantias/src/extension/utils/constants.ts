@@ -21,6 +21,7 @@ export const CONFIG = {
             RESULTS: '/api/core/participations/{participationId}/results',
             VCS_TOKEN: '/api/core/account/participation-vcs-access-token',
             START_PARTICIPATION: '/api/exercise/exercises/{exerciseId}/participations',
+            RENDER_PROBLEM_STATEMENT: '/api/exercise/problem-statement/render',
         },
         USER_AGENT: 'VS Code Extension',
     },

@@ -16,6 +16,7 @@ import { ViewActionService } from '../controller/viewActionService';
 import { ViewRouter } from '../controller/viewRouter';
 import { fetchAndEnrichExerciseDetails, fetchArchivedCourseDetail } from '../controller/exerciseDataLoader';
 import { WebSocketMessageHandler } from '../types';
+import { ProblemStatementRenderService } from '../services/problemStatementRenderService';
 import { BaseWebviewProvider } from './baseWebviewProvider';
 import type { BuildErrorCodeLensProvider } from './buildErrorCodeLensProvider';
 import { ExtensionMsg, toCourseDetailData } from '../../shared/messageContracts';
@@ -49,6 +50,7 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
     private readonly _websocketService: ArtemisWebsocketService;
     private _websocketHandler: WebSocketMessageHandler;
     private readonly _telemetryManager: TelemetryManager;
+    private readonly _renderService: ProblemStatementRenderService;
 
     private readonly _onDidChangeViewNavigation = new vscode.EventEmitter<{ from: string; to: string }>();
     public readonly onDidChangeViewNavigation = this._onDidChangeViewNavigation.event;
@@ -93,6 +95,7 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
             this._messageHandler,
             (msg) => this._postMessageSafe(msg),
         );
+        this._renderService = new ProblemStatementRenderService(this._artemisApi);
         this._buildDiagnosticsService = new BuildDiagnosticsService(this._artemisApi);
         this._buildDiagnosticsService.setCodeLensProvider(buildErrorCodeLensProvider);
         this._exerciseOpeningService = new ExerciseOpeningService(this._exerciseRegistry, this._providerRegistry, this._telemetryManager);
@@ -265,6 +268,9 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
 
         if (didUpdate) {
             this.render();
+
+            // Fire background server render for progressive enhancement
+            this._backgroundRenderProblemStatement();
 
             // Ensure WebSocket is connected for real-time updates
             if (this._websocketService && !this._websocketService.isConnected()) {
@@ -599,6 +605,48 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
             await config.update(VSCODE_CONFIG.START_PAGE_KEY, 'workspace-exercise', vscode.ConfigurationTarget.Global);
         } else if (result === "Don't show again") {
             await config.update(VSCODE_CONFIG.SHOW_START_PAGE_SUGGESTION_KEY, false, vscode.ConfigurationTarget.Global);
+        }
+    }
+
+    // ── Server-side problem statement rendering ─────────────────────
+
+    private async _backgroundRenderProblemStatement(): Promise<void> {
+        const exerciseData = this._appStateManager.currentExerciseData as ExerciseDetailsResponse | undefined;
+        if (!exerciseData?.exercise?.problemStatement) {
+            logger.info('[SSR] No exercise data or problemStatement, skipping', LogCategory.GENERAL);
+            return;
+        }
+
+        const exercise = exerciseData.exercise;
+        const exerciseId = exercise.id;
+        const participations = exercise.studentParticipations || [];
+        const participation = participations[0];
+
+        logger.info(`[SSR] Starting background render for exercise ${exerciseId}`, LogCategory.GENERAL);
+
+        try {
+            const rendered = await this._renderService.render(
+                exercise,
+                participation,
+                participation?.submissions?.[0]?.results?.[0]?.feedbacks,
+                false,
+                this._appStateManager.userInfo?.user?.langKey,
+            );
+
+            // Guard: verify same exercise is still active after await
+            const current = this._appStateManager.currentExerciseData as ExerciseDetailsResponse | undefined;
+            if (current?.exercise?.id !== exerciseId) { return; }
+
+            if (rendered) {
+                this._postMessageSafe({
+                    type: ExtensionMsg.ProblemStatementRendered,
+                    html: rendered.html,
+                    interactiveScript: rendered.interactiveScript,
+                });
+                logger.info(`[SSR] Server render sent to webview (hash: ${rendered.contentHash.slice(0, 8)})`, LogCategory.GENERAL);
+            }
+        } catch (error) {
+            logger.info(`[SSR] Background render failed: ${error}`, LogCategory.GENERAL);
         }
     }
 
