@@ -94,9 +94,6 @@ export const WebviewCmd = {
     DebugSessions: 'debugSessions',
     OpenHelpPopup: 'openHelpPopup',
 
-    // PlantUML inline rendering
-    RenderPlantUmlInline: 'renderPlantUmlInline',
-
     // Dev tools
     PreviewSsrHtml: 'previewSsrHtml',
     FreshSsrPreview: 'freshSsrPreview',
@@ -185,9 +182,6 @@ interface WebviewCmdPayloads {
     debugSessions: undefined;
     openHelpPopup: undefined;
 
-    // PlantUML inline rendering
-    renderPlantUmlInline: { plantUml: string; index: number; nonce: number };
-
     // Dev tools
     previewSsrHtml: { html: string };
     freshSsrPreview: { darkMode: boolean };
@@ -225,7 +219,6 @@ export const COMMANDS_REQUIRING_PAYLOAD = new Set<string>([
     WebviewCmd.MessageFeedback,
     WebviewCmd.OpenFile,
     WebviewCmd.ViewArchivedCourse,
-    WebviewCmd.RenderPlantUmlInline,
     WebviewCmd.PreviewSsrHtml,
     WebviewCmd.FreshSsrPreview,
     WebviewCmd.ViewBuildLog,

@@ -25,7 +25,6 @@ export interface ProblemStatementProps {
     serverInteractiveScript?: string;
     downloadLinks?: Array<{ name: string; url: string }>;
     onDownload?: (url: string, name: string) => void;
-    vscodeApi?: VsCodeApi;
 }
 
 /**

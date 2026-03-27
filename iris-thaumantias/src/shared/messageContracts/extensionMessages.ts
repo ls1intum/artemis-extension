@@ -63,10 +63,6 @@ export const ExtensionMsg = {
     GitIdentityInfo: 'gitIdentityInfo',
     HealthCheckResults: 'healthCheckResults',
 
-    // PlantUML
-    PlantUmlRendered: 'plantUmlRendered',
-    PlantUmlError: 'plantUmlError',
-
     // Server-side problem statement rendering
     ProblemStatementRendered: 'problemStatementRendered',
 
@@ -262,10 +258,6 @@ interface ExtensionMsgPayloads {
             response: string | null;
         }>;
     };
-
-    // PlantUML
-    plantUmlRendered: { index: number; svg: string; nonce: number };
-    plantUmlError: { index: number; error: string; nonce: number };
 
     // Server-side problem statement rendering
     problemStatementRendered: { html: string; interactiveScript?: string };

@@ -461,7 +461,6 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
                 serverRenderedHtml={serverRenderedPS?.html}
                 serverInteractiveScript={serverRenderedPS?.interactiveScript}
                 downloadLinks={downloadLinks}
-                vscodeApi={vscodeApi}
             />
 
             {/* Developer Tools */}

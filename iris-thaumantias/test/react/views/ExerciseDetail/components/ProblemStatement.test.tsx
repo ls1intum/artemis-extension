@@ -81,9 +81,8 @@ describe('ProblemStatement', () => {
 		expect(onDownload).toHaveBeenCalledWith('https://example.com/file.pdf', 'Assignment.pdf');
 	});
 
-	it('renders with vscodeApi prop without crashing', () => {
-		const mockApi = createMockVsCodeApi();
-		render(<ProblemStatement markdown="<p>Problem</p>" vscodeApi={mockApi} />);
+	it('renders without optional props without crashing', () => {
+		render(<ProblemStatement markdown="<p>Problem</p>" />);
 		expect(screen.getByText('Exercise Description')).toBeInTheDocument();
 	});
 

@@ -253,7 +253,6 @@ export function ExamExerciseDetailView({ vscodeApi }: ExamExerciseDetailViewProp
             <ProblemStatement
                 markdown={problemStatementHtml}
                 downloadLinks={downloadLinks}
-                vscodeApi={vscodeApi}
             />
 
             {/* Score Info (if available) */}

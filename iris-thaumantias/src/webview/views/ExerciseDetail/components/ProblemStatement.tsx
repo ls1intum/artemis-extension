@@ -1,15 +1,13 @@
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import { Container } from '../../../components/Container';
 import { Button } from '../../../components/Button';
-import { useExtensionMessage } from '../../../hooks/useExtensionMessage';
-import { processProblemStatement } from '../../../utils/problemStatementProcessor';
-import { ExtensionMsg, postCommand } from '../../../../shared/messageContracts';
 import type { ProblemStatementProps } from '../types';
 import styles from './ProblemStatement.module.css';
 
 /**
- * Enhanced ProblemStatement component with KaTeX math, PlantUML diagrams,
- * clickable links/images, and comprehensive VS Code-native styling.
+ * ProblemStatement component — displays server-rendered HTML from the Artemis
+ * SSR endpoint. The server handles Markdown→HTML, PlantUML SVG inlining,
+ * KaTeX math, task markers with test status, and embedded CSS.
  */
 export function ProblemStatement({
     markdown,
@@ -17,55 +15,12 @@ export function ProblemStatement({
     serverInteractiveScript,
     downloadLinks = [],
     onDownload,
-    vscodeApi,
 }: ProblemStatementProps) {
     const contentRef = useRef<HTMLDivElement>(null);
-    const renderNonce = useRef(0);
-
-    // Use server-rendered HTML if available, otherwise process client-side
-    const processedHtml = useMemo(
-        () => serverRenderedHtml || processProblemStatement(markdown),
-        [markdown, serverRenderedHtml]
-    );
-    const isServerRendered = !!serverRenderedHtml;
-
-    // Event delegation for links and images
-    useEffect(() => {
-        const container = contentRef.current;
-        if (!container) {return;}
-
-        const handleClick = (event: MouseEvent) => {
-            const target = event.target as HTMLElement;
-
-            // Handle external links
-            const link = target.closest('a[data-external-link]') as HTMLAnchorElement;
-            if (link) {
-                event.preventDefault();
-                const href = link.getAttribute('href');
-                if (href && vscodeApi) {
-                    postCommand(vscodeApi, 'openExternalLink', { url: href });
-                }
-                return;
-            }
-
-            // Handle clickable images
-            const img = target.closest('img[data-clickable-image]') as HTMLImageElement;
-            if (img) {
-                const src = img.getAttribute('src');
-                if (src && vscodeApi) {
-                    postCommand(vscodeApi, 'openImagePreview', { uri: src });
-                }
-                return;
-            }
-        };
-
-        container.addEventListener('click', handleClick);
-        return () => container.removeEventListener('click', handleClick);
-    }, [processedHtml, vscodeApi]);
 
     // Execute interactive script for server-rendered content (task feedback modal)
     useEffect(() => {
-        if (!isServerRendered || !serverInteractiveScript || !contentRef.current) {return;}
+        if (!serverRenderedHtml || !serverInteractiveScript || !contentRef.current) {return;}
         try {
             const nonce = document.getElementById('root')?.getAttribute('data-csp-nonce');
             const scriptEl = document.createElement('script');
@@ -75,73 +30,16 @@ export function ProblemStatement({
         } catch {
             // Interactive script failed — task feedback modal won't be available
         }
-    }, [isServerRendered, serverInteractiveScript]);
+    }, [serverRenderedHtml, serverInteractiveScript]);
 
-    // PlantUML async rendering: request rendering from extension (client-mode only)
-    useEffect(() => {
-        const container = contentRef.current;
-        if (!container || !vscodeApi || isServerRendered) {return;}
-
-        const plantUmlElements = container.querySelectorAll('.plantuml-placeholder[data-plantuml]');
-        if (plantUmlElements.length === 0) {return;}
-
-        renderNonce.current++;
-        const nonce = renderNonce.current;
-
-        plantUmlElements.forEach((element, index) => {
-            const encoded = element.getAttribute('data-plantuml');
-            if (!encoded) {return;}
-
-            const plantUml = decodeURIComponent(encoded);
-            element.setAttribute('data-plantuml-index', String(index));
-            element.setAttribute('data-plantuml-nonce', String(nonce));
-
-            postCommand(vscodeApi, 'renderPlantUmlInline', { plantUml, index, nonce });
-        });
-    }, [processedHtml, vscodeApi]);
-
-    // PlantUML async rendering: handle rendered SVG responses
-    useExtensionMessage((msg) => {
-        const container = contentRef.current;
-        if (!container) {return;}
-
-        if (msg.type === ExtensionMsg.PlantUmlRendered) {
-            const placeholder = container.querySelector(
-                `[data-plantuml-index="${msg.index ?? ''}"]`
-            );
-            if (!placeholder || !placeholder.parentNode || typeof msg.svg !== 'string') {return;}
-            if (placeholder.getAttribute('data-plantuml-nonce') !== String(msg.nonce)) {return;}
-            const rendered = document.createElement('div');
-            rendered.className = 'plantuml-rendered';
-            rendered.innerHTML = msg.svg;
-            placeholder.parentNode.replaceChild(rendered, placeholder);
-        }
-
-        if (msg.type === ExtensionMsg.PlantUmlError) {
-            const placeholder = container.querySelector(
-                `[data-plantuml-index="${msg.index ?? ''}"]`
-            );
-            if (!placeholder || !placeholder.parentNode) {return;}
-            if (placeholder.getAttribute('data-plantuml-nonce') !== String(msg.nonce)) {return;}
-            const errorDiv = document.createElement('div');
-            errorDiv.className = 'plantuml-error';
-            errorDiv.textContent = `Error rendering PlantUML: ${msg.error ?? 'Unknown error'}`;
-            placeholder.parentNode.replaceChild(errorDiv, placeholder);
-        }
-    }, [processedHtml, vscodeApi]);
-
-    // Server-rendered: use minimal container (server CSS handles everything)
-    // Client-rendered: use full .problemStatement styling
-    const containerClass = isServerRendered
-        ? styles.problemStatementServerCssOnly
-        : styles.problemStatement;
+    const html = serverRenderedHtml || `<p>${markdown || 'No description available'}</p>`;
 
     return (
         <Container header={<h3>Exercise Description</h3>}>
             <div
                 ref={contentRef}
-                className={containerClass}
-                dangerouslySetInnerHTML={{ __html: processedHtml }}
+                className={styles.problemStatement}
+                dangerouslySetInnerHTML={{ __html: html }}
             />
             {downloadLinks && downloadLinks.length > 0 && (
                 <div className={styles.downloadSection}>
