@@ -24,7 +24,8 @@ export interface ProblemStatementRenderRequest {
     readonly resultSummary?: ResultSummaryInput;
     readonly locale?: string;
     readonly darkMode: boolean;
-    readonly interactive: boolean;
+    readonly includeJs: boolean;
+    readonly includeCss?: boolean;
 }
 
 /** Maps to Java RenderedProblemStatementDTO */

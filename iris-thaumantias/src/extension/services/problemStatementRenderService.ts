@@ -102,7 +102,7 @@ export class ProblemStatementRenderService {
         const locale = 'en';
         const testInputs = feedbacks ? mapFeedbacksToTestInputs(feedbacks) : undefined;
         const resultSummary = participation ? buildResultSummary(participation, exercise) : undefined;
-        const interactive = !isExamExercise && testInputs !== undefined && testInputs.length > 0;
+        const includeJs = !isExamExercise && testInputs !== undefined && testInputs.length > 0;
 
         const request: ProblemStatementRenderRequest = {
             markdown,
@@ -110,7 +110,7 @@ export class ProblemStatementRenderService {
             resultSummary,
             locale,
             darkMode,
-            interactive,
+            includeJs,
         };
 
         // Cache check
@@ -276,7 +276,7 @@ function computeInputHash(request: ProblemStatementRenderRequest, serverUrl: str
         resultSummary: request.resultSummary,
         locale: request.locale,
         darkMode: request.darkMode,
-        interactive: request.interactive,
+        includeJs: request.includeJs,
         serverUrl,
     });
     let hash = 0;
