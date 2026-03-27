@@ -67,7 +67,9 @@ export function ProblemStatement({
     useEffect(() => {
         if (!isServerRendered || !serverInteractiveScript || !contentRef.current) {return;}
         try {
+            const nonce = document.getElementById('root')?.getAttribute('data-csp-nonce');
             const scriptEl = document.createElement('script');
+            if (nonce) { scriptEl.nonce = nonce; }
             scriptEl.textContent = serverInteractiveScript;
             contentRef.current.appendChild(scriptEl);
         } catch {

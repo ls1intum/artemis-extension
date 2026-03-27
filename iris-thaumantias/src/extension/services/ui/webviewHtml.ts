@@ -68,7 +68,7 @@ export function getReactWebviewHtml(webview: vscode.Webview, extensionUri: vscod
     <link rel="stylesheet" type="text/css" href="${reactStyleUri}">
 </head>
 <body>
-    <div id="root"${dataViewAttr} data-logo-uri="${logoUri}" data-iris-logo-uri="${irisLogoUri}"></div>
+    <div id="root"${dataViewAttr} data-logo-uri="${logoUri}" data-iris-logo-uri="${irisLogoUri}" data-csp-nonce="${nonce}"></div>
     <script nonce="${nonce}" src="${scriptUri}"></script>
 </body>
 </html>`;
