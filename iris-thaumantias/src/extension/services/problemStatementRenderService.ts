@@ -99,7 +99,7 @@ export class ProblemStatementRenderService {
         if (this.serverSupportsRendering === false) { return undefined; }
 
         const darkMode = darkModeOverride ?? isDarkMode();
-        const locale = getLocale();
+        const locale = 'en';
         const testInputs = feedbacks ? mapFeedbacksToTestInputs(feedbacks) : undefined;
         const resultSummary = participation ? buildResultSummary(participation, exercise) : undefined;
         const interactive = !isExamExercise && testInputs !== undefined && testInputs.length > 0;
@@ -268,9 +268,6 @@ function isDarkMode(): boolean {
     return kind === vscode.ColorThemeKind.Dark || kind === vscode.ColorThemeKind.HighContrast;
 }
 
-function getLocale(): string {
-    return vscode.env.language || 'en';
-}
 
 function computeInputHash(request: ProblemStatementRenderRequest, serverUrl: string): string {
     const input = JSON.stringify({
