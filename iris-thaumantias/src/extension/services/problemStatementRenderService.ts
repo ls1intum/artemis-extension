@@ -86,7 +86,6 @@ export class ProblemStatementRenderService {
         participation?: ParticipationLike,
         feedbacks?: FeedbackLike[],
         isExamExercise?: boolean,
-        userLangKey?: string,
         darkModeOverride?: boolean,
     ): Promise<ServerRenderResult | undefined> {
         const markdown = exercise.problemStatement || '';
@@ -100,7 +99,7 @@ export class ProblemStatementRenderService {
         if (this.serverSupportsRendering === false) { return undefined; }
 
         const darkMode = darkModeOverride ?? isDarkMode();
-        const locale = getLocale(userLangKey);
+        const locale = getLocale();
         const testInputs = feedbacks ? mapFeedbacksToTestInputs(feedbacks) : undefined;
         const resultSummary = participation ? buildResultSummary(participation, exercise) : undefined;
         const interactive = !isExamExercise && testInputs !== undefined && testInputs.length > 0;
@@ -168,7 +167,6 @@ export class ProblemStatementRenderService {
         exercise: ExerciseLike,
         participation?: ParticipationLike,
         feedbacks?: FeedbackLike[],
-        userLangKey?: string,
     ): Promise<ServerRenderResult | undefined> {
         const previousResolver = this.pendingResolvers.get(exerciseId);
         if (previousResolver) { previousResolver(undefined); }
@@ -181,7 +179,7 @@ export class ProblemStatementRenderService {
             this.debounceTimers.set(exerciseId, setTimeout(async () => {
                 this.debounceTimers.delete(exerciseId);
                 this.pendingResolvers.delete(exerciseId);
-                const result = await this.render(exercise, participation, feedbacks, false, userLangKey);
+                const result = await this.render(exercise, participation, feedbacks);
                 resolve(result);
             }, 500));
         });
@@ -270,8 +268,7 @@ function isDarkMode(): boolean {
     return kind === vscode.ColorThemeKind.Dark || kind === vscode.ColorThemeKind.HighContrast;
 }
 
-function getLocale(userLangKey?: string): string {
-    if (userLangKey) { return userLangKey; }
+function getLocale(): string {
     return vscode.env.language || 'en';
 }
 

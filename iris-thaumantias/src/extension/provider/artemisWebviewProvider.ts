@@ -649,8 +649,6 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
                 exercise,
                 participation,
                 feedbacks,
-                false,
-                this._appStateManager.userInfo?.user?.langKey,
             );
 
             // Guard: verify same exercise is still active after await

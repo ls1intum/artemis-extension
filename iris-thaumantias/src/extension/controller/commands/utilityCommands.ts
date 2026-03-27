@@ -313,7 +313,7 @@ export class UtilityCommandModule {
                 .sort((a, b) => ((b as { id?: number }).id ?? 0) - ((a as { id?: number }).id ?? 0))[0];
             const feedbacks = latestResult?.feedbacks as Array<{ testCase?: { id?: number; testName?: string }; text?: string; detailText?: string; credits?: number; positive?: boolean }> | undefined;
 
-            const rendered = await renderService.render(exercise, participation, feedbacks, false, undefined, darkMode);
+            const rendered = await renderService.render(exercise, participation, feedbacks, false, darkMode);
             if (!rendered) { return; }
 
             const label = darkMode ? 'Dark' : 'Light';
