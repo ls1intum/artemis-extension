@@ -336,19 +336,15 @@ export function App({ vscodeApi }: AppProps) {
 }
 ```
 
-### 6. Update ViewRouter State Mapping
+### 6. Update View Routing State Map
 
-Add state mapping in `src/extension/controller/viewRouter.ts`:
+Add a state mapping entry in `src/extension/controller/viewRouter.ts`:
 
 ```typescript
-private _stateToViewName(state: string): string {
-    switch (state) {
-        // ... existing cases
-        case 'your-view':
-            return 'yourViewName';
-        // ...
-    }
-}
+const STATE_TO_VIEW: Record<AppState, string> = {
+    // ... existing entries
+    'your-view': 'yourViewName',
+};
 ```
 
 ### 7. Add Command Handlers (if needed)

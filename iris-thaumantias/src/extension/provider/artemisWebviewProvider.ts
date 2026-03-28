@@ -2,7 +2,8 @@ import * as vscode from 'vscode';
 import { ArtemisApiService } from '../api';
 import { AuthManager, AuthFlowHandler } from '../services/auth';
 import { ArtemisWebsocketService, SubmissionWebSocketHandler } from '../services/websocket';
-import { ViewInitDataService, FullscreenPanelManager, BuildDiagnosticsService, ExerciseOpeningService, StartPageResolver, ProviderRegistry } from '../services/ui';
+import { ViewInitDataService, FullscreenPanelManager, BuildDiagnosticsService, ExerciseOpeningService, StartPageResolver } from '../services/ui';
+import type { IProviderRegistry } from '../services/ui';
 import type { StartPageResult } from '../services/ui';
 import { ExerciseRegistry } from '../services/exerciseRegistry';
 import { findWorkspaceCourseInArchive, collectExerciseSources, getWorkspaceRepositoryUrl, findExerciseByRepositoryUrl } from '../services/workspace';
@@ -13,7 +14,7 @@ import { AppStateManager, type UserInfo } from '../controller/appStateManager';
 import { WebViewMessageHandler } from '../controller/webViewMessageHandler';
 import type { WebViewActionHandler } from '../controller/types';
 import { ViewActionService } from '../controller/viewActionService';
-import { ViewRouter } from '../controller/viewRouter';
+import { getViewHtml } from '../controller/viewRouter';
 import { fetchAndEnrichExerciseDetails, fetchArchivedCourseDetail } from '../controller/exerciseDataLoader';
 import { WebSocketMessageHandler } from '../types';
 import { BaseWebviewProvider } from './baseWebviewProvider';
@@ -36,7 +37,6 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
     // ── Instance properties ────────────────────────────────────────────
     private _appStateManager: AppStateManager;
     private _messageHandler: WebViewMessageHandler;
-    private _viewRouter!: ViewRouter;
     private _viewActionService: ViewActionService;
     private _viewInitDataService: ViewInitDataService;
     private _submissionWsHandler: SubmissionWebSocketHandler;
@@ -63,7 +63,7 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
         private readonly _authManager: AuthManager,
         private readonly _artemisApi: ArtemisApiService,
         private readonly _exerciseRegistry: ExerciseRegistry,
-        private readonly _providerRegistry: ProviderRegistry,
+        private readonly _providerRegistry: IProviderRegistry,
         websocketService: ArtemisWebsocketService,
         buildErrorCodeLensProvider: BuildErrorCodeLensProvider,
         telemetryManager: TelemetryManager,
@@ -147,9 +147,6 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
     ) {
         this._view = webviewView;
 
-        // Initialize the ViewRouter now that we have the webview
-        this._viewRouter = new ViewRouter(this._appStateManager, this._extensionContext, webviewView.webview);
-
         this._resetReadyState();
 
         webviewView.webview.options = {
@@ -162,7 +159,7 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
             ]
         };
 
-        webviewView.webview.html = await this._viewRouter.getHtml();
+        webviewView.webview.html = getViewHtml(this._appStateManager.currentState, this._extensionContext.extensionUri, webviewView.webview);
 
         // Set up message sender for the message handler (using safe posting)
         this._messageHandler.setMessageSender((message: ExtensionToWebviewMessage) => {
@@ -232,14 +229,10 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
     /**
      * Helper method to render the webview HTML
      */
-    public async render(): Promise<void> {
+    public render(): void {
         if (this._view) {
-            try {
-                this._resetReadyState();
-                this._view.webview.html = await this._viewRouter.getHtml();
-            } catch (err) {
-                logger.error('Failed to render webview', LogCategory.VIEW, err);
-            }
+            this._resetReadyState();
+            this._view.webview.html = getViewHtml(this._appStateManager.currentState, this._extensionContext.extensionUri, this._view.webview);
         }
     }
 

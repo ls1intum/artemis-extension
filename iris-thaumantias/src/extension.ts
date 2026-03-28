@@ -8,7 +8,7 @@ import type { SessionRecorder } from './extension/services/telemetry';
 import { NoAiDetectionService } from './extension/services/workspace';
 import { ConsentService } from './extension/services/auth';
 import { ExerciseRegistry } from './extension/services/exerciseRegistry';
-import { ProviderRegistry } from './extension/services/ui';
+import { createProviderRegistry } from './extension/services/ui';
 import { logger, LogCategory } from './extension/services/loggingService';
 import { VSCODE_CONFIG } from './extension/utils';
 import { registerAllCommands } from './extension/activation/extensionCommands';
@@ -91,7 +91,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
 	// ── Registries & providers ───────────────────────────────────────
 	const exerciseRegistry = new ExerciseRegistry();
-	const providerRegistry = new ProviderRegistry();
+	const providerRegistry = createProviderRegistry();
 
 	const artemisWebviewProvider = new ArtemisWebviewProvider(
 		context.extensionUri, context, authManager, artemisApiService,

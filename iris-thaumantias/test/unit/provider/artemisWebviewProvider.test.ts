@@ -9,7 +9,7 @@ import { ArtemisApiService } from '../../../src/extension/api';
 import { ArtemisWebsocketService } from '../../../src/extension/services/websocket';
 import { ExerciseRegistry } from '../../../src/extension/services/exerciseRegistry';
 import { TelemetryManager } from '../../../src/extension/services/telemetry';
-import { ProviderRegistry } from '../../../src/extension/services/ui/providerRegistry';
+import { createProviderRegistry } from '../../../src/extension/services/ui/providerRegistry';
 
 class MockAuthManager extends AuthManager {
     constructor(context: vscode.ExtensionContext) {
@@ -134,7 +134,7 @@ suite('ArtemisWebviewProvider Test Suite', () => {
             mockAuthManager,
             mockApiService,
             new ExerciseRegistry(),
-            new ProviderRegistry(),
+            createProviderRegistry(),
             mockWebsocket,
             mockCodeLens,
             mockTelemetry,
@@ -155,7 +155,7 @@ suite('ArtemisWebviewProvider Test Suite', () => {
         const mockCodeLens = {} as unknown as BuildErrorCodeLensProvider;
         const p = new ArtemisWebviewProvider(
             vscode.Uri.file('/'), mockContext, mockAuthManager, mockApiService,
-            new ExerciseRegistry(), new ProviderRegistry(),
+            new ExerciseRegistry(), createProviderRegistry(),
             ws, mockCodeLens, new TelemetryManager(), async () => {},
         );
 
@@ -232,7 +232,7 @@ suite('Panel hide/show state persistence', () => {
             mockAuthManager,
             mockApiService,
             new ExerciseRegistry(),
-            new ProviderRegistry(),
+            createProviderRegistry(),
             mockWebsocket,
             mockCodeLens,
             mockTelemetry,
