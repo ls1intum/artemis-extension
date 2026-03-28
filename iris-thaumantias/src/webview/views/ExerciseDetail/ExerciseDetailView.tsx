@@ -270,7 +270,7 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
             }>Back to Course</BackLink>
 
             {/* Exercise Card */}
-            <details className={styles.exerciseCard} open>
+            <details className={styles.exerciseCard}>
                 <summary className={styles.exerciseSummary}>
                     <div className={styles.summaryContent}>
                         <div className={styles.summaryText}>

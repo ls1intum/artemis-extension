@@ -130,13 +130,13 @@
           ],
           "enumItemLabels": [
             "Production (artemis.tum.de)",
-            "Test Server 1",
-            "Test Server 2",
-            "Test Server 3",
-            "Test Server 4",
-            "Test Server 5",
-            "Test Server 6",
-            "Test Server 9",
+            "Test Server 1 (artemis-test1.artemis.cit.tum.de)",
+            "Test Server 2 (artemis-test2.artemis.cit.tum.de)",
+            "Test Server 3 (artemis-test3.artemis.cit.tum.de)",
+            "Test Server 4 (artemis-test4.artemis.cit.tum.de)",
+            "Test Server 5 (artemis-test5.artemis.cit.tum.de)",
+            "Test Server 6 (artemis-test6.artemis.cit.tum.de)",
+            "Test Server 9 (artemis-test9.artemis.cit.tum.de)",
             "Local Development (localhost:9000)"
           ]
         },
