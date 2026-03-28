@@ -116,10 +116,29 @@
         "artemis.serverUrl": {
           "type": "string",
           "default": "https://artemis.tum.de",
-          "description": "The URL of the Artemis server to connect to",
-          "format": "uri",
-          "pattern": "^https?://.*",
-          "patternErrorMessage": "Server URL must be a valid HTTP or HTTPS URL"
+          "markdownDescription": "The URL of the Artemis server to connect to.\n\nFor a custom URL not listed here, [open settings.json](command:workbench.action.openSettingsJson) and edit `artemis.serverUrl` directly.",
+          "enum": [
+            "https://artemis.tum.de",
+            "https://artemis-test1.artemis.cit.tum.de",
+            "https://artemis-test2.artemis.cit.tum.de",
+            "https://artemis-test3.artemis.cit.tum.de",
+            "https://artemis-test4.artemis.cit.tum.de",
+            "https://artemis-test5.artemis.cit.tum.de",
+            "https://artemis-test6.artemis.cit.tum.de",
+            "https://artemis-test9.artemis.cit.tum.de",
+            "http://localhost:9000"
+          ],
+          "enumItemLabels": [
+            "Production (artemis.tum.de)",
+            "Test Server 1",
+            "Test Server 2",
+            "Test Server 3",
+            "Test Server 4",
+            "Test Server 5",
+            "Test Server 6",
+            "Test Server 9",
+            "Local Development (localhost:9000)"
+          ]
         },
         "artemis.iris.sendUncommittedChanges": {
           "type": "boolean",
