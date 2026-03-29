@@ -487,12 +487,6 @@ export class ContextStore {
         this.saveState();
     }
 
-    public clearAll(): ContextSnapshot {
-        this.state = this.defaultState();
-        this.saveState();
-        return this.snapshot();
-    }
-
     private upsertExercise(input: ExerciseInput): TrackedExercise {
         const existing =
             this.state.allExercises.find(ex => ex.id === input.id) ??

@@ -143,29 +143,6 @@ export class ChatContextManager {
         this.switchContext({ type: contextType, id: itemId, title: itemName, shortName: itemShortName, courseId });
     }
 
-    public handleCourseSelection(courseId: number): void {
-        const snapshot = this.deps.contextStore.snapshot();
-        const course = snapshot.allCourses.find(c => c.id === courseId)
-            ?? snapshot.recentCourses.find(c => c.id === courseId);
-        this.switchContext({
-            type: 'course',
-            id: courseId,
-            title: course?.title ?? `Course ${courseId}`,
-            shortName: course?.shortName,
-        });
-    }
-
-    public handleExerciseSelection(exerciseId: number): void {
-        const tracked = this.deps.contextStore.getExerciseById(exerciseId);
-        this.switchContext({
-            type: 'exercise',
-            id: exerciseId,
-            title: tracked?.title ?? `Exercise ${exerciseId}`,
-            shortName: tracked?.shortName,
-            courseId: tracked?.courseId,
-        });
-    }
-
     public setExerciseContext(
         exerciseId: number,
         exerciseTitle: string,
@@ -249,26 +226,6 @@ export class ChatContextManager {
         this.deps.postSnapshot();
     }
 
-    public removeExerciseAndAutoSelect(exerciseId: number): void {
-        this.deps.contextStore.removeExercise(exerciseId);
-
-        if (!this.deps.contextStore.getActiveContext()) {
-            this._autoSelectFromSnapshot();
-        }
-
-        this.deps.postSnapshot();
-    }
-
-    public removeCourseAndAutoSelect(courseId: number): void {
-        this.deps.contextStore.removeCourse(courseId);
-
-        if (!this.deps.contextStore.getActiveContext()) {
-            this._autoSelectFromSnapshot();
-        }
-
-        this.deps.postSnapshot();
-    }
-
     private _autoSelectFromSnapshot(): void {
         const snapshot = this.deps.contextStore.snapshot();
         const best = pickBestContext(snapshot);
@@ -289,17 +246,8 @@ export class ChatContextManager {
 
     // ── Non-switch helpers ──────────────────────────────────────────────
 
-    public handleSwitchContext(): void {
-        this.deps.contextStore.unlockActiveContext();
-    }
-
     public handleSwitchToWorkspaceContext(): TrackedExercise | undefined {
         return this.deps.contextStore.getWorkspaceExercise();
-    }
-
-    public clearContext(): void {
-        this.deps.contextStore.clearActiveContext();
-        this.deps.postSnapshot();
     }
 
     public getSelectedContext(): ActiveContext | null {
@@ -316,18 +264,6 @@ export class ChatContextManager {
     public getSelectedExerciseId(): number | undefined {
         const active = this.deps.contextStore.getActiveContext();
         return active?.type === 'exercise' ? active.id : undefined;
-    }
-
-    public getSelectedExercise(): { title: string; id: number } | undefined {
-        const active = this.deps.contextStore.getActiveContext();
-        if (active?.type === 'exercise') {
-            return { id: active.id, title: active.title };
-        }
-        return undefined;
-    }
-
-    public mapReasonToSource(reason: ChatContextReason): 'workspace-detected' | 'user-selected' | 'system-default' {
-        return this._mapReasonToSource(reason);
     }
 
     // ── Private helpers ─────────────────────────────────────────────────

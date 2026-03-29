@@ -37,21 +37,6 @@ export interface ArtemisSubmission {
     readonly buildFailed?: boolean;
 }
 
-export function parseArtemisSubmission(data: unknown): ArtemisSubmission {
-    if (!data || typeof data !== 'object') {
-        throw new Error('Invalid ArtemisSubmission data');
-    }
-    const d = data as Record<string, unknown>;
-    return {
-        id: Number(d.id),
-        submissionDate: typeof d.submissionDate === 'string' ? d.submissionDate : undefined,
-        type: typeof d.type === 'string' ? d.type : undefined,
-        participation: d.participation && typeof d.participation === 'object' ? parseArtemisParticipation(d.participation) : undefined,
-        results: Array.isArray(d.results) ? d.results.map(r => parseArtemisResult(r)) : undefined,
-        buildFailed: typeof d.buildFailed === 'boolean' ? d.buildFailed : undefined,
-    };
-}
-
 export interface ProgrammingSubmission extends ArtemisSubmission {
     readonly commitHash?: string;
     readonly buildArtifact?: boolean;

@@ -32,16 +32,7 @@ export type { ContainerProps } from './Container';
 export { ListItem } from './ListItem';
 export type { ListItemProps } from './ListItem';
 
-export { List } from './List';
-export type { ListProps } from './List';
-
 // Composite components
-export { HelpPopup } from './HelpPopup';
-export type { HelpPopupProps } from './HelpPopup';
-
-export { SideMenu } from './SideMenu';
-export type { SideMenuProps } from './SideMenu';
-
 export { AskIris } from './AskIris';
 export type { AskIrisProps } from './AskIris';
 
@@ -83,5 +74,3 @@ export type { EmptyStateProps } from './EmptyState';
 export { PageHeader } from './PageHeader';
 export type { PageHeaderProps } from './PageHeader';
 
-// Icon components
-export { ArtemisLogo } from './icons';

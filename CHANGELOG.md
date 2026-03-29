@@ -9,6 +9,10 @@ All notable changes to the Artemis VS Code extension will be documented in this 
 - **Configurable Start Page**: New `artemis.startPage` setting to choose which page opens after login: Dashboard (default), Course List, or automatically open the course/exercise detected in the current workspace.
 - **Workspace Exercise Detection Prompt**: When an exercise is detected in the workspace, a notification offers to set it as the default start page with a single click. The setting can be changed later in VS Code Settings.
 
+### Changed
+
+- **Dead Code Removal**: Removed ~2,300 lines of unused code across the codebase, including 4 unused React components, 11 unused API methods, legacy struggle detection methods from the old weighted-score system, and unused service methods.
+
 ### Fixed
 
 - **Build Error CodeLens**: Fixed duplicate CodeLens errors, missing testCase field in WebSocket feedback, and wired up build log viewing with go-to-source navigation.

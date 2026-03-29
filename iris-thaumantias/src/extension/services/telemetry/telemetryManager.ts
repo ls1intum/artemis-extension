@@ -425,13 +425,6 @@ export class TelemetryManager implements vscode.Disposable, WebSocketMessageHand
         return this._isEnabled;
     }
 
-    public setEnabled(enabled: boolean): void {
-        this._isEnabled = enabled;
-        if (!enabled) {
-            this._interventionService.hideHint();
-        }
-    }
-
     // ==================== Configuration ====================
 
     private _loadConfiguration(): void {
@@ -634,21 +627,6 @@ export class TelemetryManager implements vscode.Disposable, WebSocketMessageHand
             this._outputChannel.show();
         } else if (selection?.label === '$(refresh) Refresh') {
             await this.showStruggleScoreDialog();
-        }
-    }
-
-    public getOutputChannel(): vscode.OutputChannel {
-        return this._outputChannel;
-    }
-
-    public isDebugMode(): boolean {
-        return this._debugMode;
-    }
-
-    public forceDebugUpdate(): void {
-        this._logCurrentState();
-        if (this._debugMode) {
-            this._updateDebugStatusBar();
         }
     }
 

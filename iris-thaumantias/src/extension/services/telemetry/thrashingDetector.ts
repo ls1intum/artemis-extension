@@ -23,9 +23,6 @@ export class ThrashingDetector implements vscode.Disposable {
     /** Minimum repetitions to consider as thrashing */
     private static readonly MIN_REPETITIONS = 3;
 
-    private readonly _onDidDetectThrashing = new vscode.EventEmitter<number>();
-    public readonly onDidDetectThrashing = this._onDidDetectThrashing.event;
-
     constructor() {
         this._startTracking();
     }
@@ -36,7 +33,6 @@ export class ThrashingDetector implements vscode.Disposable {
             disposable?.dispose();
         }
 
-        this._onDidDetectThrashing.dispose();
         this._editHistory.length = 0;
     }
 
@@ -63,13 +59,6 @@ export class ThrashingDetector implements vscode.Disposable {
     }
 
     /**
-     * Record an edit for thrashing detection
-     */
-    public recordEdit(uri: string, content: string): void {
-        this._recordEdit(uri, content);
-    }
-
-    /**
      * Internal method to record edits
      */
     private _recordEdit(uri: string, content: string): void {
@@ -86,12 +75,6 @@ export class ThrashingDetector implements vscode.Disposable {
         // Maintain ring buffer size
         while (this._editHistory.length > ThrashingDetector.HISTORY_SIZE) {
             this._editHistory.shift();
-        }
-
-        // Check for thrashing and emit event if score is high
-        const score = this.getThrashingScore();
-        if (score > 50) {
-            this._onDidDetectThrashing.fire(score);
         }
     }
 
@@ -161,18 +144,6 @@ export class ThrashingDetector implements vscode.Disposable {
         // Calculate cycle ratio
         const maxPossibleCycles = hashes.length - 2;
         return maxPossibleCycles > 0 ? cycleCount / maxPossibleCycles : 0;
-    }
-
-    /**
-     * Get edit frequency (edits per minute in the last time window)
-     */
-    public getEditFrequency(): number {
-        const now = Date.now();
-        const cutoff = now - ThrashingDetector.TIME_WINDOW_MS;
-        const recentEdits = this._editHistory.filter(e => e.timestamp >= cutoff);
-
-        const timeWindowMinutes = ThrashingDetector.TIME_WINDOW_MS / (60 * 1000);
-        return recentEdits.length / timeWindowMinutes;
     }
 
     /**

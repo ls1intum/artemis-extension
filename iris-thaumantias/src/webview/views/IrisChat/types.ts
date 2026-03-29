@@ -53,12 +53,6 @@ export interface ReferencedFilesData {
     totalCount: number;
 }
 
-// Persisted state for tab hide/show
-export interface IrisChatPersistedState {
-    searchQuery: string;
-    forceContextPicker: boolean;
-}
-
 // Streaming state
 export interface StreamingState {
     isStreaming: boolean;

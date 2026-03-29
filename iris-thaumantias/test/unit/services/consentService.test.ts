@@ -59,26 +59,6 @@ suite('ConsentService', () => {
     });
 
     suite('Data Collection Flags', () => {
-        test('isDataCollectionEnabled should be false for pending', () => {
-            mockConfig.get.returns('pending');
-            assert.strictEqual(service.isDataCollectionEnabled, false);
-        });
-
-        test('isDataCollectionEnabled should be false for declined', () => {
-            mockConfig.get.returns('declined');
-            assert.strictEqual(service.isDataCollectionEnabled, false);
-        });
-
-        test('isDataCollectionEnabled should be true for basic', () => {
-            mockConfig.get.returns('basic');
-            assert.strictEqual(service.isDataCollectionEnabled, true);
-        });
-
-        test('isDataCollectionEnabled should be true for extended', () => {
-            mockConfig.get.returns('extended');
-            assert.strictEqual(service.isDataCollectionEnabled, true);
-        });
-
         test('isExtendedCollectionEnabled should be true only for extended', () => {
             mockConfig.get.returns('extended');
             assert.strictEqual(service.isExtendedCollectionEnabled, true);

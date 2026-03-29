@@ -128,13 +128,6 @@ export class WebViewMessageHandler {
     }
 
     /**
-     * Set the WebSocket service for real-time updates.
-     */
-    public setWebsocketService(websocketService: ArtemisWebsocketService): void {
-        this._websocketService = websocketService;
-    }
-
-    /**
      * Set the method for sending messages to the webview.
      */
     public setMessageSender(sendMessage: (message: ExtensionToWebviewMessage) => void): void {

@@ -281,22 +281,6 @@ export async function detectWorkspaceExercise(
 }
 
 /**
- * Checks if a specific exercise matches the current workspace.
- * @param exerciseId The exercise ID to check
- * @param exercises Array of exercises containing the exercise to check
- * @param workspaceFolder Optional workspace folder
- * @returns True if the exercise matches the current workspace
- */
-export async function isExerciseInCurrentWorkspace(
-    exerciseId: number,
-    exercises: ExerciseSource[],
-    workspaceFolder?: vscode.WorkspaceFolder
-): Promise<boolean> {
-    const detected = await detectWorkspaceExercise(exercises, workspaceFolder);
-    return detected?.id === exerciseId;
-}
-
-/**
  * Check workspace status against a list of repository URIs.
  * Returns the first connected match with its URI, or disconnected status if none match.
  */

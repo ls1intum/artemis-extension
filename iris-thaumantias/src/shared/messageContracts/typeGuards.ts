@@ -48,8 +48,6 @@ export function isWebviewMessage(msg: unknown): msg is WebviewToExtensionMessage
             }
             return true;
         }
-        case WebviewMsgType.UpdatePanelTitle:
-            return typeof (msg as { title?: unknown }).title === 'string';
         default:
             return true;
     }

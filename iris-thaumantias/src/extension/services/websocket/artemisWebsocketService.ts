@@ -609,42 +609,6 @@ export class ArtemisWebsocketService {
     }
 
     /**
-     * Unsubscribe from a specific Iris session
-     */
-    public unsubscribeFromIrisSession(sessionId: number): void {
-        const topic = WEBSOCKET_TOPICS.irisSession(sessionId);
-        const subscription = this._subscriptions.get(topic);
-
-        if (subscription) {
-            subscription.unsubscribe();
-            this._subscriptions.delete(topic);
-            this._log(`Unsubscribed from ${topic}`);
-        }
-    }
-
-    /**
-     * Get connection status
-     */
-    public getStatus(): string {
-        if (this._connectionGaveUp) {
-            return `Disconnected (gave up after ${MAX_CONNECTION_ATTEMPTS} attempts)`;
-        } else if (this._isDisconnecting) {
-            return 'Disconnecting...';
-        } else if (this._isConnecting) {
-            return 'Connecting...';
-        } else if (this._isConnected && this._client?.connected) {
-            return `Connected (${this._subscriptions.size} subscriptions)`;
-        } else if (this._pendingDisconnectNotification) {
-            return `Reconnecting (attempt ${this._reconnectAttempts}/${MAX_CONNECTION_ATTEMPTS})...`;
-        } else if (this._reconnectAttempts > 0) {
-            const nextDelay = this._getReconnectDelay();
-            return `Reconnecting in ${Math.round(nextDelay / 1000)}s (${this._reconnectAttempts}/${MAX_CONNECTION_ATTEMPTS})`;
-        } else {
-            return 'Disconnected';
-        }
-    }
-
-    /**
      * Check if we gave up on reconnecting
      */
     public hasGivenUp(): boolean {

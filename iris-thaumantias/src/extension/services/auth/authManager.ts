@@ -12,29 +12,6 @@ export class AuthManager {
         this.context = context;
     }
 
-    // Extracts the Cookie header string ("name=value; name2=value2") from Set-Cookie header(s)
-    private static extractCookieHeader(setCookie: string | string[] | undefined): string | undefined {
-        if (!setCookie) {
-            return undefined;
-        }
-        const entries = Array.isArray(setCookie) ? setCookie : [setCookie];
-        const pairs = entries
-            .map(h => (h || '').split(';')[0]?.trim())
-            .filter(Boolean) as string[];
-        if (pairs.length === 0) {
-            return undefined;
-        }
-        return pairs.join('; ');
-    }
-
-    // Persist cookie if requested, and always keep it in memory for current session
-    private async setAuthCookie(cookieHeader: string, persist: boolean): Promise<void> {
-        this.memoryCookie = cookieHeader;
-        if (persist) {
-            await this.context.secrets.store(AuthManager.SECRET_KEY, cookieHeader);
-        }
-    }
-
     public async hasAuthCookie(): Promise<boolean> {
         if (this.memoryCookie) {
             return true;
@@ -51,42 +28,6 @@ export class AuthManager {
 
     public async getArtemisServerUrl(): Promise<string | undefined> {
         return await this.context.secrets.get(CONFIG.SECRET_KEYS.ARTEMIS_SERVER_URL);
-    }
-
-    // Capture Set-Cookie from a fetch Response and store it
-    public async setFromResponse(response: unknown, persist: boolean): Promise<void> {
-        try {
-            let setCookies: string[] | undefined;
-            // undici supports getSetCookie() in Node fetch
-            // Type guard for response with headers
-            if (response && typeof response === 'object' && 'headers' in response) {
-                const headers = (response as { headers: unknown }).headers;
-
-                // Check for getSetCookie method (undici Headers)
-                if (headers && typeof headers === 'object' && 'getSetCookie' in headers) {
-                    const getSetCookie = (headers as { getSetCookie: unknown }).getSetCookie;
-                    if (typeof getSetCookie === 'function') {
-                        const result: unknown = (getSetCookie as () => unknown)();
-                        setCookies = result as string[];
-                    }
-                } else if (headers && typeof headers === 'object' && 'get' in headers) {
-                    // Fallback to standard Headers.get
-                    const get = (headers as { get: unknown }).get;
-                    if (typeof get === 'function') {
-                        const result: unknown = (get as (name: string) => unknown)('set-cookie');
-                        const single = result as string | null;
-                        setCookies = single ? [single] : undefined;
-                    }
-                }
-            }
-
-            const cookieHeader = AuthManager.extractCookieHeader(setCookies);
-            if (cookieHeader) {
-                await this.setAuthCookie(cookieHeader, persist);
-            }
-        } catch (err) {
-            logger.error('Failed to capture auth cookie:', LogCategory.AUTH, err);
-        }
     }
 
     public async getCookieHeader(): Promise<string | undefined> {

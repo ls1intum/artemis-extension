@@ -1079,32 +1079,6 @@ suite('Boundary Trigger & Cadence Fixes', () => {
     });
 
     // =========================================================================
-    // AdaptiveCadence.resetIgnoreCount() (single type)
-    // =========================================================================
-
-    suite('AdaptiveCadence.resetIgnoreCount() (single type)', () => {
-
-        test('resetIgnoreCount resets only specified type', () => {
-            const cadence = new AdaptiveCadence();
-
-            for (let i = 0; i < 3; i++) {
-                cadence.incrementIgnoreCount('idle');
-            }
-            for (let i = 0; i < 2; i++) {
-                cadence.incrementIgnoreCount('selection-maintained');
-            }
-
-            assert.strictEqual(cadence.getIdleThreshold(), 120_000); // 30 + 3*30 = 120s
-            assert.strictEqual(cadence.getSelectionThreshold(), 45_000); // 15 + 2*15 = 45s
-
-            cadence.resetIgnoreCount('idle');
-
-            assert.strictEqual(cadence.getIdleThreshold(), 30_000, 'Idle should reset to initial');
-            assert.strictEqual(cadence.getSelectionThreshold(), 45_000, 'Selection should be unchanged');
-        });
-    });
-
-    // =========================================================================
     // dispose() stops idle timer from firing
     // =========================================================================
 

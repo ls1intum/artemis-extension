@@ -51,13 +51,6 @@ export class AdaptiveCadence {
     }
 
     /**
-     * Reset ignore count for a specific trigger type.
-     */
-    public resetIgnoreCount(type: TriggerType): void {
-        this._state.ignoreCounts[type] = 0;
-    }
-
-    /**
      * Reset all ignore counts (e.g., user accepted help).
      */
     public resetAll(): void {

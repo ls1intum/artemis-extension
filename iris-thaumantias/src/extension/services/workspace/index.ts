@@ -8,7 +8,6 @@ export {
     normalizeRepositoryUrl,
     getWorkspaceRepositoryUrl,
     getWorkspaceStatus,
-    isExerciseInCurrentWorkspace,
     detectAndRegisterWorkspaceExercise,
     detectWorkspaceForRepoUris,
     findWorkspaceCourseInArchive,

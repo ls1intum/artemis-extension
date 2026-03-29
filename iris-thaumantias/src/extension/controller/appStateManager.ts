@@ -239,24 +239,4 @@ export class AppStateManager {
         return this._userInfo !== undefined;
     }
 
-    public requiresAuth(): boolean {
-        return this._currentState !== 'login' && !this.isLoggedIn();
-    }
-
-    // State validation
-    public canShowDashboard(): boolean {
-        return this.isLoggedIn();
-    }
-
-    public canShowCourseList(): boolean {
-        return this.isLoggedIn();
-    }
-
-    public canShowCourseDetail(): boolean {
-        return this.isLoggedIn() && this._currentCourseData !== undefined;
-    }
-
-    public canShowExerciseDetail(): boolean {
-        return this.isLoggedIn() && this._currentExerciseData !== undefined;
-    }
 }

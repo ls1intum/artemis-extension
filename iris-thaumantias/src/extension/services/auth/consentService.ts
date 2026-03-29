@@ -49,14 +49,6 @@ export class ConsentService implements vscode.Disposable {
     }
 
     /**
-     * Returns true if data collection is enabled (basic or extended).
-     */
-    public get isDataCollectionEnabled(): boolean {
-        const level = this.consentLevel;
-        return level === ConsentLevel.Basic || level === ConsentLevel.Extended;
-    }
-
-    /**
      * Returns true if extended data collection is enabled.
      */
     public get isExtendedCollectionEnabled(): boolean {

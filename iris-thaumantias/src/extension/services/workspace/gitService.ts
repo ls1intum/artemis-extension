@@ -1,4 +1,4 @@
-import { execFile, spawn } from 'child_process';
+import { execFile } from 'child_process';
 import { promisify } from 'util';
 
 const execFileAsync = promisify(execFile);
@@ -128,82 +128,4 @@ export class GitService {
         await this.setGlobalConfig('user.email', identity.email);
     }
 
-    /**
-     * Ensure git credential helper is configured
-     */
-    public async ensureCredentialHelper(): Promise<void> {
-        try {
-            const { stdout } = await execFileAsync('git', ['config', '--global', '--get', 'credential.helper']);
-            if (!stdout.includes('store')) {
-                await execFileAsync('git', ['config', '--global', 'credential.helper', 'store']);
-            }
-        } catch {
-            // If getting the config fails, set it
-            await execFileAsync('git', ['config', '--global', 'credential.helper', 'store']);
-        }
-    }
-
-    /**
-     * Store git credentials using git credential approve
-     */
-    public async storeCredentials(url: string, username: string, password: string): Promise<void> {
-        return new Promise((resolve, reject) => {
-            const child = spawn('git', ['credential', 'approve']);
-
-            const credentials = `protocol=https\nhost=${new URL(url).host}\nusername=${username}\npassword=${password}\n\n`;
-
-            child.stdin.write(credentials);
-            child.stdin.end();
-
-            child.on('close', (code) => {
-                if (code === 0) {
-                    resolve();
-                } else {
-                    reject(new Error(`Git credential approve failed with code ${code}`));
-                }
-            });
-
-            child.on('error', (error) => {
-                reject(error);
-            });
-        });
-    }
-
-    /**
-     * Check if there are uncommitted changes in the repository
-     */
-    public async hasUncommittedChanges(options: GitCommandOptions): Promise<boolean> {
-        try {
-            const { stdout } = await execFileAsync('git', ['status', '--porcelain'], {
-                cwd: options.cwd,
-                timeout: options.timeout
-            });
-            return stdout.trim().length > 0;
-        } catch {
-            return false;
-        }
-    }
-
-    /**
-     * Get the current branch name
-     */
-    public async getCurrentBranch(options: GitCommandOptions): Promise<string | undefined> {
-        try {
-            const { stdout } = await execFileAsync('git', ['branch', '--show-current'], {
-                cwd: options.cwd,
-                timeout: options.timeout
-            });
-            return stdout.trim();
-        } catch {
-            return undefined;
-        }
-    }
-
-    /**
-     * Check if the repository is clean (no uncommitted changes and up to date with remote)
-     */
-    public async isClean(options: GitCommandOptions): Promise<boolean> {
-        const hasChanges = await this.hasUncommittedChanges(options);
-        return !hasChanges;
-    }
 }
