@@ -11,7 +11,7 @@ All notable changes to the Artemis VS Code extension will be documented in this 
 
 ### Changed
 
-- **Dead Code Removal**: Removed ~2,300 lines of unused code across the codebase, including 4 unused React components, 11 unused API methods, legacy struggle detection methods from the old weighted-score system, and unused service methods.
+- **Dead Code Removal**: Removed ~2,300 lines of unused code, components, and legacy methods.
 
 ### Fixed
 
