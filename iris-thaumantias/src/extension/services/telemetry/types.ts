@@ -32,22 +32,6 @@ export interface TrackedDiagnostic {
 }
 
 /**
- * Diagnostic-based struggle score
- */
-export interface DiagnosticStruggleScore {
-    /** Overall score from 0-100 */
-    overall: number;
-    /** Number of persistent errors (errors that haven't been fixed) */
-    persistentErrors: number;
-    /** Number of repeated errors (same error appearing multiple times) */
-    repeatedErrors: number;
-    /** Time spent in confusion state (milliseconds) */
-    timeInConfusion: number;
-    /** Recommended action based on the score */
-    recommendedAction: RecommendedAction;
-}
-
-/**
  * Inactivity pattern classification
  */
 export type InactivityPattern = 'active' | 'thinking' | 'confusion' | 'giving-up';
@@ -83,22 +67,6 @@ export interface ServerStruggleContext {
     lastBuildError: string | undefined;
     /** Timestamp of last submission */
     lastSubmissionTime: number | undefined;
-}
-
-/**
- * Combined struggle score from all sources
- */
-export interface CombinedStruggleScore {
-    /** Local struggle metrics */
-    local: LocalStruggleContext;
-    /** Server-side struggle metrics */
-    server: ServerStruggleContext;
-    /** Combined score (0-100) */
-    combined: number;
-    /** Confidence level (0-1) based on data availability */
-    confidence: number;
-    /** Recommended intervention action */
-    recommendedAction: RecommendedAction;
 }
 
 /**

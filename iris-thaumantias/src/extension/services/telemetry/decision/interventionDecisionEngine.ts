@@ -112,10 +112,4 @@ export class InterventionDecisionEngine {
         return 'none';
     }
 
-    /**
-     * Get current threshold configuration.
-     */
-    public getConfig(): DecisionThresholds {
-        return { ...this._thresholds };
-    }
 }

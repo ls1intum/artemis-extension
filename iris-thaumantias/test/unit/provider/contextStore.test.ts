@@ -406,18 +406,6 @@ suite('ContextStore Test Suite', () => {
         assert.strictEqual(snapshot.activeSession, null);
     });
 
-    test('should clear all', () => {
-        contextStore.registerExercise({ id: 1, title: 'Ex 1' });
-        contextStore.createSession('Session 1');
-
-        contextStore.clearAll();
-
-        const snapshot = contextStore.snapshot();
-        assert.strictEqual(snapshot.allExercises.length, 0);
-        assert.strictEqual(snapshot.sessions.length, 0);
-        assert.strictEqual(snapshot.activeContext, null);
-    });
-
     test('should calculate exercise priority correctly', () => {
         const now = Date.now();
         const day = 24 * 60 * 60 * 1000;

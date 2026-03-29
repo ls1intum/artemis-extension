@@ -44,16 +44,6 @@ suite('ExerciseRegistry Test Suite', () => {
         assert.strictEqual(exercises[0].title, 'Exercise 1');
     });
 
-    test('should clear all exercises', () => {
-        registry.registerExercise(1, 'Test 1', 'https://git.example.com/test1');
-        registry.registerExercise(2, 'Test 2', 'https://git.example.com/test2');
-
-        registry.clear();
-
-        const exercises = registry.getAllExercises();
-        assert.strictEqual(exercises.length, 0);
-    });
-
     test('should clear exercises for specific course only', () => {
         registry.registerExercise(1, 'Course1 Ex1', 'https://git.example.com/c1e1', 'c1e1', 100);
         registry.registerExercise(2, 'Course1 Ex2', 'https://git.example.com/c1e2', 'c1e2', 100);

@@ -281,10 +281,6 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
         });
     }
 
-    public removeDetectedExercise(exerciseId: number): void {
-        this._chatContextManager.removeExerciseAndAutoSelect(exerciseId);
-    }
-
     public updateDetectedCourse(courseTitle: string, courseId: number, shortName?: string): void {
         this._chatContextManager.registerCourseAndAutoSelect({
             id: courseId,
@@ -292,10 +288,6 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
             shortName,
             source: 'system-default',
         });
-    }
-
-    public removeDetectedCourse(courseId: number): void {
-        this._chatContextManager.removeCourseAndAutoSelect(courseId);
     }
 
     public createNewSession(): void {
@@ -321,10 +313,6 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
         return this._chatContextManager.getSelectedExerciseId();
     }
 
-    public getSelectedExercise(): { title: string; id: number } | undefined {
-        return this._chatContextManager.getSelectedExercise();
-    }
-
     public setCourseContext(
         courseId: number,
         courseTitle: string,
@@ -345,10 +333,6 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
     ): void {
         this._chatContextManager.setExerciseContext(exerciseId, exerciseTitle, reason, shortName, releaseDate, dueDate, courseId);
         // Telemetry event is now fired by the onDidChangeActiveContext subscription
-    }
-
-    public clearContext(): void {
-        this._chatContextManager.clearContext();
     }
 
     // ── BaseWebviewProvider hooks ──────────────────────────────────────

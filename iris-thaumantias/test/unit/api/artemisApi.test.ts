@@ -62,21 +62,6 @@ suite('Artemis API Service Test Suite', () => {
         assert.strictEqual(user.login, 'test');
     });
 
-    test('should get courses', async () => {
-        const mockCourses = [{ id: 1, title: 'Course 1' }];
-        global.fetch = async (url: any) => {
-            assert.ok(url.includes('/api/core/courses'));
-            return {
-                ok: true,
-                status: 200,
-                json: async () => mockCourses,
-            } as any;
-        };
-
-        const courses = await apiService.getCourses();
-        assert.deepStrictEqual(courses, mockCourses);
-    });
-
     test('should handle 401 error', async () => {
         global.fetch = async () => ({
             ok: false,
@@ -173,77 +158,6 @@ suite('Artemis API Service Test Suite', () => {
         assert.deepStrictEqual(courseData, mockCourseData);
     });
 
-    test('should get course details', async () => {
-        const courseId = 1;
-        const mockCourse = { id: 1, title: 'Course 1' };
-        global.fetch = async (url: any) => {
-            assert.ok(url.includes(`/api/core/courses/${courseId}`));
-            return {
-                ok: true,
-                status: 200,
-                json: async () => mockCourse,
-            } as any;
-        };
-
-        const course = await apiService.getCourseDetails(courseId);
-        assert.deepStrictEqual(course, mockCourse);
-    });
-
-    test('should get participations', async () => {
-        const mockParticipations = [{ id: 1, type: 'student' }];
-        global.fetch = async (url: any) => {
-            assert.ok(url.includes('/api/core/participations'));
-            return {
-                ok: true,
-                status: 200,
-                json: async () => mockParticipations,
-            } as any;
-        };
-
-        const participations = await apiService.getParticipations();
-        assert.strictEqual(participations.length, 1);
-        assert.ok(participations[0]);
-        assert.strictEqual(participations[0].id, 1);
-        assert.strictEqual(participations[0].type, 'student');
-    });
-
-    test('should get results for participation', async () => {
-        const participationId = 1;
-        const mockResults = [{ id: 1, score: 100 }];
-        global.fetch = async (url: any) => {
-            assert.ok(url.includes(`/api/core/participations/${participationId}/results`));
-            return {
-                ok: true,
-                status: 200,
-                json: async () => mockResults,
-            } as any;
-        };
-
-        const results = await apiService.getResults(participationId);
-        assert.strictEqual(results.length, 1);
-        assert.ok(results[0]);
-        assert.strictEqual(results[0].id, 1);
-        assert.strictEqual(results[0].score, 100);
-    });
-
-    test('should get result details', async () => {
-        const participationId = 1;
-        const resultId = 10;
-        const mockDetails = { id: 10, feedbacks: [] };
-        global.fetch = async (url: any) => {
-            assert.ok(url.includes(`/api/assessment/participations/${participationId}/results/${resultId}/details`));
-            return {
-                ok: true,
-                status: 200,
-                json: async () => mockDetails,
-            } as any;
-        };
-
-        const details = await apiService.getResultDetails(participationId, resultId);
-        assert.ok(details);
-        assert.strictEqual(details.id, 10);
-    });
-
     test('should get build logs', async () => {
         const participationId = 1;
         const mockLogs = [{ id: 1, time: '2023-01-01', log: 'Build started' }];
@@ -276,30 +190,6 @@ suite('Artemis API Service Test Suite', () => {
         };
 
         await apiService.getBuildLogs(participationId, resultId);
-    });
-
-    test('should check authentication status', async () => {
-        global.fetch = async (url: any) => {
-            assert.ok(url.includes('/api/core/public/account'));
-            return {
-                ok: true,
-                status: 200,
-                json: async () => ({ id: 1 }),
-            } as any;
-        };
-
-        const isAuthenticated = await apiService.isAuthenticated();
-        assert.strictEqual(isAuthenticated, true);
-    });
-
-    test('should return false if not authenticated', async () => {
-        global.fetch = async () => ({
-            ok: false,
-            status: 401,
-        } as any);
-
-        const isAuthenticated = await apiService.isAuthenticated();
-        assert.strictEqual(isAuthenticated, false);
     });
 
     test('should get VCS access token', async () => {
@@ -596,22 +486,6 @@ suite('Artemis API Service Test Suite', () => {
         assert.deepStrictEqual(sessions, mockSessions);
     });
 
-    test('should get course chat sessions', async () => {
-        const courseId = 1;
-        const mockSessions = [{ id: 1 }];
-        global.fetch = async (url: any) => {
-            assert.ok(url.includes(`/api/iris/course-chat/${courseId}/sessions`));
-            return {
-                ok: true,
-                status: 200,
-                json: async () => mockSessions,
-            } as any;
-        };
-
-        const sessions = await apiService.getCourseChatSessions(courseId);
-        assert.deepStrictEqual(sessions, mockSessions);
-    });
-
     test('should get course chat sessions with messages', async () => {
         const courseId = 1;
         const mockSessions = [{ id: 1, messages: [] }];
@@ -674,36 +548,6 @@ suite('Artemis API Service Test Suite', () => {
         };
 
         await apiService.markMessageHelpful(sessionId, messageId, true);
-    });
-
-    test('should resend chat message', async () => {
-        const sessionId = 1;
-        const messageId = 1;
-        global.fetch = async (url: any, options: any) => {
-            assert.ok(url.includes(`/api/iris/sessions/${sessionId}/messages/${messageId}/resend`));
-            assert.strictEqual(options.method, 'POST');
-            return {
-                ok: true,
-                status: 200,
-                json: async () => ({ id: 2 }),
-            } as any;
-        };
-
-        await apiService.resendChatMessage(sessionId, messageId);
-    });
-
-    test('should validate authentication', async () => {
-        global.fetch = async (url: any) => {
-            assert.ok(url.includes('/api/core/public/account'));
-            return {
-                ok: true,
-                status: 200,
-                json: async () => ({ id: 1 }),
-            } as any;
-        };
-
-        const isValid = await apiService.validateAuthentication();
-        assert.strictEqual(isValid, true);
     });
 
     test('should detect server URL change', async () => {

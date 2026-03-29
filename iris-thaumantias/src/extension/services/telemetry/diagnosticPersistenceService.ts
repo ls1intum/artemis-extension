@@ -190,42 +190,6 @@ export class DiagnosticPersistenceService implements vscode.Disposable {
     }
 
     /**
-     * Get diagnostics that have persisted for at least the specified duration
-     * @param minDurationMs Minimum duration in milliseconds
-     */
-    public getPersistentDiagnostics(minDurationMs: number): TrackedDiagnostic[] {
-        const now = Date.now();
-        return Array.from(this._trackedDiagnostics.values())
-            .filter(d => !d.resolved && (now - d.firstSeen) >= minDurationMs);
-    }
-
-    /**
-     * Get diagnostics that have occurred at least the specified number of times
-     * @param minOccurrences Minimum number of occurrences
-     */
-    public getRepeatedDiagnostics(minOccurrences: number): TrackedDiagnostic[] {
-        return Array.from(this._trackedDiagnostics.values())
-            .filter(d => !d.resolved && d.occurrences >= minOccurrences);
-    }
-
-    /**
-     * Get all currently tracked diagnostics
-     */
-    public getAllTrackedDiagnostics(): TrackedDiagnostic[] {
-        return Array.from(this._trackedDiagnostics.values())
-            .filter(d => !d.resolved);
-    }
-
-    /**
-     * Get count of active (unresolved) errors
-     */
-    public getActiveErrorCount(): number {
-        return Array.from(this._trackedDiagnostics.values())
-            .filter(d => !d.resolved && d.severity === vscode.DiagnosticSeverity.Error)
-            .length;
-    }
-
-    /**
      * TEST ONLY: Inject diagnostics directly for testing purposes.
      * This bypasses the VS Code diagnostic API and allows tests to simulate diagnostics.
      * @internal

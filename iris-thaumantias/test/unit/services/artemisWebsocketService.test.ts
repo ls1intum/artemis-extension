@@ -291,25 +291,6 @@ suite('Artemis WebSocket Service Test Suite', () => {
         assert.strictEqual(wsService.mockClient!.subscriptions.has(topic), false, 'Should be unsubscribed');
     });
 
-    test('should handle Iris session unsubscription', async () => {
-        wsService = new TestableArtemisWebsocketService(authManager);
-        await authManager.storeArtemisCredentials('jwt=token', 'https://artemis.example.com', true);
-        const p = wsService.connect();
-        wsService.mockClient!.simulateConnect();
-        await p;
-
-        const sessionId = 12345;
-        const topic = `/user/topic/iris/${sessionId}`;
-
-        // Subscribe
-        wsService.subscribeToIrisSession(sessionId, () => { });
-        assert.ok(wsService.mockClient!.subscriptions.has(topic));
-
-        // Unsubscribe via method
-        wsService.unsubscribeFromIrisSession(sessionId);
-        assert.strictEqual(wsService.mockClient!.subscriptions.has(topic), false);
-    });
-
     test('should throw when subscribing to Iris session if not connected', () => {
         wsService = new TestableArtemisWebsocketService(authManager);
 

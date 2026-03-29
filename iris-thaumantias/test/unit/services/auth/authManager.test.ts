@@ -56,33 +56,6 @@ suite('AuthManager Test Suite', () => {
         assert.strictEqual(cookieHeader, jwt); // Should be in memory
     });
 
-    test('should extract cookie from fetch response (Headers object)', async () => {
-        const cookieValue = 'jwt=abcde';
-        const response = {
-            headers: {
-                get: (key: string) => key === 'set-cookie' ? `${cookieValue}; Path=/` : null
-            }
-        };
-
-        await authManager.setFromResponse(response, true);
-        const stored = await authManager.getCookieHeader();
-        assert.strictEqual(stored, cookieValue);
-    });
-
-    test('should extract cookie from fetch response (getSetCookie array)', async () => {
-        const cookieValue = 'jwt=xyz';
-        const response = {
-            headers: {
-                getSetCookie: () => [`${cookieValue}; Path=/`, 'other=value']
-            }
-        };
-
-        await authManager.setFromResponse(response, true);
-        const stored = await authManager.getCookieHeader();
-        // The implementation joins multiple cookies with '; '
-        assert.ok(stored?.includes(cookieValue));
-    });
-
     test('should return correct auth headers', async () => {
         const jwt = 'jwt=token';
         await authManager.storeArtemisCredentials(jwt, 'url', false);

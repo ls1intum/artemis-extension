@@ -12,10 +12,6 @@ export class ExerciseOpeningService {
         private _telemetryManager?: TelemetryManager,
     ) {}
 
-    public setTelemetryManager(telemetryManager: TelemetryManager): void {
-        this._telemetryManager = telemetryManager;
-    }
-
     /**
      * Handle post-open side effects after an exercise is opened:
      * registry registration, telemetry session start, chat provider notification.

@@ -5,7 +5,6 @@ import {
     findExerciseByRepositoryUrl,
     getWorkspaceRepositoryUrl,
     detectWorkspaceExercise,
-    isExerciseInCurrentWorkspace,
     type ExerciseSource,
     type DetectedExercise
 } from '../../../src/extension/services/workspace/workspaceDetectionService';
@@ -359,60 +358,4 @@ suite('WorkspaceDetectionService', () => {
         });
     });
 
-    suite('isExerciseInCurrentWorkspace', () => {
-        const createExercise = (
-            id: number,
-            title: string,
-            repositoryUri?: string
-        ): ExerciseSource => ({
-            id,
-            title,
-            shortName: `ex${id}`,
-            repositoryUri
-        });
-
-        test('should return false when no workspace matches', async () => {
-            const exercises: ExerciseSource[] = [
-                createExercise(1, 'Exercise 1', 'https://github.com/user/repo1.git'),
-            ];
-
-            const result = await isExerciseInCurrentWorkspace(1, exercises);
-
-            // In test environment, likely no matching workspace
-            assert.strictEqual(typeof result, 'boolean');
-        });
-
-        test('should return false for non-existent exercise ID', async () => {
-            const exercises: ExerciseSource[] = [
-                createExercise(1, 'Exercise 1', 'https://github.com/user/repo1.git'),
-            ];
-
-            const result = await isExerciseInCurrentWorkspace(999, exercises);
-
-            assert.strictEqual(result, false);
-        });
-
-        test('should return false with empty exercise list', async () => {
-            const result = await isExerciseInCurrentWorkspace(1, []);
-
-            assert.strictEqual(result, false);
-        });
-
-        test('should accept custom workspace folder', async () => {
-            const exercises: ExerciseSource[] = [
-                createExercise(1, 'Exercise 1', 'https://github.com/user/repo.git'),
-            ];
-
-            const mockWorkspaceFolder: vscode.WorkspaceFolder = {
-                uri: vscode.Uri.file('/tmp/non-existent-test-folder'),
-                name: 'test',
-                index: 0
-            };
-
-            const result = await isExerciseInCurrentWorkspace(1, exercises, mockWorkspaceFolder);
-
-            // Should return false because mock folder doesn't exist
-            assert.strictEqual(result, false);
-        });
-    });
 });

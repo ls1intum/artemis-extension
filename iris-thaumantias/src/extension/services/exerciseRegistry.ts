@@ -89,8 +89,4 @@ export class ExerciseRegistry {
         return Array.from(this.exercises.values());
     }
 
-    public clear(): void {
-        this.exercises.clear();
-    }
-
 }
