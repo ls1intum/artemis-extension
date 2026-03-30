@@ -1,12 +1,13 @@
 // Covers E2EV-05: ExerciseDetail view smoke test
+import * as assert from 'assert';
 import { VSBrowser, WebDriver, Workbench, By } from 'vscode-extension-tester';
 import {
 	openArtemisView,
 	switchToWebviewFrame,
 	switchBackFromWebview,
-	waitForElement,
 	takeScreenshot,
 	getCredentials,
+	performLogin,
 } from './helpers';
 
 describe('ExerciseDetail View UI Tests', function () {
@@ -27,24 +28,7 @@ describe('ExerciseDetail View UI Tests', function () {
 		await VSBrowser.instance.waitForWorkbench();
 
 		// Log in once before all tests in this suite
-		await openArtemisView();
-		await switchToWebviewFrame(driver);
-
-		const usernameInput = await waitForElement(driver, '#username');
-		await usernameInput.clear();
-		await usernameInput.sendKeys(username);
-
-		const passwordInput = await waitForElement(driver, '#password');
-		await passwordInput.clear();
-		await passwordInput.sendKeys(password);
-
-		const submitButton = await waitForElement(driver, 'button[type="submit"]');
-		await submitButton.click();
-
-		// Wait for auth + navigation to Dashboard
-		await driver.sleep(5000);
-
-		await switchBackFromWebview(driver);
+		await performLogin(driver, username, password);
 	});
 
 	after(async function () {
@@ -141,8 +125,6 @@ describe('ExerciseDetail View UI Tests', function () {
 
 		await takeScreenshot(driver, 'exercise-detail-smoke');
 
-		// Accept loading/empty states as valid — smoke test proves navigation and view mounting
-		// If both selectors fail, the test still passes as a smoke test (navigation reached the view)
-		console.log(`ExerciseDetail smoke: container found = ${container !== null}`);
+		assert.ok(container !== null, 'ExerciseDetail smoke test must find at least one view-specific element');
 	});
 });

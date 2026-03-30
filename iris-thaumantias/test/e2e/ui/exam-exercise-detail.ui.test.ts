@@ -1,12 +1,13 @@
 // Covers E2EV-08: ExamExerciseDetail view smoke test
+import * as assert from 'assert';
 import { VSBrowser, WebDriver, Workbench, By, until } from 'vscode-extension-tester';
 import {
 	openArtemisView,
 	switchToWebviewFrame,
 	switchBackFromWebview,
-	waitForElement,
 	takeScreenshot,
 	getCredentials,
+	performLogin,
 } from './helpers';
 
 describe('ExamExerciseDetail View UI Tests', function () {
@@ -28,24 +29,7 @@ describe('ExamExerciseDetail View UI Tests', function () {
 		await VSBrowser.instance.waitForWorkbench();
 
 		// Log in once before all tests in this suite
-		await openArtemisView();
-		await switchToWebviewFrame(driver);
-
-		const usernameInput = await waitForElement(driver, '#username');
-		await usernameInput.clear();
-		await usernameInput.sendKeys(username);
-
-		const passwordInput = await waitForElement(driver, '#password');
-		await passwordInput.clear();
-		await passwordInput.sendKeys(password);
-
-		const submitButton = await waitForElement(driver, 'button[type="submit"]');
-		await submitButton.click();
-
-		// Wait for auth + navigation to Dashboard
-		await driver.sleep(5000);
-
-		await switchBackFromWebview(driver);
+		await performLogin(driver, username, password);
 	});
 
 	after(async function () {
@@ -141,6 +125,7 @@ describe('ExamExerciseDetail View UI Tests', function () {
 		}
 
 		// If we reached ExamExerciseDetail, assert exercise content container exists
+		let viewMounted = false;
 		try {
 			const container = await driver.wait(
 				() =>
@@ -150,13 +135,14 @@ describe('ExamExerciseDetail View UI Tests', function () {
 						.catch(() => null),
 				5000,
 			);
-			if (!container) {
-				// Accept loading state as valid
+			if (container) {
+				viewMounted = true;
 			}
 		} catch {
-			// Accept loading state
+			// Navigation reached the view but content not yet rendered
 		}
 
 		await takeScreenshot(driver, 'exam-exercise-detail-smoke');
+		assert.ok(viewMounted, 'ExamExerciseDetail smoke test must find at least one view-specific element');
 	});
 });

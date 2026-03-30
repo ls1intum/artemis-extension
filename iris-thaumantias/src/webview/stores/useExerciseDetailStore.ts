@@ -8,7 +8,7 @@ import type {
     SubmissionSummary,
 } from '../../shared/types/apiResponses';
 
-interface RepoStatus {
+export interface RepoStatus {
     isConnected: boolean;
     hasChanges: boolean;
     isPracticeRepo: boolean;

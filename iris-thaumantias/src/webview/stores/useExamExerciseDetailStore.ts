@@ -1,7 +1,7 @@
 import { createExamStore } from './createExamStore';
 import type { StudentExam } from '../../shared/types/apiResponses';
 
-interface ExamContext {
+export interface ExamContext {
     courseId: number | null;
     examId: number | null;
     studentExam: StudentExam;

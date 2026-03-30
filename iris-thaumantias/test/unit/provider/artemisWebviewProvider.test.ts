@@ -190,8 +190,19 @@ suite('ArtemisWebviewProvider Test Suite', () => {
     });
 
     test('should open json in editor', async () => {
-        const data = { test: 'data' };
-        await provider.openJsonInEditor(data);
+        const localSandbox = sinon.createSandbox();
+        try {
+            const openDocSpy = localSandbox.spy(vscode.workspace, 'openTextDocument');
+            const showDocSpy = localSandbox.spy(vscode.window, 'showTextDocument');
+
+            const data = { test: 'data' };
+            await provider.openJsonInEditor(data);
+
+            assert.ok(openDocSpy.calledOnce, 'openTextDocument should be called');
+            assert.ok(showDocSpy.calledOnce, 'showTextDocument should be called');
+        } finally {
+            localSandbox.restore();
+        }
     });
 
     test('should render', async () => {

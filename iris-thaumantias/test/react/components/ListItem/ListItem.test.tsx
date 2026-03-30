@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ListItem } from '../../../../src/webview/components/ListItem/ListItem';
 
@@ -34,12 +34,17 @@ describe('ListItem', () => {
 	});
 
 	it('has aria-disabled attribute when disabled', () => {
+		render(<ListItem title="Disabled" disabled={true} />);
+		expect(screen.getByRole('option')).toHaveAttribute('aria-disabled', 'true');
+	});
+
+	it('does not call onClick when disabled and clicked', () => {
 		const handleClick = vi.fn();
 		render(<ListItem title="Disabled" onClick={handleClick} disabled={true} />);
 
-		// Disabled items have pointer-events: none so cannot be clicked via userEvent
-		// Verify the ARIA attribute is set correctly instead
-		expect(screen.getByRole('option')).toHaveAttribute('aria-disabled', 'true');
+		// fireEvent bypasses CSS pointer-events:none and exercises the JS guard
+		fireEvent.click(screen.getByRole('option'));
+
 		expect(handleClick).not.toHaveBeenCalled();
 	});
 });
