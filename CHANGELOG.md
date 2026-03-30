@@ -17,6 +17,7 @@ All notable changes to the Artemis VS Code extension will be documented in this 
 
 ### Fixed
 
+- **API Endpoint Alignment**: Aligned all API endpoints with the Artemis webapp. Removed dead query params from exercise details, replaced two-call feedback loading with single `latest-result-with-feedbacks` endpoint, fixed exam endpoint that returned 403 for students (`/exams` → `/real-exams-sidebar-data`), and removed redundant separate exam fetch calls.
 - **Build Error CodeLens**: Fixed duplicate CodeLens errors, missing testCase field in WebSocket feedback, and wired up build log viewing with go-to-source navigation.
 - **WebSocket Feedback Mapping**: Fixed missing testCase field, buildFailed propagation, and hasTestInfo derivation in WebSocket submission handling.
 - **Dashboard Reload**: Dashboard reload now re-runs archived course check for workspace exercise detection.
