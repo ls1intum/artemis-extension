@@ -171,7 +171,7 @@ export class ArtemisApiService {
     // Backend may return 200 with null body (exam results hidden), so this returns null in that case.
     async getLatestResultWithFeedbacks(participationId: number): Promise<ResultSummary | null> {
         const response = await this.makeRequest(
-            `/api/programming/programming-exercise-participations/${participationId}/latest-result-with-feedbacks`
+            `/api/programming/programming-exercise-participations/${participationId}/latest-result-with-feedbacks?withSubmission=false`
         );
         const text = await response.text();
         if (!text || text.trim() === '' || text.trim() === 'null') {
