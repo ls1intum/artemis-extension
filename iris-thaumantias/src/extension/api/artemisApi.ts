@@ -12,7 +12,7 @@ import type {
 } from '../types';
 import type {
     CourseDashboardResponse, CourseDashboardEntry, CourseDashboardCourse,
-    ExerciseDetailsResponse, FeedbackSummary, IrisChatSession, IrisChatMessage, IrisSettingsResponse,
+    ExerciseDetailsResponse, ResultSummary, IrisChatSession, IrisChatMessage, IrisSettingsResponse,
     ExamSummary, StudentExam,
 } from '../types';
 import { logger, LogCategory } from '../services/loggingService';
@@ -130,31 +130,14 @@ export class ArtemisApiService {
         return response.json() as Promise<CourseDashboardEntry>;
     }
 
-    // Get exercise details for a specific exercise
-    // According to Artemis client code, this endpoint already includes:
-    // - studentParticipations with ALL submissions and results
-    // No query parameters or additional enrichment needed
+    // Get exercise details for a specific exercise.
+    // The backend always includes studentParticipations with submissions and results —
+    // no query parameters needed (the endpoint accepts none).
     async getExerciseDetails(exerciseId: number): Promise<ExerciseDetailsResponse> {
-        // Request exercise details with all submissions and their latest results
-        // withSubmissions=true ensures we get submission data
-        // withLatestResult=true ensures each submission includes its most recent result
         const response = await this.makeRequest(
-            `/api/exercise/exercises/${exerciseId}/details?withSubmissions=true&withLatestResult=true`
+            `/api/exercise/exercises/${exerciseId}/details`
         );
-        const exerciseData = await response.json() as ExerciseDetailsResponse;
-
-        // Debug: Log what we actually received
-        if ((exerciseData.exercise?.studentParticipations?.length ?? 0) > 0) {
-            for (const participation of exerciseData.exercise!.studentParticipations!) {
-                const submissions = participation.submissions ?? [];
-                const totalResults = submissions.reduce((sum, s) => sum + (s.results?.length ?? 0), 0);
-                logger.info(`Participation ${participation.id}: ${submissions.length} submissions, ${totalResults} results`, LogCategory.API);
-            }
-        } else {
-            logger.warn('No student participations found in exercise details response', LogCategory.API);
-        }
-
-        return exerciseData;
+        return response.json() as Promise<ExerciseDetailsResponse>;
     }
 
     // Get latest pending submission for a participation
@@ -182,25 +165,19 @@ export class ArtemisApiService {
         }
     }
 
-    // Get detailed result feedbacks as FeedbackSummary (preserves testCase field)
-    async getResultFeedbacks(participationId: number, resultId: number): Promise<FeedbackSummary[]> {
-        const response = await this.makeRequest(`/api/assessment/participations/${participationId}/results/${resultId}/details`);
-        const raw = await response.json() as Record<string, unknown>;
-        const feedbacks = Array.isArray(raw.feedbacks) ? raw.feedbacks : (Array.isArray(raw) ? raw : []);
-        return feedbacks.map((f: Record<string, unknown>) => ({
-            id: typeof f.id === 'number' ? f.id : undefined,
-            text: typeof f.text === 'string' ? f.text : undefined,
-            detailText: typeof f.detailText === 'string' ? f.detailText : undefined,
-            reference: typeof f.reference === 'string' ? f.reference : undefined,
-            credits: typeof f.credits === 'number' ? f.credits : undefined,
-            positive: typeof f.positive === 'boolean' ? f.positive : undefined,
-            type: typeof f.type === 'string' ? f.type : undefined,
-            visibility: typeof f.visibility === 'string' ? f.visibility : undefined,
-            testCase: f.testCase && typeof f.testCase === 'object' ? {
-                id: typeof (f.testCase as Record<string, unknown>).id === 'number' ? (f.testCase as Record<string, unknown>).id as number : undefined,
-                testName: typeof (f.testCase as Record<string, unknown>).testName === 'string' ? (f.testCase as Record<string, unknown>).testName as string : undefined,
-            } : undefined,
-        }));
+    // Get the latest result with feedbacks for a programming exercise participation.
+    // Same endpoint the Artemis webapp uses — returns a full Result with feedbacks embedded,
+    // no need to know the resultId upfront.
+    // Backend may return 200 with null body (exam results hidden), so this returns null in that case.
+    async getLatestResultWithFeedbacks(participationId: number): Promise<ResultSummary | null> {
+        const response = await this.makeRequest(
+            `/api/programming/programming-exercise-participations/${participationId}/latest-result-with-feedbacks`
+        );
+        const text = await response.text();
+        if (!text || text.trim() === '' || text.trim() === 'null') {
+            return null;
+        }
+        return JSON.parse(text) as ResultSummary;
     }
 
     // Get build logs for a participation (optionally for a specific result)
@@ -526,9 +503,11 @@ export class ArtemisApiService {
         );
     }
 
-    // Get exams for a specific course
-    async getExamsForCourse(courseId: number): Promise<ExamSummary[]> {
-        const response = await this.makeRequest(`/api/exam/courses/${courseId}/exams`);
+    // Get exam sidebar data for a specific course (student-accessible).
+    // Returns lightweight exam metadata (id, title, startDate, workingTime, examMaxPoints).
+    // Note: does NOT include endDate — use course.exams from getCourseForDashboard for full data.
+    async getExamSidebarData(courseId: number): Promise<ExamSummary[]> {
+        const response = await this.makeRequest(`/api/exam/courses/${courseId}/real-exams-sidebar-data`);
         return response.json() as Promise<ExamSummary[]>;
     }
 

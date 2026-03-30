@@ -26,20 +26,22 @@ export async function fetchAndEnrichExerciseDetails(
             }
         } catch { /* ignore */ }
 
-        // Enrich the latest result with detailed feedbacks (test cases)
-        const latestSubmission = [...(participation.submissions ?? [])]
-            .sort((a, b) => ((b as { id?: number }).id ?? 0) - ((a as { id?: number }).id ?? 0))[0] as { id?: number; results?: Array<{ id?: number; feedbacks?: unknown[] }> } | undefined;
-        const latestResult = [...(latestSubmission?.results ?? [])]
-            .sort((a, b) => (a.id ?? 0) > (b.id ?? 0) ? -1 : 1)[0];
-        if (latestResult?.id) {
-            try {
-                const feedbacks = await api.getResultFeedbacks(participation.id, latestResult.id);
-                if (feedbacks.length > 0) {
-                    latestResult.feedbacks = feedbacks;
+        // Enrich the latest result with feedbacks using the same endpoint as the Artemis webapp.
+        // This single call returns the latest Result with feedbacks embedded — no need to
+        // manually find the resultId or make a separate feedbacks call.
+        try {
+            const resultWithFeedbacks = await api.getLatestResultWithFeedbacks(participation.id);
+            if (resultWithFeedbacks?.feedbacks?.length) {
+                const latestSubmission = [...(participation.submissions ?? [])]
+                    .sort((a, b) => ((b as { id?: number }).id ?? 0) - ((a as { id?: number }).id ?? 0))[0] as { id?: number; results?: Array<{ id?: number; feedbacks?: unknown[] }> } | undefined;
+                const latestResult = [...(latestSubmission?.results ?? [])]
+                    .sort((a, b) => (a.id ?? 0) > (b.id ?? 0) ? -1 : 1)[0];
+                if (latestResult) {
+                    latestResult.feedbacks = resultWithFeedbacks.feedbacks;
                 }
-            } catch {
-                logger.warn(`Could not fetch result details for result ${latestResult.id}`, LogCategory.VIEW);
             }
+        } catch {
+            logger.warn(`Could not fetch latest result with feedbacks for participation ${participation.id}`, LogCategory.VIEW);
         }
     }
 
@@ -47,22 +49,16 @@ export async function fetchAndEnrichExerciseDetails(
 }
 
 /**
- * Fetch archived course detail with exams.
+ * Fetch archived course detail.
+ * Exams are already included in the dashboard response (course.exams).
  */
 export async function fetchArchivedCourseDetail(
     api: ArtemisApiService,
     courseId: number,
 ): Promise<CourseDetailData> {
     const dashboardDTO = await api.getCourseForDashboard(courseId);
-    const courseData = toCourseDetailData(
+    return toCourseDetailData(
         dashboardDTO.course as CourseDashboardCourse,
         { isArchived: true }
     );
-
-    try {
-        const exams = await api.getExamsForCourse(courseId);
-        courseData.course.exams = exams as typeof courseData.course.exams;
-    } catch { /* continue without exams */ }
-
-    return courseData;
 }
