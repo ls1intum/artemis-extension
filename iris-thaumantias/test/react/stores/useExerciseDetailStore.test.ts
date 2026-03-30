@@ -309,4 +309,44 @@ describe('useExerciseDetailStore', () => {
 		// Should be null from beforeEach reset
 		expect(result.current.exerciseData).toBeNull();
 	});
+
+	// --- error state ---
+
+	it('setError sets error and stops loading', () => {
+		const { result } = renderHook(() => useExerciseDetailStore());
+
+		act(() => {
+			result.current.setError('Failed to load exercise');
+		});
+
+		expect(result.current.error).toBe('Failed to load exercise');
+		expect(result.current.isLoading).toBe(false);
+	});
+
+	it('setError clears error with null', () => {
+		const { result } = renderHook(() => useExerciseDetailStore());
+
+		act(() => {
+			result.current.setError('Some error');
+		});
+		act(() => {
+			result.current.setError(null);
+		});
+
+		expect(result.current.error).toBeNull();
+	});
+
+	it('setExerciseData clears previous error', () => {
+		const { result } = renderHook(() => useExerciseDetailStore());
+
+		act(() => {
+			result.current.setError('Previous error');
+		});
+		act(() => {
+			result.current.setExerciseData(makeExerciseData(), false);
+		});
+
+		expect(result.current.error).toBeNull();
+		expect(result.current.isLoading).toBe(false);
+	});
 });

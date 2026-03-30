@@ -145,6 +145,7 @@ describe('CourseDetailView', () => {
 		});
 	});
 
+	// TODO: Re-enable when exam list rendering is implemented in CourseDetailView
 	it.skip('displays exam list when course has exams', async () => {
 		const mockApi = createMockVsCodeApi();
 		render(<CourseDetailView vscodeApi={mockApi} />);
@@ -170,6 +171,7 @@ describe('CourseDetailView', () => {
 		});
 	});
 
+	// TODO: Re-enable when exam list rendering is implemented in CourseDetailView
 	it.skip('clicking exam sends openExam postMessage with examId and courseId', async () => {
 		const mockApi = createMockVsCodeApi();
 		render(<CourseDetailView vscodeApi={mockApi} />);
@@ -260,5 +262,33 @@ describe('CourseDetailView', () => {
 			expect(screen.getByText('Sorting Algorithm')).toBeInTheDocument();
 			expect(screen.queryByText('Graph Theory')).not.toBeInTheDocument();
 		});
+	});
+
+	// --- error state ---
+
+	it('shows error message when error is set', () => {
+		useCourseDetailStore.setState({ error: 'Failed to load course', isLoading: false });
+		const mockApi = createMockVsCodeApi();
+		render(<CourseDetailView vscodeApi={mockApi} />);
+		expect(screen.getByText('Failed to load course')).toBeInTheDocument();
+	});
+
+	it('shows Retry button in error state', () => {
+		useCourseDetailStore.setState({ error: 'Network error', isLoading: false });
+		const mockApi = createMockVsCodeApi();
+		render(<CourseDetailView vscodeApi={mockApi} />);
+		expect(screen.getByRole('button', { name: 'Retry' })).toBeInTheDocument();
+	});
+
+	it('clicking Retry in error state sends requestInit message', async () => {
+		useCourseDetailStore.setState({ error: 'Network error', isLoading: false });
+		const mockApi = createMockVsCodeApi();
+		render(<CourseDetailView vscodeApi={mockApi} />);
+
+		await userEvent.click(screen.getByRole('button', { name: 'Retry' }));
+
+		expect(mockApi.postMessage).toHaveBeenCalledWith(
+			expect.objectContaining({ type: 'requestInit' })
+		);
 	});
 });

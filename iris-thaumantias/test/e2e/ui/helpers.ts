@@ -82,6 +82,36 @@ export function getCredentials(): { username: string; password: string } {
 }
 
 /**
+ * Perform the standard login sequence: open the Artemis view, fill in
+ * credentials, submit the form, wait for navigation to Dashboard, then
+ * switch back to the VS Code host context.
+ */
+export async function performLogin(
+	driver: WebDriver,
+	username: string,
+	password: string,
+): Promise<void> {
+	await openArtemisView();
+	await switchToWebviewFrame(driver);
+
+	const usernameInput = await waitForElement(driver, '#username');
+	await usernameInput.clear();
+	await usernameInput.sendKeys(username);
+
+	const passwordInput = await waitForElement(driver, '#password');
+	await passwordInput.clear();
+	await passwordInput.sendKeys(password);
+
+	const submitButton = await waitForElement(driver, 'button[type="submit"]');
+	await submitButton.click();
+
+	// Wait for auth + navigation to Dashboard
+	await driver.sleep(5000);
+
+	await switchBackFromWebview(driver);
+}
+
+/**
  * Take a PNG screenshot and save it to test/ui/screenshots/.
  * File name format: {name}-{timestamp}.png
  */

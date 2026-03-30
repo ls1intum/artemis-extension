@@ -245,4 +245,44 @@ describe('useCourseDetailStore', () => {
 		expect(sorted[0].title).toBe('Active Exam');
 		expect(sorted[1].title).toBe('Finished Exam');
 	});
+
+	// --- error state ---
+
+	it('setError sets error and stops loading', () => {
+		const { result } = renderHook(() => useCourseDetailStore());
+
+		act(() => {
+			result.current.setError('Failed to load course');
+		});
+
+		expect(result.current.error).toBe('Failed to load course');
+		expect(result.current.isLoading).toBe(false);
+	});
+
+	it('setError clears error with null', () => {
+		const { result } = renderHook(() => useCourseDetailStore());
+
+		act(() => {
+			result.current.setError('Some error');
+		});
+		act(() => {
+			result.current.setError(null);
+		});
+
+		expect(result.current.error).toBeNull();
+	});
+
+	it('setCourseData clears previous error', () => {
+		const { result } = renderHook(() => useCourseDetailStore());
+
+		act(() => {
+			result.current.setError('Previous error');
+		});
+		act(() => {
+			result.current.setCourseData(makeCourseDetailData());
+		});
+
+		expect(result.current.error).toBeNull();
+		expect(result.current.isLoading).toBe(false);
+	});
 });

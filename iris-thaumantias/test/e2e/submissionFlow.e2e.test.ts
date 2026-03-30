@@ -35,44 +35,9 @@ const CONFIG = {
 // ARTEMIS API CLIENT (Direct HTTP, cookie-based auth)
 // =============================================================================
 
-class ArtemisTestClient {
-    private baseUrl: string;
-    private cookies: string[] = [];
+import { ArtemisTestClient as ArtemisTestClientBase } from './helpers/artemisTestClient';
 
-    constructor(baseUrl: string) {
-        this.baseUrl = baseUrl;
-    }
-
-    async login(username: string, password: string): Promise<boolean> {
-        logger.info(`[E2E-Sub] Logging in as ${username}...`, LogCategory.TEST);
-
-        const response = await fetch(`${this.baseUrl}/api/core/public/authenticate`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ username, password, rememberMe: true }),
-        });
-
-        if (response.ok) {
-            const setCookieHeader = response.headers.get('set-cookie');
-            if (setCookieHeader) {
-                this.cookies = setCookieHeader.split(',').map(c => c.split(';')[0].trim());
-            }
-            logger.info('[E2E-Sub] Login successful', LogCategory.TEST);
-            return true;
-        }
-
-        logger.error(`[E2E-Sub] Login failed: ${response.status}`, LogCategory.TEST);
-        return false;
-    }
-
-    private getHeaders(): Record<string, string> {
-        const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-        if (this.cookies.length > 0) {
-            headers['Cookie'] = this.cookies.join('; ');
-        }
-        return headers;
-    }
-
+class ArtemisTestClient extends ArtemisTestClientBase {
     async getCurrentUser(): Promise<{ login: string; [key: string]: unknown }> {
         const response = await fetch(`${this.baseUrl}/api/core/public/account`, {
             headers: this.getHeaders(),

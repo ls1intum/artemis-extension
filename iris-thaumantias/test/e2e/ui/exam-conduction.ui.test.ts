@@ -1,12 +1,13 @@
 // Covers E2EV-07: ExamConduction view smoke test
+import * as assert from 'assert';
 import { VSBrowser, WebDriver, Workbench, By, until } from 'vscode-extension-tester';
 import {
 	openArtemisView,
 	switchToWebviewFrame,
 	switchBackFromWebview,
-	waitForElement,
 	takeScreenshot,
 	getCredentials,
+	performLogin,
 } from './helpers';
 
 describe('ExamConduction View UI Tests', function () {
@@ -28,24 +29,7 @@ describe('ExamConduction View UI Tests', function () {
 		await VSBrowser.instance.waitForWorkbench();
 
 		// Log in once before all tests in this suite
-		await openArtemisView();
-		await switchToWebviewFrame(driver);
-
-		const usernameInput = await waitForElement(driver, '#username');
-		await usernameInput.clear();
-		await usernameInput.sendKeys(username);
-
-		const passwordInput = await waitForElement(driver, '#password');
-		await passwordInput.clear();
-		await passwordInput.sendKeys(password);
-
-		const submitButton = await waitForElement(driver, 'button[type="submit"]');
-		await submitButton.click();
-
-		// Wait for auth + navigation to Dashboard
-		await driver.sleep(5000);
-
-		await switchBackFromWebview(driver);
+		await performLogin(driver, username, password);
 	});
 
 	after(async function () {
@@ -123,6 +107,7 @@ describe('ExamConduction View UI Tests', function () {
 		}
 
 		// If we reached ExamConduction, assert a timer element or any content container exists
+		let viewMounted = false;
 		try {
 			const timerOrContent = await driver.wait(
 				() =>
@@ -137,13 +122,14 @@ describe('ExamConduction View UI Tests', function () {
 						),
 				5000,
 			);
-			if (!timerOrContent) {
-				// Accept loading state as valid
+			if (timerOrContent) {
+				viewMounted = true;
 			}
 		} catch {
-			// Accept loading state
+			// Navigation reached the view but content not yet rendered
 		}
 
 		await takeScreenshot(driver, 'exam-conduction-smoke');
+		assert.ok(viewMounted, 'ExamConduction smoke test must find at least one view-specific element');
 	});
 });
