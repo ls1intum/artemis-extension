@@ -17,7 +17,7 @@ suite('AuthManager Test Suite', () => {
     test('should store and retrieve credentials', async () => {
         const jwt = 'jwt=12345';
         const url = 'https://artemis.example.com';
-        
+
         await authManager.storeArtemisCredentials(jwt, url, true);
 
         const storedJwt = await context.secrets.get(CONFIG.SECRET_KEYS.ARTEMIS_TOKEN);
@@ -26,14 +26,14 @@ suite('AuthManager Test Suite', () => {
         assert.strictEqual(storedJwt, jwt);
         assert.strictEqual(storedUrl, url);
 
-        const cookieHeader = await authManager.getCookieHeader();
-        assert.strictEqual(cookieHeader, jwt);
+        const headers = await authManager.getAuthHeaders();
+        assert.deepStrictEqual(headers, { 'Cookie': jwt });
     });
 
     test('should clear credentials', async () => {
         const jwt = 'jwt=12345';
         const url = 'https://artemis.example.com';
-        
+
         await authManager.storeArtemisCredentials(jwt, url, true);
         await authManager.clear();
 
@@ -44,62 +44,62 @@ suite('AuthManager Test Suite', () => {
         assert.strictEqual(storedUrl, undefined);
     });
 
-    test('should use memory cookie if not persisted', async () => {
+    test('should use memory token if not persisted', async () => {
         const jwt = 'jwt=memory';
         const url = 'https://artemis.example.com';
-        
+
         await authManager.storeArtemisCredentials(jwt, url, false);
 
         const storedJwt = await context.secrets.get(CONFIG.SECRET_KEYS.ARTEMIS_TOKEN);
         assert.strictEqual(storedJwt, undefined); // Should not be in secrets
 
-        const cookieHeader = await authManager.getCookieHeader();
-        assert.strictEqual(cookieHeader, jwt); // Should be in memory
+        const headers = await authManager.getAuthHeaders();
+        assert.deepStrictEqual(headers, { 'Cookie': jwt }); // Should be in memory
     });
 
     test('should return correct auth headers', async () => {
         const jwt = 'jwt=token';
         await authManager.storeArtemisCredentials(jwt, 'url', false);
-        
+
         const headers = await authManager.getAuthHeaders();
         assert.deepStrictEqual(headers, { 'Cookie': jwt });
     });
 
-    test('should return empty auth headers if no cookie', async () => {
+    test('should return empty auth headers if no token', async () => {
         await authManager.clear();
         const headers = await authManager.getAuthHeaders();
         assert.deepStrictEqual(headers, {});
     });
 
-    // --- hasAuthCookie ---
+    // --- hasAuthToken ---
 
-    test('hasAuthCookie returns false when no credentials are stored', async () => {
-        const result = await authManager.hasAuthCookie();
+    test('hasAuthToken returns false when no credentials are stored', async () => {
+        const result = await authManager.hasAuthToken();
         assert.strictEqual(result, false);
     });
 
-    test('hasAuthCookie returns true when ARTEMIS_TOKEN is in secrets', async () => {
+    test('hasAuthToken returns true when ARTEMIS_TOKEN is in secrets', async () => {
         await context.secrets.store(CONFIG.SECRET_KEYS.ARTEMIS_TOKEN, 'jwt=token');
-        const result = await authManager.hasAuthCookie();
+        const result = await authManager.hasAuthToken();
         assert.strictEqual(result, true);
     });
 
-    test('hasAuthCookie returns true when legacy AUTH_COOKIE key is in secrets', async () => {
+    test('hasAuthToken returns true when legacy AUTH_COOKIE key is in secrets', async () => {
         await context.secrets.store(CONFIG.SECRET_KEYS.AUTH_COOKIE, 'jwt=legacy');
-        const result = await authManager.hasAuthCookie();
+        const result = await authManager.hasAuthToken();
         assert.strictEqual(result, true);
     });
 
-    test('hasAuthCookie returns true when only in-memory cookie is set', async () => {
+    test('hasAuthToken returns true when only in-memory token is set', async () => {
         await authManager.storeArtemisCredentials('jwt=memory', 'https://example.com', false);
-        const result = await authManager.hasAuthCookie();
+        const result = await authManager.hasAuthToken();
         assert.strictEqual(result, true);
     });
 
-    test('hasAuthCookie returns false after clear', async () => {
+    test('hasAuthToken returns false after clear', async () => {
         await authManager.storeArtemisCredentials('jwt=token', 'https://example.com', true);
         await authManager.clear();
-        const result = await authManager.hasAuthCookie();
+        const result = await authManager.hasAuthToken();
         assert.strictEqual(result, false);
     });
 
@@ -116,7 +116,7 @@ suite('AuthManager Test Suite', () => {
         assert.strictEqual(result, true);
     });
 
-    test('hasArtemisToken returns false when only in-memory cookie is set', async () => {
+    test('hasArtemisToken returns false when only in-memory token is set', async () => {
         await authManager.storeArtemisCredentials('jwt=memory', 'https://example.com', false);
         const result = await authManager.hasArtemisToken();
         assert.strictEqual(result, false);
@@ -156,17 +156,17 @@ suite('AuthManager Test Suite', () => {
         assert.strictEqual(result, undefined);
     });
 
-    // --- getCookieHeader (additional coverage) ---
+    // --- getStoredToken (via getAuthHeaders, since getStoredToken is private) ---
 
-    test('getCookieHeader returns undefined when no credentials stored', async () => {
-        const result = await authManager.getCookieHeader();
-        assert.strictEqual(result, undefined);
+    test('getAuthHeaders returns empty when no credentials stored', async () => {
+        const result = await authManager.getAuthHeaders();
+        assert.deepStrictEqual(result, {});
     });
 
-    test('getCookieHeader ignores legacy AUTH_COOKIE key', async () => {
+    test('getAuthHeaders ignores legacy AUTH_COOKIE key', async () => {
         await context.secrets.store(CONFIG.SECRET_KEYS.AUTH_COOKIE, 'jwt=legacy');
-        const result = await authManager.getCookieHeader();
-        assert.strictEqual(result, undefined);
+        const result = await authManager.getAuthHeaders();
+        assert.deepStrictEqual(result, {});
     });
 
     // --- clear: error path ---

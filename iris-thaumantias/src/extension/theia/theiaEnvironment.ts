@@ -1,4 +1,5 @@
 import { readEnvVars } from './envVarReader';
+import { readEnvVarsViaDataBridge } from './dataBridgeReader';
 import { VSCODE_ENVIRONMENT, type TheiaEnvironment } from './types';
 
 /**
@@ -27,7 +28,11 @@ const THEIA_ENV_VARS = [
  * Must be called before any service instantiation in activate().
  */
 export async function detectTheiaEnvironment(): Promise<TheiaEnvironment> {
-    const env = await readEnvVars(THEIA_ENV_VARS);
+    // Try data-bridge first (EduIDE cloud deployments with late-arriving credentials).
+    // Returns undefined immediately if data-bridge extension is not installed (no overhead).
+    // Falls back to process env if data-bridge is unavailable or times out.
+    const env = await readEnvVarsViaDataBridge(THEIA_ENV_VARS)
+        ?? await readEnvVars(THEIA_ENV_VARS);
 
     // Theia is detected when at least one Theia-specific env var is present.
     // ARTEMIS_TOKEN alone is sufficient (minimal Theia setup),

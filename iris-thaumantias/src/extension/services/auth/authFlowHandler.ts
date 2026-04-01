@@ -27,7 +27,7 @@ export class AuthFlowHandler {
         if (this._theiaEnv?.isTheia) { return; }
 
         try {
-            const hasAuth = await this._authManager.hasAuthCookie();
+            const hasAuth = await this._authManager.hasAuthToken();
             if (hasAuth) {
                 const isServerUrlChanged = await this._artemisApi.isServerUrlChanged();
                 if (isServerUrlChanged) {
@@ -52,7 +52,7 @@ export class AuthFlowHandler {
 
     public async checkExistingAuthentication(): Promise<void> {
         try {
-            const hasAuth = await this._authManager.hasAuthCookie();
+            const hasAuth = await this._authManager.hasAuthToken();
             if (hasAuth) {
                 this._postMessage({ type: ExtensionMsg.ShowLoading, message: 'Checking stored credentials...' });
                 this._postMessage({ type: ExtensionMsg.UpdateLoading, message: 'Loading user information...' });

@@ -188,7 +188,7 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
             if (webviewView.visible) {
                 void (async () => {
                     // Check if auth expired while panel was hidden
-                    const hasAuth = await this._authManager.hasAuthCookie();
+                    const hasAuth = await this._authManager.hasAuthToken();
                     const currentState = this._appStateManager.currentState;
                     if (!hasAuth && currentState !== 'login') {
                         logger.debug('Auth expired while panel was hidden, showing login', LogCategory.VIEW);

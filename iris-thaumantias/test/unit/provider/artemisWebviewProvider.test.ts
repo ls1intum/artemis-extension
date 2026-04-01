@@ -229,8 +229,8 @@ suite('Panel hide/show state persistence', () => {
         mockAuthManager = new MockAuthManager(mockContext);
         mockApiService = new MockArtemisApiService(mockAuthManager);
 
-        // Stub hasAuthCookie to return true (authenticated state) by default
-        sandbox.stub(mockAuthManager, 'hasAuthCookie').resolves(true);
+        // Stub hasAuthToken to return true (authenticated state) by default
+        sandbox.stub(mockAuthManager, 'hasAuthToken').resolves(true);
 
         const mockWebsocket = new MockArtemisWebsocketService(mockAuthManager);
         const mockCodeLens = {} as unknown as BuildErrorCodeLensProvider;
@@ -347,8 +347,8 @@ suite('Panel hide/show state persistence', () => {
         // Simulate being authenticated in dashboard state
         (provider as any)._appStateManager._currentState = 'dashboard';
 
-        // Now stub hasAuthCookie to return false (auth expired while hidden)
-        (mockAuthManager.hasAuthCookie as sinon.SinonStub).resolves(false);
+        // Now stub hasAuthToken to return false (auth expired while hidden)
+        (mockAuthManager.hasAuthToken as sinon.SinonStub).resolves(false);
 
         spyWebview.sentMessages = [];
         controllableView.simulateShow();

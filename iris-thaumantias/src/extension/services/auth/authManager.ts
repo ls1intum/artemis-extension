@@ -2,12 +2,12 @@ import * as vscode from 'vscode';
 import { CONFIG } from '../../utils';
 import { logger, LogCategory } from '../loggingService';
 
-// Manages authentication tokens.
-// In VS Code Desktop: JWT stored as cookie string ("jwt=<token>"), sent as Cookie header.
-// In Theia/EduIDE: raw JWT from environment, sent as Authorization: Bearer header.
+// Manages authentication tokens for both VS Code Desktop and Theia/EduIDE.
+// Desktop: JWT stored as cookie string ("jwt=<token>"), sent as Cookie header.
+// Theia:   Raw JWT from environment variable, sent as Authorization: Bearer header.
 export class AuthManager {
-    private static SECRET_KEY = CONFIG.SECRET_KEYS.AUTH_COOKIE;
-    private memoryCookie?: string;
+    private static LEGACY_SECRET_KEY = CONFIG.SECRET_KEYS.AUTH_COOKIE;
+    private memoryToken?: string;
     private context: vscode.ExtensionContext;
     private _useBearerAuth = false;
 
@@ -23,13 +23,13 @@ export class AuthManager {
         this._useBearerAuth = true;
     }
 
-    public async hasAuthCookie(): Promise<boolean> {
-        if (this.memoryCookie) {
+    public async hasAuthToken(): Promise<boolean> {
+        if (this.memoryToken) {
             return true;
         }
-        const stored = await this.context.secrets.get(AuthManager.SECRET_KEY);
-        const artemisToken = await this.context.secrets.get(CONFIG.SECRET_KEYS.ARTEMIS_TOKEN);
-        return !!stored || !!artemisToken;
+        const legacy = await this.context.secrets.get(AuthManager.LEGACY_SECRET_KEY);
+        const stored = await this.context.secrets.get(CONFIG.SECRET_KEYS.ARTEMIS_TOKEN);
+        return !!legacy || !!stored;
     }
 
     public async hasArtemisToken(): Promise<boolean> {
@@ -41,13 +41,16 @@ export class AuthManager {
         return await this.context.secrets.get(CONFIG.SECRET_KEYS.ARTEMIS_SERVER_URL);
     }
 
-    public async getCookieHeader(): Promise<string | undefined> {
-        // 1. Check in-memory cache first (current session)
-        if (this.memoryCookie) {
-            return this.memoryCookie;
+    /**
+     * Returns the stored token string.
+     * In Desktop mode this is a cookie string ("jwt=<token>"),
+     * in Theia mode this is a raw JWT.
+     */
+    private async getStoredToken(): Promise<string | undefined> {
+        if (this.memoryToken) {
+            return this.memoryToken;
         }
 
-        // 2. Check new storage location (artemis-auth-token) - primary
         const artemisToken = await this.context.secrets.get(CONFIG.SECRET_KEYS.ARTEMIS_TOKEN);
         if (artemisToken) {
             return artemisToken;
@@ -57,33 +60,31 @@ export class AuthManager {
     }
 
     public async getAuthHeaders(): Promise<Record<string, string>> {
-        const token = await this.getCookieHeader();
+        const token = await this.getStoredToken();
 
         if (!token) {
             return {};
         }
 
         if (this._useBearerAuth) {
-            // Theia: send raw JWT as Bearer token
             return { 'Authorization': `Bearer ${token}` };
         }
 
-        // VS Code Desktop: send as cookie
         return { 'Cookie': token };
     }
 
-    public async storeArtemisCredentials(jwtCookie: string, serverUrl: string, persist: boolean): Promise<void> {
-        this.memoryCookie = jwtCookie;
+    public async storeArtemisCredentials(token: string, serverUrl: string, persist: boolean): Promise<void> {
+        this.memoryToken = token;
         if (persist) {
-            await this.context.secrets.store(CONFIG.SECRET_KEYS.ARTEMIS_TOKEN, jwtCookie);
+            await this.context.secrets.store(CONFIG.SECRET_KEYS.ARTEMIS_TOKEN, token);
             await this.context.secrets.store(CONFIG.SECRET_KEYS.ARTEMIS_SERVER_URL, serverUrl);
         }
     }
 
     public async clear(): Promise<void> {
-        this.memoryCookie = undefined;
+        this.memoryToken = undefined;
         try {
-            await this.context.secrets.delete(AuthManager.SECRET_KEY);
+            await this.context.secrets.delete(AuthManager.LEGACY_SECRET_KEY);
             await this.context.secrets.delete(CONFIG.SECRET_KEYS.ARTEMIS_TOKEN);
             await this.context.secrets.delete(CONFIG.SECRET_KEYS.ARTEMIS_SERVER_URL);
         } catch (err) {
