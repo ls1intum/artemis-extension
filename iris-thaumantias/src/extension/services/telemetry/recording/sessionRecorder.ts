@@ -10,6 +10,7 @@ import * as vscode from 'vscode';
 import * as crypto from 'crypto';
 import type { WebSocketMessageHandler, ResultDTO } from '../../../types';
 import type { RecordedEvent, SessionMetadata, SerializedErrorSnapshot } from './types';
+import type { PlatformCapabilities } from '../../../theia';
 import { RecordingStorageWriter } from './storageWriter';
 import {
     collectTextChange,
@@ -67,8 +68,11 @@ export class SessionRecorder implements vscode.Disposable, WebSocketMessageHandl
     private readonly _onDidChangeState = new vscode.EventEmitter<RecordingState>();
     public readonly onDidChangeState = this._onDidChangeState.event;
 
-    constructor(globalStorageUri: vscode.Uri) {
+    private readonly _capabilities?: PlatformCapabilities;
+
+    constructor(globalStorageUri: vscode.Uri, capabilities?: PlatformCapabilities) {
         this._writer = new RecordingStorageWriter(globalStorageUri.fsPath);
+        this._capabilities = capabilities;
     }
 
     // ── Public state accessors ────────────────────────────────────────
@@ -441,35 +445,38 @@ export class SessionRecorder implements vscode.Disposable, WebSocketMessageHandl
         });
         this._eventListenerDisposables.push(terminalClose);
 
-        // Terminal shell execution start — begin collecting output
-        const shellExecStart = vscode.window.onDidStartTerminalShellExecution(event => {
-            if (!this._isRecording) { return; }
-            const entry: PendingExecution = {
-                output: '', startTime: Date.now(), truncated: false,
-                readerDone: false, endInfo: undefined, aborted: false,
-            };
-            this._pendingExecutions.set(event.execution, entry);
-            void this._collectExecutionOutput(event.execution, entry);
-        });
-        this._eventListenerDisposables.push(shellExecStart);
+        // Terminal shell execution tracking — only available in VS Code Desktop (not all Theia builds)
+        if (this._capabilities?.hasTerminalShellExecution !== false) {
+            // Terminal shell execution start — begin collecting output
+            const shellExecStart = vscode.window.onDidStartTerminalShellExecution(event => {
+                if (!this._isRecording) { return; }
+                const entry: PendingExecution = {
+                    output: '', startTime: Date.now(), truncated: false,
+                    readerDone: false, endInfo: undefined, aborted: false,
+                };
+                this._pendingExecutions.set(event.execution, entry);
+                void this._collectExecutionOutput(event.execution, entry);
+            });
+            this._eventListenerDisposables.push(shellExecStart);
 
-        // Terminal shell execution end — emit once reader is also done
-        const shellExecEnd = vscode.window.onDidEndTerminalShellExecution(event => {
-            if (!this._isRecording) { return; }
-            const entry = this._pendingExecutions.get(event.execution);
-            if (!entry) { return; }
-            this._pendingExecutions.delete(event.execution);
-            entry.endInfo = {
-                exitCode: event.exitCode,
-                terminalName: event.terminal.name,
-                command: event.execution.commandLine.value,
-                cwd: event.execution.cwd?.toString(),
-            };
-            if (entry.readerDone) {
-                this._emitTerminalCommand(entry);
-            }
-        });
-        this._eventListenerDisposables.push(shellExecEnd);
+            // Terminal shell execution end — emit once reader is also done
+            const shellExecEnd = vscode.window.onDidEndTerminalShellExecution(event => {
+                if (!this._isRecording) { return; }
+                const entry = this._pendingExecutions.get(event.execution);
+                if (!entry) { return; }
+                this._pendingExecutions.delete(event.execution);
+                entry.endInfo = {
+                    exitCode: event.exitCode,
+                    terminalName: event.terminal.name,
+                    command: event.execution.commandLine.value,
+                    cwd: event.execution.cwd?.toString(),
+                };
+                if (entry.readerDone) {
+                    this._emitTerminalCommand(entry);
+                }
+            });
+            this._eventListenerDisposables.push(shellExecEnd);
+        }
     }
 
     private _disposeEventListeners(): void {

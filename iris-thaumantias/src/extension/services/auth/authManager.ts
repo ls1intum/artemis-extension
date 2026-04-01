@@ -2,14 +2,25 @@ import * as vscode from 'vscode';
 import { CONFIG } from '../../utils';
 import { logger, LogCategory } from '../loggingService';
 
-// Manages authentication cookies (JWT in HttpOnly cookie)
+// Manages authentication tokens.
+// In VS Code Desktop: JWT stored as cookie string ("jwt=<token>"), sent as Cookie header.
+// In Theia/EduIDE: raw JWT from environment, sent as Authorization: Bearer header.
 export class AuthManager {
     private static SECRET_KEY = CONFIG.SECRET_KEYS.AUTH_COOKIE;
     private memoryCookie?: string;
     private context: vscode.ExtensionContext;
+    private _useBearerAuth = false;
 
     constructor(context: vscode.ExtensionContext) {
         this.context = context;
+    }
+
+    /**
+     * Enable Bearer token authentication mode (used in Theia/EduIDE).
+     * When enabled, getAuthHeaders() returns Authorization: Bearer instead of Cookie.
+     */
+    public enableBearerAuth(): void {
+        this._useBearerAuth = true;
     }
 
     public async hasAuthCookie(): Promise<boolean> {
@@ -46,13 +57,19 @@ export class AuthManager {
     }
 
     public async getAuthHeaders(): Promise<Record<string, string>> {
-        const cookie = await this.getCookieHeader();
+        const token = await this.getCookieHeader();
 
-        if (cookie) {
-            return { 'Cookie': cookie };
-        } else {
+        if (!token) {
             return {};
         }
+
+        if (this._useBearerAuth) {
+            // Theia: send raw JWT as Bearer token
+            return { 'Authorization': `Bearer ${token}` };
+        }
+
+        // VS Code Desktop: send as cookie
+        return { 'Cookie': token };
     }
 
     public async storeArtemisCredentials(jwtCookie: string, serverUrl: string, persist: boolean): Promise<void> {

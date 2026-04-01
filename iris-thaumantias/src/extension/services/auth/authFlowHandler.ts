@@ -5,7 +5,8 @@ import { ExtensionMsg } from '../../../shared/messageContracts';
 import type { ExtensionToWebviewMessage } from '../../../shared/messageContracts';
 import type { UserInfo } from '../../controller/appStateManager';
 import { logger, LogCategory } from '../loggingService';
-import { CONFIG, VSCODE_CONFIG } from '../../utils';
+import { CONFIG, VSCODE_CONFIG, resolveServerUrl } from '../../utils';
+import type { TheiaEnvironment } from '../../theia';
 
 export class AuthFlowHandler {
     constructor(
@@ -18,9 +19,13 @@ export class AuthFlowHandler {
             hideLoadingAndSendServerUrl: () => void;
             showLogin: () => void;
         },
+        private readonly _theiaEnv?: TheiaEnvironment,
     ) {}
 
     public async checkServerUrlChange(): Promise<void> {
+        // In Theia, the server URL is environment-managed — skip change detection
+        if (this._theiaEnv?.isTheia) { return; }
+
         try {
             const hasAuth = await this._authManager.hasAuthCookie();
             if (hasAuth) {
@@ -89,7 +94,6 @@ export class AuthFlowHandler {
     }
 
     private _getServerUrl(): string {
-        const config = vscode.workspace.getConfiguration(VSCODE_CONFIG.ARTEMIS_SECTION);
-        return config.get<string>(VSCODE_CONFIG.SERVER_URL_KEY, CONFIG.ARTEMIS_SERVER_URL_DEFAULT);
+        return resolveServerUrl(this._theiaEnv);
     }
 }

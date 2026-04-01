@@ -1,6 +1,6 @@
-import * as vscode from 'vscode';
 import { AuthManager } from '../services/auth/authManager';
-import { CONFIG, VSCODE_CONFIG } from '../utils';
+import { CONFIG, resolveServerUrl } from '../utils';
+import type { TheiaEnvironment } from '../theia';
 import {
     ApiError, PROFILE_IRIS,
     parseArtemisUser, parseArtemisParticipation,
@@ -19,11 +19,13 @@ import { logger, LogCategory } from '../services/loggingService';
 
 export class ArtemisApiService {
     private authManager: AuthManager;
+    private _theiaEnv?: TheiaEnvironment;
     private _onAuthExpired?: () => void | Promise<void>;
     private _authExpiredFired = false;
 
-    constructor(authManager: AuthManager) {
+    constructor(authManager: AuthManager, theiaEnv?: TheiaEnvironment) {
         this.authManager = authManager;
+        this._theiaEnv = theiaEnv;
     }
 
     /**
@@ -40,8 +42,7 @@ export class ArtemisApiService {
     }
 
     protected getServerUrl(): string {
-        const config = vscode.workspace.getConfiguration(VSCODE_CONFIG.ARTEMIS_SECTION);
-        return config.get<string>(VSCODE_CONFIG.SERVER_URL_KEY) || CONFIG.ARTEMIS_SERVER_URL_DEFAULT;
+        return resolveServerUrl(this._theiaEnv);
     }
 
     private async makeRequest(endpoint: string, options: RequestInit = {}): Promise<Response> {

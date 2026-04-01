@@ -28,8 +28,15 @@
     "computer science",
     "tutoring"
   ],
-  "activationEvents": [],
+  "extensionKind": [
+    "ui",
+    "workspace"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
   "main": "./dist/extension.js",
+  "browser": "./dist/extension.js",
   "contributes": {
     "commands": [
       {
