@@ -20,6 +20,7 @@ import { WebSocketMessageHandler } from '../types';
 import { BaseWebviewProvider } from './baseWebviewProvider';
 import type { TheiaEnvironment } from '../theia';
 import type { BuildErrorCodeLensProvider } from './buildErrorCodeLensProvider';
+import type { CourseDataCache } from '../services/courseDataCache';
 import { ExtensionMsg, toCourseDetailData } from '../../shared/messageContracts';
 import type { ExtensionToWebviewMessage, WebviewToExtensionMessage, CourseDetailData } from '../../shared/messageContracts';
 import type { ExerciseDetail, ExerciseDetailsResponse } from '../types';
@@ -69,6 +70,7 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
         buildErrorCodeLensProvider: BuildErrorCodeLensProvider,
         telemetryManager: TelemetryManager,
         updateAuthContext: (isAuthenticated: boolean) => Promise<void>,
+        private readonly _courseDataCache?: CourseDataCache,
         private readonly _theiaEnv?: TheiaEnvironment,
     ) {
         super();
@@ -87,6 +89,7 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
             this._exerciseRegistry,
             this._providerRegistry,
             this._websocketService,
+            this._courseDataCache,
             this._theiaEnv,
         );
         this._messageHandler.setAuthContextUpdater(this._authContextUpdater);
@@ -99,7 +102,7 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
         this._buildDiagnosticsService = new BuildDiagnosticsService(this._artemisApi);
         this._buildDiagnosticsService.setCodeLensProvider(buildErrorCodeLensProvider);
         this._exerciseOpeningService = new ExerciseOpeningService(this._exerciseRegistry, this._providerRegistry, this._telemetryManager);
-        this._startPageResolver = new StartPageResolver(this._artemisApi);
+        this._startPageResolver = new StartPageResolver(this._artemisApi, this._courseDataCache);
         this._submissionWsHandler = new SubmissionWebSocketHandler(
             (msg) => this._postMessageSafe(msg),
             (result) => this._buildDiagnosticsService.handleBuildResult(result),
@@ -307,8 +310,12 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
 
         // Fetch courses and populate (swallow error — dashboard renders with empty state)
         try {
-            const coursesData = await this._artemisApi.getCoursesForDashboard();
-            this._appStateManager.setCoursesData(coursesData);
+            const coursesData = this._courseDataCache
+                ? await this._courseDataCache.fetch()
+                : await this._artemisApi.getCoursesForDashboard();
+            if (coursesData) {
+                this._appStateManager.setCoursesData(coursesData);
+            }
         } catch (error) {
             logger.error('Error loading courses for dashboard', LogCategory.VIEW, error);
         }
@@ -388,7 +395,10 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
 
     public async showCourseList(): Promise<void> {
         try {
-            const coursesData = await this._artemisApi.getCoursesForDashboard();
+            const coursesData = this._courseDataCache
+                ? await this._courseDataCache.fetch()
+                : await this._artemisApi.getCoursesForDashboard();
+            if (!coursesData) { throw new Error('No course data returned'); }
             this._appStateManager.showCourseList(coursesData);
             if (this._view) {
                 this.render();

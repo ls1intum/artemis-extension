@@ -8,6 +8,7 @@ import type { SessionRecorder } from './extension/services/telemetry';
 import { NoAiDetectionService } from './extension/services/workspace';
 import { ConsentService } from './extension/services/auth';
 import { ExerciseRegistry } from './extension/services/exerciseRegistry';
+import { CourseDataCache } from './extension/services/courseDataCache';
 import { createProviderRegistry } from './extension/services/ui';
 import { logger, LogCategory } from './extension/services/loggingService';
 import { VSCODE_CONFIG } from './extension/utils';
@@ -102,19 +103,37 @@ export async function activate(context: vscode.ExtensionContext) {
 
 	// ── Registries & providers ───────────────────────────────────────
 	const exerciseRegistry = new ExerciseRegistry();
+	const courseDataCache = new CourseDataCache(artemisApiService);
+	context.subscriptions.push(courseDataCache);
 	const providerRegistry = createProviderRegistry();
+
+	// When course data arrives, propagate to ExerciseRegistry so all consumers stay aligned
+	courseDataCache.onCoursesLoaded(data => {
+		const courses = data.courses;
+		if (courses && Array.isArray(courses)) {
+			for (const entry of courses) {
+				const courseExercises = entry.course?.exercises || entry.exercises || [];
+				if (courseExercises.length > 0) {
+					exerciseRegistry.registerFromCourseData({
+						course: entry.course || entry,
+						exercises: courseExercises,
+					});
+				}
+			}
+		}
+	});
 
 	const artemisWebviewProvider = new ArtemisWebviewProvider(
 		context.extensionUri, context, authManager, artemisApiService,
 		exerciseRegistry, providerRegistry,
 		artemisWebsocketService, buildErrorCodeLensProvider, telemetryManager, updateAuthContext,
-		theiaEnv,
+		courseDataCache, theiaEnv,
 	);
 	context.subscriptions.push(
 		vscode.window.registerWebviewViewProvider(ArtemisWebviewProvider.viewType, artemisWebviewProvider)
 	);
 
-	const chatWebviewProvider = new ChatWebviewProvider(context.extensionUri, context, artemisApiService, artemisWebsocketService, noAiDetectionService, exerciseRegistry, telemetryManager);
+	const chatWebviewProvider = new ChatWebviewProvider(context.extensionUri, context, artemisApiService, artemisWebsocketService, noAiDetectionService, exerciseRegistry, courseDataCache, telemetryManager);
 	chatWebviewProvider.onDidChangeExerciseContext(({ exerciseId, exerciseRoot }) => {
 		telemetryManager.startExerciseSession(exerciseId, exerciseRoot);
 	});

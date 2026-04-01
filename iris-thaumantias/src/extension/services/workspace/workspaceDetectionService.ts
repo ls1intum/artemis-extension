@@ -4,6 +4,7 @@ import { execFile } from 'child_process';
 import type { ArtemisApiService } from '../../api';
 import type { CourseDashboardEntry } from '../../types';
 import { ExerciseRegistry } from '../exerciseRegistry';
+import type { CourseDataCache } from '../courseDataCache';
 import { logger } from '../loggingService';
 import { checkWorkspaceFiles } from './workspaceFileChecker';
 
@@ -370,16 +371,23 @@ export async function detectAndRegisterWorkspaceExercise(
     artemisApiService: ArtemisApiService | undefined,
     callbacks: WorkspaceRegistrationCallbacks,
     exerciseRegistry: ExerciseRegistry,
+    courseDataCache?: CourseDataCache,
 ): Promise<void> {
 
     try {
         const registry = exerciseRegistry;
         let exercises = registry.getAllExercises();
 
-        if (exercises.length === 0 && artemisApiService) {
+        // If registry is empty, populate it from the shared course cache (or API as fallback).
+        // The cache deduplicates concurrent fetches so this is cheap if data is already loaded.
+        if (exercises.length === 0) {
             logger.irisChat('Registry empty, fetching courses to populate exercises...');
             try {
-                const dashboardData = await artemisApiService.getCoursesForDashboard();
+                const dashboardData = courseDataCache
+                    ? await courseDataCache.fetch()
+                    : artemisApiService
+                        ? await artemisApiService.getCoursesForDashboard()
+                        : undefined;
                 const courses = dashboardData?.courses;
 
                 if (courses && Array.isArray(courses) && courses.length > 0) {

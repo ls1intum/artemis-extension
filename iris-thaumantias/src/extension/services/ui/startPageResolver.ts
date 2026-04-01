@@ -10,6 +10,7 @@ import {
 } from '../workspace';
 import { VSCODE_CONFIG } from '../../utils';
 import type { CourseDashboardEntry, CourseDashboardResponse } from '../../types';
+import type { CourseDataCache } from '../courseDataCache';
 
 // ── Result types ─────────────────────────────────────────────────────
 
@@ -22,7 +23,10 @@ export type StartPageResult =
 // ── Resolver ─────────────────────────────────────────────────────────
 
 export class StartPageResolver {
-    constructor(private readonly _artemisApi: ArtemisApiService) {}
+    constructor(
+        private readonly _artemisApi: ArtemisApiService,
+        private readonly _courseDataCache?: CourseDataCache,
+    ) {}
 
     /**
      * Determine which start page to show based on user config and workspace state.
@@ -33,7 +37,7 @@ export class StartPageResolver {
         const value = config.get<string>(VSCODE_CONFIG.START_PAGE_KEY);
 
         if (value === 'course-list') {
-            const coursesData = await this._artemisApi.getCoursesForDashboard().catch(() => undefined);
+            const coursesData = await this._fetchCourses().catch(() => undefined);
             if (coursesData?.courses) {
                 return { type: 'course-list', coursesData };
             }
@@ -52,7 +56,7 @@ export class StartPageResolver {
         mode: 'workspace-exercise' | 'workspace-course',
     ): Promise<StartPageResult | null> {
         const [coursesData, repoUrl] = await Promise.all([
-            this._artemisApi.getCoursesForDashboard().catch(() => undefined),
+            this._fetchCourses().catch(() => undefined),
             getWorkspaceRepositoryUrl(),
         ]);
 
@@ -94,5 +98,13 @@ export class StartPageResolver {
             coursesData,
             allCourses,
         };
+    }
+
+    private async _fetchCourses(): Promise<CourseDashboardResponse> {
+        if (this._courseDataCache) {
+            const cached = await this._courseDataCache.fetch();
+            if (cached) { return cached; }
+        }
+        return this._artemisApi.getCoursesForDashboard();
     }
 }

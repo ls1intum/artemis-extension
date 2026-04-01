@@ -9,6 +9,7 @@ import { AppStateManager } from './appStateManager';
 import type { WebViewActionHandler } from './types';
 import type { CommandContext, CommandHandler } from './commands/types';
 import type { TheiaEnvironment } from '../theia';
+import type { CourseDataCache } from '../services/courseDataCache';
 import { getCommand } from '../../shared/messageContracts';
 import type { WebviewToExtensionMessage, ExtensionToWebviewMessage } from '../../shared/messageContracts';
 import { AuthCommandModule } from './commands/authCommands';
@@ -41,6 +42,7 @@ export class WebViewMessageHandler {
         exerciseRegistry: ExerciseRegistry,
         providerRegistry: IProviderRegistry,
         websocketService?: ArtemisWebsocketService,
+        courseDataCache?: CourseDataCache,
         theiaEnv?: TheiaEnvironment,
     ) {
         this._websocketService = websocketService;
@@ -55,6 +57,7 @@ export class WebViewMessageHandler {
             extensionContext,
             exerciseRegistry,
             providerRegistry,
+            courseDataCache,
             theiaEnv,
         };
 

@@ -8,6 +8,7 @@ import type { ExerciseRegistry } from '../../services/exerciseRegistry';
 import type { IProviderRegistry } from '../../services/ui';
 import type { WebviewToExtensionMessage, ExtensionToWebviewMessage } from '../../../shared/messageContracts';
 import type { TheiaEnvironment } from '../../theia';
+import type { CourseDataCache } from '../../services/courseDataCache';
 
 export type CommandHandler = (message: WebviewToExtensionMessage) => Promise<void>;
 export type CommandMap = Record<string, CommandHandler>;
@@ -23,5 +24,6 @@ export interface CommandContext {
     extensionContext: vscode.ExtensionContext;
     exerciseRegistry: ExerciseRegistry;
     providerRegistry: IProviderRegistry;
+    courseDataCache?: CourseDataCache;
     theiaEnv?: TheiaEnvironment;
 }
