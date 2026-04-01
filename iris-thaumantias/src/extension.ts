@@ -65,16 +65,14 @@ export async function activate(context: vscode.ExtensionContext) {
 	};
 
 	// Check initial auth state and connect WebSocket if already authenticated
+	// Uses hasAuthCookie() which checks both memory (Theia) and SecretStorage (VS Code)
 	try {
-		const isAuthenticated = await authManager.hasArtemisToken();
+		const isAuthenticated = await authManager.hasAuthCookie();
 		await vscode.commands.executeCommand('setContext', 'iris:authenticated', isAuthenticated);
 		if (isAuthenticated) {
-			const cookie = await authManager.getCookieHeader();
-			if (cookie) {
-				void artemisWebsocketService.connect().catch(error => {
-					logger.error('Failed to connect to Artemis WebSocket on startup', LogCategory.WEBSOCKET, error);
-				});
-			}
+			void artemisWebsocketService.connect().catch(error => {
+				logger.error('Failed to connect to Artemis WebSocket on startup', LogCategory.WEBSOCKET, error);
+			});
 		}
 	} catch (error) {
 		logger.error('Error checking initial auth state', LogCategory.AUTH, error);
