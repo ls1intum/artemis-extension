@@ -45,8 +45,6 @@ export function ProblemStatement({
         return () => clearTimeout(timer);
     }, [serverRenderedHtml]);
 
-    const isLoading = !serverRenderedHtml && !timedOut;
-
     return (
         <Container header={<h3>Exercise Description</h3>}>
             {serverRenderedHtml ? (

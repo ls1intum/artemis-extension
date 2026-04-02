@@ -250,6 +250,7 @@ export function ExamExerciseDetailView({ vscodeApi }: ExamExerciseDetailViewProp
 
             {/* Problem Statement */}
             <ProblemStatement
+                serverRenderedHtml={exercise.problemStatement || 'No description available.'}
                 downloadLinks={downloadLinks}
             />
 

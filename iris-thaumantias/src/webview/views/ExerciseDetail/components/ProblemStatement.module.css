@@ -1,5 +1,7 @@
-/* Server-rendered content: minimal container, server CSS handles everything */
-.problemStatement {
+/* All content states share the same max-width */
+.problemStatement,
+.skeletonContainer,
+.errorContainer {
     max-width: 800px;
 }
 
@@ -8,12 +10,10 @@
     display: flex;
     flex-direction: column;
     gap: 10px;
-    max-width: 800px;
 }
 
 /* SSR timeout error */
 .errorContainer {
-    max-width: 800px;
     color: var(--vscode-errorForeground);
 }
 
