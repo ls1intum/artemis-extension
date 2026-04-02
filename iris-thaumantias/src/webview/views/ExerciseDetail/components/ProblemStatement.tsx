@@ -1,8 +1,11 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Container } from '../../../components/Container';
 import { Button } from '../../../components/Button';
+import { Skeleton } from '../../../components/Skeleton/Skeleton';
 import type { ProblemStatementProps } from '../types';
 import styles from './ProblemStatement.module.css';
+
+const SSR_TIMEOUT_MS = 10_000;
 
 /**
  * ProblemStatement component — displays server-rendered HTML from the Artemis
@@ -10,13 +13,13 @@ import styles from './ProblemStatement.module.css';
  * KaTeX math, task markers with test status, and embedded CSS.
  */
 export function ProblemStatement({
-    markdown,
     serverRenderedHtml,
     serverInteractiveScript,
     downloadLinks = [],
     onDownload,
 }: ProblemStatementProps) {
     const contentRef = useRef<HTMLDivElement>(null);
+    const [timedOut, setTimedOut] = useState(false);
 
     // Execute interactive script for server-rendered content (task feedback modal)
     useEffect(() => {
@@ -32,15 +35,42 @@ export function ProblemStatement({
         }
     }, [serverRenderedHtml, serverInteractiveScript]);
 
-    const html = serverRenderedHtml || `<p>${markdown || 'No description available'}</p>`;
+    // Timeout: if SSR hasn't arrived after 10s, show error
+    useEffect(() => {
+        if (serverRenderedHtml) {
+            setTimedOut(false);
+            return;
+        }
+        const timer = setTimeout(() => setTimedOut(true), SSR_TIMEOUT_MS);
+        return () => clearTimeout(timer);
+    }, [serverRenderedHtml]);
+
+    const isLoading = !serverRenderedHtml && !timedOut;
 
     return (
         <Container header={<h3>Exercise Description</h3>}>
-            <div
-                ref={contentRef}
-                className={styles.problemStatement}
-                dangerouslySetInnerHTML={{ __html: html }}
-            />
+            {serverRenderedHtml ? (
+                <div
+                    ref={contentRef}
+                    className={styles.problemStatement}
+                    dangerouslySetInnerHTML={{ __html: serverRenderedHtml }}
+                />
+            ) : timedOut ? (
+                <div className={styles.errorContainer}>
+                    <p>Failed to load the exercise description. The server may be unavailable.</p>
+                </div>
+            ) : (
+                <div className={styles.skeletonContainer}>
+                    <Skeleton width="75%" height="24px" />
+                    <Skeleton width="100%" height="14px" />
+                    <Skeleton width="100%" height="14px" />
+                    <Skeleton width="85%" height="14px" />
+                    <Skeleton width="50%" height="20px" />
+                    <Skeleton width="100%" height="14px" />
+                    <Skeleton width="100%" height="14px" />
+                    <Skeleton width="60%" height="14px" />
+                </div>
+            )}
             {downloadLinks && downloadLinks.length > 0 && (
                 <div className={styles.downloadSection}>
                     <h4 className={styles.downloadHeader}>Downloads</h4>

@@ -260,9 +260,6 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
         : !repoStatus.isConnected ? 'disconnected'
         : repoStatus.hasChanges ? 'dirty' : 'clean';
 
-    // Problem statement (markdown is already processed to HTML by extension)
-    const problemStatementHtml = exercise.problemStatement || 'No description available';
-
     // Download links extraction (simplified - in real implementation would parse from markdown)
     const downloadLinks: Array<{ name: string; url: string }> = [];
 
@@ -457,7 +454,6 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
 
             {/* Problem Statement */}
             <ProblemStatement
-                markdown={problemStatementHtml}
                 serverRenderedHtml={serverRenderedPS?.html}
                 serverInteractiveScript={serverRenderedPS?.interactiveScript}
                 downloadLinks={downloadLinks}
@@ -469,6 +465,12 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
                     <div className={styles.devTools}>
                         <Button variant="secondary" onClick={handleOpenRawJSON}>
                             Open Raw JSON
+                        </Button>
+                        <Button
+                            variant="secondary"
+                            onClick={() => setServerRenderedPS(null)}
+                        >
+                            Simulate SSR Loading
                         </Button>
                         {serverRenderedPS && (
                             <>

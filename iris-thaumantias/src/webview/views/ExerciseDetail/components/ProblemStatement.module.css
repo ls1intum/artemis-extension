@@ -3,6 +3,20 @@
     max-width: 800px;
 }
 
+/* Loading skeleton layout */
+.skeletonContainer {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    max-width: 800px;
+}
+
+/* SSR timeout error */
+.errorContainer {
+    max-width: 800px;
+    color: var(--vscode-errorForeground);
+}
+
 /* Download section */
 .downloadSection {
     margin-top: 20px;

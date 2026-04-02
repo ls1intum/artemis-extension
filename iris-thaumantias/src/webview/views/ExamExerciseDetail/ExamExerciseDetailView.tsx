@@ -166,7 +166,6 @@ export function ExamExerciseDetailView({ vscodeApi }: ExamExerciseDetailViewProp
     }
 
     const maxPoints = exercise.maxPoints ?? 0;
-    const problemStatementHtml = exercise.problemStatement || 'No description available';
     const downloadLinks: Array<{ name: string; url: string }> = [];
 
     return (
@@ -251,7 +250,6 @@ export function ExamExerciseDetailView({ vscodeApi }: ExamExerciseDetailViewProp
 
             {/* Problem Statement */}
             <ProblemStatement
-                markdown={problemStatementHtml}
                 downloadLinks={downloadLinks}
             />
 

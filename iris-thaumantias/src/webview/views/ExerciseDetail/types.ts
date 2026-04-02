@@ -20,7 +20,6 @@ export interface TestCase {
  * Props for ProblemStatement extracted component.
  */
 export interface ProblemStatementProps {
-    markdown: string;
     serverRenderedHtml?: string;
     serverInteractiveScript?: string;
     downloadLinks?: Array<{ name: string; url: string }>;
