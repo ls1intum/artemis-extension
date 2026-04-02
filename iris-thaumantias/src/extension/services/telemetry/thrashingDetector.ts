@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import * as crypto from 'crypto';
+import { SessionResettable, SessionStartContext } from './types';
 
 interface EditRecord {
     uri: string;
@@ -12,7 +13,7 @@ interface EditRecord {
  * Identifies when a student is making the same changes repeatedly,
  * which may indicate confusion or undo/redo cycling.
  */
-export class ThrashingDetector implements vscode.Disposable {
+export class ThrashingDetector implements vscode.Disposable, SessionResettable {
     private readonly _disposables: vscode.Disposable[] = [];
     private readonly _editHistory: EditRecord[] = [];
     
@@ -144,6 +145,13 @@ export class ThrashingDetector implements vscode.Disposable {
         // Calculate cycle ratio
         const maxPossibleCycles = hashes.length - 2;
         return maxPossibleCycles > 0 ? cycleCount / maxPossibleCycles : 0;
+    }
+
+    /**
+     * SessionResettable — reset edit history when a new exercise session starts.
+     */
+    public onSessionStart(_context: SessionStartContext): void {
+        this.reset();
     }
 
     /**

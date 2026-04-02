@@ -1,11 +1,11 @@
 import * as vscode from 'vscode';
-import { InactivityPattern } from './types';
+import { InactivityPattern, SessionResettable, SessionStartContext } from './types';
 
 /**
  * Service that detects and classifies user inactivity patterns.
  * Helps identify when a student might be confused or giving up.
  */
-export class InactivityService implements vscode.Disposable {
+export class InactivityService implements vscode.Disposable, SessionResettable {
     private readonly _disposables: vscode.Disposable[] = [];
     private _lastEditTimestamp: number = Date.now();
     /**
@@ -194,6 +194,13 @@ export class InactivityService implements vscode.Disposable {
      */
     public getTimeSinceLastActivity(): number {
         return Date.now() - Math.max(this._lastEditTimestamp, this._lastWeakActivityTimestamp);
+    }
+
+    /**
+     * SessionResettable — delegates to existing reset().
+     */
+    public onSessionStart(_context: SessionStartContext): void {
+        this.reset();
     }
 
     /**

@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import type { ArtemisApiService } from '../api';
-import type { CourseDashboardResponse } from '../types';
+import type { CourseDashboardResponse, CourseDashboardEntry } from '../types';
 import { logger, LogCategory } from './loggingService';
 
 /**
@@ -63,6 +63,20 @@ export class CourseDataCache implements vscode.Disposable {
             logger.error('CourseDataCache: failed to fetch courses', LogCategory.GENERAL, error);
             return undefined;
         }
+    }
+
+    /**
+     * Injects a course entry into the cached data and fires onCoursesLoaded
+     * so all consumers (ExerciseRegistry, ContextStore) learn about it.
+     * Used for archived courses discovered during workspace detection.
+     */
+    public injectEntry(entry: CourseDashboardEntry): void {
+        if (!this._data) {
+            this._data = { courses: [] };
+        }
+        this._data.courses ??= [];
+        this._data.courses.push(entry);
+        this._onCoursesLoaded.fire(this._data);
     }
 
     /** Clears the cache (e.g. on logout). */

@@ -1,4 +1,4 @@
-import { TriggerType, AdaptiveState, DEFAULT_TRIGGER_CONFIG, TriggerConfig } from '../types';
+import { TriggerType, AdaptiveState, DEFAULT_TRIGGER_CONFIG, TriggerConfig, SessionResettable, SessionStartContext } from '../types';
 
 /**
  * Adaptive Cadence — manages escalating thresholds for idle/selection triggers.
@@ -7,7 +7,7 @@ import { TriggerType, AdaptiveState, DEFAULT_TRIGGER_CONFIG, TriggerConfig } fro
  *   - Idle: 30s initial, +30s per ignore, cap at 180s
  *   - Selection: 15s initial, +15s per ignore, cap at 120s
  */
-export class AdaptiveCadence {
+export class AdaptiveCadence implements SessionResettable {
     private readonly _config: TriggerConfig;
     private _state: AdaptiveState;
 
@@ -57,6 +57,13 @@ export class AdaptiveCadence {
         for (const key of Object.keys(this._state.ignoreCounts) as TriggerType[]) {
             this._state.ignoreCounts[key] = 0;
         }
+    }
+
+    /**
+     * SessionResettable — reset all cadence state when a new exercise session starts.
+     */
+    public onSessionStart(_context: SessionStartContext): void {
+        this.resetAll();
     }
 
     /**

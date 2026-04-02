@@ -1,12 +1,12 @@
 import * as vscode from 'vscode';
-import { BuildResult } from './types';
+import { BuildResult, SessionResettable, SessionStartContext } from './types';
 import { ResultDTO, WebSocketMessageHandler } from '../../types';
 
 /**
  * Service that tracks server-side build results from Artemis.
  * Monitors consecutive failures and build patterns.
  */
-export class BuildResultTracker implements vscode.Disposable, WebSocketMessageHandler {
+export class BuildResultTracker implements vscode.Disposable, WebSocketMessageHandler, SessionResettable {
     private readonly _disposables: vscode.Disposable[] = [];
     private readonly _buildHistory: BuildResult[] = [];
     private _consecutiveFailures: number = 0;
@@ -99,6 +99,13 @@ export class BuildResultTracker implements vscode.Disposable, WebSocketMessageHa
      */
     public getConsecutiveFailures(): number {
         return this._consecutiveFailures;
+    }
+
+    /**
+     * SessionResettable — reset build history when a new exercise session starts.
+     */
+    public onSessionStart(_context: SessionStartContext): void {
+        this.reset();
     }
 
     /**

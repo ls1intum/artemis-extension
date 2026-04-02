@@ -29,7 +29,7 @@ export class AuthFlowHandler {
         try {
             const hasAuth = await this._authManager.hasAuthToken();
             if (hasAuth) {
-                const isServerUrlChanged = await this._artemisApi.isServerUrlChanged();
+                const isServerUrlChanged = await this._authManager.isServerUrlChanged(resolveServerUrl(this._theiaEnv));
                 if (isServerUrlChanged) {
                     const config = vscode.workspace.getConfiguration(VSCODE_CONFIG.ARTEMIS_SECTION);
                     const currentServerUrl = config.get<string>(VSCODE_CONFIG.SERVER_URL_KEY, CONFIG.ARTEMIS_SERVER_URL_DEFAULT);

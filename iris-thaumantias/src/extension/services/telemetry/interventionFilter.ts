@@ -1,10 +1,10 @@
-import { InterventionState, RecommendedAction } from './types';
+import { InterventionState, RecommendedAction, SessionResettable, SessionStartContext } from './types';
 
 /**
  * Pedagogical guards for intervention decisions.
  * Ensures interventions are appropriate and not overwhelming.
  */
-export class InterventionFilter {
+export class InterventionFilter implements SessionResettable {
     /** Minimum time in exercise before first intervention (5 minutes) */
     private static readonly MIN_EXERCISE_TIME_MS = 5 * 60 * 1000;
     /** Maximum interventions per session */
@@ -93,6 +93,13 @@ export class InterventionFilter {
         }
 
         return true;
+    }
+
+    /**
+     * SessionResettable — reset exercise start time when a new session begins.
+     */
+    public onSessionStart(_context: SessionStartContext): void {
+        this.setExerciseStartTime();
     }
 
     /**

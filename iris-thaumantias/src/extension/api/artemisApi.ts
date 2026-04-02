@@ -308,13 +308,6 @@ export class ArtemisApiService {
         return { success: true, token: data.access_token, cookie: jwtCookie };
     }
 
-    // Check if the stored server URL matches the current configuration
-    async isServerUrlChanged(): Promise<boolean> {
-        const storedServerUrl = await this.authManager.getArtemisServerUrl();
-        const currentServerUrl = this.getServerUrl();
-        return storedServerUrl !== currentServerUrl;
-    }
-
     // Check Iris health status (course-scoped)
     async checkIrisHealth(courseId: number): Promise<IrisHealthStatus> {
         const response = await this.makeRequest(`/api/iris/courses/${courseId}/status`);

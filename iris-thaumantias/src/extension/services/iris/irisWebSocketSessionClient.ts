@@ -27,6 +27,12 @@ const MIN_RESUBSCRIBE_INTERVAL_MS = 3000;
  * 4. Tracks subscription state to prevent duplicate subscriptions
  */
 export class IrisWebSocketSessionClient implements vscode.Disposable {
+    /**
+     * Transient runtime copy of the Artemis session ID for WebSocket subscription.
+     * The authoritative copy lives in `ContextStore.StoredSession.artemisSessionId`
+     * (used for session re-initialization across context switches).
+     * Both copies are synchronized by `IrisChatSessionService` during lifecycle operations.
+     */
     private _currentArtemisSessionId?: number;
     private _irisUnsubscribe?: () => void;
     private _connectionStateUnsubscribe?: () => void;

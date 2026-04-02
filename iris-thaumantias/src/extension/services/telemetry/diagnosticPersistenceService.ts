@@ -1,12 +1,12 @@
 import * as vscode from 'vscode';
-import { TrackedDiagnostic } from './types';
+import { SessionResettable, SessionStartContext, TrackedDiagnostic } from './types';
 import * as crypto from 'crypto';
 
 /**
  * Service that tracks VS Code Language Server diagnostics over time.
  * Monitors how long errors persist and counts repeated occurrences.
  */
-export class DiagnosticPersistenceService implements vscode.Disposable {
+export class DiagnosticPersistenceService implements vscode.Disposable, SessionResettable {
     private readonly _disposables: vscode.Disposable[] = [];
     private readonly _trackedDiagnostics: Map<string, TrackedDiagnostic> = new Map();
     private _cleanupTimer: NodeJS.Timeout | undefined;
@@ -209,6 +209,20 @@ export class DiagnosticPersistenceService implements vscode.Disposable {
             tracked.resolved = true;
         }
         this._onDidUpdateDiagnostics.fire(Array.from(this._trackedDiagnostics.values()));
+    }
+
+    /**
+     * SessionResettable — no-op: this service resets on session end, not start.
+     */
+    public onSessionStart(_context: SessionStartContext): void {
+        /* no-op: this service resets on session end */
+    }
+
+    /**
+     * SessionResettable — clear stale diagnostics when the exercise session ends.
+     */
+    public onSessionEnd(): void {
+        this.reset();
     }
 
     /**

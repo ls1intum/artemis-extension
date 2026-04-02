@@ -105,6 +105,8 @@ export class StartPageResolver {
             const cached = await this._courseDataCache.fetch();
             if (cached) { return cached; }
         }
-        return this._artemisApi.getCoursesForDashboard();
+        // Cache unavailable or returned undefined — should not happen in production
+        // since activate() always creates the cache before StartPageResolver is used.
+        throw new Error('Course data unavailable');
     }
 }

@@ -1,11 +1,11 @@
 import * as vscode from 'vscode';
-import { InterventionDecision, InterventionState } from './types';
+import { InterventionDecision, InterventionState, SessionResettable, SessionStartContext } from './types';
 
 /**
  * Service that handles UI interventions based on struggle detection.
  * Manages status bar, notifications, and proactive help triggers.
  */
-export class InterventionService implements vscode.Disposable {
+export class InterventionService implements vscode.Disposable, SessionResettable {
     private readonly _disposables: vscode.Disposable[] = [];
     private _statusBarItem: vscode.StatusBarItem;
     private _state: InterventionState;
@@ -185,6 +185,13 @@ export class InterventionService implements vscode.Disposable {
      */
     public getState(): InterventionState {
         return { ...this._state };
+    }
+
+    /**
+     * SessionResettable — reset intervention state when a new exercise session starts.
+     */
+    public onSessionStart(_context: SessionStartContext): void {
+        this.reset();
     }
 
     /**

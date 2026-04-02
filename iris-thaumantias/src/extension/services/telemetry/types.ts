@@ -1,5 +1,27 @@
 import * as vscode from 'vscode';
 
+// ── Session lifecycle ───────────────────────────────────────────────
+
+/**
+ * Context passed to telemetry sub-services when a new exercise session starts.
+ */
+export interface SessionStartContext {
+    exerciseId: number;
+    exerciseRoot?: vscode.Uri;
+}
+
+/**
+ * Implemented by telemetry sub-services that need per-exercise lifecycle management.
+ * TelemetryManager iterates all registered SessionResettable services on exercise
+ * switch instead of calling individual reset methods, ensuring no service is missed.
+ */
+export interface SessionResettable {
+    onSessionStart(context: SessionStartContext): void;
+    onSessionEnd?(): void;
+}
+
+// ── Diagnostics ─────────────────────────────────────────────────────
+
 /**
  * Represents a tracked VS Code diagnostic with persistence information
  */

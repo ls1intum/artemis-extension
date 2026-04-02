@@ -6,6 +6,14 @@ import { ExtensionMsg } from '../../../shared/messageContracts';
 import { fetchSessionsWithMessages, importSessionsToStore } from './sessionSyncUtils';
 import type { IrisServiceDeps } from './sessionSyncUtils';
 
+/**
+ * Orchestrates Iris chat session lifecycle (create, load, switch).
+ *
+ * Session ID ownership model:
+ *   ContextStore.StoredSession.artemisSessionId  → persistence layer (session metadata)
+ *   IrisWebSocketSessionClient._currentArtemisSessionId → transport layer (live WS subscription)
+ *   IrisChatSessionService (this class) → lifecycle coordinator (synchronizes both)
+ */
 export class IrisChatSessionService {
     private _contextLoadToken = 0;
 
@@ -319,7 +327,10 @@ export class IrisChatSessionService {
         if (activeContext && irisSessionManager) {
             irisSessionManager.createNewSession(activeContext)
                 .then(sessionId => {
-                    this._storeArtemisSessionId(sessionId);
+                    // Guard: only store if context hasn't switched during the async operation
+                    if (this.deps.contextStore.getActiveContext()?.id === activeContext.id) {
+                        this._storeArtemisSessionId(sessionId);
+                    }
                 })
                 .catch((err: unknown) => {
                     logger.error('Error creating new Iris session:', LogCategory.IRIS_CHAT, err);

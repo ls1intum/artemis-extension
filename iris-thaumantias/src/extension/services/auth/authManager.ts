@@ -37,8 +37,24 @@ export class AuthManager {
         return !!artemisToken;
     }
 
-    public async getArtemisServerUrl(): Promise<string | undefined> {
+    /**
+     * Returns the server URL that was active at the time of last successful login.
+     * Used exclusively for URL-change detection: if the user changes their
+     * `artemis.serverUrl` setting after login, stored credentials may be stale.
+     * The live server URL is always resolved via `resolveServerUrl()`.
+     */
+    public async getStoredLoginServerUrl(): Promise<string | undefined> {
         return await this.context.secrets.get(CONFIG.SECRET_KEYS.ARTEMIS_SERVER_URL);
+    }
+
+    /**
+     * Checks whether the user changed the server URL since their last login.
+     * @param currentUrl The currently resolved server URL from settings/env.
+     */
+    public async isServerUrlChanged(currentUrl: string): Promise<boolean> {
+        const storedUrl = await this.getStoredLoginServerUrl();
+        if (!storedUrl) { return false; }
+        return storedUrl !== currentUrl;
     }
 
     /**

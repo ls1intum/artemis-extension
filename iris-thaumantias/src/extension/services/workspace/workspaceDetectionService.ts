@@ -3,23 +3,15 @@ import { promisify } from 'util';
 import { execFile } from 'child_process';
 import type { ArtemisApiService } from '../../api';
 import type { CourseDashboardEntry } from '../../types';
-import { ExerciseRegistry } from '../exerciseRegistry';
+import { ExerciseRegistry, type ExerciseRegistryEntry } from '../exerciseRegistry';
 import type { CourseDataCache } from '../courseDataCache';
 import { logger } from '../loggingService';
 import { checkWorkspaceFiles } from './workspaceFileChecker';
 
 const execFileAsync = promisify(execFile);
 
-/**
- * Information about a detected exercise in the workspace
- */
-export interface DetectedExercise {
-    id: number;
-    title: string;
-    shortName?: string;
-    repositoryUri: string;
-    courseId?: number;
-}
+/** A workspace-detected exercise. Structurally identical to ExerciseRegistryEntry. */
+export type DetectedExercise = ExerciseRegistryEntry;
 
 /**
  * Source of exercises to search against
@@ -383,11 +375,7 @@ export async function detectAndRegisterWorkspaceExercise(
         if (exercises.length === 0) {
             logger.irisChat('Registry empty, fetching courses to populate exercises...');
             try {
-                const dashboardData = courseDataCache
-                    ? await courseDataCache.fetch()
-                    : artemisApiService
-                        ? await artemisApiService.getCoursesForDashboard()
-                        : undefined;
+                const dashboardData = await courseDataCache?.fetch();
                 const courses = dashboardData?.courses;
 
                 if (courses && Array.isArray(courses) && courses.length > 0) {

@@ -1,11 +1,8 @@
+import type { ExerciseRef } from '../../shared/types';
 import { logger } from './loggingService';
 
-export interface ExerciseRegistryEntry {
-    id: number;
-    title: string;
+export interface ExerciseRegistryEntry extends ExerciseRef {
     repositoryUri: string;
-    shortName?: string;
-    courseId?: number;
 }
 
 export class ExerciseRegistry {

@@ -9,7 +9,7 @@ import { ExerciseRegistry } from '../services/exerciseRegistry';
 import { findWorkspaceCourseInArchive, collectExerciseSources, getWorkspaceRepositoryUrl, findExerciseByRepositoryUrl } from '../services/workspace';
 import { logger, LogCategory } from '../services/loggingService';
 import type { TelemetryManager } from '../services/telemetry';
-import { CONFIG, VSCODE_CONFIG, AI_EXTENSIONS_BLOCKLIST, getRecommendedExtensionsByCategory } from '../utils';
+import { CONFIG, VSCODE_CONFIG, AI_EXTENSIONS_BLOCKLIST, getRecommendedExtensionsByCategory, resolveServerUrl } from '../utils';
 import { AppStateManager, type UserInfo } from '../controller/appStateManager';
 import { WebViewMessageHandler } from '../controller/webViewMessageHandler';
 import type { WebViewActionHandler } from '../controller/types';
@@ -313,12 +313,7 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
 
         // Fetch courses into the shared cache (swallow error — dashboard renders with empty state)
         try {
-            if (this._courseDataCache) {
-                await this._courseDataCache.fetch();
-            } else {
-                // Fallback without cache (shouldn't happen in production)
-                await this._artemisApi.getCoursesForDashboard();
-            }
+            await this._courseDataCache?.fetch();
         } catch (error) {
             logger.error('Error loading courses for dashboard', LogCategory.VIEW, error);
         }
@@ -570,8 +565,7 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
     }
 
     private _getServerUrl(): string {
-        const config = vscode.workspace.getConfiguration(VSCODE_CONFIG.ARTEMIS_SECTION);
-        return config.get<string>(VSCODE_CONFIG.SERVER_URL_KEY, CONFIG.ARTEMIS_SERVER_URL_DEFAULT);
+        return resolveServerUrl(this._theiaEnv);
     }
 
     /**

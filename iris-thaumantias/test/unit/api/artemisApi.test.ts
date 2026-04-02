@@ -550,13 +550,7 @@ suite('Artemis API Service Test Suite', () => {
         await apiService.markMessageHelpful(sessionId, messageId, true);
     });
 
-    test('should detect server URL change', async () => {
-        // Mock AuthManager to return a different URL
-        authManager.getArtemisServerUrl = async () => 'https://old-artemis.example.com';
-
-        const isChanged = await apiService.isServerUrlChanged();
-        assert.strictEqual(isChanged, true);
-    });
+    // isServerUrlChanged moved to AuthManager — tested in authManager.test.ts
 
     test('should fallback to creating VCS token when none exists', async () => {
         const participationId = 9;

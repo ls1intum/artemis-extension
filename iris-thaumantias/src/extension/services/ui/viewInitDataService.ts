@@ -8,7 +8,7 @@ import type { CourseDashboardEntry, ExerciseDetail, ExerciseDetailsResponse } fr
 import { detectWorkspaceExercise, detectWorkspaceForRepoUris, type ExerciseSource } from '../workspace/workspaceDetectionService';
 import { GitService } from '../workspace/gitService';
 import { logger, LogCategory } from '../loggingService';
-import { VSCODE_CONFIG, CONFIG } from '../../utils';
+import { VSCODE_CONFIG, CONFIG, resolveServerUrl } from '../../utils';
 
 export class ViewInitDataService {
     private _initGeneration = 0;
@@ -383,9 +383,7 @@ export class ViewInitDataService {
     }
 
     public sendLoginInit(): void {
-        const config = vscode.workspace.getConfiguration(VSCODE_CONFIG.ARTEMIS_SECTION);
-        const serverUrl = config.get<string>(VSCODE_CONFIG.SERVER_URL_KEY, CONFIG.ARTEMIS_SERVER_URL_DEFAULT);
-        this._postMessage({ type: ExtensionMsg.SetServerUrl, serverUrl });
+        this._postMessage({ type: ExtensionMsg.SetServerUrl, serverUrl: resolveServerUrl() });
     }
 
     private _isDeveloperMode(): boolean {
