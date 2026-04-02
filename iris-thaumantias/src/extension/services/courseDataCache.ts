@@ -75,6 +75,10 @@ export class CourseDataCache implements vscode.Disposable {
             this._data = { courses: [] };
         }
         this._data.courses ??= [];
+        const courseId = entry.course?.id ?? entry.id;
+        if (courseId !== undefined && this._data.courses.some(c => (c.course?.id ?? c.id) === courseId)) {
+            return;
+        }
         this._data.courses.push(entry);
         this._onCoursesLoaded.fire(this._data);
     }

@@ -108,7 +108,7 @@ export async function activate(context: vscode.ExtensionContext) {
 	const providerRegistry = createProviderRegistry();
 
 	// When course data arrives, propagate to ExerciseRegistry so all consumers stay aligned
-	courseDataCache.onCoursesLoaded(data => {
+	context.subscriptions.push(courseDataCache.onCoursesLoaded(data => {
 		const courses = data.courses;
 		if (courses && Array.isArray(courses)) {
 			for (const entry of courses) {
@@ -121,7 +121,7 @@ export async function activate(context: vscode.ExtensionContext) {
 				}
 			}
 		}
-	});
+	}));
 
 	const artemisWebviewProvider = new ArtemisWebviewProvider(
 		context.extensionUri, context, authManager, artemisApiService,
@@ -149,9 +149,9 @@ export async function activate(context: vscode.ExtensionContext) {
 		// Theia: attempt to re-read token from environment (orchestrator may have refreshed it)
 		artemisApiService.onAuthExpired = async () => {
 			const freshEnv = await detectTheiaEnvironment();
-			if (freshEnv.artemisToken && freshEnv.artemisToken !== theiaEnv.artemisToken) {
+			if (freshEnv.artemisToken && freshEnv.artemisUrl && freshEnv.artemisToken !== theiaEnv.artemisToken) {
 				logger.info('Theia token refreshed from environment, re-authenticating', LogCategory.AUTH);
-				await authManager.storeArtemisCredentials(freshEnv.artemisToken, freshEnv.artemisUrl!, false);
+				await authManager.storeArtemisCredentials(freshEnv.artemisToken, freshEnv.artemisUrl, false);
 				artemisApiService.resetAuthExpiredGuard();
 				void artemisWebsocketService.connect().catch(error => {
 					logger.error('WebSocket reconnect after token refresh failed', LogCategory.WEBSOCKET, error);
