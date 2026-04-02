@@ -11,10 +11,10 @@ import { ExerciseRegistry } from './extension/services/exerciseRegistry';
 import { CourseDataCache } from './extension/services/courseDataCache';
 import { createProviderRegistry } from './extension/services/ui';
 import { logger, LogCategory } from './extension/services/loggingService';
-import { VSCODE_CONFIG } from './extension/utils';
+import { VSCODE_CONFIG, resolveServerUrl } from './extension/utils';
 import { registerAllCommands } from './extension/activation/extensionCommands';
 import { wireSessionRecorder } from './extension/activation/sessionRecorderWiring';
-import { detectTheiaEnvironment, detectPlatformCapabilities, authenticateFromEnvironment, autoCloneIfNeeded } from './extension/theia';
+import { initializeTheiaContext, getTheiaEnvironment, detectPlatformCapabilities, authenticateFromEnvironment, autoCloneIfNeeded } from './extension/theia';
 
 // Module-level references for deactivate() cleanup
 let activeTelemetryManager: TelemetryManager | undefined;
@@ -25,9 +25,13 @@ export async function activate(context: vscode.ExtensionContext) {
 	logger.info('Congratulations, your extension "iris-thaumantias" is now active!', LogCategory.GENERAL);
 
 	// ── Theia/EduIDE detection (must complete before any service instantiation) ──
-	const theiaEnv = await detectTheiaEnvironment();
+	const theiaEnv = await initializeTheiaContext();
 	const capabilities = detectPlatformCapabilities();
 	logger.info(`Platform: ${theiaEnv.isTheia ? 'Theia/EduIDE' : 'VS Code Desktop'}`, LogCategory.GENERAL);
+
+	// Publish Theia state as context keys for declarative UI hiding (package.json `when` clauses)
+	await vscode.commands.executeCommand('setContext', 'iris:theia', theiaEnv.isTheia);
+	await vscode.commands.executeCommand('setContext', 'iris:managedEnvironment', theiaEnv.isManagedEnvironment);
 
 	// ── Service instantiation ────────────────────────────────────────
 	const authManager = new AuthManager(context);
@@ -38,8 +42,8 @@ export async function activate(context: vscode.ExtensionContext) {
 		logger.info(`Theia auto-auth: ${authenticated ? 'success' : 'no credentials in environment'}`, LogCategory.AUTH);
 	}
 
-	const artemisApiService = new ArtemisApiService(authManager, theiaEnv);
-	const artemisWebsocketService = new ArtemisWebsocketService(authManager, theiaEnv);
+	const artemisApiService = new ArtemisApiService(authManager);
+	const artemisWebsocketService = new ArtemisWebsocketService(authManager);
 	const buildErrorCodeLensProvider = new BuildErrorCodeLensProvider();
 	const telemetryManager = new TelemetryManager();
 	activeTelemetryManager = telemetryManager;
@@ -127,7 +131,7 @@ export async function activate(context: vscode.ExtensionContext) {
 		context.extensionUri, context, authManager, artemisApiService,
 		exerciseRegistry, providerRegistry,
 		artemisWebsocketService, buildErrorCodeLensProvider, telemetryManager, updateAuthContext,
-		courseDataCache, theiaEnv,
+		courseDataCache,
 	);
 	context.subscriptions.push(
 		vscode.window.registerWebviewViewProvider(ArtemisWebviewProvider.viewType, artemisWebviewProvider)
@@ -148,10 +152,13 @@ export async function activate(context: vscode.ExtensionContext) {
 	if (theiaEnv.isTheia) {
 		// Theia: attempt to re-read token from environment (orchestrator may have refreshed it)
 		artemisApiService.onAuthExpired = async () => {
-			const freshEnv = await detectTheiaEnvironment();
-			if (freshEnv.artemisToken && freshEnv.artemisUrl && freshEnv.artemisToken !== theiaEnv.artemisToken) {
+			const { readEnvVar } = await import('./extension/theia/index.js');
+			const freshToken = await readEnvVar('ARTEMIS_TOKEN');
+			const currentToken = await authManager.getStoredTokenValue();
+			if (freshToken && freshToken !== currentToken) {
 				logger.info('Theia token refreshed from environment, re-authenticating', LogCategory.AUTH);
-				await authManager.storeArtemisCredentials(freshEnv.artemisToken, freshEnv.artemisUrl, false);
+				const freshUrl = await readEnvVar('ARTEMIS_URL');
+				await authManager.storeArtemisCredentials(freshToken, freshUrl || resolveServerUrl(), false);
 				artemisApiService.resetAuthExpiredGuard();
 				void artemisWebsocketService.connect().catch(error => {
 					logger.error('WebSocket reconnect after token refresh failed', LogCategory.WEBSOCKET, error);

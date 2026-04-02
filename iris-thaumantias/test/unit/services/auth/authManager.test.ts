@@ -65,6 +65,15 @@ suite('AuthManager Test Suite', () => {
         assert.deepStrictEqual(headers, { 'Cookie': jwt });
     });
 
+    test('should return Bearer headers when enableBearerAuth is called', async () => {
+        const jwt = 'eyJhbGciOiJIUzI1NiJ9.raw-token';
+        authManager.enableBearerAuth();
+        await authManager.storeArtemisCredentials(jwt, 'url', false);
+
+        const headers = await authManager.getAuthHeaders();
+        assert.deepStrictEqual(headers, { 'Authorization': `Bearer ${jwt}` });
+    });
+
     test('should return empty auth headers if no token', async () => {
         await authManager.clear();
         const headers = await authManager.getAuthHeaders();
@@ -84,12 +93,6 @@ suite('AuthManager Test Suite', () => {
         assert.strictEqual(result, true);
     });
 
-    test('hasAuthToken returns true when legacy AUTH_COOKIE key is in secrets', async () => {
-        await context.secrets.store(CONFIG.SECRET_KEYS.AUTH_COOKIE, 'jwt=legacy');
-        const result = await authManager.hasAuthToken();
-        assert.strictEqual(result, true);
-    });
-
     test('hasAuthToken returns true when only in-memory token is set', async () => {
         await authManager.storeArtemisCredentials('jwt=memory', 'https://example.com', false);
         const result = await authManager.hasAuthToken();
@@ -100,32 +103,6 @@ suite('AuthManager Test Suite', () => {
         await authManager.storeArtemisCredentials('jwt=token', 'https://example.com', true);
         await authManager.clear();
         const result = await authManager.hasAuthToken();
-        assert.strictEqual(result, false);
-    });
-
-    // --- hasArtemisToken ---
-
-    test('hasArtemisToken returns false when not stored', async () => {
-        const result = await authManager.hasArtemisToken();
-        assert.strictEqual(result, false);
-    });
-
-    test('hasArtemisToken returns true when ARTEMIS_TOKEN is stored', async () => {
-        await context.secrets.store(CONFIG.SECRET_KEYS.ARTEMIS_TOKEN, 'jwt=token');
-        const result = await authManager.hasArtemisToken();
-        assert.strictEqual(result, true);
-    });
-
-    test('hasArtemisToken returns false when only in-memory token is set', async () => {
-        await authManager.storeArtemisCredentials('jwt=memory', 'https://example.com', false);
-        const result = await authManager.hasArtemisToken();
-        assert.strictEqual(result, false);
-    });
-
-    test('hasArtemisToken returns false after clear', async () => {
-        await authManager.storeArtemisCredentials('jwt=token', 'https://example.com', true);
-        await authManager.clear();
-        const result = await authManager.hasArtemisToken();
         assert.strictEqual(result, false);
     });
 
@@ -173,15 +150,23 @@ suite('AuthManager Test Suite', () => {
         assert.strictEqual(result, false);
     });
 
-    // --- getStoredToken (via getAuthHeaders, since getStoredToken is private) ---
+    // --- getStoredTokenValue ---
 
-    test('getAuthHeaders returns empty when no credentials stored', async () => {
-        const result = await authManager.getAuthHeaders();
-        assert.deepStrictEqual(result, {});
+    test('getStoredTokenValue returns undefined when no credentials', async () => {
+        const result = await authManager.getStoredTokenValue();
+        assert.strictEqual(result, undefined);
     });
 
-    test('getAuthHeaders ignores legacy AUTH_COOKIE key', async () => {
-        await context.secrets.store(CONFIG.SECRET_KEYS.AUTH_COOKIE, 'jwt=legacy');
+    test('getStoredTokenValue returns memory token', async () => {
+        const jwt = 'jwt=memory-token';
+        await authManager.storeArtemisCredentials(jwt, 'url', false);
+        const result = await authManager.getStoredTokenValue();
+        assert.strictEqual(result, jwt);
+    });
+
+    // --- getAuthHeaders ---
+
+    test('getAuthHeaders returns empty when no credentials stored', async () => {
         const result = await authManager.getAuthHeaders();
         assert.deepStrictEqual(result, {});
     });

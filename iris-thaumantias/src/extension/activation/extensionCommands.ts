@@ -70,7 +70,7 @@ function registerIrisHealthCheckCommand(
 ): vscode.Disposable {
     return vscode.commands.registerCommand('artemis.checkIrisHealth', async () => {
         try {
-            if (!await authManager.hasArtemisToken()) {
+            if (!await authManager.hasAuthToken()) {
                 vscode.window.showWarningMessage('Please log in to Artemis first before checking Iris health status.');
                 return;
             }
@@ -237,7 +237,7 @@ function registerConnectWebSocketCommand(
 ): vscode.Disposable {
     return vscode.commands.registerCommand('artemis.connectWebSocket', async () => {
         try {
-            const isAuthenticated = await authManager.hasArtemisToken();
+            const isAuthenticated = await authManager.hasAuthToken();
 
             if (!isAuthenticated) {
                 const action = await vscode.window.showWarningMessage(

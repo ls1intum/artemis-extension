@@ -11,7 +11,7 @@ import { VSCODE_CONFIG, extractErrorMessage, BuildLogParser } from '../../utils'
 import { checkWorkspaceFiles } from '../../services/workspace/workspaceFileChecker';
 import { normalizeRepositoryUrl, getWorkspaceRepositoryUrl, getWorkspaceStatus, GitService } from '../../services/workspace';
 import { logger, LogCategory } from '../../services/loggingService';
-import { cloneRepositoryProgrammatic } from '../../theia';
+import { cloneRepositoryProgrammatic, getTheiaEnvironment } from '../../theia';
 
 const GIT_IDENTITY_NOT_CONFIGURED = 'GIT_IDENTITY_NOT_CONFIGURED';
 
@@ -101,7 +101,7 @@ export class RepositoryCommandModule {
 
     private async _selectFolder(openLabel: string, title: string): Promise<string | undefined> {
         // In Theia, always use the workspace root instead of showing a dialog
-        if (this.context.theiaEnv?.isTheia) {
+        if (getTheiaEnvironment().isTheia) {
             return vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
         }
 
@@ -319,7 +319,7 @@ export class RepositoryCommandModule {
             const repoName = path.basename(repositoryUri).replace(/\.git$/, '');
             const repoPath = path.join(selectedPath, repoName);
 
-            if (this.context.theiaEnv?.isTheia) {
+            if (getTheiaEnvironment().isTheia) {
                 // Theia: programmatic clone with progress notification
                 await cloneRepositoryProgrammatic(cloneUrl, repoPath, exerciseTitle);
             } else {

@@ -6,3 +6,4 @@ export * from './pathUtils';
 export * from './errorUtils';
 export * from './recommendedExtensions';
 export * from './serverUrl';
+export * from './userAgent';

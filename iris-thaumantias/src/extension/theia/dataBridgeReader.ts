@@ -27,9 +27,11 @@ const POLL_TIMEOUT_MS = 10_000;
 export async function readEnvVarsViaDataBridge<T extends string>(
     names: readonly T[],
 ): Promise<Record<T, string | undefined> | undefined> {
-    // DATA_BRIDGE_ENABLED is set by the EduIDE orchestrator when the data-bridge
-    // HTTP server should be active. Without it, polling would block for 10s with
-    // no data arriving — the command exists but never receives injected vars.
+    // DATA_BRIDGE_ENABLED is a container-boot config var, available in process.env
+    // from container startup — unlike the credentials (ARTEMIS_TOKEN etc.) which are
+    // injected later via the data-bridge HTTP server. This is why process.env is
+    // reliable here even though it's unreliable for late-arriving credentials.
+    // Without this guard, polling would block for 10s with no data arriving.
     const bridgeEnabled = process.env.DATA_BRIDGE_ENABLED;
     if (bridgeEnabled !== '1' && bridgeEnabled !== 'true') {
         return undefined;

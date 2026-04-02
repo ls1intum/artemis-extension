@@ -1,5 +1,3 @@
-import type { ArtemisUser } from './core';
-
 export const PROFILE_IRIS = 'iris';
 
 // --- Server Profile ---
@@ -30,8 +28,5 @@ export function parseProfileInfo(data: unknown): ProfileInfo {
 
 export interface AuthenticationResult {
     readonly success: boolean;
-    readonly token?: string;
-    readonly cookie?: string;
-    readonly user?: ArtemisUser;
 }
 

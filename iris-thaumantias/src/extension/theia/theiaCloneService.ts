@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import * as path from 'path';
 import { promisify } from 'util';
 import { execFile } from 'child_process';
 import { logger, LogCategory } from '../services/loggingService';
@@ -75,12 +76,24 @@ export async function autoCloneIfNeeded(
     }
 
     const workspaceRoot = workspaceFolders[0].uri.fsPath;
-    const repoName = theiaEnv.gitUri.split('/').pop()?.replace('.git', '') || 'exercise';
-    const targetPath = `${workspaceRoot}/${repoName}`;
+    const repoName = path.basename(theiaEnv.gitUri).replace(/\.git$/, '') || 'exercise';
+    const targetPath = path.join(workspaceRoot, repoName);
 
     logger.info(`Auto-cloning ${theiaEnv.gitUri} into ${targetPath}`, LogCategory.GENERAL);
-    await cloneRepositoryProgrammatic(theiaEnv.gitUri, targetPath, repoName);
 
-    // Configure git identity if provided
-    await configureGitIdentityFromEnv(theiaEnv, targetPath);
+    try {
+        await cloneRepositoryProgrammatic(theiaEnv.gitUri, targetPath, repoName);
+        await configureGitIdentityFromEnv(theiaEnv, targetPath);
+    } catch (error) {
+        const message = error instanceof Error ? error.message : 'Unknown error';
+        logger.error(`Auto-clone failed: ${message}`, LogCategory.GENERAL, error);
+        const retry = await vscode.window.showErrorMessage(
+            `Failed to clone exercise repository: ${message}`,
+            'Retry',
+        );
+        if (retry === 'Retry') {
+            await cloneRepositoryProgrammatic(theiaEnv.gitUri, targetPath, repoName);
+            await configureGitIdentityFromEnv(theiaEnv, targetPath);
+        }
+    }
 }

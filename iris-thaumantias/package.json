@@ -84,6 +84,12 @@
         "title": "Artemis: Clear Trusted Domains"
       }
     ],
+    "menus": {
+      "commandPalette": [
+        { "command": "artemis.login", "when": "!iris:managedEnvironment" },
+        { "command": "artemis.logout", "when": "!iris:managedEnvironment" }
+      ]
+    },
     "viewsContainers": {
       "activitybar": [
         {
@@ -104,7 +110,8 @@
           "type": "webview",
           "id": "artemis.loginView",
           "name": "Artemis",
-          "icon": "media/artemis-logo.png"
+          "icon": "media/artemis-logo.png",
+          "when": "!iris:managedEnvironment || !iris:authenticated"
         }
       ],
       "iris-chat": [

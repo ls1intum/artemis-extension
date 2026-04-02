@@ -1,6 +1,5 @@
 import { AuthManager } from '../services/auth/authManager';
-import { CONFIG, resolveServerUrl } from '../utils';
-import type { TheiaEnvironment } from '../theia';
+import { CONFIG, resolveServerUrl, getUserAgent } from '../utils';
 import {
     ApiError, PROFILE_IRIS,
     parseArtemisUser, parseArtemisParticipation,
@@ -19,13 +18,11 @@ import { logger, LogCategory } from '../services/loggingService';
 
 export class ArtemisApiService {
     private authManager: AuthManager;
-    private _theiaEnv?: TheiaEnvironment;
     private _onAuthExpired?: () => void | Promise<void>;
     private _authExpiredFired = false;
 
-    constructor(authManager: AuthManager, theiaEnv?: TheiaEnvironment) {
+    constructor(authManager: AuthManager) {
         this.authManager = authManager;
-        this._theiaEnv = theiaEnv;
     }
 
     /**
@@ -42,7 +39,7 @@ export class ArtemisApiService {
     }
 
     protected getServerUrl(): string {
-        return resolveServerUrl(this._theiaEnv);
+        return resolveServerUrl();
     }
 
     private async makeRequest(endpoint: string, options: RequestInit = {}): Promise<Response> {
@@ -53,7 +50,7 @@ export class ArtemisApiService {
             ...options,
             headers: {
                 'Content-Type': 'application/json',
-                'User-Agent': CONFIG.API.USER_AGENT,
+                'User-Agent': getUserAgent(),
                 ...headers,
                 ...options.headers,
             },
@@ -246,7 +243,7 @@ export class ArtemisApiService {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'User-Agent': CONFIG.API.USER_AGENT
+                'User-Agent': getUserAgent()
             },
             body: JSON.stringify({
                 username: username,
@@ -287,7 +284,7 @@ export class ArtemisApiService {
 
         const data = await response.json() as { access_token?: string };
 
-        // Extract JWT cookie from Set-Cookie header
+        // Extract JWT cookie from Set-Cookie header (Desktop auth uses Cookie header)
         const setCookieHeader = response.headers.get('set-cookie');
         let jwtCookie = '';
 
@@ -302,10 +299,10 @@ export class ArtemisApiService {
             throw new Error('Authentication succeeded but no JWT token received');
         }
 
-        // Store the credentials
+        // Store as cookie string — Desktop auth sends Cookie header, not Bearer
         await this.authManager.storeArtemisCredentials(jwtCookie, this.getServerUrl(), rememberMe);
 
-        return { success: true, token: data.access_token, cookie: jwtCookie };
+        return { success: true };
     }
 
     // Check Iris health status (course-scoped)

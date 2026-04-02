@@ -5,12 +5,8 @@ import type { TheiaEnvironment } from './types';
  * Authenticates the extension using environment-provided credentials in Theia/EduIDE.
  *
  * Called during activation, before any UI is shown or interactive login is attempted.
- * The token is the raw JWT (no "jwt=" prefix), sent as Authorization: Bearer header.
+ * The token is the raw JWT from the ARTEMIS_TOKEN env var.
  * Stored in memory only (persist=false) because ENV tokens are ephemeral.
- *
- * Key difference from VS Code Desktop auth:
- * - Desktop: POST /authenticate → Set-Cookie "jwt=<token>" → Cookie header
- * - Theia: ARTEMIS_TOKEN env var → raw JWT → Bearer header
  *
  * This follows the pattern established by Scorpio (Jandow 2024, Section 4.4.2).
  * The Theia token is generated server-side by Artemis from the user's web session
@@ -24,14 +20,15 @@ export async function authenticateFromEnvironment(
         return { authenticated: false };
     }
 
-    // Enable Bearer auth mode — Theia tokens are sent as Authorization: Bearer
+    // Enable Bearer auth mode — Theia tokens are raw JWTs sent as Authorization: Bearer,
+    // unlike Desktop which uses Cookie: jwt=<token>
     authManager.enableBearerAuth();
 
-    // Store raw JWT (no "jwt=" prefix) in memory only
+    // Store raw JWT in memory only — never persist ENV tokens to SecretStorage
     await authManager.storeArtemisCredentials(
         theiaEnv.artemisToken,
         theiaEnv.artemisUrl,
-        false, // never persist ENV tokens to SecretStorage
+        false,
     );
 
     return { authenticated: true };

@@ -18,7 +18,6 @@ import { getViewHtml } from '../controller/viewRouter';
 import { fetchAndEnrichExerciseDetails, fetchArchivedCourseDetail } from '../controller/exerciseDataLoader';
 import { WebSocketMessageHandler } from '../types';
 import { BaseWebviewProvider } from './baseWebviewProvider';
-import type { TheiaEnvironment } from '../theia';
 import type { BuildErrorCodeLensProvider } from './buildErrorCodeLensProvider';
 import type { CourseDataCache } from '../services/courseDataCache';
 import { ExtensionMsg, toCourseDetailData } from '../../shared/messageContracts';
@@ -71,7 +70,6 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
         telemetryManager: TelemetryManager,
         updateAuthContext: (isAuthenticated: boolean) => Promise<void>,
         private readonly _courseDataCache?: CourseDataCache,
-        private readonly _theiaEnv?: TheiaEnvironment,
     ) {
         super();
         this._websocketService = websocketService;
@@ -93,7 +91,6 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
             this._providerRegistry,
             this._websocketService,
             this._courseDataCache,
-            this._theiaEnv,
         );
         this._messageHandler.setAuthContextUpdater(this._authContextUpdater);
         this._viewInitDataService = new ViewInitDataService(
@@ -125,7 +122,6 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
                 hideLoadingAndSendServerUrl: () => this.hideLoadingAndSendServerUrl(),
                 showLogin: () => this.showLogin(),
             },
-            this._theiaEnv,
         );
 
         // Wire WebSocket subscription handler
@@ -565,7 +561,7 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
     }
 
     private _getServerUrl(): string {
-        return resolveServerUrl(this._theiaEnv);
+        return resolveServerUrl();
     }
 
     /**

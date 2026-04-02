@@ -1,3 +1,4 @@
+import * as vscode from 'vscode';
 import { readEnvVars } from './envVarReader';
 import { readEnvVarsViaDataBridge } from './dataBridgeReader';
 import { VSCODE_ENVIRONMENT, type TheiaEnvironment } from './types';
@@ -14,30 +15,58 @@ const THEIA_ENV_VARS = [
     'GIT_MAIL',
 ] as const;
 
+// ── Module-level singleton ──────────────────────────────────────────
+// Initialized once during activate() via initializeTheiaContext().
+// All services read the environment through getTheiaEnvironment() instead
+// of receiving it as a constructor parameter — this prevents the footgun
+// where a caller forgets to pass theiaEnv and silently falls back to defaults.
+let _theiaEnv: TheiaEnvironment = VSCODE_ENVIRONMENT;
+
+/**
+ * Initializes the Theia context singleton. Must be called exactly once
+ * during activate(), before any service instantiation.
+ * Returns the detected environment for callers that need it inline.
+ */
+export async function initializeTheiaContext(): Promise<TheiaEnvironment> {
+    _theiaEnv = await detectTheiaEnvironment();
+    return _theiaEnv;
+}
+
+/**
+ * Returns the current TheiaEnvironment. Safe to call after
+ * initializeTheiaContext() has completed.
+ */
+export function getTheiaEnvironment(): TheiaEnvironment {
+    return _theiaEnv;
+}
+
 /**
  * Detects whether the extension is running inside a Theia-based IDE
  * and reads all relevant environment variables.
  *
  * Detection uses functional prerequisites (presence of specific env vars)
- * rather than a single flag, following the pattern established by Scorpio
- * after their experience with fragile flag-based detection (Issue #124).
+ * combined with a secondary UI-kind check to prevent false positives when
+ * a developer accidentally has ARTEMIS_URL in their shell profile.
  *
  * This function is async because env var reading may require exec() in
  * Theia environments where process.env is unreliable.
- *
- * Must be called before any service instantiation in activate().
  */
-export async function detectTheiaEnvironment(): Promise<TheiaEnvironment> {
+async function detectTheiaEnvironment(): Promise<TheiaEnvironment> {
     // Try data-bridge first (EduIDE cloud deployments with late-arriving credentials).
     // Returns undefined immediately if data-bridge extension is not installed (no overhead).
     // Falls back to process env if data-bridge is unavailable or times out.
     const env = await readEnvVarsViaDataBridge(THEIA_ENV_VARS)
         ?? await readEnvVars(THEIA_ENV_VARS);
 
-    // Theia is detected when at least one Theia-specific env var is present.
-    // ARTEMIS_TOKEN alone is sufficient (minimal Theia setup),
-    // ARTEMIS_URL alone is also sufficient (URL-only config).
-    const isTheia = !!(env.ARTEMIS_TOKEN || env.ARTEMIS_URL);
+    const hasTheiaEnvVars = !!(env.ARTEMIS_TOKEN || env.ARTEMIS_URL);
+    const isWebUI = vscode.env.uiKind === vscode.UIKind.Web;
+    const dataBridgeEnabled = process.env.DATA_BRIDGE_ENABLED === '1'
+        || process.env.DATA_BRIDGE_ENABLED === 'true';
+
+    // Env vars alone in Desktop mode are likely accidental (e.g., shell profile).
+    // Require either a web UI host (Theia) or the DATA_BRIDGE_ENABLED flag
+    // (set by the EduIDE container orchestrator at boot).
+    const isTheia = hasTheiaEnvVars && (isWebUI || dataBridgeEnabled);
 
     if (!isTheia) {
         return VSCODE_ENVIRONMENT;

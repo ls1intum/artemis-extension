@@ -2,9 +2,8 @@ import { Client, StompConfig, StompSubscription, IFrame, IMessage, ReconnectionT
 import WebSocket from 'ws';
 import * as vscode from 'vscode';
 import { AuthManager } from '../auth';
-import { CONFIG, WEBSOCKET_TOPICS, resolveServerUrl } from '../../utils';
+import { CONFIG, WEBSOCKET_TOPICS, resolveServerUrl, getUserAgent } from '../../utils';
 import { logger, LogCategory } from '../loggingService';
-import type { TheiaEnvironment } from '../../theia';
 import {
     parseResultDTO,
     parseProgrammingSubmission,
@@ -78,11 +77,8 @@ export class ArtemisWebsocketService {
     private _connectReject?: (err: Error) => void;
     private _connectTimeout?: ReturnType<typeof setTimeout>;
 
-    private _theiaEnv?: TheiaEnvironment;
-
-    constructor(authManager: AuthManager, theiaEnv?: TheiaEnvironment) {
+    constructor(authManager: AuthManager) {
         this._authManager = authManager;
-        this._theiaEnv = theiaEnv;
         this._sessionId = this._generateSecureSessionId();
     }
 
@@ -348,7 +344,7 @@ export class ArtemisWebsocketService {
                     const ws = new WebSocket(wsUrl, {
                         headers: {
                             ...authHeaders,
-                            'User-Agent': CONFIG.API.USER_AGENT
+                            'User-Agent': getUserAgent()
                         }
                     });
 
@@ -854,7 +850,7 @@ export class ArtemisWebsocketService {
     }
 
     private _getServerUrl(): string {
-        return resolveServerUrl(this._theiaEnv);
+        return resolveServerUrl();
     }
 
     private _buildWebSocketUrl(serverUrl: string): string {
@@ -871,8 +867,8 @@ export class ArtemisWebsocketService {
 
     /**
      * Extracts the raw JWT from auth headers, supporting both Cookie and Bearer formats.
-     * - Cookie: "jwt=<token>; ..." → extracts <token>
-     * - Bearer: "Bearer <token>" → extracts <token>
+     * - Cookie: "jwt=<token>; ..." → extracts <token> (Desktop)
+     * - Bearer: "Bearer <token>" → extracts <token> (Theia)
      */
     private _extractJwtFromHeaders(headers: Record<string, string>): string | undefined {
         const bearer = headers['Authorization'];
@@ -882,7 +878,7 @@ export class ArtemisWebsocketService {
 
         const cookie = headers['Cookie'];
         if (cookie) {
-            const jwtMatch = cookie.match(/jwt=([^;]+)/);
+            const jwtMatch = cookie.match(new RegExp(`${CONFIG.AUTH_COOKIE_NAME}=([^;]+)`));
             return jwtMatch ? jwtMatch[1] : undefined;
         }
 

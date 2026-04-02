@@ -6,7 +6,9 @@ import { logger, LogCategory } from '../loggingService';
 // Desktop: JWT stored as cookie string ("jwt=<token>"), sent as Cookie header.
 // Theia:   Raw JWT from environment variable, sent as Authorization: Bearer header.
 export class AuthManager {
-    private static LEGACY_SECRET_KEY = CONFIG.SECRET_KEYS.AUTH_COOKIE;
+    // Legacy key from pre-refactor — kept in clear() for one release cycle
+    // to clean up any remaining tokens stored under the old key name.
+    private static LEGACY_SECRET_KEY = 'artemis-auth-cookie';
     private memoryToken?: string;
     private context: vscode.ExtensionContext;
     private _useBearerAuth = false;
@@ -27,14 +29,8 @@ export class AuthManager {
         if (this.memoryToken) {
             return true;
         }
-        const legacy = await this.context.secrets.get(AuthManager.LEGACY_SECRET_KEY);
         const stored = await this.context.secrets.get(CONFIG.SECRET_KEYS.ARTEMIS_TOKEN);
-        return !!legacy || !!stored;
-    }
-
-    public async hasArtemisToken(): Promise<boolean> {
-        const artemisToken = await this.context.secrets.get(CONFIG.SECRET_KEYS.ARTEMIS_TOKEN);
-        return !!artemisToken;
+        return !!stored;
     }
 
     /**
@@ -55,6 +51,13 @@ export class AuthManager {
         const storedUrl = await this.getStoredLoginServerUrl();
         if (!storedUrl) { return false; }
         return storedUrl !== currentUrl;
+    }
+
+    /**
+     * Returns the raw token value for comparison (e.g., token refresh detection).
+     */
+    public async getStoredTokenValue(): Promise<string | undefined> {
+        return this.getStoredToken();
     }
 
     /**
