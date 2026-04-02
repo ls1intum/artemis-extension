@@ -270,11 +270,10 @@ export class NavigationCommandModule {
 
     private handleReloadCourses = async (_message: WebviewToExtensionMessage): Promise<void> => {
         try {
-            const coursesData = this.context.courseDataCache
-                ? await this.context.courseDataCache.fetch({ force: true })
-                : await this.context.artemisApi.getCoursesForDashboard();
-            if (!coursesData) { throw new Error('No course data returned'); }
-            this.context.appStateManager.showCourseList(coursesData);
+            if (this.context.courseDataCache) {
+                await this.context.courseDataCache.fetch({ force: true });
+            }
+            this.context.appStateManager.showCourseList();
             this.context.actionHandler.sendInitData();
         } catch (error: unknown) {
             logger.viewError('Reload courses error:', error);

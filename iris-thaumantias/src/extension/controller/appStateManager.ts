@@ -2,6 +2,7 @@ import { getRecommendedExtensionsByCategory, type RecommendedExtensionCategory }
 import type { CourseDashboardResponse, CourseDashboardEntry, ExerciseDetailsResponse, StudentExam, ExerciseDetail } from '../types';
 import type { ArchivedCourse, CourseDetailData } from '../../shared/messageContracts';
 import type { ArtemisUser } from '../types';
+import type { CourseDataCache } from '../services/courseDataCache';
 
 export type AppState = 'login' | 'dashboard' | 'course-list' | 'course-detail' | 'exercise-detail' | 'exam-exercise-detail' | 'ai-config' | 'service-status' | 'struggle-detection' | 'recommended-extensions' | 'git-credentials' | 'exam-start' | 'exam-conduction';
 
@@ -43,7 +44,7 @@ export interface AiExtension {
 export class AppStateManager {
     private _currentState: AppState = 'login';
     private _userInfo?: UserInfo;
-    private _coursesData?: CourseDashboardResponse;
+    private _courseDataCache?: CourseDataCache;
     private _archivedCoursesData?: ArchivedCourse[];
     private _archiveCheckComplete = true;
     private _currentCourseData?: CourseDetailData;
@@ -55,6 +56,11 @@ export class AppStateManager {
     private _onStateChange?: (from: AppState, to: AppState) => void;
 
     constructor() { }
+
+    /** Inject the shared course data cache. Must be called before any course operations. */
+    public setCourseDataCache(cache: CourseDataCache): void {
+        this._courseDataCache = cache;
+    }
 
     public set onStateChange(handler: (from: AppState, to: AppState) => void) {
         this._onStateChange = handler;
@@ -77,7 +83,7 @@ export class AppStateManager {
     }
 
     get coursesData(): CourseDashboardResponse | undefined {
-        return this._coursesData;
+        return this._courseDataCache?.get();
     }
 
     get archivedCoursesData(): ArchivedCourse[] | undefined {
@@ -117,34 +123,27 @@ export class AppStateManager {
      * Used by the workspace start-page flow to keep the loading screen visible
      * while detecting the workspace exercise.
      */
-    public seedAuthenticatedSession(userInfo: UserInfo, coursesData?: CourseDashboardResponse): void {
+    public seedAuthenticatedSession(userInfo: UserInfo): void {
         this._userInfo = userInfo;
-        if (coursesData) { this._coursesData = coursesData; }
     }
 
     // State transitions
-    public showDashboard(userInfo: UserInfo, coursesData?: CourseDashboardResponse): void {
+    public showDashboard(userInfo: UserInfo): void {
         this._userInfo = userInfo;
-        this._coursesData = coursesData;
         this._setCurrentState('dashboard');
-    }
-
-    public setCoursesData(coursesData: CourseDashboardResponse): void {
-        this._coursesData = coursesData;
     }
 
     public showLogin(): void {
         this._setCurrentState('login');
         this._userInfo = undefined;
-        this._coursesData = undefined;
+        this._courseDataCache?.clear();
         this._archivedCoursesData = undefined;
         this._currentCourseData = undefined;
         this._currentExerciseData = undefined;
         this._recommendedExtensions = undefined;
     }
 
-    public showCourseList(coursesData?: CourseDashboardResponse): void {
-        if (coursesData) { this._coursesData = coursesData; }
+    public showCourseList(): void {
         this._setCurrentState('course-list');
     }
 
@@ -163,11 +162,11 @@ export class AppStateManager {
     }
 
     public injectCourseEntry(entry: CourseDashboardEntry): void {
-        if (!this._coursesData) {
-            this._coursesData = { courses: [] };
+        const data = this._courseDataCache?.get();
+        if (data) {
+            data.courses ??= [];
+            data.courses.push(entry);
         }
-        this._coursesData.courses ??= [];
-        this._coursesData.courses.push(entry);
     }
 
     public setArchivedCourses(courses: ArchivedCourse[]): void {

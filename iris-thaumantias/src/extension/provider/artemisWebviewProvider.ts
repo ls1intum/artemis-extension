@@ -79,6 +79,9 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
         this._authContextUpdater = updateAuthContext;
 
         this._appStateManager = new AppStateManager();
+        if (this._courseDataCache) {
+            this._appStateManager.setCourseDataCache(this._courseDataCache);
+        }
         this._viewActionService = new ViewActionService(this._appStateManager, this._artemisApi);
         this._messageHandler = new WebViewMessageHandler(
             this._authManager,
@@ -308,13 +311,13 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
         // Set state immediately so concurrent logic sees 'dashboard' during fetch
         this._appStateManager.showDashboard(userInfo);
 
-        // Fetch courses and populate (swallow error — dashboard renders with empty state)
+        // Fetch courses into the shared cache (swallow error — dashboard renders with empty state)
         try {
-            const coursesData = this._courseDataCache
-                ? await this._courseDataCache.fetch()
-                : await this._artemisApi.getCoursesForDashboard();
-            if (coursesData) {
-                this._appStateManager.setCoursesData(coursesData);
+            if (this._courseDataCache) {
+                await this._courseDataCache.fetch();
+            } else {
+                // Fallback without cache (shouldn't happen in production)
+                await this._artemisApi.getCoursesForDashboard();
             }
         } catch (error) {
             logger.error('Error loading courses for dashboard', LogCategory.VIEW, error);
@@ -345,14 +348,13 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
 
         switch (result.type) {
             case 'course-list':
-                // Seed with already-fetched data to avoid a second API call
-                this._appStateManager.seedAuthenticatedSession(userInfo, result.coursesData);
+                this._appStateManager.seedAuthenticatedSession(userInfo);
                 this._appStateManager.showCourseList();
                 if (this._view) { this.render(); }
                 return;
 
             case 'workspace-exercise': {
-                this._appStateManager.seedAuthenticatedSession(userInfo, result.coursesData);
+                this._appStateManager.seedAuthenticatedSession(userInfo);
                 const entry = result.allCourses.find(e => e.course?.id === result.courseId);
                 if (entry?.course) {
                     this._appStateManager.showCourseDetail(toCourseDetailData(entry.course));
@@ -366,7 +368,7 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
             }
 
             case 'workspace-course': {
-                this._appStateManager.seedAuthenticatedSession(userInfo, result.coursesData);
+                this._appStateManager.seedAuthenticatedSession(userInfo);
                 const entry = result.allCourses.find(e => e.course?.id === result.courseId);
                 if (entry?.course) {
                     this.showCourseDetail(toCourseDetailData(entry.course));
@@ -395,11 +397,11 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
 
     public async showCourseList(): Promise<void> {
         try {
-            const coursesData = this._courseDataCache
-                ? await this._courseDataCache.fetch()
-                : await this._artemisApi.getCoursesForDashboard();
-            if (!coursesData) { throw new Error('No course data returned'); }
-            this._appStateManager.showCourseList(coursesData);
+            // Ensure courses are in the cache before navigating
+            if (this._courseDataCache) {
+                await this._courseDataCache.fetch();
+            }
+            this._appStateManager.showCourseList();
             if (this._view) {
                 this.render();
             }
