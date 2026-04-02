@@ -9,4 +9,3 @@ export { extractIrisMessageContent } from './messageUtils';
 export { IRIS_CHAT_HELP_MARKDOWN } from './helpContent';
 export { ContextStore, type ActiveContextChangeEvent } from './contextStore';
 export type { ChatContextReason } from './chatContextManager';
-export { pickBestContext, shouldOverrideWithWorkspace } from './chatContextManager';

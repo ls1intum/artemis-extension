@@ -282,8 +282,6 @@ export class ArtemisApiService {
             }
         }
 
-        const data = await response.json() as { access_token?: string };
-
         // Extract JWT cookie from Set-Cookie header (Desktop auth uses Cookie header)
         const setCookieHeader = response.headers.get('set-cookie');
         let jwtCookie = '';

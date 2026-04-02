@@ -258,8 +258,4 @@ export class AppStateManager {
         this._setCurrentState('exam-conduction');
     }
 
-    public isLoggedIn(): boolean {
-        return this._userInfo !== undefined;
-    }
-
 }

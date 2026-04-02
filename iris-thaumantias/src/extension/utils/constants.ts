@@ -13,13 +13,6 @@ export const CONFIG = {
     API: {
         ENDPOINTS: {
             AUTHENTICATE: '/api/core/public/authenticate',
-            ACCOUNT: '/api/core/public/account',
-            COURSES: '/api/core/courses',
-            EXERCISES: '/api/core/courses/{courseId}/exercises',
-            PARTICIPATIONS: '/api/core/participations',
-            RESULTS: '/api/core/participations/{participationId}/results',
-            VCS_TOKEN: '/api/core/account/participation-vcs-access-token',
-            START_PARTICIPATION: '/api/exercise/exercises/{exerciseId}/participations',
         },
     },
 } as const;

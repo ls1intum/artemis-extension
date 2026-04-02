@@ -6,9 +6,6 @@ import { logger, LogCategory } from '../loggingService';
 // Desktop: JWT stored as cookie string ("jwt=<token>"), sent as Cookie header.
 // Theia:   Raw JWT from environment variable, sent as Authorization: Bearer header.
 export class AuthManager {
-    // Legacy key from pre-refactor — kept in clear() for one release cycle
-    // to clean up any remaining tokens stored under the old key name.
-    private static LEGACY_SECRET_KEY = 'artemis-auth-cookie';
     private memoryToken?: string;
     private context: vscode.ExtensionContext;
     private _useBearerAuth = false;
@@ -103,7 +100,6 @@ export class AuthManager {
     public async clear(): Promise<void> {
         this.memoryToken = undefined;
         try {
-            await this.context.secrets.delete(AuthManager.LEGACY_SECRET_KEY);
             await this.context.secrets.delete(CONFIG.SECRET_KEYS.ARTEMIS_TOKEN);
             await this.context.secrets.delete(CONFIG.SECRET_KEYS.ARTEMIS_SERVER_URL);
         } catch (err) {

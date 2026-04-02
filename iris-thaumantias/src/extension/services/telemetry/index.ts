@@ -10,7 +10,7 @@ export { TelemetryManager } from './telemetryManager';
 
 // New EQ system
 export { ErrorQuotientEngine } from './metrics/errorQuotientEngine';
-export { CompileEquivalentEmitter, classifyBuildResult, isCompilerDiagnostic, getErrorFamily, isLikelyManualPaste } from './eventPipeline/compileEquivalentEmitter';
+export { CompileEquivalentEmitter, classifyBuildResult } from './eventPipeline/compileEquivalentEmitter';
 export { BoundaryTriggerEmitter } from './eventPipeline/boundaryTriggerEmitter';
 export { InterventionDecisionEngine } from './decision/interventionDecisionEngine';
 export { AdaptiveCadence } from './intervention/adaptiveCadence';

@@ -102,11 +102,4 @@ export class InterventionFilter implements SessionResettable {
         this.setExerciseStartTime();
     }
 
-    /**
-     * Reset the filter state (e.g., for a new exercise)
-     */
-    public reset(): void {
-        this._exerciseStartTime = undefined;
-        this._lastProgressTime = 0;
-    }
 }

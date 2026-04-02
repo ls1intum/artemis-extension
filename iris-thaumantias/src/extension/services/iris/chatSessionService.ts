@@ -275,13 +275,7 @@ export class IrisChatSessionService {
                 logger.info('Sending messages to webview', LogCategory.IRIS_CHAT, messages);
 
                 const formattedMessages = messages.map((msg: IrisChatMessage) => {
-                    let content = extractIrisMessageContent(msg.content);
-                    if (content === 'undefined' || content === 'null') {
-                        const legacyMsg = msg as { message?: string };
-                        if (typeof legacyMsg.message === 'string') {
-                            content = legacyMsg.message;
-                        }
-                    }
+                    const content = extractIrisMessageContent(msg.content);
 
                     return {
                         id: msg.id,

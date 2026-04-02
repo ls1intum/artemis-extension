@@ -14,7 +14,7 @@ import { logger, LogCategory } from './extension/services/loggingService';
 import { VSCODE_CONFIG, resolveServerUrl } from './extension/utils';
 import { registerAllCommands } from './extension/activation/extensionCommands';
 import { wireSessionRecorder } from './extension/activation/sessionRecorderWiring';
-import { initializeTheiaContext, getTheiaEnvironment, detectPlatformCapabilities, authenticateFromEnvironment, autoCloneIfNeeded } from './extension/theia';
+import { initializeTheiaContext, detectPlatformCapabilities, authenticateFromEnvironment, autoCloneIfNeeded } from './extension/theia';
 
 // Module-level references for deactivate() cleanup
 let activeTelemetryManager: TelemetryManager | undefined;

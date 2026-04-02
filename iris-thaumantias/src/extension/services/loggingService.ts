@@ -8,7 +8,6 @@ export enum LogLevel {
     INFO = 1,
     WARN = 2,
     ERROR = 3,
-    NONE = 4
 }
 
 /**
@@ -87,27 +86,6 @@ class LoggingService {
         } else {
             this.outputChannel = vscode.window.createOutputChannel('Artemis Extension');
         }
-    }
-
-    /**
-     * Configure the logging service
-     */
-    public configure(config: Partial<LoggingConfig>): void {
-        this.config = { ...this.config, ...config };
-    }
-
-    /**
-     * Set the minimum log level
-     */
-    public setLogLevel(level: LogLevel): void {
-        this.config.minLevel = level;
-    }
-
-    /**
-     * Enable specific log categories
-     */
-    public setEnabledCategories(categories: LogCategory[] | 'all'): void {
-        this.config.enabledCategories = categories === 'all' ? 'all' : new Set(categories);
     }
 
     /**
@@ -239,13 +217,6 @@ class LoggingService {
     }
 
     /**
-     * Log a WebSocket error
-     */
-    public websocketError(message: string, ...args: unknown[]): void {
-        this.output(LogLevel.ERROR, `🔌 ${message}`, LogCategory.WEBSOCKET, ...args);
-    }
-
-    /**
      * Log a WebSocket warning
      */
     public websocketWarn(message: string, ...args: unknown[]): void {
@@ -267,13 +238,6 @@ class LoggingService {
     }
 
     /**
-     * Log an Iris Chat error
-     */
-    public irisChatError(message: string, ...args: unknown[]): void {
-        this.output(LogLevel.ERROR, `💬 ${message}`, LogCategory.IRIS_CHAT, ...args);
-    }
-
-    /**
      * Log a context-related message
      */
     public context(message: string, ...args: unknown[]): void {
@@ -285,83 +249,6 @@ class LoggingService {
      */
     public exercise(message: string, ...args: unknown[]): void {
         this.output(LogLevel.INFO, `📚 ${message}`, LogCategory.EXERCISE, ...args);
-    }
-
-    /**
-     * Log an exercise warning
-     */
-    public exerciseWarn(message: string, ...args: unknown[]): void {
-        this.output(LogLevel.WARN, `📚 ${message}`, LogCategory.EXERCISE, ...args);
-    }
-
-    /**
-     * Log a submission-related message
-     */
-    public submission(message: string, ...args: unknown[]): void {
-        this.output(LogLevel.INFO, `📤 ${message}`, LogCategory.SUBMISSION, ...args);
-    }
-
-    /**
-     * Log a submission warning
-     */
-    public submissionWarn(message: string, ...args: unknown[]): void {
-        this.output(LogLevel.WARN, `📤 ${message}`, LogCategory.SUBMISSION, ...args);
-    }
-
-    /**
-     * Log a submission error
-     */
-    public submissionError(message: string, ...args: unknown[]): void {
-        this.output(LogLevel.ERROR, `📤 ${message}`, LogCategory.SUBMISSION, ...args);
-    }
-
-    /**
-     * Log an auth-related message
-     */
-    public auth(message: string, ...args: unknown[]): void {
-        this.output(LogLevel.INFO, `🔐 ${message}`, LogCategory.AUTH, ...args);
-    }
-
-    /**
-     * Log an auth error
-     */
-    public authError(message: string, ...args: unknown[]): void {
-        this.output(LogLevel.ERROR, `🔐 ${message}`, LogCategory.AUTH, ...args);
-    }
-
-    /**
-     * Log an API-related message
-     */
-    public api(message: string, ...args: unknown[]): void {
-        this.output(LogLevel.INFO, `📡 ${message}`, LogCategory.API, ...args);
-    }
-
-    /**
-     * Log an API warning
-     */
-    public apiWarn(message: string, ...args: unknown[]): void {
-        this.output(LogLevel.WARN, `📡 ${message}`, LogCategory.API, ...args);
-    }
-
-    /**
-     * Log an API error
-     */
-    public apiError(message: string, ...args: unknown[]): void {
-        this.output(LogLevel.ERROR, `📡 ${message}`, LogCategory.API, ...args);
-    }
-
-    /**
-     * Log a PlantUML-related message
-     */
-    public plantUml(message: string, ...args: unknown[]): void {
-        this.output(LogLevel.INFO, `🎨 ${message}`, LogCategory.PLANTUML, ...args);
-    }
-
-    /**
-     * Log a PlantUML error
-     */
-    public plantUmlError(message: string, ...args: unknown[]): void {
-        this.output(LogLevel.ERROR, `🎨 ${message}`, LogCategory.PLANTUML, ...args);
     }
 
     /**
@@ -400,27 +287,6 @@ class LoggingService {
     }
 
     /**
-     * Log a build-related message
-     */
-    public build(message: string, ...args: unknown[]): void {
-        this.output(LogLevel.INFO, `🔨 ${message}`, LogCategory.BUILD, ...args);
-    }
-
-    /**
-     * Log a test-related message
-     */
-    public test(message: string, ...args: unknown[]): void {
-        this.output(LogLevel.INFO, `🧪 ${message}`, LogCategory.TEST, ...args);
-    }
-
-    /**
-     * Log a config-related message
-     */
-    public configLog(message: string, ...args: unknown[]): void {
-        this.output(LogLevel.INFO, `⚙️ ${message}`, LogCategory.CONFIG, ...args);
-    }
-
-    /**
      * Log a view-related message
      */
     public view(message: string, ...args: unknown[]): void {
@@ -441,33 +307,6 @@ class LoggingService {
         this.output(LogLevel.WARN, `👁️ ${message}`, LogCategory.VIEW, ...args);
     }
 
-    /**
-     * Log an exam-related message
-     */
-    public exam(message: string, ...args: unknown[]): void {
-        this.output(LogLevel.INFO, `📝 ${message}`, LogCategory.EXAM, ...args);
-    }
-
-    /**
-     * Show the output channel in VS Code
-     */
-    public show(): void {
-        this.outputChannel?.show();
-    }
-
-    /**
-     * Clear the output channel
-     */
-    public clear(): void {
-        this.outputChannel?.clear();
-    }
-
-    /**
-     * Dispose of the logging service resources
-     */
-    public dispose(): void {
-        this.outputChannel?.dispose();
-    }
 }
 
 // Export singleton instance

@@ -64,34 +64,6 @@ export type InactivityPattern = 'active' | 'thinking' | 'confusion' | 'giving-up
 export type RecommendedAction = 'none' | 'subtle' | 'notification' | 'proactive';
 
 /**
- * Local struggle context (from VS Code diagnostics and editing patterns)
- */
-export interface LocalStruggleContext {
-    /** Array of persistent error messages */
-    persistentErrors: string[];
-    /** Current inactivity pattern */
-    inactivityPattern: InactivityPattern;
-    /** Time since last edit in milliseconds */
-    timeSinceLastEdit: number;
-    /** Current thrashing score (0-100) */
-    thrashingScore: number;
-}
-
-/**
- * Server-side struggle context (from Artemis build results)
- */
-export interface ServerStruggleContext {
-    /** Number of consecutive build failures */
-    consecutiveBuildFailures: number;
-    /** Names of failing test cases */
-    failingTestCases: string[];
-    /** Last build error message */
-    lastBuildError: string | undefined;
-    /** Timestamp of last submission */
-    lastSubmissionTime: number | undefined;
-}
-
-/**
  * Struggle context for Iris chat integration.
  * EQ-based — replaces old weighted score.
  */
