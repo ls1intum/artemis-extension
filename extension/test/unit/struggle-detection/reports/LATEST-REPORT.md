@@ -1147,7 +1147,7 @@ All key metrics are within acceptable ranges.
 ### How to Run These Tests
 
 ```bash
-cd iris-thaumantias
+cd extension
 npm run test:struggle
 ```
 

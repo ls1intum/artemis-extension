@@ -22,7 +22,7 @@ let activeSessionRecorder: SessionRecorder | undefined;
 
 export async function activate(context: vscode.ExtensionContext) {
 	logger.initialize();
-	logger.info('Congratulations, your extension "iris-thaumantias" is now active!', LogCategory.GENERAL);
+	logger.info('Congratulations, your extension "Artemis - TUM" is now active!', LogCategory.GENERAL);
 
 	// ── Theia/EduIDE detection (must complete before any service instantiation) ──
 	const theiaEnv = await initializeTheiaContext();
