@@ -4,7 +4,7 @@
 
 > **Documentation Guide**:
 > - **This README**: Development setup and contributor guide
-> - **[Extension README](iris-thaumantias/README.md)**: User-facing documentation (VS Code Marketplace)
+> - **[Extension README](extension/README.md)**: User-facing documentation (VS Code Marketplace)
 
 
 This repository contains the VS Code extension for **Artemis: Interactive Learning with Individual Feedback**. The extension integrates Artemis—an innovative platform for interactive learning, programming exercises, and AI-powered tutoring—directly into the VS Code IDE, enabling students to access personalized support, exercise materials, and intelligent feedback without leaving their development workspace.
@@ -177,7 +177,7 @@ For a complete list and more information, visit [https://artemisapp.github.io](h
 1. Clone the repository:
    ```bash
    git clone https://github.com/ls1intum/artemis-extension.git
-   cd artemis-extension/iris-thaumantias
+   cd artemis-extension/extension
    ```
 
 2. Install dependencies:
@@ -208,7 +208,7 @@ To create a `.vsix` file for distribution:
 npm install -g @vscode/vsce
 
 # Package the extension
-cd iris-thaumantias
+cd extension
 vsce package
 ```
 
@@ -218,7 +218,7 @@ vsce package
 artemis-extension/
 ├── README.md                     # This file (developer documentation)
 ├── CONTRIBUTING.md               # Contribution guidelines
-├── iris-thaumantias/             # VS Code extension package
+├── extension/                    # VS Code extension package
 │   ├── src/
 │   │   ├── extension.ts          # Entry point & activation
 │   │   ├── extension/            # Extension host code
@@ -323,7 +323,7 @@ The project includes three launch configurations (press `F5` and select):
 
 **Option 2: Manual Watch Mode**
 ```bash
-cd iris-thaumantias
+cd extension
 npm run watch
 # Then press F5 in VS Code
 ```

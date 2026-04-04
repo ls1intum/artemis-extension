@@ -56,7 +56,7 @@ This ensures messages are never sent before React is ready to receive them.
 ## Project Structure
 
 ```
-iris-thaumantias/
+extension/
 ├── src/
 │   ├── api/                          # Artemis REST API client
 │   │   └── artemisApiService.ts
