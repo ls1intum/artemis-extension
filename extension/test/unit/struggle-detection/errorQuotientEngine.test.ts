@@ -526,6 +526,118 @@ suite('EQ Threshold Boundary Tests (InterventionDecisionEngine)', () => {
 });
 
 // =========================================================================
+// Guardrail Enforcement Tests (Fix Verification)
+// =========================================================================
+
+suite('Guardrail Enforcement — Subtle Hints Respect Filter (NEW-1 fix)', () => {
+
+    let filter: InterventionFilter;
+    let decisionEngine: InterventionDecisionEngine;
+
+    setup(() => {
+        filter = new InterventionFilter();
+        decisionEngine = new InterventionDecisionEngine(filter);
+    });
+
+    test('subtle level blocked during exercise warmup (< 5 min)', () => {
+        // Exercise just started — warmup not elapsed
+        filter.setExerciseStartTime(Date.now());
+        const state: InterventionState = {
+            sessionInterventionCount: 0,
+            lastInterventionTime: 0,
+            lastDismissed: false,
+            lastAccepted: false,
+        };
+        const result = decisionEngine.evaluate(0.20, 'sufficient', 'idle', state);
+        assert.strictEqual(result.level, 'subtle');
+        assert.strictEqual(result.shouldIntervene, false, 'subtle hint must be blocked during warmup');
+    });
+
+    test('subtle level blocked when recent progress recorded', () => {
+        filter.setExerciseStartTime(Date.now() - 10 * 60 * 1000); // 10 min ago
+        filter.recordProgress(); // progress just now
+        const state: InterventionState = {
+            sessionInterventionCount: 0,
+            lastInterventionTime: 0,
+            lastDismissed: false,
+            lastAccepted: false,
+        };
+        const result = decisionEngine.evaluate(0.20, 'sufficient', 'idle', state);
+        assert.strictEqual(result.level, 'subtle');
+        assert.strictEqual(result.shouldIntervene, false, 'subtle hint must be blocked during progress grace period');
+    });
+
+    test('subtle level blocked after dismiss', () => {
+        filter.setExerciseStartTime(Date.now() - 10 * 60 * 1000);
+        const state: InterventionState = {
+            sessionInterventionCount: 0,
+            lastInterventionTime: 0,
+            lastDismissed: true,
+            lastAccepted: false,
+        };
+        const result = decisionEngine.evaluate(0.20, 'sufficient', 'idle', state);
+        assert.strictEqual(result.level, 'subtle');
+        assert.strictEqual(result.shouldIntervene, false, 'subtle hint must be blocked after dismiss');
+    });
+
+    test('EQ below 0.15 produces no intervention at all', () => {
+        filter.setExerciseStartTime(Date.now() - 10 * 60 * 1000);
+        const state: InterventionState = {
+            sessionInterventionCount: 0,
+            lastInterventionTime: 0,
+            lastDismissed: false,
+            lastAccepted: false,
+        };
+        const result = decisionEngine.evaluate(0.10, 'sufficient', 'idle', state);
+        assert.strictEqual(result.level, 'none');
+        assert.strictEqual(result.shouldIntervene, false);
+    });
+});
+
+suite('InterventionFilter Session Isolation (NEW-4 fix)', () => {
+
+    let filter: InterventionFilter;
+    let decisionEngine: InterventionDecisionEngine;
+
+    const defaultState: InterventionState = {
+        sessionInterventionCount: 0,
+        lastInterventionTime: 0,
+        lastDismissed: false,
+        lastAccepted: false,
+    };
+
+    setup(() => {
+        filter = new InterventionFilter();
+        decisionEngine = new InterventionDecisionEngine(filter);
+    });
+
+    test('progress from session A does not suppress interventions in session B', () => {
+        // Session A: exercise running > 5min, student makes progress
+        filter.setExerciseStartTime(Date.now() - 10 * 60 * 1000);
+        filter.recordProgress();
+
+        // Verify: progress grace period is active
+        const resultA = decisionEngine.evaluate(0.20, 'sufficient', 'idle', defaultState);
+        assert.strictEqual(resultA.shouldIntervene, false, 'session A should be suppressed by progress');
+
+        // Session B starts
+        filter.onSessionStart({ exerciseId: 999 });
+        // Fast-forward past warmup
+        (filter as any)._exerciseStartTime = Date.now() - 10 * 60 * 1000;
+
+        // Verify: progress grace period from session A is gone
+        const resultB = decisionEngine.evaluate(0.20, 'sufficient', 'idle', defaultState);
+        assert.strictEqual(resultB.shouldIntervene, true, 'session B must not be affected by session A progress');
+    });
+
+    test('_lastProgressTime is 0 after onSessionStart', () => {
+        filter.recordProgress();
+        filter.onSessionStart({ exerciseId: 123 });
+        assert.strictEqual((filter as any)._lastProgressTime, 0);
+    });
+});
+
+// =========================================================================
 // Helpers
 // =========================================================================
 

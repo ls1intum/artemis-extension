@@ -100,6 +100,7 @@ export class InterventionFilter implements SessionResettable {
      */
     public onSessionStart(_context: SessionStartContext): void {
         this.setExerciseStartTime();
+        this._lastProgressTime = 0;
     }
 
 }

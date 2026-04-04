@@ -252,7 +252,13 @@ export function classifyBuildResult(result: ResultDTO): BuildResultClassificatio
         }
     }
 
-    // 3. Success
+    // 3. Fallback: if server reports failure but buildFailed/testCases are missing,
+    //    treat as test-failure to avoid silent false-success classification
+    if (result.successful === false) {
+        return 'test-failure';
+    }
+
+    // 4. Success
     return 'success';
 }
 
