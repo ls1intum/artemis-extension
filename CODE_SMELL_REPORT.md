@@ -539,6 +539,168 @@ No mappers exist for Exercise conversion, ErrorResult, or SubmissionSummary. Web
 
 ---
 
+## Cross-Model Independent Review (Opus / Sonnet / Haiku)
+
+Three independent AI reviews (Claude Opus 4.6, Sonnet 4.6, Haiku 4.5) were run against the codebase with access to the original report above. Their mandate was to **challenge the original report, find missed issues, and re-prioritize for thesis success**. Below is the consolidated synthesis.
+
+### Severity Re-Assessment of Original Report
+
+All three models agree that the original report overstates several architectural issues as "CRITICAL" when they are not thesis-relevant:
+
+| Original Finding | Original Severity | Consensus Re-Assessment | Rationale |
+|-----------------|-------------------|------------------------|-----------|
+| C1: God Classes | CRITICAL | **MEDIUM** | Large but cohesive. TelemetryManager as single orchestrator actually aids thesis readability. No examiner penalizes file length. |
+| C2: No DI (18x `new`) | CRITICAL | **MEDIUM** | Real testability concern, but GitService is stateless (no state inconsistency). No thesis examiner cares about DI containers. |
+| C4: Shotgun Surgery (ActiveContext) | CRITICAL | **LOW** | Normal for a core domain type. Not changing during thesis period. |
+| C5: Type Guards `default: return true` | CRITICAL | **LOW** | Webview is controlled internal component, not external attacker. Defensible for extensibility. |
+| H4: Race Conditions in Telemetry | HIGH | **MEDIUM** (partially incorrect) | Opus points out Node.js is single-threaded — items #1 and #2 from original report are theoretically impossible via event loop semantics. The *real* cross-exercise contamination vector is WebSocket results (see NEW-1 below). |
+| H2: SessionRecorder Debounce Timers | HIGH | **LOW** (for data integrity) | Opus verified: `_isRecording` guard at lines 406/418 prevents stale recordings. Timer leak is a resource issue, not a data integrity issue. |
+| H3: Test Coverage ~30% | HIGH | **HIGH** (but better than stated) | Report missed substantial React/Vitest suite and scenario-based confusion matrix tests. Real gaps: InterventionFilter, InterventionService, TelemetryManager orchestration, end-to-end flow. |
+
+### New Correctness Bugs Found (Not in Original Report)
+
+All three models independently discovered issues the original report missed. These are ordered by thesis impact.
+
+#### NEW-1: Subtle Hint Bypasses ALL InterventionFilter Guardrails (CRITICAL)
+**Found by:** Opus, Sonnet, Haiku (all three independently)
+**File:** `telemetryManager.ts:386-391`
+
+```typescript
+if (!decision.shouldIntervene) {
+    // Still show subtle hint if warranted
+    if (decision.level === 'subtle') {
+        this._interventionService.showSubtleHintEQ(decision);
+    }
+    return;
+}
+```
+
+When `shouldIntervene === false` but `level === 'subtle'`, the subtle hint fires anyway. This means:
+- **5-minute exercise warmup** — bypassed for subtle hints
+- **2-minute progress grace period** — bypassed
+- **3 interventions per session limit** — bypassed (subtle hints don't call `_recordIntervention()`, so `sessionInterventionCount` is never incremented)
+- **5-minute cooldown** — bypassed (`_canIntervene()` never called)
+- **Adaptive cadence dismiss tracking** — bypassed
+
+Additionally, `showSubtleHintEQ` fires `_onDidShowIntervention`, which SessionRecorder records as `action='shown'` with `shouldIntervene=false`. This contaminates intervention count data in recordings.
+
+**Thesis impact:** If evaluation counts intervention events, all subtle hints appear as "shown" interventions that bypassed guardrails. Intervention frequency analysis and guardrail effectiveness claims are wrong for the subtle level. A student can receive **unlimited** subtle hints per session.
+
+#### NEW-2: Cross-Exercise Build Result Contamination via WebSocket (HIGH)
+**Found by:** Opus
+**File:** `telemetryManager.ts:181-212` (`onNewResult`)
+
+The code itself documents the issue at line 188:
+```
+// ResultDTO has no exerciseId field, so we can't filter by exercise directly.
+```
+
+The `onNewResult` handler has no exercise-scoping guard. WebSocket topic `/user/topic/newResults` delivers results for ALL participations. If a student submits exercise A, switches to exercise B, and exercise A's build completes, that result is fed into exercise B's EQ engine.
+
+**Thesis impact:** False-positive struggle detection. A compile error from exercise A appearing in exercise B's EQ creates phantom struggle events.
+
+#### NEW-3: `classifyBuildResult` Returns `'success'` for Genuinely Failed Builds (HIGH)
+**Found by:** Sonnet
+**File:** `compileEquivalentEmitter.ts:242-257`
+
+Classification logic:
+1. `buildFailed === true` → `compiler-error`
+2. `passedTestCaseCount < testCaseCount` → `test-failure`
+3. Otherwise → `success`
+
+When `submission.buildFailed` is `undefined` (field omitted by Artemis server) AND test counts are absent, a genuinely failed build is classified as `'success'`. The `result.successful` field exists and is parsed but is **never consulted** by `classifyBuildResult`.
+
+**Thesis impact:** EQ scores systematically underestimated for exercise types where `buildFailed` is not explicitly set.
+
+#### NEW-4: InterventionFilter `_lastProgressTime` Not Reset on Session Start (MEDIUM-HIGH)
+**Found by:** Opus, Haiku
+**File:** `interventionFilter.ts:99-103`
+
+`onSessionStart()` resets `_exerciseStartTime` but NOT `_lastProgressTime`. If a student makes progress at minute 3 of exercise A, switches to exercise B within 2 minutes, the progress grace period from exercise A silently suppresses the first intervention in exercise B.
+
+**Fix:** Add `this._lastProgressTime = 0;` to `onSessionStart()`.
+
+#### NEW-5: Cursor Movement Fully Re-Arms Idle Timer — Stuck Students Never Trigger Idle (MEDIUM)
+**Found by:** Sonnet
+**File:** `inactivityService.ts:120-128`
+
+`_recordWeakActivity()` fires `_onDidResumeActivity` on cursor movement after idle period. This re-arms the idle timer in BoundaryTriggerEmitter. A student who is confused and slowly scrolling through code (cursor-only, no edits) will **never** trigger the idle intervention because each cursor movement resets the 30s idle timer.
+
+**Thesis impact:** Systematic false-negative for idle trigger. If thesis reports idle trigger rates, this behavior must be disclosed. Per Pu et al. 2025, cursor/caret movement should not suppress idle detection for "thinking" students.
+
+#### NEW-6: `_hasEnoughExerciseTime()` Comment Says "Conservative" but Code Is Permissive (MEDIUM)
+**Found by:** Sonnet
+**File:** `interventionFilter.ts:39-47`
+
+When `_exerciseStartTime === undefined`, the comment says "be more conservative" but the code returns `true`, completely bypassing the 5-minute minimum exercise time gate. If `onSessionStart` was never called (or a trigger fires before it completes), interventions fire immediately.
+
+#### NEW-7: `ThrashingDetector` Output Never Used in Any Decision (MEDIUM for thesis)
+**Found by:** Sonnet
+**File:** `thrashingDetector.ts`
+
+`ThrashingDetector` is fully wired (`_sessionServices`, event listeners, ring buffer, score calculation), but `getThrashingScore()` is only consumed by the debug status bar tooltip and the debug dialog. It has **zero influence on any intervention decision**. A thesis reviewer asking "what does thrashing detection do?" would find it does nothing.
+
+**Options:** Integrate it into decisions, remove it, or explicitly document it as "instrumentation-only for future work."
+
+#### NEW-8: `DiagnosticPersistenceService.onSessionStart` Is a No-Op — Stale Diagnostics Leak (MEDIUM)
+**Found by:** Sonnet
+**File:** `diagnosticPersistenceService.ts:217-220`
+
+`onSessionStart` is explicitly a no-op (`/* no-op: this service resets on session end */`). If exercise switching happens without clean `endExerciseSession` → `startExerciseSession` sequencing, stale diagnostics from exercise A remain tracked and pollute exercise B's diagnostic events, potentially triggering premature "all errors resolved" → `recordProgress()`.
+
+#### NEW-9: 500ms LS Delay May Be Insufficient for Java Exercises (LOW-MEDIUM)
+**Found by:** Opus
+**File:** `compileEquivalentEmitter.ts:62-74`
+
+The 500ms delay for Language Server diagnostic stabilization is an engineering constant. Java (Eclipse JDT LS, which Artemis primarily uses) can take 1-5 seconds for large projects. Snapshot created after 500ms may capture stale diagnostics, leading to incorrect EQ scores for Java exercises.
+
+**Thesis impact:** Worth acknowledging in limitations section.
+
+#### NEW-10: `deactivate()` Fires SessionRecorder.endSession() as Fire-and-Forget (LOW-MEDIUM)
+**Found by:** Opus
+**File:** `extension.ts:251-260`
+
+`void activeSessionRecorder.endSession()` — async but called with `void`. If final flush fails, recording data silently lost. During evaluation, closing VS Code loses the tail end of session recordings.
+
+### Model Agreement Matrix
+
+| Finding | Opus | Sonnet | Haiku |
+|---------|------|--------|-------|
+| NEW-1: Subtle hint bypasses filters | Found | Found | Found |
+| NEW-2: Cross-exercise WebSocket contamination | Found | — | — |
+| NEW-3: classifyBuildResult silent success | — | Found | — |
+| NEW-4: _lastProgressTime not reset | Found | — | Found |
+| NEW-5: Cursor re-arms idle timer | — | Found | — |
+| NEW-6: "Conservative" comment is permissive | — | Found | — |
+| NEW-7: ThrashingDetector unused | — | Found | — |
+| NEW-8: DiagnosticPersistence no-op leak | — | Found | — |
+| NEW-9: 500ms LS delay for Java | Found | — | — |
+| NEW-10: deactivate() fire-and-forget | Found | — | — |
+| C1/C2/C4/C5 overstated | All three agree | | |
+| H4 race conditions incorrect (single-threaded) | Found | Partially | — |
+| Original C3 confirmed critical | All three agree | | |
+
+### Consolidated Priority for Thesis
+
+**Must fix (affects evaluation data correctness):**
+1. **NEW-1** — Subtle hint bypass (all 3 models agree, 3-line fix)
+2. **C3** (original) — Duplicated EQ thresholds (all 3 confirm, delegate to DecisionEngine)
+3. **NEW-2** — Cross-exercise build result contamination (add exerciseId guard or document as limitation)
+4. **NEW-3** — `classifyBuildResult` silent success (check `result.successful` as fallback)
+5. **NEW-4** — `_lastProgressTime` not reset (one-line fix)
+
+**Should fix or disclose in thesis:**
+6. **NEW-5** — Cursor movement suppresses idle trigger (disclose or change weak activity behavior)
+7. **NEW-6** — "Conservative" fallback is permissive (fix comment or fix logic)
+8. **NEW-7** — ThrashingDetector unused (document or remove)
+9. **NEW-8** — DiagnosticPersistence no-op on session start (add reset logic)
+
+**Acknowledge in limitations:**
+10. **NEW-9** — 500ms LS delay for Java exercises
+11. **NEW-10** — Session recording lost on VS Code close
+
+---
+
 ## Strengths
 
 What the codebase does well:

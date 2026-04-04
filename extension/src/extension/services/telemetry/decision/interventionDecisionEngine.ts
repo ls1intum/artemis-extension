@@ -69,7 +69,7 @@ export class InterventionDecisionEngine {
         }
 
         // 2. Map EQ to intervention level
-        const level = this._mapEQToLevel(eq);
+        const level = this.mapEQToLevel(eq);
 
         if (level === 'none') {
             return {
@@ -98,8 +98,9 @@ export class InterventionDecisionEngine {
 
     /**
      * Map EQ score to recommended action level.
+     * Single source of truth for EQ-to-action mapping.
      */
-    private _mapEQToLevel(eq: number): RecommendedAction {
+    public mapEQToLevel(eq: number): RecommendedAction {
         if (eq >= this._thresholds.proactive) {
             return 'proactive';
         }

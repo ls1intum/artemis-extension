@@ -384,10 +384,6 @@ export class TelemetryManager implements vscode.Disposable, WebSocketMessageHand
         const decision = this._decisionEngine.evaluate(eq, confidence, triggerType, state);
 
         if (!decision.shouldIntervene) {
-            // Still show subtle hint if warranted
-            if (decision.level === 'subtle') {
-                this._interventionService.showSubtleHintEQ(decision);
-            }
             return;
         }
 
@@ -415,7 +411,7 @@ export class TelemetryManager implements vscode.Disposable, WebSocketMessageHand
         const level = this._getRecommendedAction(eq, confidence);
 
         return {
-            isStruggling: confidence !== 'insufficient' && eq >= 0.15,
+            isStruggling: confidence !== 'insufficient' && level !== 'none',
             eq,
             eqConfidence: confidence,
             triggerType: this._lastTriggerType,
@@ -463,16 +459,7 @@ export class TelemetryManager implements vscode.Disposable, WebSocketMessageHand
         if (confidence === 'insufficient') {
             return 'none';
         }
-        if (eq >= 0.60) {
-            return 'proactive';
-        }
-        if (eq >= 0.35) {
-            return 'notification';
-        }
-        if (eq >= 0.15) {
-            return 'subtle';
-        }
-        return 'none';
+        return this._decisionEngine.mapEQToLevel(eq);
     }
 
     // ==================== DEBUG FEATURES ====================
