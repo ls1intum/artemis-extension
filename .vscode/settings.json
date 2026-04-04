@@ -4,9 +4,9 @@
         "source.fixAll.eslint": "explicit"
     },
     "eslint.workingDirectories": [
-        "iris-thaumantias"
+        "extension"
     ],
-    "typescript.tsdk": "iris-thaumantias/node_modules/typescript/lib",
+    "typescript.tsdk": "extension/node_modules/typescript/lib",
     "typescript.enablePromptUseWorkspaceTsdk": true,
     "files.exclude": {
         "**/node_modules": true,

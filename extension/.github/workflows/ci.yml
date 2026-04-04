@@ -15,7 +15,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: iris-thaumantias
+        working-directory: extension
 
     steps:
       - uses: actions/checkout@v4
@@ -24,7 +24,7 @@ jobs:
         with:
           node-version: '20'
           cache: 'npm'
-          cache-dependency-path: iris-thaumantias/package-lock.json
+          cache-dependency-path: extension/package-lock.json
 
       - name: Install dependencies
         run: npm ci
@@ -46,7 +46,7 @@ jobs:
         if: ${{ !cancelled() }}
         with:
           name: Test Results
-          path: iris-thaumantias/reports/*.xml
+          path: extension/reports/*.xml
           reporter: jest-junit
           fail-on-error: 'true'
 
@@ -55,4 +55,4 @@ jobs:
         if: ${{ !cancelled() }}
         with:
           name: junit-reports
-          path: iris-thaumantias/reports/
+          path: extension/reports/

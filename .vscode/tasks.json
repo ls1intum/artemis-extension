@@ -4,8 +4,8 @@
     {
       "type": "npm",
       "script": "watch",
-      "path": "iris-thaumantias/",
-      "label": "npm: watch - iris-thaumantias",
+      "path": "extension/",
+      "label": "npm: watch - extension",
       "group": "build",
       "problemMatcher": "$tsc-watch",
       "isBackground": true,
@@ -16,8 +16,8 @@
     {
       "type": "npm",
       "script": "compile",
-      "path": "iris-thaumantias/",
-      "label": "npm: compile - iris-thaumantias",
+      "path": "extension/",
+      "label": "npm: compile - extension",
       "group": {
         "kind": "build",
         "isDefault": true
@@ -30,16 +30,16 @@
     {
       "type": "npm",
       "script": "package",
-      "path": "iris-thaumantias/",
-      "label": "npm: package - iris-thaumantias",
+      "path": "extension/",
+      "label": "npm: package - extension",
       "group": "build",
       "problemMatcher": []
     },
     {
       "type": "npm",
       "script": "pretest",
-      "path": "iris-thaumantias/",
-      "label": "npm: pretest - iris-thaumantias",
+      "path": "extension/",
+      "label": "npm: pretest - extension",
       "group": "test",
       "problemMatcher": []
     },

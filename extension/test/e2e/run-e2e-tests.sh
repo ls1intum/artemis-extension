@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# Run E2E Tests for iris-thaumantias Extension
+# Run E2E Tests for Iris Thaumantias Extension
 #
 # This script:
 # 1. Checks if Artemis is running

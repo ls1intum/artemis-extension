@@ -8,7 +8,7 @@ on:
 
 defaults:
   run:
-    working-directory: iris-thaumantias
+    working-directory: extension
 
 jobs:
   check:
@@ -22,7 +22,7 @@ jobs:
         with:
           node-version: 22
           cache: npm
-          cache-dependency-path: iris-thaumantias/package-lock.json
+          cache-dependency-path: extension/package-lock.json
 
       - name: Install dependencies
         run: npm ci

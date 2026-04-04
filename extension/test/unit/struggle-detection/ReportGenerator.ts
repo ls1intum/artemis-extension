@@ -294,7 +294,7 @@ REALITY │───────────┼───────────
 ### How to Run These Tests
 
 \`\`\`bash
-cd iris-thaumantias
+cd extension
 npm run test:struggle
 \`\`\`
 

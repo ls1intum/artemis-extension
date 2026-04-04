@@ -10,7 +10,7 @@ git clone https://github.com/ls1intum/artemis-extension.git
 cd artemis-extension
 
 # Install dependencies
-cd iris-thaumantias
+cd extension
 npm install
 cd ..
 
@@ -138,7 +138,7 @@ npm run test
 - Modify project structure
 - Change development workflow
 
-**Update `/iris-thaumantias/README.md` (user docs) if you**:
+**Update `/extension/README.md` (user docs) if you**:
 - Add new features
 - Add new commands
 - Add new settings
