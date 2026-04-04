@@ -149,164 +149,6 @@ suite('ChatContextManager Test Suite', () => {
         });
     });
 
-    suite('Course Selection', () => {
-        test('should handle course selection by ID', () => {
-            chatContextManager.handleCourseSelection(101);
-
-            const snapshot = contextStore.snapshot();
-            assert.ok(snapshot.activeContext);
-            assert.strictEqual(snapshot.activeContext.type, 'course');
-            assert.strictEqual(snapshot.activeContext.id, 101);
-            assert.strictEqual(snapshot.activeContext.source, 'user-selected');
-
-            assert.ok(postMessageSpy.calledWith({ type: 'clearChatMessages' }));
-            assert.ok(chatSessionService.loadAllSessionsForContext.calledOnce);
-        });
-
-        test('should register and use course for context', () => {
-            // When calling handleCourseSelection, it will register with default title first
-            chatContextManager.handleCourseSelection(101);
-
-            const snapshot = contextStore.snapshot();
-            assert.ok(snapshot.activeContext);
-            // Will have the registered course data
-            assert.strictEqual(snapshot.activeContext.id, 101);
-        });
-
-        test('should use fallback title if course not tracked', () => {
-            chatContextManager.handleCourseSelection(999);
-
-            const snapshot = contextStore.snapshot();
-            assert.ok(snapshot.activeContext);
-            assert.strictEqual(snapshot.activeContext.title, 'Course 999');
-        });
-
-        test('should register course if not already tracked', () => {
-            chatContextManager.handleCourseSelection(101);
-
-            const snapshot = contextStore.snapshot();
-            const course = snapshot.allCourses.find(c => c.id === 101);
-            assert.ok(course);
-        });
-
-        test('should reset Iris session on course selection', () => {
-            chatContextManager.handleCourseSelection(101);
-
-            assert.ok(irisSessionManager.resetSession.calledOnce);
-        });
-    });
-
-    suite('Exercise Selection', () => {
-        test('should handle exercise selection by ID', () => {
-            chatContextManager.handleExerciseSelection(123);
-
-            const snapshot = contextStore.snapshot();
-            assert.ok(snapshot.activeContext);
-            assert.strictEqual(snapshot.activeContext.type, 'exercise');
-            assert.strictEqual(snapshot.activeContext.id, 123);
-            assert.strictEqual(snapshot.activeContext.source, 'user-selected');
-
-            assert.ok(postMessageSpy.calledWith({ type: 'clearChatMessages' }));
-            assert.ok(chatSessionService.loadAllSessionsForContext.calledOnce);
-        });
-
-        test('should register and use exercise for context', () => {
-            // Pre-register exercise
-            contextStore.registerExercise({
-                id: 123,
-                title: 'Algorithm Challenge',
-                shortName: 'EX01',
-                courseId: 101
-            });
-
-            chatContextManager.handleExerciseSelection(123);
-
-            const snapshot = contextStore.snapshot();
-            assert.ok(snapshot.activeContext);
-            // Will use data from registered exercise
-            assert.strictEqual(snapshot.activeContext.id, 123);
-            assert.strictEqual(snapshot.activeContext.courseId, 101);
-        });
-
-        test('should use fallback title if exercise not tracked', () => {
-            chatContextManager.handleExerciseSelection(999);
-
-            const snapshot = contextStore.snapshot();
-            assert.ok(snapshot.activeContext);
-            assert.strictEqual(snapshot.activeContext.title, 'Exercise 999');
-        });
-
-        test('should preserve courseId from tracked exercise', () => {
-            contextStore.registerExercise({
-                id: 123,
-                title: 'Test Exercise',
-                courseId: 101
-            });
-
-            chatContextManager.handleExerciseSelection(123);
-
-            const snapshot = contextStore.snapshot();
-            assert.strictEqual(snapshot.activeContext?.courseId, 101);
-        });
-
-        test('should register exercise if not already tracked', () => {
-            chatContextManager.handleExerciseSelection(123);
-
-            const snapshot = contextStore.snapshot();
-            const exercise = snapshot.allExercises.find(e => e.id === 123);
-            assert.ok(exercise);
-        });
-
-        test('should set active context with exercise title', () => {
-            contextStore.registerExercise({
-                id: 123,
-                title: 'My Exercise'
-            });
-
-            chatContextManager.handleExerciseSelection(123);
-
-            const snapshot = contextStore.snapshot();
-            assert.ok(snapshot.activeContext);
-            assert.strictEqual(snapshot.activeContext.title, 'My Exercise');
-        });
-
-        test('should reset Iris session on exercise selection', () => {
-            chatContextManager.handleExerciseSelection(123);
-
-            assert.ok(irisSessionManager.resetSession.calledOnce);
-        });
-    });
-
-    suite('Switch Context', () => {
-        test('should unlock active context', () => {
-            // Set a locked context
-            contextStore.setActiveContext({
-                type: 'exercise',
-                id: 123,
-                title: 'Test Exercise',
-                source: 'user-selected',
-                locked: true,
-                selectedAt: Date.now()
-            });
-
-            let snapshot = contextStore.snapshot();
-            assert.strictEqual(snapshot.activeContext?.locked, true);
-
-            chatContextManager.handleSwitchContext();
-
-            snapshot = contextStore.snapshot();
-            assert.strictEqual(snapshot.activeContext?.locked, false);
-        });
-
-        test('should handle when no active context exists', () => {
-            // Should not throw
-            chatContextManager.handleSwitchContext();
-
-            const snapshot = contextStore.snapshot();
-            assert.strictEqual(snapshot.activeContext, null);
-        });
-    });
-
     suite('Switch To Workspace Context', () => {
         test('should find workspace exercise from recent exercises', () => {
             contextStore.registerExercise({
@@ -427,51 +269,6 @@ suite('ChatContextManager Test Suite', () => {
         });
     });
 
-    suite('Integration - Multiple Operations', () => {
-        test('should handle switching between multiple contexts', () => {
-            // Set course context
-            chatContextManager.handleCourseSelection(101);
-            let snapshot = contextStore.snapshot();
-            assert.strictEqual(snapshot.activeContext?.type, 'course');
-            assert.strictEqual(snapshot.activeContext?.id, 101);
-
-            // Switch to exercise
-            chatContextManager.handleExerciseSelection(123);
-            snapshot = contextStore.snapshot();
-            assert.strictEqual(snapshot.activeContext?.type, 'exercise');
-            assert.strictEqual(snapshot.activeContext?.id, 123);
-
-            // Switch back to course
-            chatContextManager.handleCourseSelection(102);
-            snapshot = contextStore.snapshot();
-            assert.strictEqual(snapshot.activeContext?.type, 'course');
-            assert.strictEqual(snapshot.activeContext?.id, 102);
-
-            // Should have loaded sessions 3 times
-            assert.strictEqual(chatSessionService.loadAllSessionsForContext.callCount, 3);
-        });
-
-        test('should reset Iris session each time context changes', () => {
-            chatContextManager.handleCourseSelection(101);
-            chatContextManager.handleExerciseSelection(123);
-            chatContextManager.handleCourseSelection(102);
-
-            // Should reset session 3 times
-            assert.strictEqual(irisSessionManager.resetSession.callCount, 3);
-        });
-
-        test('should clear messages each time context changes', () => {
-            chatContextManager.handleCourseSelection(101);
-            chatContextManager.handleExerciseSelection(123);
-
-            // Should clear twice
-            const clearCalls = postMessageSpy.getCalls().filter(
-                call => call.args[0].type === 'clearChatMessages'
-            );
-            assert.strictEqual(clearCalls.length, 2);
-        });
-    });
-
     suite('Edge Cases', () => {
         test('should handle context selection with undefined shortName', () => {
             chatContextManager.handleContextSelection('exercise', 123, 'Test Exercise', undefined);
@@ -479,14 +276,6 @@ suite('ChatContextManager Test Suite', () => {
             const snapshot = contextStore.snapshot();
             assert.ok(snapshot.activeContext);
             assert.strictEqual(snapshot.activeContext.shortName, undefined);
-        });
-
-        test('should handle exercise selection with no courseId', () => {
-            chatContextManager.handleExerciseSelection(123);
-
-            const snapshot = contextStore.snapshot();
-            assert.ok(snapshot.activeContext);
-            assert.strictEqual(snapshot.activeContext.courseId, undefined);
         });
 
         test('should handle when IrisWebSocketSessionClient is not available', () => {
@@ -502,7 +291,7 @@ suite('ChatContextManager Test Suite', () => {
             );
 
             // Should not throw
-            managerWithoutIris.handleCourseSelection(101);
+            managerWithoutIris.handleContextSelection('course', 101, 'Test Course');
 
             const snapshot = contextStore.snapshot();
             assert.ok(snapshot.activeContext);
@@ -597,49 +386,6 @@ suite('ChatContextManager Test Suite', () => {
             assert.ok(snapshot.activeContext);
             assert.strictEqual(snapshot.activeContext.id, 101);
             assert.strictEqual(snapshot.activeContext.type, 'course');
-        });
-
-        test('should auto-select after removing active exercise', () => {
-            chatContextManager.registerExerciseAndAutoSelect({ id: 1, title: 'Ex 1' });
-            chatContextManager.registerExerciseAndAutoSelect({ id: 2, title: 'Ex 2' });
-
-            // Ex 1 should be auto-selected (first registered, no active)
-            assert.strictEqual(contextStore.getActiveContext()?.id, 1);
-
-            // Now set Ex 2 as active and remove it
-            contextStore.setActiveContext({
-                type: 'exercise',
-                id: 2,
-                title: 'Ex 2',
-                source: 'user-selected',
-                locked: false,
-                selectedAt: Date.now(),
-            });
-            chatContextManager.removeExerciseAndAutoSelect(2);
-
-            const snapshot = contextStore.snapshot();
-            assert.ok(snapshot.activeContext);
-            assert.strictEqual(snapshot.activeContext.id, 1);
-        });
-
-        test('should auto-select after removing active course', () => {
-            chatContextManager.registerCourseAndAutoSelect({ id: 101, title: 'Course 1' });
-            chatContextManager.registerCourseAndAutoSelect({ id: 102, title: 'Course 2' });
-
-            contextStore.setActiveContext({
-                type: 'course',
-                id: 101,
-                title: 'Course 1',
-                source: 'user-selected',
-                locked: false,
-                selectedAt: Date.now(),
-            });
-
-            chatContextManager.removeCourseAndAutoSelect(101);
-
-            const snapshot = contextStore.snapshot();
-            assert.ok(snapshot.activeContext);
-            assert.strictEqual(snapshot.activeContext.id, 102);
         });
 
         test('should clear stale workspace context', () => {

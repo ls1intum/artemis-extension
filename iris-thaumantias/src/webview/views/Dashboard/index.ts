@@ -1,2 +1,2 @@
 export { DashboardView } from './DashboardView';
-export type { DashboardViewProps, DashboardPersistedState } from './types';
+export type { DashboardViewProps } from './types';

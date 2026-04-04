@@ -14,7 +14,6 @@ import { fetchAndEnrichExerciseDetails, fetchArchivedCourseDetail } from '../exe
 import type {
     CourseDashboardCourse,
     CourseDashboardEntry,
-    ExamSummary,
     ExerciseDetailsResponse,
 } from '../../types';
 
@@ -134,16 +133,7 @@ export class NavigationCommandModule {
                 ? (courseData.course as CourseDashboardCourse | undefined)
                 : courseData;
 
-            // TODO: Exams temporarily disabled
-            // if (course?.id) {
-            //     try {
-            //         const exams = await this.context.artemisApi.getExamsForCourse(course.id);
-            //         course.exams = exams;
-            //     } catch (error: unknown) {
-            //         logger.apiError('Error fetching exams:', error);
-            //     }
-            // }
-
+            // Exams are already included in course.exams from the dashboard response.
             // Convert to CourseDetailData format expected by state manager
             const courseDetailData = toCourseDetailData(
                 ('course' in courseData ? courseData.course! : courseData) as CourseDashboardCourse
@@ -280,8 +270,10 @@ export class NavigationCommandModule {
 
     private handleReloadCourses = async (_message: WebviewToExtensionMessage): Promise<void> => {
         try {
-            const coursesData = await this.context.artemisApi.getCoursesForDashboard();
-            this.context.appStateManager.showCourseList(coursesData);
+            if (this.context.courseDataCache) {
+                await this.context.courseDataCache.fetch({ force: true });
+            }
+            this.context.appStateManager.showCourseList();
             this.context.actionHandler.sendInitData();
         } catch (error: unknown) {
             logger.viewError('Reload courses error:', error);
@@ -308,22 +300,10 @@ export class NavigationCommandModule {
             const payload = getPayload<WebCmd<'reloadCourseDetail'>>(message);
             const courseId = payload.courseId || this.context.appStateManager.currentCourseData?.course?.id;
             if (courseId) {
-                // Fetch fresh course data from the single-course dashboard endpoint
+                // Fetch fresh course data from the single-course dashboard endpoint.
+                // Exams are already included in course.exams from the dashboard response.
                 const dashboardDTO = await this.context.artemisApi.getCourseForDashboard(courseId);
-
-                // Build CourseDetailData structure expected by showCourseDetail
                 const courseData = toCourseDetailData(dashboardDTO.course as CourseDashboardCourse);
-
-                // Fetch exams separately (not included in dashboard endpoint)
-                try {
-                    const exams = await this.context.artemisApi.getExamsForCourse(courseId);
-                    if (courseData.course) {
-                        courseData.course.exams = exams as typeof courseData.course.exams;
-                    }
-                } catch (error: unknown) {
-                    logger.apiError('Error fetching exams during reload:', error);
-                    // Continue without exams if fetch fails
-                }
 
                 this.context.appStateManager.showCourseDetail(courseData);
                 // Send updated data to React without re-rendering

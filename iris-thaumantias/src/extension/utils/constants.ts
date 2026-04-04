@@ -3,7 +3,6 @@ export const CONFIG = {
     ARTEMIS_SERVER_URL_DEFAULT: 'https://artemis.tum.de',
     AUTH_COOKIE_NAME: 'jwt',
     SECRET_KEYS: {
-        AUTH_COOKIE: 'artemis-auth-cookie',
         ARTEMIS_TOKEN: 'artemis-auth-token',
         ARTEMIS_SERVER_URL: 'artemis-server-url',
     },
@@ -14,16 +13,8 @@ export const CONFIG = {
     API: {
         ENDPOINTS: {
             AUTHENTICATE: '/api/core/public/authenticate',
-            ACCOUNT: '/api/core/public/account',
-            COURSES: '/api/core/courses',
-            EXERCISES: '/api/core/courses/{courseId}/exercises',
-            PARTICIPATIONS: '/api/core/participations',
-            RESULTS: '/api/core/participations/{participationId}/results',
-            VCS_TOKEN: '/api/core/account/participation-vcs-access-token',
-            START_PARTICIPATION: '/api/exercise/exercises/{exerciseId}/participations',
             RENDER_PROBLEM_STATEMENT: '/api/exercise/problem-statement/render',
         },
-        USER_AGENT: 'VS Code Extension',
     },
 } as const;
 

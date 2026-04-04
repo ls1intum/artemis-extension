@@ -79,7 +79,7 @@ suite('NoAiDetectionService', () => {
             });
 
             // Wait for async initialization
-            await new Promise(resolve => setTimeout(resolve, 100));
+            await service.waitForInitialization();
 
             const result = await service.checkForNoAiFile();
             assert.strictEqual(result, true);
@@ -109,7 +109,7 @@ suite('NoAiDetectionService', () => {
             service.setFileExistsChecker(async () => false);
 
             // Wait for async initialization
-            await new Promise(resolve => setTimeout(resolve, 100));
+            await service.waitForInitialization();
 
             const result = await service.checkForNoAiFile();
             assert.strictEqual(result, false);
@@ -150,7 +150,7 @@ suite('NoAiDetectionService', () => {
             });
 
             // Wait for async initialization
-            await new Promise(resolve => setTimeout(resolve, 100));
+            await service.waitForInitialization();
 
             const result = await service.checkForNoAiFile();
             assert.strictEqual(result, true);
@@ -189,7 +189,7 @@ suite('NoAiDetectionService', () => {
             });
 
             // Wait for async initialization
-            await new Promise(resolve => setTimeout(resolve, 100));
+            await service.waitForInitialization();
 
             const result = await service.checkForNoAiFile();
             assert.strictEqual(result, true);

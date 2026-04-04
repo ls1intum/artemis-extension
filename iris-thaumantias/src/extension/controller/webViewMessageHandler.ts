@@ -8,6 +8,7 @@ import type { IProviderRegistry } from '../services/ui';
 import { AppStateManager } from './appStateManager';
 import type { WebViewActionHandler } from './types';
 import type { CommandContext, CommandHandler } from './commands/types';
+import type { CourseDataCache } from '../services/courseDataCache';
 import { getCommand } from '../../shared/messageContracts';
 import type { WebviewToExtensionMessage, ExtensionToWebviewMessage } from '../../shared/messageContracts';
 import { AuthCommandModule } from './commands/authCommands';
@@ -39,6 +40,7 @@ export class WebViewMessageHandler {
         exerciseRegistry: ExerciseRegistry,
         providerRegistry: IProviderRegistry,
         websocketService?: ArtemisWebsocketService,
+        courseDataCache?: CourseDataCache,
     ) {
         this._websocketService = websocketService;
         const context: CommandContext = {
@@ -52,6 +54,7 @@ export class WebViewMessageHandler {
             extensionContext,
             exerciseRegistry,
             providerRegistry,
+            courseDataCache,
         };
 
         const modules = [
@@ -123,13 +126,6 @@ export class WebViewMessageHandler {
      */
     public setAuthContextUpdater(updater: (isAuthenticated: boolean) => Promise<void>): void {
         this._authContextUpdater = updater;
-    }
-
-    /**
-     * Set the WebSocket service for real-time updates.
-     */
-    public setWebsocketService(websocketService: ArtemisWebsocketService): void {
-        this._websocketService = websocketService;
     }
 
     /**

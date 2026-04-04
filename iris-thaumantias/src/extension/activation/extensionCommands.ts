@@ -6,7 +6,7 @@ import type { IProviderRegistry } from '../services/ui';
 import type { TelemetryManager } from '../services/telemetry';
 import type { ArtemisWebviewProvider, ChatWebviewProvider } from '../provider';
 import { logger, LogCategory } from '../services/loggingService';
-import { processPlantUml, normalizeRelativePath } from '../utils';
+import { processPlantUml, normalizeRelativePath, extractErrorMessage } from '../utils';
 import { executeReplayCommand } from '../services/telemetry/replay';
 
 // ── Individual command registrations ─────────────────────────────────
@@ -58,8 +58,7 @@ function registerResetIrisChatCommand(chatWebviewProvider: ChatWebviewProvider):
                 vscode.window.showInformationMessage('✅ Iris chat sessions have been reset. Local session data cleared.');
             });
         } catch (error: unknown) {
-            const message = error instanceof Error ? error.message : String(error);
-            vscode.window.showErrorMessage(`Failed to reset Iris chat: ${message}`);
+            vscode.window.showErrorMessage(`Failed to reset Iris chat: ${extractErrorMessage(error)}`);
         }
     });
 }
@@ -71,7 +70,7 @@ function registerIrisHealthCheckCommand(
 ): vscode.Disposable {
     return vscode.commands.registerCommand('artemis.checkIrisHealth', async () => {
         try {
-            if (!await authManager.hasArtemisToken()) {
+            if (!await authManager.hasAuthToken()) {
                 vscode.window.showWarningMessage('Please log in to Artemis first before checking Iris health status.');
                 return;
             }
@@ -213,7 +212,7 @@ function registerWebSocketStatusCommand(artemisWebsocketService: ArtemisWebsocke
                     await artemisWebsocketService.connect();
                     vscode.window.showInformationMessage('WebSocket connection attempt started...');
                 } catch (error) {
-                    vscode.window.showErrorMessage(`Failed to connect: ${error instanceof Error ? error.message : 'Unknown error'}`);
+                    vscode.window.showErrorMessage(`Failed to connect: ${extractErrorMessage(error)}`);
                 }
             } else if (action === 'Show Details') {
                 const doc = await vscode.workspace.openTextDocument({
@@ -227,7 +226,7 @@ function registerWebSocketStatusCommand(artemisWebsocketService: ArtemisWebsocke
             }
         } catch (error) {
             logger.error('Error checking WebSocket status', LogCategory.WEBSOCKET, error);
-            vscode.window.showErrorMessage(`Failed to check WebSocket status: ${error instanceof Error ? error.message : 'Unknown error'}`);
+            vscode.window.showErrorMessage(`Failed to check WebSocket status: ${extractErrorMessage(error)}`);
         }
     });
 }
@@ -238,7 +237,7 @@ function registerConnectWebSocketCommand(
 ): vscode.Disposable {
     return vscode.commands.registerCommand('artemis.connectWebSocket', async () => {
         try {
-            const isAuthenticated = await authManager.hasArtemisToken();
+            const isAuthenticated = await authManager.hasAuthToken();
 
             if (!isAuthenticated) {
                 const action = await vscode.window.showWarningMessage(
@@ -260,8 +259,7 @@ function registerConnectWebSocketCommand(
                     await artemisWebsocketService.connect();
                     vscode.window.showInformationMessage('✅ Successfully connected to Artemis WebSocket');
                 } catch (error) {
-                    const errorMsg = error instanceof Error ? error.message : 'Unknown error';
-                    vscode.window.showErrorMessage(`❌ Failed to connect to WebSocket: ${errorMsg}`);
+                    vscode.window.showErrorMessage(`❌ Failed to connect to WebSocket: ${extractErrorMessage(error)}`);
 
                     const action = await vscode.window.showErrorMessage(
                         'WebSocket connection failed. Check the Developer Console for details.',
@@ -348,8 +346,7 @@ function registerPlantUmlRenderCommand(artemisApiService: ArtemisApiService): vs
 
                 vscode.window.showInformationMessage('✅ PlantUML diagram rendered successfully!');
             } catch (error) {
-                const errorMsg = error instanceof Error ? error.message : 'Unknown error';
-                vscode.window.showErrorMessage(`❌ Failed to render PlantUML: ${errorMsg}`);
+                vscode.window.showErrorMessage(`❌ Failed to render PlantUML: ${extractErrorMessage(error)}`);
                 logger.error('PlantUML rendering error', LogCategory.PLANTUML, error);
             }
         }
@@ -389,7 +386,7 @@ function registerGoToSourceErrorCommand(): vscode.Disposable {
                     );
                 }
             } catch (error) {
-                vscode.window.showErrorMessage(`Failed to navigate to error: ${error instanceof Error ? error.message : 'Unknown error'}`);
+                vscode.window.showErrorMessage(`Failed to navigate to error: ${extractErrorMessage(error)}`);
             }
         }
     );

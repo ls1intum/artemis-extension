@@ -1,5 +1,4 @@
 export { SessionRecorder } from './sessionRecorder';
-export type { RecordingState } from './sessionRecorder';
 export { RecordingStatusBarService } from './recordingStatusBar';
 export { RecordingStorageWriter } from './storageWriter';
 export type {

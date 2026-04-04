@@ -1,6 +1,16 @@
 import * as assert from 'assert';
 import { AppStateManager } from '../../../src/extension/controller/appStateManager';
-import type { ExerciseDetailsResponse } from '../../../src/extension/types';
+import type { CourseDataCache } from '../../../src/extension/services/courseDataCache';
+import type { ExerciseDetailsResponse, CourseDashboardResponse } from '../../../src/extension/types';
+
+/** Minimal mock that satisfies AppStateManager's usage of CourseDataCache */
+function createMockCache(initialData?: CourseDashboardResponse): CourseDataCache {
+    let data = initialData;
+    return {
+        get: () => data,
+        clear: () => { data = undefined; },
+    } as unknown as CourseDataCache;
+}
 
 suite('AppStateManager Test Suite', () => {
     let stateManager: AppStateManager;
@@ -17,12 +27,15 @@ suite('AppStateManager Test Suite', () => {
         assert.strictEqual(stateManager.userInfo?.username, 'test');
     });
 
-    test('should store courses data when provided to showDashboard', () => {
-        const userInfo = { username: 'test', serverUrl: 'https://test.artemis.de' };
+    test('should read courses data from CourseDataCache', () => {
         const coursesData = { courses: [{ course: { id: 1, title: 'Test Course' } }] };
-        stateManager.showDashboard(userInfo, coursesData);
+        stateManager.setCourseDataCache(createMockCache(coursesData));
 
         assert.strictEqual(stateManager.coursesData, coursesData);
+    });
+
+    test('should return undefined coursesData without cache', () => {
+        assert.strictEqual(stateManager.coursesData, undefined);
     });
 
     test('should transition to course-detail state', () => {
@@ -44,11 +57,8 @@ suite('AppStateManager Test Suite', () => {
     });
 
     test('should transition to course-list state', () => {
-        const coursesData = { courses: [{ course: { id: 1, title: 'Course' } }] };
-        stateManager.showCourseList(coursesData);
-
+        stateManager.showCourseList();
         assert.strictEqual(stateManager.currentState, 'course-list');
-        assert.strictEqual(stateManager.coursesData, coursesData);
     });
 
     test('should set archived courses', () => {
@@ -59,6 +69,10 @@ suite('AppStateManager Test Suite', () => {
     });
 
     test('should clear state on showLogin', () => {
+        const coursesData = { courses: [{ course: { id: 1, title: 'Test' } }] };
+        const cache = createMockCache(coursesData);
+        stateManager.setCourseDataCache(cache);
+
         const userInfo = { username: 'test', serverUrl: 'https://test.artemis.de' };
         stateManager.showDashboard(userInfo);
         stateManager.showLogin();

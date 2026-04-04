@@ -1,0 +1,37 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main, dev]
+  push:
+    branches: [dev]
+
+defaults:
+  run:
+    working-directory: iris-thaumantias
+
+jobs:
+  check:
+    name: TypeScript, Lint & Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: iris-thaumantias/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Type check
+        run: npm run check-types
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Tests
+        run: npx vitest run

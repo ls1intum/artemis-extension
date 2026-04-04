@@ -11,6 +11,7 @@ import { VSCODE_CONFIG, extractErrorMessage, BuildLogParser } from '../../utils'
 import { checkWorkspaceFiles } from '../../services/workspace/workspaceFileChecker';
 import { normalizeRepositoryUrl, getWorkspaceRepositoryUrl, getWorkspaceStatus, GitService } from '../../services/workspace';
 import { logger, LogCategory } from '../../services/loggingService';
+import { cloneRepositoryProgrammatic, getTheiaEnvironment } from '../../theia';
 
 const GIT_IDENTITY_NOT_CONFIGURED = 'GIT_IDENTITY_NOT_CONFIGURED';
 
@@ -99,6 +100,11 @@ export class RepositoryCommandModule {
     }
 
     private async _selectFolder(openLabel: string, title: string): Promise<string | undefined> {
+        // In Theia, always use the workspace root instead of showing a dialog
+        if (getTheiaEnvironment().isTheia) {
+            return vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+        }
+
         const folderUri = await vscode.window.showOpenDialog({
             canSelectFiles: false,
             canSelectFolders: true,
@@ -310,14 +316,21 @@ export class RepositoryCommandModule {
                 return;
             }
 
-            const terminal = vscode.window.createTerminal(`Exercise ${exerciseId}`);
-            terminal.show();
-            terminal.sendText(`cd "${selectedPath}"`);
-            terminal.sendText(`git clone ${cloneUrl}`);
-            vscode.window.showInformationMessage(`Cloning repository for "${exerciseTitle}" to ${selectedPath} using participation token...`);
-
             const repoName = path.basename(repositoryUri).replace(/\.git$/, '');
             const repoPath = path.join(selectedPath, repoName);
+
+            if (getTheiaEnvironment().isTheia) {
+                // Theia: programmatic clone with progress notification
+                await cloneRepositoryProgrammatic(cloneUrl, repoPath, exerciseTitle);
+            } else {
+                // VS Code: terminal-based clone for visual feedback
+                const terminal = vscode.window.createTerminal(`Exercise ${exerciseId}`);
+                terminal.show();
+                terminal.sendText(`cd "${selectedPath}"`);
+                terminal.sendText(`git clone ${cloneUrl}`);
+            }
+
+            vscode.window.showInformationMessage(`Cloning repository for "${exerciseTitle}" to ${selectedPath} using participation token...`);
 
             if (this.clonedRepositories.size >= 10 && !this.clonedRepositories.has(exerciseId)) {
                 const firstKey = this.clonedRepositories.keys().next().value;

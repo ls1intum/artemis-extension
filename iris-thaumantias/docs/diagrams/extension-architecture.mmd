@@ -13,7 +13,7 @@ graph TB
 
         subgraph AppState
             StateManager[AppStateManager<br/>Navigation State]
-            ViewRouter[ViewRouter<br/>HTML Generation]
+            ViewHtml[getViewHtml&#40;&#41;<br/>HTML Generation]
         end
     end
 
@@ -54,17 +54,17 @@ graph TB
 
     Extension --> ArtemisProvider
     Extension --> ChatProvider
-    ArtemisProvider --> ViewRouter
-    ChatProvider --> ViewRouter
-    ViewRouter --> ReactApp
+    ArtemisProvider --> ViewHtml
+    ChatProvider --> ViewHtml
+    ViewHtml --> ReactApp
 
     ReactApp --> ErrorBoundary
     ErrorBoundary --> ReactViews
     ReactViews --> ZustandStores
     ReactViews --> SharedComponents
 
-    Services --> ViewRouter
-    StateManager --> ViewRouter
+    Services --> ViewHtml
+    StateManager --> ViewHtml
 
     ReactApp -.postMessage.-> Extension
     Extension -.postMessage.-> ReactApp

@@ -1,10 +1,10 @@
-import { CombinedStruggleScore, InterventionState, RecommendedAction } from './types';
+import { InterventionState, RecommendedAction, SessionResettable, SessionStartContext } from './types';
 
 /**
  * Pedagogical guards for intervention decisions.
  * Ensures interventions are appropriate and not overwhelming.
  */
-export class InterventionFilter {
+export class InterventionFilter implements SessionResettable {
     /** Minimum time in exercise before first intervention (5 minutes) */
     private static readonly MIN_EXERCISE_TIME_MS = 5 * 60 * 1000;
     /** Maximum interventions per session */
@@ -34,42 +34,6 @@ export class InterventionFilter {
     }
 
     /**
-     * Determine if an intervention should be shown
-     */
-    public shouldIntervene(score: CombinedStruggleScore, state: InterventionState): boolean {
-        // Don't intervene if action is 'none'
-        if (score.recommendedAction === 'none') {
-            return false;
-        }
-
-        // Check if enough time has passed in the exercise
-        if (!this._hasEnoughExerciseTime()) {
-            return false;
-        }
-
-        // Check if student made recent progress
-        if (this._hasRecentProgress()) {
-            return false;
-        }
-
-        // Check session intervention limit
-        if (state.sessionInterventionCount >= InterventionFilter.MAX_INTERVENTIONS_PER_SESSION) {
-            // Allow proactive interventions even after limit for severe struggles
-            if (score.recommendedAction !== 'proactive' || score.combined < 85) {
-                return false;
-            }
-        }
-
-        // If the last intervention was dismissed and score hasn't increased significantly,
-        // only allow proactive interventions
-        if (state.lastDismissed && score.recommendedAction !== 'proactive') {
-            return false;
-        }
-
-        return true;
-    }
-
-    /**
      * Check if enough time has passed in the exercise
      */
     private _hasEnoughExerciseTime(): boolean {
@@ -96,21 +60,8 @@ export class InterventionFilter {
     }
 
     /**
-     * Get time remaining before interventions are allowed
-     */
-    public getTimeUntilInterventionsAllowed(): number {
-        if (this._exerciseStartTime === undefined) {
-            return 0;
-        }
-
-        const elapsed = Date.now() - this._exerciseStartTime;
-        const remaining = InterventionFilter.MIN_EXERCISE_TIME_MS - elapsed;
-        return Math.max(0, remaining);
-    }
-
-    /**
-     * EQ-based intervention check — applies same guardrails as shouldIntervene
-     * but accepts EQ decision instead of CombinedStruggleScore.
+     * EQ-based intervention check — applies pedagogical guardrails
+     * (exercise time, recent progress, session limit, dismiss behavior).
      */
     public shouldInterveneEQ(
         decision: { level: RecommendedAction; eq: number },
@@ -145,10 +96,10 @@ export class InterventionFilter {
     }
 
     /**
-     * Reset the filter state (e.g., for a new exercise)
+     * SessionResettable — reset exercise start time when a new session begins.
      */
-    public reset(): void {
-        this._exerciseStartTime = undefined;
-        this._lastProgressTime = 0;
+    public onSessionStart(_context: SessionStartContext): void {
+        this.setExerciseStartTime();
     }
+
 }

@@ -15,16 +15,15 @@ export {
     parseArtemisResult,
     parseArtemisParticipation,
 } from './core';
-export type { ProfileInfo, LoginCredentials, AuthenticationResult } from './auth';
-export { PROFILE_IRIS, parseProfileInfo, parseAuthenticationResult } from './auth';
+export type { ProfileInfo, AuthenticationResult } from './auth';
+export { PROFILE_IRIS, parseProfileInfo } from './auth';
 export type { IrisRateLimitInfo, IrisHealthStatus } from './iris';
 export { parseIrisRateLimitInfo, parseIrisHealthStatus } from './iris';
 export type { BuildLogEntry, ParsedBuildError } from './build';
-export { parseBuildLogEntry, parseParsedBuildError } from './build';
+export { parseBuildLogEntry } from './build';
 export {
     ProgrammingSubmissionState,
     parseBuildTimingInfo,
-    parseArtemisSubmission,
     parseProgrammingSubmission,
     parseSubmissionProcessingMessage,
     parseResultDTO,

@@ -1,5 +1,27 @@
 import * as vscode from 'vscode';
 
+// ── Session lifecycle ───────────────────────────────────────────────
+
+/**
+ * Context passed to telemetry sub-services when a new exercise session starts.
+ */
+export interface SessionStartContext {
+    exerciseId: number;
+    exerciseRoot?: vscode.Uri;
+}
+
+/**
+ * Implemented by telemetry sub-services that need per-exercise lifecycle management.
+ * TelemetryManager iterates all registered SessionResettable services on exercise
+ * switch instead of calling individual reset methods, ensuring no service is missed.
+ */
+export interface SessionResettable {
+    onSessionStart(context: SessionStartContext): void;
+    onSessionEnd?(): void;
+}
+
+// ── Diagnostics ─────────────────────────────────────────────────────
+
 /**
  * Represents a tracked VS Code diagnostic with persistence information
  */
@@ -32,22 +54,6 @@ export interface TrackedDiagnostic {
 }
 
 /**
- * Diagnostic-based struggle score
- */
-export interface DiagnosticStruggleScore {
-    /** Overall score from 0-100 */
-    overall: number;
-    /** Number of persistent errors (errors that haven't been fixed) */
-    persistentErrors: number;
-    /** Number of repeated errors (same error appearing multiple times) */
-    repeatedErrors: number;
-    /** Time spent in confusion state (milliseconds) */
-    timeInConfusion: number;
-    /** Recommended action based on the score */
-    recommendedAction: RecommendedAction;
-}
-
-/**
  * Inactivity pattern classification
  */
 export type InactivityPattern = 'active' | 'thinking' | 'confusion' | 'giving-up';
@@ -56,50 +62,6 @@ export type InactivityPattern = 'active' | 'thinking' | 'confusion' | 'giving-up
  * Recommended intervention action
  */
 export type RecommendedAction = 'none' | 'subtle' | 'notification' | 'proactive';
-
-/**
- * Local struggle context (from VS Code diagnostics and editing patterns)
- */
-export interface LocalStruggleContext {
-    /** Array of persistent error messages */
-    persistentErrors: string[];
-    /** Current inactivity pattern */
-    inactivityPattern: InactivityPattern;
-    /** Time since last edit in milliseconds */
-    timeSinceLastEdit: number;
-    /** Current thrashing score (0-100) */
-    thrashingScore: number;
-}
-
-/**
- * Server-side struggle context (from Artemis build results)
- */
-export interface ServerStruggleContext {
-    /** Number of consecutive build failures */
-    consecutiveBuildFailures: number;
-    /** Names of failing test cases */
-    failingTestCases: string[];
-    /** Last build error message */
-    lastBuildError: string | undefined;
-    /** Timestamp of last submission */
-    lastSubmissionTime: number | undefined;
-}
-
-/**
- * Combined struggle score from all sources
- */
-export interface CombinedStruggleScore {
-    /** Local struggle metrics */
-    local: LocalStruggleContext;
-    /** Server-side struggle metrics */
-    server: ServerStruggleContext;
-    /** Combined score (0-100) */
-    combined: number;
-    /** Confidence level (0-1) based on data availability */
-    confidence: number;
-    /** Recommended intervention action */
-    recommendedAction: RecommendedAction;
-}
 
 /**
  * Struggle context for Iris chat integration.

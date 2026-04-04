@@ -3,22 +3,15 @@ import { promisify } from 'util';
 import { execFile } from 'child_process';
 import type { ArtemisApiService } from '../../api';
 import type { CourseDashboardEntry } from '../../types';
-import { ExerciseRegistry } from '../exerciseRegistry';
+import { ExerciseRegistry, type ExerciseRegistryEntry } from '../exerciseRegistry';
+import type { CourseDataCache } from '../courseDataCache';
 import { logger } from '../loggingService';
 import { checkWorkspaceFiles } from './workspaceFileChecker';
 
 const execFileAsync = promisify(execFile);
 
-/**
- * Information about a detected exercise in the workspace
- */
-export interface DetectedExercise {
-    id: number;
-    title: string;
-    shortName?: string;
-    repositoryUri: string;
-    courseId?: number;
-}
+/** A workspace-detected exercise. Structurally identical to ExerciseRegistryEntry. */
+export type DetectedExercise = ExerciseRegistryEntry;
 
 /**
  * Source of exercises to search against
@@ -281,22 +274,6 @@ export async function detectWorkspaceExercise(
 }
 
 /**
- * Checks if a specific exercise matches the current workspace.
- * @param exerciseId The exercise ID to check
- * @param exercises Array of exercises containing the exercise to check
- * @param workspaceFolder Optional workspace folder
- * @returns True if the exercise matches the current workspace
- */
-export async function isExerciseInCurrentWorkspace(
-    exerciseId: number,
-    exercises: ExerciseSource[],
-    workspaceFolder?: vscode.WorkspaceFolder
-): Promise<boolean> {
-    const detected = await detectWorkspaceExercise(exercises, workspaceFolder);
-    return detected?.id === exerciseId;
-}
-
-/**
  * Check workspace status against a list of repository URIs.
  * Returns the first connected match with its URI, or disconnected status if none match.
  */
@@ -386,16 +363,19 @@ export async function detectAndRegisterWorkspaceExercise(
     artemisApiService: ArtemisApiService | undefined,
     callbacks: WorkspaceRegistrationCallbacks,
     exerciseRegistry: ExerciseRegistry,
+    courseDataCache?: CourseDataCache,
 ): Promise<void> {
 
     try {
         const registry = exerciseRegistry;
         let exercises = registry.getAllExercises();
 
-        if (exercises.length === 0 && artemisApiService) {
+        // If registry is empty, populate it from the shared course cache (or API as fallback).
+        // The cache deduplicates concurrent fetches so this is cheap if data is already loaded.
+        if (exercises.length === 0) {
             logger.irisChat('Registry empty, fetching courses to populate exercises...');
             try {
-                const dashboardData = await artemisApiService.getCoursesForDashboard();
+                const dashboardData = await courseDataCache?.fetch();
                 const courses = dashboardData?.courses;
 
                 if (courses && Array.isArray(courses) && courses.length > 0) {

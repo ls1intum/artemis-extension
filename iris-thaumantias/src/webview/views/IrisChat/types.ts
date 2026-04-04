@@ -1,3 +1,5 @@
+import type { ExerciseRef } from '../../../shared/types';
+
 // Chat message as rendered in the UI
 export interface ChatMessage {
     id?: number;           // Artemis message ID (undefined for optimistic messages)
@@ -32,11 +34,7 @@ export interface ChatContext {
 }
 
 // Context item for picker lists
-export interface ContextItem {
-    id: number;
-    title: string;
-    shortName?: string;
-    courseId?: number;
+export interface ContextItem extends ExerciseRef {
     repositoryUri?: string;
     isWorkspace?: boolean;
 }
@@ -51,12 +49,6 @@ export interface ReferencedFilesData {
     includedFiles: string[];
     excludedFiles: ReferencedFile[];
     totalCount: number;
-}
-
-// Persisted state for tab hide/show
-export interface IrisChatPersistedState {
-    searchQuery: string;
-    forceContextPicker: boolean;
 }
 
 // Streaming state

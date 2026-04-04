@@ -1,21 +1,20 @@
-import * as vscode from 'vscode';
 import { AuthManager } from '../services/auth/authManager';
-import { CONFIG, VSCODE_CONFIG } from '../utils';
+import { CONFIG, resolveServerUrl, getUserAgent } from '../utils';
 import {
     ApiError, PROFILE_IRIS,
-    parseArtemisUser, parseArtemisResult, parseArtemisParticipation,
+    parseArtemisUser, parseArtemisParticipation,
     parseIrisHealthStatus, parseProfileInfo, parseProgrammingSubmission, parseBuildLogEntry,
 } from '../types';
 import type {
-    ArtemisUser, ArtemisResult, ArtemisParticipation, AuthenticationResult,
+    ArtemisUser, ArtemisParticipation, AuthenticationResult,
     IrisHealthStatus, ProfileInfo, ProgrammingSubmission, BuildLogEntry,
 } from '../types';
 import type {
     CourseDashboardResponse, CourseDashboardEntry, CourseDashboardCourse,
-    ExerciseDetailsResponse, FeedbackSummary, IrisChatSession, IrisChatMessage, IrisSettingsResponse,
+    ExerciseDetailsResponse, ResultSummary, IrisChatSession, IrisChatMessage, IrisSettingsResponse,
     ExamSummary, StudentExam,
 } from '../types';
-import { logger, LogLevel, LogCategory } from '../services/loggingService';
+import { logger, LogCategory } from '../services/loggingService';
 import type { ProblemStatementRenderRequest, RenderedProblemStatementDTO } from '../domain/problemStatementRendering';
 
 export class ArtemisApiService {
@@ -41,8 +40,7 @@ export class ArtemisApiService {
     }
 
     protected getServerUrl(): string {
-        const config = vscode.workspace.getConfiguration(VSCODE_CONFIG.ARTEMIS_SECTION);
-        return config.get<string>(VSCODE_CONFIG.SERVER_URL_KEY) || CONFIG.ARTEMIS_SERVER_URL_DEFAULT;
+        return resolveServerUrl();
     }
 
     private async makeRequest(endpoint: string, options: RequestInit = {}): Promise<Response> {
@@ -53,7 +51,7 @@ export class ArtemisApiService {
             ...options,
             headers: {
                 'Content-Type': 'application/json',
-                'User-Agent': CONFIG.API.USER_AGENT,
+                'User-Agent': getUserAgent(),
                 ...headers,
                 ...options.headers,
             },
@@ -113,12 +111,6 @@ export class ArtemisApiService {
         return parseArtemisUser(await response.json());
     }
 
-    // Get all courses for the current user
-    async getCourses(): Promise<CourseDashboardCourse[]> {
-        const response = await this.makeRequest('/api/core/courses');
-        return response.json() as Promise<CourseDashboardCourse[]>;
-    }
-
     // Get archived courses (inactive courses from previous semesters)
     async getArchivedCourses(): Promise<CourseDashboardCourse[]> {
         const response = await this.makeRequest('/api/core/courses/for-archive');
@@ -137,37 +129,14 @@ export class ArtemisApiService {
         return response.json() as Promise<CourseDashboardEntry>;
     }
 
-    // Get detailed course information for a specific course
-    async getCourseDetails(courseId: number): Promise<CourseDashboardCourse> {
-        const response = await this.makeRequest(`/api/core/courses/${courseId}`);
-        return response.json() as Promise<CourseDashboardCourse>;
-    }
-
-    // Get exercise details for a specific exercise
-    // According to Artemis client code, this endpoint already includes:
-    // - studentParticipations with ALL submissions and results
-    // No query parameters or additional enrichment needed
+    // Get exercise details for a specific exercise.
+    // The backend always includes studentParticipations with submissions and results —
+    // no query parameters needed (the endpoint accepts none).
     async getExerciseDetails(exerciseId: number): Promise<ExerciseDetailsResponse> {
-        // Request exercise details with all submissions and their latest results
-        // withSubmissions=true ensures we get submission data
-        // withLatestResult=true ensures each submission includes its most recent result
         const response = await this.makeRequest(
-            `/api/exercise/exercises/${exerciseId}/details?withSubmissions=true&withLatestResult=true`
+            `/api/exercise/exercises/${exerciseId}/details`
         );
-        const exerciseData = await response.json() as ExerciseDetailsResponse;
-
-        // Debug: Log what we actually received
-        if ((exerciseData.exercise?.studentParticipations?.length ?? 0) > 0) {
-            for (const participation of exerciseData.exercise!.studentParticipations!) {
-                const submissions = participation.submissions ?? [];
-                const totalResults = submissions.reduce((sum, s) => sum + (s.results?.length ?? 0), 0);
-                logger.info(`Participation ${participation.id}: ${submissions.length} submissions, ${totalResults} results`, LogCategory.API);
-            }
-        } else {
-            logger.warn('No student participations found in exercise details response', LogCategory.API);
-        }
-
-        return exerciseData;
+        return response.json() as Promise<ExerciseDetailsResponse>;
     }
 
     // Get latest pending submission for a participation
@@ -195,43 +164,19 @@ export class ArtemisApiService {
         }
     }
 
-    // Get participations for the current user
-    async getParticipations(): Promise<ArtemisParticipation[]> {
-        const data: unknown = await (await this.makeRequest('/api/core/participations')).json();
-        return (data as unknown[]).map(p => parseArtemisParticipation(p));
-    }
-
-    // Get results for a participation
-    async getResults(participationId: number): Promise<ArtemisResult[]> {
-        const data: unknown = await (await this.makeRequest(`/api/core/participations/${participationId}/results`)).json();
-        return (data as unknown[]).map(r => parseArtemisResult(r));
-    }
-
-    // Get detailed result information including test cases and feedback
-    async getResultDetails(participationId: number, resultId: number): Promise<ArtemisResult> {
-        const response = await this.makeRequest(`/api/assessment/participations/${participationId}/results/${resultId}/details`);
-        return parseArtemisResult(await response.json());
-    }
-
-    // Get detailed result feedbacks as FeedbackSummary (preserves testCase field)
-    async getResultFeedbacks(participationId: number, resultId: number): Promise<FeedbackSummary[]> {
-        const response = await this.makeRequest(`/api/assessment/participations/${participationId}/results/${resultId}/details`);
-        const raw = await response.json() as Record<string, unknown>;
-        const feedbacks = Array.isArray(raw.feedbacks) ? raw.feedbacks : (Array.isArray(raw) ? raw : []);
-        return feedbacks.map((f: Record<string, unknown>) => ({
-            id: typeof f.id === 'number' ? f.id : undefined,
-            text: typeof f.text === 'string' ? f.text : undefined,
-            detailText: typeof f.detailText === 'string' ? f.detailText : undefined,
-            reference: typeof f.reference === 'string' ? f.reference : undefined,
-            credits: typeof f.credits === 'number' ? f.credits : undefined,
-            positive: typeof f.positive === 'boolean' ? f.positive : undefined,
-            type: typeof f.type === 'string' ? f.type : undefined,
-            visibility: typeof f.visibility === 'string' ? f.visibility : undefined,
-            testCase: f.testCase && typeof f.testCase === 'object' ? {
-                id: typeof (f.testCase as Record<string, unknown>).id === 'number' ? (f.testCase as Record<string, unknown>).id as number : undefined,
-                testName: typeof (f.testCase as Record<string, unknown>).testName === 'string' ? (f.testCase as Record<string, unknown>).testName as string : undefined,
-            } : undefined,
-        }));
+    // Get the latest result with feedbacks for a programming exercise participation.
+    // Same endpoint the Artemis webapp uses — returns a full Result with feedbacks embedded,
+    // no need to know the resultId upfront.
+    // Backend may return 200 with null body (exam results hidden), so this returns null in that case.
+    async getLatestResultWithFeedbacks(participationId: number): Promise<ResultSummary | null> {
+        const response = await this.makeRequest(
+            `/api/programming/programming-exercise-participations/${participationId}/latest-result-with-feedbacks?withSubmission=false`
+        );
+        const text = await response.text();
+        if (!text || text.trim() === '' || text.trim() === 'null') {
+            return null;
+        }
+        return JSON.parse(text) as ResultSummary;
     }
 
     // Get build logs for a participation (optionally for a specific result)
@@ -243,16 +188,6 @@ export class ArtemisApiService {
         const response = await this.makeRequest(endpoint);
         const data: unknown = await response.json();
         return (data as unknown[]).map(e => parseBuildLogEntry(e));
-    }
-
-    // Check if user is authenticated
-    async isAuthenticated(): Promise<boolean> {
-        try {
-            await this.getCurrentUser();
-            return true;
-        } catch (error) {
-            return false;
-        }
     }
 
     // Get VCS access token for a specific participation (per-exercise token)
@@ -309,7 +244,7 @@ export class ArtemisApiService {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'User-Agent': CONFIG.API.USER_AGENT
+                'User-Agent': getUserAgent()
             },
             body: JSON.stringify({
                 username: username,
@@ -348,9 +283,7 @@ export class ArtemisApiService {
             }
         }
 
-        const data = await response.json() as { access_token?: string };
-
-        // Extract JWT cookie from Set-Cookie header
+        // Extract JWT cookie from Set-Cookie header (Desktop auth uses Cookie header)
         const setCookieHeader = response.headers.get('set-cookie');
         let jwtCookie = '';
 
@@ -365,28 +298,10 @@ export class ArtemisApiService {
             throw new Error('Authentication succeeded but no JWT token received');
         }
 
-        // Store the credentials
+        // Store as cookie string — Desktop auth sends Cookie header, not Bearer
         await this.authManager.storeArtemisCredentials(jwtCookie, this.getServerUrl(), rememberMe);
 
-        return { success: true, token: data.access_token, cookie: jwtCookie };
-    }
-
-    // Validate the current authentication by calling the user endpoint
-    async validateAuthentication(): Promise<boolean> {
-        try {
-            const user = await this.getCurrentUser();
-            return !!user;
-        } catch (error) {
-            logger.error('Authentication validation failed', LogCategory.API, error);
-            return false;
-        }
-    }
-
-    // Check if the stored server URL matches the current configuration
-    async isServerUrlChanged(): Promise<boolean> {
-        const storedServerUrl = await this.authManager.getArtemisServerUrl();
-        const currentServerUrl = this.getServerUrl();
-        return storedServerUrl !== currentServerUrl;
+        return { success: true };
     }
 
     // Check Iris health status (course-scoped)
@@ -424,16 +339,6 @@ export class ArtemisApiService {
         return response.json() as Promise<IrisSettingsResponse>;
     }
 
-    // Get Iris settings for an exercise (resolved via course settings)
-    async getIrisExerciseChatSettings(exerciseId: number): Promise<IrisSettingsResponse> {
-        const exerciseDetails = await this.getExerciseDetails(exerciseId);
-        const courseId = exerciseDetails?.exercise?.course?.id;
-        if (!courseId) {
-            throw new Error('Failed to resolve course for Iris exercise settings');
-        }
-        return this.getIrisCourseChatSettings(courseId);
-    }
-
     // Get or create current chat session for a course
     async getCurrentCourseChat(courseId: number): Promise<IrisChatSession> {
         const response = await this.makeRequest(
@@ -450,12 +355,6 @@ export class ArtemisApiService {
             { method: 'POST' }
         );
         return response.json() as Promise<IrisChatSession>;
-    }
-
-    // Get all chat sessions for a course (metadata only, lightweight)
-    async getCourseChatSessions(courseId: number): Promise<IrisChatSession[]> {
-        const response = await this.makeRequest(`/api/iris/course-chat/${courseId}/sessions`);
-        return response.json() as Promise<IrisChatSession[]>;
     }
 
     // Get all chat sessions for an exercise (metadata only, lightweight)
@@ -594,18 +493,11 @@ export class ArtemisApiService {
         );
     }
 
-    // Resend a message
-    async resendChatMessage(sessionId: number, messageId: number): Promise<IrisChatMessage> {
-        const response = await this.makeRequest(
-            `/api/iris/sessions/${sessionId}/messages/${messageId}/resend`,
-            { method: 'POST' }
-        );
-        return response.json() as Promise<IrisChatMessage>;
-    }
-
-    // Get exams for a specific course
-    async getExamsForCourse(courseId: number): Promise<ExamSummary[]> {
-        const response = await this.makeRequest(`/api/exam/courses/${courseId}/exams`);
+    // Get exam sidebar data for a specific course (student-accessible).
+    // Returns lightweight exam metadata (id, title, startDate, workingTime, examMaxPoints).
+    // Note: does NOT include endDate — use course.exams from getCourseForDashboard for full data.
+    async getExamSidebarData(courseId: number): Promise<ExamSummary[]> {
+        const response = await this.makeRequest(`/api/exam/courses/${courseId}/real-exams-sidebar-data`);
         return response.json() as Promise<ExamSummary[]>;
     }
 

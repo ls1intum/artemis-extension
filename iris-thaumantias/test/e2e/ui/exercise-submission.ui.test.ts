@@ -5,9 +5,9 @@ import {
 	openArtemisView,
 	switchToWebviewFrame,
 	switchBackFromWebview,
-	waitForElement,
 	takeScreenshot,
 	getCredentials,
+	performLogin,
 } from './helpers';
 
 describe('Exercise Submission Flow UI Tests', function () {
@@ -36,22 +36,7 @@ describe('Exercise Submission Flow UI Tests', function () {
 		await VSBrowser.instance.waitForWorkbench();
 
 		// Login first before running submission tests
-		await openArtemisView();
-		await switchToWebviewFrame(driver);
-
-		const usernameInput = await waitForElement(driver, '#username');
-		await usernameInput.clear();
-		await usernameInput.sendKeys(username);
-
-		const passwordInput = await waitForElement(driver, '#password');
-		await passwordInput.clear();
-		await passwordInput.sendKeys(password);
-
-		const submitButton = await waitForElement(driver, 'button[type="submit"]');
-		await submitButton.click();
-
-		await switchBackFromWebview(driver);
-		await driver.sleep(5000); // Wait for auth + navigation
+		await performLogin(driver, username, password);
 	});
 
 	after(async function () {

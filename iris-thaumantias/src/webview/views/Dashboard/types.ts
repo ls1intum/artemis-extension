@@ -5,7 +5,3 @@ export type { RecentCourseNode, Exercise } from '../../../shared/messageContract
 export interface DashboardViewProps {
     vscodeApi: VsCodeApi;
 }
-
-export interface DashboardPersistedState {
-    // Dashboard data is always re-fetched, so no persisted state needed
-}

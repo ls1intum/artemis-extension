@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { TriggerType, DEFAULT_TRIGGER_CONFIG, TriggerConfig } from '../types';
+import { TriggerType, DEFAULT_TRIGGER_CONFIG, TriggerConfig, SessionResettable, SessionStartContext } from '../types';
 import { InactivityService } from '../inactivityService';
 import { AdaptiveCadence } from '../intervention/adaptiveCadence';
 import { isLikelyManualPaste } from './compileEquivalentEmitter';
@@ -20,7 +20,7 @@ import { isLikelyManualPaste } from './compileEquivalentEmitter';
  *       ↓ user resumes activity
  *   [onDidResumeActivity] → _armIdleTimer(threshold)  ← re-arm
  */
-export class BoundaryTriggerEmitter implements vscode.Disposable {
+export class BoundaryTriggerEmitter implements vscode.Disposable, SessionResettable {
     private readonly _disposables: vscode.Disposable[] = [];
     private readonly _config: TriggerConfig;
     private readonly _adaptiveCadence: AdaptiveCadence;
@@ -140,6 +140,13 @@ export class BoundaryTriggerEmitter implements vscode.Disposable {
             this._lastTriggerTimestamps['selection-maintained'] = Date.now();
             this._onDidFireTrigger.fire('selection-maintained');
         }, threshold);
+    }
+
+    /**
+     * SessionResettable — delegates to existing reset().
+     */
+    public onSessionStart(_context: SessionStartContext): void {
+        this.reset();
     }
 
     /**

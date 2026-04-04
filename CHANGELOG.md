@@ -5,14 +5,23 @@ All notable changes to the Artemis VS Code extension will be documented in this 
 ## [Unreleased] - 0.4.1
 ### Added
 
+- **Theia/EduIDE Compatibility**: Full support for running the extension in browser-based Theia environments (e.g., Artemis EduIDE), including Bearer token authentication, environment-based auto-login, DataBridge for late-arriving credentials, and automatic repository cloning.
 - **Session Analyzer**: Session recording system that captures coding activity (text changes, cursor/scroll movements, build results) with continuous EQ score tracking, replay engine, and a standalone viewer app for analyzing recorded sessions.
 - **Configurable Start Page**: New `artemis.startPage` setting to choose which page opens after login: Dashboard (default), Course List, or automatically open the course/exercise detected in the current workspace.
 - **Workspace Exercise Detection Prompt**: When an exercise is detected in the workspace, a notification offers to set it as the default start page with a single click. The setting can be changed later in VS Code Settings.
+- **Server URL Dropdown**: Predefined Artemis server URLs in the login dropdown with collapsible exercise header.
+
+### Changed
+
+- **Internal Architecture Refactoring**: Major restructuring of the extension codebase including runtime-oriented folder layout, domain consolidation, service extraction, and dependency injection cleanup.
+- **Dead Code Removal**: Removed ~2,300 lines of unused code, components, and legacy methods.
 
 ### Fixed
 
+- **API Endpoint Alignment**: Aligned API endpoints with the Artemis webapp, including correct feedback and exam endpoints.
 - **Build Error CodeLens**: Fixed duplicate CodeLens errors, missing testCase field in WebSocket feedback, and wired up build log viewing with go-to-source navigation.
 - **WebSocket Feedback Mapping**: Fixed missing testCase field, buildFailed propagation, and hasTestInfo derivation in WebSocket submission handling.
+- **Dashboard Reload**: Dashboard reload now re-runs archived course check for workspace exercise detection.
 
 ## [0.4.0] - 2026-03-13
 ### Added

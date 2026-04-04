@@ -16,6 +16,7 @@ import { IrisWebSocketSessionClient, ChatDiagnosticsService, IrisChatSessionServ
 import type { IrisServiceDeps, ChatContextReason } from '../services/iris';
 import { TelemetryManager, type StruggleContext } from '../services/telemetry';
 import { ExerciseRegistry } from '../services/exerciseRegistry';
+import type { CourseDataCache } from '../services/courseDataCache';
 import { getReactWebviewHtml } from '../services/ui';
 import { logger, LogCategory } from '../services/loggingService';
 
@@ -59,6 +60,7 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
         private readonly _websocketService: ArtemisWebsocketService | undefined,
         noAiDetectionService: NoAiDetectionService,
         private readonly _exerciseRegistry: ExerciseRegistry,
+        private readonly _courseDataCache?: CourseDataCache,
         private readonly _telemetryManager?: TelemetryManager,
     ) {
         super(LogCategory.IRIS_CHAT);
@@ -209,6 +211,7 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
     private async _sendInitData(): Promise<void> {
         this._viewStatePresenter.postSnapshot();
         await this._detectWorkspaceExercise();
+        await this._populateAvailableContexts();
         void this._loadIrisMessagesIfNeeded();
         void this._fileMonitorService.triggerUpdate();
         this._postNoAiStatus(this._noAiDetectionService.isNoAiEnabled);
@@ -281,10 +284,6 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
         });
     }
 
-    public removeDetectedExercise(exerciseId: number): void {
-        this._chatContextManager.removeExerciseAndAutoSelect(exerciseId);
-    }
-
     public updateDetectedCourse(courseTitle: string, courseId: number, shortName?: string): void {
         this._chatContextManager.registerCourseAndAutoSelect({
             id: courseId,
@@ -292,10 +291,6 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
             shortName,
             source: 'system-default',
         });
-    }
-
-    public removeDetectedCourse(courseId: number): void {
-        this._chatContextManager.removeCourseAndAutoSelect(courseId);
     }
 
     public createNewSession(): void {
@@ -321,10 +316,6 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
         return this._chatContextManager.getSelectedExerciseId();
     }
 
-    public getSelectedExercise(): { title: string; id: number } | undefined {
-        return this._chatContextManager.getSelectedExercise();
-    }
-
     public setCourseContext(
         courseId: number,
         courseTitle: string,
@@ -345,10 +336,6 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
     ): void {
         this._chatContextManager.setExerciseContext(exerciseId, exerciseTitle, reason, shortName, releaseDate, dueDate, courseId);
         // Telemetry event is now fired by the onDidChangeActiveContext subscription
-    }
-
-    public clearContext(): void {
-        this._chatContextManager.clearContext();
     }
 
     // ── BaseWebviewProvider hooks ──────────────────────────────────────
@@ -476,6 +463,55 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
     }
 
 
+    /**
+     * Populates the chat context selector with all available courses and exercises.
+     * Uses the shared CourseDataCache to avoid duplicate API calls — the sidebar
+     * and chat share the same cached data.
+     */
+    private async _populateAvailableContexts(): Promise<void> {
+        if (!this._courseDataCache) { return; }
+        try {
+            const data = await this._courseDataCache.fetch();
+            const courses = data?.courses;
+            if (!courses || !Array.isArray(courses)) { return; }
+
+            for (const entry of courses) {
+                const course = entry.course;
+                if (!course?.id || !course.title) { continue; }
+
+                this._chatContextManager.registerCourseAndAutoSelect({
+                    id: course.id,
+                    title: course.title,
+                    shortName: course.shortName,
+                    source: 'system-default',
+                });
+
+                const exercises = course.exercises || entry.exercises || [];
+                for (const exercise of exercises) {
+                    const ex = exercise as {
+                        id?: number; title?: string; shortName?: string;
+                        releaseDate?: string; startDate?: string; dueDate?: string;
+                        studentParticipations?: Array<{ repositoryUri?: string }>;
+                    };
+                    if (ex.id && ex.title && ex.studentParticipations?.length) {
+                        this._chatContextManager.registerExerciseAndAutoSelect({
+                            id: ex.id,
+                            title: ex.title,
+                            shortName: ex.shortName,
+                            courseId: course.id,
+                            releaseDate: ex.releaseDate ?? ex.startDate,
+                            dueDate: ex.dueDate,
+                            source: 'system-default',
+                            isWorkspace: false,
+                        });
+                    }
+                }
+            }
+        } catch (error) {
+            logger.debug('Failed to populate available contexts', LogCategory.IRIS_CHAT, error);
+        }
+    }
+
     private async _detectWorkspaceExercise(): Promise<void> {
         await detectAndRegisterWorkspaceExercise(
             this._artemisApiService,
@@ -484,6 +520,7 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
                 clearStaleWorkspaceContext: () => this._chatContextManager.clearStaleWorkspaceContext(),
             },
             this._exerciseRegistry,
+            this._courseDataCache,
         );
     }
 

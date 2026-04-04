@@ -5,11 +5,10 @@
 import type { CourseDashboardCourse, ExerciseDetail } from '../types/apiResponses';
 import type { ChatContextType } from '../types/context';
 
-/** Non-command webview message types (ready, requestInit, updatePanelTitle, error) */
+/** Non-command webview message types (ready, requestInit, error) */
 export const WebviewMsgType = {
     Ready: 'ready',
     RequestInit: 'requestInit',
-    UpdatePanelTitle: 'updatePanelTitle',
     Error: 'error',
 } as const;
 
@@ -238,7 +237,6 @@ type WebviewCommandMessages = {
 export type WebviewToExtensionMessage =
     | { type: typeof WebviewMsgType.Ready }
     | { type: typeof WebviewMsgType.RequestInit }
-    | { type: typeof WebviewMsgType.UpdatePanelTitle; title: string }
     | { type: typeof WebviewMsgType.Error; payload: { message: string; stack?: string; componentStack?: string } }
     | WebviewCommandMessages;
 

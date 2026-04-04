@@ -4,6 +4,8 @@ import {
     EQConfidence,
     EQConfig,
     DEFAULT_EQ_CONFIG,
+    SessionResettable,
+    SessionStartContext,
 } from '../types';
 
 /**
@@ -18,7 +20,7 @@ import {
  * Paper reference: Jadud, M.C. (2006). "Methods and Tools for Exploring
  * Novice Compilation Behaviour." ICER '06. [P3, Section 4, Figure 4]
  */
-export class ErrorQuotientEngine {
+export class ErrorQuotientEngine implements SessionResettable {
     private _snapshots: ErrorSnapshot[] = [];
     private readonly _config: EQConfig;
 
@@ -90,6 +92,13 @@ export class ErrorQuotientEngine {
 
         // Average [P3, Section 4]
         return { eq: totalNormalizedScore / pairCount, confidence };
+    }
+
+    /**
+     * SessionResettable — delegates to existing resetSession().
+     */
+    public onSessionStart(_context: SessionStartContext): void {
+        this.resetSession();
     }
 
     /**

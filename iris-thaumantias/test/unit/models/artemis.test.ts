@@ -8,19 +8,13 @@ import {
     parseArtemisExercise,
     parseArtemisResult,
     parseArtemisParticipation,
-    parseAuthenticationResult,
     parseIrisRateLimitInfo,
     parseIrisHealthStatus,
     parseBuildTimingInfo,
-    parseArtemisSubmission,
     parseProgrammingSubmission,
     parseSubmissionProcessingMessage,
     parseResultDTO,
     parseBuildLogEntry,
-    parseParsedBuildError,
-} from '../../../src/extension/types';
-import type {
-    LoginCredentials,
 } from '../../../src/extension/types';
 
 suite('ApiError', () => {
@@ -81,21 +75,6 @@ suite('ProfileInfo', () => {
     test('throws on invalid input', () => {
         assert.throws(() => parseProfileInfo(null), /Invalid/);
         assert.throws(() => parseProfileInfo(undefined), /Invalid/);
-    });
-});
-
-suite('LoginCredentials', () => {
-    test('constructs with all fields', () => {
-        const c: LoginCredentials = { username: 'user', password: 'pass', rememberMe: true };
-        assert.ok(c);
-        assert.strictEqual(c.username, 'user');
-        assert.strictEqual(c.password, 'pass');
-        assert.strictEqual(c.rememberMe, true);
-    });
-
-    test('constructs without optional rememberMe', () => {
-        const c: LoginCredentials = { username: 'user', password: 'pass' };
-        assert.strictEqual(c.rememberMe, undefined);
     });
 });
 
@@ -327,40 +306,6 @@ suite('ArtemisParticipation', () => {
     });
 });
 
-suite('AuthenticationResult', () => {
-    test('parses complete valid JSON', () => {
-        const a = parseAuthenticationResult({
-            success: true, token: 'jwt-token', cookie: 'session=abc',
-        });
-        assert.ok(a);
-        assert.strictEqual(a.success, true);
-        assert.strictEqual(a.token, 'jwt-token');
-        assert.strictEqual(a.cookie, 'session=abc');
-    });
-
-    test('handles missing optional fields', () => {
-        const a = parseAuthenticationResult({ success: false });
-        assert.strictEqual(a.success, false);
-        assert.strictEqual(a.token, undefined);
-        assert.strictEqual(a.cookie, undefined);
-        assert.strictEqual(a.user, undefined);
-    });
-
-    test('parses nested user', () => {
-        const a = parseAuthenticationResult({
-            success: true,
-            user: { login: 'student1', id: 1 },
-        });
-        assert.ok(a.user);
-        assert.strictEqual(a.user!.login, 'student1');
-    });
-
-    test('throws on invalid input', () => {
-        assert.throws(() => parseAuthenticationResult(null), /Invalid/);
-        assert.throws(() => parseAuthenticationResult(undefined), /Invalid/);
-    });
-});
-
 suite('IrisRateLimitInfo', () => {
     test('parses complete valid JSON', () => {
         const r = parseIrisRateLimitInfo({
@@ -436,46 +381,6 @@ suite('BuildTimingInfo', () => {
     test('throws on invalid input', () => {
         assert.throws(() => parseBuildTimingInfo(null), /Invalid/);
         assert.throws(() => parseBuildTimingInfo(undefined), /Invalid/);
-    });
-});
-
-suite('ArtemisSubmission', () => {
-    test('parses complete valid JSON', () => {
-        const s = parseArtemisSubmission({
-            id: 1, submissionDate: '2025-01-15', type: 'MANUAL', buildFailed: false,
-        });
-        assert.ok(s);
-        assert.strictEqual(s.id, 1);
-        assert.strictEqual(s.submissionDate, '2025-01-15');
-        assert.strictEqual(s.type, 'MANUAL');
-        assert.strictEqual(s.buildFailed, false);
-    });
-
-    test('handles missing optional fields', () => {
-        const s = parseArtemisSubmission({ id: 1 });
-        assert.strictEqual(s.submissionDate, undefined);
-        assert.strictEqual(s.type, undefined);
-        assert.strictEqual(s.participation, undefined);
-        assert.strictEqual(s.results, undefined);
-        assert.strictEqual(s.buildFailed, undefined);
-    });
-
-    test('parses nested participation and results', () => {
-        const s = parseArtemisSubmission({
-            id: 1,
-            participation: { id: 2, type: 'student' },
-            results: [{ id: 10, score: 75 }],
-        });
-        assert.ok(s.participation);
-        assert.strictEqual(s.participation!.id, 2);
-        assert.ok(Array.isArray(s.results));
-        assert.strictEqual(s.results!.length, 1);
-        assert.strictEqual(s.results![0].id, 10);
-    });
-
-    test('throws on invalid input', () => {
-        assert.throws(() => parseArtemisSubmission(null), /Invalid/);
-        assert.throws(() => parseArtemisSubmission(undefined), /Invalid/);
     });
 });
 
@@ -635,27 +540,3 @@ suite('BuildLogEntry', () => {
     });
 });
 
-suite('ParsedBuildError', () => {
-    test('parses complete valid JSON', () => {
-        const e = parseParsedBuildError({
-            filePath: 'src/Main.java', line: 15, message: 'syntax error', column: 10,
-        });
-        assert.ok(e);
-        assert.strictEqual(e.filePath, 'src/Main.java');
-        assert.strictEqual(e.line, 15);
-        assert.strictEqual(e.message, 'syntax error');
-        assert.strictEqual(e.column, 10);
-    });
-
-    test('handles missing optional column', () => {
-        const e = parseParsedBuildError({
-            filePath: 'src/Main.java', line: 15, message: 'error',
-        });
-        assert.strictEqual(e.column, undefined);
-    });
-
-    test('throws on invalid input', () => {
-        assert.throws(() => parseParsedBuildError(null), /Invalid/);
-        assert.throws(() => parseParsedBuildError(undefined), /Invalid/);
-    });
-});

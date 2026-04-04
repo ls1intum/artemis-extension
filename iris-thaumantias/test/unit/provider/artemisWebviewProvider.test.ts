@@ -9,7 +9,7 @@ import { ArtemisApiService } from '../../../src/extension/api';
 import { ArtemisWebsocketService } from '../../../src/extension/services/websocket';
 import { ExerciseRegistry } from '../../../src/extension/services/exerciseRegistry';
 import { TelemetryManager } from '../../../src/extension/services/telemetry';
-import { ProviderRegistry } from '../../../src/extension/services/ui/providerRegistry';
+import { createProviderRegistry } from '../../../src/extension/services/ui/providerRegistry';
 
 class MockAuthManager extends AuthManager {
     constructor(context: vscode.ExtensionContext) {
@@ -134,7 +134,7 @@ suite('ArtemisWebviewProvider Test Suite', () => {
             mockAuthManager,
             mockApiService,
             new ExerciseRegistry(),
-            new ProviderRegistry(),
+            createProviderRegistry(),
             mockWebsocket,
             mockCodeLens,
             mockTelemetry,
@@ -155,7 +155,7 @@ suite('ArtemisWebviewProvider Test Suite', () => {
         const mockCodeLens = {} as unknown as BuildErrorCodeLensProvider;
         const p = new ArtemisWebviewProvider(
             vscode.Uri.file('/'), mockContext, mockAuthManager, mockApiService,
-            new ExerciseRegistry(), new ProviderRegistry(),
+            new ExerciseRegistry(), createProviderRegistry(),
             ws, mockCodeLens, new TelemetryManager(), async () => {},
         );
 
@@ -190,8 +190,19 @@ suite('ArtemisWebviewProvider Test Suite', () => {
     });
 
     test('should open json in editor', async () => {
-        const data = { test: 'data' };
-        await provider.openJsonInEditor(data);
+        const localSandbox = sinon.createSandbox();
+        try {
+            const openDocSpy = localSandbox.spy(vscode.workspace, 'openTextDocument');
+            const showDocSpy = localSandbox.spy(vscode.window, 'showTextDocument');
+
+            const data = { test: 'data' };
+            await provider.openJsonInEditor(data);
+
+            assert.ok(openDocSpy.calledOnce, 'openTextDocument should be called');
+            assert.ok(showDocSpy.calledOnce, 'showTextDocument should be called');
+        } finally {
+            localSandbox.restore();
+        }
     });
 
     test('should render', async () => {
@@ -218,8 +229,8 @@ suite('Panel hide/show state persistence', () => {
         mockAuthManager = new MockAuthManager(mockContext);
         mockApiService = new MockArtemisApiService(mockAuthManager);
 
-        // Stub hasAuthCookie to return true (authenticated state) by default
-        sandbox.stub(mockAuthManager, 'hasAuthCookie').resolves(true);
+        // Stub hasAuthToken to return true (authenticated state) by default
+        sandbox.stub(mockAuthManager, 'hasAuthToken').resolves(true);
 
         const mockWebsocket = new MockArtemisWebsocketService(mockAuthManager);
         const mockCodeLens = {} as unknown as BuildErrorCodeLensProvider;
@@ -232,7 +243,7 @@ suite('Panel hide/show state persistence', () => {
             mockAuthManager,
             mockApiService,
             new ExerciseRegistry(),
-            new ProviderRegistry(),
+            createProviderRegistry(),
             mockWebsocket,
             mockCodeLens,
             mockTelemetry,
@@ -336,8 +347,8 @@ suite('Panel hide/show state persistence', () => {
         // Simulate being authenticated in dashboard state
         (provider as any)._appStateManager._currentState = 'dashboard';
 
-        // Now stub hasAuthCookie to return false (auth expired while hidden)
-        (mockAuthManager.hasAuthCookie as sinon.SinonStub).resolves(false);
+        // Now stub hasAuthToken to return false (auth expired while hidden)
+        (mockAuthManager.hasAuthToken as sinon.SinonStub).resolves(false);
 
         spyWebview.sentMessages = [];
         controllableView.simulateShow();

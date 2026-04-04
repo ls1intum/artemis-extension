@@ -27,6 +27,12 @@ const MIN_RESUBSCRIBE_INTERVAL_MS = 3000;
  * 4. Tracks subscription state to prevent duplicate subscriptions
  */
 export class IrisWebSocketSessionClient implements vscode.Disposable {
+    /**
+     * Transient runtime copy of the Artemis session ID for WebSocket subscription.
+     * The authoritative copy lives in `ContextStore.StoredSession.artemisSessionId`
+     * (used for session re-initialization across context switches).
+     * Both copies are synchronized by `IrisChatSessionService` during lifecycle operations.
+     */
     private _currentArtemisSessionId?: number;
     private _irisUnsubscribe?: () => void;
     private _connectionStateUnsubscribe?: () => void;
@@ -132,11 +138,9 @@ export class IrisWebSocketSessionClient implements vscode.Disposable {
      * SAFETY: This method never calls connect() on the WebSocket service.
      */
     private async _subscribeIfConnected(sessionId: number): Promise<void> {
-        // Always clean up previous subscription first, even if rate-limited,
-        // so fast session switches don't leave the new session unsubscribed.
-        this.unsubscribe();
-
-        // Check rate limiting
+        // Check rate limiting BEFORE tearing down the existing subscription.
+        // Previous code unsubscribed first, then returned on rate-limit,
+        // leaving zero active subscriptions.
         const now = Date.now();
         const timeSinceLastAttempt = now - this._lastResubscribeAttempt;
         if (timeSinceLastAttempt < MIN_RESUBSCRIBE_INTERVAL_MS) {
@@ -149,6 +153,9 @@ export class IrisWebSocketSessionClient implements vscode.Disposable {
             // NOTE: We do NOT call connect() here! The connection state callback will handle this.
             return;
         }
+
+        // Safe to tear down old subscription — we are about to create a new one.
+        this.unsubscribe();
 
         // Only consume rate-limit window when we actually attempt to subscribe
         this._lastResubscribeAttempt = now;
@@ -193,20 +200,19 @@ export class IrisWebSocketSessionClient implements vscode.Disposable {
             logger.session(`WebSocket connection state changed: ${isConnected}`);
             this._onDidConnectionStateChange.fire(isConnected);
 
-            if (!isConnected) {
-                // STOMP subscriptions are cleared on disconnect; mark ourselves as unsubscribed
-                // so the reconnect path below will re-attach.
+            if (isConnected) {
+                // Every (re)connect creates a fresh STOMP session — all prior STOMP
+                // subscriptions are gone at the protocol level regardless of whether
+                // we received a disconnect notification (which is debounced by 5 s).
+                // Mark ourselves as unsubscribed so we always re-attach.
                 this._isSubscribed = false;
-            }
 
-            // Only resubscribe if:
-            // 1. We just connected
-            // 2. We have a session to subscribe to
-            // 3. We're not already subscribed
-            if (isConnected && this._currentArtemisSessionId && !this._isSubscribed) {
-                logger.session(`Reconnected, resubscribing to session: ${this._currentArtemisSessionId}`);
-                // NOTE: _subscribeIfConnected does NOT call connect() - it's safe!
-                void this._subscribeIfConnected(this._currentArtemisSessionId);
+                if (this._currentArtemisSessionId) {
+                    logger.session(`(Re)connected, resubscribing to session: ${this._currentArtemisSessionId}`);
+                    void this._subscribeIfConnected(this._currentArtemisSessionId);
+                }
+            } else {
+                this._isSubscribed = false;
             }
         });
     }

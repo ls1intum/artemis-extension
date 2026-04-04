@@ -5,7 +5,8 @@ import { ExtensionMsg } from '../../../shared/messageContracts';
 import type { ExtensionToWebviewMessage } from '../../../shared/messageContracts';
 import type { UserInfo } from '../../controller/appStateManager';
 import { logger, LogCategory } from '../loggingService';
-import { CONFIG, VSCODE_CONFIG } from '../../utils';
+import { CONFIG, VSCODE_CONFIG, resolveServerUrl } from '../../utils';
+import { getTheiaEnvironment } from '../../theia';
 
 export class AuthFlowHandler {
     constructor(
@@ -21,10 +22,13 @@ export class AuthFlowHandler {
     ) {}
 
     public async checkServerUrlChange(): Promise<void> {
+        // In Theia, the server URL is environment-managed — skip change detection
+        if (getTheiaEnvironment().isTheia) { return; }
+
         try {
-            const hasAuth = await this._authManager.hasAuthCookie();
+            const hasAuth = await this._authManager.hasAuthToken();
             if (hasAuth) {
-                const isServerUrlChanged = await this._artemisApi.isServerUrlChanged();
+                const isServerUrlChanged = await this._authManager.isServerUrlChanged(resolveServerUrl());
                 if (isServerUrlChanged) {
                     const config = vscode.workspace.getConfiguration(VSCODE_CONFIG.ARTEMIS_SECTION);
                     const currentServerUrl = config.get<string>(VSCODE_CONFIG.SERVER_URL_KEY, CONFIG.ARTEMIS_SERVER_URL_DEFAULT);
@@ -47,7 +51,7 @@ export class AuthFlowHandler {
 
     public async checkExistingAuthentication(): Promise<void> {
         try {
-            const hasAuth = await this._authManager.hasAuthCookie();
+            const hasAuth = await this._authManager.hasAuthToken();
             if (hasAuth) {
                 this._postMessage({ type: ExtensionMsg.ShowLoading, message: 'Checking stored credentials...' });
                 this._postMessage({ type: ExtensionMsg.UpdateLoading, message: 'Loading user information...' });
@@ -89,7 +93,6 @@ export class AuthFlowHandler {
     }
 
     private _getServerUrl(): string {
-        const config = vscode.workspace.getConfiguration(VSCODE_CONFIG.ARTEMIS_SECTION);
-        return config.get<string>(VSCODE_CONFIG.SERVER_URL_KEY, CONFIG.ARTEMIS_SERVER_URL_DEFAULT);
+        return resolveServerUrl();
     }
 }

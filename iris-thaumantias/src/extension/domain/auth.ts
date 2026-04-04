@@ -1,6 +1,3 @@
-import type { ArtemisUser } from './core';
-import { parseArtemisUser } from './core';
-
 export const PROFILE_IRIS = 'iris';
 
 // --- Server Profile ---
@@ -29,28 +26,7 @@ export function parseProfileInfo(data: unknown): ProfileInfo {
 
 // --- Authentication ---
 
-export interface LoginCredentials {
-    readonly username: string;
-    readonly password: string;
-    readonly rememberMe?: boolean;
-}
-
 export interface AuthenticationResult {
     readonly success: boolean;
-    readonly token?: string;
-    readonly cookie?: string;
-    readonly user?: ArtemisUser;
 }
 
-export function parseAuthenticationResult(data: unknown): AuthenticationResult {
-    if (!data || typeof data !== 'object') {
-        throw new Error('Invalid AuthenticationResult data');
-    }
-    const d = data as Record<string, unknown>;
-    return {
-        success: Boolean(d.success),
-        token: typeof d.token === 'string' ? d.token : undefined,
-        cookie: typeof d.cookie === 'string' ? d.cookie : undefined,
-        user: d.user && typeof d.user === 'object' ? parseArtemisUser(d.user) : undefined,
-    };
-}

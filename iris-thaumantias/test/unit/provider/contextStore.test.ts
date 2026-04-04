@@ -227,9 +227,6 @@ suite('ContextStore Test Suite', () => {
         // registerExercise creates an initial session
         const initialSessionCount = contextStore.snapshot().sessions.length;
 
-        // Ensure time passes for unique ID
-        const start = Date.now();
-        while (Date.now() === start) { }
 
         contextStore.createSession('New Session');
 
@@ -249,10 +246,6 @@ suite('ContextStore Test Suite', () => {
         contextStore.registerExercise({ id: 1, title: 'Ex 1' });
         const initialSessionCount = contextStore.snapshot().sessions.length;
 
-        // Ensure time passes
-        const start = Date.now();
-        while (Date.now() === start) { }
-
         const now = Date.now();
         contextStore.createSessionWithDetails('Detailed Session', 5, now, 123);
 
@@ -271,9 +264,6 @@ suite('ContextStore Test Suite', () => {
         // Add a message so it's not empty and won't be cleaned up
         contextStore.incrementActiveSessionMessageCount();
 
-        // Ensure time passes
-        let start = Date.now();
-        while (Date.now() === start) { }
 
         // Create Session 2
         contextStore.createSession('Session 2');
@@ -363,15 +353,9 @@ suite('ContextStore Test Suite', () => {
     test('should cleanup empty sessions', () => {
         contextStore.registerExercise({ id: 1, title: 'Ex 1' });
 
-        // Ensure time passes
-        let start = Date.now();
-        while (Date.now() === start) { }
 
         contextStore.createSession('Empty Session');
 
-        // Ensure time passes
-        start = Date.now();
-        while (Date.now() === start) { }
 
         // Create another one which will be active
         contextStore.createSession('Active Empty Session');
@@ -404,18 +388,6 @@ suite('ContextStore Test Suite', () => {
         const snapshot = contextStore.snapshot();
         assert.strictEqual(snapshot.sessions.length, 0);
         assert.strictEqual(snapshot.activeSession, null);
-    });
-
-    test('should clear all', () => {
-        contextStore.registerExercise({ id: 1, title: 'Ex 1' });
-        contextStore.createSession('Session 1');
-
-        contextStore.clearAll();
-
-        const snapshot = contextStore.snapshot();
-        assert.strictEqual(snapshot.allExercises.length, 0);
-        assert.strictEqual(snapshot.sessions.length, 0);
-        assert.strictEqual(snapshot.activeContext, null);
     });
 
     test('should calculate exercise priority correctly', () => {

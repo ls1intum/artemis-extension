@@ -28,8 +28,15 @@
     "computer science",
     "tutoring"
   ],
-  "activationEvents": [],
+  "extensionKind": [
+    "ui",
+    "workspace"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
   "main": "./dist/extension.js",
+  "browser": "./dist/extension.js",
   "contributes": {
     "commands": [
       {
@@ -77,6 +84,12 @@
         "title": "Artemis: Clear Trusted Domains"
       }
     ],
+    "menus": {
+      "commandPalette": [
+        { "command": "artemis.login", "when": "!iris:managedEnvironment" },
+        { "command": "artemis.logout", "when": "!iris:managedEnvironment" }
+      ]
+    },
     "viewsContainers": {
       "activitybar": [
         {
@@ -97,7 +110,8 @@
           "type": "webview",
           "id": "artemis.loginView",
           "name": "Artemis",
-          "icon": "media/artemis-logo.png"
+          "icon": "media/artemis-logo.png",
+          "when": "!iris:managedEnvironment || !iris:authenticated"
         }
       ],
       "iris-chat": [
@@ -116,10 +130,29 @@
         "artemis.serverUrl": {
           "type": "string",
           "default": "https://artemis.tum.de",
-          "description": "The URL of the Artemis server to connect to",
-          "format": "uri",
-          "pattern": "^https?://.*",
-          "patternErrorMessage": "Server URL must be a valid HTTP or HTTPS URL"
+          "markdownDescription": "The URL of the Artemis server to connect to.\n\nFor a custom URL not listed here, [open settings.json](command:workbench.action.openSettingsJson) and edit `artemis.serverUrl` directly.",
+          "enum": [
+            "https://artemis.tum.de",
+            "https://artemis-test1.artemis.cit.tum.de",
+            "https://artemis-test2.artemis.cit.tum.de",
+            "https://artemis-test3.artemis.cit.tum.de",
+            "https://artemis-test4.artemis.cit.tum.de",
+            "https://artemis-test5.artemis.cit.tum.de",
+            "https://artemis-test6.artemis.cit.tum.de",
+            "https://artemis-test9.artemis.cit.tum.de",
+            "http://localhost:9000"
+          ],
+          "enumItemLabels": [
+            "Production (artemis.tum.de)",
+            "Test Server 1 (artemis-test1.artemis.cit.tum.de)",
+            "Test Server 2 (artemis-test2.artemis.cit.tum.de)",
+            "Test Server 3 (artemis-test3.artemis.cit.tum.de)",
+            "Test Server 4 (artemis-test4.artemis.cit.tum.de)",
+            "Test Server 5 (artemis-test5.artemis.cit.tum.de)",
+            "Test Server 6 (artemis-test6.artemis.cit.tum.de)",
+            "Test Server 9 (artemis-test9.artemis.cit.tum.de)",
+            "Local Development (localhost:9000)"
+          ]
         },
         "artemis.iris.sendUncommittedChanges": {
           "type": "boolean",
@@ -169,7 +202,12 @@
         },
         "artemis.startPage": {
           "type": "string",
-          "enum": ["dashboard", "course-list", "workspace-course", "workspace-exercise"],
+          "enum": [
+            "dashboard",
+            "course-list",
+            "workspace-course",
+            "workspace-exercise"
+          ],
           "enumDescriptions": [
             "Show the dashboard with recent courses and exercises (default)",
             "Show the full list of all your courses",
@@ -245,57 +283,57 @@
     ]
   },
   "devDependencies": {
-    "@testing-library/jest-dom": "^6.9.1",
-    "@testing-library/react": "^16.3.2",
-    "@testing-library/user-event": "^14.6.1",
-    "@types/dompurify": "^3.0.5",
-    "@types/katex": "^0.16.8",
-    "@types/marked": "^5.0.2",
+    "@testing-library/jest-dom": "6.9.1",
+    "@testing-library/react": "16.3.2",
+    "@testing-library/user-event": "14.6.1",
+    "@types/dompurify": "3.2.0",
+    "@types/katex": "0.16.8",
+    "@types/marked": "5.0.2",
     "@types/mocha": "10.0.10",
     "@types/node": "24.10.9",
     "@types/react": "18.3",
     "@types/react-dom": "18.3",
-    "@types/sinon": "^21.0.0",
-    "@types/vscode": "^1.97.0",
+    "@types/sinon": "21.0.0",
+    "@types/vscode": "1.109.0",
     "@types/ws": "8.18.1",
-    "@typescript-eslint/eslint-plugin": "8.54.0",
-    "@typescript-eslint/parser": "8.54.0",
-    "@vitejs/plugin-react": "^5.1.4",
-    "@vitest/coverage-v8": "^4.0.18",
+    "@typescript-eslint/eslint-plugin": "8.57.2",
+    "@typescript-eslint/parser": "8.57.2",
+    "@vitejs/plugin-react": "5.1.4",
+    "@vitest/coverage-v8": "4.0.18",
     "@vscode/test-cli": "0.0.12",
     "@vscode/test-electron": "2.5.2",
-    "axe-core": "^4.11.1",
+    "axe-core": "4.11.1",
     "esbuild": "0.27.2",
-    "esbuild-css-modules-plugin": "^3.1.5",
-    "esbuild-plugin-inline-worker": "^0.1.1",
-    "esbuild-visualizer": "^0.7.0",
-    "eslint": "9.39.2",
-    "happy-dom": "^20.7.0",
-    "husky": "^9.1.7",
-    "knip": "^5.85.0",
-    "lint-staged": "^16.2.7",
-    "mocha-junit-reporter": "^2.2.1",
+    "esbuild-css-modules-plugin": "3.1.5",
+    "esbuild-plugin-inline-worker": "0.1.1",
+    "esbuild-visualizer": "0.7.0",
+    "eslint": "9.39.4",
+    "happy-dom": "20.8.9",
+    "husky": "9.1.7",
+    "knip": "5.85.0",
+    "lint-staged": "16.2.7",
+    "mocha-junit-reporter": "2.2.1",
     "npm-run-all2": "8.0.4",
-    "sinon": "^21.0.1",
+    "sinon": "21.0.3",
     "typescript": "5.9.3",
-    "typescript-plugin-css-modules": "^5.2.0",
-    "vitest": "^4.0.18",
-    "vscode-extension-tester": "^8.22.0"
+    "typescript-plugin-css-modules": "5.2.0",
+    "vitest": "4.0.18",
+    "vscode-extension-tester": "8.22.0"
   },
   "dependencies": {
-    "@stomp/stompjs": "^7.2.1",
-    "clsx": "^2.1.1",
-    "dompurify": "^3.3.1",
-    "katex": "^0.16.33",
-    "lucide-react": "^0.575.0",
-    "marked": "^17.0.3",
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1",
-    "react-textarea-autosize": "^8.5.9",
-    "shiki": "^3.22.0",
-    "streamdown": "^2.3.0",
-    "use-stick-to-bottom": "^1.1.3",
+    "@stomp/stompjs": "7.3.0",
+    "clsx": "2.1.1",
+    "dompurify": "3.3.3",
+    "katex": "0.16.44",
+    "lucide-react": "0.575.0",
+    "marked": "17.0.5",
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "react-textarea-autosize": "8.5.9",
+    "shiki": "3.23.0",
+    "streamdown": "2.3.0",
+    "use-stick-to-bottom": "1.1.3",
     "ws": "8.19.0",
-    "zustand": "^5.0.11"
+    "zustand": "5.0.11"
   }
 }

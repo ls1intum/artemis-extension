@@ -1,12 +1,12 @@
 import * as vscode from 'vscode';
-import { TrackedDiagnostic } from './types';
+import { SessionResettable, SessionStartContext, TrackedDiagnostic } from './types';
 import * as crypto from 'crypto';
 
 /**
  * Service that tracks VS Code Language Server diagnostics over time.
  * Monitors how long errors persist and counts repeated occurrences.
  */
-export class DiagnosticPersistenceService implements vscode.Disposable {
+export class DiagnosticPersistenceService implements vscode.Disposable, SessionResettable {
     private readonly _disposables: vscode.Disposable[] = [];
     private readonly _trackedDiagnostics: Map<string, TrackedDiagnostic> = new Map();
     private _cleanupTimer: NodeJS.Timeout | undefined;
@@ -190,42 +190,6 @@ export class DiagnosticPersistenceService implements vscode.Disposable {
     }
 
     /**
-     * Get diagnostics that have persisted for at least the specified duration
-     * @param minDurationMs Minimum duration in milliseconds
-     */
-    public getPersistentDiagnostics(minDurationMs: number): TrackedDiagnostic[] {
-        const now = Date.now();
-        return Array.from(this._trackedDiagnostics.values())
-            .filter(d => !d.resolved && (now - d.firstSeen) >= minDurationMs);
-    }
-
-    /**
-     * Get diagnostics that have occurred at least the specified number of times
-     * @param minOccurrences Minimum number of occurrences
-     */
-    public getRepeatedDiagnostics(minOccurrences: number): TrackedDiagnostic[] {
-        return Array.from(this._trackedDiagnostics.values())
-            .filter(d => !d.resolved && d.occurrences >= minOccurrences);
-    }
-
-    /**
-     * Get all currently tracked diagnostics
-     */
-    public getAllTrackedDiagnostics(): TrackedDiagnostic[] {
-        return Array.from(this._trackedDiagnostics.values())
-            .filter(d => !d.resolved);
-    }
-
-    /**
-     * Get count of active (unresolved) errors
-     */
-    public getActiveErrorCount(): number {
-        return Array.from(this._trackedDiagnostics.values())
-            .filter(d => !d.resolved && d.severity === vscode.DiagnosticSeverity.Error)
-            .length;
-    }
-
-    /**
      * TEST ONLY: Inject diagnostics directly for testing purposes.
      * This bypasses the VS Code diagnostic API and allows tests to simulate diagnostics.
      * @internal
@@ -245,6 +209,20 @@ export class DiagnosticPersistenceService implements vscode.Disposable {
             tracked.resolved = true;
         }
         this._onDidUpdateDiagnostics.fire(Array.from(this._trackedDiagnostics.values()));
+    }
+
+    /**
+     * SessionResettable — no-op: this service resets on session end, not start.
+     */
+    public onSessionStart(_context: SessionStartContext): void {
+        /* no-op: this service resets on session end */
+    }
+
+    /**
+     * SessionResettable — clear stale diagnostics when the exercise session ends.
+     */
+    public onSessionEnd(): void {
+        this.reset();
     }
 
     /**

@@ -350,7 +350,7 @@ suite('IrisChatSessionService Test Suite', () => {
         test('should not load sessions when no active context', async () => {
             await chatSessionService.loadAllSessionsForContext();
 
-            assert.ok(mockApiService.getCourseChatSessions.notCalled);
+            assert.ok(mockApiService.getCourseChatSessionsWithMessages.notCalled);
             assert.ok(mockApiService.getExerciseChatSessions.notCalled);
         });
 

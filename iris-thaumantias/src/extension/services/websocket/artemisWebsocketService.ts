@@ -2,7 +2,7 @@ import { Client, StompConfig, StompSubscription, IFrame, IMessage, ReconnectionT
 import WebSocket from 'ws';
 import * as vscode from 'vscode';
 import { AuthManager } from '../auth';
-import { CONFIG, VSCODE_CONFIG, WEBSOCKET_TOPICS } from '../../utils';
+import { CONFIG, WEBSOCKET_TOPICS, resolveServerUrl, getUserAgent } from '../../utils';
 import { logger, LogCategory } from '../loggingService';
 import {
     parseResultDTO,
@@ -295,24 +295,24 @@ export class ArtemisWebsocketService {
             const serverUrl = this._getServerUrl();
             this._log(`Connecting to Artemis WebSocket (attempt ${this._reconnectAttempts + 1}/${MAX_CONNECTION_ATTEMPTS})...`);
 
-            const cookie = await this._authManager.getCookieHeader();
+            const authHeaders = await this._authManager.getAuthHeaders();
 
             if (this._connectionGeneration !== generation) {
                 this._log('Connection aborted: superseded by disconnect/newer connect');
                 return this._connectPromise;
             }
 
-            if (!cookie) {
+            if (Object.keys(authHeaders).length === 0) {
                 const errorMsg = 'No authentication cookie available. Please log in first.';
                 this._log(`⚠️ ${errorMsg}`);
                 throw new Error(errorMsg);
             }
 
-            // Extract JWT token from cookie
-            const jwtToken = this._extractJwtFromCookie(cookie);
+            // Extract raw JWT for STOMP connect headers
+            const jwtToken = this._extractJwtFromHeaders(authHeaders);
 
             if (!jwtToken) {
-                const errorMsg = 'Failed to extract JWT token from cookie';
+                const errorMsg = 'Failed to extract JWT token from auth headers';
                 this._log(`⚠️ ${errorMsg}`);
                 throw new Error(errorMsg);
             }
@@ -343,8 +343,8 @@ export class ArtemisWebsocketService {
                 webSocketFactory: () => {
                     const ws = new WebSocket(wsUrl, {
                         headers: {
-                            'Cookie': cookie,
-                            'User-Agent': CONFIG.API.USER_AGENT
+                            ...authHeaders,
+                            'User-Agent': getUserAgent()
                         }
                     });
 
@@ -609,42 +609,6 @@ export class ArtemisWebsocketService {
     }
 
     /**
-     * Unsubscribe from a specific Iris session
-     */
-    public unsubscribeFromIrisSession(sessionId: number): void {
-        const topic = WEBSOCKET_TOPICS.irisSession(sessionId);
-        const subscription = this._subscriptions.get(topic);
-
-        if (subscription) {
-            subscription.unsubscribe();
-            this._subscriptions.delete(topic);
-            this._log(`Unsubscribed from ${topic}`);
-        }
-    }
-
-    /**
-     * Get connection status
-     */
-    public getStatus(): string {
-        if (this._connectionGaveUp) {
-            return `Disconnected (gave up after ${MAX_CONNECTION_ATTEMPTS} attempts)`;
-        } else if (this._isDisconnecting) {
-            return 'Disconnecting...';
-        } else if (this._isConnecting) {
-            return 'Connecting...';
-        } else if (this._isConnected && this._client?.connected) {
-            return `Connected (${this._subscriptions.size} subscriptions)`;
-        } else if (this._pendingDisconnectNotification) {
-            return `Reconnecting (attempt ${this._reconnectAttempts}/${MAX_CONNECTION_ATTEMPTS})...`;
-        } else if (this._reconnectAttempts > 0) {
-            const nextDelay = this._getReconnectDelay();
-            return `Reconnecting in ${Math.round(nextDelay / 1000)}s (${this._reconnectAttempts}/${MAX_CONNECTION_ATTEMPTS})`;
-        } else {
-            return 'Disconnected';
-        }
-    }
-
-    /**
      * Check if we gave up on reconnecting
      */
     public hasGivenUp(): boolean {
@@ -701,12 +665,13 @@ export class ArtemisWebsocketService {
         };
 
         try {
-            const cookie = await this._authManager.getCookieHeader();
-            info.hasCookie = !!cookie;
-            if (cookie) {
-                const jwtToken = this._extractJwtFromCookie(cookie);
+            const headers = await this._authManager.getAuthHeaders();
+            info.hasCookie = Object.keys(headers).length > 0;
+            if (info.hasCookie) {
+                const jwtToken = this._extractJwtFromHeaders(headers);
                 info.hasJwtToken = !!jwtToken;
-                info.cookiePreview = cookie.substring(0, 20) + '...';
+                const headerValue = headers['Cookie'] || headers['Authorization'] || '';
+                info.cookiePreview = headerValue.substring(0, 20) + '...';
             }
         } catch (error) {
             info.hasCookie = false;
@@ -885,8 +850,7 @@ export class ArtemisWebsocketService {
     }
 
     private _getServerUrl(): string {
-        const config = vscode.workspace.getConfiguration(VSCODE_CONFIG.ARTEMIS_SECTION);
-        return config.get<string>(VSCODE_CONFIG.SERVER_URL_KEY) || 'https://artemis.tum.de';
+        return resolveServerUrl();
     }
 
     private _buildWebSocketUrl(serverUrl: string): string {
@@ -901,10 +865,24 @@ export class ArtemisWebsocketService {
         return wsEndpoint;
     }
 
-    private _extractJwtFromCookie(cookieHeader: string): string | undefined {
-        // Cookie header format: "jwt=<token>; other=value"
-        const jwtMatch = cookieHeader.match(/jwt=([^;]+)/);
-        return jwtMatch ? jwtMatch[1] : undefined;
+    /**
+     * Extracts the raw JWT from auth headers, supporting both Cookie and Bearer formats.
+     * - Cookie: "jwt=<token>; ..." → extracts <token> (Desktop)
+     * - Bearer: "Bearer <token>" → extracts <token> (Theia)
+     */
+    private _extractJwtFromHeaders(headers: Record<string, string>): string | undefined {
+        const bearer = headers['Authorization'];
+        if (bearer) {
+            return bearer.replace(/^Bearer\s+/, '');
+        }
+
+        const cookie = headers['Cookie'];
+        if (cookie) {
+            const jwtMatch = cookie.match(new RegExp(`${CONFIG.AUTH_COOKIE_NAME}=([^;]+)`));
+            return jwtMatch ? jwtMatch[1] : undefined;
+        }
+
+        return undefined;
     }
 
     private _log(message: string): void {

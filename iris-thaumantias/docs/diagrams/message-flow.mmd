@@ -1,14 +1,14 @@
 sequenceDiagram
     participant Extension as Extension Host
-    participant ViewRouter as ViewRouter
+    participant ViewHtml as getViewHtml()
     participant Webview as React Webview
     participant Store as Zustand Store
     participant Component as React Component
 
     Note over Extension,Component: Initial Load Flow
-    Extension->>ViewRouter: render(viewName, data)
-    ViewRouter->>ViewRouter: getReactWebviewHtml()
-    ViewRouter-->>Extension: HTML with data-view attribute
+    Extension->>ViewHtml: render(viewName, data)
+    ViewHtml->>ViewHtml: getReactWebviewHtml()
+    ViewHtml-->>Extension: HTML with data-view attribute
     Extension->>Webview: createWebviewPanel(HTML)
     Webview->>Webview: React.render(<App />)
     Webview->>Extension: { type: 'ready' }
@@ -25,8 +25,8 @@ sequenceDiagram
     Component->>Webview: vscodeApi.postMessage()
     Webview->>Extension: { type: 'command', command: 'openExercise', payload: {...} }
     Extension->>Extension: handle command
-    Extension->>ViewRouter: render('exerciseDetail', data)
-    ViewRouter-->>Extension: new HTML
+    Extension->>ViewHtml: render('exerciseDetail', data)
+    ViewHtml-->>Extension: new HTML
     Extension->>Webview: panel.webview.html = newHtml
     Webview->>Webview: React.unmount + mount
     Webview->>Extension: { type: 'ready' }

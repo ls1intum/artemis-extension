@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen, waitFor, act } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ExamConductionView } from '../../../../src/webview/views/ExamConduction/ExamConductionView';
 import { useExamConductionStore } from '../../../../src/webview/stores/useExamConductionStore';
@@ -10,7 +10,7 @@ vi.mock('../../../../src/webview/hooks/useExamTimer', () => ({
 	useExamTimer: () => ({ remaining: 300000, expired: false }),
 }));
 
-function makeExamData(overrides: Record<string, unknown> = {}) {
+function makeExamData() {
 	const now = Date.now();
 	return {
 		studentExam: {
@@ -28,10 +28,9 @@ function makeExamData(overrides: Record<string, unknown> = {}) {
 		endTime: now + 3600000,
 		startTime: now,
 		totalDuration: 3600000,
-		workspaceExerciseId: null,
+		workspaceExerciseId: null as number | null,
 		isLoading: false,
-		error: null,
-		...overrides,
+		error: null as string | null,
 	};
 }
 
@@ -73,14 +72,14 @@ describe('ExamConductionView', () => {
 	});
 
 	it('displays exam title from store', () => {
-		useExamConductionStore.setState(makeExamData() as never);
+		useExamConductionStore.setState(makeExamData() );
 		const mockApi = createMockVsCodeApi();
 		render(<ExamConductionView vscodeApi={mockApi} />);
 		expect(screen.getByText('Midterm Exam')).toBeInTheDocument();
 	});
 
 	it('displays exercise list with exercise titles', () => {
-		useExamConductionStore.setState(makeExamData() as never);
+		useExamConductionStore.setState(makeExamData() );
 		const mockApi = createMockVsCodeApi();
 		render(<ExamConductionView vscodeApi={mockApi} />);
 		// Exercise titles appear as headings in the exercise cards
@@ -91,7 +90,7 @@ describe('ExamConductionView', () => {
 	});
 
 	it('clicking an exercise sends openExamExerciseDetails postMessage', async () => {
-		useExamConductionStore.setState(makeExamData() as never);
+		useExamConductionStore.setState(makeExamData() );
 		const mockApi = createMockVsCodeApi();
 		render(<ExamConductionView vscodeApi={mockApi} />);
 
@@ -116,21 +115,21 @@ describe('ExamConductionView', () => {
 				exam: { title: 'Practice Exam', testExam: true },
 				exercises: [],
 			},
-		} as never);
+		} );
 		const mockApi = createMockVsCodeApi();
 		render(<ExamConductionView vscodeApi={mockApi} />);
 		expect(screen.getByText('Test Exam')).toBeInTheDocument();
 	});
 
 	it('shows back link to course', () => {
-		useExamConductionStore.setState(makeExamData() as never);
+		useExamConductionStore.setState(makeExamData() );
 		const mockApi = createMockVsCodeApi();
 		render(<ExamConductionView vscodeApi={mockApi} />);
 		expect(screen.getByText('Back to Course')).toBeInTheDocument();
 	});
 
 	it('clicking back link sends backToCourseDetails postMessage', async () => {
-		useExamConductionStore.setState(makeExamData() as never);
+		useExamConductionStore.setState(makeExamData() );
 		const mockApi = createMockVsCodeApi();
 		render(<ExamConductionView vscodeApi={mockApi} />);
 
@@ -146,7 +145,7 @@ describe('ExamConductionView', () => {
 	});
 
 	it('reload button sends reloadExamConduction command', async () => {
-		useExamConductionStore.setState(makeExamData() as never);
+		useExamConductionStore.setState(makeExamData() );
 		const mockApi = createMockVsCodeApi();
 		render(<ExamConductionView vscodeApi={mockApi} />);
 
@@ -165,14 +164,14 @@ describe('ExamConductionView', () => {
 		useExamConductionStore.setState({
 			...makeExamData(),
 			workspaceExerciseId: 1,
-		} as never);
+		} );
 		const mockApi = createMockVsCodeApi();
 		render(<ExamConductionView vscodeApi={mockApi} />);
 		expect(screen.getByText('Open')).toBeInTheDocument();
 	});
 
 	it('renders exam timer when timing data available', () => {
-		useExamConductionStore.setState(makeExamData() as never);
+		useExamConductionStore.setState(makeExamData() );
 		const mockApi = createMockVsCodeApi();
 		const { container } = render(<ExamConductionView vscodeApi={mockApi} />);
 		// ExamTimer renders a timer container div

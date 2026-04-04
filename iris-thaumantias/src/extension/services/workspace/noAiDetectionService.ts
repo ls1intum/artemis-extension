@@ -22,6 +22,7 @@ export class NoAiDetectionService implements vscode.Disposable {
 
     private readonly _onNoAiStatusChanged = new vscode.EventEmitter<boolean>();
     public readonly onNoAiStatusChanged = this._onNoAiStatusChanged.event;
+    private _initPromise: Promise<boolean>;
 
     /**
      * Customizable file exists checker for testing.
@@ -37,7 +38,16 @@ export class NoAiDetectionService implements vscode.Disposable {
     };
 
     constructor() {
+        this._initPromise = Promise.resolve(false);
         this._initialize();
+    }
+
+    /**
+     * Wait for the initial .noai file check to complete.
+     * Useful in tests to avoid setTimeout-based polling.
+     */
+    public waitForInitialization(): Promise<boolean> {
+        return this._initPromise;
     }
 
     /**
@@ -72,7 +82,7 @@ export class NoAiDetectionService implements vscode.Disposable {
 
     private _initialize(): void {
         // Initial check
-        void this._checkForNoAiFile();
+        this._initPromise = this._checkForNoAiFile();
 
         // Watch for workspace folder changes
         const workspaceFolderListener = vscode.workspace.onDidChangeWorkspaceFolders(() => {

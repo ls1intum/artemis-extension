@@ -7,6 +7,7 @@ import {
     EQState,
     RecommendedAction,
 } from './types';
+import type { SessionResettable, SessionStartContext } from './types';
 import { DiagnosticPersistenceService } from './diagnosticPersistenceService';
 import { InactivityService } from './inactivityService';
 import { ThrashingDetector } from './thrashingDetector';
@@ -52,6 +53,7 @@ export class TelemetryManager implements vscode.Disposable, WebSocketMessageHand
     // State
     private _websocketService: ArtemisWebsocketService | undefined;
     private _isEnabled: boolean = true;
+    private readonly _sessionServices: SessionResettable[];
     private _activeExerciseId: number | undefined;
     private _lastTriggerType: TriggerType | undefined;
     // Debug mode
@@ -110,6 +112,16 @@ export class TelemetryManager implements vscode.Disposable, WebSocketMessageHand
             this._adaptiveCadence,
         );
         this._decisionEngine = new InterventionDecisionEngine(this._interventionFilter);
+
+        // Collect all services that participate in exercise session lifecycle.
+        // TelemetryManager iterates this list on start/end instead of calling
+        // individual reset methods, ensuring no service is accidentally missed.
+        this._sessionServices = [
+            this._eqEngine, this._compileEmitter, this._triggerEmitter,
+            this._inactivityService, this._adaptiveCadence, this._interventionFilter,
+            this._interventionService, this._thrashingDetector, this._buildTracker,
+            this._diagnosticService,
+        ];
 
         // Register disposables
         this._disposables.push(
@@ -230,17 +242,10 @@ export class TelemetryManager implements vscode.Disposable, WebSocketMessageHand
         this._activeExerciseId = exerciseId;
         this._lastTriggerType = undefined;
 
-        // Reset everything
-        this._eqEngine.resetSession();
-        this._compileEmitter.reset();
-        this._compileEmitter.setExerciseRoot(exerciseRoot);
-        this._inactivityService.reset();
-        this._triggerEmitter.reset();
-        this._adaptiveCadence.resetAll();
-        this._interventionFilter.setExerciseStartTime();
-        this._interventionService.reset();
-        this._thrashingDetector.reset();
-        this._buildTracker.reset();
+        const ctx: SessionStartContext = { exerciseId, exerciseRoot };
+        for (const svc of this._sessionServices) {
+            svc.onSessionStart(ctx);
+        }
 
         logger.telemetry(`Exercise session started: ${exerciseId}`);
     }
@@ -257,8 +262,9 @@ export class TelemetryManager implements vscode.Disposable, WebSocketMessageHand
         const { eq, confidence } = this._eqEngine.getCurrentEQ();
         this._log(`Session ended for exercise ${this._activeExerciseId}. Final EQ: ${eq.toFixed(3)}, confidence: ${confidence}`);
 
-        // Reset diagnostic tracking so stale diagnostics don't leak into next session
-        this._diagnosticService.reset();
+        for (const svc of this._sessionServices) {
+            svc.onSessionEnd?.();
+        }
 
         this._activeExerciseId = undefined;
         this._lastTriggerType = undefined;
@@ -423,13 +429,6 @@ export class TelemetryManager implements vscode.Disposable, WebSocketMessageHand
 
     public isEnabled(): boolean {
         return this._isEnabled;
-    }
-
-    public setEnabled(enabled: boolean): void {
-        this._isEnabled = enabled;
-        if (!enabled) {
-            this._interventionService.hideHint();
-        }
     }
 
     // ==================== Configuration ====================
@@ -634,21 +633,6 @@ export class TelemetryManager implements vscode.Disposable, WebSocketMessageHand
             this._outputChannel.show();
         } else if (selection?.label === '$(refresh) Refresh') {
             await this.showStruggleScoreDialog();
-        }
-    }
-
-    public getOutputChannel(): vscode.OutputChannel {
-        return this._outputChannel;
-    }
-
-    public isDebugMode(): boolean {
-        return this._debugMode;
-    }
-
-    public forceDebugUpdate(): void {
-        this._logCurrentState();
-        if (this._debugMode) {
-            this._updateDebugStatusBar();
         }
     }
 

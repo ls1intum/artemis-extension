@@ -11,6 +11,7 @@ import {
 	takeScreenshot,
 	getCredentials,
 	runAxeInCurrentFrame,
+	performLogin,
 } from './helpers';
 
 // ---------------------------------------------------------------------------
@@ -88,22 +89,7 @@ describe('Accessibility Tests (WCAG 2.1 AA)', function () {
 			}
 
 			// Log in once before this describe block.
-			await openArtemisView();
-			await switchToWebviewFrame(driver);
-
-			const usernameInput = await waitForElement(driver, '#username');
-			await usernameInput.clear();
-			await usernameInput.sendKeys(username);
-
-			const passwordInput = await waitForElement(driver, '#password');
-			await passwordInput.clear();
-			await passwordInput.sendKeys(password);
-
-			const submitBtn = await waitForElement(driver, 'button[type="submit"]');
-			await submitBtn.click();
-
-			await switchBackFromWebview(driver);
-			await driver.sleep(5000);
+			await performLogin(driver, username, password);
 		});
 
 		after(async function () {

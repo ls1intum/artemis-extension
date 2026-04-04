@@ -25,15 +25,3 @@ export interface ParsedBuildError {
     readonly column?: number;
 }
 
-export function parseParsedBuildError(data: unknown): ParsedBuildError {
-    if (!data || typeof data !== 'object') {
-        throw new Error('Invalid ParsedBuildError data');
-    }
-    const d = data as Record<string, unknown>;
-    return {
-        filePath: String(d.filePath),
-        line: Number(d.line),
-        message: String(d.message),
-        column: typeof d.column === 'number' ? d.column : undefined,
-    };
-}

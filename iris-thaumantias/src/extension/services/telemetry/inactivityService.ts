@@ -1,11 +1,11 @@
 import * as vscode from 'vscode';
-import { InactivityPattern } from './types';
+import { InactivityPattern, SessionResettable, SessionStartContext } from './types';
 
 /**
  * Service that detects and classifies user inactivity patterns.
  * Helps identify when a student might be confused or giving up.
  */
-export class InactivityService implements vscode.Disposable {
+export class InactivityService implements vscode.Disposable, SessionResettable {
     private readonly _disposables: vscode.Disposable[] = [];
     private _lastEditTimestamp: number = Date.now();
     /**
@@ -34,9 +34,6 @@ export class InactivityService implements vscode.Disposable {
         // > 5 minutes = giving-up
     };
 
-    private readonly _onDidChangePattern = new vscode.EventEmitter<InactivityPattern>();
-    public readonly onDidChangePattern = this._onDidChangePattern.event;
-
     /**
      * Fires once when the user resumes activity after being idle (>= ACTIVE threshold).
      * Used by BoundaryTriggerEmitter to re-arm the one-shot idle timer.
@@ -60,7 +57,6 @@ export class InactivityService implements vscode.Disposable {
             disposable?.dispose();
         }
 
-        this._onDidChangePattern.dispose();
         this._onDidResumeActivity.dispose();
     }
 
@@ -106,12 +102,7 @@ export class InactivityService implements vscode.Disposable {
         const now = Date.now();
         this._lastEditTimestamp = now;
         this._lastWeakActivityTimestamp = now;
-        const newPattern = this._classifyPattern();
-
-        if (newPattern !== this._currentPattern) {
-            this._currentPattern = newPattern;
-            this._onDidChangePattern.fire(this._currentPattern);
-        }
+        this._currentPattern = this._classifyPattern();
 
         if (wasIdle) {
             this._onDidResumeActivity.fire();
@@ -129,12 +120,7 @@ export class InactivityService implements vscode.Disposable {
     private _recordWeakActivity(): void {
         const wasIdle = this.getTimeSinceLastActivity() >= InactivityService.THRESHOLDS.ACTIVE;
         this._lastWeakActivityTimestamp = Date.now();
-        const newPattern = this._classifyPattern();
-
-        if (newPattern !== this._currentPattern) {
-            this._currentPattern = newPattern;
-            this._onDidChangePattern.fire(this._currentPattern);
-        }
+        this._currentPattern = this._classifyPattern();
 
         if (wasIdle) {
             this._onDidResumeActivity.fire();
@@ -146,12 +132,7 @@ export class InactivityService implements vscode.Disposable {
      */
     private _startPatternCheck(): void {
         this._patternCheckTimer = setInterval(() => {
-            const newPattern = this._classifyPattern();
-
-            if (newPattern !== this._currentPattern) {
-                this._currentPattern = newPattern;
-                this._onDidChangePattern.fire(this._currentPattern);
-            }
+            this._currentPattern = this._classifyPattern();
         }, InactivityService.PATTERN_CHECK_INTERVAL_MS);
     }
 
@@ -213,6 +194,13 @@ export class InactivityService implements vscode.Disposable {
      */
     public getTimeSinceLastActivity(): number {
         return Date.now() - Math.max(this._lastEditTimestamp, this._lastWeakActivityTimestamp);
+    }
+
+    /**
+     * SessionResettable — delegates to existing reset().
+     */
+    public onSessionStart(_context: SessionStartContext): void {
+        this.reset();
     }
 
     /**

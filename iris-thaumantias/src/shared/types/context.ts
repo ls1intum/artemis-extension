@@ -1,3 +1,5 @@
+import type { ExerciseRef } from './exerciseRef';
+
 export type ChatContextType = 'exercise' | 'course';
 
 export type ContextSource =
@@ -16,11 +18,7 @@ export interface ActiveContext {
     selectedAt: number;
 }
 
-export interface TrackedExercise {
-    id: number;
-    title: string;
-    shortName?: string;
-    courseId?: number;
+export interface TrackedExercise extends ExerciseRef {
     releaseDate?: string;
     dueDate?: string;
     lastViewed?: number;
@@ -47,7 +45,13 @@ export interface StoredSession {
     messageCount: number;
     createdAt: number;
     lastActivity: number;
-    artemisSessionId?: number; // The Iris session ID from the server
+    /**
+     * Artemis-side Iris session ID, cached for session re-initialization.
+     * This is the persistence-layer copy. The live WebSocket subscription
+     * uses IrisWebSocketSessionClient._currentArtemisSessionId instead.
+     * Both are synchronized by IrisChatSessionService.
+     */
+    artemisSessionId?: number;
 }
 
 export interface ContextSnapshot {

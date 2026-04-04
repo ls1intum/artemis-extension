@@ -2,6 +2,7 @@ import { getRecommendedExtensionsByCategory, type RecommendedExtensionCategory }
 import type { CourseDashboardResponse, CourseDashboardEntry, ExerciseDetailsResponse, StudentExam, ExerciseDetail } from '../types';
 import type { ArchivedCourse, CourseDetailData } from '../../shared/messageContracts';
 import type { ArtemisUser } from '../types';
+import type { CourseDataCache } from '../services/courseDataCache';
 
 export type AppState = 'login' | 'dashboard' | 'course-list' | 'course-detail' | 'exercise-detail' | 'exam-exercise-detail' | 'ai-config' | 'service-status' | 'struggle-detection' | 'recommended-extensions' | 'git-credentials' | 'exam-start' | 'exam-conduction';
 
@@ -38,17 +39,27 @@ export interface AiExtension {
 }
 
 /**
+ * Discriminated union for the navigation payload.
+ * Only one variant is active at a time — navigating to a new view
+ * automatically discards the previous payload, preventing stale data leaks.
+ */
+type NavigationPayload =
+    | { kind: 'none' }
+    | { kind: 'course'; data: CourseDetailData }
+    | { kind: 'exercise'; data: ExerciseDetailsResponse }
+    | { kind: 'exam'; data: ExamData }
+    | { kind: 'exam-exercise'; exercise: ExamExerciseData; exam: ExamData };
+
+/**
  * Manages the application state for the Artemis webview
  */
 export class AppStateManager {
     private _currentState: AppState = 'login';
     private _userInfo?: UserInfo;
-    private _coursesData?: CourseDashboardResponse;
+    private _courseDataCache?: CourseDataCache;
     private _archivedCoursesData?: ArchivedCourse[];
     private _archiveCheckComplete = true;
-    private _currentCourseData?: CourseDetailData;
-    private _currentExerciseData?: ExerciseDetailsResponse | ExamExerciseData;
-    private _currentExamData?: ExamData;
+    private _payload: NavigationPayload = { kind: 'none' };
     private _aiExtensions?: AiExtension[];
     private _recommendedExtensions?: RecommendedExtensionCategory[];
     private _serverRenderedPS: { html: string; interactiveScript?: string } | null = null;
@@ -56,6 +67,11 @@ export class AppStateManager {
     private _onStateChange?: (from: AppState, to: AppState) => void;
 
     constructor() { }
+
+    /** Inject the shared course data cache. Must be called before any course operations. */
+    public setCourseDataCache(cache: CourseDataCache): void {
+        this._courseDataCache = cache;
+    }
 
     public set onStateChange(handler: (from: AppState, to: AppState) => void) {
         this._onStateChange = handler;
@@ -68,7 +84,8 @@ export class AppStateManager {
         this._onStateChange?.(prev, newState);
     }
 
-    // State getters
+    // ── Getters ──────────────────────────────────────────────────────
+
     get currentState(): AppState {
         return this._currentState;
     }
@@ -78,23 +95,30 @@ export class AppStateManager {
     }
 
     get coursesData(): CourseDashboardResponse | undefined {
-        return this._coursesData;
+        return this._courseDataCache?.get();
     }
 
     get archivedCoursesData(): ArchivedCourse[] | undefined {
         return this._archivedCoursesData;
     }
 
+    /** Returns course detail data when the active view is a course detail. */
     get currentCourseData(): CourseDetailData | undefined {
-        return this._currentCourseData;
+        return this._payload.kind === 'course' ? this._payload.data : undefined;
     }
 
+    /** Returns exercise/exam-exercise data when the active view shows an exercise. */
     get currentExerciseData(): ExerciseDetailsResponse | ExamExerciseData | undefined {
-        return this._currentExerciseData;
+        if (this._payload.kind === 'exercise') { return this._payload.data; }
+        if (this._payload.kind === 'exam-exercise') { return this._payload.exercise; }
+        return undefined;
     }
 
+    /** Returns exam data when the active view is an exam or exam-exercise. */
     get currentExamData(): ExamData | undefined {
-        return this._currentExamData;
+        if (this._payload.kind === 'exam') { return this._payload.data; }
+        if (this._payload.kind === 'exam-exercise') { return this._payload.exam; }
+        return undefined;
     }
 
     get serverRenderedProblemStatement(): { html: string; interactiveScript?: string } | null {
@@ -121,63 +145,53 @@ export class AppStateManager {
         this._archiveCheckComplete = value;
     }
 
+    // ── State transitions ────────────────────────────────────────────
+
     /**
      * Seeds authenticated session state without triggering a 'dashboard' state change.
      * Used by the workspace start-page flow to keep the loading screen visible
      * while detecting the workspace exercise.
      */
-    public seedAuthenticatedSession(userInfo: UserInfo, coursesData?: CourseDashboardResponse): void {
+    public seedAuthenticatedSession(userInfo: UserInfo): void {
         this._userInfo = userInfo;
-        if (coursesData) { this._coursesData = coursesData; }
     }
 
-    // State transitions
-    public showDashboard(userInfo: UserInfo, coursesData?: CourseDashboardResponse): void {
+    public showDashboard(userInfo: UserInfo): void {
         this._userInfo = userInfo;
-        this._coursesData = coursesData;
         this._setCurrentState('dashboard');
-    }
-
-    public setCoursesData(coursesData: CourseDashboardResponse): void {
-        this._coursesData = coursesData;
     }
 
     public showLogin(): void {
         this._setCurrentState('login');
         this._userInfo = undefined;
-        this._coursesData = undefined;
+        this._courseDataCache?.clear();
         this._archivedCoursesData = undefined;
-        this._currentCourseData = undefined;
-        this._currentExerciseData = undefined;
+        this._payload = { kind: 'none' };
         this._recommendedExtensions = undefined;
     }
 
-    public showCourseList(coursesData?: CourseDashboardResponse): void {
-        if (coursesData) { this._coursesData = coursesData; }
+    public showCourseList(): void {
         this._setCurrentState('course-list');
     }
 
     public showCourseDetail(courseData: CourseDetailData): void {
-        this._currentCourseData = courseData;
+        this._payload = { kind: 'course', data: courseData };
         this._setCurrentState('course-detail');
     }
 
     public showExerciseDetail(exerciseData: ExerciseDetailsResponse): void {
-        this._currentExerciseData = exerciseData;
+        this._payload = { kind: 'exercise', data: exerciseData };
         this._serverRenderedPS = null; // Clear stale render from previous exercise
         this._setCurrentState('exercise-detail');
     }
 
     public backToCourseDetails(): void {
+        // Payload persists — the course data was set when entering the course view
         this._setCurrentState('course-detail');
     }
 
     public injectCourseEntry(entry: CourseDashboardEntry): void {
-        if (!this._coursesData) {
-            this._coursesData = { courses: [] };
-        }
-        this._coursesData.courses ??= [];
-        this._coursesData.courses.push(entry);
+        this._courseDataCache?.injectEntry(entry);
     }
 
     public setArchivedCourses(courses: ArchivedCourse[]): void {
@@ -214,12 +228,12 @@ export class AppStateManager {
     }
 
     public showExamStart(examData: ExamData): void {
-        this._currentExamData = examData;
+        this._payload = { kind: 'exam', data: examData };
         this._setCurrentState('exam-start');
     }
 
     public showExamConduction(examData: ExamData): void {
-        this._currentExamData = examData;
+        this._payload = { kind: 'exam', data: examData };
         this._setCurrentState('exam-conduction');
     }
 
@@ -229,44 +243,29 @@ export class AppStateManager {
         courseId: number,
         examId: number
     ): void {
-        // Store the exam exercise with additional context
-        this._currentExerciseData = {
-            exercise,
-            exerciseIndex,
-            courseId,
-            examId,
-            isExamExercise: true,
-            studentExam: this._currentExamData?.studentExam
+        // Bundle both exercise and exam data in a single payload variant
+        const examData = this.currentExamData;
+        this._payload = {
+            kind: 'exam-exercise',
+            exercise: {
+                exercise,
+                exerciseIndex,
+                courseId,
+                examId,
+                isExamExercise: true,
+                studentExam: examData?.studentExam,
+            },
+            exam: examData ?? { studentExam: {} as StudentExam, courseId, examId },
         };
         this._setCurrentState('exam-exercise-detail');
     }
 
     public backToExam(): void {
+        // Extract exam data from the exam-exercise variant before transitioning
+        if (this._payload.kind === 'exam-exercise') {
+            this._payload = { kind: 'exam', data: this._payload.exam };
+        }
         this._setCurrentState('exam-conduction');
     }
 
-    public isLoggedIn(): boolean {
-        return this._userInfo !== undefined;
-    }
-
-    public requiresAuth(): boolean {
-        return this._currentState !== 'login' && !this.isLoggedIn();
-    }
-
-    // State validation
-    public canShowDashboard(): boolean {
-        return this.isLoggedIn();
-    }
-
-    public canShowCourseList(): boolean {
-        return this.isLoggedIn();
-    }
-
-    public canShowCourseDetail(): boolean {
-        return this.isLoggedIn() && this._currentCourseData !== undefined;
-    }
-
-    public canShowExerciseDetail(): boolean {
-        return this.isLoggedIn() && this._currentExerciseData !== undefined;
-    }
 }

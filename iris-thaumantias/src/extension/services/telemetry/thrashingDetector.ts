@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import * as crypto from 'crypto';
+import { SessionResettable, SessionStartContext } from './types';
 
 interface EditRecord {
     uri: string;
@@ -12,7 +13,7 @@ interface EditRecord {
  * Identifies when a student is making the same changes repeatedly,
  * which may indicate confusion or undo/redo cycling.
  */
-export class ThrashingDetector implements vscode.Disposable {
+export class ThrashingDetector implements vscode.Disposable, SessionResettable {
     private readonly _disposables: vscode.Disposable[] = [];
     private readonly _editHistory: EditRecord[] = [];
     
@@ -22,9 +23,6 @@ export class ThrashingDetector implements vscode.Disposable {
     private static readonly TIME_WINDOW_MS = 2 * 60 * 1000;
     /** Minimum repetitions to consider as thrashing */
     private static readonly MIN_REPETITIONS = 3;
-
-    private readonly _onDidDetectThrashing = new vscode.EventEmitter<number>();
-    public readonly onDidDetectThrashing = this._onDidDetectThrashing.event;
 
     constructor() {
         this._startTracking();
@@ -36,7 +34,6 @@ export class ThrashingDetector implements vscode.Disposable {
             disposable?.dispose();
         }
 
-        this._onDidDetectThrashing.dispose();
         this._editHistory.length = 0;
     }
 
@@ -63,13 +60,6 @@ export class ThrashingDetector implements vscode.Disposable {
     }
 
     /**
-     * Record an edit for thrashing detection
-     */
-    public recordEdit(uri: string, content: string): void {
-        this._recordEdit(uri, content);
-    }
-
-    /**
      * Internal method to record edits
      */
     private _recordEdit(uri: string, content: string): void {
@@ -86,12 +76,6 @@ export class ThrashingDetector implements vscode.Disposable {
         // Maintain ring buffer size
         while (this._editHistory.length > ThrashingDetector.HISTORY_SIZE) {
             this._editHistory.shift();
-        }
-
-        // Check for thrashing and emit event if score is high
-        const score = this.getThrashingScore();
-        if (score > 50) {
-            this._onDidDetectThrashing.fire(score);
         }
     }
 
@@ -164,15 +148,10 @@ export class ThrashingDetector implements vscode.Disposable {
     }
 
     /**
-     * Get edit frequency (edits per minute in the last time window)
+     * SessionResettable — reset edit history when a new exercise session starts.
      */
-    public getEditFrequency(): number {
-        const now = Date.now();
-        const cutoff = now - ThrashingDetector.TIME_WINDOW_MS;
-        const recentEdits = this._editHistory.filter(e => e.timestamp >= cutoff);
-
-        const timeWindowMinutes = ThrashingDetector.TIME_WINDOW_MS / (60 * 1000);
-        return recentEdits.length / timeWindowMinutes;
+    public onSessionStart(_context: SessionStartContext): void {
+        this.reset();
     }
 
     /**

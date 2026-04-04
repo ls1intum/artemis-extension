@@ -2,23 +2,25 @@ import * as vscode from 'vscode';
 import { ArtemisApiService } from '../api';
 import { AuthManager, AuthFlowHandler } from '../services/auth';
 import { ArtemisWebsocketService, SubmissionWebSocketHandler } from '../services/websocket';
-import { ViewInitDataService, FullscreenPanelManager, BuildDiagnosticsService, ExerciseOpeningService, StartPageResolver, ProviderRegistry } from '../services/ui';
+import { ViewInitDataService, FullscreenPanelManager, BuildDiagnosticsService, ExerciseOpeningService, StartPageResolver } from '../services/ui';
+import type { IProviderRegistry } from '../services/ui';
 import type { StartPageResult } from '../services/ui';
 import { ExerciseRegistry } from '../services/exerciseRegistry';
 import { findWorkspaceCourseInArchive, collectExerciseSources, getWorkspaceRepositoryUrl, findExerciseByRepositoryUrl } from '../services/workspace';
 import { logger, LogCategory } from '../services/loggingService';
 import type { TelemetryManager } from '../services/telemetry';
-import { CONFIG, VSCODE_CONFIG, AI_EXTENSIONS_BLOCKLIST, getRecommendedExtensionsByCategory } from '../utils';
+import { CONFIG, VSCODE_CONFIG, AI_EXTENSIONS_BLOCKLIST, getRecommendedExtensionsByCategory, resolveServerUrl } from '../utils';
 import { AppStateManager, type UserInfo } from '../controller/appStateManager';
 import { WebViewMessageHandler } from '../controller/webViewMessageHandler';
 import type { WebViewActionHandler } from '../controller/types';
 import { ViewActionService } from '../controller/viewActionService';
-import { ViewRouter } from '../controller/viewRouter';
+import { getViewHtml } from '../controller/viewRouter';
 import { fetchAndEnrichExerciseDetails, fetchArchivedCourseDetail } from '../controller/exerciseDataLoader';
 import { WebSocketMessageHandler } from '../types';
 import { ProblemStatementRenderService } from '../services/problemStatementRenderService';
 import { BaseWebviewProvider } from './baseWebviewProvider';
 import type { BuildErrorCodeLensProvider } from './buildErrorCodeLensProvider';
+import type { CourseDataCache } from '../services/courseDataCache';
 import { ExtensionMsg, toCourseDetailData } from '../../shared/messageContracts';
 import type { ExtensionToWebviewMessage, WebviewToExtensionMessage, CourseDetailData } from '../../shared/messageContracts';
 import type { ExerciseDetail, ExerciseDetailsResponse } from '../types';
@@ -37,7 +39,6 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
     // ── Instance properties ────────────────────────────────────────────
     private _appStateManager: AppStateManager;
     private _messageHandler: WebViewMessageHandler;
-    private _viewRouter!: ViewRouter;
     private _viewActionService: ViewActionService;
     private _viewInitDataService: ViewInitDataService;
     private _submissionWsHandler: SubmissionWebSocketHandler;
@@ -65,11 +66,12 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
         private readonly _authManager: AuthManager,
         private readonly _artemisApi: ArtemisApiService,
         private readonly _exerciseRegistry: ExerciseRegistry,
-        private readonly _providerRegistry: ProviderRegistry,
+        private readonly _providerRegistry: IProviderRegistry,
         websocketService: ArtemisWebsocketService,
         buildErrorCodeLensProvider: BuildErrorCodeLensProvider,
         telemetryManager: TelemetryManager,
         updateAuthContext: (isAuthenticated: boolean) => Promise<void>,
+        private readonly _courseDataCache?: CourseDataCache,
     ) {
         super();
         this._websocketService = websocketService;
@@ -77,6 +79,9 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
         this._authContextUpdater = updateAuthContext;
 
         this._appStateManager = new AppStateManager();
+        if (this._courseDataCache) {
+            this._appStateManager.setCourseDataCache(this._courseDataCache);
+        }
         this._viewActionService = new ViewActionService(this._appStateManager, this._artemisApi);
         this._messageHandler = new WebViewMessageHandler(
             this._authManager,
@@ -87,6 +92,7 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
             this._exerciseRegistry,
             this._providerRegistry,
             this._websocketService,
+            this._courseDataCache,
         );
         this._messageHandler.setAuthContextUpdater(this._authContextUpdater);
         this._viewInitDataService = new ViewInitDataService(
@@ -99,7 +105,7 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
         this._buildDiagnosticsService = new BuildDiagnosticsService(this._artemisApi);
         this._buildDiagnosticsService.setCodeLensProvider(buildErrorCodeLensProvider);
         this._exerciseOpeningService = new ExerciseOpeningService(this._exerciseRegistry, this._providerRegistry, this._telemetryManager);
-        this._startPageResolver = new StartPageResolver(this._artemisApi);
+        this._startPageResolver = new StartPageResolver(this._artemisApi, this._courseDataCache);
         this._submissionWsHandler = new SubmissionWebSocketHandler(
             (msg) => this._postMessageSafe(msg),
             (result) => this._buildDiagnosticsService.handleBuildResult(result),
@@ -159,9 +165,6 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
     ) {
         this._view = webviewView;
 
-        // Initialize the ViewRouter now that we have the webview
-        this._viewRouter = new ViewRouter(this._appStateManager, this._extensionContext, webviewView.webview);
-
         this._resetReadyState();
 
         webviewView.webview.options = {
@@ -174,7 +177,7 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
             ]
         };
 
-        webviewView.webview.html = await this._viewRouter.getHtml();
+        webviewView.webview.html = getViewHtml(this._appStateManager.currentState, this._extensionContext.extensionUri, webviewView.webview);
 
         // Set up message sender for the message handler (using safe posting)
         this._messageHandler.setMessageSender((message: ExtensionToWebviewMessage) => {
@@ -199,7 +202,7 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
             if (webviewView.visible) {
                 void (async () => {
                     // Check if auth expired while panel was hidden
-                    const hasAuth = await this._authManager.hasAuthCookie();
+                    const hasAuth = await this._authManager.hasAuthToken();
                     const currentState = this._appStateManager.currentState;
                     if (!hasAuth && currentState !== 'login') {
                         logger.debug('Auth expired while panel was hidden, showing login', LogCategory.VIEW);
@@ -244,14 +247,10 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
     /**
      * Helper method to render the webview HTML
      */
-    public async render(): Promise<void> {
+    public render(): void {
         if (this._view) {
-            try {
-                this._resetReadyState();
-                this._view.webview.html = await this._viewRouter.getHtml();
-            } catch (err) {
-                logger.error('Failed to render webview', LogCategory.VIEW, err);
-            }
+            this._resetReadyState();
+            this._view.webview.html = getViewHtml(this._appStateManager.currentState, this._extensionContext.extensionUri, this._view.webview);
         }
     }
 
@@ -327,10 +326,9 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
         // Set state immediately so concurrent logic sees 'dashboard' during fetch
         this._appStateManager.showDashboard(userInfo);
 
-        // Fetch courses and populate (swallow error — dashboard renders with empty state)
+        // Fetch courses into the shared cache (swallow error — dashboard renders with empty state)
         try {
-            const coursesData = await this._artemisApi.getCoursesForDashboard();
-            this._appStateManager.setCoursesData(coursesData);
+            await this._courseDataCache?.fetch();
         } catch (error) {
             logger.error('Error loading courses for dashboard', LogCategory.VIEW, error);
         }
@@ -360,14 +358,13 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
 
         switch (result.type) {
             case 'course-list':
-                // Seed with already-fetched data to avoid a second API call
-                this._appStateManager.seedAuthenticatedSession(userInfo, result.coursesData);
+                this._appStateManager.seedAuthenticatedSession(userInfo);
                 this._appStateManager.showCourseList();
                 if (this._view) { this.render(); }
                 return;
 
             case 'workspace-exercise': {
-                this._appStateManager.seedAuthenticatedSession(userInfo, result.coursesData);
+                this._appStateManager.seedAuthenticatedSession(userInfo);
                 const entry = result.allCourses.find(e => e.course?.id === result.courseId);
                 if (entry?.course) {
                     this._appStateManager.showCourseDetail(toCourseDetailData(entry.course));
@@ -381,7 +378,7 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
             }
 
             case 'workspace-course': {
-                this._appStateManager.seedAuthenticatedSession(userInfo, result.coursesData);
+                this._appStateManager.seedAuthenticatedSession(userInfo);
                 const entry = result.allCourses.find(e => e.course?.id === result.courseId);
                 if (entry?.course) {
                     this.showCourseDetail(toCourseDetailData(entry.course));
@@ -410,8 +407,11 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
 
     public async showCourseList(): Promise<void> {
         try {
-            const coursesData = await this._artemisApi.getCoursesForDashboard();
-            this._appStateManager.showCourseList(coursesData);
+            // Ensure courses are in the cache before navigating
+            if (this._courseDataCache) {
+                await this._courseDataCache.fetch();
+            }
+            this._appStateManager.showCourseList();
             if (this._view) {
                 this.render();
             }
@@ -580,8 +580,7 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
     }
 
     private _getServerUrl(): string {
-        const config = vscode.workspace.getConfiguration(VSCODE_CONFIG.ARTEMIS_SECTION);
-        return config.get<string>(VSCODE_CONFIG.SERVER_URL_KEY, CONFIG.ARTEMIS_SERVER_URL_DEFAULT);
+        return resolveServerUrl();
     }
 
     /**

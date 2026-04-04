@@ -2,100 +2,71 @@ import * as vscode from 'vscode';
 import { CONFIG } from '../../utils';
 import { logger, LogCategory } from '../loggingService';
 
-// Manages authentication cookies (JWT in HttpOnly cookie)
+// Manages authentication tokens for both VS Code Desktop and Theia/EduIDE.
+// Desktop: JWT stored as cookie string ("jwt=<token>"), sent as Cookie header.
+// Theia:   Raw JWT from environment variable, sent as Authorization: Bearer header.
 export class AuthManager {
-    private static SECRET_KEY = CONFIG.SECRET_KEYS.AUTH_COOKIE;
-    private memoryCookie?: string;
+    private memoryToken?: string;
     private context: vscode.ExtensionContext;
+    private _useBearerAuth = false;
 
     constructor(context: vscode.ExtensionContext) {
         this.context = context;
     }
 
-    // Extracts the Cookie header string ("name=value; name2=value2") from Set-Cookie header(s)
-    private static extractCookieHeader(setCookie: string | string[] | undefined): string | undefined {
-        if (!setCookie) {
-            return undefined;
-        }
-        const entries = Array.isArray(setCookie) ? setCookie : [setCookie];
-        const pairs = entries
-            .map(h => (h || '').split(';')[0]?.trim())
-            .filter(Boolean) as string[];
-        if (pairs.length === 0) {
-            return undefined;
-        }
-        return pairs.join('; ');
+    /**
+     * Enable Bearer token authentication mode (used in Theia/EduIDE).
+     * When enabled, getAuthHeaders() returns Authorization: Bearer instead of Cookie.
+     */
+    public enableBearerAuth(): void {
+        this._useBearerAuth = true;
     }
 
-    // Persist cookie if requested, and always keep it in memory for current session
-    private async setAuthCookie(cookieHeader: string, persist: boolean): Promise<void> {
-        this.memoryCookie = cookieHeader;
-        if (persist) {
-            await this.context.secrets.store(AuthManager.SECRET_KEY, cookieHeader);
-        }
-    }
-
-    public async hasAuthCookie(): Promise<boolean> {
-        if (this.memoryCookie) {
+    public async hasAuthToken(): Promise<boolean> {
+        if (this.memoryToken) {
             return true;
         }
-        const stored = await this.context.secrets.get(AuthManager.SECRET_KEY);
-        const artemisToken = await this.context.secrets.get(CONFIG.SECRET_KEYS.ARTEMIS_TOKEN);
-        return !!stored || !!artemisToken;
+        const stored = await this.context.secrets.get(CONFIG.SECRET_KEYS.ARTEMIS_TOKEN);
+        return !!stored;
     }
 
-    public async hasArtemisToken(): Promise<boolean> {
-        const artemisToken = await this.context.secrets.get(CONFIG.SECRET_KEYS.ARTEMIS_TOKEN);
-        return !!artemisToken;
-    }
-
-    public async getArtemisServerUrl(): Promise<string | undefined> {
+    /**
+     * Returns the server URL that was active at the time of last successful login.
+     * Used exclusively for URL-change detection: if the user changes their
+     * `artemis.serverUrl` setting after login, stored credentials may be stale.
+     * The live server URL is always resolved via `resolveServerUrl()`.
+     */
+    public async getStoredLoginServerUrl(): Promise<string | undefined> {
         return await this.context.secrets.get(CONFIG.SECRET_KEYS.ARTEMIS_SERVER_URL);
     }
 
-    // Capture Set-Cookie from a fetch Response and store it
-    public async setFromResponse(response: unknown, persist: boolean): Promise<void> {
-        try {
-            let setCookies: string[] | undefined;
-            // undici supports getSetCookie() in Node fetch
-            // Type guard for response with headers
-            if (response && typeof response === 'object' && 'headers' in response) {
-                const headers = (response as { headers: unknown }).headers;
-
-                // Check for getSetCookie method (undici Headers)
-                if (headers && typeof headers === 'object' && 'getSetCookie' in headers) {
-                    const getSetCookie = (headers as { getSetCookie: unknown }).getSetCookie;
-                    if (typeof getSetCookie === 'function') {
-                        const result: unknown = (getSetCookie as () => unknown)();
-                        setCookies = result as string[];
-                    }
-                } else if (headers && typeof headers === 'object' && 'get' in headers) {
-                    // Fallback to standard Headers.get
-                    const get = (headers as { get: unknown }).get;
-                    if (typeof get === 'function') {
-                        const result: unknown = (get as (name: string) => unknown)('set-cookie');
-                        const single = result as string | null;
-                        setCookies = single ? [single] : undefined;
-                    }
-                }
-            }
-
-            const cookieHeader = AuthManager.extractCookieHeader(setCookies);
-            if (cookieHeader) {
-                await this.setAuthCookie(cookieHeader, persist);
-            }
-        } catch (err) {
-            logger.error('Failed to capture auth cookie:', LogCategory.AUTH, err);
-        }
+    /**
+     * Checks whether the user changed the server URL since their last login.
+     * @param currentUrl The currently resolved server URL from settings/env.
+     */
+    public async isServerUrlChanged(currentUrl: string): Promise<boolean> {
+        const storedUrl = await this.getStoredLoginServerUrl();
+        if (!storedUrl) { return false; }
+        return storedUrl !== currentUrl;
     }
 
-    public async getCookieHeader(): Promise<string | undefined> {
-        // 1. Check in-memory cache first (current session)
-        if (this.memoryCookie) {
-            return this.memoryCookie;
+    /**
+     * Returns the raw token value for comparison (e.g., token refresh detection).
+     */
+    public async getStoredTokenValue(): Promise<string | undefined> {
+        return this.getStoredToken();
+    }
+
+    /**
+     * Returns the stored token string.
+     * In Desktop mode this is a cookie string ("jwt=<token>"),
+     * in Theia mode this is a raw JWT.
+     */
+    private async getStoredToken(): Promise<string | undefined> {
+        if (this.memoryToken) {
+            return this.memoryToken;
         }
 
-        // 2. Check new storage location (artemis-auth-token) - primary
         const artemisToken = await this.context.secrets.get(CONFIG.SECRET_KEYS.ARTEMIS_TOKEN);
         if (artemisToken) {
             return artemisToken;
@@ -105,27 +76,30 @@ export class AuthManager {
     }
 
     public async getAuthHeaders(): Promise<Record<string, string>> {
-        const cookie = await this.getCookieHeader();
+        const token = await this.getStoredToken();
 
-        if (cookie) {
-            return { 'Cookie': cookie };
-        } else {
+        if (!token) {
             return {};
         }
+
+        if (this._useBearerAuth) {
+            return { 'Authorization': `Bearer ${token}` };
+        }
+
+        return { 'Cookie': token };
     }
 
-    public async storeArtemisCredentials(jwtCookie: string, serverUrl: string, persist: boolean): Promise<void> {
-        this.memoryCookie = jwtCookie;
+    public async storeArtemisCredentials(token: string, serverUrl: string, persist: boolean): Promise<void> {
+        this.memoryToken = token;
         if (persist) {
-            await this.context.secrets.store(CONFIG.SECRET_KEYS.ARTEMIS_TOKEN, jwtCookie);
+            await this.context.secrets.store(CONFIG.SECRET_KEYS.ARTEMIS_TOKEN, token);
             await this.context.secrets.store(CONFIG.SECRET_KEYS.ARTEMIS_SERVER_URL, serverUrl);
         }
     }
 
     public async clear(): Promise<void> {
-        this.memoryCookie = undefined;
+        this.memoryToken = undefined;
         try {
-            await this.context.secrets.delete(AuthManager.SECRET_KEY);
             await this.context.secrets.delete(CONFIG.SECRET_KEYS.ARTEMIS_TOKEN);
             await this.context.secrets.delete(CONFIG.SECRET_KEYS.ARTEMIS_SERVER_URL);
         } catch (err) {

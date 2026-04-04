@@ -267,7 +267,7 @@ suite('WebViewMessageHandler - handleMessageWithSender', () => {
     suite('reload error recovery', () => {
         test('reloadCourses calls sendInitData on error', async () => {
             const sender = sandbox.stub();
-            sandbox.stub(mockStateManager, 'showCourseList').rejects(new Error('API failure'));
+            sandbox.stub(mockApiService, 'getCoursesForDashboard').rejects(new Error('API failure'));
 
             await handler.handleMessageWithSender(
                 { type: 'command', command: 'reloadCourses' } as any,

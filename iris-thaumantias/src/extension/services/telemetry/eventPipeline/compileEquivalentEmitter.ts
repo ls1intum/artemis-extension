@@ -5,6 +5,8 @@ import {
     BuildResultClassification,
     EQConfig,
     DEFAULT_EQ_CONFIG,
+    SessionResettable,
+    SessionStartContext,
 } from '../types';
 import { ResultDTO } from '../../../types';
 
@@ -17,7 +19,7 @@ export { LINT_SOURCE_DENYLIST };
  * [ADAPTATION] Paper: "Compilation Event" = student clicks Compile in BlueJ.
  * VS Code: save event (with 500ms LS delay) or Artemis build result.
  */
-export class CompileEquivalentEmitter implements vscode.Disposable {
+export class CompileEquivalentEmitter implements vscode.Disposable, SessionResettable {
     private readonly _disposables: vscode.Disposable[] = [];
     private readonly _config: EQConfig;
     private _exerciseRoot: vscode.Uri | undefined;
@@ -97,6 +99,14 @@ export class CompileEquivalentEmitter implements vscode.Disposable {
      */
     public setExerciseRoot(uri: vscode.Uri | undefined): void {
         this._exerciseRoot = uri;
+    }
+
+    /**
+     * SessionResettable — resets state and updates exercise root.
+     */
+    public onSessionStart(context: SessionStartContext): void {
+        this.reset();
+        this.setExerciseRoot(context.exerciseRoot);
     }
 
     /**
