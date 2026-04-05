@@ -212,10 +212,23 @@ export class DiagnosticPersistenceService implements vscode.Disposable, SessionR
     }
 
     /**
-     * SessionResettable — no-op: this service resets on session end, not start.
+     * SessionResettable — drop pre-session workspace diagnostics and re-read
+     * the current workspace snapshot.
+     *
+     * Why: when the very first session of the extension lifetime starts,
+     * endExerciseSession() was never called, so the map still contains
+     * diagnostics that the constructor collected at extension activation.
+     * Those stale entries can auto-resolve mid-session and trigger a false
+     * recordProgress() via TelemetryManager's all-errors-resolved handler.
+     *
+     * We intentionally do NOT fire onDidUpdateDiagnostics here — firing a
+     * fresh empty/clean snapshot would itself trigger the same false-progress
+     * path. Consumers observe the updated state on the next real diagnostic
+     * change event.
      */
     public onSessionStart(_context: SessionStartContext): void {
-        /* no-op: this service resets on session end */
+        this._trackedDiagnostics.clear();
+        this._processAllWorkspaceDiagnostics();
     }
 
     /**
