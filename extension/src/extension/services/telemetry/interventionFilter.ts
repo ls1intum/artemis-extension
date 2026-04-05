@@ -34,13 +34,14 @@ export class InterventionFilter implements SessionResettable {
     }
 
     /**
-     * Check if enough time has passed in the exercise
+     * Check if enough time has passed in the exercise.
+     * If the start time is unknown (session never initialized), be conservative
+     * and block interventions — the 5-minute warmup exists to prevent premature
+     * interventions, and "unknown" should not silently bypass it.
      */
     private _hasEnoughExerciseTime(): boolean {
         if (this._exerciseStartTime === undefined) {
-            // If we don't know when exercise started, assume it's been long enough
-            // but be more conservative
-            return true;
+            return false;
         }
 
         const elapsed = Date.now() - this._exerciseStartTime;
