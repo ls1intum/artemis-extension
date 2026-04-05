@@ -31,7 +31,8 @@ export class ExerciseOpeningService {
                 exerciseTitle,
                 participations[0].repositoryUri,
                 exercise.shortName || '',
-                exercise.course?.id
+                exercise.course?.id,
+                typeof participations[0].id === 'number' ? participations[0].id : undefined,
             );
             logger.exercise(`Registered individual exercise: ${exerciseTitle}`);
         }

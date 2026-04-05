@@ -23,6 +23,7 @@ import { ArtemisWebsocketService } from '../websocket/artemisWebsocketService';
 import { ResultDTO, WebSocketMessageHandler } from '../../types';
 import { VSCODE_CONFIG } from '../../utils/constants';
 import { logger, LogCategory } from '../loggingService';
+import type { ExerciseRegistry } from '../exerciseRegistry';
 
 /**
  * Central orchestration service for EQ-based struggle detection.
@@ -56,6 +57,7 @@ export class TelemetryManager implements vscode.Disposable, WebSocketMessageHand
     private readonly _sessionServices: SessionResettable[];
     private _activeExerciseId: number | undefined;
     private _lastTriggerType: TriggerType | undefined;
+    private readonly _exerciseRegistry: ExerciseRegistry | undefined;
     // Debug mode
     private _debugMode: boolean = false;
     private _debugStatusBarItem: vscode.StatusBarItem;
@@ -84,7 +86,8 @@ export class TelemetryManager implements vscode.Disposable, WebSocketMessageHand
         return this._interventionService.onDidDismissIntervention;
     }
 
-    constructor() {
+    constructor(exerciseRegistry?: ExerciseRegistry) {
+        this._exerciseRegistry = exerciseRegistry;
         this._outputChannel = vscode.window.createOutputChannel('Artemis Telemetry');
         this._disposables.push(this._outputChannel);
 
@@ -161,12 +164,15 @@ export class TelemetryManager implements vscode.Disposable, WebSocketMessageHand
 
         this.endCurrentSession();
 
+        // Log BEFORE disposing the output channel — otherwise _log() writes to
+        // an already-disposed channel and throws "Channel has been closed".
+        this._log('TelemetryManager disposed');
+
         while (this._disposables.length > 0) {
             this._disposables.pop()?.dispose();
         }
 
         this._onDidCalculateEQ.dispose();
-        this._log('TelemetryManager disposed');
     }
 
     // ==================== WebSocket Message Handler ====================
@@ -183,12 +189,25 @@ export class TelemetryManager implements vscode.Disposable, WebSocketMessageHand
             return;
         }
 
-        // Guard: Skip results when no exercise session is active (Edge Case 1b).
-        // ResultDTO has no exerciseId field, so we can't filter by exercise directly.
-        // The WebSocket subscription (personalResults) may deliver results for any exercise.
-        // Without an active session, results should not feed into EQ.
+        // Guard 1: Skip results when no exercise session is active (Edge Case 1b).
+        // The WebSocket subscription (personalResults) delivers results for any
+        // participation of the user, not just the active exercise's.
         if (this._activeExerciseId === undefined) {
             return;
+        }
+
+        // Guard 2: Skip results that belong to a different exercise than the
+        // active session. ResultDTO only carries a participationId, so we
+        // resolve it through ExerciseRegistry. Policy: permissive on unknown
+        // mapping — if the registry has not yet learned this participationId
+        // (e.g. first course load not finished), we let the result through
+        // rather than dropping real data. Known mismatches are dropped.
+        const resultParticipationId = result.participation?.id;
+        if (resultParticipationId !== undefined && this._exerciseRegistry) {
+            const mappedExerciseId = this._exerciseRegistry.getExerciseIdByParticipation(resultParticipationId);
+            if (mappedExerciseId !== undefined && mappedExerciseId !== this._activeExerciseId) {
+                return;
+            }
         }
 
         // Step 1: EQ snapshot FIRST (synchronous)

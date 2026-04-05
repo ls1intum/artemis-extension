@@ -45,7 +45,10 @@ export async function activate(context: vscode.ExtensionContext) {
 	const artemisApiService = new ArtemisApiService(authManager);
 	const artemisWebsocketService = new ArtemisWebsocketService(authManager);
 	const buildErrorCodeLensProvider = new BuildErrorCodeLensProvider();
-	const telemetryManager = new TelemetryManager();
+	// Created early because TelemetryManager needs it for participationId → exerciseId
+	// resolution when filtering WebSocket build results (prevents cross-exercise contamination).
+	const exerciseRegistry = new ExerciseRegistry();
+	const telemetryManager = new TelemetryManager(exerciseRegistry);
 	activeTelemetryManager = telemetryManager;
 
 	telemetryManager.setWebsocketService(artemisWebsocketService);
@@ -106,7 +109,7 @@ export async function activate(context: vscode.ExtensionContext) {
 	});
 
 	// ── Registries & providers ───────────────────────────────────────
-	const exerciseRegistry = new ExerciseRegistry();
+	// Note: exerciseRegistry is created earlier (above) so TelemetryManager can use it.
 	const courseDataCache = new CourseDataCache(artemisApiService);
 	context.subscriptions.push(courseDataCache);
 	const providerRegistry = createProviderRegistry();
