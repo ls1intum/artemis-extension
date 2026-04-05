@@ -315,11 +315,14 @@ export class ArtemisApiService {
      * re-clear auth and fire the auth-expired callback — both
      * pointless and confusing during an intentional logout).
      *
-     * Note: Artemis uses stateless JWTs without server-side blacklisting,
-     * so this call does not invalidate the token on the server. It merely
-     * tells Artemis "the user intentionally logged out" (audit logs) and
-     * returns a Set-Cookie header that clears the jwt cookie in browser
-     * clients. For this Extension the benefit is protocol symmetry with
+     * Note: Artemis uses strictly stateless JWTs — verified 2026-04-05 both
+     * empirically (tokens stayed valid on /api/core/public/account after
+     * multiple explicit logout calls) and via source: Artemis'
+     * PublicUserJwtResource.logout() (core/web/open/PublicUserJwtResource.java)
+     * only builds a Set-Cookie: jwt=; Max-Age=0 response header — no blacklist,
+     * no audit log, no server-side token invalidation. This Extension manages
+     * the JWT via VS Code secrets (not a cookie jar), so the Set-Cookie header
+     * is discarded by fetch(). The call is kept for protocol symmetry with
      * the Artemis webapp.
      */
     async logoutFromServer(): Promise<void> {
