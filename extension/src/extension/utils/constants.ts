@@ -13,6 +13,7 @@ export const CONFIG = {
     API: {
         ENDPOINTS: {
             AUTHENTICATE: '/api/core/public/authenticate',
+            LOGOUT: '/api/core/public/logout',
         },
     },
 } as const;

@@ -19,11 +19,15 @@ function registerLoginCommand(): vscode.Disposable {
 
 function registerLogoutCommand(
     authManager: AuthManager,
+    artemisApiService: ArtemisApiService,
     updateAuthContext: (isAuthenticated: boolean) => Promise<void>,
     artemisWebviewProvider: ArtemisWebviewProvider,
 ): vscode.Disposable {
     return vscode.commands.registerCommand('artemis.logout', async () => {
         try {
+            // Best-effort server-side logout before clearing local state.
+            // Never throws — local cleanup proceeds regardless.
+            await artemisApiService.logoutFromServer();
             await authManager.clear();
             await updateAuthContext(false);
             vscode.window.showInformationMessage('Successfully logged out of Artemis');
@@ -435,7 +439,7 @@ export interface CommandDeps {
 export function registerAllCommands(deps: CommandDeps): vscode.Disposable {
     return vscode.Disposable.from(
         registerLoginCommand(),
-        registerLogoutCommand(deps.authManager, deps.updateAuthContext, deps.artemisWebviewProvider),
+        registerLogoutCommand(deps.authManager, deps.artemisApiService, deps.updateAuthContext, deps.artemisWebviewProvider),
         registerResetIrisChatCommand(deps.chatWebviewProvider),
         registerIrisHealthCheckCommand(deps.authManager, deps.artemisApiService, deps.providerRegistry),
         registerWebSocketStatusCommand(deps.artemisWebsocketService),

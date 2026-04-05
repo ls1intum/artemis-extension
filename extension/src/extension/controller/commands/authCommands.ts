@@ -55,6 +55,9 @@ export class AuthCommandModule {
 
     private handleLogout = async (_message: WebviewToExtensionMessage): Promise<void> => {
         try {
+            // Best-effort server-side logout before clearing local state.
+            // Never throws — local cleanup proceeds regardless.
+            await this.context.artemisApi.logoutFromServer();
             await this.context.authManager.clear();
             await this.context.updateAuthContext(false);
 
