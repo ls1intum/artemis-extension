@@ -10,6 +10,7 @@ import {
     parseSubmissionProcessingMessage,
 } from '../../types';
 import type { WebSocketMessageHandler } from '../../types';
+import type { ConnectionState } from './connectionState';
 
 /**
  * Delay in milliseconds before emitting non-connected states to consumers.
@@ -35,7 +36,7 @@ const MAX_CONNECTION_ATTEMPTS = 20;
  * Handles real-time updates for submissions, results, and build status
  * 
  * SAFETY FEATURES to prevent connection flooding:
- * 1. Connection mutex (_isConnecting) - prevents parallel connection attempts
+ * 1. Connection mutex (_connectionState === 'connecting') - prevents parallel connection attempts
  * 2. Rate limiting (MIN_CONNECTION_INTERVAL_MS) - minimum 2s between attempts
  * 3. Max attempts (MAX_CONNECTION_ATTEMPTS) - stops after 20 failed attempts
  * 4. Exponential backoff - 500ms → 1s → 2s → 4s → ... → max 10s
@@ -45,13 +46,10 @@ const MAX_CONNECTION_ATTEMPTS = 20;
 export class ArtemisWebsocketService {
     private _client?: Client;
     private _authManager: AuthManager;
-    private _isConnected: boolean = false;
-    private _isConnecting: boolean = false;
-    private _isDisconnecting: boolean = false; // NEW: Prevent reconnect during disconnect
+    private _connectionState: ConnectionState = 'disconnected';
     private _connectionGeneration: number = 0; // Monotonic token to detect stale connect() continuations
     private _reconnectAttempts: number = 0;
-    private _lastConnectionAttempt: number = 0; // NEW: Track last attempt time
-    private _connectionGaveUp: boolean = false; // NEW: Track if we gave up
+    private _lastConnectionAttempt: number = 0; // Track last attempt time
 
     // Artemis webapp uses these values (see websocket.service.ts lines 305-314)
     private readonly _initialReconnectDelay: number = 500;  // Start at 500ms like webapp
@@ -106,7 +104,7 @@ export class ArtemisWebsocketService {
         this._log(`Connection state callback registered: ${callbackId} (total: ${this._connectionStateCallbacks.size})`);
 
         // Immediately notify of current state
-        callback(this._isConnected, this._wasConnectedOnce);
+        callback(this._connectionState === 'connected', this._wasConnectedOnce);
 
         // Return unsubscribe function
         return () => {
@@ -139,7 +137,7 @@ export class ArtemisWebsocketService {
      * Also attempts to ensure connection is valid
      */
     public isConnected(): boolean {
-        return this._isConnected && this._client?.connected === true;
+        return this._connectionState === 'connected' && this._client?.connected === true;
     }
 
     /**
@@ -192,17 +190,17 @@ export class ArtemisWebsocketService {
      */
     private _canAttemptConnection(): { allowed: boolean; reason?: string } {
         // Check if we gave up
-        if (this._connectionGaveUp) {
+        if (this._connectionState === 'gave-up') {
             return { allowed: false, reason: 'Max connection attempts reached. Call resetConnectionState() to retry.' };
         }
 
         // Check if already connecting
-        if (this._isConnecting) {
+        if (this._connectionState === 'connecting') {
             return { allowed: false, reason: 'Connection already in progress' };
         }
 
         // Check if disconnecting
-        if (this._isDisconnecting) {
+        if (this._connectionState === 'disconnecting') {
             return { allowed: false, reason: 'Disconnect in progress' };
         }
 
@@ -218,7 +216,7 @@ export class ArtemisWebsocketService {
 
         // Check max attempts
         if (this._reconnectAttempts >= MAX_CONNECTION_ATTEMPTS) {
-            this._connectionGaveUp = true;
+            this._transitionTo('gave-up');
             this._log(`🛑 MAX CONNECTION ATTEMPTS (${MAX_CONNECTION_ATTEMPTS}) REACHED - GIVING UP`);
             return { allowed: false, reason: `Max attempts (${MAX_CONNECTION_ATTEMPTS}) reached` };
         }
@@ -233,7 +231,7 @@ export class ArtemisWebsocketService {
     public resetConnectionState(): void {
         this._log('Resetting connection state');
         this._reconnectAttempts = 0;
-        this._connectionGaveUp = false;
+        this._transitionTo('disconnected');
         this._lastConnectionAttempt = 0;
     }
 
@@ -258,7 +256,7 @@ export class ArtemisWebsocketService {
         }
 
         // Set mutex IMMEDIATELY
-        this._isConnecting = true;
+        this._transitionTo('connecting');
         this._lastConnectionAttempt = Date.now();
         const generation = ++this._connectionGeneration;
 
@@ -268,7 +266,7 @@ export class ArtemisWebsocketService {
             this._connectReject = reject;
             this._connectTimeout = setTimeout(() => {
                 this._rejectConnect(new Error('Connection timed out'));
-                this._isConnecting = false;
+                this._transitionTo('disconnected');
             }, this._connectionTimeout);
         });
 
@@ -276,12 +274,13 @@ export class ArtemisWebsocketService {
             // Now safe to deactivate existing connection
             if (this._client) {
                 this._log('Deactivating existing connection before reconnect');
-                // Temporarily set flag to prevent onDisconnected from triggering reconnect
-                this._isDisconnecting = true;
+                // Temporarily transition to disconnecting to prevent onDisconnected from triggering reconnect
+                this._transitionTo('disconnecting');
                 try {
                     await this._client.deactivate();
                 } finally {
-                    this._isDisconnecting = false;
+                    this._transitionTo('disconnected');
+                    this._transitionTo('connecting');
                 }
                 this._clearSubscriptions();
                 this._client = undefined;
@@ -385,7 +384,7 @@ export class ArtemisWebsocketService {
         } catch (error) {
             const errorMessage = error instanceof Error ? error.message : 'Unknown error';
             this._onError(`Failed to connect to WebSocket: ${errorMessage}`);
-            this._isConnecting = false;
+            this._transitionTo('disconnected');
             throw error;
         }
 
@@ -430,13 +429,13 @@ export class ArtemisWebsocketService {
     /**
      * Disconnect from the WebSocket server.
      * 
-     * SAFETY: Sets _isDisconnecting flag to prevent onDisconnected from triggering reconnect.
+     * SAFETY: Transitions to 'disconnecting' state to prevent onDisconnected from triggering reconnect.
      */
     public async disconnect(): Promise<void> {
         // Invalidate any in-flight connect() continuation
         this._connectionGeneration++;
         // Set flag to prevent reconnect loop
-        this._isDisconnecting = true;
+        this._transitionTo('disconnecting');
 
         // Clear any pending connect promise
         this._rejectConnect(new Error('Disconnected'));
@@ -460,7 +459,6 @@ export class ArtemisWebsocketService {
                 this._log(`Error deactivating client: ${e}`);
             }
             this._client = undefined;
-            this._isConnected = false;
 
             // Notify consumers BEFORE resetting wasConnectedOnce so they see (false, true)
             this._notifyConnectionStateChange(false);
@@ -468,15 +466,13 @@ export class ArtemisWebsocketService {
             // Reset all state on intentional disconnect
             this._wasConnectedOnce = false;
             this._reconnectAttempts = 0;
-            this._connectionGaveUp = false;
             this._lastConnectionAttempt = 0;
             this._subscriptionCounter = 0;
             this._pendingDisconnectNotification = false;
             this._sessionId = this._generateSecureSessionId();
         }
 
-        this._isConnecting = false;  // Always clear, even if _client was null
-        this._isDisconnecting = false;
+        this._transitionTo('disconnected');
     }
 
     /**
@@ -489,7 +485,7 @@ export class ArtemisWebsocketService {
         dispatch: (handler: WebSocketMessageHandler, parsed: T) => void,
         logFormatter: (parsed: T) => string,
     ): void {
-        if (!this._isConnected || !this._client) {
+        if (this._connectionState !== 'connected' || !this._client) {
             this._log('Cannot subscribe: not connected');
             return;
         }
@@ -555,7 +551,7 @@ export class ArtemisWebsocketService {
      * Topic format: /user/topic/iris/{sessionId} for authenticated user-specific messages
      */
     public subscribeToIrisSession(sessionId: number, onMessage: (message: unknown) => void): () => void {
-        if (!this._isConnected || !this._client) {
+        if (this._connectionState !== 'connected' || !this._client) {
             this._log('Cannot subscribe: not connected');
             throw new Error('WebSocket not connected');
         }
@@ -604,7 +600,12 @@ export class ArtemisWebsocketService {
      * Check if we gave up on reconnecting
      */
     public hasGivenUp(): boolean {
-        return this._connectionGaveUp;
+        return this._connectionState === 'gave-up';
+    }
+
+    /** Public read-only accessor for connection state. */
+    public get connectionState(): ConnectionState {
+        return this._connectionState;
     }
 
     /**
@@ -635,11 +636,11 @@ export class ArtemisWebsocketService {
         const wsUrl = this._buildWebSocketUrl(serverUrl);
 
         const info = {
-            isConnected: this._isConnected,
-            isConnecting: this._isConnecting,
-            isDisconnecting: this._isDisconnecting,
+            isConnected: this._connectionState === 'connected',
+            isConnecting: this._connectionState === 'connecting',
+            isDisconnecting: this._connectionState === 'disconnecting',
             wasConnectedOnce: this._wasConnectedOnce,
-            connectionGaveUp: this._connectionGaveUp,
+            connectionGaveUp: this._connectionState === 'gave-up',
             clientConnected: this._client?.connected || false,
             clientActive: this._client?.active || false,
             subscriptionCount: this._subscriptions.size,
@@ -712,15 +713,13 @@ export class ArtemisWebsocketService {
 
     private _onConnected(): void {
         // SAFETY: Don't process if we're in the middle of disconnecting
-        if (this._isDisconnecting) {
+        if (this._connectionState === 'disconnecting') {
             this._log('Ignoring onConnected during disconnect');
             return;
         }
 
-        this._isConnected = true;
-        this._isConnecting = false;
+        this._transitionTo('connected');
         this._reconnectAttempts = 0; // Reset on successful connection
-        this._connectionGaveUp = false; // Allow future reconnects
         this._wasConnectedOnce = true;
 
         // Resolve the connect() promise so callers know the socket is usable
@@ -754,39 +753,39 @@ export class ArtemisWebsocketService {
      * 4. Does NOT call connect() - STOMP library handles reconnection
      */
     private _onDisconnected(): void {
-        // WebSocket close during handshake: _isConnected is still false but
-        // _isConnecting is true. Reject the pending connect() promise immediately
+        // WebSocket close during handshake: state is still 'connecting'.
+        // Reject the pending connect() promise immediately
         // instead of swallowing the event and letting the timeout expire.
-        if (!this._isConnected && this._isConnecting) {
+        if (this._connectionState === 'connecting') {
             this._reconnectAttempts++;
             this._rejectConnect(new Error('WebSocket closed during connection'));
-            this._isConnecting = false;
+            this._transitionTo('disconnected');
             if (this._reconnectAttempts >= MAX_CONNECTION_ATTEMPTS) {
-                this._connectionGaveUp = true;
+                this._transitionTo('gave-up');
                 this._log(`MAX CONNECTION ATTEMPTS (${MAX_CONNECTION_ATTEMPTS}) REACHED during handshake`);
                 this._notifyConnectionStateChange(false);
                 if (this._client) {
-                    this._isDisconnecting = true;
+                    this._transitionTo('disconnecting');
                     void this._client.deactivate({ force: true }).finally(() => {
-                        this._isDisconnecting = false;
+                        this._transitionTo('disconnected');
                     });
                 }
             }
             return;
         }
 
-        // Idempotency: if already disconnected, don't double-process
-        // (both onDisconnect and onWebSocketClose may fire for the same event)
-        if (!this._isConnected) { return; }
-
         // SAFETY: Don't process if we're intentionally disconnecting
-        if (this._isDisconnecting) {
+        if (this._connectionState === 'disconnecting') {
             this._log('Ignoring onDisconnected during intentional disconnect');
             return;
         }
 
-        this._isConnected = false;
-        // NOTE: Do NOT reset _isConnecting here - it's managed by connect()
+        // Idempotency: if not in 'connected' state, don't double-process
+        // (both onDisconnect and onWebSocketClose may fire for the same event)
+        if (this._connectionState !== 'connected') { return; }
+
+        this._transitionTo('disconnected');
+        // NOTE: Do NOT transition to 'connecting' here - it's managed by connect()
         this._clearSubscriptions();
         this._log('Disconnected from Artemis WebSocket');
 
@@ -794,7 +793,7 @@ export class ArtemisWebsocketService {
         if (!this._pendingDisconnectNotification) {
             this._pendingDisconnectNotification = true;
             this._connectionStateDebounceTimer = setTimeout(() => {
-                if (!this._isConnected && !this._isDisconnecting) {
+                if (this._connectionState !== 'connected' && this._connectionState !== 'disconnecting') {
                     this._log('Disconnect grace period elapsed, notifying consumers');
                     this._notifyConnectionStateChange(false);
                 }
@@ -812,14 +811,14 @@ export class ArtemisWebsocketService {
                 this._connectionStateDebounceTimer = undefined;
                 this._pendingDisconnectNotification = false;
             }
-            this._connectionGaveUp = true;
+            this._transitionTo('gave-up');
             this._log(`🛑 MAX RECONNECTION ATTEMPTS (${MAX_CONNECTION_ATTEMPTS}) REACHED`);
             this._notifyConnectionStateChange(false);
             // Stop STOMP's internal reconnection loop
             if (this._client) {
-                this._isDisconnecting = true;
+                this._transitionTo('disconnecting');
                 void this._client.deactivate({ force: true }).finally(() => {
-                    this._isDisconnecting = false;
+                    this._transitionTo('disconnected');
                 });
             }
         } else {
@@ -854,7 +853,7 @@ export class ArtemisWebsocketService {
         logger.error(message, LogCategory.WEBSOCKET);
         // Reject the connect() promise if pending
         this._rejectConnect(new Error(message));
-        this._isConnecting = false;
+        this._transitionTo('disconnected');
     }
 
     private _getServerUrl(): string {
@@ -891,6 +890,26 @@ export class ArtemisWebsocketService {
         }
 
         return undefined;
+    }
+
+    /**
+     * Transition to a new connection state with validation.
+     * Logs unexpected transitions for debugging but always applies the transition.
+     */
+    private _transitionTo(newState: ConnectionState): void {
+        const valid: Record<ConnectionState, readonly ConnectionState[]> = {
+            'disconnected': ['connecting', 'gave-up', 'disconnecting'],
+            'connecting': ['connected', 'disconnected', 'gave-up'],
+            'connected': ['disconnecting', 'disconnected'],
+            'disconnecting': ['disconnected', 'connecting'],
+            'gave-up': ['disconnected', 'disconnecting'],
+        };
+
+        if (this._connectionState !== newState && !valid[this._connectionState].includes(newState)) {
+            this._log(`⚠️ Unexpected state transition: ${this._connectionState} → ${newState}`);
+        }
+
+        this._connectionState = newState;
     }
 
     private _log(message: string): void {

@@ -102,15 +102,15 @@ class TestableArtemisWebsocketService extends ArtemisWebsocketService {
 
     // Expose private fields for testing via getters
     public get isConnectingState(): boolean {
-        return (this as any)._isConnecting;
+        return (this as any)._connectionState === 'connecting';
     }
 
     public get isDisconnectingState(): boolean {
-        return (this as any)._isDisconnecting;
+        return (this as any)._connectionState === 'disconnecting';
     }
 
     public get connectionGaveUpState(): boolean {
-        return (this as any)._connectionGaveUp;
+        return (this as any)._connectionState === 'gave-up';
     }
 
     public get reconnectAttemptsCount(): number {
@@ -145,7 +145,9 @@ class TestableArtemisWebsocketService extends ArtemisWebsocketService {
         return super.connect();
     }
 
-    // Helper to directly set internal state for testing
+    // Helper to directly set internal state for testing.
+    // Maps legacy boolean flags to the ConnectionState enum.
+    // Priority: gave-up > disconnecting > connecting > (no change for false-only flags)
     public setInternalState(state: {
         isConnecting?: boolean;
         isDisconnecting?: boolean;
@@ -153,14 +155,23 @@ class TestableArtemisWebsocketService extends ArtemisWebsocketService {
         reconnectAttempts?: number;
         lastConnectionAttempt?: number;
     }): void {
-        if (state.isConnecting !== undefined) {
-            (this as any)._isConnecting = state.isConnecting;
+        if (state.connectionGaveUp === true) {
+            (this as any)._connectionState = 'gave-up';
+        } else if (state.isDisconnecting === true) {
+            (this as any)._connectionState = 'disconnecting';
+        } else if (state.isConnecting === true) {
+            (this as any)._connectionState = 'connecting';
         }
-        if (state.isDisconnecting !== undefined) {
-            (this as any)._isDisconnecting = state.isDisconnecting;
+        // When setting flags to false, only change state if it currently matches
+        // that flag (don't clobber 'connected' when clearing 'isConnecting')
+        if (state.isConnecting === false && (this as any)._connectionState === 'connecting') {
+            (this as any)._connectionState = 'disconnected';
         }
-        if (state.connectionGaveUp !== undefined) {
-            (this as any)._connectionGaveUp = state.connectionGaveUp;
+        if (state.isDisconnecting === false && (this as any)._connectionState === 'disconnecting') {
+            (this as any)._connectionState = 'disconnected';
+        }
+        if (state.connectionGaveUp === false && (this as any)._connectionState === 'gave-up') {
+            (this as any)._connectionState = 'disconnected';
         }
         if (state.reconnectAttempts !== undefined) {
             (this as any)._reconnectAttempts = state.reconnectAttempts;
