@@ -7,6 +7,7 @@ export { BuildResultTracker } from './buildResultTracker';
 export { InterventionService } from './interventionService';
 export { InterventionFilter } from './interventionFilter';
 export { TelemetryManager } from './telemetryManager';
+export { DebugDashboard } from './debugDashboard';
 
 // New EQ system
 export { ErrorQuotientEngine } from './metrics/errorQuotientEngine';
