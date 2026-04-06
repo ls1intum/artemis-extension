@@ -158,12 +158,14 @@ export class TelemetryManager implements vscode.Disposable, WebSocketMessageHand
 
         this.endCurrentSession();
 
+        // Log before disposing the output channel (which is in _disposables)
+        this._log('TelemetryManager disposed');
+
         while (this._disposables.length > 0) {
             this._disposables.pop()?.dispose();
         }
 
         this._onDidCalculateEQ.dispose();
-        this._log('TelemetryManager disposed');
     }
 
     // ==================== WebSocket Message Handler ====================
