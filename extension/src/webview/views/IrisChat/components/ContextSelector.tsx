@@ -1,5 +1,6 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useRef } from 'react';
 import clsx from 'clsx';
+import { useClickOutside } from '../../../hooks/useClickOutside';
 import FolderGit2 from 'lucide-react/dist/esm/icons/folder-git-2';
 import type { ChatContext, ChatSession, ContextItem } from '../types';
 import type { ChatContextType } from '../../../../shared/types/context';
@@ -41,22 +42,10 @@ export function ContextSelector({
     const containerRef = useRef<HTMLDivElement>(null);
 
     // Close dropdown when clicking outside
-    useEffect(() => {
-        const handleClickOutside = (event: MouseEvent) => {
-            if (
-                containerRef.current &&
-                !containerRef.current.contains(event.target as Node)
-            ) {
-                setIsOpen(false);
-                setSearchQuery('');
-            }
-        };
-
-        if (isOpen) {
-            document.addEventListener('mousedown', handleClickOutside);
-            return () => document.removeEventListener('mousedown', handleClickOutside);
-        }
-    }, [isOpen]);
+    useClickOutside(containerRef, isOpen, () => {
+        setIsOpen(false);
+        setSearchQuery('');
+    });
 
     const toggleDropdown = () => {
         setIsOpen(!isOpen);

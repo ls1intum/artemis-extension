@@ -1,5 +1,6 @@
 import { ReactNode, useState, useRef, useEffect } from 'react';
 import clsx from 'clsx';
+import { useClickOutside } from '../../hooks/useClickOutside';
 import FlaskConical from 'lucide-react/dist/esm/icons/flask-conical';
 import AlertTriangle from 'lucide-react/dist/esm/icons/alert-triangle';
 import Mail from 'lucide-react/dist/esm/icons/mail';
@@ -80,14 +81,10 @@ export function ParticipationActions({
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const moreMenuRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    if (!isDropdownOpen) {return;}
+  useClickOutside(moreMenuRef, isDropdownOpen, () => setIsDropdownOpen(false));
 
-    const handleClickOutside = (e: MouseEvent) => {
-      if (moreMenuRef.current && !moreMenuRef.current.contains(e.target as Node)) {
-        setIsDropdownOpen(false);
-      }
-    };
+  useEffect(() => {
+    if (!isDropdownOpen) { return; }
 
     const handleEscape = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
@@ -95,12 +92,8 @@ export function ParticipationActions({
       }
     };
 
-    document.addEventListener('mousedown', handleClickOutside);
     document.addEventListener('keydown', handleEscape);
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-      document.removeEventListener('keydown', handleEscape);
-    };
+    return () => document.removeEventListener('keydown', handleEscape);
   }, [isDropdownOpen]);
 
   // Participation info section
