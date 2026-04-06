@@ -122,12 +122,14 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
             this._irisSessionManager.onDidConnectionStateChange(isConnected => this._websocketMessageHandler.updateWebSocketStatus(isConnected));
         }
 
-        this._fileMonitorService.onDidUpdateFiles(update => {
-            this._postMessageSafe({
-                type: ExtensionMsg.UpdateReferencedFiles,
-                ...update
-            });
-        });
+        this._disposables.push(
+            this._fileMonitorService.onDidUpdateFiles(update => {
+                this._postMessageSafe({
+                    type: ExtensionMsg.UpdateReferencedFiles,
+                    ...update
+                });
+            })
+        );
 
         this._noAiDetectionService = noAiDetectionService;
         this._disposables.push(
