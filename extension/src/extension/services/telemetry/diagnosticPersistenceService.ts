@@ -8,7 +8,7 @@ import * as crypto from 'crypto';
  */
 export class DiagnosticPersistenceService implements vscode.Disposable, SessionResettable {
     private readonly _disposables: vscode.Disposable[] = [];
-    private readonly _trackedDiagnostics: Map<string, TrackedDiagnostic> = new Map();
+    protected readonly _trackedDiagnostics: Map<string, TrackedDiagnostic> = new Map();
     private _cleanupTimer: NodeJS.Timeout | undefined;
 
     /** Delay before cleaning up resolved diagnostics (5 seconds) */
@@ -16,7 +16,7 @@ export class DiagnosticPersistenceService implements vscode.Disposable, SessionR
     /** Cleanup interval (30 seconds) */
     private static readonly CLEANUP_INTERVAL_MS = 30000;
 
-    private readonly _onDidUpdateDiagnostics = new vscode.EventEmitter<TrackedDiagnostic[]>();
+    protected readonly _onDidUpdateDiagnostics = new vscode.EventEmitter<TrackedDiagnostic[]>();
     public readonly onDidUpdateDiagnostics = this._onDidUpdateDiagnostics.event;
 
     constructor() {
@@ -190,28 +190,6 @@ export class DiagnosticPersistenceService implements vscode.Disposable, SessionR
     }
 
     /**
-     * TEST ONLY: Inject diagnostics directly for testing purposes.
-     * This bypasses the VS Code diagnostic API and allows tests to simulate diagnostics.
-     * @internal
-     */
-    public _testInjectDiagnostic(diagnostic: TrackedDiagnostic): void {
-        this._trackedDiagnostics.set(diagnostic.id, diagnostic);
-        this._onDidUpdateDiagnostics.fire(Array.from(this._trackedDiagnostics.values()));
-    }
-
-    /**
-     * TEST ONLY: Clear a specific diagnostic by ID for testing purposes.
-     * @internal
-     */
-    public _testClearDiagnostic(id: string): void {
-        const tracked = this._trackedDiagnostics.get(id);
-        if (tracked) {
-            tracked.resolved = true;
-        }
-        this._onDidUpdateDiagnostics.fire(Array.from(this._trackedDiagnostics.values()));
-    }
-
-    /**
      * SessionResettable — no-op: this service resets on session end, not start.
      */
     public onSessionStart(_context: SessionStartContext): void {
@@ -234,11 +212,4 @@ export class DiagnosticPersistenceService implements vscode.Disposable, SessionR
         this._onDidUpdateDiagnostics.fire([]);
     }
 
-    /**
-     * TEST ONLY: Clear all tracked diagnostics for testing purposes.
-     * @internal
-     */
-    public _testClearAllDiagnostics(): void {
-        this.reset();
-    }
 }
