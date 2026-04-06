@@ -899,7 +899,7 @@ export class ArtemisWebsocketService {
     private _transitionTo(newState: ConnectionState): void {
         const valid: Record<ConnectionState, readonly ConnectionState[]> = {
             'disconnected': ['connecting', 'gave-up', 'disconnecting'],
-            'connecting': ['connected', 'disconnected', 'gave-up'],
+            'connecting': ['connected', 'disconnected', 'gave-up', 'disconnecting'],
             'connected': ['disconnecting', 'disconnected'],
             'disconnecting': ['disconnected', 'connecting'],
             'gave-up': ['disconnected', 'disconnecting'],

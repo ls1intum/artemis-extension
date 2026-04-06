@@ -3,7 +3,7 @@
  *
  * Valid transitions:
  *   disconnected → connecting | gave-up | disconnecting
- *   connecting → connected | disconnected | gave-up
+ *   connecting → connected | disconnected | gave-up | disconnecting
  *   connected → disconnecting | disconnected (unexpected)
  *   disconnecting → disconnected | connecting
  *   gave-up → disconnected | disconnecting
