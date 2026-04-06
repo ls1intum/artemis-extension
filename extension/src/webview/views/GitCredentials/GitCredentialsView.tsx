@@ -4,7 +4,7 @@
  */
 
 import { useState, useEffect, useRef } from 'react';
-import { BackLink, Container, TextInput, Button, PageHeader, SkeletonList } from '../../components';
+import { BackLink, Container, TextInput, Button, PageHeader, SkeletonList, StatusMessage } from '../../components';
 import { useExtensionMessage } from '../../hooks/useExtensionMessage';
 import styles from './GitCredentialsView.module.css';
 import type { GitCredentialsViewProps, GitCredentialsPersistedState } from './types';
@@ -98,25 +98,6 @@ export function GitCredentialsView({ vscodeApi }: GitCredentialsViewProps) {
         );
     }
 
-    // Status message styles
-    const statusStyles: React.CSSProperties = statusMessage ? {
-        marginTop: '12px',
-        padding: '8px 12px',
-        borderRadius: '4px',
-        fontSize: '13px',
-        backgroundColor: statusType === 'success' ? 'var(--vscode-testing-iconPassed, #4caf50)' :
-                         statusType === 'error' ? 'var(--vscode-errorBackground, #f44336)' :
-                         statusType === 'warning' ? 'var(--vscode-inputValidation-warningBackground, #ff9800)' :
-                         'var(--vscode-inputValidation-infoBackground, #2196f3)',
-        color: statusType === 'success' ? 'var(--vscode-testing-iconPassed, #fff)' :
-               statusType === 'error' ? 'var(--vscode-errorForeground, #fff)' :
-               statusType === 'warning' ? 'var(--vscode-inputValidation-warningForeground, #fff)' :
-               'var(--vscode-inputValidation-infoForeground, #fff)',
-        border: `1px solid ${statusType === 'success' ? 'var(--vscode-testing-iconPassed, #4caf50)' :
-                              statusType === 'error' ? 'var(--vscode-errorBorder, #f44336)' :
-                              statusType === 'warning' ? 'var(--vscode-inputValidation-warningBorder, #ff9800)' :
-                              'var(--vscode-inputValidation-infoBorder, #2196f3)'}`,
-    } : {};
 
     return (
         <div className={styles.gitCredentialsView}>
@@ -179,8 +160,8 @@ export function GitCredentialsView({ vscodeApi }: GitCredentialsViewProps) {
                     </div>
 
                     {statusMessage && (
-                        <div role="status" aria-live="polite" style={statusStyles}>
-                            {statusMessage}
+                        <div style={{ marginTop: '12px' }}>
+                            <StatusMessage message={statusMessage} type={statusType} />
                         </div>
                     )}
                 </form>

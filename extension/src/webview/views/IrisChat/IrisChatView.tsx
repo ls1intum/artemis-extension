@@ -3,6 +3,7 @@ import { ExtensionMsg, postCommand } from '../../../shared/messageContracts';
 import type { VsCodeApi } from '../../../shared/messageContracts';
 import { useChatStore } from '../../stores/useChatStore';
 import { useExtensionMessage } from '../../hooks/useExtensionMessage';
+import { useClickOutside } from '../../hooks/useClickOutside';
 import { ChatMessageList } from './components/ChatMessageList';
 import { ChatInput } from './components/ChatInput';
 import { ContextSelector } from './components/ContextSelector';
@@ -28,21 +29,7 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
     const sideMenuRef = useRef<HTMLDivElement>(null);
 
     // Close side menu when clicking outside
-    useEffect(() => {
-        const handleClickOutside = (event: MouseEvent) => {
-            if (
-                sideMenuRef.current &&
-                !sideMenuRef.current.contains(event.target as Node)
-            ) {
-                setSideMenuOpen(false);
-            }
-        };
-
-        if (sideMenuOpen) {
-            document.addEventListener('mousedown', handleClickOutside);
-            return () => document.removeEventListener('mousedown', handleClickOutside);
-        }
-    }, [sideMenuOpen]);
+    useClickOutside(sideMenuRef, sideMenuOpen, () => setSideMenuOpen(false));
 
     // Detect context switches for animation
     useEffect(() => {

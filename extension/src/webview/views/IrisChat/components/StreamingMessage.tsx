@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 // @ts-expect-error - streamdown is ESM but TypeScript Node16 resolution complains (TS1479). esbuild handles at bundle time.
 import { Streamdown } from 'streamdown';
-import { CodeBlock } from './CodeBlock';
+import { useStreamdownConfig } from '../../../hooks/useStreamdownConfig';
 import styles from './StreamingMessage.module.css';
 
 interface StreamingMessageProps {
@@ -11,6 +11,7 @@ interface StreamingMessageProps {
 export function StreamingMessage({ chunks }: StreamingMessageProps) {
     // Join all chunks into a single content string
     const content = useMemo(() => chunks.join(''), [chunks]);
+    const streamdownComponents = useStreamdownConfig();
 
     return (
         <div className={styles.streamingMessage}>
@@ -21,29 +22,7 @@ export function StreamingMessage({ chunks }: StreamingMessageProps) {
                     animation: 'fadeIn',
                     duration: 150,
                 }}
-                components={{
-                    code: ({ node, className, children, ...props }: { node?: unknown; className?: string; children?: React.ReactNode; [key: string]: unknown }) => {
-                        // Check if this is a fenced code block (has language class)
-                        const match = /language-(\w+)/.exec(className || '');
-                        const language = match ? match[1] : undefined;
-
-                        // If it's a fenced code block, render with CodeBlock
-                        if (language || className?.includes('language-')) {
-                            return (
-                                <CodeBlock language={language}>
-                                    {String(children).replace(/\n$/, '')}
-                                </CodeBlock>
-                            );
-                        }
-
-                        // Otherwise, render as inline code
-                        return (
-                            <code className={className} {...props}>
-                                {children}
-                            </code>
-                        );
-                    },
-                }}
+                components={streamdownComponents}
             >
                 {content}
             </Streamdown>

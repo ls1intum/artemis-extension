@@ -1,0 +1,30 @@
+.statusMessage {
+    padding: 8px 12px;
+    border-radius: 4px;
+    font-size: 13px;
+    border: 1px solid;
+}
+
+.success {
+    background-color: var(--theme-success-background);
+    color: var(--theme-success-foreground);
+    border-color: var(--theme-success-border);
+}
+
+.error {
+    background-color: var(--theme-error-background);
+    color: var(--theme-error-foreground);
+    border-color: var(--theme-error-border);
+}
+
+.warning {
+    background-color: var(--theme-warning-background);
+    color: var(--theme-warning-foreground);
+    border-color: var(--theme-warning-border);
+}
+
+.info {
+    background-color: var(--theme-info-background);
+    color: var(--theme-info-foreground);
+    border-color: var(--theme-info-border);
+}

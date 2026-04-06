@@ -3,6 +3,7 @@ import { Container } from '../../components/Container';
 import { TextInput } from '../../components/TextInput';
 import { Button } from '../../components/Button';
 import { ServiceHealth, type ServiceInfo } from '../../components/ServiceHealth';
+import { StatusMessage } from '../../components/StatusMessage';
 import { useExtensionMessage } from '../../hooks/useExtensionMessage';
 import type { LoginViewProps, LoginPersistedState, LoginViewState } from './types';
 import { ExtensionMsg, postCommand } from '../../../shared/messageContracts';
@@ -266,30 +267,12 @@ export function LoginView({ vscodeApi }: LoginViewProps) {
 						</div>
 
 						{statusMessage && (
-							<div
-								data-testid="login-status"
-								style={{
-									marginBottom: '16px',
-									padding: '12px',
-									borderRadius: '4px',
-									fontSize: '13px',
-									backgroundColor:
-										statusType === 'success'
-											? 'var(--vscode-testing-iconPassed)'
-											: statusType === 'error'
-											? 'var(--vscode-inputValidation-errorBackground)'
-											: 'var(--vscode-inputValidation-infoBackground)',
-									color: 'var(--vscode-foreground)',
-									border: `1px solid ${
-										statusType === 'success'
-											? 'var(--vscode-testing-iconPassed)'
-											: statusType === 'error'
-											? 'var(--vscode-inputValidation-errorBorder)'
-											: 'var(--vscode-inputValidation-infoBorder)'
-									}`,
-								}}
-							>
-								{statusMessage}
+							<div style={{ marginBottom: '16px' }}>
+								<StatusMessage
+									message={statusMessage}
+									type={statusType}
+									data-testid="login-status"
+								/>
 							</div>
 						)}
 
