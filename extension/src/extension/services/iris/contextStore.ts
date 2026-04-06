@@ -10,6 +10,7 @@ import {
     type IrisChatMessage,
 } from '../../types';
 import { logger } from '../loggingService';
+import { SessionManager } from './sessionManager';
 
 interface StoredState {
     version: number;
@@ -116,14 +117,6 @@ function byLastViewedDesc(
     return (b.lastViewed ?? 0) - (a.lastViewed ?? 0);
 }
 
-/** Sort by lastActivity descending (most recent first). */
-function byLastActivityDesc(
-    a: { lastActivity: number },
-    b: { lastActivity: number },
-): number {
-    return b.lastActivity - a.lastActivity;
-}
-
 // ── Utilities ─────────────────────────────────────────────────────
 
 const SESSION_KEY_SEPARATOR = ':';
@@ -144,6 +137,7 @@ export interface ActiveContextChangeEvent {
 export class ContextStore {
     private state: StoredState;
     private options: Required<ContextStoreOptions>;
+    private readonly _sessionManager: SessionManager;
 
     private readonly _onDidChangeActiveContext = new vscode.EventEmitter<ActiveContextChangeEvent>();
     public readonly onDidChangeActiveContext = this._onDidChangeActiveContext.event;
@@ -151,6 +145,11 @@ export class ContextStore {
     constructor(private readonly context: vscode.ExtensionContext, options?: ContextStoreOptions) {
         this.options = { ...DEFAULT_OPTIONS, ...(options ?? {}) };
         this.state = this.loadState();
+        this._sessionManager = new SessionManager(
+            () => this.state,
+            () => this.state.activeContext,
+            () => this.saveState(),
+        );
     }
 
     public dispose(): void {
@@ -335,27 +334,7 @@ export class ContextStore {
     }
 
     public createSession(preview = 'New conversation'): ContextSnapshot {
-        const active = this.state.activeContext;
-        if (!active) {
-            return this.snapshot();
-        }
-
-        // Clean up empty sessions before creating a new one
-        this.cleanupEmptySessions();
-
-        const key = getContextKey(active.type, active.id);
-        const session: StoredSession = {
-            id: `session-${crypto.randomUUID()}`,
-            contextKey: key,
-            preview,
-            messageCount: 0,
-            createdAt: now(),
-            lastActivity: now(),
-        };
-        const sessions = this.state.sessions[key] ?? [];
-        this.state.sessions[key] = [session, ...sessions];
-        this.state.activeSessionId = session.id;
-        this.saveState();
+        this._sessionManager.createSession(preview);
         return this.snapshot();
     }
 
@@ -366,139 +345,39 @@ export class ContextStore {
         artemisSessionId?: number,
         messages?: IrisChatMessage[]
     ): ContextSnapshot {
-        const active = this.state.activeContext;
-        if (!active) {
-            return this.snapshot();
-        }
-
-        const key = getContextKey(active.type, active.id);
-        const session: StoredSession = {
-            id: `session-${artemisSessionId ?? crypto.randomUUID()}`,
-            contextKey: key,
-            preview,
-            messageCount,
-            createdAt,
-            lastActivity: createdAt,
-            artemisSessionId,
-        };
-        const sessions = this.state.sessions[key] ?? [];
-        this.state.sessions[key] = [session, ...sessions];
-        this.saveState();
+        this._sessionManager.createSessionWithDetails(preview, messageCount, createdAt, artemisSessionId, messages);
         return this.snapshot();
     }
 
     public switchSession(sessionId: string): ContextSnapshot {
-        const active = this.state.activeContext;
-        if (!active) {
-            return this.snapshot();
-        }
-
-        // Clean up empty sessions when switching
-        this.cleanupEmptySessions();
-
-        const key = getContextKey(active.type, active.id);
-        const sessions = this.state.sessions[key] ?? [];
-        if (sessions.some(session => session.id === sessionId)) {
-            this.state.activeSessionId = sessionId;
-            this.saveState();
-        }
+        this._sessionManager.switchSession(sessionId);
         return this.snapshot();
     }
 
     public clearSessionsForContext(contextKey: string): ContextSnapshot {
-        const active = this.state.activeContext;
-        const activeContextKey = active ? getContextKey(active.type, active.id) : null;
-        const shouldClearActiveSession = activeContextKey === contextKey && this.state.activeSessionId !== null;
-
-        // Remove all sessions for the specified context
-        delete this.state.sessions[contextKey];
-
-        if (shouldClearActiveSession) {
-            this.state.activeSessionId = null;
-        }
-
-        this.saveState();
+        this._sessionManager.clearSessionsForContext(contextKey);
         return this.snapshot();
     }
 
     public switchToFirstSession(): ContextSnapshot {
-        const active = this.state.activeContext;
-        if (!active) {
-            return this.snapshot();
-        }
-
-        const key = getContextKey(active.type, active.id);
-        const sessions = this.state.sessions[key] ?? [];
-        if (sessions.length > 0) {
-            const sortedSessions = [...sessions].sort(byLastActivityDesc);
-            this.state.activeSessionId = sortedSessions[0].id;
-            this.saveState();
-        }
+        this._sessionManager.switchToFirstSession();
         return this.snapshot();
     }
 
     public incrementActiveSessionMessageCount(): void {
-        const active = this.state.activeContext;
-        if (!active) {
-            return;
-        }
-        const key = getContextKey(active.type, active.id);
-        const sessions = this.state.sessions[key];
-        if (!sessions || sessions.length === 0) {
-            return;
-        }
-        const session =
-            sessions.find(s => s.id === this.state.activeSessionId) ?? sessions[0];
-        session.messageCount += 1;
-        session.lastActivity = now();
-        this.state.activeSessionId = session.id;
-        this.saveState();
+        this._sessionManager.incrementActiveSessionMessageCount();
     }
 
     public cleanupEmptySessions(): void {
-        const active = this.state.activeContext;
-        if (!active) {
-            return;
-        }
-        const key = getContextKey(active.type, active.id);
-        const sessions = this.state.sessions[key];
-        if (!sessions || sessions.length === 0) {
-            return;
-        }
-
-        // Keep only sessions with messages OR the active session
-        const activeSessionId = this.state.activeSessionId;
-        const filteredSessions = sessions.filter(
-            session => session.messageCount > 0 || session.id === activeSessionId
-        );
-
-        // Update state if we removed any sessions
-        if (filteredSessions.length !== sessions.length) {
-            this.state.sessions[key] = filteredSessions;
-            this.saveState();
-        }
+        this._sessionManager.cleanupEmptySessions();
     }
 
     public setArtemisSessionId(artemisSessionId: number | undefined): void {
-        const active = this.state.activeContext;
-        if (!active) {
-            return;
-        }
-        const key = getContextKey(active.type, active.id);
-        const sessions = this.state.sessions[key];
-        if (!sessions || sessions.length === 0) {
-            return;
-        }
-        const session = sessions.find(s => s.id === this.state.activeSessionId) ?? sessions[0];
-        session.artemisSessionId = artemisSessionId;
-        this.saveState();
+        this._sessionManager.setArtemisSessionId(artemisSessionId);
     }
 
     public clearAllSessions(): void {
-        // Clear all session data but keep exercises and courses
-        this.state.sessions = {};
-        this.state.activeSessionId = null;
-        this.saveState();
+        this._sessionManager.clearAllSessions();
     }
 
     private upsertExercise(input: ExerciseInput): TrackedExercise {
