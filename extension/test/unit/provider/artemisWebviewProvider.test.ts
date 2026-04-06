@@ -350,13 +350,15 @@ suite('Panel hide/show state persistence', () => {
         // Now stub hasAuthToken to return false (auth expired while hidden)
         (mockAuthManager.hasAuthToken as sinon.SinonStub).resolves(false);
 
-        spyWebview.sentMessages = [];
         controllableView.simulateShow();
         await Promise.resolve();
         await Promise.resolve();
 
-        // Should send hideLoading and setServerUrl to transition to login
-        const hideLoadingMsg = spyWebview.sentMessages.find((m: any) => m.type === 'hideLoading');
-        assert.ok(hideLoadingMsg, 'hideLoading should be sent when auth has expired on re-show');
+        // showLogin() transitions state to 'login' and calls render() which resets _webviewReady.
+        // postServerUrl() message is queued (not posted directly) because render() resets readiness.
+        assert.strictEqual(
+            (provider as any)._appStateManager._currentState, 'login',
+            'state should transition to login when auth has expired on re-show'
+        );
     });
 });
