@@ -7,6 +7,7 @@ export interface StruggleData {
     triggerType?: string;
     recommendedAction: 'none' | 'subtle' | 'notification' | 'proactive';
     isEnabled: boolean;
+    developerMode: boolean;
 }
 
 export interface StruggleDetectionViewProps {

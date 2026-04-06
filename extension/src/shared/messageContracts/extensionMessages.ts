@@ -155,6 +155,7 @@ interface ExtensionMsgPayloads {
         triggerType?: string;
         recommendedAction: 'none' | 'subtle' | 'notification' | 'proactive';
         isEnabled: boolean;
+        developerMode: boolean;
     };
     viewInitError: { error: string };
 
