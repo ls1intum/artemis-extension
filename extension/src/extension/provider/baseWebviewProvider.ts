@@ -27,7 +27,9 @@ export abstract class BaseWebviewProvider {
 
     /** Re-render the webview to pick up theme / config changes. */
     public refreshTheme(): void {
-        Promise.resolve(this.render()).catch(() => {});
+        Promise.resolve(this.render()).catch((err: unknown) => {
+            logger.error('Failed to refresh webview theme', this._logCategory, err);
+        });
     }
 
     /** Dispose every item in `_disposables` (LIFO order). */
