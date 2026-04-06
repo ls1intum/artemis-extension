@@ -21,6 +21,9 @@ export { LINT_SOURCE_DENYLIST };
  * VS Code: save event (with 500ms LS delay) or Artemis build result.
  */
 export class CompileEquivalentEmitter implements vscode.Disposable, SessionResettable {
+    /** Delay after save for Language Server to update diagnostics [Engineering choice] */
+    private static readonly LS_SETTLE_DELAY_MS = 500;
+
     private readonly _disposables: vscode.Disposable[] = [];
     private readonly _config: EQConfig;
     private _exerciseRoot: vscode.Uri | undefined;
@@ -72,7 +75,7 @@ export class CompileEquivalentEmitter implements vscode.Disposable, SessionReset
                     snapshot,
                 });
             }
-        }, 500);
+        }, CompileEquivalentEmitter.LS_SETTLE_DELAY_MS);
     }
 
     /**
@@ -206,6 +209,13 @@ export class CompileEquivalentEmitter implements vscode.Disposable, SessionReset
 }
 
 // ============================================================================
+// Constants
+// ============================================================================
+
+/** Character threshold above which a replaced range is likely formatter/refactoring, not paste */
+const FORMATTER_CHAR_THRESHOLD = 1000;
+
+// ============================================================================
 // Helper Functions
 // ============================================================================
 
@@ -270,7 +280,7 @@ export function isLikelyManualPaste(change: vscode.TextDocumentContentChangeEven
     }
 
     // Formatter/refactoring: replaces large text range (>1000 chars)
-    if (change.rangeLength > 1000) {
+    if (change.rangeLength > FORMATTER_CHAR_THRESHOLD) {
         return false;
     }
 

@@ -61,6 +61,8 @@ export class SessionRecorder implements vscode.Disposable, WebSocketMessageHandl
     private _visibleRangeDebounceTimer: ReturnType<typeof setTimeout> | undefined;
     private _pendingExecutions = new Map<vscode.TerminalShellExecution, PendingExecution>();
     private static readonly MAX_OUTPUT_CHARS = 10240;
+    private static readonly SELECTION_DEBOUNCE_MS = 200;
+    private static readonly VISIBLE_RANGE_DEBOUNCE_MS = 300;
 
     private _eventListenerDisposables: vscode.Disposable[] = [];
     private readonly _writer: RecordingStorageWriter;
@@ -405,7 +407,7 @@ export class SessionRecorder implements vscode.Disposable, WebSocketMessageHandl
             this._selectionDebounceTimer = setTimeout(() => {
                 if (!this._isRecording) { return; }
                 this._record(collectSelectionChange(event.textEditor, event.kind));
-            }, 200);
+            }, SessionRecorder.SELECTION_DEBOUNCE_MS);
         });
         this._eventListenerDisposables.push(selectionChange);
 
@@ -417,7 +419,7 @@ export class SessionRecorder implements vscode.Disposable, WebSocketMessageHandl
             this._visibleRangeDebounceTimer = setTimeout(() => {
                 if (!this._isRecording) { return; }
                 this._record(collectVisibleRangeChange(event.textEditor));
-            }, 300);
+            }, SessionRecorder.VISIBLE_RANGE_DEBOUNCE_MS);
         });
         this._eventListenerDisposables.push(visibleRangeChange);
 
