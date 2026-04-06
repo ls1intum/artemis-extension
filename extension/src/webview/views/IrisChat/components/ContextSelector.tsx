@@ -1,6 +1,7 @@
 import { useState, useRef } from 'react';
 import clsx from 'clsx';
 import { useClickOutside } from '../../../hooks/useClickOutside';
+import { formatRelativeTime } from '../../../utils/formatRelativeTime';
 import FolderGit2 from 'lucide-react/dist/esm/icons/folder-git-2';
 import type { ChatContext, ChatSession, ContextItem } from '../types';
 import type { ChatContextType } from '../../../../shared/types/context';
@@ -280,7 +281,7 @@ export function ContextSelector({
                                                     </span>
                                                     <span className={styles.sessionMeta}>
                                                         {session.messageCount} messages •{' '}
-                                                        {formatTime(session.lastActivity)}
+                                                        {formatRelativeTime(session.lastActivity)}
                                                     </span>
                                                 </div>
                                                 {session.id === activeSessionId && (
@@ -359,18 +360,4 @@ export function ContextSelector({
             )}
         </div>
     );
-}
-
-function formatTime(timestamp: number): string {
-    const now = Date.now();
-    const diff = now - timestamp;
-    const seconds = Math.floor(diff / 1000);
-    const minutes = Math.floor(seconds / 60);
-    const hours = Math.floor(minutes / 60);
-    const days = Math.floor(hours / 24);
-
-    if (seconds < 60) {return 'just now';}
-    if (minutes < 60) {return `${minutes}m ago`;}
-    if (hours < 24) {return `${hours}h ago`;}
-    return `${days}d ago`;
 }
