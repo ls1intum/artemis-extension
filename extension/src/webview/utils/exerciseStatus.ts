@@ -46,3 +46,43 @@ export function determineParticipationStatus(
     }
     return 'in-progress';
 }
+
+/**
+ * Extracts the latest item from an array by highest ID.
+ * Artemis represents "latest" as highest ID, not chronological.
+ */
+export function getLatestById<T extends { id?: number }>(
+    items: T[] | undefined,
+): T | undefined {
+    if (!items || items.length === 0) { return undefined; }
+    return [...items].sort((a, b) => (b.id ?? 0) - (a.id ?? 0))[0];
+}
+
+interface TestCaseResult {
+    name: string;
+    passed: boolean;
+    message?: string;
+}
+
+interface FeedbackInput {
+    type?: string;
+    text?: string;
+    positive?: boolean;
+    detailText?: string;
+    testCase?: { testName?: string };
+}
+
+/**
+ * Transforms Artemis result feedbacks into structured test case results.
+ * Filters out SCA feedback identifiers and keeps only test-related entries.
+ */
+export function transformFeedbacksToTestCases(feedbacks: FeedbackInput[]): TestCaseResult[] {
+    const testFeedbacks = feedbacks.filter(f =>
+        f.testCase?.testName || ((!f.type || f.type === 'AUTOMATIC') && f.text && !f.text.startsWith('SCAFeedbackIdentifier:'))
+    );
+    return testFeedbacks.map(f => ({
+        name: f.testCase?.testName ?? f.text ?? 'Test',
+        passed: f.positive ?? false,
+        message: f.detailText,
+    }));
+}
