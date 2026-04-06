@@ -22,7 +22,7 @@ import { DebugDashboard } from './debugDashboard';
 import { ArtemisWebsocketService } from '../websocket/artemisWebsocketService';
 import { ResultDTO, WebSocketMessageHandler } from '../../types';
 import { VSCODE_CONFIG } from '../../utils/constants';
-import { logger } from '../loggingService';
+import { logger, LogCategory } from '../loggingService';
 
 /**
  * Central orchestration service for EQ-based struggle detection.
@@ -390,10 +390,14 @@ export class TelemetryManager implements vscode.Disposable, WebSocketMessageHand
                 this._interventionService.showSubtleHintEQ(decision);
                 break;
             case 'notification':
-                void this._interventionService.showNotificationEQ(decision);
+                void this._interventionService.showNotificationEQ(decision).catch((err: unknown) => {
+                    logger.error('Failed to show notification intervention', LogCategory.TELEMETRY, err);
+                });
                 break;
             case 'proactive':
-                void this._interventionService.showProactiveHelpEQ(decision);
+                void this._interventionService.showProactiveHelpEQ(decision).catch((err: unknown) => {
+                    logger.error('Failed to show proactive intervention', LogCategory.TELEMETRY, err);
+                });
                 break;
         }
     }

@@ -102,7 +102,9 @@ export class SessionRecorder implements vscode.Disposable, WebSocketMessageHandl
         }
         this._isEnabled = false;
         if (this._isRecording) {
-            void this.endSession();
+            void this.endSession().catch((err: unknown) => {
+                logger.error('Failed to end recording session during disable', LogCategory.TELEMETRY, err);
+            });
         }
         this._disposeEventListeners();
         this._fireStateChange();
@@ -320,7 +322,9 @@ export class SessionRecorder implements vscode.Disposable, WebSocketMessageHandl
 
     dispose(): void {
         if (this._isRecording) {
-            void this.endSession();
+            void this.endSession().catch((err: unknown) => {
+                logger.error('Failed to end recording session during dispose', LogCategory.TELEMETRY, err);
+            });
         }
         this._disposeEventListeners();
         this._writer.dispose();

@@ -118,8 +118,12 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
             this._irisSessionManager = new IrisWebSocketSessionClient(this._artemisApiService, this._websocketService);
             this._disposables.push(this._irisSessionManager);
 
-            this._irisSessionManager.onDidReceiveMessage(data => this._websocketMessageHandler.handleIrisWebSocketMessage(data));
-            this._irisSessionManager.onDidConnectionStateChange(isConnected => this._websocketMessageHandler.updateWebSocketStatus(isConnected));
+            this._disposables.push(
+                this._irisSessionManager.onDidReceiveMessage(data => this._websocketMessageHandler.handleIrisWebSocketMessage(data))
+            );
+            this._disposables.push(
+                this._irisSessionManager.onDidConnectionStateChange(isConnected => this._websocketMessageHandler.updateWebSocketStatus(isConnected))
+            );
         }
 
         this._disposables.push(
@@ -181,7 +185,9 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
         this._disposables.push(visibilityListener);
 
         const workspaceListener = vscode.workspace.onDidChangeWorkspaceFolders(() => {
-            void this._detectWorkspaceExercise();
+            void this._detectWorkspaceExercise().catch((err: unknown) => {
+                logger.error('Failed to detect workspace exercise after folder change', LogCategory.IRIS_CHAT, err);
+            });
         });
         this._disposables.push(workspaceListener);
 
@@ -214,7 +220,9 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
         this._viewStatePresenter.postSnapshot();
         await this._detectWorkspaceExercise();
         await this._populateAvailableContexts();
-        void this._loadIrisMessagesIfNeeded();
+        void this._loadIrisMessagesIfNeeded().catch((err: unknown) => {
+            logger.error('Failed to load Iris messages during init', LogCategory.IRIS_CHAT, err);
+        });
         void this._fileMonitorService.triggerUpdate();
         this._postNoAiStatus(this._noAiDetectionService.isNoAiEnabled);
 
