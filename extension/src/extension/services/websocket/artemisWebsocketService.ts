@@ -283,7 +283,7 @@ export class ArtemisWebsocketService {
                 } finally {
                     this._isDisconnecting = false;
                 }
-                this._subscriptions.clear();
+                this._clearSubscriptions();
                 this._client = undefined;
             }
 
@@ -451,15 +451,7 @@ export class ArtemisWebsocketService {
             this._log('Disconnecting from Artemis WebSocket (intentional)');
 
             // Unsubscribe from all topics
-            this._subscriptions.forEach((subscription, topic) => {
-                try {
-                    subscription.unsubscribe();
-                    this._log(`Unsubscribed from ${topic}`);
-                } catch (e) {
-                    this._log(`Error unsubscribing from ${topic}: ${e}`);
-                }
-            });
-            this._subscriptions.clear();
+            this._clearSubscriptions();
 
             // Deactivate the client
             try {
@@ -702,6 +694,22 @@ export class ArtemisWebsocketService {
 
     // Private helper methods
 
+    /**
+     * Unsubscribe all STOMP subscriptions and clear the map.
+     * Safe to call even if subscriptions are stale (e.g. after disconnect).
+     */
+    private _clearSubscriptions(): void {
+        this._subscriptions.forEach((subscription, topic) => {
+            try {
+                subscription.unsubscribe();
+                this._log(`Unsubscribed from ${topic}`);
+            } catch {
+                // Stale subscription after disconnect — safe to ignore
+            }
+        });
+        this._subscriptions.clear();
+    }
+
     private _onConnected(): void {
         // SAFETY: Don't process if we're in the middle of disconnecting
         if (this._isDisconnecting) {
@@ -779,7 +787,7 @@ export class ArtemisWebsocketService {
 
         this._isConnected = false;
         // NOTE: Do NOT reset _isConnecting here - it's managed by connect()
-        this._subscriptions.clear();
+        this._clearSubscriptions();
         this._log('Disconnected from Artemis WebSocket');
 
         // Debounce disconnect notification (5 seconds grace period)
