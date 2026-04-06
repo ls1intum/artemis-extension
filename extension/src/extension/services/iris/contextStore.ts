@@ -59,7 +59,20 @@ const DEFAULT_OPTIONS: Required<ContextStoreOptions> = {
     courseHistoryLimit: 30,
 };
 
-// ── Priority constants ────────────────────────────────────────────
+/**
+ * Priority scoring weights for exercise ranking in the context selector.
+ *
+ * The priority system uses additive scores to surface the most relevant exercise:
+ * - WORKSPACE_BOOST (1000): Dominant — current workspace always ranks first.
+ * - DUE_SOON_MAX/FLOOR (200/170): Upcoming deadlines get high urgency.
+ *   Floor of 170 ensures even exercises due in 7 days outrank RECENTLY_RELEASED (100).
+ *   Score decays linearly from 200→170 as daysUntilDue goes 0→7.
+ * - RECENTLY_RELEASED (100): Newly released exercises surface for a week.
+ * - VIEWED_RECENTLY (50): Small recency bonus for exercises opened in last 24h.
+ * - FULLY_SCORED_PENALTY (-100): Completed exercises deprioritized.
+ *
+ * Tiebreaker: newer release dates get a micro-bonus (~0.001 points/day).
+ */
 const PRIORITY = {
     WORKSPACE_BOOST: 1000,
     RECENTLY_RELEASED: 100,
@@ -70,6 +83,7 @@ const PRIORITY = {
     COURSE_VIEWED_RECENTLY: 100,
 } as const;
 
+/** Time windows for priority scoring (see PRIORITY for how these are used). */
 const TIME_WINDOW = {
     RECENT_RELEASE_DAYS: 7,
     DUE_SOON_DAYS: 7,
