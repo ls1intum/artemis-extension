@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import {
     LineChart,
     Line,
@@ -23,6 +23,7 @@ interface Props {
     fullXDomain?: [number, number];
     videoTimeRef?: React.RefObject<number>;
     onZoomChange?: (domain: [number, number] | null) => void;
+    onSeekVideo?: (timestamp: number) => void;
 }
 
 interface ChartPoint {
@@ -125,7 +126,7 @@ function ChartTooltip({ active, payload }: { active?: boolean; payload?: Array<{
 }
 
 
-export function SessionTimeline({ events, sessionStartTime, replayEq, annotations = [], xDomain: externalXDomain, fullXDomain, videoTimeRef, onZoomChange }: Props) {
+export function SessionTimeline({ events, sessionStartTime, replayEq, annotations = [], xDomain: externalXDomain, fullXDomain, videoTimeRef, onZoomChange, onSeekVideo }: Props) {
     const chartContainerRef = useRef<HTMLDivElement>(null);
     const [chartWidth, setChartWidth] = useState(0);
 
@@ -147,6 +148,19 @@ export function SessionTimeline({ events, sessionStartTime, replayEq, annotation
         svgWidth: chartWidth,
         onZoomChange: externalXDomain ? onZoomChange : undefined,
     });
+
+    // Shift+Click → seek video
+    const handleChartClick = useCallback((e: React.MouseEvent) => {
+        if (!onSeekVideo || !e.shiftKey || !chartContainerRef.current) return;
+        const rect = chartContainerRef.current.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const domain = externalXDomain ?? [0, 0];
+        const [min, max] = domain;
+        const range = max - min;
+        if (range <= 0 || chartWidth <= 0) return;
+        const offset = (x / chartWidth) * range + min;
+        onSeekVideo(sessionStartTime + offset);
+    }, [onSeekVideo, externalXDomain, chartWidth, sessionStartTime]);
 
     // Throttled playhead position (updates every 250ms)
     const [playheadOffset, setPlayheadOffset] = useState<number | null>(null);
@@ -256,7 +270,7 @@ export function SessionTimeline({ events, sessionStartTime, replayEq, annotation
                 <div className="eq-chart-label">
                     <span className="event-badge eqSnapshot">EQ</span>
                 </div>
-                <div ref={chartContainerRef}>
+                <div ref={chartContainerRef} onClick={handleChartClick}>
                 <ResponsiveContainer width="100%" height={200}>
                     <LineChart data={data} margin={{ top: 10, right: 0, left: 0, bottom: 0 }}>
                         <CartesianGrid strokeDasharray="3 3" stroke="#333" />

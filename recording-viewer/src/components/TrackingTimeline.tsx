@@ -352,9 +352,9 @@ export function TrackingTimeline({
         });
     }, []);
 
-    // Double-click on SVG background → seek video
-    const handleSvgDoubleClick = useCallback((e: React.MouseEvent) => {
-        if (!onSeekVideo || !svgContainerRef.current) return;
+    // Shift+Click on SVG background → seek video
+    const handleSvgClick = useCallback((e: React.MouseEvent) => {
+        if (!onSeekVideo || !e.shiftKey || !svgContainerRef.current) return;
         const rect = svgContainerRef.current.getBoundingClientRect();
         const x = e.clientX - rect.left;
         const [min, max] = xDomain;
@@ -410,7 +410,7 @@ export function TrackingTimeline({
                         width="100%"
                         height={totalHeight}
                         style={{ display: 'block', cursor: isZoomed ? 'grab' : undefined }}
-                        onDoubleClick={handleSvgDoubleClick}
+                        onClick={handleSvgClick}
                         onMouseDown={handlePanStart}
                     >
                         {/* Lane backgrounds (alternating) */}
@@ -662,7 +662,7 @@ export function TrackingTimeline({
                 {onZoomChange && 'Pinch or Ctrl+Scroll to zoom'}
                 {onZoomChange && isZoomed && ' \u00b7 Drag to pan'}
                 {onSeekVideo && onZoomChange && ' \u00b7 '}
-                {onSeekVideo && 'Double-click to jump video'}
+                {onSeekVideo && 'Shift+Click to jump video'}
             </p>
 
             {/* Annotate from dot click */}

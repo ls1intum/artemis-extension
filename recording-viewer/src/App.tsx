@@ -328,6 +328,7 @@ function App() {
                                 fullXDomain={xDomain}
                                 videoTimeRef={videoTimeRef}
                                 onZoomChange={handleZoomChange}
+                                onSeekVideo={videoSyncConfig ? handleVideoSeek : undefined}
                             />
                             <TrackingTimeline
                                 events={session.events}
