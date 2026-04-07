@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import {
     LineChart,
     Line,
@@ -8,11 +8,11 @@ import {
     Tooltip,
     ResponsiveContainer,
     ReferenceLine,
+    ReferenceArea,
     Dot,
 } from 'recharts';
 import type { Annotation, RecordedEvent, EqSnapshotEvent, ReplayEqSnapshot } from '../types.ts';
 import { formatOffset } from '../utils/format.ts';
-import { useTimelinePan } from '../hooks/useTimelinePan.ts';
 
 interface Props {
     events: RecordedEvent[];
@@ -20,10 +20,9 @@ interface Props {
     replayEq?: ReplayEqSnapshot[];
     annotations?: Annotation[];
     xDomain?: [number, number];
-    fullXDomain?: [number, number];
+    /** The currently zoomed range to highlight (from TrackingTimeline) */
+    zoomedRange?: [number, number];
     videoTimeRef?: React.RefObject<number>;
-    onZoomChange?: (domain: [number, number] | null) => void;
-    onSeekVideo?: (timestamp: number) => void;
 }
 
 interface ChartPoint {
@@ -126,43 +125,7 @@ function ChartTooltip({ active, payload }: { active?: boolean; payload?: Array<{
 }
 
 
-const LABEL_WIDTH = 140;
-
-export function SessionTimeline({ events, sessionStartTime, replayEq, annotations = [], xDomain: externalXDomain, fullXDomain, videoTimeRef, onZoomChange, onSeekVideo }: Props) {
-    const outerRef = useRef<HTMLDivElement>(null);
-    const [chartWidth, setChartWidth] = useState(0);
-
-    // Measure the chart area width (outer width minus label column)
-    useEffect(() => {
-        const el = outerRef.current;
-        if (!el) return;
-        const observer = new ResizeObserver(entries => {
-            for (const entry of entries) setChartWidth(Math.max(0, entry.contentRect.width - LABEL_WIDTH));
-        });
-        observer.observe(el);
-        return () => observer.disconnect();
-    }, []);
-
-    // Drag-to-pan (shared hook)
-    const { handlePanStart, isZoomed } = useTimelinePan({
-        xDomain: externalXDomain ?? [0, 0],
-        fullXDomain,
-        svgWidth: chartWidth,
-        onZoomChange: externalXDomain ? onZoomChange : undefined,
-    });
-
-    // Shift+Click → seek video
-    const handleChartClick = useCallback((e: React.MouseEvent) => {
-        if (!onSeekVideo || !e.shiftKey || !outerRef.current) return;
-        const rect = outerRef.current.getBoundingClientRect();
-        const x = e.clientX - rect.left - LABEL_WIDTH;
-        const domain = externalXDomain ?? [0, 0];
-        const [min, max] = domain;
-        const range = max - min;
-        if (range <= 0 || chartWidth <= 0) return;
-        const offset = (x / chartWidth) * range + min;
-        onSeekVideo(sessionStartTime + offset);
-    }, [onSeekVideo, externalXDomain, chartWidth, sessionStartTime]);
+export function SessionTimeline({ events, sessionStartTime, replayEq, annotations = [], xDomain: externalXDomain, zoomedRange, videoTimeRef }: Props) {
 
     // Throttled playhead position (updates every 250ms)
     const [playheadOffset, setPlayheadOffset] = useState<number | null>(null);
@@ -267,7 +230,7 @@ export function SessionTimeline({ events, sessionStartTime, replayEq, annotation
     }
 
     return (
-        <div className="eq-chart stacked" ref={outerRef} onClick={handleChartClick} onMouseDownCapture={handlePanStart} style={{ cursor: isZoomed ? 'grab' : undefined }}>
+        <div className="eq-chart stacked">
             <div className="eq-chart-grid">
                 <div className="eq-chart-label">
                     <span className="event-badge eqSnapshot">EQ</span>
@@ -305,6 +268,19 @@ export function SessionTimeline({ events, sessionStartTime, replayEq, annotation
                             label={{ value: '\u270E', position: 'insideTopRight', fill: '#38bdf8', fontSize: 11, offset: 4 }}
                         />
                     ))}
+
+                    {/* Zoomed range highlight */}
+                    {zoomedRange && (
+                        <ReferenceArea
+                            x1={zoomedRange[0]}
+                            x2={zoomedRange[1]}
+                            fill="#6366f1"
+                            fillOpacity={0.12}
+                            stroke="#6366f1"
+                            strokeOpacity={0.4}
+                            strokeWidth={1}
+                        />
+                    )}
 
                     {/* Video playhead */}
                     {playheadOffset != null && (

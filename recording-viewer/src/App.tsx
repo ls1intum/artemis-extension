@@ -354,11 +354,9 @@ function App() {
                                 sessionStartTime={sessionStartTime}
                                 replayEq={session.replayEq}
                                 annotations={annotations}
-                                xDomain={effectiveXDomain}
-                                fullXDomain={xDomain}
+                                xDomain={xDomain}
+                                zoomedRange={zoomedXDomain ?? undefined}
                                 videoTimeRef={videoTimeRef}
-                                onZoomChange={handleZoomChange}
-                                onSeekVideo={videoSyncConfig ? handleVideoSeek : undefined}
                             />
                             <TrackingTimeline
                                 events={session.events}
