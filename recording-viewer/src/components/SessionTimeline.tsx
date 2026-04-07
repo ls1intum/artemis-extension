@@ -250,32 +250,31 @@ export function SessionTimeline({ events, sessionStartTime, replayEq, annotation
         xDomain = [Math.max(0, xMin - xPadding), xMax + xPadding];
     }
 
-    const hasTriggerPoints = eqEvents.some(e => e.source === 'trigger');
-
     return (
-        <div className="eq-chart">
-            <h2>Session Timeline</h2>
-
-            <div ref={chartContainerRef}>
-            <ResponsiveContainer width="100%" height={300}>
-                <LineChart data={data} margin={{ top: 10, right: 30, left: 10, bottom: 10 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#333" />
-                    <XAxis
-                        dataKey="timeOffset"
-                        type="number"
-                        domain={xDomain}
-                        tickFormatter={formatOffset}
-                        stroke="#888"
-                        fontSize={12}
-                        label={{ value: 'Time', position: 'insideBottom', offset: -5, fill: '#888' }}
-                    />
-                    <YAxis
-                        domain={[0, 100]}
-                        tickFormatter={v => `${v}%`}
-                        stroke="#888"
-                        fontSize={12}
-                        label={{ value: 'EQ', angle: -90, position: 'insideLeft', fill: '#888' }}
-                    />
+        <div className="eq-chart stacked">
+            <div className="eq-chart-grid">
+                <div className="eq-chart-label">
+                    <span className="event-badge eqSnapshot">EQ</span>
+                </div>
+                <div ref={chartContainerRef}>
+                <ResponsiveContainer width="100%" height={200}>
+                    <LineChart data={data} margin={{ top: 10, right: 0, left: 0, bottom: 0 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#333" />
+                        <XAxis
+                            dataKey="timeOffset"
+                            type="number"
+                            domain={xDomain}
+                            tick={false}
+                            axisLine={false}
+                            height={0}
+                        />
+                        <YAxis
+                            domain={[0, 100]}
+                            tickFormatter={v => `${v}%`}
+                            stroke="#888"
+                            fontSize={12}
+                            width={40}
+                        />
                     <Tooltip content={<ChartTooltip />} />
 
                     {annotations.map(a => (
@@ -323,39 +322,9 @@ export function SessionTimeline({ events, sessionStartTime, replayEq, annotation
                             connectNulls
                         />
                     )}
-                </LineChart>
-            </ResponsiveContainer>
-            </div>
-
-            {/* Legend */}
-            <div className="chart-legend" style={{ display: 'flex', gap: 16, justifyContent: 'center', marginTop: 8, fontSize: 13, flexWrap: 'wrap' }}>
-                {hasReplay && (
-                    <>
-                        <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                            <svg width="24" height="2"><line x1="0" y1="1" x2="24" y2="1" stroke="#94a3b8" strokeWidth="1.5" strokeDasharray="6 4" /></svg>
-                            <span style={{ color: '#94a3b8' }}>Original EQ</span>
-                        </span>
-                        <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                            <svg width="24" height="2"><line x1="0" y1="1" x2="24" y2="1" stroke="#6366f1" strokeWidth="2" /></svg>
-                            <span style={{ color: '#6366f1' }}>Replay EQ</span>
-                        </span>
-                    </>
-                )}
-                {annotations.length > 0 && (
-                    <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                        <svg width="24" height="2"><line x1="0" y1="1" x2="24" y2="1" stroke="#38bdf8" strokeWidth="1.5" strokeDasharray="2 2" /></svg>
-                        <span style={{ color: '#38bdf8' }}>Annotations</span>
-                    </span>
-                )}
-                {hasTriggerPoints && (
-                    <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                        <svg width="16" height="16">
-                            <circle cx="8" cy="8" r="6" fill="none" stroke="#f59e0b" strokeWidth="2" />
-                            <circle cx="8" cy="8" r="3" fill="#6366f1" />
-                        </svg>
-                        <span style={{ color: '#f59e0b' }}>Trigger evaluation</span>
-                    </span>
-                )}
+                    </LineChart>
+                </ResponsiveContainer>
+                </div>
             </div>
 
         </div>
