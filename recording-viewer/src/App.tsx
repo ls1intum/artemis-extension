@@ -116,6 +116,7 @@ function App() {
             setVideoCacheBust(Date.now());
             setIsVideoPlaying(false);
             videoTimeRef.current = 0;
+            setZoomedXDomain(null);
             setSession({ metadata, events, fileName: sessionId, replayEq, annotations: loadedAnnotations });
         } catch (err) {
             console.error('Failed to load session:', err);
@@ -132,6 +133,7 @@ function App() {
         videoTimeRef.current = 0;
         setViewMode('timeline');
         setScrollToTimestamp(null);
+        setZoomedXDomain(null);
         setSession(loaded);
     }, []);
 
@@ -143,6 +145,7 @@ function App() {
         videoTimeRef.current = 0;
         setViewMode('timeline');
         setScrollToTimestamp(null);
+        setZoomedXDomain(null);
         setSession(null);
     }, []);
 
@@ -187,6 +190,7 @@ function App() {
     }, [session]);
     const [viewMode, setViewMode] = useState<'timeline' | 'list'>('timeline');
     const [scrollToTimestamp, setScrollToTimestamp] = useState<number | null>(null);
+    const [zoomedXDomain, setZoomedXDomain] = useState<[number, number] | null>(null);
 
     const handleViewInList = useCallback((timestamp: number) => {
         setScrollToTimestamp(timestamp);
@@ -231,6 +235,12 @@ function App() {
         }
         return max;
     }, [session, sessionStartTime]);
+
+    const effectiveXDomain = zoomedXDomain ?? xDomain;
+
+    const handleZoomChange = useCallback((domain: [number, number] | null) => {
+        setZoomedXDomain(domain);
+    }, []);
 
     const videoUrl = activeSessionId.current && videoSyncConfig
         ? `/api/recordings/${encodeURIComponent(activeSessionId.current)}/video?v=${videoCacheBust}`
@@ -301,8 +311,10 @@ function App() {
                         sessionStartTime={sessionStartTime}
                         replayEq={session.replayEq}
                         annotations={annotations}
-                        xDomain={xDomain}
+                        xDomain={effectiveXDomain}
+                        fullXDomain={xDomain}
                         videoTimeRef={videoTimeRef}
+                        onZoomChange={handleZoomChange}
                     />
                     <div className="filter-bar shared-filter-bar">
                         <button
@@ -342,6 +354,14 @@ function App() {
                                 List
                             </button>
                         </div>
+                        {zoomedXDomain && (
+                            <button
+                                className="reset-zoom-btn"
+                                onClick={() => setZoomedXDomain(null)}
+                            >
+                                Reset zoom
+                            </button>
+                        )}
                         <FreeAnnotationForm
                             sessionStartTime={sessionStartTime}
                             onAdd={handleAddAnnotation}
@@ -349,11 +369,12 @@ function App() {
                             annotationCount={annotations.length}
                         />
                     </div>
-                    {viewMode === 'timeline' && xDomain && (
+                    {viewMode === 'timeline' && effectiveXDomain && (
                         <TrackingTimeline
                             events={session.events}
                             sessionStartTime={sessionStartTime}
-                            xDomain={xDomain}
+                            xDomain={effectiveXDomain}
+                            fullXDomain={xDomain}
                             annotations={annotations}
                             enabledTypes={enabledTypes}
                             onAddAnnotation={handleAddAnnotation}
@@ -363,6 +384,7 @@ function App() {
                             videoTimeRef={videoTimeRef}
                             onSeekVideo={videoSyncConfig ? handleVideoSeek : undefined}
                             videoTimeAtSessionStartSeconds={videoSyncConfig?.videoTimeAtSessionStartSeconds}
+                            onZoomChange={handleZoomChange}
                         />
                     )}
                     {viewMode === 'list' && (

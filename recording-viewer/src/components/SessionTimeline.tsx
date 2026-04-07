@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
     LineChart,
     Line,
@@ -12,6 +12,7 @@ import {
 } from 'recharts';
 import type { Annotation, RecordedEvent, EqSnapshotEvent, ReplayEqSnapshot } from '../types.ts';
 import { formatOffset } from '../utils/format.ts';
+import { useTimelineZoom } from '../hooks/useTimelineZoom.ts';
 
 interface Props {
     events: RecordedEvent[];
@@ -19,7 +20,9 @@ interface Props {
     replayEq?: ReplayEqSnapshot[];
     annotations?: Annotation[];
     xDomain?: [number, number];
+    fullXDomain?: [number, number];
     videoTimeRef?: React.RefObject<number>;
+    onZoomChange?: (domain: [number, number] | null) => void;
 }
 
 interface ChartPoint {
@@ -122,7 +125,29 @@ function ChartTooltip({ active, payload }: { active?: boolean; payload?: Array<{
 }
 
 
-export function SessionTimeline({ events, sessionStartTime, replayEq, annotations = [], xDomain: externalXDomain, videoTimeRef }: Props) {
+export function SessionTimeline({ events, sessionStartTime, replayEq, annotations = [], xDomain: externalXDomain, fullXDomain, videoTimeRef, onZoomChange }: Props) {
+    const chartContainerRef = useRef<HTMLDivElement>(null);
+    const [chartWidth, setChartWidth] = useState(0);
+
+    useEffect(() => {
+        const el = chartContainerRef.current;
+        if (!el) return;
+        const observer = new ResizeObserver(entries => {
+            for (const entry of entries) setChartWidth(entry.contentRect.width);
+        });
+        observer.observe(el);
+        return () => observer.disconnect();
+    }, []);
+
+    // Pinch / Ctrl+Scroll zoom
+    useTimelineZoom({
+        containerRef: chartContainerRef,
+        xDomain: externalXDomain ?? [0, 0],
+        fullXDomain,
+        svgWidth: chartWidth,
+        onZoomChange: externalXDomain ? onZoomChange : undefined,
+    });
+
     // Throttled playhead position (updates every 250ms)
     const [playheadOffset, setPlayheadOffset] = useState<number | null>(null);
     useEffect(() => {
@@ -231,6 +256,7 @@ export function SessionTimeline({ events, sessionStartTime, replayEq, annotation
         <div className="eq-chart">
             <h2>Session Timeline</h2>
 
+            <div ref={chartContainerRef}>
             <ResponsiveContainer width="100%" height={300}>
                 <LineChart data={data} margin={{ top: 10, right: 30, left: 10, bottom: 10 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#333" />
@@ -299,6 +325,7 @@ export function SessionTimeline({ events, sessionStartTime, replayEq, annotation
                     )}
                 </LineChart>
             </ResponsiveContainer>
+            </div>
 
             {/* Legend */}
             <div className="chart-legend" style={{ display: 'flex', gap: 16, justifyContent: 'center', marginTop: 8, fontSize: 13, flexWrap: 'wrap' }}>
