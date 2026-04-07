@@ -223,6 +223,35 @@ function App() {
         setZoomedXDomain(domain);
     }, []);
 
+    const handleZoomIn = useCallback(() => {
+        if (!xDomain) return;
+        const current = zoomedXDomain ?? xDomain;
+        const [min, max] = current;
+        const range = max - min;
+        const newRange = range / 1.5;
+        if (newRange < 2000) return;
+        const center = (min + max) / 2;
+        setZoomedXDomain([center - newRange / 2, center + newRange / 2]);
+    }, [xDomain, zoomedXDomain]);
+
+    const handleZoomOut = useCallback(() => {
+        if (!xDomain) return;
+        const current = zoomedXDomain ?? xDomain;
+        const [min, max] = current;
+        const range = max - min;
+        const fullRange = xDomain[1] - xDomain[0];
+        const newRange = range * 1.5;
+        if (newRange >= fullRange) {
+            setZoomedXDomain(null);
+            return;
+        }
+        let newMin = (min + max) / 2 - newRange / 2;
+        let newMax = (min + max) / 2 + newRange / 2;
+        if (newMin < xDomain[0]) { newMin = xDomain[0]; newMax = newMin + newRange; }
+        if (newMax > xDomain[1]) { newMax = xDomain[1]; newMin = newMax - newRange; }
+        setZoomedXDomain([newMin, newMax]);
+    }, [xDomain, zoomedXDomain]);
+
     const videoUrl = activeSessionId.current && videoSyncConfig
         ? `/api/recordings/${encodeURIComponent(activeSessionId.current)}/video?v=${videoCacheBust}`
         : null;
@@ -302,13 +331,14 @@ function App() {
                                 List
                             </button>
                         </div>
-                        {zoomedXDomain && (
-                            <button
-                                className="reset-zoom-btn"
-                                onClick={() => setZoomedXDomain(null)}
-                            >
-                                Reset zoom
-                            </button>
+                        {viewMode === 'timeline' && xDomain && (
+                            <div className="zoom-controls">
+                                <button className="zoom-btn" onClick={handleZoomIn} title="Zoom in">+</button>
+                                <button className="zoom-btn" onClick={handleZoomOut} title="Zoom out">&minus;</button>
+                                {zoomedXDomain && (
+                                    <button className="zoom-btn reset" onClick={() => setZoomedXDomain(null)} title="Reset zoom">Reset</button>
+                                )}
+                            </div>
                         )}
                         <FreeAnnotationForm
                             sessionStartTime={sessionStartTime}

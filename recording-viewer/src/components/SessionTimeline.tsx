@@ -12,7 +12,7 @@ import {
 } from 'recharts';
 import type { Annotation, RecordedEvent, EqSnapshotEvent, ReplayEqSnapshot } from '../types.ts';
 import { formatOffset } from '../utils/format.ts';
-import { useTimelineZoom } from '../hooks/useTimelineZoom.ts';
+import { useTimelinePan } from '../hooks/useTimelinePan.ts';
 
 interface Props {
     events: RecordedEvent[];
@@ -143,14 +143,12 @@ export function SessionTimeline({ events, sessionStartTime, replayEq, annotation
         return () => observer.disconnect();
     }, []);
 
-    // Pinch / Ctrl+Scroll zoom — listener on outer wrapper so Recharts can't swallow events
-    useTimelineZoom({
-        containerRef: outerRef,
+    // Drag-to-pan (shared hook)
+    const { handlePanStart, isZoomed } = useTimelinePan({
         xDomain: externalXDomain ?? [0, 0],
         fullXDomain,
         svgWidth: chartWidth,
         onZoomChange: externalXDomain ? onZoomChange : undefined,
-        leftOffset: LABEL_WIDTH,
     });
 
     // Shift+Click → seek video
@@ -269,7 +267,7 @@ export function SessionTimeline({ events, sessionStartTime, replayEq, annotation
     }
 
     return (
-        <div className="eq-chart stacked" ref={outerRef} onClick={handleChartClick}>
+        <div className="eq-chart stacked" ref={outerRef} onClick={handleChartClick} onMouseDown={handlePanStart} style={{ cursor: isZoomed ? 'grab' : undefined }}>
             <div className="eq-chart-grid">
                 <div className="eq-chart-label">
                     <span className="event-badge eqSnapshot">EQ</span>
@@ -290,8 +288,9 @@ export function SessionTimeline({ events, sessionStartTime, replayEq, annotation
                             domain={[0, 100]}
                             tickFormatter={v => `${v}%`}
                             stroke="#888"
-                            fontSize={12}
-                            width={40}
+                            fontSize={11}
+                            width={1}
+                            mirror
                         />
                     <Tooltip content={<ChartTooltip />} />
 

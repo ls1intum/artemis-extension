@@ -3,7 +3,7 @@ import type { Annotation, RecordedEvent, EventType } from '../types';
 import { ALL_LABELS } from '../types';
 import { MARKER_COLORS, SWIM_LANE_TYPES } from '../constants';
 import { formatOffset, shortenUri } from '../utils/format';
-import { useTimelineZoom } from '../hooks/useTimelineZoom';
+import { useTimelinePan } from '../hooks/useTimelinePan';
 
 interface Props {
     events: RecordedEvent[];
@@ -191,72 +191,8 @@ export function TrackingTimeline({
     const [annotateTimestamp, setAnnotateTimestamp] = useState<number | null>(null);
     const [annotateText, setAnnotateText] = useState('');
 
-    // Zoom/pan state
-    const isPanningRef = useRef(false);
-    const panStartXRef = useRef(0);
-    const panStartDomainRef = useRef<[number, number]>([0, 0]);
-
-    const isZoomed = fullXDomain != null && (xDomain[0] !== fullXDomain[0] || xDomain[1] !== fullXDomain[1]);
-
-    // Pinch / Ctrl+Scroll zoom on the SVG container
-    useTimelineZoom({ containerRef: svgContainerRef, xDomain, fullXDomain, svgWidth, onZoomChange });
-
-    // Snapshot for pan global listeners (avoids stale closures)
-    const panLatestRef = useRef({ onZoomChange, fullXDomain, xDomain, svgWidth });
-    useEffect(() => {
-        panLatestRef.current = { onZoomChange, fullXDomain, xDomain, svgWidth };
-    }, [onZoomChange, fullXDomain, xDomain, svgWidth]);
-
-    // Drag-to-pan
-    const handlePanStart = useCallback((e: React.MouseEvent) => {
-        if (!onZoomChange || !isZoomed || e.button !== 0) return;
-        const target = e.target as SVGElement;
-        if (target.classList.contains('event-dot') || target.closest?.('.annotation-popover')) return;
-
-        isPanningRef.current = true;
-        panStartXRef.current = e.clientX;
-        panStartDomainRef.current = [...xDomain] as [number, number];
-        e.preventDefault();
-    }, [onZoomChange, isZoomed, xDomain]);
-
-    // Global mouse listeners for pan (so dragging outside SVG still works)
-    useEffect(() => {
-        const handleMouseMove = (e: MouseEvent) => {
-            if (!isPanningRef.current) return;
-            const { onZoomChange: zoomCb, fullXDomain: full, xDomain: domain, svgWidth: width } = panLatestRef.current;
-            if (!zoomCb) return;
-            const dx = e.clientX - panStartXRef.current;
-            const [startMin, startMax] = panStartDomainRef.current;
-            const range = startMax - startMin;
-            if (width <= 0) return;
-            const domainDelta = -(dx / width) * range;
-
-            const bounds = full ?? domain;
-            let newMin = startMin + domainDelta;
-            let newMax = startMax + domainDelta;
-
-            if (newMin < bounds[0]) {
-                newMin = bounds[0];
-                newMax = newMin + range;
-            }
-            if (newMax > bounds[1]) {
-                newMax = bounds[1];
-                newMin = newMax - range;
-            }
-
-            zoomCb([newMin, newMax]);
-        };
-        const handleMouseUp = () => {
-            isPanningRef.current = false;
-        };
-
-        window.addEventListener('mousemove', handleMouseMove);
-        window.addEventListener('mouseup', handleMouseUp);
-        return () => {
-            window.removeEventListener('mousemove', handleMouseMove);
-            window.removeEventListener('mouseup', handleMouseUp);
-        };
-    }, []);
+    // Drag-to-pan (shared hook)
+    const { handlePanStart, isZoomed } = useTimelinePan({ xDomain, fullXDomain, svgWidth, onZoomChange });
 
     // Measure SVG container width (not the outer wrapper which includes the label column)
     useEffect(() => {
@@ -659,9 +595,8 @@ export function TrackingTimeline({
 
             {/* Hints */}
             <p className="timeline-seek-hint">
-                {onZoomChange && 'Pinch or Ctrl+Scroll to zoom'}
-                {onZoomChange && isZoomed && ' \u00b7 Drag to pan'}
-                {onSeekVideo && onZoomChange && ' \u00b7 '}
+                {isZoomed && 'Drag to pan'}
+                {isZoomed && onSeekVideo && ' \u00b7 '}
                 {onSeekVideo && 'Shift+Click to jump video'}
             </p>
 
