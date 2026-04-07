@@ -6,30 +6,32 @@ interface UseTimelineZoomOptions {
     fullXDomain?: [number, number];
     svgWidth: number;
     onZoomChange?: (domain: [number, number] | null) => void;
+    /** Pixels to subtract from the left of containerRef before mapping to the time domain */
+    leftOffset?: number;
 }
 
 /**
  * Attaches a non-passive wheel listener to `containerRef` so that
  * Ctrl+Scroll / trackpad-pinch zooms the timeline instead of the browser page.
  */
-export function useTimelineZoom({ containerRef, xDomain, fullXDomain, svgWidth, onZoomChange }: UseTimelineZoomOptions) {
-    const latestRef = useRef({ onZoomChange, fullXDomain, svgWidth, xDomain });
+export function useTimelineZoom({ containerRef, xDomain, fullXDomain, svgWidth, onZoomChange, leftOffset = 0 }: UseTimelineZoomOptions) {
+    const latestRef = useRef({ onZoomChange, fullXDomain, svgWidth, xDomain, leftOffset });
     useEffect(() => {
-        latestRef.current = { onZoomChange, fullXDomain, svgWidth, xDomain };
-    }, [onZoomChange, fullXDomain, svgWidth, xDomain]);
+        latestRef.current = { onZoomChange, fullXDomain, svgWidth, xDomain, leftOffset };
+    }, [onZoomChange, fullXDomain, svgWidth, xDomain, leftOffset]);
 
     useEffect(() => {
         const el = containerRef.current;
         if (!el) return;
 
         const handleWheel = (e: WheelEvent) => {
-            const { onZoomChange: zoomCb, xDomain: domain, fullXDomain: full, svgWidth: width } = latestRef.current;
+            const { onZoomChange: zoomCb, xDomain: domain, fullXDomain: full, svgWidth: width, leftOffset: offset } = latestRef.current;
             if (!zoomCb) return;
             if (!e.ctrlKey && !e.metaKey) return;
             e.preventDefault();
 
             const rect = el.getBoundingClientRect();
-            const mouseX = e.clientX - rect.left;
+            const mouseX = e.clientX - rect.left - offset;
             const [min, max] = domain;
             const range = max - min;
             if (range <= 0 || width <= 0) return;

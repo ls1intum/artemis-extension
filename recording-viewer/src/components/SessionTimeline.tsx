@@ -126,34 +126,38 @@ function ChartTooltip({ active, payload }: { active?: boolean; payload?: Array<{
 }
 
 
+const LABEL_WIDTH = 140;
+
 export function SessionTimeline({ events, sessionStartTime, replayEq, annotations = [], xDomain: externalXDomain, fullXDomain, videoTimeRef, onZoomChange, onSeekVideo }: Props) {
-    const chartContainerRef = useRef<HTMLDivElement>(null);
+    const outerRef = useRef<HTMLDivElement>(null);
     const [chartWidth, setChartWidth] = useState(0);
 
+    // Measure the chart area width (outer width minus label column)
     useEffect(() => {
-        const el = chartContainerRef.current;
+        const el = outerRef.current;
         if (!el) return;
         const observer = new ResizeObserver(entries => {
-            for (const entry of entries) setChartWidth(entry.contentRect.width);
+            for (const entry of entries) setChartWidth(Math.max(0, entry.contentRect.width - LABEL_WIDTH));
         });
         observer.observe(el);
         return () => observer.disconnect();
     }, []);
 
-    // Pinch / Ctrl+Scroll zoom
+    // Pinch / Ctrl+Scroll zoom — listener on outer wrapper so Recharts can't swallow events
     useTimelineZoom({
-        containerRef: chartContainerRef,
+        containerRef: outerRef,
         xDomain: externalXDomain ?? [0, 0],
         fullXDomain,
         svgWidth: chartWidth,
         onZoomChange: externalXDomain ? onZoomChange : undefined,
+        leftOffset: LABEL_WIDTH,
     });
 
     // Shift+Click → seek video
     const handleChartClick = useCallback((e: React.MouseEvent) => {
-        if (!onSeekVideo || !e.shiftKey || !chartContainerRef.current) return;
-        const rect = chartContainerRef.current.getBoundingClientRect();
-        const x = e.clientX - rect.left;
+        if (!onSeekVideo || !e.shiftKey || !outerRef.current) return;
+        const rect = outerRef.current.getBoundingClientRect();
+        const x = e.clientX - rect.left - LABEL_WIDTH;
         const domain = externalXDomain ?? [0, 0];
         const [min, max] = domain;
         const range = max - min;
@@ -265,12 +269,12 @@ export function SessionTimeline({ events, sessionStartTime, replayEq, annotation
     }
 
     return (
-        <div className="eq-chart stacked">
+        <div className="eq-chart stacked" ref={outerRef} onClick={handleChartClick}>
             <div className="eq-chart-grid">
                 <div className="eq-chart-label">
                     <span className="event-badge eqSnapshot">EQ</span>
                 </div>
-                <div ref={chartContainerRef} onClick={handleChartClick}>
+                <div>
                 <ResponsiveContainer width="100%" height={200}>
                     <LineChart data={data} margin={{ top: 10, right: 0, left: 0, bottom: 0 }}>
                         <CartesianGrid strokeDasharray="3 3" stroke="#333" />
