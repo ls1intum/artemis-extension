@@ -267,7 +267,7 @@ export function SessionTimeline({ events, sessionStartTime, replayEq, annotation
     }
 
     return (
-        <div className="eq-chart stacked" ref={outerRef} onClick={handleChartClick} onMouseDown={handlePanStart} style={{ cursor: isZoomed ? 'grab' : undefined }}>
+        <div className="eq-chart stacked" ref={outerRef} onClick={handleChartClick} onMouseDownCapture={handlePanStart} style={{ cursor: isZoomed ? 'grab' : undefined }}>
             <div className="eq-chart-grid">
                 <div className="eq-chart-label">
                     <span className="event-badge eqSnapshot">EQ</span>
