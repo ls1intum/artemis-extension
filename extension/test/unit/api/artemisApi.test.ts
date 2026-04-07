@@ -96,12 +96,12 @@ suite('Artemis API Service Test Suite', () => {
         }
     });
 
-    test('should get exercise details with submissions', async () => {
+    test('should get exercise details', async () => {
         const exerciseId = 123;
         global.fetch = async (url: any) => {
+            // The backend always includes studentParticipations with submissions and results —
+            // no query parameters needed (the endpoint accepts none).
             assert.ok(url.includes(`/api/exercise/exercises/${exerciseId}/details`));
-            assert.ok(url.includes('withSubmissions=true'));
-            assert.ok(url.includes('withLatestResult=true'));
             return {
                 ok: true,
                 status: 200,

@@ -9,6 +9,12 @@ export interface FileMonitorUpdate {
 }
 
 export class FileMonitorService implements vscode.Disposable {
+    /** Minimum interval between file updates while typing */
+    private static readonly THROTTLE_INTERVAL_MS = 2000;
+
+    /** Fallback periodic update interval */
+    private static readonly PERIODIC_UPDATE_INTERVAL_MS = 5000;
+
     private readonly _disposables: vscode.Disposable[] = [];
     private _fileUpdateTimer?: NodeJS.Timeout;
     private _lastFileUpdate = 0;
@@ -82,7 +88,7 @@ export class FileMonitorService implements vscode.Disposable {
         this._fileUpdateTimer = setInterval(() => {
             logger.fileMonitor('Periodic update...');
             void this._updateReferencedFilesDisplay();
-        }, 5000);
+        }, FileMonitorService.PERIODIC_UPDATE_INTERVAL_MS);
 
         // Initial update
         logger.fileMonitor('Running initial update...');
@@ -92,7 +98,7 @@ export class FileMonitorService implements vscode.Disposable {
     private _scheduleFileUpdate(): void {
         // Throttle updates to avoid excessive calls while typing
         const now = Date.now();
-        if (now - this._lastFileUpdate < 2000) { // Wait at least 2 seconds between updates
+        if (now - this._lastFileUpdate < FileMonitorService.THROTTLE_INTERVAL_MS) {
             return;
         }
         this._lastFileUpdate = now;

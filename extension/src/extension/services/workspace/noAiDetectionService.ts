@@ -87,7 +87,9 @@ export class NoAiDetectionService implements vscode.Disposable {
         // Watch for workspace folder changes
         const workspaceFolderListener = vscode.workspace.onDidChangeWorkspaceFolders(() => {
             logger.info('.noai detection: Workspace folders changed, re-checking...', LogCategory.GENERAL);
-            void this._checkForNoAiFile();
+            void this._checkForNoAiFile().catch((err: unknown) => {
+                logger.error('Failed to check for .noai file after workspace change', LogCategory.GENERAL, err);
+            });
             this._setupFileWatcher();
         });
         this._disposables.push(workspaceFolderListener);
@@ -105,12 +107,16 @@ export class NoAiDetectionService implements vscode.Disposable {
 
         this._fileWatcher.onDidCreate((uri) => {
             logger.info(`.noai file created: ${uri.fsPath}`, LogCategory.GENERAL);
-            void this._checkForNoAiFile();
+            void this._checkForNoAiFile().catch((err: unknown) => {
+                logger.error('Failed to check for .noai file after creation', LogCategory.GENERAL, err);
+            });
         });
 
         this._fileWatcher.onDidDelete((uri) => {
             logger.info(`.noai file deleted: ${uri.fsPath}`, LogCategory.GENERAL);
-            void this._checkForNoAiFile();
+            void this._checkForNoAiFile().catch((err: unknown) => {
+                logger.error('Failed to check for .noai file after deletion', LogCategory.GENERAL, err);
+            });
         });
 
         this._disposables.push(this._fileWatcher);

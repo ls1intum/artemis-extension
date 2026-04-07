@@ -245,6 +245,52 @@ export function StruggleDetectionView({ vscodeApi }: StruggleDetectionViewProps)
                     )}
                 </div>
             </Container>
+
+            {/* Developer tools */}
+            {data.developerMode && (
+                <Container
+                    header={
+                        <div style={{ fontSize: '15px', fontWeight: 600 }}>
+                            Developer Tools
+                        </div>
+                    }
+                    variant="default"
+                    padding="default"
+                >
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                        <button
+                            onClick={() => postCommand(vscodeApi, 'openRecordingsFolder')}
+                            style={{
+                                flex: 1,
+                                padding: '8px 12px',
+                                border: '1px solid var(--vscode-button-border, transparent)',
+                                borderRadius: '4px',
+                                background: 'var(--vscode-button-secondaryBackground)',
+                                color: 'var(--vscode-button-secondaryForeground)',
+                                cursor: 'pointer',
+                                fontSize: '13px',
+                            }}
+                        >
+                            Open Recordings Folder
+                        </button>
+                        <button
+                            onClick={() => postCommand(vscodeApi, 'replaySession')}
+                            style={{
+                                flex: 1,
+                                padding: '8px 12px',
+                                border: '1px solid var(--vscode-button-border, transparent)',
+                                borderRadius: '4px',
+                                background: 'var(--vscode-button-secondaryBackground)',
+                                color: 'var(--vscode-button-secondaryForeground)',
+                                cursor: 'pointer',
+                                fontSize: '13px',
+                            }}
+                        >
+                            Replay Session
+                        </button>
+                    </div>
+                </Container>
+            )}
         </div>
     );
 }

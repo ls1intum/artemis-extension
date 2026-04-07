@@ -80,6 +80,11 @@
         "icon": "$(play)"
       },
       {
+        "command": "artemis.openRecordingsFolder",
+        "title": "Artemis: Open Recordings Folder",
+        "icon": "$(folder-opened)"
+      },
+      {
         "command": "artemis.clearTrustedDomains",
         "title": "Artemis: Clear Trusted Domains"
       },
@@ -91,9 +96,18 @@
     ],
     "menus": {
       "commandPalette": [
-        { "command": "artemis.login", "when": "!iris:managedEnvironment" },
-        { "command": "artemis.logout", "when": "!iris:managedEnvironment" },
-        { "command": "artemis.showJwtToken", "when": "config.artemis.developerMode" }
+        {
+          "command": "artemis.login",
+          "when": "!iris:managedEnvironment"
+        },
+        {
+          "command": "artemis.logout",
+          "when": "!iris:managedEnvironment"
+        },
+        {
+          "command": "artemis.showJwtToken",
+          "when": "config.artemis.developerMode"
+        }
       ]
     },
     "viewsContainers": {
@@ -300,7 +314,7 @@
     "@types/react": "18.3",
     "@types/react-dom": "18.3",
     "@types/sinon": "21.0.0",
-    "@types/vscode": "1.110.0",
+    "@types/vscode": "^1.97.0",
     "@types/ws": "8.18.1",
     "@typescript-eslint/eslint-plugin": "8.58.0",
     "@typescript-eslint/parser": "8.58.0",

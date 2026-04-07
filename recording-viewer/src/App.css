@@ -352,8 +352,46 @@
 
 /* ── EQ Chart ────────────────────────────────────────────────────────── */
 
+/* ── Stacked timelines container ───────────────────────────────────── */
+
+.stacked-timelines {
+    display: flex;
+    flex-direction: column;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+}
+
+.stacked-timelines .eq-chart.stacked {
+    border-bottom: 1px solid var(--border);
+}
+
+.stacked-timelines .tracking-timeline-grid {
+    border: none;
+    border-radius: 0;
+}
+
+/* ── EQ Chart ──────────────────────────────────────────────────────── */
+
 .eq-chart {
     padding: 0;
+}
+
+.eq-chart.stacked {
+    padding: 0;
+}
+
+.eq-chart-grid {
+    display: grid;
+    grid-template-columns: 140px 1fr;
+}
+
+.eq-chart-label {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    padding: 0 10px;
+    border-right: 1px solid var(--border);
+    background: var(--bg-elevated);
 }
 
 .eq-chart h2 {
@@ -1624,6 +1662,41 @@
     text-align: center;
     margin-top: 4px;
     opacity: 0.6;
+}
+
+/* ── Zoom controls ─────────────────────────────────────────────────── */
+
+.zoom-controls {
+    display: flex;
+    gap: 4px;
+    align-items: center;
+}
+
+.zoom-btn {
+    font-family: var(--sans);
+    font-size: 14px;
+    font-weight: 600;
+    width: 28px;
+    height: 28px;
+    border-radius: 5px;
+    border: 1px solid var(--border);
+    background: var(--bg-elevated);
+    color: var(--text);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: border-color 0.15s, background 0.15s;
+}
+.zoom-btn:hover {
+    border-color: var(--accent);
+    background: rgba(99, 102, 241, 0.1);
+}
+.zoom-btn.reset {
+    width: auto;
+    padding: 0 10px;
+    font-size: 12px;
+    font-weight: 400;
 }
 
 /* ── Follow playback button ─────────────────────────────────────────── */

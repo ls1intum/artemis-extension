@@ -47,16 +47,11 @@ export function FreeAnnotationForm({ sessionStartTime, onAdd, videoTimeRef, anno
     const handleLabelQuick = useCallback((label: AnnotationLabel) => {
         const videoOffset = getCurrentVideoOffset();
         if (videoOffset) {
-            const offsetMs = parseTimeInput(videoOffset);
-            if (offsetMs !== null) {
-                const labelInfo = ALL_LABELS.find(l => l.value === label);
-                onAdd(sessionStartTime + offsetMs, labelInfo?.label ?? label, label);
-                return;
-            }
+            setTime(videoOffset);
         }
         setSelectedLabel(label);
         setOpen(true);
-    }, [getCurrentVideoOffset, sessionStartTime, onAdd]);
+    }, [getCurrentVideoOffset]);
 
     const submit = () => {
         const offsetMs = parseTimeInput(time);

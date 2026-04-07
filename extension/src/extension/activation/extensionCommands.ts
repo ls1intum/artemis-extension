@@ -422,6 +422,13 @@ function registerReplaySessionCommand(globalStorageUri: vscode.Uri): vscode.Disp
     });
 }
 
+function registerOpenRecordingsFolderCommand(globalStorageUri: vscode.Uri): vscode.Disposable {
+    return vscode.commands.registerCommand('artemis.openRecordingsFolder', async () => {
+        const recordingsUri = vscode.Uri.joinPath(globalStorageUri, 'recordings');
+        await vscode.commands.executeCommand('revealFileInOS', recordingsUri);
+    });
+}
+
 /**
  * Developer-only command: copy the current raw JWT to the clipboard for use
  * in curl/Postman based server testing. Gated on the `artemis.developerMode`
@@ -493,6 +500,7 @@ export function registerAllCommands(deps: CommandDeps): vscode.Disposable {
         registerClearTrustedDomainsCommand(deps.context),
         registerStruggleScoreCommand(deps.telemetryManager),
         registerReplaySessionCommand(deps.context.globalStorageUri),
+        registerOpenRecordingsFolderCommand(deps.context.globalStorageUri),
         registerShowJwtTokenCommand(deps.authManager),
     );
 }

@@ -1,7 +1,6 @@
 import * as vscode from 'vscode';
 import {
     StruggleContext,
-    InterventionDecision,
     TriggerType,
     EQConfidence,
     EQState,
@@ -19,6 +18,7 @@ import { CompileEquivalentEmitter, classifyBuildResult } from './eventPipeline/c
 import { BoundaryTriggerEmitter } from './eventPipeline/boundaryTriggerEmitter';
 import { InterventionDecisionEngine } from './decision/interventionDecisionEngine';
 import { AdaptiveCadence } from './intervention/adaptiveCadence';
+import { DebugDashboard } from './debugDashboard';
 import { ArtemisWebsocketService } from '../websocket/artemisWebsocketService';
 import { ResultDTO, WebSocketMessageHandler } from '../../types';
 import { VSCODE_CONFIG } from '../../utils/constants';
@@ -60,10 +60,8 @@ export class TelemetryManager implements vscode.Disposable, WebSocketMessageHand
     private readonly _exerciseRegistry: ExerciseRegistry | undefined;
     // Debug mode
     private _debugMode: boolean = false;
-    private _debugStatusBarItem: vscode.StatusBarItem;
-    private _debugUpdateTimer: NodeJS.Timeout | undefined;
+    private readonly _debugDashboard: DebugDashboard;
     private readonly _outputChannel: vscode.OutputChannel;
-    private static readonly DEBUG_UPDATE_INTERVAL_MS = 5 * 1000;
 
     // Events
     private readonly _onDidCalculateEQ = new vscode.EventEmitter<{
@@ -91,13 +89,6 @@ export class TelemetryManager implements vscode.Disposable, WebSocketMessageHand
         this._outputChannel = vscode.window.createOutputChannel('Artemis Telemetry');
         this._disposables.push(this._outputChannel);
 
-        this._debugStatusBarItem = vscode.window.createStatusBarItem(
-            vscode.StatusBarAlignment.Left,
-            1000
-        );
-        this._debugStatusBarItem.command = 'artemis.showStruggleScore';
-        this._disposables.push(this._debugStatusBarItem);
-
         // Initialize kept services
         this._diagnosticService = new DiagnosticPersistenceService();
         this._inactivityService = new InactivityService();
@@ -116,6 +107,17 @@ export class TelemetryManager implements vscode.Disposable, WebSocketMessageHand
         );
         this._decisionEngine = new InterventionDecisionEngine(this._interventionFilter);
 
+        // Debug UI
+        this._debugDashboard = new DebugDashboard({
+            eqEngine: this._eqEngine,
+            inactivityService: this._inactivityService,
+            thrashingDetector: this._thrashingDetector,
+            buildTracker: this._buildTracker,
+            adaptiveCadence: this._adaptiveCadence,
+            outputChannel: this._outputChannel,
+            getRecommendedAction: (eq, confidence) => this._getRecommendedAction(eq, confidence),
+        });
+
         // Collect all services that participate in exercise session lifecycle.
         // TelemetryManager iterates this list on start/end instead of calling
         // individual reset methods, ensuring no service is accidentally missed.
@@ -128,6 +130,7 @@ export class TelemetryManager implements vscode.Disposable, WebSocketMessageHand
 
         // Register disposables
         this._disposables.push(
+            this._debugDashboard,
             this._diagnosticService,
             this._inactivityService,
             this._thrashingDetector,
@@ -156,16 +159,9 @@ export class TelemetryManager implements vscode.Disposable, WebSocketMessageHand
             this._websocketService.unregisterMessageHandler(this);
         }
 
-        if (this._debugUpdateTimer) {
-            clearInterval(this._debugUpdateTimer);
-            this._debugUpdateTimer = undefined;
-        }
-        this._debugStatusBarItem.hide();
-
         this.endCurrentSession();
 
-        // Log BEFORE disposing the output channel — otherwise _log() writes to
-        // an already-disposed channel and throws "Channel has been closed".
+        // Log before disposing the output channel (which is in _disposables)
         this._log('TelemetryManager disposed');
 
         while (this._disposables.length > 0) {
@@ -412,10 +408,14 @@ export class TelemetryManager implements vscode.Disposable, WebSocketMessageHand
                 this._interventionService.showSubtleHintEQ(decision);
                 break;
             case 'notification':
-                void this._interventionService.showNotificationEQ(decision);
+                void this._interventionService.showNotificationEQ(decision).catch((err: unknown) => {
+                    logger.error('Failed to show notification intervention', LogCategory.TELEMETRY, err);
+                });
                 break;
             case 'proactive':
-                void this._interventionService.showProactiveHelpEQ(decision);
+                void this._interventionService.showProactiveHelpEQ(decision).catch((err: unknown) => {
+                    logger.error('Failed to show proactive intervention', LogCategory.TELEMETRY, err);
+                });
                 break;
         }
     }
@@ -459,17 +459,17 @@ export class TelemetryManager implements vscode.Disposable, WebSocketMessageHand
 
         if (!this._isEnabled) {
             this._interventionService.hideHint();
-            this._debugStatusBarItem.hide();
+            this._debugDashboard.stop();
             this._log('Struggle detection disabled');
         } else {
             this._log('Struggle detection enabled');
         }
 
         if (this._debugMode && !wasDebugMode) {
-            this._startDebugUpdates();
+            this._debugDashboard.start();
             this._log('Developer mode ENABLED — showing live EQ in status bar');
         } else if (!this._debugMode && wasDebugMode) {
-            this._stopDebugUpdates();
+            this._debugDashboard.stop();
             this._log('Developer mode DISABLED');
         }
     }
@@ -483,163 +483,11 @@ export class TelemetryManager implements vscode.Disposable, WebSocketMessageHand
 
     // ==================== DEBUG FEATURES ====================
 
-    private _startDebugUpdates(): void {
-        this._updateDebugStatusBar();
-        this._debugStatusBarItem.show();
-
-        this._debugUpdateTimer = setInterval(() => {
-            this._updateDebugStatusBar();
-        }, TelemetryManager.DEBUG_UPDATE_INTERVAL_MS);
-    }
-
-    private _stopDebugUpdates(): void {
-        if (this._debugUpdateTimer) {
-            clearInterval(this._debugUpdateTimer);
-            this._debugUpdateTimer = undefined;
-        }
-        this._debugStatusBarItem.hide();
-    }
-
-    private _updateDebugStatusBar(): void {
-        if (!this._debugMode) {
-            return;
-        }
-
-        const { eq, confidence } = this._eqEngine.getCurrentEQ();
-        const eqPercent = Math.round(eq * 100);
-        const emoji = this._getEQEmoji(eq, confidence);
-        const action = this._getRecommendedAction(eq, confidence);
-        const actionIcon = this._getActionIcon(action);
-
-        this._debugStatusBarItem.text = `${emoji} EQ: ${eqPercent}% ${actionIcon}`;
-        this._debugStatusBarItem.tooltip = this._buildDebugTooltip(eq, confidence);
-        this._debugStatusBarItem.backgroundColor = this._getEQBackground(eq, confidence);
-    }
-
-    private _getEQEmoji(eq: number, confidence: EQConfidence): string {
-        if (confidence === 'insufficient') {
-            return '$(circle-outline)';
-        }
-        if (eq < 0.15) {
-            return '$(pass-filled)';
-        }
-        if (eq < 0.35) {
-            return '$(circle-filled)';
-        }
-        if (eq < 0.60) {
-            return '$(warning)';
-        }
-        if (eq < 0.80) {
-            return '$(flame)';
-        }
-        return '$(alert)';
-    }
-
-    private _getActionIcon(action: string): string {
-        switch (action) {
-            case 'subtle': return '$(lightbulb)';
-            case 'notification': return '$(bell)';
-            case 'proactive': return '$(megaphone)';
-            default: return '';
-        }
-    }
-
-    private _getEQBackground(eq: number, confidence: EQConfidence): vscode.ThemeColor | undefined {
-        if (confidence === 'insufficient') {
-            return undefined;
-        }
-        if (eq < 0.35) {
-            return undefined;
-        }
-        if (eq < 0.60) {
-            return new vscode.ThemeColor('statusBarItem.warningBackground');
-        }
-        return new vscode.ThemeColor('statusBarItem.errorBackground');
-    }
-
-    private _buildDebugTooltip(eq: number, confidence: EQConfidence): string {
-        const state = this._eqEngine.getState();
-        const action = this._getRecommendedAction(eq, confidence);
-        const adaptive = this._adaptiveCadence.getState();
-
-        const lines: string[] = [
-            'Artemis Telemetry Debug (EQ)',
-            '━━━━━━━━━━━━━━━━━━━━━━━━',
-            '',
-            `EQ: ${(eq * 100).toFixed(1)}%`,
-            `Confidence: ${confidence}`,
-            `Recommended Action: ${action}`,
-            `Snapshots: ${state.snapshots.length}`,
-            `Pairs: ${state.pairCount}`,
-            '',
-            '── Adaptive Cadence ──',
-            `   Idle ignores: ${adaptive.ignoreCounts['idle']}`,
-            `   Selection ignores: ${adaptive.ignoreCounts['selection-maintained']}`,
-            `   Idle threshold: ${this._adaptiveCadence.getIdleThreshold() / 1000}s`,
-            `   Selection threshold: ${this._adaptiveCadence.getSelectionThreshold() / 1000}s`,
-            '',
-            '── Activity ──',
-            `   Pattern: ${this._inactivityService.getCurrentPattern()}`,
-            `   Time since edit: ${Math.round(this._inactivityService.getTimeSinceLastEdit() / 1000)}s`,
-            `   Thrashing: ${this._thrashingDetector.getThrashingScore()}/100`,
-            '',
-            '━━━━━━━━━━━━━━━━━━━━━━━━',
-            '$(info) Click for detailed view',
-        ];
-        return lines.join('\n');
-    }
-
     /**
-     * Show detailed EQ dialog (called from command).
+     * Show detailed EQ dialog (called from command). Delegates to DebugDashboard.
      */
     public async showStruggleScoreDialog(): Promise<void> {
-        const { eq, confidence } = this._eqEngine.getCurrentEQ();
-        const state = this._eqEngine.getState();
-        const action = this._getRecommendedAction(eq, confidence);
-
-        this._logCurrentState();
-        this._outputChannel.show(true);
-
-        const items: vscode.QuickPickItem[] = [
-            {
-                label: `$(graph) EQ: ${(eq * 100).toFixed(1)}%`,
-                description: `Action: ${action}`,
-                detail: `Confidence: ${confidence}, ${state.pairCount} pairs`
-            },
-            { label: '', kind: vscode.QuickPickItemKind.Separator },
-            {
-                label: `$(beaker) Snapshots: ${state.snapshots.length}`,
-                description: `${state.pairCount} scored pairs`,
-            },
-            {
-                label: `$(watch) Activity: ${this._inactivityService.getCurrentPattern()}`,
-                description: `Time since edit: ${Math.round(this._inactivityService.getTimeSinceLastEdit() / 1000)}s`,
-            },
-            {
-                label: `$(cloud) Build Failures: ${this._buildTracker.getConsecutiveFailures()}`,
-                description: 'Consecutive server build failures',
-            },
-            { label: '', kind: vscode.QuickPickItemKind.Separator },
-            {
-                label: '$(output) Show Output Channel',
-                description: 'View detailed telemetry logs'
-            },
-            {
-                label: '$(refresh) Refresh',
-                description: 'Recalculate EQ'
-            }
-        ];
-
-        const selection = await vscode.window.showQuickPick(items, {
-            title: 'Artemis Telemetry — Error Quotient',
-            placeHolder: 'Current EQ-based struggle detection metrics',
-        });
-
-        if (selection?.label === '$(output) Show Output Channel') {
-            this._outputChannel.show();
-        } else if (selection?.label === '$(refresh) Refresh') {
-            await this.showStruggleScoreDialog();
-        }
+        await this._debugDashboard.showStruggleScoreDialog();
     }
 
     // ==================== Logging ====================
@@ -650,33 +498,4 @@ export class TelemetryManager implements vscode.Disposable, WebSocketMessageHand
         logger.telemetry(message);
     }
 
-    private _logCurrentState(): void {
-        const { eq, confidence } = this._eqEngine.getCurrentEQ();
-        const state = this._eqEngine.getState();
-        const pattern = this._inactivityService.getCurrentPattern();
-        const thrashing = this._thrashingDetector.getThrashingScore();
-
-        this._outputChannel.appendLine('');
-        this._outputChannel.appendLine('═══════════════════════════════════════');
-        this._outputChannel.appendLine('       TELEMETRY STATE (EQ SYSTEM)');
-        this._outputChannel.appendLine('═══════════════════════════════════════');
-        this._outputChannel.appendLine(`Time: ${new Date().toLocaleString()}`);
-        this._outputChannel.appendLine('');
-        this._outputChannel.appendLine('EQ METRICS');
-        this._outputChannel.appendLine(`   EQ: ${(eq * 100).toFixed(1)}%`);
-        this._outputChannel.appendLine(`   Confidence: ${confidence}`);
-        this._outputChannel.appendLine(`   Snapshots: ${state.snapshots.length}`);
-        this._outputChannel.appendLine(`   Pairs: ${state.pairCount}`);
-        this._outputChannel.appendLine(`   Action: ${this._getRecommendedAction(eq, confidence)}`);
-        this._outputChannel.appendLine('');
-        this._outputChannel.appendLine('ACTIVITY');
-        this._outputChannel.appendLine(`   Pattern: ${pattern}`);
-        this._outputChannel.appendLine(`   Time since edit: ${Math.round(this._inactivityService.getTimeSinceLastEdit() / 1000)}s`);
-        this._outputChannel.appendLine(`   Thrashing score: ${thrashing}/100`);
-        this._outputChannel.appendLine('');
-        this._outputChannel.appendLine('SERVER');
-        this._outputChannel.appendLine(`   Consecutive build failures: ${this._buildTracker.getConsecutiveFailures()}`);
-        this._outputChannel.appendLine('═══════════════════════════════════════');
-        this._outputChannel.appendLine('');
-    }
 }

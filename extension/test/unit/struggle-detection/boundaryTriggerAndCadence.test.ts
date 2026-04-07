@@ -19,6 +19,15 @@ import { AdaptiveCadence } from '../../../src/extension/services/telemetry/inter
 import { TriggerType, DEFAULT_TRIGGER_CONFIG } from '../../../src/extension/services/telemetry/types';
 
 // ============================================================================
+// Test Subclass — exposes protected methods for direct invocation in tests
+// ============================================================================
+
+class TestableInactivityService extends InactivityService {
+    public recordActivity(): void { this._recordActivity(); }
+    public recordWeakActivity(): void { this._recordWeakActivity(); }
+}
+
+// ============================================================================
 // Mock Helpers
 // ============================================================================
 
@@ -172,10 +181,10 @@ suite('Boundary Trigger & Cadence Fixes', () => {
 
     suite('Fix 2: Idle-Definition — getTimeSinceLastActivity()', () => {
 
-        let inactivityService: InactivityService;
+        let inactivityService: TestableInactivityService;
 
         setup(() => {
-            inactivityService = new InactivityService();
+            inactivityService = new TestableInactivityService();
         });
 
         teardown(() => {
@@ -184,14 +193,14 @@ suite('Boundary Trigger & Cadence Fixes', () => {
 
         test('getTimeSinceLastActivity() returns ~0 after weak activity (cursor move)', () => {
             clock.tick(10000);
-            inactivityService._testRecordWeakActivity();
+            inactivityService.recordWeakActivity();
 
             const timeSinceActivity = inactivityService.getTimeSinceLastActivity();
             assert.ok(timeSinceActivity < 100, `Expected ~0ms, got ${timeSinceActivity}ms`);
         });
 
         test('getTimeSinceLastEdit() unchanged after cursor move (no edit)', () => {
-            inactivityService._testRecordActivity();
+            inactivityService.recordActivity();
             clock.tick(5000);
 
             const timeSinceEdit = inactivityService.getTimeSinceLastEdit();
@@ -204,9 +213,9 @@ suite('Boundary Trigger & Cadence Fixes', () => {
         });
 
         test('getTimeSinceLastActivity() uses max of edit and weak timestamps', () => {
-            inactivityService._testRecordActivity();
+            inactivityService.recordActivity();
             clock.tick(3000);
-            inactivityService._testRecordWeakActivity();
+            inactivityService.recordWeakActivity();
 
             const timeSinceActivity = inactivityService.getTimeSinceLastActivity();
             assert.ok(timeSinceActivity < 100, `After weak activity, expected ~0ms, got ${timeSinceActivity}ms`);
@@ -216,11 +225,11 @@ suite('Boundary Trigger & Cadence Fixes', () => {
             let resumeCount = 0;
             inactivityService.onDidResumeActivity(() => resumeCount++);
 
-            inactivityService._testRecordActivity();
+            inactivityService.recordActivity();
             // Go idle for >= ACTIVE threshold (30s)
             clock.tick(30_000);
             // Resume activity
-            inactivityService._testRecordActivity();
+            inactivityService.recordActivity();
 
             assert.strictEqual(resumeCount, 1, 'Should fire once on resume after idle');
         });
@@ -229,9 +238,9 @@ suite('Boundary Trigger & Cadence Fixes', () => {
             let resumeCount = 0;
             inactivityService.onDidResumeActivity(() => resumeCount++);
 
-            inactivityService._testRecordActivity();
+            inactivityService.recordActivity();
             clock.tick(10_000); // Only 10s — still "active"
-            inactivityService._testRecordActivity();
+            inactivityService.recordActivity();
 
             assert.strictEqual(resumeCount, 0, 'Should not fire when still within active window');
         });
@@ -240,9 +249,9 @@ suite('Boundary Trigger & Cadence Fixes', () => {
             let resumeCount = 0;
             inactivityService.onDidResumeActivity(() => resumeCount++);
 
-            inactivityService._testRecordActivity();
+            inactivityService.recordActivity();
             clock.tick(30_000);
-            inactivityService._testRecordWeakActivity();
+            inactivityService.recordWeakActivity();
 
             assert.strictEqual(resumeCount, 1, 'Weak activity should also trigger resume');
         });
@@ -254,13 +263,13 @@ suite('Boundary Trigger & Cadence Fixes', () => {
 
     suite('One-Shot Idle Timer', () => {
 
-        let inactivityService: InactivityService;
+        let inactivityService: TestableInactivityService;
         let adaptiveCadence: AdaptiveCadence;
         let emitter: BoundaryTriggerEmitter;
         let firedTriggers: TriggerType[];
 
         setup(() => {
-            inactivityService = new InactivityService();
+            inactivityService = new TestableInactivityService();
             adaptiveCadence = new AdaptiveCadence();
             emitter = new BoundaryTriggerEmitter(inactivityService, adaptiveCadence);
             firedTriggers = [];
@@ -274,7 +283,7 @@ suite('Boundary Trigger & Cadence Fixes', () => {
 
         test('Idle fires exactly once after threshold', () => {
             // Record activity to establish baseline
-            inactivityService._testRecordActivity();
+            inactivityService.recordActivity();
             // Advance past idle threshold (30s)
             clock.tick(DEFAULT_TRIGGER_CONFIG.IDLE_INITIAL_MS + 1);
 
@@ -283,7 +292,7 @@ suite('Boundary Trigger & Cadence Fixes', () => {
         });
 
         test('Idle does NOT fire repeatedly while user stays idle', () => {
-            inactivityService._testRecordActivity();
+            inactivityService.recordActivity();
             // Advance well past threshold — in old polling model this would fire multiple times
             clock.tick(DEFAULT_TRIGGER_CONFIG.IDLE_INITIAL_MS + 60_000);
 
@@ -292,13 +301,13 @@ suite('Boundary Trigger & Cadence Fixes', () => {
         });
 
         test('Activity during idle period delays fire until actual threshold', () => {
-            inactivityService._testRecordActivity();
+            inactivityService.recordActivity();
             // Advance 10s — timer was armed for 30s at construction
             clock.tick(10_000);
             // Activity at 10s resets the idle clock (but not the timer directly).
             // When the original timer fires at 30s, it sees only 20s of idle
             // and re-arms for the remaining 10s.
-            inactivityService._testRecordActivity();
+            inactivityService.recordActivity();
 
             // At 20s after second activity (30s from start) — timer callback
             // re-checks and sees only 20s idle → re-arms
@@ -313,7 +322,7 @@ suite('Boundary Trigger & Cadence Fixes', () => {
         });
 
         test('After idle fires: no re-fire without activity resume', () => {
-            inactivityService._testRecordActivity();
+            inactivityService.recordActivity();
             clock.tick(DEFAULT_TRIGGER_CONFIG.IDLE_INITIAL_MS + 1);
 
             // Idle fired once
@@ -326,13 +335,13 @@ suite('Boundary Trigger & Cadence Fixes', () => {
         });
 
         test('onDidResumeActivity re-arms idle timer → fires again after new idle period', () => {
-            inactivityService._testRecordActivity();
+            inactivityService.recordActivity();
             // First idle fire
             clock.tick(DEFAULT_TRIGGER_CONFIG.IDLE_INITIAL_MS + 1);
             assert.strictEqual(firedTriggers.filter(t => t === 'idle').length, 1);
 
             // User resumes activity (>= 30s idle, so resume event fires)
-            inactivityService._testRecordActivity();
+            inactivityService.recordActivity();
             // This triggers onDidResumeActivity → _armIdleTimer()
 
             // Wait for threshold again
@@ -347,10 +356,10 @@ suite('Boundary Trigger & Cadence Fixes', () => {
             assert.strictEqual(adaptiveCadence.getIdleThreshold(), 60_000);
 
             // Record activity and re-arm (simulate resume)
-            inactivityService._testRecordActivity();
+            inactivityService.recordActivity();
             // Need to go idle first (>= 30s) then resume to trigger re-arm
             clock.tick(30_000);
-            inactivityService._testRecordActivity(); // resume → re-arm with 60s threshold
+            inactivityService.recordActivity(); // resume → re-arm with 60s threshold
 
             // Wait 31s (past original 30s threshold, but below adaptive 60s)
             clock.tick(31_000);
@@ -369,7 +378,7 @@ suite('Boundary Trigger & Cadence Fixes', () => {
         });
 
         test('reset() clears idle timer and re-arms', () => {
-            inactivityService._testRecordActivity();
+            inactivityService.recordActivity();
             clock.tick(15_000); // Half of threshold
 
             emitter.reset();
@@ -902,13 +911,13 @@ suite('Boundary Trigger & Cadence Fixes', () => {
 
     suite('Fresh threshold in idle callback (Fix 1)', () => {
 
-        let inactivityService: InactivityService;
+        let inactivityService: TestableInactivityService;
         let adaptiveCadence: AdaptiveCadence;
         let emitter: BoundaryTriggerEmitter;
         let firedTriggers: TriggerType[];
 
         setup(() => {
-            inactivityService = new InactivityService();
+            inactivityService = new TestableInactivityService();
             adaptiveCadence = new AdaptiveCadence();
             emitter = new BoundaryTriggerEmitter(inactivityService, adaptiveCadence);
             firedTriggers = [];
@@ -923,7 +932,7 @@ suite('Boundary Trigger & Cadence Fixes', () => {
         test('threshold increase between arm and fire is respected', () => {
             // Timer armed at construction with 30s threshold (delay=30s).
             // Activity baseline is construction time (IS constructor sets Date.now).
-            inactivityService._testRecordActivity();
+            inactivityService.recordActivity();
 
             // Tick 15s — timer still pending (armed for 30s)
             clock.tick(15_000);
@@ -952,7 +961,7 @@ suite('Boundary Trigger & Cadence Fixes', () => {
         test('threshold decrease between arm and fire: re-arm uses new threshold', () => {
             // Set up 60s threshold, then arm via reset
             adaptiveCadence.incrementIgnoreCount('idle'); // threshold = 60s
-            inactivityService._testRecordActivity();
+            inactivityService.recordActivity();
             emitter.reset(); // clears old timer, re-arms with 60s threshold (delay=60s)
 
             clock.tick(15_000);
@@ -966,7 +975,7 @@ suite('Boundary Trigger & Cadence Fixes', () => {
 
             // Resume activity after 30s idle → onDidResumeActivity → re-arm
             // Re-arm reads current 30s threshold, alreadyIdle=0 → delay=30s
-            inactivityService._testRecordActivity();
+            inactivityService.recordActivity();
 
             // Tick 30s+1 → new timer fires using 30s threshold
             clock.tick(30_001);
@@ -1084,13 +1093,13 @@ suite('Boundary Trigger & Cadence Fixes', () => {
 
     suite('dispose() stops idle timer from firing', () => {
 
-        let inactivityService: InactivityService;
+        let inactivityService: TestableInactivityService;
         let adaptiveCadence: AdaptiveCadence;
         let emitter: BoundaryTriggerEmitter;
         let firedTriggers: TriggerType[];
 
         setup(() => {
-            inactivityService = new InactivityService();
+            inactivityService = new TestableInactivityService();
             adaptiveCadence = new AdaptiveCadence();
             emitter = new BoundaryTriggerEmitter(inactivityService, adaptiveCadence);
             firedTriggers = [];
@@ -1103,7 +1112,7 @@ suite('Boundary Trigger & Cadence Fixes', () => {
         });
 
         test('dispose prevents pending idle timer from firing', () => {
-            inactivityService._testRecordActivity();
+            inactivityService.recordActivity();
 
             clock.tick(DEFAULT_TRIGGER_CONFIG.IDLE_INITIAL_MS / 2);
             emitter.dispose();

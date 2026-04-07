@@ -3,11 +3,13 @@ import type { Annotation, RecordedEvent, EventType } from '../types';
 import { ALL_LABELS } from '../types';
 import { MARKER_COLORS, SWIM_LANE_TYPES } from '../constants';
 import { formatOffset, shortenUri } from '../utils/format';
+import { useTimelinePan } from '../hooks/useTimelinePan';
 
 interface Props {
     events: RecordedEvent[];
     sessionStartTime: number;
     xDomain: [number, number];
+    fullXDomain?: [number, number];
     annotations: Annotation[];
     enabledTypes: Set<EventType>;
     onAddAnnotation: (timestamp: number, text: string) => void;
@@ -17,6 +19,7 @@ interface Props {
     videoTimeRef?: React.RefObject<number>;
     onSeekVideo?: (timestamp: number) => void;
     videoTimeAtSessionStartSeconds?: number;
+    onZoomChange?: (domain: [number, number] | null) => void;
 }
 
 interface Bin {
@@ -164,6 +167,7 @@ export function TrackingTimeline({
     events,
     sessionStartTime,
     xDomain,
+    fullXDomain,
     annotations,
     enabledTypes,
     onAddAnnotation,
@@ -173,6 +177,7 @@ export function TrackingTimeline({
     videoTimeRef,
     onSeekVideo,
     videoTimeAtSessionStartSeconds,
+    onZoomChange,
 }: Props) {
     const svgRef = useRef<SVGSVGElement>(null);
     const containerRef = useRef<HTMLDivElement>(null);
@@ -185,6 +190,9 @@ export function TrackingTimeline({
     const [editText, setEditText] = useState('');
     const [annotateTimestamp, setAnnotateTimestamp] = useState<number | null>(null);
     const [annotateText, setAnnotateText] = useState('');
+
+    // Drag-to-pan (shared hook)
+    const { handlePanStart, isZoomed } = useTimelinePan({ xDomain, fullXDomain, svgWidth, onZoomChange });
 
     // Measure SVG container width (not the outer wrapper which includes the label column)
     useEffect(() => {
@@ -280,9 +288,9 @@ export function TrackingTimeline({
         });
     }, []);
 
-    // Double-click on SVG background → seek video
-    const handleSvgDoubleClick = useCallback((e: React.MouseEvent) => {
-        if (!onSeekVideo || !svgContainerRef.current) return;
+    // Shift+Click on SVG background → seek video
+    const handleSvgClick = useCallback((e: React.MouseEvent) => {
+        if (!onSeekVideo || !e.shiftKey || !svgContainerRef.current) return;
         const rect = svgContainerRef.current.getBoundingClientRect();
         const x = e.clientX - rect.left;
         const [min, max] = xDomain;
@@ -337,8 +345,9 @@ export function TrackingTimeline({
                         ref={svgRef}
                         width="100%"
                         height={totalHeight}
-                        style={{ display: 'block' }}
-                        onDoubleClick={handleSvgDoubleClick}
+                        style={{ display: 'block', cursor: isZoomed ? 'grab' : undefined }}
+                        onClick={handleSvgClick}
+                        onMouseDown={handlePanStart}
                     >
                         {/* Lane backgrounds (alternating) */}
                         {visibleLanes.map((type, i) => (
@@ -584,10 +593,12 @@ export function TrackingTimeline({
                 </div>
             </div>
 
-            {/* Hint for double-click seek */}
-            {onSeekVideo && (
-                <p className="timeline-seek-hint">Double-click timeline to jump video</p>
-            )}
+            {/* Hints */}
+            <p className="timeline-seek-hint">
+                {isZoomed && 'Drag to pan'}
+                {isZoomed && onSeekVideo && ' \u00b7 '}
+                {onSeekVideo && 'Shift+Click to jump video'}
+            </p>
 
             {/* Annotate from dot click */}
             {annotateTimestamp !== null && (

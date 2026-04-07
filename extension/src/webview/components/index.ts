@@ -71,6 +71,9 @@ export type { ErrorMessageProps } from './ErrorMessage';
 export { EmptyState } from './EmptyState';
 export type { EmptyStateProps } from './EmptyState';
 
+export { StatusMessage } from './StatusMessage';
+export type { StatusMessageProps, StatusType } from './StatusMessage';
+
 export { PageHeader } from './PageHeader';
 export type { PageHeaderProps } from './PageHeader';
 
