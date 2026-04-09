@@ -64,9 +64,9 @@ export function getReactWebviewHtml(webview: vscode.Webview, extensionUri: vscod
          font-src cspSource           — webview-origin fonts (KaTeX fonts in dist/)
          connect-src omitted          — no XHR/fetch from webview; all comms via postMessage
     -->
-    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src ${webview.cspSource} https:; font-src ${webview.cspSource}; style-src ${webview.cspSource} 'nonce-${nonce}'; script-src 'nonce-${nonce}';">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src ${webview.cspSource} https:; font-src ${webview.cspSource}; style-src ${webview.cspSource} 'unsafe-inline'; script-src 'nonce-${nonce}';">
     <title>Artemis</title>
-    <link rel="stylesheet" type="text/css" href="${reactStyleUri}" nonce="${nonce}">
+    <link rel="stylesheet" type="text/css" href="${reactStyleUri}">
 </head>
 <body>
     <div id="root"${dataViewAttr} data-logo-uri="${logoUri}" data-iris-logo-uri="${irisLogoUri}"></div>

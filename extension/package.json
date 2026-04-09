@@ -33,7 +33,8 @@
     "workspace"
   ],
   "activationEvents": [
-    "onStartupFinished"
+    "onStartupFinished",
+    "onView:artemis.loginView"
   ],
   "main": "./dist/extension.js",
   "browser": "./dist/extension.js",
@@ -131,7 +132,7 @@
           "id": "artemis.loginView",
           "name": "Artemis",
           "icon": "media/artemis-logo.png",
-          "when": "!iris:managedEnvironment || !iris:authenticated"
+          "when": "iris:extensionReady"
         }
       ],
       "iris-chat": [
