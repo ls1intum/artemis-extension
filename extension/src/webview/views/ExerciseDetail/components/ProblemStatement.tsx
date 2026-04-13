@@ -1,6 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import katex from 'katex';
-import 'katex/dist/katex.min.css';
 import { Container } from '../../../components/Container';
 import { Button } from '../../../components/Button';
 import { Skeleton } from '../../../components/Skeleton/Skeleton';
@@ -16,7 +15,7 @@ const SSR_TIMEOUT_MS = 10_000;
 function stripKatexTags(html: string): string {
     return html
         .replace(/<script[^>]*katex[^>]*><\/script>/gi, '')
-        .replace(/<script>[^<]*katex[^<]*<\/script>/gi, '')
+        .replace(/<script>[\s\S]*?katex[\s\S]*?<\/script>/gi, '')
         .replace(/<link[^>]*katex[^>]*>/gi, '');
 }
 
@@ -70,10 +69,10 @@ export function ProblemStatement({
     const contentRef = useRef<HTMLDivElement>(null);
     const [timedOut, setTimedOut] = useState(false);
 
-    // Extract body content and strip server KaTeX tags
-    const bodyHtml = serverRenderedHtml
-        ? stripKatexTags(extractBodyContent(serverRenderedHtml))
-        : undefined;
+    const bodyHtml = useMemo(
+        () => serverRenderedHtml ? stripKatexTags(extractBodyContent(serverRenderedHtml)) : undefined,
+        [serverRenderedHtml]
+    );
 
     // After HTML injection, render KaTeX formulas and execute interactive script
     useEffect(() => {
