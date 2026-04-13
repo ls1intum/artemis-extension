@@ -4,6 +4,7 @@ export interface VideoPlayerHandle {
     seekToSessionTimestamp(ts: number): void;
     getCurrentSessionTimestamp(): number;
     isPaused(): boolean;
+    showSubtitles(): void;
 }
 
 interface Props {
@@ -11,6 +12,7 @@ interface Props {
     sessionEndTime: number;
     videoTimeAtSessionStartSeconds: number;
     videoUrl: string;
+    subtitlesUrl?: string | null;
     videoTimeRef: React.RefObject<number>;
     onPlayStateChange: (isPlaying: boolean) => void;
 }
@@ -23,7 +25,7 @@ function formatVideoTime(seconds: number): string {
 }
 
 export const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer(
-    { sessionStartTime, sessionEndTime, videoTimeAtSessionStartSeconds, videoUrl, videoTimeRef, onPlayStateChange },
+    { sessionStartTime, sessionEndTime, videoTimeAtSessionStartSeconds, videoUrl, subtitlesUrl, videoTimeRef, onPlayStateChange },
     ref,
 ) {
     const videoRef = useRef<HTMLVideoElement>(null);
@@ -60,6 +62,18 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPl
         },
         isPaused() {
             return videoRef.current?.paused ?? true;
+        },
+        showSubtitles() {
+            const video = videoRef.current;
+            if (!video) return;
+            // Force-activate the subtitles track. `default` attribute is only a hint
+            // at first paint; switching it on after a new upload needs explicit mode = 'showing'.
+            for (let i = 0; i < video.textTracks.length; i++) {
+                const t = video.textTracks[i];
+                if (t.kind === 'subtitles' || t.kind === 'captions') {
+                    t.mode = 'showing';
+                }
+            }
         },
     }), [sessionToVideoTime, videoTimeToSession]);
 
@@ -194,7 +208,18 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPl
                 onPlay={handlePlayPause}
                 onPause={handlePlayPause}
                 preload="metadata"
-            />
+            >
+                {subtitlesUrl && (
+                    <track
+                        key={subtitlesUrl}
+                        kind="subtitles"
+                        src={subtitlesUrl}
+                        srcLang="und"
+                        label="Transcript"
+                        default
+                    />
+                )}
+            </video>
             <div className="video-controls">
                 <button className="video-play-btn" onClick={togglePlay} title={playing ? 'Pause' : 'Play'}>
                     {playing ? '\u23F8' : '\u25B6'}

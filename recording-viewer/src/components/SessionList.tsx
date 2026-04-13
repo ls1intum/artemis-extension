@@ -7,6 +7,7 @@ interface SessionEntry {
     metadata: SessionMetadata | null;
     hasReplay: boolean;
     hasVideo: boolean;
+    hasSubtitles: boolean;
 }
 
 interface SessionListResponse {
@@ -143,6 +144,7 @@ export function SessionList({ onSelectSession }: Props) {
                     <span>Events</span>
                     <span>Replay</span>
                     <span>Video</span>
+                    <span>Subtitles</span>
                     <span></span>
                 </div>
                 {data.sessions.map(entry => (
@@ -182,6 +184,9 @@ export function SessionList({ onSelectSession }: Props) {
                         </span>
                         <span className={`replay-indicator ${entry.hasVideo ? 'has-replay' : ''}`}>
                             {entry.hasVideo ? 'Yes' : '—'}
+                        </span>
+                        <span className={`replay-indicator ${entry.hasSubtitles ? 'has-replay' : ''}`}>
+                            {entry.hasSubtitles ? 'Yes' : '—'}
                         </span>
                         <span className="session-actions">
                             <button
