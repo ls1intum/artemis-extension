@@ -8,4 +8,5 @@ export type { IrisServiceDeps } from './sessionSyncUtils';
 export { extractIrisMessageContent } from './messageUtils';
 export { IRIS_CHAT_HELP_MARKDOWN } from './helpContent';
 export { ContextStore, type ActiveContextChangeEvent } from './contextStore';
+export { SessionManager, type SessionState } from './sessionManager';
 export type { ChatContextReason } from './chatContextManager';

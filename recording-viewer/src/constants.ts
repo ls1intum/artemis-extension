@@ -39,8 +39,8 @@ export const ALL_EVENT_TYPES = [
 type _MissingEventTypes = Exclude<EventType, (typeof ALL_EVENT_TYPES)[number]>;
 void (true satisfies (_MissingEventTypes extends never ? true : never));
 
-/** Event types displayed as swim lanes (excludes EQ/intervention types handled by SessionTimeline) */
+/** Event types displayed as swim lanes (excludes engine state / intervention handled separately) */
 export const SWIM_LANE_TYPES = ALL_EVENT_TYPES.filter(
-    (t): t is Exclude<EventType, 'eqSnapshot' | 'eqEngineState' | 'intervention'> =>
-        t !== 'eqSnapshot' && t !== 'eqEngineState' && t !== 'intervention'
+    (t): t is Exclude<EventType, 'eqEngineState' | 'intervention'> =>
+        t !== 'eqEngineState' && t !== 'intervention'
 );

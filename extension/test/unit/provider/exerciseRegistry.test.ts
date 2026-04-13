@@ -57,6 +57,55 @@ suite('ExerciseRegistry Test Suite', () => {
         assert.strictEqual(exercises[0].courseId, 200);
     });
 
+    // --- participationId reverse-lookup (NEW-2 fix) ---
+
+    test('getExerciseIdByParticipation returns exerciseId for registered participation', () => {
+        registry.registerExercise(1, 'Ex1', 'https://git.example.com/ex1', 'ex1', 100, 5001);
+        assert.strictEqual(registry.getExerciseIdByParticipation(5001), 1);
+    });
+
+    test('getExerciseIdByParticipation returns undefined for unknown participation', () => {
+        registry.registerExercise(1, 'Ex1', 'https://git.example.com/ex1', 'ex1', 100, 5001);
+        assert.strictEqual(registry.getExerciseIdByParticipation(9999), undefined);
+    });
+
+    test('getExerciseIdByParticipation returns undefined when exercise registered without participationId', () => {
+        registry.registerExercise(1, 'Ex1', 'https://git.example.com/ex1', 'ex1', 100);
+        assert.strictEqual(registry.getExerciseIdByParticipation(5001), undefined);
+    });
+
+    test('re-registering same exercise with new participationId removes old reverse mapping', () => {
+        registry.registerExercise(1, 'Ex1', 'https://git.example.com/ex1', 'ex1', 100, 5001);
+        registry.registerExercise(1, 'Ex1', 'https://git.example.com/ex1', 'ex1', 100, 5002);
+        assert.strictEqual(registry.getExerciseIdByParticipation(5001), undefined, 'old participation must no longer resolve');
+        assert.strictEqual(registry.getExerciseIdByParticipation(5002), 1, 'new participation must resolve');
+    });
+
+    test('clearCourse removes participation reverse mappings for that course', () => {
+        registry.registerExercise(1, 'Ex1', 'https://git.example.com/ex1', 'ex1', 100, 5001);
+        registry.registerExercise(2, 'Ex2', 'https://git.example.com/ex2', 'ex2', 200, 5002);
+        registry.clearCourse(100);
+        assert.strictEqual(registry.getExerciseIdByParticipation(5001), undefined, 'cleared course participation must not resolve');
+        assert.strictEqual(registry.getExerciseIdByParticipation(5002), 2, 'other course participation must still resolve');
+    });
+
+    test('registerFromCourseData extracts participationId from studentParticipations', () => {
+        const courseData = {
+            course: {
+                id: 100,
+                exercises: [
+                    {
+                        id: 1,
+                        title: 'Ex1',
+                        studentParticipations: [{ id: 5001, repositoryUri: 'https://git.example.com/ex1' }]
+                    }
+                ]
+            }
+        };
+        registry.registerFromCourseData(courseData);
+        assert.strictEqual(registry.getExerciseIdByParticipation(5001), 1);
+    });
+
     test('should replace course exercises when re-registering from fresh course data', () => {
         // Initial registration
         const courseData1 = {

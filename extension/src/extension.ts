@@ -45,7 +45,10 @@ export async function activate(context: vscode.ExtensionContext) {
 	const artemisApiService = new ArtemisApiService(authManager);
 	const artemisWebsocketService = new ArtemisWebsocketService(authManager);
 	const buildErrorCodeLensProvider = new BuildErrorCodeLensProvider();
-	const telemetryManager = new TelemetryManager();
+	// Created early because TelemetryManager needs it for participationId → exerciseId
+	// resolution when filtering WebSocket build results (prevents cross-exercise contamination).
+	const exerciseRegistry = new ExerciseRegistry();
+	const telemetryManager = new TelemetryManager(exerciseRegistry);
 	activeTelemetryManager = telemetryManager;
 
 	telemetryManager.setWebsocketService(artemisWebsocketService);
@@ -106,7 +109,7 @@ export async function activate(context: vscode.ExtensionContext) {
 	});
 
 	// ── Registries & providers ───────────────────────────────────────
-	const exerciseRegistry = new ExerciseRegistry();
+	// Note: exerciseRegistry is created earlier (above) so TelemetryManager can use it.
 	const courseDataCache = new CourseDataCache(artemisApiService);
 	context.subscriptions.push(courseDataCache);
 	const providerRegistry = createProviderRegistry();
@@ -147,6 +150,12 @@ export async function activate(context: vscode.ExtensionContext) {
 
 	providerRegistry.setChatWebviewProvider(chatWebviewProvider);
 	context.subscriptions.push(telemetryManager);
+
+	// Signal that webview providers are registered.
+	// In Theia, views with a `when` clause are only resolved when the clause
+	// transitions false→true. This must fire AFTER provider registration
+	// so resolveWebviewView() has a handler to call.
+	await vscode.commands.executeCommand('setContext', 'iris:extensionReady', true);
 
 	// Wire 401 handler: environment-aware auth teardown
 	if (theiaEnv.isTheia) {
@@ -246,6 +255,7 @@ export async function activate(context: vscode.ExtensionContext) {
 			logger.error('Theia auto-clone failed', LogCategory.GENERAL, error);
 		});
 	}
+
 }
 
 export function deactivate() {

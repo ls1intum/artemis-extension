@@ -352,6 +352,7 @@ export class ViewInitDataService {
             triggerType: ctx?.triggerType,
             recommendedAction: ctx?.recommendedAction ?? 'none',
             isEnabled: telemetry?.isEnabled() ?? false,
+            developerMode: this._isDeveloperMode(),
         });
     }
 

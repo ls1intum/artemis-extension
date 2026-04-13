@@ -6,7 +6,7 @@ import type { IProviderRegistry } from '../services/ui';
 import type { TelemetryManager } from '../services/telemetry';
 import type { ArtemisWebviewProvider, ChatWebviewProvider } from '../provider';
 import { logger, LogCategory } from '../services/loggingService';
-import { processPlantUml, normalizeRelativePath, extractErrorMessage } from '../utils';
+import { processPlantUml, normalizeRelativePath, extractErrorMessage, VSCODE_CONFIG } from '../utils';
 import { executeReplayCommand } from '../services/telemetry/replay';
 
 // ── Individual command registrations ─────────────────────────────────
@@ -19,11 +19,15 @@ function registerLoginCommand(): vscode.Disposable {
 
 function registerLogoutCommand(
     authManager: AuthManager,
+    artemisApiService: ArtemisApiService,
     updateAuthContext: (isAuthenticated: boolean) => Promise<void>,
     artemisWebviewProvider: ArtemisWebviewProvider,
 ): vscode.Disposable {
     return vscode.commands.registerCommand('artemis.logout', async () => {
         try {
+            // Best-effort server-side logout before clearing local state.
+            // Never throws — local cleanup proceeds regardless.
+            await artemisApiService.logoutFromServer();
             await authManager.clear();
             await updateAuthContext(false);
             vscode.window.showInformationMessage('Successfully logged out of Artemis');
@@ -418,6 +422,57 @@ function registerReplaySessionCommand(globalStorageUri: vscode.Uri): vscode.Disp
     });
 }
 
+function registerOpenRecordingsFolderCommand(globalStorageUri: vscode.Uri): vscode.Disposable {
+    return vscode.commands.registerCommand('artemis.openRecordingsFolder', async () => {
+        const recordingsUri = vscode.Uri.joinPath(globalStorageUri, 'recordings');
+        await vscode.commands.executeCommand('revealFileInOS', recordingsUri);
+    });
+}
+
+/**
+ * Developer-only command: copy the current raw JWT to the clipboard for use
+ * in curl/Postman based server testing. Gated on the `artemis.developerMode`
+ * setting both at the menu level (commandPalette `when` clause) and at runtime
+ * (defense-in-depth against direct invocation via `vscode.commands.executeCommand`).
+ *
+ * The full token is NEVER shown in the UI or written to logs — only a masked
+ * preview appears in the notification, and the full value lands in the clipboard.
+ */
+function registerShowJwtTokenCommand(authManager: AuthManager): vscode.Disposable {
+    return vscode.commands.registerCommand('artemis.showJwtToken', async () => {
+        const config = vscode.workspace.getConfiguration(VSCODE_CONFIG.ARTEMIS_SECTION);
+        const developerMode = config.get<boolean>(VSCODE_CONFIG.DEVELOPER_MODE_KEY, false);
+        if (!developerMode) {
+            vscode.window.showErrorMessage(
+                `Enable '${VSCODE_CONFIG.ARTEMIS_SECTION}.${VSCODE_CONFIG.DEVELOPER_MODE_KEY}' in settings to use this command.`
+            );
+            return;
+        }
+
+        const hasToken = await authManager.hasAuthToken();
+        if (!hasToken) {
+            vscode.window.showInformationMessage('Not logged in to Artemis — no JWT to show.');
+            return;
+        }
+
+        const rawJwt = await authManager.getRawJwt();
+        if (!rawJwt) {
+            vscode.window.showErrorMessage('Failed to retrieve JWT token from secret storage.');
+            logger.error('getRawJwt returned undefined despite hasAuthToken=true', LogCategory.AUTH);
+            return;
+        }
+
+        await vscode.env.clipboard.writeText(rawJwt);
+
+        const preview = `${rawJwt.substring(0, 20)}...`;
+        logger.info(`JWT copied to clipboard via developer command (preview: ${preview})`, LogCategory.AUTH);
+
+        vscode.window.showWarningMessage(
+            `JWT copied to clipboard (${preview}). Do not share, do not commit.`
+        );
+    });
+}
+
 // ── Aggregate registration ───────────────────────────────────────────
 
 export interface CommandDeps {
@@ -435,7 +490,7 @@ export interface CommandDeps {
 export function registerAllCommands(deps: CommandDeps): vscode.Disposable {
     return vscode.Disposable.from(
         registerLoginCommand(),
-        registerLogoutCommand(deps.authManager, deps.updateAuthContext, deps.artemisWebviewProvider),
+        registerLogoutCommand(deps.authManager, deps.artemisApiService, deps.updateAuthContext, deps.artemisWebviewProvider),
         registerResetIrisChatCommand(deps.chatWebviewProvider),
         registerIrisHealthCheckCommand(deps.authManager, deps.artemisApiService, deps.providerRegistry),
         registerWebSocketStatusCommand(deps.artemisWebsocketService),
@@ -445,5 +500,7 @@ export function registerAllCommands(deps: CommandDeps): vscode.Disposable {
         registerClearTrustedDomainsCommand(deps.context),
         registerStruggleScoreCommand(deps.telemetryManager),
         registerReplaySessionCommand(deps.context.globalStorageUri),
+        registerOpenRecordingsFolderCommand(deps.context.globalStorageUri),
+        registerShowJwtTokenCommand(deps.authManager),
     );
 }

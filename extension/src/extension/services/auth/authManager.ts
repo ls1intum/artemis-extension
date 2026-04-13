@@ -58,6 +58,26 @@ export class AuthManager {
     }
 
     /**
+     * Returns the raw JWT string (without any "jwt=" cookie prefix), suitable
+     * for use in a `Cookie: jwt=<value>` or `Authorization: Bearer <value>` header.
+     *
+     * Intended for developer/debug commands only — normal code paths should use
+     * `getAuthHeaders()` instead so auth-mode handling stays centralized.
+     *
+     * Returns `undefined` if not authenticated.
+     */
+    public async getRawJwt(): Promise<string | undefined> {
+        const stored = await this.getStoredToken();
+        if (!stored) {
+            return undefined;
+        }
+        // Desktop mode stores the token as "jwt=<value>" (cookie string).
+        // Theia mode stores the raw JWT directly. Strip the prefix if present.
+        const prefix = `${CONFIG.AUTH_COOKIE_NAME}=`;
+        return stored.startsWith(prefix) ? stored.substring(prefix.length) : stored;
+    }
+
+    /**
      * Returns the stored token string.
      * In Desktop mode this is a cookie string ("jwt=<token>"),
      * in Theia mode this is a raw JWT.

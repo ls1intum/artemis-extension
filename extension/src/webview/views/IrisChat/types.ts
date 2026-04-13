@@ -17,6 +17,7 @@ export interface ChatSession {
     id: string;
     artemisSessionId?: number;
     preview: string;
+    title?: string;
     messageCount: number;
     createdAt: number;
     lastActivity: number;

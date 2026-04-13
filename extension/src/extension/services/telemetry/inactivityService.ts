@@ -97,7 +97,7 @@ export class InactivityService implements vscode.Disposable, SessionResettable {
      * Record strong user activity (actual edits/saves).
      * This fully resets all inactivity timers.
      */
-    private _recordActivity(): void {
+    protected _recordActivity(): void {
         const wasIdle = this.getTimeSinceLastActivity() >= InactivityService.THRESHOLDS.ACTIVE;
         const now = Date.now();
         this._lastEditTimestamp = now;
@@ -113,11 +113,11 @@ export class InactivityService implements vscode.Disposable, SessionResettable {
      * Record weak user activity (cursor movement without editing).
      * Only prevents transition from 'active' to 'thinking'.
      * Does NOT reset deeper inactivity states.
-     * 
+     *
      * Rationale: Cursor movement during confusion/struggle often indicates
      * the student is reading/scrolling without making progress, not productive work.
      */
-    private _recordWeakActivity(): void {
+    protected _recordWeakActivity(): void {
         const wasIdle = this.getTimeSinceLastActivity() >= InactivityService.THRESHOLDS.ACTIVE;
         this._lastWeakActivityTimestamp = Date.now();
         this._currentPattern = this._classifyPattern();
@@ -213,19 +213,4 @@ export class InactivityService implements vscode.Disposable, SessionResettable {
         this._currentPattern = 'active';
     }
 
-    /**
-     * TEST ONLY: Record activity manually (bypasses document scheme check)
-     * Used by test runner to simulate edits on untitled documents.
-     */
-    public _testRecordActivity(): void {
-        this._recordActivity();
-    }
-
-    /**
-     * TEST ONLY: Record weak activity manually (bypasses selection scheme check).
-     * Used by tests to simulate cursor movement.
-     */
-    public _testRecordWeakActivity(): void {
-        this._recordWeakActivity();
-    }
 }

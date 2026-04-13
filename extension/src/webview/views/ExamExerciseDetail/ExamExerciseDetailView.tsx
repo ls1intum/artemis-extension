@@ -23,7 +23,7 @@ import type { ExamExerciseDetailViewProps } from './types';
 import type { ExerciseType } from '../../components/exercise/ParticipationActions';
 import type { BuildState } from '../../components/exercise/BuildProgress';
 import { ExtensionMsg, postCommand, requestInit } from '../../../shared/messageContracts';
-import { determineSubmissionStatus, determineParticipationStatus } from '../../utils/exerciseStatus';
+import { determineSubmissionStatus, determineParticipationStatus, getLatestById, transformFeedbacksToTestCases } from '../../utils/exerciseStatus';
 import styles from './ExamExerciseDetailView.module.css';
 
 export function ExamExerciseDetailView({ vscodeApi }: ExamExerciseDetailViewProps) {
@@ -127,10 +127,8 @@ export function ExamExerciseDetailView({ vscodeApi }: ExamExerciseDetailViewProp
 
     // Extract submission and result data
     // In Artemis, "latest" = highest ID; results live on submission.results
-    const latestSubmission = [...(participation?.submissions ?? [])]
-        .sort((a, b) => (b.id ?? 0) - (a.id ?? 0))[0];
-    const latestResult = [...(latestSubmission?.results ?? [])]
-        .sort((a, b) => (b.id ?? 0) - (a.id ?? 0))[0];
+    const latestSubmission = getLatestById(participation?.submissions);
+    const latestResult = getLatestById(latestSubmission?.results);
 
     // Use Artemis-provided test case counts when available, fall back to feedbacks
     const buildFailed = latestSubmission?.buildFailed ?? false;
@@ -141,14 +139,7 @@ export function ExamExerciseDetailView({ vscodeApi }: ExamExerciseDetailViewProp
     // Build test cases from feedbacks for detailed display
     // The result details API returns feedbacks with testCase objects containing testName
     const feedbacks = latestResult?.feedbacks ?? [];
-    const testFeedbacks = feedbacks.filter((f: { type?: string; text?: string; testCase?: { testName?: string } }) =>
-        f.testCase?.testName || ((!f.type || f.type === 'AUTOMATIC') && f.text && !f.text.startsWith('SCAFeedbackIdentifier:'))
-    );
-    const testCases = testFeedbacks.map((f: { text?: string; positive?: boolean; detailText?: string; testCase?: { testName?: string } }) => ({
-        name: f.testCase?.testName ?? f.text ?? 'Test',
-        passed: f.positive ?? false,
-        message: f.detailText,
-    }));
+    const testCases = transformFeedbacksToTestCases(feedbacks);
 
     // result.score is already a percentage (0-100) in Artemis
     const scorePercentage = latestResult?.score ?? 0;
@@ -264,18 +255,8 @@ export function ExamExerciseDetailView({ vscodeApi }: ExamExerciseDetailViewProp
             )}
 
             {/* Test Results (if available) */}
-            {latestResult?.feedbacks && latestResult.feedbacks.length > 0 && (
-                <TestResults
-                    testCases={latestResult.feedbacks.map((feedback: {
-                        text?: string;
-                        positive?: boolean;
-                        detailText?: string;
-                    }) => ({
-                        name: feedback.text || 'Test',
-                        passed: feedback.positive || false,
-                        message: feedback.detailText,
-                    }))}
-                />
+            {testCases.length > 0 && (
+                <TestResults testCases={testCases} />
             )}
         </div>
     );

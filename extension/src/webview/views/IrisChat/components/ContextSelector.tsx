@@ -1,5 +1,7 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useRef } from 'react';
 import clsx from 'clsx';
+import { useClickOutside } from '../../../hooks/useClickOutside';
+import { formatRelativeTime } from '../../../utils/formatRelativeTime';
 import FolderGit2 from 'lucide-react/dist/esm/icons/folder-git-2';
 import type { ChatContext, ChatSession, ContextItem } from '../types';
 import type { ChatContextType } from '../../../../shared/types/context';
@@ -41,22 +43,10 @@ export function ContextSelector({
     const containerRef = useRef<HTMLDivElement>(null);
 
     // Close dropdown when clicking outside
-    useEffect(() => {
-        const handleClickOutside = (event: MouseEvent) => {
-            if (
-                containerRef.current &&
-                !containerRef.current.contains(event.target as Node)
-            ) {
-                setIsOpen(false);
-                setSearchQuery('');
-            }
-        };
-
-        if (isOpen) {
-            document.addEventListener('mousedown', handleClickOutside);
-            return () => document.removeEventListener('mousedown', handleClickOutside);
-        }
-    }, [isOpen]);
+    useClickOutside(containerRef, isOpen, () => {
+        setIsOpen(false);
+        setSearchQuery('');
+    });
 
     const toggleDropdown = () => {
         setIsOpen(!isOpen);
@@ -108,9 +98,10 @@ export function ContextSelector({
     // Check if new session should be disabled (no messages in current session)
     const canCreateNewSession = sessions.length > 0 && sessions.some(s => s.messageCount > 0);
 
-    const messageCount = context
-        ? sessions.find((s) => s.id === activeSessionId)?.messageCount || 0
-        : 0;
+    const activeSession = context
+        ? sessions.find((s) => s.id === activeSessionId)
+        : undefined;
+    const messageCount = activeSession?.messageCount || 0;
 
     return (
         <div ref={containerRef} className={styles.container}>
@@ -139,10 +130,10 @@ export function ContextSelector({
                     )}
                     <div className={styles.textContainer}>
                         <span className={styles.title}>
-                            {context?.title || 'Select context'}
+                            {activeSession?.title || 'New conversation'}
                         </span>
                         <span className={styles.subtitle}>
-                            {messageCount} message{messageCount !== 1 ? 's' : ''}
+                            {context?.title ? `${context.title} · ${messageCount} msg${messageCount !== 1 ? 's' : ''}` : 'Select context'}
                         </span>
                     </div>
                 </div>
@@ -287,11 +278,11 @@ export function ContextSelector({
                                                 </svg>
                                                 <div className={styles.sessionContent}>
                                                     <span className={styles.sessionPreview}>
-                                                        {session.preview}
+                                                        {session.title || session.preview}
                                                     </span>
                                                     <span className={styles.sessionMeta}>
                                                         {session.messageCount} messages •{' '}
-                                                        {formatTime(session.lastActivity)}
+                                                        {formatRelativeTime(session.lastActivity)}
                                                     </span>
                                                 </div>
                                                 {session.id === activeSessionId && (
@@ -370,18 +361,4 @@ export function ContextSelector({
             )}
         </div>
     );
-}
-
-function formatTime(timestamp: number): string {
-    const now = Date.now();
-    const diff = now - timestamp;
-    const seconds = Math.floor(diff / 1000);
-    const minutes = Math.floor(seconds / 60);
-    const hours = Math.floor(minutes / 60);
-    const days = Math.floor(hours / 24);
-
-    if (seconds < 60) {return 'just now';}
-    if (minutes < 60) {return `${minutes}m ago`;}
-    if (hours < 24) {return `${hours}h ago`;}
-    return `${days}d ago`;
 }

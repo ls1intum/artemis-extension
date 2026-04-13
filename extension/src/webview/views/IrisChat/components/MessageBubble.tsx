@@ -3,7 +3,8 @@ import { memo, useState, useMemo } from 'react';
 import { Streamdown } from 'streamdown';
 import clsx from 'clsx';
 import { StreamingMessage } from './StreamingMessage';
-import { CodeBlock } from './CodeBlock';
+import { useStreamdownConfig } from '../../../hooks/useStreamdownConfig';
+import { formatRelativeTime } from '../../../utils/formatRelativeTime';
 import type { ChatMessage } from '../types';
 import styles from './MessageBubble.module.css';
 
@@ -23,21 +24,10 @@ function MessageBubbleComponent({
     const [hovering, setHovering] = useState(false);
     const isAssistant = message.role === 'assistant';
     const isUser = message.role === 'user';
+    const streamdownComponents = useStreamdownConfig();
 
     // Compute relative timestamp
-    const relativeTime = useMemo(() => {
-        const now = Date.now();
-        const diff = now - message.timestamp;
-        const seconds = Math.floor(diff / 1000);
-        const minutes = Math.floor(seconds / 60);
-        const hours = Math.floor(minutes / 60);
-        const days = Math.floor(hours / 24);
-
-        if (seconds < 60) {return 'just now';}
-        if (minutes < 60) {return `${minutes} min ago`;}
-        if (hours < 24) {return `${hours}h ago`;}
-        return `${days}d ago`;
-    }, [message.timestamp]);
+    const relativeTime = useMemo(() => formatRelativeTime(message.timestamp), [message.timestamp]);
 
     const handleFeedback = (feedback: 'positive' | 'negative') => {
         if (message.id !== undefined) {
@@ -83,26 +73,7 @@ function MessageBubbleComponent({
                     <div className={styles.content}>
                         <Streamdown
                             mode="static"
-                            components={{
-                                code: ({ node, className, children, ...props }: { node?: unknown; className?: string; children?: React.ReactNode; [key: string]: unknown }) => {
-                                    const match = /language-(\w+)/.exec(className || '');
-                                    const language = match ? match[1] : undefined;
-
-                                    if (language || className?.includes('language-')) {
-                                        return (
-                                            <CodeBlock language={language}>
-                                                {String(children).replace(/\n$/, '')}
-                                            </CodeBlock>
-                                        );
-                                    }
-
-                                    return (
-                                        <code className={className} {...props}>
-                                            {children}
-                                        </code>
-                                    );
-                                },
-                            }}
+                            components={streamdownComponents}
                         >
                             {message.content}
                         </Streamdown>

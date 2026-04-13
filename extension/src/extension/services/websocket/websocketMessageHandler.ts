@@ -20,7 +20,8 @@ export class IrisWebSocketMessageHandler {
     constructor(
         private readonly _websocketService: ArtemisWebsocketService | undefined,
         private readonly _getIrisWebSocketSessionClient: () => IrisWebSocketSessionClient | undefined,
-        private readonly _postMessage: (message: ExtensionToWebviewMessage) => void
+        private readonly _postMessage: (message: ExtensionToWebviewMessage) => void,
+        private readonly _onSessionTitleUpdate?: (artemisSessionId: number, title: string) => void,
     ) { }
 
     public handleIrisWebSocketMessage(data: unknown): void {
@@ -31,6 +32,9 @@ export class IrisWebSocketMessageHandler {
             logger.info(`Unknown message type or format: ${JSON.stringify(data)}`, LogCategory.WEBSOCKET);
             return;
         }
+
+        // Extract sessionTitle if present (sent with both MESSAGE and STATUS payloads)
+        this._handleSessionTitle(data);
 
         // Handle different message types
         if (data.type === 'MESSAGE' && data.message) {
@@ -67,7 +71,23 @@ export class IrisWebSocketMessageHandler {
         }
     }
 
-    private _isIrisWebSocketPayload(data: unknown): data is { type: string; message?: IrisChatMessage } {
+    private _handleSessionTitle(data: Record<string, unknown>): void {
+        const sessionTitle = data['sessionTitle'];
+        if (typeof sessionTitle !== 'string' || !sessionTitle) {
+            return;
+        }
+
+        const irisSession = this._getIrisWebSocketSessionClient();
+        const artemisSessionId = irisSession?.currentSessionId;
+        if (!artemisSessionId) {
+            return;
+        }
+
+        logger.info(`Session title received: "${sessionTitle}" for session ${artemisSessionId}`, LogCategory.WEBSOCKET);
+        this._onSessionTitleUpdate?.(artemisSessionId, sessionTitle);
+    }
+
+    private _isIrisWebSocketPayload(data: unknown): data is Record<string, unknown> & { type: string; message?: IrisChatMessage } {
         return typeof data === 'object' && data !== null && 'type' in data && typeof (data as { type: unknown }).type === 'string';
     }
 

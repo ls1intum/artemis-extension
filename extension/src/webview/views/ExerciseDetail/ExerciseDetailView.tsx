@@ -24,7 +24,7 @@ import {
 import { ProblemStatement, ScoreInfo } from './components';
 import type { ExerciseType } from '../../components/exercise/ParticipationActions';
 import { ExtensionMsg, postCommand, requestInit } from '../../../shared/messageContracts';
-import { determineSubmissionStatus, determineParticipationStatus } from '../../utils/exerciseStatus';
+import { determineSubmissionStatus, determineParticipationStatus, getLatestById, transformFeedbacksToTestCases } from '../../utils/exerciseStatus';
 import { formatDate } from '../../utils/formatDate';
 import styles from './ExerciseDetailView.module.css';
 
@@ -179,11 +179,9 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
 
     // Extract submission and result data
     // In Artemis, "latest" = highest ID (not date-sorted)
-    const latestSubmission = [...(participation?.submissions ?? [])]
-        .sort((a, b) => (b.id ?? 0) - (a.id ?? 0))[0];
+    const latestSubmission = getLatestById(participation?.submissions);
     // Results live on submission.results (not on participation directly)
-    const latestResult = [...(latestSubmission?.results ?? [])]
-        .sort((a, b) => (b.id ?? 0) - (a.id ?? 0))[0];
+    const latestResult = getLatestById(latestSubmission?.results);
 
     // Build test cases from feedbacks for detailed display
     // The result details API returns feedbacks with testCase objects containing testName
@@ -192,11 +190,7 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
     const testFeedbacks = feedbacks.filter(f =>
         f.testCase?.testName || ((!f.type || f.type === 'AUTOMATIC') && f.text && !f.text.startsWith('SCAFeedbackIdentifier:'))
     );
-    const testCases = testFeedbacks.map(f => ({
-        name: f.testCase?.testName ?? f.text ?? 'Test',
-        passed: f.positive ?? false,
-        message: f.detailText,
-    }));
+    const testCases = transformFeedbacksToTestCases(feedbacks);
 
     // Use Artemis-provided test case counts when available, fall back to feedbacks
     const totalTests = latestResult?.testCaseCount || testFeedbacks.length;

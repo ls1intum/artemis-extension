@@ -155,6 +155,7 @@ interface ExtensionMsgPayloads {
         triggerType?: string;
         recommendedAction: 'none' | 'subtle' | 'notification' | 'proactive';
         isEnabled: boolean;
+        developerMode: boolean;
     };
     viewInitError: { error: string };
 
@@ -186,6 +187,7 @@ interface ExtensionMsgPayloads {
                 id: string;
                 artemisSessionId?: number;
                 preview: string;
+                title?: string;
                 messageCount: number;
                 createdAt: number;
                 lastActivity: number;

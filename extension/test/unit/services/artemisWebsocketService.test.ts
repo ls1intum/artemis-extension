@@ -5,12 +5,26 @@ import { AuthManager } from '../../../src/extension/services/auth/authManager';
 import type { ResultDTO } from '../../../src/extension/types';
 import { Client, StompConfig, IMessage, StompSubscription } from '@stomp/stompjs';
 
+/**
+ * Flush the microtask queue so that connect() progresses past its async
+ * operations (await getAuthHeaders()) and reaches _createClient().
+ *
+ * Uses Promise.resolve() chaining instead of setTimeout/setImmediate
+ * so it works even when sinon.useFakeTimers() is active.
+ */
+async function flushMicrotasks(): Promise<void> {
+    for (let i = 0; i < 10; i++) {
+        await Promise.resolve();
+    }
+}
+
 // Mock Stomp Client
 class MockStompClient {
     public config: StompConfig;
     public connected: boolean = false;
     public subscriptions: Map<string, (message: IMessage) => void> = new Map();
     public active: boolean = false;
+    private _subCounter: number = 0;
 
     constructor(config: StompConfig) {
         this.config = config;
@@ -32,10 +46,16 @@ class MockStompClient {
 
     subscribe(topic: string, callback: (message: IMessage) => void): StompSubscription {
         this.subscriptions.set(topic, callback);
+        const capturedCallback = callback;
+        const subId = `sub-${++this._subCounter}`;
         return {
-            id: 'sub-id',
+            id: subId,
             unsubscribe: () => {
-                this.subscriptions.delete(topic);
+                // Only remove if the map still holds this exact subscription's callback
+                // (mirrors real STOMP client behavior with unique subscription IDs)
+                if (this.subscriptions.get(topic) === capturedCallback) {
+                    this.subscriptions.delete(topic);
+                }
             }
         };
     }
@@ -137,8 +157,9 @@ suite('Artemis WebSocket Service Test Suite', () => {
         // Initial state
         assert.strictEqual(states[0], false);
 
-        // Connect — simulateConnect must fire before awaiting since connect() now waits for onConnect
+        // Connect — flush microtasks so connect() reaches _createClient() past async operations
         const connectPromise = wsService.connect();
+        await flushMicrotasks();
 
         assert.ok(wsService.mockClient, 'Client should be created');
         assert.strictEqual(wsService.mockClient.active, true, 'Client should be active');
@@ -156,6 +177,7 @@ suite('Artemis WebSocket Service Test Suite', () => {
         wsService = new TestableArtemisWebsocketService(authManager);
         await authManager.storeArtemisCredentials('jwt=token', 'https://artemis.example.com', true);
         const p = wsService.connect();
+        await flushMicrotasks();
         wsService.mockClient!.simulateConnect();
         await p;
 
@@ -197,6 +219,7 @@ suite('Artemis WebSocket Service Test Suite', () => {
         wsService = new TestableArtemisWebsocketService(authManager);
         await authManager.storeArtemisCredentials('jwt=token', 'https://artemis.example.com', true);
         const p = wsService.connect();
+        await flushMicrotasks();
         wsService.mockClient!.simulateConnect();
         await p;
 
@@ -212,6 +235,7 @@ suite('Artemis WebSocket Service Test Suite', () => {
         wsService = new TestableArtemisWebsocketService(authManager);
         await authManager.storeArtemisCredentials('jwt=token', 'https://artemis.example.com', true);
         const p = wsService.connect();
+        await flushMicrotasks();
         wsService.mockClient!.simulateConnect();
         await p;
 
@@ -243,8 +267,9 @@ suite('Artemis WebSocket Service Test Suite', () => {
         // Not connected yet
         assert.strictEqual(wsService.isConnected(), false);
 
-        // Ensure connection — simulateConnect before awaiting since connect() waits for onConnect
+        // Ensure connection — flush microtasks so connect() reaches _createClient()
         const ensurePromise = wsService.ensureConnection();
+        await flushMicrotasks();
 
         // Should have tried to connect
         assert.ok(wsService.mockClient);
@@ -261,6 +286,7 @@ suite('Artemis WebSocket Service Test Suite', () => {
         wsService = new TestableArtemisWebsocketService(authManager);
         await authManager.storeArtemisCredentials('jwt=token', 'https://artemis.example.com', true);
         const p = wsService.connect();
+        await flushMicrotasks();
         wsService.mockClient!.simulateConnect();
         await p;
 
@@ -307,6 +333,7 @@ suite('Artemis WebSocket Service Test Suite', () => {
         wsService = new TestableArtemisWebsocketService(authManager);
         await authManager.storeArtemisCredentials('jwt=token', 'https://artemis.example.com', true);
         const p = wsService.connect();
+        await flushMicrotasks();
         wsService.mockClient!.simulateConnect();
         await p;
 

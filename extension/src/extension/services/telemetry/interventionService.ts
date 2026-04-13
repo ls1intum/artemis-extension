@@ -13,6 +13,12 @@ export class InterventionService implements vscode.Disposable, SessionResettable
     /** Cooldown between interventions (5 minutes) */
     private static readonly INTERVENTION_COOLDOWN_MS = 5 * 60 * 1000;
 
+    /** EQ threshold above which notification message mentions "repeated errors" */
+    private static readonly EQ_REPEATED_ERRORS_THRESHOLD = 0.45;
+
+    /** EQ threshold above which proactive message mentions "same errors repeatedly" */
+    private static readonly EQ_SEVERE_STRUGGLE_THRESHOLD = 0.80;
+
     private readonly _onDidShowIntervention = new vscode.EventEmitter<InterventionDecision>();
     public readonly onDidShowIntervention = this._onDidShowIntervention.event;
 
@@ -164,7 +170,7 @@ export class InterventionService implements vscode.Disposable, SessionResettable
      * Build notification message for EQ-based intervention
      */
     private _buildNotificationMessageEQ(decision: InterventionDecision): string {
-        if (decision.eq >= 0.45) {
+        if (decision.eq >= InterventionService.EQ_REPEATED_ERRORS_THRESHOLD) {
             return 'You seem to be running into repeated errors. Would you like help from Iris?';
         }
         return 'It looks like you might be stuck. Would you like help from Iris?';
@@ -174,7 +180,7 @@ export class InterventionService implements vscode.Disposable, SessionResettable
      * Build proactive message for EQ-based intervention
      */
     private _buildProactiveMessageEQ(decision: InterventionDecision): string {
-        if (decision.eq >= 0.8) {
+        if (decision.eq >= InterventionService.EQ_SEVERE_STRUGGLE_THRESHOLD) {
             return "You've been encountering the same errors repeatedly. Let Iris help you work through this!";
         }
         return 'Iris noticed you might be having some difficulty. Want some guidance?';

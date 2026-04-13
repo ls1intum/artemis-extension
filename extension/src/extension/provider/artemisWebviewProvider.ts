@@ -346,10 +346,14 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
             if (archivedEntry) {
                 this._appStateManager.injectCourseEntry(archivedEntry);
             }
-        }).catch(() => { /* don't block dashboard */ }).finally(() => {
+        }).catch((err: unknown) => {
+            logger.error('Failed to check archived courses for dashboard', LogCategory.VIEW, err);
+        }).finally(() => {
             this._appStateManager.archiveCheckComplete = true;
             this.sendInitData();
-            void this._suggestWorkspaceStartPage();
+            void this._suggestWorkspaceStartPage().catch((err: unknown) => {
+                logger.error('Failed to suggest workspace start page', LogCategory.VIEW, err);
+            });
         });
     }
 

@@ -304,6 +304,61 @@ export class ArtemisApiService {
         return { success: true };
     }
 
+    /**
+     * Inform the Artemis server that the user is logging out.
+     *
+     * Best-effort: this method never throws. The calling logout flow
+     * must always clear local state regardless of the server response,
+     * so any failure here is logged and swallowed.
+     *
+     * Uses a direct fetch instead of `makeRequest()` so a non-2xx
+     * response does not trigger the shared 401 handler (which would
+     * re-clear auth and fire the auth-expired callback — both
+     * pointless and confusing during an intentional logout).
+     *
+     * Note: Artemis uses strictly stateless JWTs — verified 2026-04-05 both
+     * empirically (tokens stayed valid on /api/core/public/account after
+     * multiple explicit logout calls) and via source: Artemis'
+     * PublicUserJwtResource.logout() (core/web/open/PublicUserJwtResource.java)
+     * only builds a Set-Cookie: jwt=; Max-Age=0 response header — no blacklist,
+     * no audit log, no server-side token invalidation. This Extension manages
+     * the JWT via VS Code secrets (not a cookie jar), so the Set-Cookie header
+     * is discarded by fetch(). The call is kept for protocol symmetry with
+     * the Artemis webapp.
+     */
+    async logoutFromServer(): Promise<void> {
+        const headers = await this.authManager.getAuthHeaders();
+        if (Object.keys(headers).length === 0) {
+            // Not authenticated — nothing to tell the server.
+            return;
+        }
+
+        try {
+            const response = await fetch(`${this.getServerUrl()}${CONFIG.API.ENDPOINTS.LOGOUT}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'User-Agent': getUserAgent(),
+                    ...headers,
+                },
+            });
+            if (response.ok) {
+                logger.info('Server-side logout successful', LogCategory.AUTH);
+            } else {
+                logger.warn(
+                    `Server-side logout returned ${response.status}, continuing with local cleanup`,
+                    LogCategory.AUTH
+                );
+            }
+        } catch (err) {
+            logger.warn(
+                'Server-side logout failed, continuing with local cleanup',
+                LogCategory.AUTH,
+                err
+            );
+        }
+    }
+
     // Check Iris health status (course-scoped)
     async checkIrisHealth(courseId: number): Promise<IrisHealthStatus> {
         const response = await this.makeRequest(`/api/iris/courses/${courseId}/status`);

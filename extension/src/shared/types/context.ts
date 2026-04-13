@@ -42,6 +42,8 @@ export interface StoredSession {
     id: string;
     contextKey: string;
     preview: string;
+    /** LLM-generated session title from Artemis (2-5 words). Falls back to preview when absent. */
+    title?: string;
     messageCount: number;
     createdAt: number;
     lastActivity: number;

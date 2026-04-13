@@ -41,44 +41,7 @@
 }
 
 .content {
-    color: inherit;
-    line-height: 1.6;
-}
-
-.content p {
-    margin: 0 0 12px 0;
-}
-
-.content p:last-child {
-    margin-bottom: 0;
-}
-
-.content ul,
-.content ol {
-    margin: 8px 0;
-    padding-left: 24px;
-}
-
-.content li {
-    margin: 4px 0;
-}
-
-.content code {
-    background: var(--vscode-textCodeBlock-background);
-    color: var(--vscode-textPreformat-foreground);
-    padding: 2px 6px;
-    border-radius: 3px;
-    font-family: var(--vscode-editor-font-family);
-    font-size: 0.9em;
-}
-
-.content a {
-    color: var(--vscode-textLink-foreground);
-    text-decoration: none;
-}
-
-.content a:hover {
-    text-decoration: underline;
+    composes: richContent from '../../../styles/richContent.module.css';
 }
 
 .errorContent {

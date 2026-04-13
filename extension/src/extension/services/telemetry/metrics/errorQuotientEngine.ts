@@ -7,6 +7,7 @@ import {
     SessionResettable,
     SessionStartContext,
 } from '../types';
+import { shouldDedupSnapshot } from './snapshotDedup';
 
 /**
  * Error Quotient (EQ) Engine — pure calculation based on Jadud 2006 [P3].
@@ -42,7 +43,7 @@ export class ErrorQuotientEngine implements SessionResettable {
         }
 
         // Dedup: skip if within window AND same error families
-        if (last && this._shouldDedup(snapshot, last)) {
+        if (last && shouldDedupSnapshot(snapshot, last, this._config.DEDUP_WINDOW_MS)) {
             return false;
         }
 
@@ -156,39 +157,6 @@ export class ErrorQuotientEngine implements SessionResettable {
      */
     private _calculateConfidence(pairCount: number): EQConfidence {
         return pairCount >= 6 ? 'sufficient' : 'insufficient';
-    }
-
-    /**
-     * Check if a snapshot should be deduped (same families within time window).
-     */
-    private _shouldDedup(newSnapshot: ErrorSnapshot, lastSnapshot: ErrorSnapshot): boolean {
-        const timeDiff = newSnapshot.timestamp - lastSnapshot.timestamp;
-        if (timeDiff >= this._config.DEDUP_WINDOW_MS) {
-            return false;
-        }
-
-        // Same error state: both have errors with same families, or both clean
-        if (newSnapshot.hasErrors !== lastSnapshot.hasErrors) {
-            return false;
-        }
-
-        if (!newSnapshot.hasErrors) {
-            // Both clean within dedup window → dedup
-            return true;
-        }
-
-        // Both have errors — check if families are identical
-        if (newSnapshot.errorFamilies.size !== lastSnapshot.errorFamilies.size) {
-            return false;
-        }
-
-        for (const family of newSnapshot.errorFamilies) {
-            if (!lastSnapshot.errorFamilies.has(family)) {
-                return false;
-            }
-        }
-
-        return true;
     }
 
     public dispose(): void {

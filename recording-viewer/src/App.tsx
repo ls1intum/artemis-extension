@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useMemo } from 'react';
-import type { Annotation, AnnotationLabel, LoadedSession, RecordedEvent, SessionMetadata, ReplayEqSnapshot, EventType, VideoSyncConfig } from './types';
+import type { Annotation, AnnotationLabel, LoadedSession, RecordedEvent, SessionMetadata, ReplayEqSnapshot, VideoSyncConfig } from './types';
 import { FileDropZone } from './components/FileDropZone';
 import { RecordingInfo } from './components/RecordingInfo';
 import { SessionList } from './components/SessionList';
@@ -10,43 +10,26 @@ import { TrackingTimeline } from './components/TrackingTimeline';
 import { VideoPlayer } from './components/VideoPlayer';
 import type { VideoPlayerHandle } from './components/VideoPlayer';
 import { VideoUpload } from './components/VideoUpload';
+import { SubtitleUpload } from './components/SubtitleUpload';
 import { OffsetConfig } from './components/OffsetConfig';
 import { FreeAnnotationForm } from './components/FreeAnnotationForm';
 import { ALL_EVENT_TYPES } from './constants';
 
-const DEFAULT_ENABLED: EventType[] = [
-    'sessionStart', 'sessionEnd',
-    'eqSnapshot', 'buildResult',
-    'textChange', 'save',
-    'diagnostics',
-    'fileSwitch',
-    'irisChatMessage',
-    'windowFocus',
-    'viewNavigation', 'panelVisibility',
-];
+const ALL_ENABLED = new Set(ALL_EVENT_TYPES);
 
 function App() {
     const [session, setSession] = useState<LoadedSession | null>(null);
     const [loading, setLoading] = useState(false);
     const [annotations, setAnnotations] = useState<Annotation[]>([]);
-    const [enabledTypes, setEnabledTypes] = useState(() => new Set<EventType>(DEFAULT_ENABLED));
     const activeSessionId = useRef<string | null>(null);
 
     // Video state
     const [videoSyncConfig, setVideoSyncConfig] = useState<VideoSyncConfig | null>(null);
+    const [hasSubtitles, setHasSubtitles] = useState(false);
     const [isVideoPlaying, setIsVideoPlaying] = useState(false);
     const [videoCacheBust, setVideoCacheBust] = useState(0);
     const videoTimeRef = useRef<number>(0);
     const videoPlayerRef = useRef<VideoPlayerHandle>(null);
-
-    const toggleType = useCallback((type: EventType) => {
-        setEnabledTypes(prev => {
-            const next = new Set(prev);
-            if (next.has(type)) next.delete(type);
-            else next.add(type);
-            return next;
-        });
-    }, []);
 
     const saveAnnotations = useCallback(async (updated: Annotation[]) => {
         setAnnotations(updated);
@@ -83,12 +66,13 @@ function App() {
         setViewMode('timeline');
         setScrollToTimestamp(null);
         try {
-            const [eventsRes, metaRes, replayRes, annotRes, videoSyncRes] = await Promise.all([
+            const [eventsRes, metaRes, replayRes, annotRes, videoSyncRes, subsRes] = await Promise.all([
                 fetch(`/api/recordings/${sessionId}/events`),
                 fetch(`/api/recordings/${sessionId}/metadata`),
                 fetch(`/api/recordings/${sessionId}/replay-eq`),
                 fetch(`/api/recordings/${sessionId}/annotations`),
                 fetch(`/api/recordings/${sessionId}/video-sync`),
+                fetch(`/api/recordings/${sessionId}/subtitles`, { method: 'HEAD' }),
             ]);
 
             const events: RecordedEvent[] = await eventsRes.json();
@@ -113,9 +97,11 @@ function App() {
             activeSessionId.current = sessionId;
             setAnnotations(loadedAnnotations);
             setVideoSyncConfig(syncConfig);
+            setHasSubtitles(subsRes.ok);
             setVideoCacheBust(Date.now());
             setIsVideoPlaying(false);
             videoTimeRef.current = 0;
+            setZoomedXDomain(null);
             setSession({ metadata, events, fileName: sessionId, replayEq, annotations: loadedAnnotations });
         } catch (err) {
             console.error('Failed to load session:', err);
@@ -128,10 +114,12 @@ function App() {
         activeSessionId.current = null;
         setAnnotations([]);
         setVideoSyncConfig(null);
+        setHasSubtitles(false);
         setIsVideoPlaying(false);
         videoTimeRef.current = 0;
         setViewMode('timeline');
         setScrollToTimestamp(null);
+        setZoomedXDomain(null);
         setSession(loaded);
     }, []);
 
@@ -139,10 +127,12 @@ function App() {
         activeSessionId.current = null;
         setAnnotations([]);
         setVideoSyncConfig(null);
+        setHasSubtitles(false);
         setIsVideoPlaying(false);
         videoTimeRef.current = 0;
         setViewMode('timeline');
         setScrollToTimestamp(null);
+        setZoomedXDomain(null);
         setSession(null);
     }, []);
 
@@ -157,6 +147,19 @@ function App() {
             videoExtension: ext,
         }));
         setVideoCacheBust(Date.now());
+    }, []);
+
+    const handleSubtitleUploadComplete = useCallback(() => {
+        setHasSubtitles(true);
+        setVideoCacheBust(Date.now());
+        // `<track>` is remounted via React key change; force-activate after new load.
+        requestAnimationFrame(() => videoPlayerRef.current?.showSubtitles());
+    }, []);
+
+    const handleOpenSessionFolder = useCallback(() => {
+        if (!activeSessionId.current) return;
+        fetch(`/api/recordings/${encodeURIComponent(activeSessionId.current)}/open`, { method: 'POST' })
+            .catch(() => {/* best-effort */});
     }, []);
 
     const handleOffsetChange = useCallback(async (newOffset: number) => {
@@ -187,6 +190,7 @@ function App() {
     }, [session]);
     const [viewMode, setViewMode] = useState<'timeline' | 'list'>('timeline');
     const [scrollToTimestamp, setScrollToTimestamp] = useState<number | null>(null);
+    const [zoomedXDomain, setZoomedXDomain] = useState<[number, number] | null>(null);
 
     const handleViewInList = useCallback((timestamp: number) => {
         setScrollToTimestamp(timestamp);
@@ -232,8 +236,47 @@ function App() {
         return max;
     }, [session, sessionStartTime]);
 
+    const effectiveXDomain = zoomedXDomain ?? xDomain;
+
+    const handleZoomChange = useCallback((domain: [number, number] | null) => {
+        setZoomedXDomain(domain);
+    }, []);
+
+    const handleZoomIn = useCallback(() => {
+        if (!xDomain) return;
+        const current = zoomedXDomain ?? xDomain;
+        const [min, max] = current;
+        const range = max - min;
+        const newRange = range / 1.5;
+        if (newRange < 2000) return;
+        const center = (min + max) / 2;
+        setZoomedXDomain([center - newRange / 2, center + newRange / 2]);
+    }, [xDomain, zoomedXDomain]);
+
+    const handleZoomOut = useCallback(() => {
+        if (!xDomain) return;
+        const current = zoomedXDomain ?? xDomain;
+        const [min, max] = current;
+        const range = max - min;
+        const fullRange = xDomain[1] - xDomain[0];
+        const newRange = range * 1.5;
+        if (newRange >= fullRange) {
+            setZoomedXDomain(null);
+            return;
+        }
+        let newMin = (min + max) / 2 - newRange / 2;
+        let newMax = (min + max) / 2 + newRange / 2;
+        if (newMin < xDomain[0]) { newMin = xDomain[0]; newMax = newMin + newRange; }
+        if (newMax > xDomain[1]) { newMax = xDomain[1]; newMin = newMax - newRange; }
+        setZoomedXDomain([newMin, newMax]);
+    }, [xDomain, zoomedXDomain]);
+
     const videoUrl = activeSessionId.current && videoSyncConfig
         ? `/api/recordings/${encodeURIComponent(activeSessionId.current)}/video?v=${videoCacheBust}`
+        : null;
+
+    const subtitlesUrl = activeSessionId.current && hasSubtitles
+        ? `/api/recordings/${encodeURIComponent(activeSessionId.current)}/subtitles?v=${videoCacheBust}`
         : null;
 
     return (
@@ -241,9 +284,16 @@ function App() {
             <header className="app-header">
                 <h1>Artemis Extension Session Analyzer</h1>
                 {session && (
-                    <button className="reset-btn" onClick={handleBack}>
-                        &larr; Back
-                    </button>
+                    <div className="header-actions">
+                        {activeSessionId.current && (
+                            <button className="reset-btn" onClick={handleOpenSessionFolder} title="Open session folder in Finder">
+                                Open Folder
+                            </button>
+                        )}
+                        <button className="reset-btn" onClick={handleBack}>
+                            &larr; Back
+                        </button>
+                    </div>
                 )}
             </header>
 
@@ -272,6 +322,7 @@ function App() {
                                 sessionEndTime={sessionEndTime}
                                 videoTimeAtSessionStartSeconds={videoSyncConfig.videoTimeAtSessionStartSeconds}
                                 videoUrl={videoUrl}
+                                subtitlesUrl={subtitlesUrl}
                                 videoTimeRef={videoTimeRef}
                                 onPlayStateChange={handleVideoPlayStateChange}
                             />
@@ -285,6 +336,11 @@ function App() {
                                     hasVideo={true}
                                     onUploadComplete={handleVideoUploadComplete}
                                 />
+                                <SubtitleUpload
+                                    sessionId={activeSessionId.current}
+                                    hasSubtitles={hasSubtitles}
+                                    onUploadComplete={handleSubtitleUploadComplete}
+                                />
                             </div>
                         </div>
                     )}
@@ -296,37 +352,6 @@ function App() {
                         />
                     )}
                     <SessionInfo session={session} />
-                    <SessionTimeline
-                        events={session.events}
-                        sessionStartTime={sessionStartTime}
-                        replayEq={session.replayEq}
-                        annotations={annotations}
-                        xDomain={xDomain}
-                        videoTimeRef={videoTimeRef}
-                    />
-                    <div className="filter-bar shared-filter-bar">
-                        <button
-                            className="filter-btn toggle-all"
-                            onClick={() => setEnabledTypes(new Set(ALL_EVENT_TYPES))}
-                        >
-                            all
-                        </button>
-                        <button
-                            className="filter-btn toggle-all"
-                            onClick={() => setEnabledTypes(new Set())}
-                        >
-                            none
-                        </button>
-                        {ALL_EVENT_TYPES.map(type => (
-                            <button
-                                key={type}
-                                className={`filter-btn ${type} ${enabledTypes.has(type) ? 'active' : ''}`}
-                                onClick={() => toggleType(type)}
-                            >
-                                {type}
-                            </button>
-                        ))}
-                    </div>
                     <div className="view-toggle-row">
                         <div className="view-toggle">
                             <button
@@ -342,6 +367,15 @@ function App() {
                                 List
                             </button>
                         </div>
+                        {viewMode === 'timeline' && xDomain && (
+                            <div className="zoom-controls">
+                                <button className="zoom-btn" onClick={handleZoomIn} title="Zoom in">+</button>
+                                <button className="zoom-btn" onClick={handleZoomOut} title="Zoom out">&minus;</button>
+                                {zoomedXDomain && (
+                                    <button className="zoom-btn reset" onClick={() => setZoomedXDomain(null)} title="Reset zoom">Reset</button>
+                                )}
+                            </div>
+                        )}
                         <FreeAnnotationForm
                             sessionStartTime={sessionStartTime}
                             onAdd={handleAddAnnotation}
@@ -349,28 +383,41 @@ function App() {
                             annotationCount={annotations.length}
                         />
                     </div>
-                    {viewMode === 'timeline' && xDomain && (
-                        <TrackingTimeline
-                            events={session.events}
-                            sessionStartTime={sessionStartTime}
-                            xDomain={xDomain}
-                            annotations={annotations}
-                            enabledTypes={enabledTypes}
-                            onAddAnnotation={handleAddAnnotation}
-                            onUpdateAnnotation={handleUpdateAnnotation}
-                            onDeleteAnnotation={handleDeleteAnnotation}
-                            onViewInList={handleViewInList}
-                            videoTimeRef={videoTimeRef}
-                            onSeekVideo={videoSyncConfig ? handleVideoSeek : undefined}
-                            videoTimeAtSessionStartSeconds={videoSyncConfig?.videoTimeAtSessionStartSeconds}
-                        />
+                    {viewMode === 'timeline' && effectiveXDomain && (
+                        <div className="stacked-timelines">
+                            <SessionTimeline
+                                events={session.events}
+                                sessionStartTime={sessionStartTime}
+                                replayEq={session.replayEq}
+                                annotations={annotations}
+                                xDomain={xDomain}
+                                zoomedRange={zoomedXDomain ?? undefined}
+                                videoTimeRef={videoTimeRef}
+                            />
+                            <TrackingTimeline
+                                events={session.events}
+                                sessionStartTime={sessionStartTime}
+                                xDomain={effectiveXDomain}
+                                fullXDomain={xDomain}
+                                annotations={annotations}
+                                enabledTypes={ALL_ENABLED}
+                                onAddAnnotation={handleAddAnnotation}
+                                onUpdateAnnotation={handleUpdateAnnotation}
+                                onDeleteAnnotation={handleDeleteAnnotation}
+                                onViewInList={handleViewInList}
+                                videoTimeRef={videoTimeRef}
+                                onSeekVideo={videoSyncConfig ? handleVideoSeek : undefined}
+                                videoTimeAtSessionStartSeconds={videoSyncConfig?.videoTimeAtSessionStartSeconds}
+                                onZoomChange={handleZoomChange}
+                            />
+                        </div>
                     )}
                     {viewMode === 'list' && (
                         <EventStream
                             events={session.events}
                             sessionStartTime={sessionStartTime}
                             annotations={annotations}
-                            enabledTypes={enabledTypes}
+                            enabledTypes={ALL_ENABLED}
                             onAddAnnotation={handleAddAnnotation}
                             onUpdateAnnotation={handleUpdateAnnotation}
                             onDeleteAnnotation={handleDeleteAnnotation}

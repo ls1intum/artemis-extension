@@ -224,9 +224,16 @@ suite('ContextStore Test Suite', () => {
 
     test('should create session', () => {
         contextStore.registerExercise({ id: 1, title: 'Ex 1' });
-        // registerExercise creates an initial session
+        // Set active context so SessionManager can create sessions
+        contextStore.setActiveContext({
+            type: 'exercise',
+            id: 1,
+            title: 'Ex 1',
+            source: 'user-selected',
+            selectedAt: Date.now(),
+            locked: false
+        });
         const initialSessionCount = contextStore.snapshot().sessions.length;
-
 
         contextStore.createSession('New Session');
 
@@ -244,6 +251,15 @@ suite('ContextStore Test Suite', () => {
 
     test('should create session with details', () => {
         contextStore.registerExercise({ id: 1, title: 'Ex 1' });
+        // Set active context so SessionManager can create sessions
+        contextStore.setActiveContext({
+            type: 'exercise',
+            id: 1,
+            title: 'Ex 1',
+            source: 'user-selected',
+            selectedAt: Date.now(),
+            locked: false
+        });
         const initialSessionCount = contextStore.snapshot().sessions.length;
 
         const now = Date.now();
@@ -257,6 +273,15 @@ suite('ContextStore Test Suite', () => {
 
     test('should switch session', () => {
         contextStore.registerExercise({ id: 1, title: 'Ex 1' });
+        // Set active context so SessionManager can create sessions
+        contextStore.setActiveContext({
+            type: 'exercise',
+            id: 1,
+            title: 'Ex 1',
+            source: 'user-selected',
+            selectedAt: Date.now(),
+            locked: false
+        });
 
         // Create Session 1
         contextStore.createSession('Session 1');
@@ -342,6 +367,15 @@ suite('ContextStore Test Suite', () => {
 
     test('should increment active session message count', () => {
         contextStore.registerExercise({ id: 1, title: 'Ex 1' });
+        // Set active context so SessionManager can create sessions
+        contextStore.setActiveContext({
+            type: 'exercise',
+            id: 1,
+            title: 'Ex 1',
+            source: 'user-selected',
+            selectedAt: Date.now(),
+            locked: false
+        });
         contextStore.createSession('Session 1');
 
         contextStore.incrementActiveSessionMessageCount();
@@ -352,10 +386,17 @@ suite('ContextStore Test Suite', () => {
 
     test('should cleanup empty sessions', () => {
         contextStore.registerExercise({ id: 1, title: 'Ex 1' });
-
+        // Set active context so SessionManager can create sessions
+        contextStore.setActiveContext({
+            type: 'exercise',
+            id: 1,
+            title: 'Ex 1',
+            source: 'user-selected',
+            selectedAt: Date.now(),
+            locked: false
+        });
 
         contextStore.createSession('Empty Session');
-
 
         // Create another one which will be active
         contextStore.createSession('Active Empty Session');
@@ -365,12 +406,19 @@ suite('ContextStore Test Suite', () => {
 
         const snapshot = contextStore.snapshot();
         // Should only have the active one, the previous empty one should be gone
-        // Note: registerExercise created one, createSession created one, createSession created another.
-        // All previous ones were empty and inactive, so they should be removed.
         assert.strictEqual(snapshot.sessions.length, 1);
         assert.strictEqual(snapshot.sessions[0].preview, 'Active Empty Session');
     }); test('should set Artemis session ID', () => {
         contextStore.registerExercise({ id: 1, title: 'Ex 1' });
+        // Set active context so SessionManager can create sessions
+        contextStore.setActiveContext({
+            type: 'exercise',
+            id: 1,
+            title: 'Ex 1',
+            source: 'user-selected',
+            selectedAt: Date.now(),
+            locked: false
+        });
         contextStore.createSession('Session 1');
 
         contextStore.setArtemisSessionId(999);

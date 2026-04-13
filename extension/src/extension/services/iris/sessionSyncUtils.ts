@@ -59,6 +59,12 @@ export function importSessionsToStore(
 
     for (const session of sessions) {
         const messageCount = session.messages?.length || 0;
+
+        // Skip empty sessions — they were created but never used
+        if (messageCount === 0) {
+            continue;
+        }
+
         const createdAt = session.creationDate ? new Date(session.creationDate).getTime() : Date.now();
 
         // Extract preview from first user message using shared content extractor
@@ -80,7 +86,8 @@ export function importSessionsToStore(
             messageCount,
             createdAt,
             session.id,
-            session.messages || []
+            session.messages || [],
+            typeof session.title === 'string' ? session.title : undefined,
         );
     }
 

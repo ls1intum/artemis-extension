@@ -10,6 +10,7 @@ import {
 } from '../types';
 import { ResultDTO } from '../../../types';
 
+import { shouldDedupSnapshot } from '../metrics/snapshotDedup';
 import { LINT_SOURCE_DENYLIST } from './lintDenylist';
 export { LINT_SOURCE_DENYLIST };
 
@@ -20,6 +21,9 @@ export { LINT_SOURCE_DENYLIST };
  * VS Code: save event (with 500ms LS delay) or Artemis build result.
  */
 export class CompileEquivalentEmitter implements vscode.Disposable, SessionResettable {
+    /** Delay after save for Language Server to update diagnostics [Engineering choice] */
+    private static readonly LS_SETTLE_DELAY_MS = 500;
+
     private readonly _disposables: vscode.Disposable[] = [];
     private readonly _config: EQConfig;
     private _exerciseRoot: vscode.Uri | undefined;
@@ -71,7 +75,7 @@ export class CompileEquivalentEmitter implements vscode.Disposable, SessionReset
                     snapshot,
                 });
             }
-        }, 500);
+        }, CompileEquivalentEmitter.LS_SETTLE_DELAY_MS);
     }
 
     /**
@@ -200,36 +204,16 @@ export class CompileEquivalentEmitter implements vscode.Disposable, SessionReset
         if (!this._lastSnapshot) {
             return true;
         }
-
-        const timeDiff = newSnapshot.timestamp - this._lastSnapshot.timestamp;
-        if (timeDiff >= this._config.DEDUP_WINDOW_MS) {
-            return true;
-        }
-
-        // Within dedup window — only add if error state changed
-        if (newSnapshot.hasErrors !== this._lastSnapshot.hasErrors) {
-            return true;
-        }
-
-        if (!newSnapshot.hasErrors) {
-            // Both clean within window → dedup
-            return false;
-        }
-
-        // Both have errors — check if families changed
-        if (newSnapshot.errorFamilies.size !== this._lastSnapshot.errorFamilies.size) {
-            return true;
-        }
-
-        for (const family of newSnapshot.errorFamilies) {
-            if (!this._lastSnapshot.errorFamilies.has(family)) {
-                return true;
-            }
-        }
-
-        return false;
+        return !shouldDedupSnapshot(newSnapshot, this._lastSnapshot, this._config.DEDUP_WINDOW_MS);
     }
 }
+
+// ============================================================================
+// Constants
+// ============================================================================
+
+/** Character threshold above which a replaced range is likely formatter/refactoring, not paste */
+const FORMATTER_CHAR_THRESHOLD = 1000;
 
 // ============================================================================
 // Helper Functions
@@ -252,7 +236,13 @@ export function classifyBuildResult(result: ResultDTO): BuildResultClassificatio
         }
     }
 
-    // 3. Success
+    // 3. Fallback: if server reports failure but buildFailed/testCases are missing,
+    //    treat as test-failure to avoid silent false-success classification
+    if (result.successful === false) {
+        return 'test-failure';
+    }
+
+    // 4. Success
     return 'success';
 }
 
@@ -290,7 +280,7 @@ export function isLikelyManualPaste(change: vscode.TextDocumentContentChangeEven
     }
 
     // Formatter/refactoring: replaces large text range (>1000 chars)
-    if (change.rangeLength > 1000) {
+    if (change.rangeLength > FORMATTER_CHAR_THRESHOLD) {
         return false;
     }
 
