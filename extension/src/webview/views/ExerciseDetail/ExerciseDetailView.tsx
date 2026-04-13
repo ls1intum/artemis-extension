@@ -449,7 +449,6 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
             {/* Problem Statement */}
             <ProblemStatement
                 serverRenderedHtml={serverRenderedPS?.html}
-                serverInteractiveScript={serverRenderedPS?.interactiveScript}
                 downloadLinks={downloadLinks}
             />
 

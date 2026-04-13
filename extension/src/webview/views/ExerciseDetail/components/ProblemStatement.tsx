@@ -9,31 +9,48 @@ const SSR_TIMEOUT_MS = 10_000;
 
 /**
  * ProblemStatement component — displays server-rendered HTML from the Artemis
- * SSR endpoint. The server handles Markdown→HTML, PlantUML SVG inlining,
- * KaTeX math, task markers with test status, and embedded CSS.
+ * SSR endpoint in an iframe. The server returns a full HTML document with
+ * Markdown→HTML, PlantUML SVG inlining, KaTeX math, task markers with test
+ * status, embedded CSS, and interactive JS.
+ *
+ * An iframe is used instead of dangerouslySetInnerHTML because:
+ * - Scripts execute in iframe srcdoc (innerHTML ignores them)
+ * - External resources (KaTeX JS/CSS) load without CSP restrictions
+ * - The document context enables proper KaTeX rendering
  */
 export function ProblemStatement({
     serverRenderedHtml,
-    serverInteractiveScript,
     downloadLinks = [],
     onDownload,
 }: ProblemStatementProps) {
-    const contentRef = useRef<HTMLDivElement>(null);
+    const iframeRef = useRef<HTMLIFrameElement>(null);
     const [timedOut, setTimedOut] = useState(false);
 
-    // Execute interactive script for server-rendered content (task feedback modal)
+    // Auto-resize iframe to fit content
     useEffect(() => {
-        if (!serverRenderedHtml || !serverInteractiveScript || !contentRef.current) {return;}
-        try {
-            const nonce = document.getElementById('root')?.getAttribute('data-csp-nonce');
-            const scriptEl = document.createElement('script');
-            if (nonce) { scriptEl.nonce = nonce; }
-            scriptEl.textContent = serverInteractiveScript;
-            contentRef.current.appendChild(scriptEl);
-        } catch {
-            // Interactive script failed — task feedback modal won't be available
-        }
-    }, [serverRenderedHtml, serverInteractiveScript]);
+        if (!serverRenderedHtml || !iframeRef.current) {return;}
+        const iframe = iframeRef.current;
+        const resizeObserver = new ResizeObserver(() => {
+            const body = iframe.contentDocument?.body;
+            if (body) {
+                iframe.style.height = body.scrollHeight + 'px';
+            }
+        });
+
+        const handleLoad = () => {
+            const body = iframe.contentDocument?.body;
+            if (body) {
+                iframe.style.height = body.scrollHeight + 'px';
+                resizeObserver.observe(body);
+            }
+        };
+
+        iframe.addEventListener('load', handleLoad);
+        return () => {
+            iframe.removeEventListener('load', handleLoad);
+            resizeObserver.disconnect();
+        };
+    }, [serverRenderedHtml]);
 
     // Timeout: if SSR hasn't arrived after 10s, show error
     useEffect(() => {
@@ -48,10 +65,12 @@ export function ProblemStatement({
     return (
         <Container header={<h3>Exercise Description</h3>}>
             {serverRenderedHtml ? (
-                <div
-                    ref={contentRef}
+                <iframe
+                    ref={iframeRef}
+                    srcDoc={serverRenderedHtml}
+                    sandbox="allow-scripts"
                     className={styles.problemStatement}
-                    dangerouslySetInnerHTML={{ __html: serverRenderedHtml }}
+                    style={{ width: '100%', border: 'none', overflow: 'hidden' }}
                 />
             ) : timedOut ? (
                 <div className={styles.errorContainer}>
