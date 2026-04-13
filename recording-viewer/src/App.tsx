@@ -10,6 +10,7 @@ import { TrackingTimeline } from './components/TrackingTimeline';
 import { VideoPlayer } from './components/VideoPlayer';
 import type { VideoPlayerHandle } from './components/VideoPlayer';
 import { VideoUpload } from './components/VideoUpload';
+import { SubtitleUpload } from './components/SubtitleUpload';
 import { OffsetConfig } from './components/OffsetConfig';
 import { FreeAnnotationForm } from './components/FreeAnnotationForm';
 import { ALL_EVENT_TYPES } from './constants';
@@ -24,6 +25,7 @@ function App() {
 
     // Video state
     const [videoSyncConfig, setVideoSyncConfig] = useState<VideoSyncConfig | null>(null);
+    const [hasSubtitles, setHasSubtitles] = useState(false);
     const [isVideoPlaying, setIsVideoPlaying] = useState(false);
     const [videoCacheBust, setVideoCacheBust] = useState(0);
     const videoTimeRef = useRef<number>(0);
@@ -64,12 +66,13 @@ function App() {
         setViewMode('timeline');
         setScrollToTimestamp(null);
         try {
-            const [eventsRes, metaRes, replayRes, annotRes, videoSyncRes] = await Promise.all([
+            const [eventsRes, metaRes, replayRes, annotRes, videoSyncRes, subsRes] = await Promise.all([
                 fetch(`/api/recordings/${sessionId}/events`),
                 fetch(`/api/recordings/${sessionId}/metadata`),
                 fetch(`/api/recordings/${sessionId}/replay-eq`),
                 fetch(`/api/recordings/${sessionId}/annotations`),
                 fetch(`/api/recordings/${sessionId}/video-sync`),
+                fetch(`/api/recordings/${sessionId}/subtitles`, { method: 'HEAD' }),
             ]);
 
             const events: RecordedEvent[] = await eventsRes.json();
@@ -94,6 +97,7 @@ function App() {
             activeSessionId.current = sessionId;
             setAnnotations(loadedAnnotations);
             setVideoSyncConfig(syncConfig);
+            setHasSubtitles(subsRes.ok);
             setVideoCacheBust(Date.now());
             setIsVideoPlaying(false);
             videoTimeRef.current = 0;
@@ -110,6 +114,7 @@ function App() {
         activeSessionId.current = null;
         setAnnotations([]);
         setVideoSyncConfig(null);
+        setHasSubtitles(false);
         setIsVideoPlaying(false);
         videoTimeRef.current = 0;
         setViewMode('timeline');
@@ -122,6 +127,7 @@ function App() {
         activeSessionId.current = null;
         setAnnotations([]);
         setVideoSyncConfig(null);
+        setHasSubtitles(false);
         setIsVideoPlaying(false);
         videoTimeRef.current = 0;
         setViewMode('timeline');
@@ -141,6 +147,19 @@ function App() {
             videoExtension: ext,
         }));
         setVideoCacheBust(Date.now());
+    }, []);
+
+    const handleSubtitleUploadComplete = useCallback(() => {
+        setHasSubtitles(true);
+        setVideoCacheBust(Date.now());
+        // `<track>` is remounted via React key change; force-activate after new load.
+        requestAnimationFrame(() => videoPlayerRef.current?.showSubtitles());
+    }, []);
+
+    const handleOpenSessionFolder = useCallback(() => {
+        if (!activeSessionId.current) return;
+        fetch(`/api/recordings/${encodeURIComponent(activeSessionId.current)}/open`, { method: 'POST' })
+            .catch(() => {/* best-effort */});
     }, []);
 
     const handleOffsetChange = useCallback(async (newOffset: number) => {
@@ -256,14 +275,25 @@ function App() {
         ? `/api/recordings/${encodeURIComponent(activeSessionId.current)}/video?v=${videoCacheBust}`
         : null;
 
+    const subtitlesUrl = activeSessionId.current && hasSubtitles
+        ? `/api/recordings/${encodeURIComponent(activeSessionId.current)}/subtitles?v=${videoCacheBust}`
+        : null;
+
     return (
         <div className="app">
             <header className="app-header">
                 <h1>Artemis Extension Session Analyzer</h1>
                 {session && (
-                    <button className="reset-btn" onClick={handleBack}>
-                        &larr; Back
-                    </button>
+                    <div className="header-actions">
+                        {activeSessionId.current && (
+                            <button className="reset-btn" onClick={handleOpenSessionFolder} title="Open session folder in Finder">
+                                Open Folder
+                            </button>
+                        )}
+                        <button className="reset-btn" onClick={handleBack}>
+                            &larr; Back
+                        </button>
+                    </div>
                 )}
             </header>
 
@@ -292,6 +322,7 @@ function App() {
                                 sessionEndTime={sessionEndTime}
                                 videoTimeAtSessionStartSeconds={videoSyncConfig.videoTimeAtSessionStartSeconds}
                                 videoUrl={videoUrl}
+                                subtitlesUrl={subtitlesUrl}
                                 videoTimeRef={videoTimeRef}
                                 onPlayStateChange={handleVideoPlayStateChange}
                             />
@@ -304,6 +335,11 @@ function App() {
                                     sessionId={activeSessionId.current}
                                     hasVideo={true}
                                     onUploadComplete={handleVideoUploadComplete}
+                                />
+                                <SubtitleUpload
+                                    sessionId={activeSessionId.current}
+                                    hasSubtitles={hasSubtitles}
+                                    onUploadComplete={handleSubtitleUploadComplete}
                                 />
                             </div>
                         </div>

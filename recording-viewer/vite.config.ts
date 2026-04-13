@@ -25,6 +25,60 @@ function resolveSessionDir(sessionId: string): string | null {
 // Track concurrent video uploads per session
 const uploadInProgress = new Map<string, boolean>()
 
+// Track concurrent subtitle uploads per session (keyed by sessionId)
+const subtitleUploadInProgress = new Map<string, boolean>()
+
+const MAX_SUBTITLE_BYTES = 5 * 1024 * 1024 // 5 MB
+
+// SRT timing line. Hours group is 1-2 digits; delimiter between seconds and ms is
+// comma (standard SRT) or period (some encoders). Anything after the end timestamp
+// (proprietary SRT positioning tokens like `X1:.. Y1:..`) is captured and dropped.
+const SRT_TIMING_LINE = /^(\d{1,2}):(\d{2}):(\d{2})[,.](\d{1,3})\s*-->\s*(\d{1,2}):(\d{2}):(\d{2})[,.](\d{1,3}).*$/
+
+// VTT cue timing line. Hour group is optional (VTT allows MM:SS.mmm). Anything after
+// the end timestamp is valid VTT cue settings (line:, position:, align:, size:, vertical:).
+const VTT_TIMING_LINE = /^(?:\d+:)?\d{1,2}:\d{2}\.\d{1,3}\s*-->\s*(?:\d+:)?\d{1,2}:\d{2}\.\d{1,3}(?:\s+.*)?$/
+
+function padTimestamp(h: string, m: string, s: string, ms: string): string {
+    const hh = h.padStart(2, '0')
+    // Pad ms to exactly 3 digits.
+    const mmm = (ms + '000').slice(0, 3)
+    return `${hh}:${m}:${s}.${mmm}`
+}
+
+function stripBom(s: string): string {
+    return s.charCodeAt(0) === 0xFEFF ? s.slice(1) : s
+}
+
+function looksLikeVtt(s: string): boolean {
+    if (!/^WEBVTT(\s|$)/.test(s)) return false
+    return s.split(/\r?\n/).some(line => VTT_TIMING_LINE.test(line))
+}
+
+function looksLikeSrt(s: string): boolean {
+    return s.split(/\r?\n/).some(line => SRT_TIMING_LINE.test(line))
+}
+
+function srtToVtt(srt: string): string {
+    let s = stripBom(srt)
+    s = s.replace(/\r\n/g, '\n').replace(/\r/g, '\n')
+    const lines = s.split('\n')
+    const out: string[] = ['WEBVTT', '']
+    for (const line of lines) {
+        const m = SRT_TIMING_LINE.exec(line)
+        if (m) {
+            const start = padTimestamp(m[1], m[2], m[3], m[4])
+            const end = padTimestamp(m[5], m[6], m[7], m[8])
+            out.push(`${start} --> ${end}`)
+        } else {
+            out.push(line)
+        }
+    }
+    // Ensure final newline
+    if (out[out.length - 1] !== '') out.push('')
+    return out.join('\n')
+}
+
 interface ServerResponse {
     setHeader(name: string, value: string): void;
     end(data?: string | Buffer): void;
@@ -151,7 +205,8 @@ function recordingsApi() {
                                 }
                                 const hasReplay = fs.existsSync(path.join(RECORDINGS_DIR, e.name, 'replay-eq.jsonl'))
                                 const hasVideo = fs.existsSync(path.join(RECORDINGS_DIR, e.name, 'video.mp4')) || fs.existsSync(path.join(RECORDINGS_DIR, e.name, 'video.webm'))
-                                return { id: e.name, metadata, hasReplay, hasVideo }
+                                const hasSubtitles = fs.existsSync(path.join(RECORDINGS_DIR, e.name, 'video.vtt')) || fs.existsSync(path.join(RECORDINGS_DIR, e.name, 'video.srt'))
+                                return { id: e.name, metadata, hasReplay, hasVideo, hasSubtitles }
                             })
                             .sort((a, b) => {
                                 const tA = a.metadata?.startTime ?? 0
@@ -526,6 +581,122 @@ function recordingsApi() {
                     } catch (err) {
                         sendJson(res, 500, { error: String(err) })
                     }
+                    return
+                }
+
+                // GET|HEAD /api/recordings/:sessionId/subtitles — serve WebVTT (convert SRT if needed)
+                const subsGetMatch = urlPath.match(/^\/api\/recordings\/([^/]+)\/subtitles$/)
+                if (subsGetMatch && (method === 'GET' || method === 'HEAD')) {
+                    const sessionDir = resolveSessionDir(subsGetMatch[1])
+                    if (!sessionDir) { sendJson(res, 400, { error: 'Invalid session ID' }); return }
+                    try {
+                        const vttPath = path.join(sessionDir, 'video.vtt')
+                        const srtPath = path.join(sessionDir, 'video.srt')
+
+                        let vtt: string | null = null
+                        if (fs.existsSync(vttPath)) {
+                            const raw = stripBom(fs.readFileSync(vttPath, 'utf-8'))
+                            if (looksLikeVtt(raw)) vtt = raw
+                        }
+                        if (vtt == null && fs.existsSync(srtPath)) {
+                            const raw = stripBom(fs.readFileSync(srtPath, 'utf-8'))
+                            if (looksLikeSrt(raw)) vtt = srtToVtt(raw)
+                        }
+                        if (vtt == null) { sendJson(res, 404, { error: 'No subtitles found' }); return }
+
+                        res.setHeader('Content-Type', 'text/vtt; charset=utf-8')
+                        res.setHeader('Cache-Control', 'no-store')
+                        if (method === 'HEAD') { res.writeHead(200); res.end(); return }
+                        res.end(vtt)
+                    } catch (err) {
+                        sendJson(res, 500, { error: String(err) })
+                    }
+                    return
+                }
+
+                // PUT /api/recordings/:sessionId/subtitles — upload VTT or SRT, stored as video.vtt
+                const subsPutMatch = urlPath.match(/^\/api\/recordings\/([^/]+)\/subtitles$/)
+                if (subsPutMatch && method === 'PUT') {
+                    const sessionId = subsPutMatch[1]
+                    const sessionDir = resolveSessionDir(sessionId)
+                    if (!sessionDir) { sendJson(res, 400, { error: 'Invalid session ID' }); return }
+                    if (!fs.existsSync(sessionDir)) { sendJson(res, 404, { error: 'Session not found' }); return }
+
+                    if (subtitleUploadInProgress.get(sessionId)) {
+                        sendJson(res, 409, { error: 'Upload already in progress' })
+                        return
+                    }
+
+                    const contentType = ((req.headers?.['content-type'] ?? '') as string).toLowerCase()
+                    const acceptedTypes = ['text/vtt', 'application/x-subrip', 'text/plain']
+                    if (!acceptedTypes.some(t => contentType.includes(t))) {
+                        sendJson(res, 400, { error: 'Content-Type must be text/vtt, application/x-subrip, or text/plain' })
+                        return
+                    }
+
+                    subtitleUploadInProgress.set(sessionId, true)
+                    const chunks: Buffer[] = []
+                    let totalSize = 0
+                    let rejected = false
+                    let requestEnded = false
+
+                    const cleanup = () => {
+                        subtitleUploadInProgress.delete(sessionId)
+                    }
+
+                    req.on('data', (chunk: Buffer) => {
+                        if (rejected) return
+                        totalSize += chunk.length
+                        if (totalSize > MAX_SUBTITLE_BYTES) {
+                            rejected = true
+                            cleanup()
+                            sendJson(res, 413, { error: 'Subtitle file too large (max 5 MB)' })
+                            return
+                        }
+                        chunks.push(chunk)
+                    })
+
+                    req.on('end', () => {
+                        if (rejected) return
+                        requestEnded = true
+                        try {
+                            const raw = stripBom(Buffer.concat(chunks).toString('utf-8'))
+                            let vtt: string
+                            if (looksLikeVtt(raw)) {
+                                vtt = raw
+                            } else if (looksLikeSrt(raw)) {
+                                vtt = srtToVtt(raw)
+                            } else {
+                                cleanup()
+                                sendJson(res, 400, { error: 'Not a valid VTT or SRT file' })
+                                return
+                            }
+
+                            const finalPath = path.join(sessionDir, 'video.vtt')
+                            const tmpPath = finalPath + '.tmp'
+                            fs.writeFileSync(tmpPath, vtt, 'utf-8')
+                            fs.renameSync(tmpPath, finalPath)
+
+                            cleanup()
+                            sendJson(res, 200, { ok: true })
+                        } catch (err) {
+                            cleanup()
+                            sendJson(res, 500, { error: String(err) })
+                        }
+                    })
+
+                    req.on('error', () => {
+                        if (rejected) return
+                        rejected = true
+                        cleanup()
+                    })
+
+                    req.on('close' as string, () => {
+                        if (rejected || requestEnded) return
+                        rejected = true
+                        cleanup()
+                    })
+
                     return
                 }
 
