@@ -98,9 +98,10 @@ export function ContextSelector({
     // Check if new session should be disabled (no messages in current session)
     const canCreateNewSession = sessions.length > 0 && sessions.some(s => s.messageCount > 0);
 
-    const messageCount = context
-        ? sessions.find((s) => s.id === activeSessionId)?.messageCount || 0
-        : 0;
+    const activeSession = context
+        ? sessions.find((s) => s.id === activeSessionId)
+        : undefined;
+    const messageCount = activeSession?.messageCount || 0;
 
     return (
         <div ref={containerRef} className={styles.container}>
@@ -129,10 +130,10 @@ export function ContextSelector({
                     )}
                     <div className={styles.textContainer}>
                         <span className={styles.title}>
-                            {context?.title || 'Select context'}
+                            {activeSession?.title || 'New conversation'}
                         </span>
                         <span className={styles.subtitle}>
-                            {messageCount} message{messageCount !== 1 ? 's' : ''}
+                            {context?.title ? `${context.title} · ${messageCount} msg${messageCount !== 1 ? 's' : ''}` : 'Select context'}
                         </span>
                     </div>
                 </div>
