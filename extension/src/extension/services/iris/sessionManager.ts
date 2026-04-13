@@ -56,7 +56,8 @@ export class SessionManager {
         messageCount: number,
         createdAt: number,
         artemisSessionId?: number,
-        _messages?: IrisChatMessage[]
+        _messages?: IrisChatMessage[],
+        title?: string,
     ): void {
         const active = this._getActiveContext();
         if (!active) {
@@ -69,6 +70,7 @@ export class SessionManager {
             id: `session-${artemisSessionId ?? crypto.randomUUID()}`,
             contextKey: key,
             preview,
+            title,
             messageCount,
             createdAt,
             lastActivity: createdAt,
@@ -171,6 +173,19 @@ export class SessionManager {
             state.sessions[key] = filteredSessions;
             this._saveState();
         }
+    }
+
+    public updateSessionTitle(artemisSessionId: number, title: string): boolean {
+        const state = this._getState();
+        for (const sessions of Object.values(state.sessions)) {
+            const session = sessions.find(s => s.artemisSessionId === artemisSessionId);
+            if (session) {
+                session.title = title;
+                this._saveState();
+                return true;
+            }
+        }
+        return false;
     }
 
     public setArtemisSessionId(artemisSessionId: number | undefined): void {

@@ -48,6 +48,7 @@ export class ChatViewStatePresenter {
             id: session.id,
             artemisSessionId: session.artemisSessionId,
             preview: session.preview,
+            title: session.title,
             messageCount: session.messageCount,
             createdAt: session.createdAt,
             lastActivity: session.lastActivity,

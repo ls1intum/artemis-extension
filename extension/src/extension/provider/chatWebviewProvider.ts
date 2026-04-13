@@ -111,7 +111,12 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
         this._websocketMessageHandler = new IrisWebSocketMessageHandler(
             this._websocketService,
             () => this._irisSessionManager,
-            (message) => this._postMessageSafe(message)
+            (message) => this._postMessageSafe(message),
+            (artemisSessionId, title) => {
+                if (this._contextStore.updateSessionTitle(artemisSessionId, title)) {
+                    this._viewStatePresenter.postSnapshot();
+                }
+            },
         );
 
         if (this._artemisApiService && this._websocketService) {

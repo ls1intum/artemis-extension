@@ -112,6 +112,7 @@ export interface FeedbackSummary {
 
 export interface IrisChatSession {
     id: number;
+    title?: string;
     creationDate?: string;
     messages?: IrisChatMessage[];
     [key: string]: unknown;

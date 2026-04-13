@@ -96,6 +96,7 @@ export const useChatStore = create<ChatState>()(
                         id: s.id,
                         artemisSessionId: s.artemisSessionId,
                         preview: s.preview,
+                        title: s.title,
                         messageCount: s.messageCount,
                         createdAt: s.createdAt,
                         lastActivity: s.lastActivity,

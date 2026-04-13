@@ -277,7 +277,7 @@ export function ContextSelector({
                                                 </svg>
                                                 <div className={styles.sessionContent}>
                                                     <span className={styles.sessionPreview}>
-                                                        {session.preview}
+                                                        {session.title || session.preview}
                                                     </span>
                                                     <span className={styles.sessionMeta}>
                                                         {session.messageCount} messages •{' '}

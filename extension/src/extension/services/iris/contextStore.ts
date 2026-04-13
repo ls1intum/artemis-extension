@@ -343,9 +343,10 @@ export class ContextStore {
         messageCount: number,
         createdAt: number,
         artemisSessionId?: number,
-        messages?: IrisChatMessage[]
+        messages?: IrisChatMessage[],
+        title?: string,
     ): ContextSnapshot {
-        this._sessionManager.createSessionWithDetails(preview, messageCount, createdAt, artemisSessionId, messages);
+        this._sessionManager.createSessionWithDetails(preview, messageCount, createdAt, artemisSessionId, messages, title);
         return this.snapshot();
     }
 
@@ -370,6 +371,10 @@ export class ContextStore {
 
     public cleanupEmptySessions(): void {
         this._sessionManager.cleanupEmptySessions();
+    }
+
+    public updateSessionTitle(artemisSessionId: number, title: string): boolean {
+        return this._sessionManager.updateSessionTitle(artemisSessionId, title);
     }
 
     public setArtemisSessionId(artemisSessionId: number | undefined): void {
