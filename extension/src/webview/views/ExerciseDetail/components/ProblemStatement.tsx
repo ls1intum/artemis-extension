@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
+import katex from 'katex';
+import 'katex/dist/katex.min.css';
 import { Container } from '../../../components/Container';
 import { Button } from '../../../components/Button';
 import { Skeleton } from '../../../components/Skeleton/Skeleton';
@@ -8,49 +10,76 @@ import styles from './ProblemStatement.module.css';
 const SSR_TIMEOUT_MS = 10_000;
 
 /**
+ * Strip KaTeX <script> and <link> tags from server HTML since we handle
+ * KaTeX rendering client-side via the bundled npm package.
+ */
+function stripKatexTags(html: string): string {
+    return html
+        .replace(/<script[^>]*katex[^>]*><\/script>/gi, '')
+        .replace(/<script>[^<]*katex[^<]*<\/script>/gi, '')
+        .replace(/<link[^>]*katex[^>]*>/gi, '');
+}
+
+/**
+ * Extract the inner body content from a full HTML document.
+ * The server wraps in <!DOCTYPE><html><body>...</body></html> but we
+ * inject via dangerouslySetInnerHTML which needs just the body content.
+ */
+function extractBodyContent(html: string): string {
+    const bodyMatch = html.match(/<body[^>]*>([\s\S]*)<\/body>/i);
+    return bodyMatch ? bodyMatch[1] : html;
+}
+
+/**
+ * Find all KaTeX formula placeholders and render them using the bundled
+ * KaTeX library. The server provides <span class="katex-formula"
+ * data-formula="..." data-display-mode="true|false"></span> placeholders.
+ */
+function renderKatexFormulas(container: HTMLElement): void {
+    const formulas = container.querySelectorAll<HTMLElement>('.katex-formula');
+    for (const el of formulas) {
+        const formula = el.getAttribute('data-formula');
+        if (!formula) { continue; }
+        const displayMode = el.getAttribute('data-display-mode') === 'true';
+        try {
+            katex.render(formula, el, {
+                displayMode,
+                throwOnError: false,
+                output: 'html',
+            });
+        } catch {
+            el.textContent = formula;
+        }
+    }
+}
+
+/**
  * ProblemStatement component — displays server-rendered HTML from the Artemis
- * SSR endpoint in an iframe. The server returns a full HTML document with
- * Markdown→HTML, PlantUML SVG inlining, KaTeX math, task markers with test
- * status, embedded CSS, and interactive JS.
+ * SSR endpoint. The server handles Markdown→HTML, PlantUML SVG inlining,
+ * task markers with test status, and embedded CSS.
  *
- * An iframe is used instead of dangerouslySetInnerHTML because:
- * - Scripts execute in iframe srcdoc (innerHTML ignores them)
- * - External resources (KaTeX JS/CSS) load without CSP restrictions
- * - The document context enables proper KaTeX rendering
+ * KaTeX math rendering is handled client-side: the server provides formula
+ * placeholders which are rendered using the bundled KaTeX npm package after
+ * DOM injection.
  */
 export function ProblemStatement({
     serverRenderedHtml,
     downloadLinks = [],
     onDownload,
 }: ProblemStatementProps) {
-    const iframeRef = useRef<HTMLIFrameElement>(null);
+    const contentRef = useRef<HTMLDivElement>(null);
     const [timedOut, setTimedOut] = useState(false);
 
-    // Auto-resize iframe to fit content
+    // Extract body content and strip server KaTeX tags
+    const bodyHtml = serverRenderedHtml
+        ? stripKatexTags(extractBodyContent(serverRenderedHtml))
+        : undefined;
+
+    // After HTML injection, render KaTeX formulas and execute interactive script
     useEffect(() => {
-        if (!serverRenderedHtml || !iframeRef.current) {return;}
-        const iframe = iframeRef.current;
-        const resizeObserver = new ResizeObserver(() => {
-            const body = iframe.contentDocument?.body;
-            if (body) {
-                iframe.style.height = body.scrollHeight + 'px';
-            }
-        });
-
-        const handleLoad = () => {
-            const body = iframe.contentDocument?.body;
-            if (body) {
-                iframe.style.height = body.scrollHeight + 'px';
-                resizeObserver.observe(body);
-            }
-        };
-
-        iframe.addEventListener('load', handleLoad);
-        return () => {
-            iframe.removeEventListener('load', handleLoad);
-            resizeObserver.disconnect();
-        };
-    }, [serverRenderedHtml]);
+        if (!bodyHtml || !contentRef.current) { return; }
+        renderKatexFormulas(contentRef.current);
+    }, [bodyHtml]);
 
     // Timeout: if SSR hasn't arrived after 10s, show error
     useEffect(() => {
@@ -64,13 +93,11 @@ export function ProblemStatement({
 
     return (
         <Container header={<h3>Exercise Description</h3>}>
-            {serverRenderedHtml ? (
-                <iframe
-                    ref={iframeRef}
-                    srcDoc={serverRenderedHtml}
-                    sandbox="allow-scripts"
+            {bodyHtml ? (
+                <div
+                    ref={contentRef}
                     className={styles.problemStatement}
-                    style={{ width: '100%', border: 'none', overflow: 'hidden' }}
+                    dangerouslySetInnerHTML={{ __html: bodyHtml }}
                 />
             ) : timedOut ? (
                 <div className={styles.errorContainer}>
