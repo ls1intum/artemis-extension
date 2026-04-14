@@ -397,12 +397,12 @@ export class NavigationCommandModule {
                 }
             }
 
-            if (parentCourseDetailData) {
-                this.context.appStateManager.showCourseDetail(parentCourseDetailData);
-            } else {
-                logger.viewWarn(`⚠️  Could not find parent course for exercise ${exerciseId}`);
+            if (!parentCourseDetailData) {
+                logger.viewError(`Could not find parent course for exercise ${exerciseId}`);
+                vscode.window.showErrorMessage('Could not locate the course for this exercise.');
+                return;
             }
-
+            this.context.appStateManager.showCourseDetail(parentCourseDetailData);
             await this.context.actionHandler.openExerciseDetails(exerciseId);
         } catch (error: unknown) {
             logger.viewError('Open exercise error:', error);

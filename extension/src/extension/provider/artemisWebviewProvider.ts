@@ -211,15 +211,20 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
                         return;
                     }
 
-                    // Re-fetch exercise data to capture any WebSocket updates missed while hidden
+                    // Re-fetch exercise data to capture any WebSocket updates missed while hidden.
+                    // Swallow fetch errors only — state-transition errors (invariant breaches)
+                    // must propagate so latent bugs don't get hidden by this refresh path.
                     if (currentState === 'exercise-detail') {
                         const exerciseData = this._appStateManager.currentExerciseData as ExerciseDetailsResponse | undefined;
                         const exerciseId = exerciseData?.exercise?.id;
                         if (exerciseId) {
+                            let freshData: ExerciseDetailsResponse | undefined;
                             try {
-                                const freshData = await fetchAndEnrichExerciseDetails(this._artemisApi, exerciseId);
-                                this._appStateManager.showExerciseDetail(freshData);
+                                freshData = await fetchAndEnrichExerciseDetails(this._artemisApi, exerciseId);
                             } catch { /* fall through to sendInitData with cached data */ }
+                            if (freshData) {
+                                this._appStateManager.showExerciseDetail(freshData);
+                            }
                         }
                     }
 
