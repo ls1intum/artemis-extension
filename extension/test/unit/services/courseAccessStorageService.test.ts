@@ -3,45 +3,24 @@ import {
     CourseAccessStorageService,
     COURSE_ACCESS_STORAGE_LIMIT,
     COURSE_ACCESS_DISPLAY_LIMIT,
-    buildScopeKey,
     type CourseAccessMap,
     type CourseAccessScope,
 } from '../../../src/extension/services/courseAccessStorageService';
-
-class InMemoryMemento {
-    private readonly _store = new Map<string, unknown>();
-    public updateCalls = 0;
-
-    get<T>(key: string, defaultValue: T): T {
-        return (this._store.has(key) ? this._store.get(key) : defaultValue) as T;
-    }
-
-    async update(key: string, value: unknown): Promise<void> {
-        this.updateCalls++;
-        if (value === undefined) {
-            this._store.delete(key);
-        } else {
-            this._store.set(key, value);
-        }
-    }
-
-    keys(): readonly string[] { return Array.from(this._store.keys()); }
-    snapshot(): Map<string, unknown> { return new Map(this._store); }
-}
+import { MockMemento } from '../mocks/vscodeMocks';
 
 function waitFor(ms: number): Promise<void> {
     return new Promise(resolve => setTimeout(resolve, ms));
 }
 
 suite('CourseAccessStorageService', () => {
-    let memento: InMemoryMemento;
+    let memento: MockMemento;
     let scope: CourseAccessScope;
     let service: CourseAccessStorageService;
 
     setup(() => {
-        memento = new InMemoryMemento();
+        memento = new MockMemento();
         scope = { serverUrl: 'https://artemis.example.com', principal: { id: 42 } };
-        service = new CourseAccessStorageService(memento as unknown as import('vscode').Memento, () => scope);
+        service = new CourseAccessStorageService(memento, () => scope);
     });
 
     test('empty store returns empty array', () => {
@@ -79,9 +58,10 @@ suite('CourseAccessStorageService', () => {
             service.onCourseAccessed(id);
             await waitFor(2);
         }
-        // Flush: last update must have dropped id=1
         await waitFor(10);
-        const remaining = memento.get<CourseAccessMap>(buildScopeKey(scope)!, {});
+        const keys = memento.keys();
+        assert.strictEqual(keys.length, 1);
+        const remaining = memento.get<CourseAccessMap>(keys[0]!, {});
         assert.strictEqual(Object.keys(remaining).length, COURSE_ACCESS_STORAGE_LIMIT);
         assert.ok(!(1 in remaining), 'oldest id should be evicted');
         assert.ok(String(ids.at(-1)) in remaining, 'newest id should be present');
@@ -99,7 +79,7 @@ suite('CourseAccessStorageService', () => {
 
     test('scope isolation: different serverUrl uses different bucket', async () => {
         let activeScope: CourseAccessScope = { serverUrl: 'https://a.example.com', principal: { id: 1 } };
-        const svc = new CourseAccessStorageService(memento as unknown as import('vscode').Memento, () => activeScope);
+        const svc = new CourseAccessStorageService(memento, () => activeScope);
         svc.onCourseAccessed(10);
         await waitFor(5);
         activeScope = { serverUrl: 'https://b.example.com', principal: { id: 1 } };
@@ -107,14 +87,13 @@ suite('CourseAccessStorageService', () => {
         svc.onCourseAccessed(20);
         await waitFor(5);
         assert.deepStrictEqual(svc.getLastAccessedCourses(), [20]);
-        // Restore scope A → original data still there
         activeScope = { serverUrl: 'https://a.example.com', principal: { id: 1 } };
         assert.deepStrictEqual(svc.getLastAccessedCourses(), [10]);
     });
 
     test('scope isolation: different userId uses different bucket', async () => {
         let active: CourseAccessScope = { serverUrl: 'https://artemis.example.com', principal: { id: 1 } };
-        const svc = new CourseAccessStorageService(memento as unknown as import('vscode').Memento, () => active);
+        const svc = new CourseAccessStorageService(memento, () => active);
         svc.onCourseAccessed(100);
         await waitFor(5);
         active = { serverUrl: 'https://artemis.example.com', principal: { id: 2 } };
@@ -122,29 +101,37 @@ suite('CourseAccessStorageService', () => {
     });
 
     test('no scope available → write is no-op, read is empty', async () => {
-        const svc = new CourseAccessStorageService(memento as unknown as import('vscode').Memento, () => null);
+        const svc = new CourseAccessStorageService(memento, () => null);
         svc.onCourseAccessed(999);
         await waitFor(5);
-        assert.strictEqual(memento.updateCalls, 0);
+        assert.strictEqual(memento.keys().length, 0);
         assert.deepStrictEqual(svc.getLastAccessedCourses(), []);
     });
 
-    test('serverUrl normalization: case + trailing slash + default port', () => {
-        const k1 = buildScopeKey({ serverUrl: 'https://Artemis.Example.com/', principal: { id: 1 } });
-        const k2 = buildScopeKey({ serverUrl: 'https://artemis.example.com', principal: { id: 1 } });
-        const k3 = buildScopeKey({ serverUrl: 'https://artemis.example.com:443', principal: { id: 1 } });
-        assert.strictEqual(k1, k2);
-        assert.strictEqual(k1, k3);
+    test('serverUrl normalization: case, trailing slash, default port map to same bucket', async () => {
+        let active: CourseAccessScope = { serverUrl: 'https://Artemis.Example.com/', principal: { id: 1 } };
+        const writer = new CourseAccessStorageService(memento, () => active);
+        writer.onCourseAccessed(42);
+        await waitFor(5);
+
+        // Read back via differently-spelled but equivalent URLs
+        for (const variant of ['https://artemis.example.com', 'https://artemis.example.com:443']) {
+            active = { serverUrl: variant, principal: { id: 1 } };
+            assert.deepStrictEqual(writer.getLastAccessedCourses(), [42], `variant "${variant}" should hit the same bucket`);
+        }
     });
 
-    test('principal normalization: id preferred, login falls back with lowercase', () => {
-        const byId = buildScopeKey({ serverUrl: 'https://a.example.com', principal: { id: 7, login: 'Liam' } });
-        const byLogin = buildScopeKey({ serverUrl: 'https://a.example.com', principal: { login: 'LIAM' } });
-        const byLoginLc = buildScopeKey({ serverUrl: 'https://a.example.com', principal: { login: 'liam' } });
-        assert.ok(byId);
-        assert.ok(byLogin);
-        assert.notStrictEqual(byId, byLogin);
-        assert.strictEqual(byLogin, byLoginLc);
+    test('principal normalization: login lowercase and id/login buckets are distinct', async () => {
+        let active: CourseAccessScope = { serverUrl: 'https://a.example.com', principal: { login: 'LIAM' } };
+        const writer = new CourseAccessStorageService(memento, () => active);
+        writer.onCourseAccessed(1);
+        await waitFor(5);
+
+        active = { serverUrl: 'https://a.example.com', principal: { login: 'liam' } };
+        assert.deepStrictEqual(writer.getLastAccessedCourses(), [1], 'login case should not matter');
+
+        active = { serverUrl: 'https://a.example.com', principal: { id: 7, login: 'liam' } };
+        assert.deepStrictEqual(writer.getLastAccessedCourses(), [], 'id-principal is a different bucket from login-principal');
     });
 
     test('invalid input is ignored', async () => {
@@ -152,7 +139,7 @@ suite('CourseAccessStorageService', () => {
         service.onCourseAccessed(-1);
         service.onCourseAccessed(NaN);
         await waitFor(5);
-        assert.strictEqual(memento.updateCalls, 0);
+        assert.strictEqual(memento.keys().length, 0);
         assert.deepStrictEqual(service.getLastAccessedCourses(), []);
     });
 
@@ -176,7 +163,6 @@ suite('CourseAccessStorageService', () => {
         await waitFor(10);
         svc.onCourseAccessed(2);
         await waitFor(10);
-        // First persist failed, shadow still has both, in-memory reads work
         assert.deepStrictEqual(svc.getLastAccessedCourses(), [2, 1]);
     });
 });

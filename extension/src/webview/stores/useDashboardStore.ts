@@ -29,10 +29,7 @@ export const useDashboardStore = create<DashboardState>()(
             },
 
             setDashboardData: (courses: RecentCourseNode[]) => {
-                // Trust the extension-side selection: the payload is already
-                // ordered (accessed-first DESC by timestamp, fallback-sorted) and
-                // truncated to the display limit. Re-sorting here would override
-                // the access-based ordering.
+                // Ordering owned by extension side; do not re-sort here.
                 set({ recentCourses: courses, isLoading: false }, false, 'setDashboardData');
             },
 

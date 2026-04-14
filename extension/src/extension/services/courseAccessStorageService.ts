@@ -8,10 +8,16 @@ export interface CourseAccessScope {
 
 export type CourseAccessMap = Record<number, number>;
 
-const STORAGE_KEY_PREFIX = 'artemis.courseAccess';
+const STORAGE_KEY_PREFIX = 'dashboard.courseAccess';
 export const COURSE_ACCESS_STORAGE_LIMIT = 20;
 export const COURSE_ACCESS_DISPLAY_LIMIT = 3;
 
+/**
+ * Invariant: sync read-after-write. `onCourseAccessed` must be observable by an
+ * immediate `getLastAccessedCourses()` call, but `globalState.update()` is async.
+ * The shadow map is the authoritative in-memory state; the write chain serializes
+ * persistence without blocking reads.
+ */
 export class CourseAccessStorageService {
     private readonly _shadow = new Map<string, CourseAccessMap>();
     private readonly _writeChain = new Map<string, Promise<unknown>>();
@@ -48,10 +54,9 @@ export class CourseAccessStorageService {
             .catch(() => undefined)
             .then(() => this._globalState.update(scopeKey, snapshot))
             .catch((err: unknown) => {
-                logger.warn('Failed to persist recent-course access', LogCategory.GENERAL, err);
+                logger.warn('Failed to persist recent-course access', LogCategory.VIEW, err);
             });
         this._writeChain.set(scopeKey, chained);
-        void chained;
     }
 
     public getLastAccessedCourses(): number[] {
@@ -84,7 +89,7 @@ export class CourseAccessStorageService {
     }
 }
 
-export function buildScopeKey(scope: CourseAccessScope): string | null {
+function buildScopeKey(scope: CourseAccessScope): string | null {
     const server = normalizeServerUrl(scope.serverUrl);
     if (!server) { return null; }
     const principal = normalizePrincipal(scope.principal);

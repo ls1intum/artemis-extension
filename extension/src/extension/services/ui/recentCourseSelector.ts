@@ -31,7 +31,7 @@ export function selectRecentCourses(
     const accessedSet = new Set<number>();
     const accessed: CourseDashboardEntry[] = [];
     for (const id of accessedIds) {
-        if (accessedSet.has(id)) { continue; } // defensive: dedup duplicate ids
+        if (accessedSet.has(id)) { continue; }
         const entry = byId.get(id);
         if (entry) { accessed.push(entry); accessedSet.add(id); }
     }
