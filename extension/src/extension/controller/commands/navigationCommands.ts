@@ -141,6 +141,10 @@ export class NavigationCommandModule {
 
             this.context.appStateManager.showCourseDetail(courseDetailData);
 
+            if (course?.id !== undefined) {
+                this.context.courseAccessStorage?.onCourseAccessed(course.id);
+            }
+
             const registry = this.context.exerciseRegistry;
             // Pass the entry format for registration (expects CourseDashboardEntry)
             const entryFormat: CourseDashboardEntry = 'course' in courseData ? courseData : { course: courseData };
@@ -353,6 +357,7 @@ export class NavigationCommandModule {
 
             const courseData = await fetchArchivedCourseDetail(this.context.artemisApi, courseId);
             this.context.appStateManager.showCourseDetail(courseData);
+            this.context.courseAccessStorage?.onCourseAccessed(courseId);
             this.context.actionHandler.render();
         } catch (error: unknown) {
             logger.viewError('View archived course error:', error);

@@ -29,16 +29,11 @@ export const useDashboardStore = create<DashboardState>()(
             },
 
             setDashboardData: (courses: RecentCourseNode[]) => {
-                // Sort and limit to 3 most recent courses
-                const sortedCourses = courses
-                    .sort((a, b) => {
-                        const aDate = a.courseData.course.startDate || '';
-                        const bDate = b.courseData.course.startDate || '';
-                        return bDate.localeCompare(aDate);
-                    })
-                    .slice(0, 3);
-
-                set({ recentCourses: sortedCourses, isLoading: false }, false, 'setDashboardData');
+                // Trust the extension-side selection: the payload is already
+                // ordered (accessed-first DESC by timestamp, fallback-sorted) and
+                // truncated to the display limit. Re-sorting here would override
+                // the access-based ordering.
+                set({ recentCourses: courses, isLoading: false }, false, 'setDashboardData');
             },
 
             setWorkspaceExercise: (exercise: { id: number; title: string } | 'loading' | null) => {

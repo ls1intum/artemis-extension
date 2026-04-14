@@ -9,6 +9,8 @@ import { detectWorkspaceExercise, detectWorkspaceForRepoUris, type ExerciseSourc
 import { GitService } from '../workspace/gitService';
 import { logger, LogCategory } from '../loggingService';
 import { VSCODE_CONFIG, CONFIG, resolveServerUrl } from '../../utils';
+import { COURSE_ACCESS_DISPLAY_LIMIT, type CourseAccessStorageService } from '../courseAccessStorageService';
+import { selectRecentCourses } from './recentCourseSelector';
 
 export class ViewInitDataService {
     private _initGeneration = 0;
@@ -19,6 +21,7 @@ export class ViewInitDataService {
         private readonly _telemetryManager: TelemetryManager | undefined,
         private readonly _messageHandler: WebViewMessageHandler,
         private readonly _postMessage: (msg: ExtensionToWebviewMessage) => void,
+        private readonly _courseAccessStorage?: CourseAccessStorageService,
     ) {}
 
     public sendInitData(): void {
@@ -48,7 +51,10 @@ export class ViewInitDataService {
         const coursesData = this._appStateManager.coursesData;
         const courses = coursesData?.courses || [];
 
-        const recentCourseNodes = courses.map((courseItem: CourseDashboardEntry) => {
+        const accessedIds = this._courseAccessStorage?.getLastAccessedCourses() ?? [];
+        const selectedCourses = selectRecentCourses(courses, accessedIds, COURSE_ACCESS_DISPLAY_LIMIT);
+
+        const recentCourseNodes = selectedCourses.map((courseItem: CourseDashboardEntry) => {
             const course = courseItem.course || courseItem;
             const exercises = course.exercises || [];
 
