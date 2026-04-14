@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import type { ExerciseRegistry } from '../exerciseRegistry';
 import type { IProviderRegistry } from './providerRegistry';
 import type { TelemetryManager } from '../telemetry/telemetryManager';
+import type { CourseAccessStorageService } from '../courseAccessStorageService';
 import { logger, LogCategory } from '../loggingService';
 import type { ExerciseDetailsResponse } from '../../types';
 
@@ -10,6 +11,7 @@ export class ExerciseOpeningService {
         private readonly _exerciseRegistry: ExerciseRegistry,
         private readonly _providerRegistry: IProviderRegistry,
         private _telemetryManager?: TelemetryManager,
+        private readonly _courseAccessStorage?: CourseAccessStorageService,
     ) {}
 
     /**
@@ -35,6 +37,11 @@ export class ExerciseOpeningService {
                 typeof participations[0].id === 'number' ? participations[0].id : undefined,
             );
             logger.exercise(`Registered individual exercise: ${exerciseTitle}`);
+        }
+
+        const courseId = exercise.course?.id;
+        if (typeof courseId === 'number') {
+            this._courseAccessStorage?.onCourseAccessed(courseId);
         }
 
         // Start telemetry session

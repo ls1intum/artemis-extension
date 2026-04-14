@@ -29,16 +29,8 @@ export const useDashboardStore = create<DashboardState>()(
             },
 
             setDashboardData: (courses: RecentCourseNode[]) => {
-                // Sort and limit to 3 most recent courses
-                const sortedCourses = courses
-                    .sort((a, b) => {
-                        const aDate = a.courseData.course.startDate || '';
-                        const bDate = b.courseData.course.startDate || '';
-                        return bDate.localeCompare(aDate);
-                    })
-                    .slice(0, 3);
-
-                set({ recentCourses: sortedCourses, isLoading: false }, false, 'setDashboardData');
+                // Ordering owned by extension side; do not re-sort here.
+                set({ recentCourses: courses, isLoading: false }, false, 'setDashboardData');
             },
 
             setWorkspaceExercise: (exercise: { id: number; title: string } | 'loading' | null) => {

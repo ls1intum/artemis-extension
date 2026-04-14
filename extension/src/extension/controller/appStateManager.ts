@@ -39,14 +39,15 @@ export interface AiExtension {
 }
 
 /**
- * Discriminated union for the navigation payload.
- * Only one variant is active at a time — navigating to a new view
- * automatically discards the previous payload, preventing stale data leaks.
+ * Discriminated union for the navigation payload. Each view owns exactly one
+ * variant, and "back" transitions restore the parent payload explicitly.
+ * Entering a view without its required parent in scope is a programmer error
+ * — we throw so the bug surfaces instead of silently rendering a broken screen.
  */
 type NavigationPayload =
     | { kind: 'none' }
     | { kind: 'course'; data: CourseDetailData }
-    | { kind: 'exercise'; data: ExerciseDetailsResponse }
+    | { kind: 'exercise'; data: ExerciseDetailsResponse; parentCourse: CourseDetailData }
     | { kind: 'exam'; data: ExamData }
     | { kind: 'exam-exercise'; exercise: ExamExerciseData; exam: ExamData };
 
@@ -171,12 +172,20 @@ export class AppStateManager {
     }
 
     public showExerciseDetail(exerciseData: ExerciseDetailsResponse): void {
-        this._payload = { kind: 'exercise', data: exerciseData };
+        const parentCourse =
+            this._payload.kind === 'course' ? this._payload.data :
+            this._payload.kind === 'exercise' ? this._payload.parentCourse :
+            undefined;
+        if (!parentCourse) {
+            throw new Error('showExerciseDetail requires a course in scope; call showCourseDetail first');
+        }
+        this._payload = { kind: 'exercise', data: exerciseData, parentCourse };
         this._setCurrentState('exercise-detail');
     }
 
     public backToCourseDetails(): void {
-        // Payload persists — the course data was set when entering the course view
+        if (this._payload.kind !== 'exercise') { return; }
+        this._payload = { kind: 'course', data: this._payload.parentCourse };
         this._setCurrentState('course-detail');
     }
 

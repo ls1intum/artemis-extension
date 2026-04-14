@@ -37,7 +37,7 @@ describe('useDashboardStore', () => {
 		});
 	});
 
-	it('sorts courses by date and limits to 3', () => {
+	it('preserves payload order — does not re-sort', () => {
 		const { result } = renderHook(() => useDashboardStore());
 
 		const makeCourse = (title: string, startDate: string): RecentCourseNode => ({
@@ -45,11 +45,12 @@ describe('useDashboardStore', () => {
 			exercises: [],
 		});
 
+		// Extension side is the source of truth for ordering and slicing.
+		// Payload arrives already ordered (most-recently-accessed first).
 		const courses = [
 			makeCourse('Course 1', '2023-01-01'),
 			makeCourse('Course 2', '2023-06-01'),
 			makeCourse('Course 3', '2023-12-01'),
-			makeCourse('Course 4', '2023-09-01'),
 		];
 
 		act(() => {
@@ -57,9 +58,9 @@ describe('useDashboardStore', () => {
 		});
 
 		expect(result.current.recentCourses).toHaveLength(3);
-		expect(result.current.recentCourses[0].courseData.course.title).toBe('Course 3');
-		expect(result.current.recentCourses[1].courseData.course.title).toBe('Course 4');
-		expect(result.current.recentCourses[2].courseData.course.title).toBe('Course 2');
+		expect(result.current.recentCourses[0].courseData.course.title).toBe('Course 1');
+		expect(result.current.recentCourses[1].courseData.course.title).toBe('Course 2');
+		expect(result.current.recentCourses[2].courseData.course.title).toBe('Course 3');
 	});
 
 	it('sets isLoading to false after setDashboardData', () => {
@@ -110,7 +111,8 @@ describe('useDashboardStore', () => {
 		expect(result.current.workspaceExercise).toBeNull();
 	});
 
-	it('sorts courses by startDate only', () => {
+	it('does not mutate course order regardless of startDate', () => {
+		// Extension side owns the ordering; the store must not re-sort.
 		const { result } = renderHook(() => useDashboardStore());
 
 		const courses: RecentCourseNode[] = [
@@ -129,7 +131,8 @@ describe('useDashboardStore', () => {
 		});
 
 		expect(result.current.recentCourses).toHaveLength(2);
-		expect(result.current.recentCourses[0].courseData.course.title).toBe('Course with startDate');
+		expect(result.current.recentCourses[0].courseData.course.title).toBe('Course without startDate');
+		expect(result.current.recentCourses[1].courseData.course.title).toBe('Course with startDate');
 	});
 
 	it('setLoading sets the isLoading flag directly', () => {

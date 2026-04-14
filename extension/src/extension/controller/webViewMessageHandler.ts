@@ -9,6 +9,7 @@ import { AppStateManager } from './appStateManager';
 import type { WebViewActionHandler } from './types';
 import type { CommandContext, CommandHandler } from './commands/types';
 import type { CourseDataCache } from '../services/courseDataCache';
+import type { CourseAccessStorageService } from '../services/courseAccessStorageService';
 import { getCommand } from '../../shared/messageContracts';
 import type { WebviewToExtensionMessage, ExtensionToWebviewMessage } from '../../shared/messageContracts';
 import { AuthCommandModule } from './commands/authCommands';
@@ -42,6 +43,7 @@ export class WebViewMessageHandler {
         providerRegistry: IProviderRegistry,
         websocketService?: ArtemisWebsocketService,
         courseDataCache?: CourseDataCache,
+        courseAccessStorage?: CourseAccessStorageService,
     ) {
         this._websocketService = websocketService;
         const context: CommandContext = {
@@ -56,6 +58,7 @@ export class WebViewMessageHandler {
             exerciseRegistry,
             providerRegistry,
             courseDataCache,
+            courseAccessStorage,
         };
 
         const modules = [
