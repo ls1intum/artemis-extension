@@ -412,12 +412,32 @@ function registerSetServerUrlCommand(): vscode.Disposable {
     return vscode.commands.registerCommand('artemis.setServerUrl', async () => {
         const config = vscode.workspace.getConfiguration(VSCODE_CONFIG.ARTEMIS_SECTION);
         const currentUrl = config.get<string>(VSCODE_CONFIG.SERVER_URL_KEY, '');
+        const hasCustomCurrent = currentUrl.length > 0 && !KNOWN_SERVERS.some(s => s.url === currentUrl);
 
-        const items: vscode.QuickPickItem[] = KNOWN_SERVERS.map(server => ({
+        const items: vscode.QuickPickItem[] = [];
+
+        if (hasCustomCurrent) {
+            let hostname = currentUrl;
+            try {
+                hostname = new URL(currentUrl).host || currentUrl;
+            } catch {
+                // Fall back to the raw value if it fails to parse.
+            }
+            items.push(
+                {
+                    label: `Custom (${hostname})`,
+                    description: currentUrl,
+                    detail: '$(check) Currently selected',
+                },
+                { label: '', kind: vscode.QuickPickItemKind.Separator },
+            );
+        }
+
+        items.push(...KNOWN_SERVERS.map(server => ({
             label: server.label,
             description: server.url,
             detail: server.url === currentUrl ? '$(check) Currently selected' : undefined,
-        }));
+        })));
 
         items.push(
             { label: '', kind: vscode.QuickPickItemKind.Separator },
