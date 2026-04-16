@@ -244,7 +244,9 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
     // Check if workspace exercise exists
     const hasWorkspaceExercise = store.allExercises.some(ex => ex.isWorkspace);
 
-    // Derive active stage: first stage that is not DONE or SKIPPED
+    // Derive active stage: first stage that is not DONE or SKIPPED.
+    // NOT_STARTED is intentionally included: it shows dots immediately while
+    // Artemis transitions the stage to IN_PROGRESS (provides instant feedback).
     const activeStage = useMemo<IrisStageDTO | null>(() => {
         for (const stage of store.irisStages) {
             if (stage.state !== 'DONE' && stage.state !== 'SKIPPED') {
