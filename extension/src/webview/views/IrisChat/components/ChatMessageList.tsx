@@ -3,12 +3,13 @@ import { MessageBubble } from './MessageBubble';
 import { ThinkingIndicator } from './ThinkingIndicator';
 import { WelcomeState } from './WelcomeState';
 import { useAutoScroll } from '../../../hooks/useAutoScroll';
-import type { ChatMessage, StreamingState } from '../types';
+import type { ChatMessage, StreamingState, IrisStageDTO } from '../types';
 import styles from './ChatMessageList.module.css';
 
 interface ChatMessageListProps {
     messages: ChatMessage[];
     streaming: StreamingState;
+    activeStage: IrisStageDTO | null;
     onFeedback: (messageId: number, feedback: 'positive' | 'negative') => void;
     onSendPrompt: (text: string) => void;
     hasContext: boolean;
@@ -18,6 +19,7 @@ interface ChatMessageListProps {
 export function ChatMessageList({
     messages,
     streaming,
+    activeStage,
     onFeedback,
     onSendPrompt,
     hasContext,
@@ -33,8 +35,13 @@ export function ChatMessageList({
     // Show welcome state when no messages
     const showWelcome = messages.length === 0;
 
-    // Show thinking indicator when streaming started but no chunks yet
-    const showThinking = streaming.isStreaming && streaming.visibleChunks.length === 0;
+    // Stage indicator takes priority; both suppressed once streaming chunks arrive
+    const hasChunks = streaming.visibleChunks.length > 0;
+    const showStageIndicator = activeStage !== null && !hasChunks;
+    const showLegacyThinking = !showStageIndicator
+        && streaming.isStreaming
+        && !hasChunks;
+    const showThinking = showStageIndicator || showLegacyThinking;
 
     return (
         <div ref={scrollRef} className={styles.scrollContainer}>
@@ -63,7 +70,12 @@ export function ChatMessageList({
                         })}
 
                         {/* Show thinking indicator between user message and first chunk */}
-                        {showThinking && <ThinkingIndicator isVisible={true} />}
+                        {showThinking && (
+                            <ThinkingIndicator
+                                isVisible={true}
+                                activeStage={showStageIndicator ? activeStage : null}
+                            />
+                        )}
                     </>
                 )}
             </div>

@@ -1,6 +1,7 @@
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useMemo } from 'react';
 import { ExtensionMsg, postCommand } from '../../../shared/messageContracts';
 import type { VsCodeApi } from '../../../shared/messageContracts';
+import type { IrisStageDTO } from './types';
 import { useChatStore } from '../../stores/useChatStore';
 import { useExtensionMessage } from '../../hooks/useExtensionMessage';
 import { useClickOutside } from '../../hooks/useClickOutside';
@@ -20,7 +21,7 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
     const {
         setIrisState, setShowDiagnostics, addMessage, setMessages,
         clearMessages, setReferencedFiles, setWebSocketConnected,
-        setDisabledMessage, setNoAiDetected,
+        setDisabledMessage, setNoAiDetected, setIrisStages, resetTransientChatUi,
     } = store;
     const [sideMenuOpen, setSideMenuOpen] = useState(false);
     const [forceContextPicker, setForceContextPicker] = useState(false);
@@ -79,12 +80,13 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
                     status: 'sent',
                 });
                 if (m.role === 'assistant') {
-                    store.finishStreaming(m.content);
+                    resetTransientChatUi();
                 }
                 break;
             }
 
             case ExtensionMsg.LoadMessages: {
+                resetTransientChatUi();
                 setMessages(msg.messages.map((m) => ({
                     id: m.id,
                     localId: crypto.randomUUID(),
@@ -98,6 +100,7 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
             }
 
             case ExtensionMsg.ClearChatMessages:
+                resetTransientChatUi();
                 clearMessages();
                 break;
 
@@ -112,6 +115,9 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
 
             case ExtensionMsg.UpdateWebSocketStatus: {
                 setWebSocketConnected(msg.isConnected);
+                if (!msg.isConnected) {
+                    resetTransientChatUi();
+                }
                 break;
             }
 
@@ -128,8 +134,13 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
                 setNoAiDetected(msg.isNoAiDetected);
                 break;
             }
+
+            case ExtensionMsg.UpdateIrisStages: {
+                setIrisStages(msg.stages);
+                break;
+            }
         }
-    }, [setIrisState, setShowDiagnostics, addMessage, setMessages, clearMessages, setReferencedFiles, setWebSocketConnected, setDisabledMessage, setNoAiDetected]);
+    }, [setIrisState, setShowDiagnostics, addMessage, setMessages, clearMessages, setReferencedFiles, setWebSocketConnected, setDisabledMessage, setNoAiDetected, setIrisStages, resetTransientChatUi]);
 
     // State persistence (only forceContextPicker)
     useEffect(() => {
@@ -147,6 +158,9 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
 
     const handleSendMessage = (text: string) => {
         const localId = crypto.randomUUID();
+
+        // Clear any stale stages/streaming from previous request
+        resetTransientChatUi();
 
         // Add optimistic message
         store.addMessage({
@@ -229,6 +243,16 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
 
     // Check if workspace exercise exists
     const hasWorkspaceExercise = store.allExercises.some(ex => ex.isWorkspace);
+
+    // Derive active stage: first stage that is not DONE or SKIPPED
+    const activeStage = useMemo<IrisStageDTO | null>(() => {
+        for (const stage of store.irisStages) {
+            if (stage.state !== 'DONE' && stage.state !== 'SKIPPED') {
+                return stage;
+            }
+        }
+        return null;
+    }, [store.irisStages]);
 
     return (
         <div className={styles.container}>
@@ -376,6 +400,7 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
                     <ChatMessageList
                         messages={store.messages}
                         streaming={store.streaming}
+                        activeStage={activeStage}
                         onFeedback={handleFeedback}
                         onSendPrompt={handleSendMessage}
                         hasContext={store.context !== null}

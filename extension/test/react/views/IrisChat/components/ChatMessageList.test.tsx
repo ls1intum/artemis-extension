@@ -53,6 +53,7 @@ describe('ChatMessageList', () => {
 			<ChatMessageList
 				messages={[]}
 				streaming={defaultStreaming}
+				activeStage={null}
 				onFeedback={vi.fn()}
 				onSendPrompt={vi.fn()}
 				hasContext={true}
@@ -67,6 +68,7 @@ describe('ChatMessageList', () => {
 			<ChatMessageList
 				messages={[]}
 				streaming={defaultStreaming}
+				activeStage={null}
 				onFeedback={vi.fn()}
 				onSendPrompt={vi.fn()}
 				hasContext={false}
@@ -86,6 +88,7 @@ describe('ChatMessageList', () => {
 			<ChatMessageList
 				messages={messages}
 				streaming={defaultStreaming}
+				activeStage={null}
 				onFeedback={vi.fn()}
 				onSendPrompt={vi.fn()}
 				hasContext={true}
@@ -101,6 +104,7 @@ describe('ChatMessageList', () => {
 			<ChatMessageList
 				messages={messages}
 				streaming={defaultStreaming}
+				activeStage={null}
 				onFeedback={vi.fn()}
 				onSendPrompt={vi.fn()}
 				hasContext={true}
@@ -119,6 +123,7 @@ describe('ChatMessageList', () => {
 			<ChatMessageList
 				messages={messages}
 				streaming={defaultStreaming}
+				activeStage={null}
 				onFeedback={vi.fn()}
 				onSendPrompt={vi.fn()}
 				hasContext={true}
@@ -143,6 +148,7 @@ describe('ChatMessageList', () => {
 			<ChatMessageList
 				messages={messages}
 				streaming={streamingState}
+				activeStage={null}
 				onFeedback={vi.fn()}
 				onSendPrompt={vi.fn()}
 				hasContext={true}
@@ -159,6 +165,7 @@ describe('ChatMessageList', () => {
 			<ChatMessageList
 				messages={messages}
 				streaming={defaultStreaming}
+				activeStage={null}
 				onFeedback={vi.fn()}
 				onSendPrompt={vi.fn()}
 				hasContext={true}
@@ -175,6 +182,7 @@ describe('ChatMessageList', () => {
 			<ChatMessageList
 				messages={[]}
 				streaming={defaultStreaming}
+				activeStage={null}
 				onFeedback={vi.fn()}
 				onSendPrompt={vi.fn()}
 				hasContext={true}
@@ -192,6 +200,7 @@ describe('ChatMessageList', () => {
 			<ChatMessageList
 				messages={messages}
 				streaming={defaultStreaming}
+				activeStage={null}
 				onFeedback={vi.fn()}
 				onSendPrompt={vi.fn()}
 				hasContext={true}
@@ -210,6 +219,7 @@ describe('ChatMessageList', () => {
 			<ChatMessageList
 				messages={messages}
 				streaming={defaultStreaming}
+				activeStage={null}
 				onFeedback={onFeedback}
 				onSendPrompt={vi.fn()}
 				hasContext={true}
