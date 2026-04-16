@@ -20,7 +20,7 @@ All notable changes to the Artemis VS Code extension will be documented in this 
 
 ### Fixed
 
-- **Dashboard "Recent Courses"**: The section now actually shows the 3 most recently accessed courses (previously it listed all active courses). Falls back to newest exercise activity, then course start date, then title when the access map has fewer than 3 entries. Tracked per (server URL, user) in extension global state. Access gets tracked per machine — opening an exercise or course-details updates the list on your next dashboard visit. Resolves #103.
+- **Dashboard "Recent Courses"**: Shows the 3 most recently accessed courses with exercises sorted by latest published. Exercises without dates are no longer hidden. Resolves #103.
 - **Back-to-Course Navigation**: Fixed "Course data is not available" error when returning from an exercise view to its course. The exercise payload now carries its parent course so back-navigation can restore it.
 - **API Endpoint Alignment**: Aligned API endpoints with the Artemis webapp, including correct feedback and exam endpoints.
 - **Build Error CodeLens**: Fixed duplicate CodeLens errors, missing testCase field in WebSocket feedback, and wired up build log viewing with go-to-source navigation.

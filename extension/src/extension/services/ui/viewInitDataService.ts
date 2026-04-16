@@ -58,12 +58,14 @@ export class ViewInitDataService {
             const course = courseItem.course || courseItem;
             const exercises = course.exercises || [];
 
-            const recentExercises = exercises
-                .filter((ex: ExerciseDetail) => ex.releaseDate || ex.startDate || ex.dueDate)
+            const recentExercises = [...exercises]
                 .sort((a: ExerciseDetail, b: ExerciseDetail) => {
                     const aDate = a.releaseDate || a.startDate || a.dueDate || '';
                     const bDate = b.releaseDate || b.startDate || b.dueDate || '';
-                    return bDate.localeCompare(aDate);
+                    if (aDate && bDate) { return bDate.localeCompare(aDate); }
+                    if (aDate && !bDate) { return -1; }
+                    if (!aDate && bDate) { return 1; }
+                    return (b.id ?? 0) - (a.id ?? 0);
                 });
 
             return {
