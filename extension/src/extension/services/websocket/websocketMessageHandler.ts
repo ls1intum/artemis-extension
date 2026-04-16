@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import { ArtemisWebsocketService } from './artemisWebsocketService';
 import { IrisWebSocketSessionClient } from '../iris/irisWebSocketSessionClient';
-import type { IrisChatMessage } from '../../types';
+import type { IrisChatMessage, IrisStageDTO } from '../../types';
 import { logger, LogCategory } from '../loggingService';
 import { extractIrisMessageContent } from '../iris/messageUtils';
 import { ExtensionMsg } from '../../../shared/messageContracts';
@@ -65,9 +65,20 @@ export class IrisWebSocketMessageHandler {
                 logger.info('Skipping message (either USER message or no content)', LogCategory.WEBSOCKET);
             }
         } else if (data.type === 'STATUS') {
-            // Handle status updates (e.g., "Iris is thinking...")
-            logger.info(`Iris status update: ${JSON.stringify(data)}`, LogCategory.WEBSOCKET);
-            // TODO: Show status indicator in UI
+            const rawStages = data['stages'];
+            if (Array.isArray(rawStages)) {
+                const visibleStages = (rawStages as unknown[]).filter(
+                    (stage): stage is IrisStageDTO =>
+                        typeof stage === 'object' && stage !== null && (stage as IrisStageDTO).internal !== true
+                );
+                logger.info(`Iris status update: ${visibleStages.length} visible stage(s)`, LogCategory.WEBSOCKET);
+                this._postMessage({
+                    type: ExtensionMsg.UpdateIrisStages,
+                    stages: visibleStages,
+                });
+            } else {
+                logger.info(`Iris STATUS message without stages array: ${JSON.stringify(data)}`, LogCategory.WEBSOCKET);
+            }
         }
     }
 

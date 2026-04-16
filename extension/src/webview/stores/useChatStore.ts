@@ -6,7 +6,8 @@ import type {
     ChatContext,
     ContextItem,
     ReferencedFilesData,
-    StreamingState
+    StreamingState,
+    IrisStageDTO,
 } from '../views/IrisChat/types';
 import type { ExtMsg } from '../../shared/messageContracts';
 
@@ -25,6 +26,9 @@ interface ChatState {
 
     // Streaming
     streaming: StreamingState;
+
+    // Iris processing stages
+    irisStages: IrisStageDTO[];
 
     // UI state
     isLoading: boolean;
@@ -46,6 +50,10 @@ interface ChatState {
     appendStreamChunk: (chunk: string) => void;
     finishStreaming: (finalContent: string) => void;
 
+    // Iris stage actions
+    setIrisStages: (stages: IrisStageDTO[]) => void;
+    resetTransientChatUi: () => void;
+
     // UI actions
     setLoading: (loading: boolean) => void;
     setWebSocketConnected: (connected: boolean) => void;
@@ -54,6 +62,12 @@ interface ChatState {
     setReferencedFiles: (data: ReferencedFilesData | null) => void;
     setShowDiagnostics: (show: boolean) => void;
 }
+
+const IDLE_STREAMING: StreamingState = {
+    isStreaming: false,
+    messageLocalId: null,
+    visibleChunks: [],
+};
 
 export const useChatStore = create<ChatState>()(
     devtools(
@@ -67,11 +81,8 @@ export const useChatStore = create<ChatState>()(
             allExercises: [],
             allCourses: [],
             messages: [],
-            streaming: {
-                isStreaming: false,
-                messageLocalId: null,
-                visibleChunks: [],
-            },
+            streaming: IDLE_STREAMING,
+            irisStages: [],
             isLoading: false,
             isWebSocketConnected: false,
             disabledMessage: null,
@@ -121,7 +132,8 @@ export const useChatStore = create<ChatState>()(
             clearMessages: () => {
                 set({
                     messages: [],
-                    streaming: { isStreaming: false, messageLocalId: null, visibleChunks: [] },
+                    irisStages: [],
+                    streaming: IDLE_STREAMING,
                 }, false, 'clearMessages');
             },
 
@@ -157,11 +169,7 @@ export const useChatStore = create<ChatState>()(
                 set((state) => {
                     const { messageLocalId } = state.streaming;
                     return {
-                        streaming: {
-                            isStreaming: false,
-                            messageLocalId: null,
-                            visibleChunks: [],
-                        },
+                        streaming: IDLE_STREAMING,
                         messages: messageLocalId
                             ? state.messages.map(msg =>
                                 msg.localId === messageLocalId ? { ...msg, content: finalContent } : msg
@@ -169,6 +177,17 @@ export const useChatStore = create<ChatState>()(
                             : state.messages,
                     };
                 }, false, 'finishStreaming');
+            },
+
+            setIrisStages: (stages) => {
+                set({ irisStages: stages }, false, 'setIrisStages');
+            },
+
+            resetTransientChatUi: () => {
+                set({
+                    irisStages: [],
+                    streaming: IDLE_STREAMING,
+                }, false, 'resetTransientChatUi');
             },
 
             // UI actions
