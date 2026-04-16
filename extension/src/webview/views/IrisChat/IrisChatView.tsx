@@ -100,7 +100,6 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
             }
 
             case ExtensionMsg.ClearChatMessages:
-                resetTransientChatUi();
                 clearMessages();
                 break;
 
@@ -247,14 +246,10 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
     // Derive active stage: first stage that is not DONE or SKIPPED.
     // NOT_STARTED is intentionally included: it shows dots immediately while
     // Artemis transitions the stage to IN_PROGRESS (provides instant feedback).
-    const activeStage = useMemo<IrisStageDTO | null>(() => {
-        for (const stage of store.irisStages) {
-            if (stage.state !== 'DONE' && stage.state !== 'SKIPPED') {
-                return stage;
-            }
-        }
-        return null;
-    }, [store.irisStages]);
+    const activeStage = useMemo<IrisStageDTO | null>(
+        () => store.irisStages.find(s => s.state !== 'DONE' && s.state !== 'SKIPPED') ?? null,
+        [store.irisStages],
+    );
 
     return (
         <div className={styles.container}>

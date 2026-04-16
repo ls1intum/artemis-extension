@@ -63,6 +63,12 @@ interface ChatState {
     setShowDiagnostics: (show: boolean) => void;
 }
 
+const IDLE_STREAMING: StreamingState = {
+    isStreaming: false,
+    messageLocalId: null,
+    visibleChunks: [],
+};
+
 export const useChatStore = create<ChatState>()(
     devtools(
         (set) => ({
@@ -75,11 +81,7 @@ export const useChatStore = create<ChatState>()(
             allExercises: [],
             allCourses: [],
             messages: [],
-            streaming: {
-                isStreaming: false,
-                messageLocalId: null,
-                visibleChunks: [],
-            },
+            streaming: IDLE_STREAMING,
             irisStages: [],
             isLoading: false,
             isWebSocketConnected: false,
@@ -131,7 +133,7 @@ export const useChatStore = create<ChatState>()(
                 set({
                     messages: [],
                     irisStages: [],
-                    streaming: { isStreaming: false, messageLocalId: null, visibleChunks: [] },
+                    streaming: IDLE_STREAMING,
                 }, false, 'clearMessages');
             },
 
@@ -167,11 +169,7 @@ export const useChatStore = create<ChatState>()(
                 set((state) => {
                     const { messageLocalId } = state.streaming;
                     return {
-                        streaming: {
-                            isStreaming: false,
-                            messageLocalId: null,
-                            visibleChunks: [],
-                        },
+                        streaming: IDLE_STREAMING,
                         messages: messageLocalId
                             ? state.messages.map(msg =>
                                 msg.localId === messageLocalId ? { ...msg, content: finalContent } : msg
@@ -188,7 +186,7 @@ export const useChatStore = create<ChatState>()(
             resetTransientChatUi: () => {
                 set({
                     irisStages: [],
-                    streaming: { isStreaming: false, messageLocalId: null, visibleChunks: [] },
+                    streaming: IDLE_STREAMING,
                 }, false, 'resetTransientChatUi');
             },
 
