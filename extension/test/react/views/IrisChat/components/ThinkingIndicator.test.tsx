@@ -30,18 +30,10 @@ describe('ThinkingIndicator', () => {
         expect(container.firstChild).toBeNull();
     });
 
-    it('renders three animated dots with no activeStage (fallback)', () => {
+    it('renders container with no label when no activeStage (fallback)', () => {
         const { container } = render(<ThinkingIndicator />);
-        const dots = container.querySelectorAll('span');
-        expect(dots.length).toBe(3);
-    });
-
-    it('dots have staggered animation delays', () => {
-        const { container } = render(<ThinkingIndicator isVisible={true} />);
-        const dots = container.querySelectorAll('span');
-        expect((dots[0] as HTMLElement).style.animationDelay).toBe('0s');
-        expect((dots[1] as HTMLElement).style.animationDelay).toBe('0.2s');
-        expect((dots[2] as HTMLElement).style.animationDelay).toBe('0.4s');
+        expect(container.firstChild).toBeInTheDocument();
+        expect(screen.queryByText('Thinking hard')).not.toBeInTheDocument();
     });
 
     it('shows stage label when activeStage is IN_PROGRESS', () => {
@@ -49,13 +41,11 @@ describe('ThinkingIndicator', () => {
         expect(screen.getByText('Thinking hard')).toBeInTheDocument();
     });
 
-    it('shows dots only (no label) when activeStage is NOT_STARTED', () => {
-        const { container } = render(
+    it('shows no label when activeStage is NOT_STARTED', () => {
+        render(
             <ThinkingIndicator activeStage={makeStage({ state: 'NOT_STARTED' })} />
         );
         expect(screen.queryByText('Thinking hard')).not.toBeInTheDocument();
-        const dots = container.querySelectorAll('span');
-        expect(dots.length).toBe(3);
     });
 
     it('shows error state when activeStage is ERROR', () => {

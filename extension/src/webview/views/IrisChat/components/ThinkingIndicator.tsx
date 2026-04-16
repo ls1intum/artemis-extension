@@ -32,16 +32,16 @@ export function ThinkingIndicator({
         );
     }
 
+    const irisLogoUri = document.getElementById('root')?.dataset.irisLogoUri;
+
     return (
-        <div className={styles.container}>
-            <div className={styles.dotsContainer}>
-                {activeStage?.state === 'IN_PROGRESS' ? (
-                    <StageLabel activeStage={activeStage} />
-                ) : null}
-                <span className={styles.dot} style={{ animationDelay: '0s' }} />
-                <span className={styles.dot} style={{ animationDelay: '0.2s' }} />
-                <span className={styles.dot} style={{ animationDelay: '0.4s' }} />
-            </div>
+        <div className={styles.container} data-testid="thinking-indicator">
+            {irisLogoUri && (
+                <img src={irisLogoUri} alt="" className={styles.logo} />
+            )}
+            {activeStage?.state === 'IN_PROGRESS' ? (
+                <StageLabel activeStage={activeStage} />
+            ) : null}
         </div>
     );
 }

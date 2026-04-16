@@ -162,14 +162,12 @@ describe('ChatMessageList', () => {
 				hasContext={true}
 			/>
 		);
-		// ThinkingIndicator renders 3 span elements when visible
-		const spans = container.querySelectorAll('span');
-		expect(spans.length).toBeGreaterThan(0);
+		expect(screen.getByTestId('thinking-indicator')).toBeInTheDocument();
 	});
 
 	it('does not show thinking indicator when not streaming', () => {
 		const messages = [makeMessage({ content: 'Done' }, 0)];
-		const { container } = render(
+		render(
 			<ChatMessageList
 				messages={messages}
 				streaming={defaultStreaming}
@@ -179,10 +177,7 @@ describe('ChatMessageList', () => {
 				hasContext={true}
 			/>
 		);
-		// ThinkingIndicator should not render — its container has the dots
-		// Streamdown elements are present but no ThinkingIndicator dots
-		const spans = container.querySelectorAll('span');
-		expect(spans.length).toBe(0);
+		expect(screen.queryByTestId('thinking-indicator')).not.toBeInTheDocument();
 	});
 
 	it('renders scroll container div', () => {
@@ -289,7 +284,6 @@ describe('ChatMessageList', () => {
 				hasContext={true}
 			/>
 		);
-		const dots = container.querySelectorAll('span');
-		expect(dots.length).toBeGreaterThan(0);
+		expect(screen.getByTestId('thinking-indicator')).toBeInTheDocument();
 	});
 });
