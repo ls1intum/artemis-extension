@@ -6,7 +6,8 @@ import type {
     ChatContext,
     ContextItem,
     ReferencedFilesData,
-    StreamingState
+    StreamingState,
+    IrisStageDTO,
 } from '../views/IrisChat/types';
 import type { ExtMsg } from '../../shared/messageContracts';
 
@@ -25,6 +26,9 @@ interface ChatState {
 
     // Streaming
     streaming: StreamingState;
+
+    // Iris processing stages
+    irisStages: IrisStageDTO[];
 
     // UI state
     isLoading: boolean;
@@ -45,6 +49,10 @@ interface ChatState {
     startStreaming: (localId: string) => void;
     appendStreamChunk: (chunk: string) => void;
     finishStreaming: (finalContent: string) => void;
+
+    // Iris stage actions
+    setIrisStages: (stages: IrisStageDTO[]) => void;
+    resetTransientChatUi: () => void;
 
     // UI actions
     setLoading: (loading: boolean) => void;
@@ -72,6 +80,7 @@ export const useChatStore = create<ChatState>()(
                 messageLocalId: null,
                 visibleChunks: [],
             },
+            irisStages: [],
             isLoading: false,
             isWebSocketConnected: false,
             disabledMessage: null,
@@ -121,6 +130,7 @@ export const useChatStore = create<ChatState>()(
             clearMessages: () => {
                 set({
                     messages: [],
+                    irisStages: [],
                     streaming: { isStreaming: false, messageLocalId: null, visibleChunks: [] },
                 }, false, 'clearMessages');
             },
@@ -169,6 +179,17 @@ export const useChatStore = create<ChatState>()(
                             : state.messages,
                     };
                 }, false, 'finishStreaming');
+            },
+
+            setIrisStages: (stages) => {
+                set({ irisStages: stages }, false, 'setIrisStages');
+            },
+
+            resetTransientChatUi: () => {
+                set({
+                    irisStages: [],
+                    streaming: { isStreaming: false, messageLocalId: null, visibleChunks: [] },
+                }, false, 'resetTransientChatUi');
             },
 
             // UI actions
