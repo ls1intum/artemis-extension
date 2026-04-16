@@ -132,6 +132,15 @@ export interface IrisChatMessageContent {
     [key: string]: unknown;
 }
 
+export interface IrisStageDTO {
+    name?: string;
+    weight?: number;
+    state?: 'NOT_STARTED' | 'IN_PROGRESS' | 'DONE' | 'SKIPPED' | 'ERROR';
+    message?: string;
+    internal?: boolean;
+    [key: string]: unknown;
+}
+
 export interface IrisSettingsResponse {
     settings?: {
         enabled?: boolean;
