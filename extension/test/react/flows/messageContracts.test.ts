@@ -180,6 +180,20 @@ describe('Message contracts: ExtensionToWebviewMessage types', () => {
         expect(typeof msg.startTime).toBe('number');
         expect(typeof msg.totalDuration).toBe('number');
     });
+
+    it('UpdateIrisStagesMessage has required stages array', () => {
+        const msg = {
+            type: 'updateIrisStages' as const,
+            stages: [
+                { name: 'thinking', weight: 10, state: 'IN_PROGRESS' as const, message: 'Thinking hard', internal: false },
+            ],
+        } satisfies ExtMsg<'updateIrisStages'>;
+
+        expect(msg.type).toBe('updateIrisStages');
+        expect(Array.isArray(msg.stages)).toBe(true);
+        expect(msg.stages[0].name).toBe('thinking');
+        expect(msg.stages[0].state).toBe('IN_PROGRESS');
+    });
 });
 
 // ============================================================================

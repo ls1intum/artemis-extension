@@ -161,6 +161,8 @@ suite('ArtemisWebviewProvider Test Suite', () => {
 
         const mockView = new MockWebviewView();
         p.resolveWebviewView(mockView, {} as any, {} as any);
+        // Seed a parent course: showExerciseDetail requires it by invariant
+        p.showCourseDetail({ course: { id: 1, title: 'Parent' } } as any);
         await p.openExerciseDetails(1);
 
         assert.strictEqual(connectCalls, 1, 'connect should be called when not connected');
@@ -184,6 +186,8 @@ suite('ArtemisWebviewProvider Test Suite', () => {
 
         await provider.resolveWebviewView(mockView, mockResolveContext, mockToken);
 
+        // Seed a parent course: showExerciseDetail requires it by invariant
+        provider.showCourseDetail({ course: { id: 1, title: 'Parent' } } as any);
         await provider.openExerciseDetails(1);
 
         assert.ok(mockView.webview.html);

@@ -8,6 +8,7 @@ import type { StartPageResult } from '../services/ui';
 import { ExerciseRegistry } from '../services/exerciseRegistry';
 import { findWorkspaceCourseInArchive, collectExerciseSources, getWorkspaceRepositoryUrl, findExerciseByRepositoryUrl } from '../services/workspace';
 import { logger, LogCategory } from '../services/loggingService';
+import { CourseAccessStorageService, type CourseAccessScope } from '../services/courseAccessStorageService';
 import type { TelemetryManager } from '../services/telemetry';
 import { CONFIG, VSCODE_CONFIG, AI_EXTENSIONS_BLOCKLIST, getRecommendedExtensionsByCategory, resolveServerUrl } from '../utils';
 import { AppStateManager, type UserInfo } from '../controller/appStateManager';
@@ -47,6 +48,7 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
     private _buildDiagnosticsService: BuildDiagnosticsService;
     private _exerciseOpeningService: ExerciseOpeningService;
     private _startPageResolver: StartPageResolver;
+    private readonly _courseAccessStorage: CourseAccessStorageService;
     private readonly _authContextUpdater: (isAuthenticated: boolean) => Promise<void>;
     private readonly _websocketService: ArtemisWebsocketService;
     private _websocketHandler: WebSocketMessageHandler;
@@ -82,6 +84,10 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
         if (this._courseDataCache) {
             this._appStateManager.setCourseDataCache(this._courseDataCache);
         }
+        this._courseAccessStorage = new CourseAccessStorageService(
+            this._extensionContext.globalState,
+            () => this._currentCourseAccessScope(),
+        );
         this._viewActionService = new ViewActionService(this._appStateManager, this._artemisApi);
         this._messageHandler = new WebViewMessageHandler(
             this._authManager,
@@ -93,6 +99,7 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
             this._providerRegistry,
             this._websocketService,
             this._courseDataCache,
+            this._courseAccessStorage,
         );
         this._messageHandler.setAuthContextUpdater(this._authContextUpdater);
         this._viewInitDataService = new ViewInitDataService(
@@ -100,11 +107,17 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
             this._telemetryManager,
             this._messageHandler,
             (msg) => this._postMessageSafe(msg),
+            this._courseAccessStorage,
         );
         this._renderService = new ProblemStatementRenderService(this._artemisApi);
         this._buildDiagnosticsService = new BuildDiagnosticsService(this._artemisApi);
         this._buildDiagnosticsService.setCodeLensProvider(buildErrorCodeLensProvider);
-        this._exerciseOpeningService = new ExerciseOpeningService(this._exerciseRegistry, this._providerRegistry, this._telemetryManager);
+        this._exerciseOpeningService = new ExerciseOpeningService(
+            this._exerciseRegistry,
+            this._providerRegistry,
+            this._telemetryManager,
+            this._courseAccessStorage,
+        );
         this._startPageResolver = new StartPageResolver(this._artemisApi, this._courseDataCache);
         this._submissionWsHandler = new SubmissionWebSocketHandler(
             (msg) => this._postMessageSafe(msg),
@@ -210,15 +223,20 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
                         return;
                     }
 
-                    // Re-fetch exercise data to capture any WebSocket updates missed while hidden
+                    // Re-fetch exercise data to capture any WebSocket updates missed while hidden.
+                    // Swallow fetch errors only — state-transition errors (invariant breaches)
+                    // must propagate so latent bugs don't get hidden by this refresh path.
                     if (currentState === 'exercise-detail') {
                         const exerciseData = this._appStateManager.currentExerciseData as ExerciseDetailsResponse | undefined;
                         const exerciseId = exerciseData?.exercise?.id;
                         if (exerciseId) {
+                            let freshData: ExerciseDetailsResponse | undefined;
                             try {
-                                const freshData = await fetchAndEnrichExerciseDetails(this._artemisApi, exerciseId);
-                                this._appStateManager.showExerciseDetail(freshData);
+                                freshData = await fetchAndEnrichExerciseDetails(this._artemisApi, exerciseId);
                             } catch { /* fall through to sendInitData with cached data */ }
+                            if (freshData) {
+                                this._appStateManager.showExerciseDetail(freshData);
+                            }
                         }
                     }
 
@@ -385,6 +403,7 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
                 this._appStateManager.seedAuthenticatedSession(userInfo);
                 const entry = result.allCourses.find(e => e.course?.id === result.courseId);
                 if (entry?.course) {
+                    this._courseAccessStorage.onCourseAccessed(result.courseId);
                     this.showCourseDetail(toCourseDetailData(entry.course));
                     return;
                 }
@@ -622,6 +641,17 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
         } else if (result === "Don't show again") {
             await config.update(VSCODE_CONFIG.SHOW_START_PAGE_SUGGESTION_KEY, false, vscode.ConfigurationTarget.Global);
         }
+    }
+
+    private _currentCourseAccessScope(): CourseAccessScope | null {
+        const info = this._appStateManager.userInfo;
+        if (!info) { return null; }
+        const serverUrl = info.serverUrl || resolveServerUrl();
+        if (!serverUrl) { return null; }
+        return {
+            serverUrl,
+            principal: { id: info.user?.id, login: info.username || info.user?.login },
+        };
     }
 
     // ── Server-side problem statement rendering ─────────────────────

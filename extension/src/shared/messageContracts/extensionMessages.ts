@@ -7,6 +7,7 @@ import type {
     StudentExam,
     ResultSummary,
     SubmissionSummary,
+    IrisStageDTO,
 } from '../types/apiResponses';
 import type { CourseData, ArchivedCourse, CourseDetailData, RecentCourseNode } from './domainTypes';
 import type { ChatContextType } from '../types/context';
@@ -54,6 +55,7 @@ export const ExtensionMsg = {
     ShowDisabledState: 'showDisabledState',
     HideDisabledState: 'hideDisabledState',
     UpdateNoAiStatus: 'updateNoAiStatus',
+    UpdateIrisStages: 'updateIrisStages',
 
     // Exercise/Repo responses
     UpdateRepoStatus: 'updateRepoStatus',
@@ -232,6 +234,9 @@ interface ExtensionMsgPayloads {
     updateNoAiStatus: {
         isNoAiDetected: boolean;
         noAiFilePath?: string;
+    };
+    updateIrisStages: {
+        stages: IrisStageDTO[];
     };
 
     // Exercise/Repo responses

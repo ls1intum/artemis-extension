@@ -8,6 +8,7 @@ import type { ExerciseRegistry } from '../../services/exerciseRegistry';
 import type { IProviderRegistry } from '../../services/ui';
 import type { WebviewToExtensionMessage, ExtensionToWebviewMessage } from '../../../shared/messageContracts';
 import type { CourseDataCache } from '../../services/courseDataCache';
+import type { CourseAccessStorageService } from '../../services/courseAccessStorageService';
 
 export type CommandHandler = (message: WebviewToExtensionMessage) => Promise<void>;
 export type CommandMap = Record<string, CommandHandler>;
@@ -24,4 +25,5 @@ export interface CommandContext {
     exerciseRegistry: ExerciseRegistry;
     providerRegistry: IProviderRegistry;
     courseDataCache?: CourseDataCache;
+    courseAccessStorage?: CourseAccessStorageService;
 }

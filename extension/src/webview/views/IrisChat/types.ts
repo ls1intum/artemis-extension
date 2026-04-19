@@ -1,4 +1,5 @@
 import type { ExerciseRef } from '../../../shared/types';
+export type { IrisStageDTO } from '../../../shared/types/apiResponses';
 
 // Chat message as rendered in the UI
 export interface ChatMessage {

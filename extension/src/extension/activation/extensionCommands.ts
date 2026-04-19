@@ -396,6 +396,97 @@ function registerGoToSourceErrorCommand(): vscode.Disposable {
     );
 }
 
+const KNOWN_SERVERS: ReadonlyArray<{ label: string; url: string }> = [
+    { label: 'Production (artemis.tum.de)',                         url: 'https://artemis.tum.de' },
+    { label: 'Test Server 1 (artemis-test1.artemis.cit.tum.de)',    url: 'https://artemis-test1.artemis.cit.tum.de' },
+    { label: 'Test Server 2 (artemis-test2.artemis.cit.tum.de)',    url: 'https://artemis-test2.artemis.cit.tum.de' },
+    { label: 'Test Server 3 (artemis-test3.artemis.cit.tum.de)',    url: 'https://artemis-test3.artemis.cit.tum.de' },
+    { label: 'Test Server 4 (artemis-test4.artemis.cit.tum.de)',    url: 'https://artemis-test4.artemis.cit.tum.de' },
+    { label: 'Test Server 5 (artemis-test5.artemis.cit.tum.de)',    url: 'https://artemis-test5.artemis.cit.tum.de' },
+    { label: 'Test Server 6 (artemis-test6.artemis.cit.tum.de)',    url: 'https://artemis-test6.artemis.cit.tum.de' },
+    { label: 'Test Server 9 (artemis-test9.artemis.cit.tum.de)',    url: 'https://artemis-test9.artemis.cit.tum.de' },
+    { label: 'Local Development (localhost:9000)',                   url: 'http://localhost:9000' },
+];
+
+function registerSetServerUrlCommand(): vscode.Disposable {
+    return vscode.commands.registerCommand('artemis.setServerUrl', async () => {
+        const config = vscode.workspace.getConfiguration(VSCODE_CONFIG.ARTEMIS_SECTION);
+        const currentUrl = config.get<string>(VSCODE_CONFIG.SERVER_URL_KEY, '');
+        const hasCustomCurrent = currentUrl.length > 0 && !KNOWN_SERVERS.some(s => s.url === currentUrl);
+
+        const items: vscode.QuickPickItem[] = [];
+
+        if (hasCustomCurrent) {
+            let hostname = currentUrl;
+            try {
+                hostname = new URL(currentUrl).host || currentUrl;
+            } catch {
+                // Fall back to the raw value if it fails to parse.
+            }
+            items.push(
+                {
+                    label: `Custom (${hostname})`,
+                    description: currentUrl,
+                    detail: '$(check) Currently selected',
+                },
+                { label: '', kind: vscode.QuickPickItemKind.Separator },
+            );
+        }
+
+        items.push(...KNOWN_SERVERS.map(server => ({
+            label: server.label,
+            description: server.url,
+            detail: server.url === currentUrl ? '$(check) Currently selected' : undefined,
+        })));
+
+        items.push(
+            { label: '', kind: vscode.QuickPickItemKind.Separator },
+            { label: '$(edit) Enter custom URL...', description: 'Use your own Artemis server URL' },
+        );
+
+        const selection = await vscode.window.showQuickPick(items, {
+            title: 'Select Artemis Server',
+            placeHolder: `Current: ${currentUrl || 'not set'}`,
+        });
+
+        if (!selection) {
+            return;
+        }
+
+        let newUrl: string | undefined;
+
+        if (selection.label === '$(edit) Enter custom URL...') {
+            newUrl = await vscode.window.showInputBox({
+                title: 'Enter Custom Artemis Server URL',
+                prompt: 'Full URL including protocol (e.g. https://artemis.example.com)',
+                value: currentUrl,
+                validateInput: (value) => {
+                    try {
+                        const url = new URL(value);
+                        if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+                            return 'URL must start with http:// or https://';
+                        }
+                        return undefined;
+                    } catch {
+                        return 'Please enter a valid URL';
+                    }
+                },
+            });
+        } else {
+            newUrl = KNOWN_SERVERS.find(s => s.label === selection.label)?.url;
+        }
+
+        if (newUrl) {
+            newUrl = newUrl.replace(/\/+$/, '');
+        }
+
+        if (newUrl && newUrl !== currentUrl) {
+            await config.update(VSCODE_CONFIG.SERVER_URL_KEY, newUrl, vscode.ConfigurationTarget.Global);
+            vscode.window.showInformationMessage(`Artemis server set to: ${newUrl}`);
+        }
+    });
+}
+
 function registerClearTrustedDomainsCommand(context: vscode.ExtensionContext): vscode.Disposable {
     return vscode.commands.registerCommand('artemis.clearTrustedDomains', async () => {
         const result = await vscode.window.showWarningMessage(
@@ -497,6 +588,7 @@ export function registerAllCommands(deps: CommandDeps): vscode.Disposable {
         registerConnectWebSocketCommand(deps.authManager, deps.artemisWebsocketService),
         registerPlantUmlRenderCommand(deps.artemisApiService),
         registerGoToSourceErrorCommand(),
+        registerSetServerUrlCommand(),
         registerClearTrustedDomainsCommand(deps.context),
         registerStruggleScoreCommand(deps.telemetryManager),
         registerReplaySessionCommand(deps.context.globalStorageUri),

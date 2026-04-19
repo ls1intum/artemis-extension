@@ -9,6 +9,8 @@ import { detectWorkspaceExercise, detectWorkspaceForRepoUris, type ExerciseSourc
 import { GitService } from '../workspace/gitService';
 import { logger, LogCategory } from '../loggingService';
 import { VSCODE_CONFIG, CONFIG, resolveServerUrl } from '../../utils';
+import { COURSE_ACCESS_DISPLAY_LIMIT, type CourseAccessStorageService } from '../courseAccessStorageService';
+import { selectRecentCourses } from './recentCourseSelector';
 
 export class ViewInitDataService {
     private _initGeneration = 0;
@@ -19,6 +21,7 @@ export class ViewInitDataService {
         private readonly _telemetryManager: TelemetryManager | undefined,
         private readonly _messageHandler: WebViewMessageHandler,
         private readonly _postMessage: (msg: ExtensionToWebviewMessage) => void,
+        private readonly _courseAccessStorage?: CourseAccessStorageService,
     ) {}
 
     public sendInitData(): void {
@@ -48,16 +51,21 @@ export class ViewInitDataService {
         const coursesData = this._appStateManager.coursesData;
         const courses = coursesData?.courses || [];
 
-        const recentCourseNodes = courses.map((courseItem: CourseDashboardEntry) => {
+        const accessedIds = this._courseAccessStorage?.getLastAccessedCourses() ?? [];
+        const selectedCourses = selectRecentCourses(courses, accessedIds, COURSE_ACCESS_DISPLAY_LIMIT);
+
+        const recentCourseNodes = selectedCourses.map((courseItem: CourseDashboardEntry) => {
             const course = courseItem.course || courseItem;
             const exercises = course.exercises || [];
 
-            const recentExercises = exercises
-                .filter((ex: ExerciseDetail) => ex.releaseDate || ex.startDate || ex.dueDate)
+            const recentExercises = [...exercises]
                 .sort((a: ExerciseDetail, b: ExerciseDetail) => {
                     const aDate = a.releaseDate || a.startDate || a.dueDate || '';
                     const bDate = b.releaseDate || b.startDate || b.dueDate || '';
-                    return bDate.localeCompare(aDate);
+                    if (aDate && bDate) { return bDate.localeCompare(aDate); }
+                    if (aDate && !bDate) { return -1; }
+                    if (!aDate && bDate) { return 1; }
+                    return (b.id ?? 0) - (a.id ?? 0);
                 });
 
             return {

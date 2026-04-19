@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
-import type { ChatMessage, StreamingState } from '../../../../../src/webview/views/IrisChat/types';
+import type { ChatMessage, StreamingState, IrisStageDTO } from '../../../../../src/webview/views/IrisChat/types';
 
 // Mock use-stick-to-bottom (ESM package used via useAutoScroll)
 vi.mock('use-stick-to-bottom', () => ({
@@ -37,6 +37,14 @@ const defaultStreaming: StreamingState = {
 	visibleChunks: [],
 };
 
+const makeStage = (overrides: Partial<IrisStageDTO> = {}): IrisStageDTO => ({
+    name: 'thinking',
+    weight: 10,
+    state: 'IN_PROGRESS',
+    message: 'Thinking hard',
+    ...overrides,
+});
+
 function makeMessage(overrides: Partial<ChatMessage> = {}, index = 0): ChatMessage {
 	return {
 		localId: `msg-${index}`,
@@ -53,6 +61,7 @@ describe('ChatMessageList', () => {
 			<ChatMessageList
 				messages={[]}
 				streaming={defaultStreaming}
+				activeStage={null}
 				onFeedback={vi.fn()}
 				onSendPrompt={vi.fn()}
 				hasContext={true}
@@ -67,6 +76,7 @@ describe('ChatMessageList', () => {
 			<ChatMessageList
 				messages={[]}
 				streaming={defaultStreaming}
+				activeStage={null}
 				onFeedback={vi.fn()}
 				onSendPrompt={vi.fn()}
 				hasContext={false}
@@ -86,6 +96,7 @@ describe('ChatMessageList', () => {
 			<ChatMessageList
 				messages={messages}
 				streaming={defaultStreaming}
+				activeStage={null}
 				onFeedback={vi.fn()}
 				onSendPrompt={vi.fn()}
 				hasContext={true}
@@ -101,6 +112,7 @@ describe('ChatMessageList', () => {
 			<ChatMessageList
 				messages={messages}
 				streaming={defaultStreaming}
+				activeStage={null}
 				onFeedback={vi.fn()}
 				onSendPrompt={vi.fn()}
 				hasContext={true}
@@ -119,6 +131,7 @@ describe('ChatMessageList', () => {
 			<ChatMessageList
 				messages={messages}
 				streaming={defaultStreaming}
+				activeStage={null}
 				onFeedback={vi.fn()}
 				onSendPrompt={vi.fn()}
 				hasContext={true}
@@ -143,31 +156,28 @@ describe('ChatMessageList', () => {
 			<ChatMessageList
 				messages={messages}
 				streaming={streamingState}
+				activeStage={null}
 				onFeedback={vi.fn()}
 				onSendPrompt={vi.fn()}
 				hasContext={true}
 			/>
 		);
-		// ThinkingIndicator renders 3 span elements when visible
-		const spans = container.querySelectorAll('span');
-		expect(spans.length).toBeGreaterThan(0);
+		expect(screen.getByTestId('thinking-indicator')).toBeInTheDocument();
 	});
 
 	it('does not show thinking indicator when not streaming', () => {
 		const messages = [makeMessage({ content: 'Done' }, 0)];
-		const { container } = render(
+		render(
 			<ChatMessageList
 				messages={messages}
 				streaming={defaultStreaming}
+				activeStage={null}
 				onFeedback={vi.fn()}
 				onSendPrompt={vi.fn()}
 				hasContext={true}
 			/>
 		);
-		// ThinkingIndicator should not render — its container has the dots
-		// Streamdown elements are present but no ThinkingIndicator dots
-		const spans = container.querySelectorAll('span');
-		expect(spans.length).toBe(0);
+		expect(screen.queryByTestId('thinking-indicator')).not.toBeInTheDocument();
 	});
 
 	it('renders scroll container div', () => {
@@ -175,6 +185,7 @@ describe('ChatMessageList', () => {
 			<ChatMessageList
 				messages={[]}
 				streaming={defaultStreaming}
+				activeStage={null}
 				onFeedback={vi.fn()}
 				onSendPrompt={vi.fn()}
 				hasContext={true}
@@ -192,6 +203,7 @@ describe('ChatMessageList', () => {
 			<ChatMessageList
 				messages={messages}
 				streaming={defaultStreaming}
+				activeStage={null}
 				onFeedback={vi.fn()}
 				onSendPrompt={vi.fn()}
 				hasContext={true}
@@ -210,6 +222,7 @@ describe('ChatMessageList', () => {
 			<ChatMessageList
 				messages={messages}
 				streaming={defaultStreaming}
+				activeStage={null}
 				onFeedback={onFeedback}
 				onSendPrompt={vi.fn()}
 				hasContext={true}
@@ -217,5 +230,60 @@ describe('ChatMessageList', () => {
 		);
 		// onFeedback is passed through — verify message renders
 		expect(screen.getByText('Answer')).toBeInTheDocument();
+	});
+
+	it('shows stage indicator when activeStage is present', () => {
+		const messages = [makeMessage({ role: 'user', content: 'Question' }, 0)];
+		render(
+			<ChatMessageList
+				messages={messages}
+				streaming={defaultStreaming}
+				activeStage={makeStage()}
+				onFeedback={vi.fn()}
+				onSendPrompt={vi.fn()}
+				hasContext={true}
+			/>
+		);
+		expect(screen.getByText('Thinking hard')).toBeInTheDocument();
+	});
+
+	it('hides stage indicator when streaming chunks arrive', () => {
+		const messages = [makeMessage({ role: 'user', content: 'Question' }, 0)];
+		const streamingWithChunks: StreamingState = {
+			isStreaming: true,
+			messageLocalId: 'msg-1',
+			visibleChunks: ['Some response'],
+		};
+		render(
+			<ChatMessageList
+				messages={messages}
+				streaming={streamingWithChunks}
+				activeStage={makeStage()}
+				onFeedback={vi.fn()}
+				onSendPrompt={vi.fn()}
+				hasContext={true}
+			/>
+		);
+		expect(screen.queryByText('Thinking hard')).not.toBeInTheDocument();
+	});
+
+	it('shows legacy thinking dots when no activeStage but streaming with no chunks', () => {
+		const messages = [makeMessage({ role: 'user', content: 'Question' }, 0)];
+		const streamingNoChunks: StreamingState = {
+			isStreaming: true,
+			messageLocalId: 'msg-1',
+			visibleChunks: [],
+		};
+		const { container } = render(
+			<ChatMessageList
+				messages={messages}
+				streaming={streamingNoChunks}
+				activeStage={null}
+				onFeedback={vi.fn()}
+				onSendPrompt={vi.fn()}
+				hasContext={true}
+			/>
+		);
+		expect(screen.getByTestId('thinking-indicator')).toBeInTheDocument();
 	});
 });

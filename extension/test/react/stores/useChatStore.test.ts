@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import { useChatStore } from '../../../src/webview/stores/useChatStore';
-import type { ChatMessage, ChatContext, ReferencedFilesData } from '../../../src/webview/views/IrisChat/types';
+import type { ChatMessage, ChatContext, ReferencedFilesData, IrisStageDTO } from '../../../src/webview/views/IrisChat/types';
 import type { ExtMsg } from '../../../src/shared/messageContracts';
 
 const makeMessage = (overrides: Partial<ChatMessage> = {}): ChatMessage => ({
@@ -20,6 +20,15 @@ const makeIrisState = (overrides: Partial<ExtMsg<'updateIrisState'>['state']> = 
 	recentCourses: [],
 	allExercises: [],
 	allCourses: [],
+	...overrides,
+});
+
+const makeStage = (overrides: Partial<IrisStageDTO> = {}): IrisStageDTO => ({
+	name: 'thinking',
+	weight: 10,
+	state: 'IN_PROGRESS',
+	message: 'Thinking hard',
+	internal: false,
 	...overrides,
 });
 
@@ -386,5 +395,88 @@ describe('useChatStore', () => {
 		});
 
 		expect(result.current.context).toBeNull();
+	});
+
+	it('initializes with empty irisStages', () => {
+		const { result } = renderHook(() => useChatStore());
+		expect(result.current.irisStages).toEqual([]);
+	});
+
+	it('setIrisStages replaces the stages array', () => {
+		const { result } = renderHook(() => useChatStore());
+		const stages = [makeStage({ name: 'thinking' }), makeStage({ name: 'analyzing', state: 'NOT_STARTED' })];
+
+		act(() => {
+			result.current.setIrisStages(stages);
+		});
+
+		expect(result.current.irisStages).toHaveLength(2);
+		expect(result.current.irisStages[0].name).toBe('thinking');
+		expect(result.current.irisStages[1].state).toBe('NOT_STARTED');
+	});
+
+	it('setIrisStages replaces previous stages', () => {
+		const { result } = renderHook(() => useChatStore());
+
+		act(() => {
+			result.current.setIrisStages([makeStage({ name: 'old' })]);
+		});
+
+		act(() => {
+			result.current.setIrisStages([makeStage({ name: 'new' })]);
+		});
+
+		expect(result.current.irisStages).toHaveLength(1);
+		expect(result.current.irisStages[0].name).toBe('new');
+	});
+
+	it('resetTransientChatUi clears irisStages and streaming state', () => {
+		const { result } = renderHook(() => useChatStore());
+
+		act(() => {
+			result.current.setIrisStages([makeStage()]);
+			result.current.startStreaming('msg-1');
+		});
+
+		act(() => {
+			result.current.resetTransientChatUi();
+		});
+
+		expect(result.current.irisStages).toEqual([]);
+		expect(result.current.streaming.isStreaming).toBe(false);
+		expect(result.current.streaming.messageLocalId).toBeNull();
+		expect(result.current.streaming.visibleChunks).toEqual([]);
+	});
+
+	it('resetTransientChatUi does not clear messages', () => {
+		const { result } = renderHook(() => useChatStore());
+
+		act(() => {
+			result.current.addMessage(makeMessage({ localId: 'msg-1' }));
+			result.current.setIrisStages([makeStage()]);
+		});
+
+		act(() => {
+			result.current.resetTransientChatUi();
+		});
+
+		expect(result.current.messages).toHaveLength(1);
+		expect(result.current.irisStages).toEqual([]);
+	});
+
+	it('clearMessages also clears irisStages', () => {
+		const { result } = renderHook(() => useChatStore());
+
+		act(() => {
+			result.current.addMessage(makeMessage({ localId: 'msg-1' }));
+			result.current.setIrisStages([makeStage()]);
+		});
+
+		act(() => {
+			result.current.clearMessages();
+		});
+
+		expect(result.current.messages).toEqual([]);
+		expect(result.current.irisStages).toEqual([]);
 	});
 });

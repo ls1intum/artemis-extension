@@ -41,6 +41,7 @@ describe('IrisChatView', () => {
 			allCourses: [],
 			messages: [],
 			streaming: { isStreaming: false, messageLocalId: null, visibleChunks: [] },
+			irisStages: [],
 			isLoading: false,
 			isWebSocketConnected: true,
 			disabledMessage: null,
@@ -255,6 +256,124 @@ describe('IrisChatView', () => {
 
 		await waitFor(() => {
 			expect(screen.queryByText('Existing msg')).not.toBeInTheDocument();
+		});
+	});
+
+	describe('irisStages reset paths', () => {
+		beforeEach(() => {
+			useChatStore.setState({
+				irisStages: [{ name: 'thinking', state: 'IN_PROGRESS', message: 'Thinking', weight: 10 }],
+				context: {
+					type: 'exercise',
+					id: 1,
+					title: 'Test Exercise',
+					locked: false,
+					source: 'user-selected',
+				},
+			});
+		});
+
+		it('clears irisStages when assistant AddMessage arrives', async () => {
+			const mockApi = createMockVsCodeApi();
+			render(<IrisChatView vscodeApi={mockApi} />);
+
+			dispatchExtensionMessage({
+				type: 'addMessage',
+				message: { id: 1, role: 'assistant', content: 'Response', timestamp: Date.now() },
+			});
+
+			await waitFor(() => {
+				expect(useChatStore.getState().irisStages).toEqual([]);
+			});
+		});
+
+		it('does not clear irisStages when user AddMessage arrives', async () => {
+			const mockApi = createMockVsCodeApi();
+			render(<IrisChatView vscodeApi={mockApi} />);
+
+			dispatchExtensionMessage({
+				type: 'addMessage',
+				message: { id: 1, role: 'user', content: 'Question', timestamp: Date.now() },
+			});
+
+			await waitFor(() => {
+				expect(useChatStore.getState().irisStages).toHaveLength(1);
+			});
+		});
+
+		it('clears irisStages when LoadMessages arrives', async () => {
+			const mockApi = createMockVsCodeApi();
+			render(<IrisChatView vscodeApi={mockApi} />);
+
+			dispatchExtensionMessage({
+				type: 'loadMessages',
+				messages: [{ id: 1, role: 'user', content: 'Loaded', timestamp: Date.now(), helpful: null }],
+			});
+
+			await waitFor(() => {
+				expect(useChatStore.getState().irisStages).toEqual([]);
+			});
+		});
+
+		it('clears irisStages when ClearChatMessages arrives', async () => {
+			const mockApi = createMockVsCodeApi();
+			render(<IrisChatView vscodeApi={mockApi} />);
+
+			dispatchExtensionMessage({ type: 'clearChatMessages' });
+
+			await waitFor(() => {
+				expect(useChatStore.getState().irisStages).toEqual([]);
+			});
+		});
+
+		it('clears irisStages when UpdateWebSocketStatus(false) arrives', async () => {
+			const mockApi = createMockVsCodeApi();
+			render(<IrisChatView vscodeApi={mockApi} />);
+
+			dispatchExtensionMessage({ type: 'updateWebSocketStatus', isConnected: false });
+
+			await waitFor(() => {
+				expect(useChatStore.getState().irisStages).toEqual([]);
+			});
+		});
+
+		it('does not clear irisStages when UpdateWebSocketStatus(true) arrives', async () => {
+			const mockApi = createMockVsCodeApi();
+			render(<IrisChatView vscodeApi={mockApi} />);
+
+			dispatchExtensionMessage({ type: 'updateWebSocketStatus', isConnected: true });
+
+			await waitFor(() => {
+				expect(useChatStore.getState().irisStages).toHaveLength(1);
+			});
+		});
+
+		it('clears irisStages when user sends a message', async () => {
+			const mockApi = createMockVsCodeApi();
+			render(<IrisChatView vscodeApi={mockApi} />);
+
+			const textarea = screen.getByRole('textbox', { name: 'Chat input' });
+			await userEvent.type(textarea, 'Hello{Enter}');
+
+			await waitFor(() => {
+				expect(useChatStore.getState().irisStages).toEqual([]);
+			});
+		});
+
+		it('sets irisStages when UpdateIrisStages arrives', async () => {
+			useChatStore.setState({ irisStages: [] });
+			const mockApi = createMockVsCodeApi();
+			render(<IrisChatView vscodeApi={mockApi} />);
+
+			dispatchExtensionMessage({
+				type: 'updateIrisStages',
+				stages: [{ name: 'analyzing', state: 'IN_PROGRESS', message: 'Analyzing', weight: 20 }],
+			});
+
+			await waitFor(() => {
+				expect(useChatStore.getState().irisStages).toHaveLength(1);
+				expect(useChatStore.getState().irisStages[0].name).toBe('analyzing');
+			});
 		});
 	});
 });

@@ -1,38 +1,76 @@
 .container {
     display: flex;
-    align-items: flex-start;
+    align-items: center;
+    gap: 8px;
     padding: 12px 16px;
     margin: 8px 0;
     max-width: 70%;
     transition: opacity 150ms ease-out;
 }
 
-.dotsContainer {
+.logo {
+    width: 20px;
+    height: 20px;
+    flex-shrink: 0;
+    animation: pulse 2s ease-in-out infinite;
+}
+
+.statusText {
+    font-size: 12px;
+    color: var(--vscode-descriptionForeground);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 200px;
+}
+
+.labelWrapper {
+    display: inline-block;
+    animation: slideUp 0.4s ease-out;
+}
+
+.errorContainer {
     display: flex;
     align-items: center;
-    gap: 4px;
+    gap: 6px;
     padding: 8px 12px;
-    background: var(--vscode-editor-background);
+    background: var(--vscode-inputValidation-errorBackground, rgba(255, 0, 0, 0.1));
     border-radius: 12px;
-    border: 1px solid var(--vscode-panel-border);
+    border: 1px solid var(--vscode-inputValidation-errorBorder, #f44);
 }
 
-.dot {
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    background: var(--vscode-foreground);
-    opacity: 0.4;
-    animation: bounce 1.2s infinite ease-in-out;
+.errorIcon {
+    color: var(--vscode-errorForeground, #f44);
+    flex-shrink: 0;
 }
 
-@keyframes bounce {
-    0%, 80%, 100% {
-        transform: translateY(0);
-        opacity: 0.4;
+.errorText {
+    font-size: 12px;
+    color: var(--vscode-errorForeground, #f44);
+}
+
+@keyframes pulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(0.92); }
+}
+
+@keyframes slideUp {
+    from {
+        transform: translateY(100%);
+        opacity: 0;
     }
-    40% {
-        transform: translateY(-8px);
+    to {
+        transform: translateY(0);
         opacity: 1;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .logo {
+        animation: none;
+    }
+
+    .labelWrapper {
+        animation: none;
     }
 }

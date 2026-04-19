@@ -3,7 +3,7 @@ import { logger, LogCategory } from '../services/loggingService';
 import type { ArtemisApiService } from '../api';
 import { AppStateManager } from './appStateManager';
 import { fetchAndEnrichExerciseDetails } from './exerciseDataLoader';
-import type { ExerciseDetail } from '../types';
+import type { ExerciseDetail, ExerciseDetailsResponse } from '../types';
 
 /**
  * Hosts actions triggered from the webview that reach beyond simple rendering.
@@ -36,15 +36,19 @@ export class ViewActionService {
      * Returns true when the exercise view was updated and the caller should re-render.
      */
     public async openExerciseDetails(exerciseId: number): Promise<boolean> {
+        // Split fetch failures (user-facing I/O errors) from state-transition
+        // failures (programmer errors that violate the navigation invariant):
+        // only the fetch is caught and user-reported; invariant breaks propagate.
+        let data: ExerciseDetailsResponse;
         try {
-            const data = await fetchAndEnrichExerciseDetails(this._artemisApi, exerciseId);
-            this._appStateManager.showExerciseDetail(data);
-            return true;
+            data = await fetchAndEnrichExerciseDetails(this._artemisApi, exerciseId);
         } catch (error) {
             logger.error('Error fetching exercise details:', LogCategory.VIEW, error);
             vscode.window.showErrorMessage('Failed to fetch exercise details');
             return false;
         }
+        this._appStateManager.showExerciseDetail(data);
+        return true;
     }
 
     /**

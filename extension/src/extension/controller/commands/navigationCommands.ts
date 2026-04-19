@@ -141,6 +141,10 @@ export class NavigationCommandModule {
 
             this.context.appStateManager.showCourseDetail(courseDetailData);
 
+            if (course?.id !== undefined) {
+                this.context.courseAccessStorage?.onCourseAccessed(course.id);
+            }
+
             const registry = this.context.exerciseRegistry;
             // Pass the entry format for registration (expects CourseDashboardEntry)
             const entryFormat: CourseDashboardEntry = 'course' in courseData ? courseData : { course: courseData };
@@ -354,6 +358,7 @@ export class NavigationCommandModule {
 
             const courseData = await fetchArchivedCourseDetail(this.context.artemisApi, courseId);
             this.context.appStateManager.showCourseDetail(courseData);
+            this.context.courseAccessStorage?.onCourseAccessed(courseId);
             this.context.actionHandler.render();
         } catch (error: unknown) {
             logger.viewError('View archived course error:', error);
@@ -393,12 +398,12 @@ export class NavigationCommandModule {
                 }
             }
 
-            if (parentCourseDetailData) {
-                this.context.appStateManager.showCourseDetail(parentCourseDetailData);
-            } else {
-                logger.viewWarn(`⚠️  Could not find parent course for exercise ${exerciseId}`);
+            if (!parentCourseDetailData) {
+                logger.viewError(`Could not find parent course for exercise ${exerciseId}`);
+                vscode.window.showErrorMessage('Could not locate the course for this exercise.');
+                return;
             }
-
+            this.context.appStateManager.showCourseDetail(parentCourseDetailData);
             await this.context.actionHandler.openExerciseDetails(exerciseId);
         } catch (error: unknown) {
             logger.viewError('Open exercise error:', error);

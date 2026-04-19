@@ -86,6 +86,11 @@
         "icon": "$(folder-opened)"
       },
       {
+        "command": "artemis.setServerUrl",
+        "title": "Artemis: Set Server URL",
+        "icon": "$(server)"
+      },
+      {
         "command": "artemis.clearTrustedDomains",
         "title": "Artemis: Clear Trusted Domains"
       },
@@ -103,6 +108,10 @@
         },
         {
           "command": "artemis.logout",
+          "when": "!iris:managedEnvironment"
+        },
+        {
+          "command": "artemis.setServerUrl",
           "when": "!iris:managedEnvironment"
         },
         {
@@ -151,29 +160,7 @@
         "artemis.serverUrl": {
           "type": "string",
           "default": "https://artemis.tum.de",
-          "markdownDescription": "The URL of the Artemis server to connect to.\n\nFor a custom URL not listed here, [open settings.json](command:workbench.action.openSettingsJson) and edit `artemis.serverUrl` directly.",
-          "enum": [
-            "https://artemis.tum.de",
-            "https://artemis-test1.artemis.cit.tum.de",
-            "https://artemis-test2.artemis.cit.tum.de",
-            "https://artemis-test3.artemis.cit.tum.de",
-            "https://artemis-test4.artemis.cit.tum.de",
-            "https://artemis-test5.artemis.cit.tum.de",
-            "https://artemis-test6.artemis.cit.tum.de",
-            "https://artemis-test9.artemis.cit.tum.de",
-            "http://localhost:9000"
-          ],
-          "enumItemLabels": [
-            "Production (artemis.tum.de)",
-            "Test Server 1 (artemis-test1.artemis.cit.tum.de)",
-            "Test Server 2 (artemis-test2.artemis.cit.tum.de)",
-            "Test Server 3 (artemis-test3.artemis.cit.tum.de)",
-            "Test Server 4 (artemis-test4.artemis.cit.tum.de)",
-            "Test Server 5 (artemis-test5.artemis.cit.tum.de)",
-            "Test Server 6 (artemis-test6.artemis.cit.tum.de)",
-            "Test Server 9 (artemis-test9.artemis.cit.tum.de)",
-            "Local Development (localhost:9000)"
-          ]
+          "markdownDescription": "The URL of the Artemis server to connect to.\n\nUse the command **[Artemis: Set Server URL](command:artemis.setServerUrl)** to pick from known servers or enter a custom URL."
         },
         "artemis.iris.sendUncommittedChanges": {
           "type": "boolean",
@@ -189,11 +176,6 @@
           "type": "boolean",
           "default": false,
           "description": "Show the WebSocket connection status in the status bar during normal operation. When a connection failure occurs, the status bar item is always shown regardless of this setting."
-        },
-        "artemis.debugMode": {
-          "type": "boolean",
-          "default": false,
-          "markdownDescription": "Enable debug mode to show additional developer tools like WebSocket status in the status bar. Useful for troubleshooting connection issues."
         },
         "artemis.defaultCommitMessage": {
           "type": "string",

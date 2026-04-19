@@ -11,6 +11,7 @@ All notable changes to the Artemis VS Code extension will be documented in this 
 - **Configurable Start Page**: New `artemis.startPage` setting to choose which page opens after login: Dashboard (default), Course List, or automatically open the course/exercise detected in the current workspace.
 - **Workspace Exercise Detection Prompt**: When an exercise is detected in the workspace, a notification offers to set it as the default start page with a single click. The setting can be changed later in VS Code Settings.
 - **Server URL Dropdown**: Predefined Artemis server URLs in the login dropdown with collapsible exercise header.
+- **Iris Stage Display**: Shows the current Iris processing stage (e.g., thinking, fetching context) in the chat via WebSocket STATUS messages.
 
 ### Changed
 
@@ -19,6 +20,8 @@ All notable changes to the Artemis VS Code extension will be documented in this 
 
 ### Fixed
 
+- **Dashboard "Recent Courses"**: Shows the 3 most recently accessed courses with exercises sorted by latest published. Exercises without dates are no longer hidden. Resolves #103.
+- **Back-to-Course Navigation**: Fixed "Course data is not available" error when returning from an exercise view to its course. The exercise payload now carries its parent course so back-navigation can restore it.
 - **API Endpoint Alignment**: Aligned API endpoints with the Artemis webapp, including correct feedback and exam endpoints.
 - **Build Error CodeLens**: Fixed duplicate CodeLens errors, missing testCase field in WebSocket feedback, and wired up build log viewing with go-to-source navigation.
 - **WebSocket Feedback Mapping**: Fixed missing testCase field, buildFailed propagation, and hasTestInfo derivation in WebSocket submission handling.
