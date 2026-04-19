@@ -36,9 +36,9 @@ function extractBodyContent(html: string): string {
  */
 function renderKatexFormulas(container: HTMLElement): void {
     const formulas = container.querySelectorAll<HTMLElement>('.katex-formula');
-    for (const el of formulas) {
+    formulas.forEach((el) => {
         const formula = el.getAttribute('data-formula');
-        if (!formula) { continue; }
+        if (!formula) { return; }
         const displayMode = el.getAttribute('data-display-mode') === 'true';
         try {
             katex.render(formula, el, {
@@ -49,7 +49,7 @@ function renderKatexFormulas(container: HTMLElement): void {
         } catch {
             el.textContent = formula;
         }
-    }
+    });
 }
 
 /**
