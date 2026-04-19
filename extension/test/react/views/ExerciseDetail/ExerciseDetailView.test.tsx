@@ -117,11 +117,19 @@ describe('ExerciseDetailView', () => {
 		expect(screen.getByText('My Exercise')).toBeInTheDocument();
 	});
 
-	it('renders problem statement section', () => {
+	it('renders problem statement section once server-rendered HTML arrives', async () => {
 		useExerciseDetailStore.setState({ exerciseData: makeExerciseData(), isLoading: false });
 		const mockApi = createMockVsCodeApi();
 		render(<ExerciseDetailView vscodeApi={mockApi} />);
-		expect(screen.getByText('Solve the problem.')).toBeInTheDocument();
+
+		dispatchExtensionMessage({
+			type: 'problemStatementRendered',
+			html: '<html><body><p>Solve the problem.</p></body></html>',
+		});
+
+		await waitFor(() => {
+			expect(screen.getByText('Solve the problem.')).toBeInTheDocument();
+		});
 	});
 
 	it('shows "Ask Iris" section', () => {
