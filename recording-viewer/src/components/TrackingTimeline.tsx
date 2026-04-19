@@ -265,7 +265,6 @@ export function TrackingTimeline({
                 ticks,
                 xDomain,
                 hoveredDotKey,
-                hoveredAnnotKey: null,
                 theme,
             });
         };
@@ -287,26 +286,38 @@ export function TrackingTimeline({
         dprTick,
     ]);
 
+    const [hoveringTooltip, setHoveringTooltip] = useState(false);
+    const [pendingTooltip, setPendingTooltip] = useState<TooltipData | null>(null);
+
+    // Mouse-move hit-test: imperative cursor, batched React state.
+    const moveRafRef = useRef<number | null>(null);
+    const latestMouseRef = useRef<{ x: number; y: number; clientX: number; clientY: number } | null>(null);
+    const lastDotKeyRef = useRef<string | null>(null);
+
     // Reset transient hover/tooltip state when geometry or data changes.
-    // Tracked via prev-prop comparison in render per React 19 guidance
-    // (react.dev: "Resetting all state when a prop changes").
+    // State is reset in render per React 19 guidance
+    // (react.dev: "Resetting all state when a prop changes");
+    // refs are cleared in a companion effect because refs cannot be
+    // mutated during render.
     const [prevResetToken, setPrevResetToken] = useState<unknown[]>([xDomain, events, enabledTypes, timelineWidth, annotations]);
     const currentResetToken = [xDomain, events, enabledTypes, timelineWidth, annotations];
-    if (
+    const resetTokenChanged =
         prevResetToken[0] !== currentResetToken[0] ||
         prevResetToken[1] !== currentResetToken[1] ||
         prevResetToken[2] !== currentResetToken[2] ||
         prevResetToken[3] !== currentResetToken[3] ||
-        prevResetToken[4] !== currentResetToken[4]
-    ) {
+        prevResetToken[4] !== currentResetToken[4];
+    if (resetTokenChanged) {
         setPrevResetToken(currentResetToken);
         setTooltip(null);
         setAnnotPopover(null);
         setHoveredDotKey(null);
+        setPendingTooltip(null);
     }
-
-    const [hoveringTooltip, setHoveringTooltip] = useState(false);
-    const [pendingTooltip, setPendingTooltip] = useState<TooltipData | null>(null);
+    useEffect(() => {
+        lastDotKeyRef.current = null;
+        latestMouseRef.current = null;
+    }, [prevResetToken]);
 
     useEffect(() => {
         if (pendingTooltip || hoveringTooltip) return;
@@ -314,12 +325,7 @@ export function TrackingTimeline({
         return () => clearTimeout(timer);
     }, [pendingTooltip, hoveringTooltip]);
 
-    // Mouse-move hit-test: imperative cursor, batched React state.
-    const moveRafRef = useRef<number | null>(null);
-    const latestMouseRef = useRef<{ x: number; y: number; clientX: number; clientY: number } | null>(null);
-    const lastDotKeyRef = useRef<string | null>(null);
-
-    const handleMouseMove = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    const handleMouseMove = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
         const rect = canvasContainerRef.current?.getBoundingClientRect();
         if (!rect) return;
         const x = e.clientX - rect.left;
@@ -374,7 +380,7 @@ export function TrackingTimeline({
     }, []);
 
     // Canvas click: dot-first, annotation-next, shift+click additionally seeks
-    const handleCanvasClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    const handleCanvasClick = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
         const rect = canvasContainerRef.current?.getBoundingClientRect();
         if (!rect) return;
         const x = e.clientX - rect.left;
@@ -418,19 +424,21 @@ export function TrackingTimeline({
                     <div className="lane-label axis-label" style={{ height: AXIS_HEIGHT }} />
                 </div>
 
-                {/* Canvas area */}
+                {/* Canvas area. Pointer handlers live on the <canvas> itself
+                    so that events originating inside DOM overlays (tooltip,
+                    annotation popover) do not bubble into timeline hit-tests. */}
                 <div
                     className="lane-svg-container"
                     ref={canvasContainerRef}
                     style={{ position: 'relative' }}
-                    onClick={handleCanvasClick}
-                    onMouseDown={handlePanStart}
-                    onMouseMove={handleMouseMove}
-                    onMouseLeave={handleMouseLeave}
                 >
                     <canvas
                         ref={canvasRef}
                         style={{ display: 'block', width: '100%', height: totalHeight }}
+                        onClick={handleCanvasClick}
+                        onMouseDown={handlePanStart}
+                        onMouseMove={handleMouseMove}
+                        onMouseLeave={handleMouseLeave}
                     />
 
                     {/* Video playhead line */}

@@ -36,7 +36,6 @@ export interface DrawParams {
     ticks: number[];
     xDomain: [number, number];
     hoveredDotKey: string | null;
-    hoveredAnnotKey: string | null;
     theme: CanvasTheme;
 }
 
