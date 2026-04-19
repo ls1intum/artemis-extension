@@ -1,9 +1,22 @@
 import { useMemo, useRef, useState, useEffect, useCallback } from 'react';
 import type { Annotation, RecordedEvent, EventType } from '../types';
-import { ALL_LABELS } from '../types';
-import { MARKER_COLORS, SWIM_LANE_TYPES } from '../constants';
+import { SWIM_LANE_TYPES } from '../constants';
 import { formatOffset, shortenUri } from '../utils/format';
 import { useTimelinePan } from '../hooks/useTimelinePan';
+import {
+    AXIS_HEIGHT,
+    LABEL_WIDTH,
+    LANE_HEIGHT,
+    buildAnnotationGroups,
+    buildBins,
+    generateTicks,
+    hitTestAnnotation,
+    hitTestDot,
+    xToTime,
+    type AnnotationGroup,
+    type Bin,
+} from '../utils/timelineLayout';
+import { drawTimeline, readCanvasTheme, type CanvasTheme } from '../utils/canvasDraw';
 
 interface Props {
     events: RecordedEvent[];
@@ -22,14 +35,6 @@ interface Props {
     onZoomChange?: (domain: [number, number] | null) => void;
 }
 
-interface Bin {
-    x: number;               // pixel position
-    count: number;
-    breakdown: Map<EventType, number>;
-    firstTimestamp: number;   // absolute timestamp of earliest event in bin
-    events: RecordedEvent[];  // actual events in this bin
-}
-
 interface TooltipData {
     x: number;
     y: number;
@@ -41,73 +46,6 @@ interface AnnotationPopover {
     x: number;
     y: number;
     annotations: Annotation[];
-}
-
-const LANE_HEIGHT = 28;
-const LABEL_WIDTH = 140;
-const AXIS_HEIGHT = 28;
-const DOT_RADIUS = 4;
-const DOT_RADIUS_DENSE = 6;
-const DENSE_THRESHOLD = 3;
-
-function timeToX(timestamp: number, sessionStartTime: number, xDomain: [number, number], svgWidth: number): number {
-    const offset = timestamp - sessionStartTime;
-    const [min, max] = xDomain;
-    const range = max - min;
-    if (range <= 0) return 0;
-    return ((offset - min) / range) * svgWidth;
-}
-
-function buildBins(
-    events: RecordedEvent[],
-    type: EventType,
-    sessionStartTime: number,
-    xDomain: [number, number],
-    svgWidth: number,
-): Bin[] {
-    const filtered = events.filter(e => e.type === type);
-    if (filtered.length === 0 || svgWidth <= 0) return [];
-
-    const binMap = new Map<number, Bin>();
-    for (const e of filtered) {
-        const px = Math.round(timeToX(e.timestamp, sessionStartTime, xDomain, svgWidth));
-        const existing = binMap.get(px);
-        if (existing) {
-            existing.count++;
-            existing.breakdown.set(type, (existing.breakdown.get(type) ?? 0) + 1);
-            existing.events.push(e);
-            if (e.timestamp < existing.firstTimestamp) existing.firstTimestamp = e.timestamp;
-        } else {
-            const breakdown = new Map<EventType, number>();
-            breakdown.set(type, 1);
-            binMap.set(px, { x: px, count: 1, breakdown, firstTimestamp: e.timestamp, events: [e] });
-        }
-    }
-    return [...binMap.values()];
-}
-
-function generateTicks(xDomain: [number, number], svgWidth: number): number[] {
-    const [min, max] = xDomain;
-    const range = max - min;
-    if (range <= 0 || svgWidth <= 0) return [];
-
-    // Target ~80px between ticks
-    const approxTickCount = Math.max(2, Math.floor(svgWidth / 80));
-    const rawInterval = range / approxTickCount;
-
-    // Snap to nice intervals (in ms): 5s, 10s, 15s, 30s, 1m, 2m, 5m, 10m, 15m, 30m, 1h
-    const niceIntervals = [5000, 10000, 15000, 30000, 60000, 120000, 300000, 600000, 900000, 1800000, 3600000];
-    let interval = niceIntervals[niceIntervals.length - 1];
-    for (const ni of niceIntervals) {
-        if (ni >= rawInterval) { interval = ni; break; }
-    }
-
-    const ticks: number[] = [];
-    const start = Math.ceil(min / interval) * interval;
-    for (let t = start; t <= max; t += interval) {
-        ticks.push(t);
-    }
-    return ticks;
 }
 
 const MAX_TOOLTIP_EVENTS = 5;
@@ -179,35 +117,88 @@ export function TrackingTimeline({
     videoTimeAtSessionStartSeconds,
     onZoomChange,
 }: Props) {
-    const svgRef = useRef<SVGSVGElement>(null);
+    const canvasRef = useRef<HTMLCanvasElement>(null);
     const containerRef = useRef<HTMLDivElement>(null);
-    const svgContainerRef = useRef<HTMLDivElement>(null);
+    const canvasContainerRef = useRef<HTMLDivElement>(null);
     const playheadRef = useRef<HTMLDivElement>(null);
-    const [svgWidth, setSvgWidth] = useState(0);
+
+    const [timelineWidth, setTimelineWidth] = useState(0);
+    const [dprTick, setDprTick] = useState(0);
     const [tooltip, setTooltip] = useState<TooltipData | null>(null);
     const [annotPopover, setAnnotPopover] = useState<AnnotationPopover | null>(null);
+    const [hoveredDotKey, setHoveredDotKey] = useState<string | null>(null);
     const [editingAnnotId, setEditingAnnotId] = useState<string | null>(null);
     const [editText, setEditText] = useState('');
     const [annotateTimestamp, setAnnotateTimestamp] = useState<number | null>(null);
     const [annotateText, setAnnotateText] = useState('');
 
-    // Drag-to-pan (shared hook)
-    const { handlePanStart, isZoomed } = useTimelinePan({ xDomain, fullXDomain, svgWidth, onZoomChange });
+    // Visible lanes: only types enabled AND with events
+    const visibleLanes = useMemo(() => {
+        const typesWithEvents = new Set(events.map(e => e.type));
+        return SWIM_LANE_TYPES.filter(t => enabledTypes.has(t) && typesWithEvents.has(t));
+    }, [events, enabledTypes]);
 
-    // Measure SVG container width (not the outer wrapper which includes the label column)
+    // Per-lane bins
+    const laneBins = useMemo(() => {
+        const result = new Map<EventType, Bin[]>();
+        for (const type of visibleLanes) {
+            result.set(type, buildBins(events, type, sessionStartTime, xDomain, timelineWidth));
+        }
+        return result;
+    }, [events, visibleLanes, sessionStartTime, xDomain, timelineWidth]);
+
+    // Annotation groups (pixel-clustered)
+    const annotationGroups = useMemo<AnnotationGroup[]>(
+        () => buildAnnotationGroups(annotations, sessionStartTime, xDomain, timelineWidth),
+        [annotations, sessionStartTime, xDomain, timelineWidth],
+    );
+
+    const ticks = useMemo(() => generateTicks(xDomain, timelineWidth), [xDomain, timelineWidth]);
+
+    const totalHeight = visibleLanes.length * LANE_HEIGHT + AXIS_HEIGHT;
+
+    // Single-source pan predicate: block pan-start when over a dot or annotation line.
+    const suppressPanPredicate = useCallback((e: React.MouseEvent) => {
+        const rect = canvasContainerRef.current?.getBoundingClientRect();
+        if (!rect) return false;
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+        if (hitTestDot(x, y, visibleLanes, laneBins)) return true;
+        if (hitTestAnnotation(x, y, visibleLanes, annotationGroups)) return true;
+        return false;
+    }, [visibleLanes, laneBins, annotationGroups]);
+
+    const { handlePanStart, isZoomed } = useTimelinePan({
+        xDomain,
+        fullXDomain,
+        svgWidth: timelineWidth,
+        onZoomChange,
+        suppressPanPredicate,
+    });
+
+    // Measure canvas container width (CSS pixels)
     useEffect(() => {
-        const el = svgContainerRef.current;
+        const el = canvasContainerRef.current;
         if (!el) return;
         const observer = new ResizeObserver(entries => {
             for (const entry of entries) {
-                setSvgWidth(entry.contentRect.width);
+                setTimelineWidth(entry.contentRect.width);
             }
         });
         observer.observe(el);
         return () => observer.disconnect();
     }, []);
 
-    // Playhead animation loop
+    // React to DPR changes (monitor swap, browser zoom)
+    useEffect(() => {
+        if (typeof window === 'undefined' || !window.matchMedia) return;
+        const mql = window.matchMedia(`(resolution: ${window.devicePixelRatio}dppx)`);
+        const onChange = () => setDprTick(t => t + 1);
+        mql.addEventListener?.('change', onChange);
+        return () => mql.removeEventListener?.('change', onChange);
+    }, [dprTick]);
+
+    // Playhead animation loop (DOM overlay, unchanged contract)
     useEffect(() => {
         if (!videoTimeRef || !playheadRef.current) return;
         let rafId: number;
@@ -217,8 +208,8 @@ export function TrackingTimeline({
             const [min, max] = xDomain;
             const range = max - min;
             if (range > 0 && playheadRef.current) {
-                const x = ((offset - min) / range) * svgWidth;
-                if (x < 0 || x > svgWidth) {
+                const x = ((offset - min) / range) * timelineWidth;
+                if (x < 0 || x > timelineWidth) {
                     playheadRef.current.style.display = 'none';
                 } else {
                     playheadRef.current.style.display = 'block';
@@ -229,48 +220,93 @@ export function TrackingTimeline({
         };
         rafId = requestAnimationFrame(animate);
         return () => cancelAnimationFrame(rafId);
-    }, [videoTimeRef, sessionStartTime, xDomain, svgWidth]);
+    }, [videoTimeRef, sessionStartTime, xDomain, timelineWidth]);
 
-    // Visible lanes: only types that are enabled AND have events
-    const visibleLanes = useMemo(() => {
-        const typesWithEvents = new Set(events.map(e => e.type));
-        return SWIM_LANE_TYPES.filter(t => enabledTypes.has(t) && typesWithEvents.has(t));
-    }, [events, enabledTypes]);
+    // Latest-draw ref: keeps the pending rAF from drawing with stale state.
+    const latestDrawRef = useRef<() => void>(() => {});
+    const rafIdRef = useRef<number | null>(null);
 
-    // Per-lane bins
-    const laneBins = useMemo(() => {
-        const result = new Map<EventType, Bin[]>();
-        for (const type of visibleLanes) {
-            result.set(type, buildBins(events, type, sessionStartTime, xDomain, svgWidth));
-        }
-        return result;
-    }, [events, visibleLanes, sessionStartTime, xDomain, svgWidth]);
+    useEffect(() => {
+        return () => {
+            if (rafIdRef.current != null) {
+                cancelAnimationFrame(rafIdRef.current);
+                rafIdRef.current = null;
+            }
+        };
+    }, []);
 
-    // Axis ticks
-    const ticks = useMemo(() => generateTicks(xDomain, svgWidth), [xDomain, svgWidth]);
+    // Assemble draw closure on every render; pending rAF calls the latest.
+    useEffect(() => {
+        latestDrawRef.current = () => {
+            const canvas = canvasRef.current;
+            if (!canvas) return;
+            if (timelineWidth <= 0 || visibleLanes.length === 0) return;
 
-    const totalHeight = visibleLanes.length * LANE_HEIGHT + AXIS_HEIGHT;
+            const dpr = window.devicePixelRatio || 1;
+            const backingW = Math.ceil(timelineWidth * dpr);
+            const backingH = Math.ceil(totalHeight * dpr);
+            if (canvas.width !== backingW) canvas.width = backingW;
+            if (canvas.height !== backingH) canvas.height = backingH;
+            canvas.style.width = `${timelineWidth}px`;
+            canvas.style.height = `${totalHeight}px`;
 
-    // Track whether the mouse is over a dot or the tooltip itself.
+            const ctx = canvas.getContext('2d');
+            if (!ctx) return;
+            ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+            const theme: CanvasTheme = readCanvasTheme();
+
+            drawTimeline({
+                ctx,
+                timelineWidth,
+                visibleLanes,
+                laneBins,
+                annotationGroups,
+                ticks,
+                xDomain,
+                hoveredDotKey,
+                hoveredAnnotKey: null,
+                theme,
+            });
+        };
+
+        if (rafIdRef.current != null) return;
+        rafIdRef.current = requestAnimationFrame(() => {
+            rafIdRef.current = null;
+            latestDrawRef.current();
+        });
+    }, [
+        timelineWidth,
+        totalHeight,
+        visibleLanes,
+        laneBins,
+        annotationGroups,
+        ticks,
+        xDomain,
+        hoveredDotKey,
+        dprTick,
+    ]);
+
+    // Reset transient hover/tooltip state when geometry or data changes.
+    // Tracked via prev-prop comparison in render per React 19 guidance
+    // (react.dev: "Resetting all state when a prop changes").
+    const [prevResetToken, setPrevResetToken] = useState<unknown[]>([xDomain, events, enabledTypes, timelineWidth, annotations]);
+    const currentResetToken = [xDomain, events, enabledTypes, timelineWidth, annotations];
+    if (
+        prevResetToken[0] !== currentResetToken[0] ||
+        prevResetToken[1] !== currentResetToken[1] ||
+        prevResetToken[2] !== currentResetToken[2] ||
+        prevResetToken[3] !== currentResetToken[3] ||
+        prevResetToken[4] !== currentResetToken[4]
+    ) {
+        setPrevResetToken(currentResetToken);
+        setTooltip(null);
+        setAnnotPopover(null);
+        setHoveredDotKey(null);
+    }
+
     const [hoveringTooltip, setHoveringTooltip] = useState(false);
     const [pendingTooltip, setPendingTooltip] = useState<TooltipData | null>(null);
-
-    const handleDotHover = useCallback((e: React.MouseEvent, bin: Bin, laneType: EventType) => {
-        const rect = svgContainerRef.current?.getBoundingClientRect();
-        if (!rect) return;
-        const data: TooltipData = {
-            x: e.clientX - rect.left,
-            y: e.clientY - rect.top,
-            bin,
-            laneType,
-        };
-        setTooltip(data);
-        setPendingTooltip(data);
-    }, []);
-
-    const handleDotLeave = useCallback(() => {
-        setPendingTooltip(null);
-    }, []);
 
     useEffect(() => {
         if (pendingTooltip || hoveringTooltip) return;
@@ -278,45 +314,88 @@ export function TrackingTimeline({
         return () => clearTimeout(timer);
     }, [pendingTooltip, hoveringTooltip]);
 
-    const handleAnnotLineClick = useCallback((e: React.MouseEvent, nearAnnotations: Annotation[]) => {
-        const rect = svgContainerRef.current?.getBoundingClientRect();
+    // Mouse-move hit-test: imperative cursor, batched React state.
+    const moveRafRef = useRef<number | null>(null);
+    const latestMouseRef = useRef<{ x: number; y: number; clientX: number; clientY: number } | null>(null);
+    const lastDotKeyRef = useRef<string | null>(null);
+
+    const handleMouseMove = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+        const rect = canvasContainerRef.current?.getBoundingClientRect();
         if (!rect) return;
-        setAnnotPopover({
-            x: e.clientX - rect.left,
-            y: e.clientY - rect.top,
-            annotations: nearAnnotations,
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+        latestMouseRef.current = { x, y, clientX: e.clientX, clientY: e.clientY };
+
+        const dotHit = hitTestDot(x, y, visibleLanes, laneBins);
+        const annotHit = !dotHit ? hitTestAnnotation(x, y, visibleLanes, annotationGroups) : null;
+
+        const canvas = canvasRef.current;
+        if (canvas) {
+            canvas.style.cursor = dotHit || annotHit ? 'pointer' : (isZoomed ? 'grab' : 'default');
+        }
+
+        if (moveRafRef.current != null) return;
+        moveRafRef.current = requestAnimationFrame(() => {
+            moveRafRef.current = null;
+            const m = latestMouseRef.current;
+            if (!m) return;
+            const d = hitTestDot(m.x, m.y, visibleLanes, laneBins);
+            const newKey = d?.key ?? null;
+            if (newKey !== lastDotKeyRef.current) {
+                lastDotKeyRef.current = newKey;
+                setHoveredDotKey(newKey);
+                if (d) {
+                    const data: TooltipData = { x: m.x, y: m.y, bin: d.bin, laneType: d.type };
+                    setTooltip(data);
+                    setPendingTooltip(data);
+                } else {
+                    setPendingTooltip(null);
+                }
+            }
         });
+    }, [visibleLanes, laneBins, annotationGroups, isZoomed]);
+
+    const handleMouseLeave = useCallback(() => {
+        if (moveRafRef.current != null) {
+            cancelAnimationFrame(moveRafRef.current);
+            moveRafRef.current = null;
+        }
+        lastDotKeyRef.current = null;
+        setHoveredDotKey(null);
+        setPendingTooltip(null);
+        const canvas = canvasRef.current;
+        if (canvas) canvas.style.cursor = isZoomed ? 'grab' : 'default';
+    }, [isZoomed]);
+
+    useEffect(() => {
+        return () => {
+            if (moveRafRef.current != null) cancelAnimationFrame(moveRafRef.current);
+        };
     }, []);
 
-    // Shift+Click on SVG background → seek video
-    const handleSvgClick = useCallback((e: React.MouseEvent) => {
-        if (!onSeekVideo || !e.shiftKey || !svgContainerRef.current) return;
-        const rect = svgContainerRef.current.getBoundingClientRect();
+    // Canvas click: dot-first, annotation-next, shift+click additionally seeks
+    const handleCanvasClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+        const rect = canvasContainerRef.current?.getBoundingClientRect();
+        if (!rect) return;
         const x = e.clientX - rect.left;
-        const [min, max] = xDomain;
-        const range = max - min;
-        if (range <= 0 || svgWidth <= 0) return;
-        const offset = (x / svgWidth) * range + min;
-        const timestamp = sessionStartTime + offset;
-        onSeekVideo(timestamp);
-    }, [onSeekVideo, xDomain, svgWidth, sessionStartTime]);
+        const y = e.clientY - rect.top;
 
-    // Annotation positions, grouped by pixel proximity (5px)
-    const annotationGroups = useMemo(() => {
-        if (svgWidth <= 0) return [];
-        const groups: { x: number; annotations: Annotation[] }[] = [];
-        const sorted = [...annotations].sort((a, b) => a.timestamp - b.timestamp);
-        for (const a of sorted) {
-            const x = timeToX(a.timestamp, sessionStartTime, xDomain, svgWidth);
-            const existing = groups.find(g => Math.abs(g.x - x) < 5);
-            if (existing) {
-                existing.annotations.push(a);
-            } else {
-                groups.push({ x, annotations: [a] });
-            }
+        const dotHit = hitTestDot(x, y, visibleLanes, laneBins);
+        const annotHit = !dotHit ? hitTestAnnotation(x, y, visibleLanes, annotationGroups) : null;
+
+        if (dotHit) {
+            setAnnotateTimestamp(dotHit.bin.firstTimestamp);
+        } else if (annotHit) {
+            setAnnotPopover({ x, y, annotations: annotHit.group.annotations });
         }
-        return groups;
-    }, [annotations, sessionStartTime, xDomain, svgWidth]);
+
+        // Shift+click additionally seeks the video to the click position,
+        // preserving current SVG behavior where dots do not stopPropagation.
+        if (e.shiftKey && onSeekVideo) {
+            const ts = xToTime(x, sessionStartTime, xDomain, timelineWidth);
+            if (ts != null) onSeekVideo(ts);
+        }
+    }, [visibleLanes, laneBins, annotationGroups, onSeekVideo, sessionStartTime, xDomain, timelineWidth]);
 
     if (visibleLanes.length === 0) {
         return (
@@ -339,128 +418,20 @@ export function TrackingTimeline({
                     <div className="lane-label axis-label" style={{ height: AXIS_HEIGHT }} />
                 </div>
 
-                {/* SVG area */}
-                <div className="lane-svg-container" ref={svgContainerRef} style={{ position: 'relative' }}>
-                    <svg
-                        ref={svgRef}
-                        width="100%"
-                        height={totalHeight}
-                        style={{ display: 'block', cursor: isZoomed ? 'grab' : undefined }}
-                        onClick={handleSvgClick}
-                        onMouseDown={handlePanStart}
-                    >
-                        {/* Lane backgrounds (alternating) */}
-                        {visibleLanes.map((type, i) => (
-                            <rect
-                                key={`bg-${type}`}
-                                x={0}
-                                y={i * LANE_HEIGHT}
-                                width={svgWidth}
-                                height={LANE_HEIGHT}
-                                fill={i % 2 === 0 ? 'rgba(255,255,255,0.02)' : 'transparent'}
-                            />
-                        ))}
-
-                        {/* Lane separator lines */}
-                        {visibleLanes.map((_, i) => (
-                            <line
-                                key={`sep-${i}`}
-                                x1={0}
-                                y1={(i + 1) * LANE_HEIGHT}
-                                x2={svgWidth}
-                                y2={(i + 1) * LANE_HEIGHT}
-                                stroke="var(--border)"
-                                strokeOpacity={0.3}
-                            />
-                        ))}
-
-                        {/* Annotation vertical lines */}
-                        {annotationGroups.map((group, gi) => {
-                            const firstLabel = group.annotations.find(a => a.label)?.label;
-                            const labelColor = firstLabel
-                                ? ALL_LABELS.find(l => l.value === firstLabel)?.color ?? '#38bdf8'
-                                : '#38bdf8';
-                            return (
-                                <line
-                                    key={`annot-${gi}`}
-                                    x1={group.x}
-                                    y1={0}
-                                    x2={group.x}
-                                    y2={visibleLanes.length * LANE_HEIGHT}
-                                    stroke={labelColor}
-                                    strokeWidth={1.5}
-                                    strokeDasharray="3 3"
-                                    strokeOpacity={0.7}
-                                    style={{ cursor: 'pointer' }}
-                                    onClick={(e) => handleAnnotLineClick(e, group.annotations)}
-                                />
-                            );
-                        })}
-
-                        {/* Event dots per lane */}
-                        {visibleLanes.map((type, laneIdx) => {
-                            const bins = laneBins.get(type) ?? [];
-                            const cy = laneIdx * LANE_HEIGHT + LANE_HEIGHT / 2;
-                            const color = MARKER_COLORS[type];
-
-                            return bins.map((bin, bi) => {
-                                const isDense = bin.count >= DENSE_THRESHOLD;
-                                const r = isDense ? DOT_RADIUS_DENSE : DOT_RADIUS;
-                                const opacity = isDense ? 1 : 0.85;
-
-                                return (
-                                    <circle
-                                        key={`${type}-${bi}`}
-                                        cx={bin.x}
-                                        cy={cy}
-                                        r={r}
-                                        fill={color}
-                                        fillOpacity={opacity}
-                                        className={isDense ? 'event-dot event-dot-dense' : 'event-dot'}
-                                        onMouseEnter={(e) => handleDotHover(e, bin, type)}
-                                        onMouseLeave={handleDotLeave}
-                                        onClick={() => setAnnotateTimestamp(bin.firstTimestamp)}
-                                        style={{ cursor: 'pointer' }}
-                                    />
-                                );
-                            });
-                        })}
-
-                        {/* Time axis */}
-                        <line
-                            x1={0}
-                            y1={visibleLanes.length * LANE_HEIGHT}
-                            x2={svgWidth}
-                            y2={visibleLanes.length * LANE_HEIGHT}
-                            stroke="var(--border)"
-                            strokeOpacity={0.5}
-                        />
-                        {ticks.map(t => {
-                            const x = ((t - xDomain[0]) / (xDomain[1] - xDomain[0])) * svgWidth;
-                            return (
-                                <g key={t}>
-                                    <line
-                                        x1={x}
-                                        y1={visibleLanes.length * LANE_HEIGHT}
-                                        x2={x}
-                                        y2={visibleLanes.length * LANE_HEIGHT + 5}
-                                        stroke="var(--text-muted)"
-                                        strokeOpacity={0.5}
-                                    />
-                                    <text
-                                        x={x}
-                                        y={visibleLanes.length * LANE_HEIGHT + 18}
-                                        textAnchor="middle"
-                                        fill="var(--text-muted)"
-                                        fontSize={11}
-                                        fontFamily="var(--mono)"
-                                    >
-                                        {formatOffset(t)}
-                                    </text>
-                                </g>
-                            );
-                        })}
-                    </svg>
+                {/* Canvas area */}
+                <div
+                    className="lane-svg-container"
+                    ref={canvasContainerRef}
+                    style={{ position: 'relative' }}
+                    onClick={handleCanvasClick}
+                    onMouseDown={handlePanStart}
+                    onMouseMove={handleMouseMove}
+                    onMouseLeave={handleMouseLeave}
+                >
+                    <canvas
+                        ref={canvasRef}
+                        style={{ display: 'block', width: '100%', height: totalHeight }}
+                    />
 
                     {/* Video playhead line */}
                     {videoTimeRef && (

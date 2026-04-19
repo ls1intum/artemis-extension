@@ -1188,16 +1188,6 @@
     position: relative;
 }
 
-.event-dot {
-    transition: r 0.1s;
-}
-.event-dot:hover {
-    filter: brightness(1.3);
-}
-.event-dot-dense {
-    filter: brightness(1.1);
-}
-
 /* ── Timeline tooltip ───────────────────────────────────────────────── */
 
 .timeline-tooltip {
