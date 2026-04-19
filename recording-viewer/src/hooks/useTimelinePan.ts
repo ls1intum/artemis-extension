@@ -7,6 +7,13 @@ interface UseTimelinePanOptions {
     onZoomChange?: (domain: [number, number] | null) => void;
     /** Pixels to subtract from the left of the container before mapping to the time domain */
     leftOffset?: number;
+    /**
+     * Optional predicate called on mousedown. When it returns true, the pan is
+     * suppressed for that event. Used by canvas-rendered timelines to block
+     * pan-start when the cursor is on an interactive element (dot, annotation
+     * line) that the DOM class-check below cannot detect.
+     */
+    suppressPanPredicate?: (e: React.MouseEvent) => boolean;
 }
 
 /**
@@ -14,7 +21,7 @@ interface UseTimelinePanOptions {
  * While dragging, the visible xDomain is panned horizontally.
  * Global mousemove/mouseup listeners ensure dragging works even outside the element.
  */
-export function useTimelinePan({ xDomain, fullXDomain, svgWidth, onZoomChange, leftOffset = 0 }: UseTimelinePanOptions) {
+export function useTimelinePan({ xDomain, fullXDomain, svgWidth, onZoomChange, leftOffset = 0, suppressPanPredicate }: UseTimelinePanOptions) {
     const isPanningRef = useRef(false);
     const panStartXRef = useRef(0);
     const panStartDomainRef = useRef<[number, number]>([0, 0]);
@@ -32,12 +39,13 @@ export function useTimelinePan({ xDomain, fullXDomain, svgWidth, onZoomChange, l
         // Don't start pan if clicking on interactive elements
         const target = e.target as Element;
         if (target.classList.contains('event-dot') || target.closest?.('.annotation-popover')) return;
+        if (suppressPanPredicate?.(e)) return;
 
         isPanningRef.current = true;
         panStartXRef.current = e.clientX;
         panStartDomainRef.current = [...xDomain] as [number, number];
         e.preventDefault();
-    }, [onZoomChange, isZoomed, xDomain]);
+    }, [onZoomChange, isZoomed, xDomain, suppressPanPredicate]);
 
     useEffect(() => {
         const handleMouseMove = (e: MouseEvent) => {
