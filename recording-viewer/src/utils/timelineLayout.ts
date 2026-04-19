@@ -46,18 +46,27 @@ export function timeToX(
     return ((offset - min) / range) * timelineWidth;
 }
 
+export function groupEventsByType(events: RecordedEvent[]): Map<EventType, RecordedEvent[]> {
+    const map = new Map<EventType, RecordedEvent[]>();
+    for (const e of events) {
+        const arr = map.get(e.type);
+        if (arr) arr.push(e);
+        else map.set(e.type, [e]);
+    }
+    return map;
+}
+
 export function buildBins(
-    events: RecordedEvent[],
+    eventsOfType: readonly RecordedEvent[],
     type: EventType,
     sessionStartTime: number,
     xDomain: [number, number],
     timelineWidth: number,
 ): Bin[] {
-    const filtered = events.filter(e => e.type === type);
-    if (filtered.length === 0 || timelineWidth <= 0) return [];
+    if (eventsOfType.length === 0 || timelineWidth <= 0) return [];
 
     const binMap = new Map<number, Bin>();
-    for (const e of filtered) {
+    for (const e of eventsOfType) {
         const px = Math.round(timeToX(e.timestamp, sessionStartTime, xDomain, timelineWidth));
         const existing = binMap.get(px);
         if (existing) {

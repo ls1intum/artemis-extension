@@ -10,6 +10,7 @@ import {
     buildAnnotationGroups,
     buildBins,
     generateTicks,
+    groupEventsByType,
     hitTestAnnotation,
     hitTestDot,
     xToTime,
@@ -132,20 +133,24 @@ export function TrackingTimeline({
     const [annotateTimestamp, setAnnotateTimestamp] = useState<number | null>(null);
     const [annotateText, setAnnotateText] = useState('');
 
+    // Pre-group events by type once per event-list change. Avoids a full
+    // events.filter pass per lane on every xDomain/zoom/pan update.
+    const eventsByType = useMemo(() => groupEventsByType(events), [events]);
+
     // Visible lanes: only types enabled AND with events
     const visibleLanes = useMemo(() => {
-        const typesWithEvents = new Set(events.map(e => e.type));
-        return SWIM_LANE_TYPES.filter(t => enabledTypes.has(t) && typesWithEvents.has(t));
-    }, [events, enabledTypes]);
+        return SWIM_LANE_TYPES.filter(t => enabledTypes.has(t) && eventsByType.has(t));
+    }, [eventsByType, enabledTypes]);
 
     // Per-lane bins
     const laneBins = useMemo(() => {
         const result = new Map<EventType, Bin[]>();
         for (const type of visibleLanes) {
-            result.set(type, buildBins(events, type, sessionStartTime, xDomain, timelineWidth));
+            const ofType = eventsByType.get(type) ?? [];
+            result.set(type, buildBins(ofType, type, sessionStartTime, xDomain, timelineWidth));
         }
         return result;
-    }, [events, visibleLanes, sessionStartTime, xDomain, timelineWidth]);
+    }, [eventsByType, visibleLanes, sessionStartTime, xDomain, timelineWidth]);
 
     // Annotation groups (pixel-clustered)
     const annotationGroups = useMemo<AnnotationGroup[]>(
