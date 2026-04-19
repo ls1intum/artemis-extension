@@ -38,17 +38,23 @@ export function SessionChartOverlay({ xDomain, zoomedRange, videoTimeRef, sessio
         if (!videoTimeRef || !playheadRef.current) return;
         let raf: number;
         const tick = () => {
+            const el = playheadRef.current;
+            if (!el) return;
             const ts = videoTimeRef.current;
-            const offset = ts - sessionStartTime;
             const [min, max] = xDomain;
             const range = max - min;
-            if (range > 0 && playheadRef.current) {
-                const x = ((offset - min) / range) * width;
+            // Hide while geometry is uninitialised, the domain is degenerate,
+            // or the video has not yet started. This matches the old recharts
+            // ReferenceLine behavior, which skipped render while ts was 0.
+            if (ts <= 0 || range <= 0 || width <= 0) {
+                el.style.display = 'none';
+            } else {
+                const x = ((ts - sessionStartTime - min) / range) * width;
                 if (x < 0 || x > width) {
-                    playheadRef.current.style.display = 'none';
+                    el.style.display = 'none';
                 } else {
-                    playheadRef.current.style.display = 'block';
-                    playheadRef.current.style.transform = `translateX(${x}px)`;
+                    el.style.display = 'block';
+                    el.style.transform = `translateX(${x}px)`;
                 }
             }
             raf = requestAnimationFrame(tick);
@@ -78,6 +84,7 @@ export function SessionChartOverlay({ xDomain, zoomedRange, videoTimeRef, sessio
                 right: 0,
                 bottom: 0,
                 pointerEvents: 'none',
+                overflow: 'hidden',
             }}
         >
             {zoomStyle && <div className="session-zoom-rect" style={zoomStyle} />}

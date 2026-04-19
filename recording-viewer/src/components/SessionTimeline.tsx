@@ -290,8 +290,10 @@ export function SessionTimeline({ events, sessionStartTime, replayEq, annotation
         );
     }
 
-    // Use shared xDomain when provided, otherwise compute a reasonable window
-    // from EQ data + annotations. Computed inline because only used as fallback.
+    // Use shared xDomain when provided, otherwise derive one from EQ events,
+    // replay EQ snapshots, and annotations. Replay data can extend past the
+    // live EQ stream (or exist on its own), so it must contribute to the
+    // fallback window for the public optional-xDomain contract.
     let xDomain: [number, number];
     if (externalXDomain) {
         xDomain = externalXDomain;
@@ -302,6 +304,13 @@ export function SessionTimeline({ events, sessionStartTime, replayEq, annotation
             const off = e.timestamp - sessionStartTime;
             if (off < xMin) xMin = off;
             if (off > xMax) xMax = off;
+        }
+        if (replayEq) {
+            for (const r of replayEq) {
+                const off = r.timestamp - sessionStartTime;
+                if (off < xMin) xMin = off;
+                if (off > xMax) xMax = off;
+            }
         }
         for (const a of annotations) {
             const off = a.timestamp - sessionStartTime;
