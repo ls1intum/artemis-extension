@@ -224,6 +224,20 @@ export interface TerminalOpenCloseEvent {
     terminalName: string;
 }
 
+/**
+ * Emitted once per URI after three consecutive snapshot-write failures.
+ * Acts as a permanent "give up" marker so consumers know a snapshot is
+ * missing and why. Written via `_writeLifecycleEvent` (bypass phase gate)
+ * only while recording is active.
+ */
+export interface FileSnapshotErrorEvent {
+    type: 'fileSnapshotError';
+    timestamp: number;
+    uri: string;
+    /** Short human-readable reason, e.g. 'snapshot-write-failed-after-3-retries' or an fs error message. */
+    reason: string;
+}
+
 // ── Discriminated union ───────────────────────────────────────────────
 
 export type RecordedEvent =
@@ -247,7 +261,8 @@ export type RecordedEvent =
     | SelectionChangeEvent
     | VisibleRangeChangeEvent
     | TerminalCommandEvent
-    | TerminalOpenCloseEvent;
+    | TerminalOpenCloseEvent
+    | FileSnapshotErrorEvent;
 
 // ── Session metadata ──────────────────────────────────────────────────
 

@@ -41,7 +41,7 @@
 import * as vscode from 'vscode';
 import * as crypto from 'crypto';
 import type { WebSocketMessageHandler, ResultDTO } from '../../../types';
-import type { RecordedEvent, SessionMetadata, SerializedErrorSnapshot } from './types';
+import type { RecordedEvent, SessionMetadata, SerializedErrorSnapshot, FileSnapshotErrorEvent } from './types';
 import type { PlatformCapabilities } from '../../../theia';
 import type { ExerciseRegistry } from '../../exerciseRegistry';
 import { RecordingStorageWriter } from './storageWriter';
@@ -150,6 +150,14 @@ export class SessionRecorder implements vscode.Disposable, WebSocketMessageHandl
 
     private _exerciseRoot: string | undefined;
     private _snapshotedUris = new Set<string>();
+    /**
+     * Tracks the number of consecutive write failures per URI during the
+     * current session. Once the count reaches MAX_SNAPSHOT_RETRIES, the URI
+     * is added to `_snapshotedUris` to prevent further attempts and a
+     * `fileSnapshotError` lifecycle event is emitted once.
+     */
+    private _snapshotRetries = new Map<string, number>();
+    private static readonly MAX_SNAPSHOT_RETRIES = 3;
     private _selectionDebounceTimer: ReturnType<typeof setTimeout> | undefined;
     private _visibleRangeDebounceTimer: ReturnType<typeof setTimeout> | undefined;
     private _pendingSelectionPayload: RecordedEvent | undefined;
@@ -840,6 +848,7 @@ export class SessionRecorder implements vscode.Disposable, WebSocketMessageHandl
         this._exerciseRoot = undefined;
         this._sessionStartTime = undefined;
         this._snapshotedUris.clear();
+        this._snapshotRetries.clear();
         this._lastActiveEditorUri = undefined;
     }
 
@@ -1059,7 +1068,8 @@ export class SessionRecorder implements vscode.Disposable, WebSocketMessageHandl
             return;
         }
         const snapshotPath = this._writer.getSnapshotRelativePath(uri);
-        await this._writer.writeSnapshot(uri, content);
+        const success = await this._writer.writeSnapshot(uri, content);
+
         // After the async writeSnapshot, the session may have rotated OR the
         // phase may have flipped to disabled. Use the same consent/session
         // gate as the pre-write check so that disabled-but-same-generation
@@ -1068,7 +1078,36 @@ export class SessionRecorder implements vscode.Disposable, WebSocketMessageHandl
         if (!this._canWriteSnapshot(generation)) {
             return;
         }
+
+        if (!success) {
+            // Increment retry counter for this URI.
+            const retries = (this._snapshotRetries.get(uri) ?? 0) + 1;
+            this._snapshotRetries.set(uri, retries);
+
+            if (retries >= SessionRecorder.MAX_SNAPSHOT_RETRIES) {
+                // Max retries reached: mark URI as permanently "vergeben" so no
+                // further attempts are made, then emit a single error lifecycle event.
+                this._snapshotedUris.add(uri);
+                this._snapshotRetries.delete(uri);
+                const errorEvent: FileSnapshotErrorEvent = {
+                    type: 'fileSnapshotError',
+                    timestamp: Date.now(),
+                    uri,
+                    reason: 'snapshot-write-failed-after-3-retries',
+                };
+                this._writeLifecycleEvent(errorEvent);
+                logger.warn(
+                    `[SessionRecorder] Snapshot permanently failed for ${uri} after ${SessionRecorder.MAX_SNAPSHOT_RETRIES} retries`,
+                    LogCategory.TELEMETRY,
+                );
+            }
+            // On failure (below max retries), do NOT add to _snapshotedUris so
+            // _captureFirstOpenSnapshot will retry on the next editor switch.
+            return;
+        }
+
         this._snapshotedUris.add(uri);
+        this._snapshotRetries.delete(uri);
         this._recordInternal(
             { type: 'fileSnapshot', timestamp: Date.now(), uri, snapshotPath },
             { allowDuringStartup },

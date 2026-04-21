@@ -173,6 +173,12 @@ function EventDetail({ event }: { event: RecordedEvent }) {
                     {event.action} | {event.terminalName}
                 </span>
             );
+        case 'fileSnapshotError':
+            return (
+                <span className="event-detail">
+                    {shortenUri(event.uri)} | {event.reason}
+                </span>
+            );
         default:
             return null;
     }

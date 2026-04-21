@@ -25,6 +25,7 @@ const categories = [
             { badge: 'viewNavigation', label: 'ViewNavigation', desc: 'Extension sidebar screen changes (e.g. course-list \u2192 exercise-detail)' },
             { badge: 'panelVisibility', label: 'PanelVisibility', desc: 'Artemis sidebar or Iris Chat panel shown/hidden' },
             { badge: 'fileSnapshot', label: 'FileSnapshot', desc: 'Initial file content at session start (max 1 MB per file)' },
+            { badge: 'fileSnapshotError', label: 'FileSnapshotError', desc: 'Snapshot permanently failed after 3 retries — snapshot is missing for this URI' },
         ],
     },
     {

@@ -179,6 +179,13 @@ export interface TerminalOpenCloseEvent {
     terminalName: string;
 }
 
+export interface FileSnapshotErrorEvent {
+    type: 'fileSnapshotError';
+    timestamp: number;
+    uri: string;
+    reason: string;
+}
+
 // ── Discriminated union ───────────────────────────────────────────────
 
 export type RecordedEvent =
@@ -200,7 +207,8 @@ export type RecordedEvent =
     | SelectionChangeEvent
     | VisibleRangeChangeEvent
     | TerminalCommandEvent
-    | TerminalOpenCloseEvent;
+    | TerminalOpenCloseEvent
+    | FileSnapshotErrorEvent;
 
 // ── Session metadata ──────────────────────────────────────────────────
 

@@ -97,6 +97,8 @@ function eventSummary(event: RecordedEvent, sessionStartTime: number): React.Rea
             return <><span className="tt-time">{time}</span> <code>{event.command.length > 40 ? event.command.slice(0, 40) + '...' : event.command}</code> exit: {event.exitCode ?? '?'}</>;
         case 'terminalOpenClose':
             return <><span className="tt-time">{time}</span> {event.action} | {event.terminalName}</>;
+        case 'fileSnapshotError':
+            return <><span className="tt-time">{time}</span> {shortenUri(event.uri)} | {event.reason}</>;
         default:
             return <span className="tt-time">{time}</span>;
     }

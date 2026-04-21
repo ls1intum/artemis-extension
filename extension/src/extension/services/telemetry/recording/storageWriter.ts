@@ -165,11 +165,12 @@ export class RecordingStorageWriter {
         return this._enqueueFlush();
     }
 
-    async writeSnapshot(uri: string, content: string): Promise<void> {
+    async writeSnapshot(uri: string, content: string): Promise<boolean> {
         if (this._disabled || !this._snapshotsDir) {
-            return;
+            return false;
         }
-        return this._enqueueLaneWork(async () => {
+        let success = false;
+        await this._enqueueLaneWork(async () => {
             const sanitized = this._sanitizeFileName(uri);
             const snapshotPath = path.join(this._snapshotsDir!, `${sanitized}.txt`);
             const truncated = content.length > MAX_SNAPSHOT_BYTES
@@ -177,7 +178,9 @@ export class RecordingStorageWriter {
                 : content;
             await this._fs.writeFile(snapshotPath, truncated, 'utf-8');
             this._consecutiveErrors = 0;
+            success = true;
         }, 'Failed to write file snapshot');
+        return success;
     }
 
     async writeMetadata(metadata: SessionMetadata): Promise<void> {

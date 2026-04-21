@@ -9,4 +9,5 @@ export type {
     SerializedDiagnostic,
     ConsentChangeEvent,
     StartupPhaseCompleteEvent,
+    FileSnapshotErrorEvent,
 } from './types';

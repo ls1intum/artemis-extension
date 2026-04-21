@@ -20,6 +20,7 @@ export const MARKER_COLORS: Record<EventType, string> = {
     visibleRangeChange: '#14b8a6',
     terminalCommand: '#22d3ee',
     terminalOpenClose: '#67e8f9',
+    fileSnapshotError: '#f87171',
 };
 
 export const ALL_EVENT_TYPES = [
@@ -33,6 +34,7 @@ export const ALL_EVENT_TYPES = [
     'viewNavigation', 'panelVisibility',
     'selectionChange', 'visibleRangeChange',
     'terminalCommand', 'terminalOpenClose',
+    'fileSnapshotError',
 ] as const satisfies readonly EventType[];
 
 // Compile error if a new event type is added but not listed above
