@@ -278,6 +278,7 @@
     "clean": "rm -rf dist out *.vsix",
     "compile:clean": "npm run clean && npm run compile",
     "validate-recording": "tsx scripts/validate-recording.ts",
+    "roundtrip-recording": "tsx scripts/roundtrip-recording.ts",
     "prepare": "husky",
     "vscode:prepublish": "npm run package"
   },
