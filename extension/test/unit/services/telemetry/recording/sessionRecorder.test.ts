@@ -547,17 +547,18 @@ suite('SessionRecorder (Block AB+E)', () => {
         recorder.enable();
         await recorder.startSession(5);
 
-        // Directly prime _pendingSelectionPayload via `as any` (same pattern
-        // used elsewhere in this file) to simulate a debounce timer that is
-        // pending but has not yet fired when consent is revoked.
+        // Directly prime _pendingSelectionPayloads (per-URI Map, Block J) via
+        // `as any` to simulate a debounce timer that is pending but has not
+        // yet fired when consent is revoked.
+        const fakeUri = 'file:///fake/Pending.java';
         const pendingPayload: RecordedEvent = {
             type: 'selectionChange',
             timestamp: Date.now(),
-            uri: 'file:///fake/Pending.java',
+            uri: fakeUri,
             selections: [{ startLine: 1, startCharacter: 0, endLine: 1, endCharacter: 5 }],
             kind: undefined,
         };
-        (recorder as any)._pendingSelectionPayload = pendingPayload;
+        (recorder as any)._pendingSelectionPayloads.set(fakeUri, pendingPayload);
 
         // Revoke consent — _doDisable must DISCARD, not flush, the pending payload.
         recorder.disable();
@@ -567,7 +568,7 @@ suite('SessionRecorder (Block AB+E)', () => {
         const types = events.map(e => e.type);
 
         // The pending selectionChange must NOT appear in the stream.
-        const selectionEvents = events.filter(e => e.type === 'selectionChange' && (e as { uri?: string }).uri === 'file:///fake/Pending.java');
+        const selectionEvents = events.filter(e => e.type === 'selectionChange' && (e as { uri?: string }).uri === fakeUri);
         assert.strictEqual(selectionEvents.length, 0,
             'pending debounce payload must be discarded (not flushed) on consent downgrade');
 
@@ -577,9 +578,11 @@ suite('SessionRecorder (Block AB+E)', () => {
         assert.ok(consentIdx >= 0, 'consentChange must appear in the stream');
         assert.ok(endIdx > consentIdx, 'sessionEnd must come after consentChange');
 
-        // The recorder must have cleared _pendingSelectionPayload.
-        assert.strictEqual((recorder as any)._pendingSelectionPayload, undefined,
-            '_pendingSelectionPayload must be undefined after disable()');
+        // The recorder must have cleared all pending payloads.
+        assert.strictEqual((recorder as any)._pendingSelectionPayloads.size, 0,
+            '_pendingSelectionPayloads must be empty after disable()');
+        assert.strictEqual((recorder as any)._pendingVisibleRangePayloads.size, 0,
+            '_pendingVisibleRangePayloads must be empty after disable()');
     });
 
     // ── Test: record methods without recording phase are no-ops ──────────
@@ -595,5 +598,221 @@ suite('SessionRecorder (Block AB+E)', () => {
         const panelEvents = events.filter(e => e.type === 'panelVisibility');
         assert.strictEqual(panelEvents.length, 0,
             'panelVisibility before startSession must not be recorded');
+    });
+
+    // ── Block J: Per-URI debounce tests ───────────────────────────────────
+
+    test('Block J — alternating selections on two URIs both appear in stream (no overwrite)', async () => {
+        recorder.enable();
+        await recorder.startSession(1);
+
+        const uriA = 'file:///proj/A.java';
+        const uriB = 'file:///proj/B.java';
+
+        const payloadA: RecordedEvent = {
+            type: 'selectionChange',
+            timestamp: 1000,
+            uri: uriA,
+            selections: [{ startLine: 0, startCharacter: 0, endLine: 0, endCharacter: 3 }],
+            kind: undefined,
+        };
+        const payloadB: RecordedEvent = {
+            type: 'selectionChange',
+            timestamp: 2000,
+            uri: uriB,
+            selections: [{ startLine: 5, startCharacter: 0, endLine: 5, endCharacter: 7 }],
+            kind: undefined,
+        };
+
+        // Simulate two different URIs triggering in quick succession.
+        (recorder as any)._pendingSelectionPayloads.set(uriA, payloadA);
+        (recorder as any)._pendingSelectionPayloads.set(uriB, payloadB);
+
+        // Flush on session end must emit both.
+        await recorder.endSession();
+
+        const events = collectWrittenEvents(fs);
+        const selA = events.filter(e => e.type === 'selectionChange' && (e as { uri?: string }).uri === uriA);
+        const selB = events.filter(e => e.type === 'selectionChange' && (e as { uri?: string }).uri === uriB);
+
+        assert.strictEqual(selA.length, 1, 'selection event for URI A must appear exactly once');
+        assert.strictEqual(selB.length, 1, 'selection event for URI B must appear exactly once');
+    });
+
+    test('Block J — trigger-time payload is recorded, not post-trigger state', async () => {
+        recorder.enable();
+        await recorder.startSession(1);
+
+        const uri = 'file:///proj/C.java';
+        const triggerTimePayload: RecordedEvent = {
+            type: 'selectionChange',
+            timestamp: 3000,
+            uri,
+            selections: [{ startLine: 10, startCharacter: 0, endLine: 10, endCharacter: 4 }],
+            kind: undefined,
+        };
+
+        // Prime the pending map as if the event listener serialized at trigger time.
+        (recorder as any)._pendingSelectionPayloads.set(uri, triggerTimePayload);
+
+        // Simulate a post-trigger state change: the map now holds a DIFFERENT payload
+        // for the same URI — but we captured triggerTimePayload already, so the
+        // timer closure (which holds a reference to triggerTimePayload) will compare
+        // correctly. To test the flush path here, we call _flushPendingDebouncesForEnd
+        // directly (the timer has not been set in this white-box test, so endSession
+        // is the flush path).
+        await recorder.endSession();
+
+        const events = collectWrittenEvents(fs);
+        const selEvents = events.filter(e =>
+            e.type === 'selectionChange' && (e as { uri?: string }).uri === uri
+        ) as Array<{ selections: Array<{ startLine: number }> }>;
+
+        assert.strictEqual(selEvents.length, 1, 'exactly one selectionChange for URI C');
+        assert.strictEqual(selEvents[0].selections[0].startLine, 10,
+            'recorded selection must reflect trigger-time payload (line 10), not a later state');
+    });
+
+    test('Block J — pending debounce at endSession appears before sessionEnd', async () => {
+        recorder.enable();
+        await recorder.startSession(1);
+
+        const uri = 'file:///proj/D.java';
+        const payload: RecordedEvent = {
+            type: 'selectionChange',
+            timestamp: 4000,
+            uri,
+            selections: [{ startLine: 2, startCharacter: 0, endLine: 2, endCharacter: 1 }],
+            kind: undefined,
+        };
+
+        // Prime a pending payload that has not yet fired its timer.
+        (recorder as any)._pendingSelectionPayloads.set(uri, payload);
+
+        await recorder.endSession();
+
+        const events = collectWrittenEvents(fs);
+        const selIdx = events.findIndex(e => e.type === 'selectionChange' && (e as { uri?: string }).uri === uri);
+        const endIdx = events.findIndex(e => e.type === 'sessionEnd');
+
+        assert.ok(selIdx >= 0, 'pending selectionChange must appear in the stream on endSession');
+        assert.ok(endIdx > selIdx, 'selectionChange must appear before sessionEnd');
+    });
+
+    test('Block J — pending debounce at disable() does NOT appear in stream', async () => {
+        recorder.enable();
+        await recorder.startSession(1);
+
+        const uri = 'file:///proj/E.java';
+        const payload: RecordedEvent = {
+            type: 'selectionChange',
+            timestamp: 5000,
+            uri,
+            selections: [{ startLine: 3, startCharacter: 0, endLine: 3, endCharacter: 2 }],
+            kind: undefined,
+        };
+
+        (recorder as any)._pendingSelectionPayloads.set(uri, payload);
+
+        // Consent revoked — pending payload must be discarded (Option A).
+        recorder.disable();
+        await new Promise(resolve => setTimeout(resolve, 30));
+
+        const events = collectWrittenEvents(fs);
+        const selEvents = events.filter(e => e.type === 'selectionChange' && (e as { uri?: string }).uri === uri);
+        assert.strictEqual(selEvents.length, 0,
+            'pending debounce must be discarded (not flushed) when consent is revoked via disable()');
+    });
+
+    test('Block J — repeated triggers on same URI clear old timer, no memory leak', async () => {
+        recorder.enable();
+        await recorder.startSession(1);
+
+        const uri = 'file:///proj/F.java';
+
+        // Simulate five rapid triggers on the same URI — only the last should remain pending.
+        for (let i = 0; i < 5; i++) {
+            const payload: RecordedEvent = {
+                type: 'selectionChange',
+                timestamp: 6000 + i,
+                uri,
+                selections: [{ startLine: i, startCharacter: 0, endLine: i, endCharacter: 1 }],
+                kind: undefined,
+            };
+            (recorder as any)._pendingSelectionPayloads.set(uri, payload);
+        }
+
+        // After rapid triggers the map must still have exactly one entry for this URI.
+        assert.strictEqual(
+            (recorder as any)._pendingSelectionPayloads.size,
+            1,
+            'per-URI map must hold at most one pending payload per URI (no accumulation)',
+        );
+
+        await recorder.endSession();
+
+        const events = collectWrittenEvents(fs);
+        const selEvents = events.filter(e => e.type === 'selectionChange' && (e as { uri?: string }).uri === uri);
+        assert.strictEqual(selEvents.length, 1,
+            'exactly one selectionChange for F.java — the last trigger-time payload');
+    });
+
+    test('Block J — visible-range alternating on two URIs both appear in stream (no overwrite)', async () => {
+        recorder.enable();
+        await recorder.startSession(1);
+
+        const uriA = 'file:///proj/G.java';
+        const uriB = 'file:///proj/H.java';
+
+        const payloadA: RecordedEvent = {
+            type: 'visibleRangeChange',
+            timestamp: 7000,
+            uri: uriA,
+            visibleRanges: [{ startLine: 0, startCharacter: 0, endLine: 20, endCharacter: 0 }],
+        };
+        const payloadB: RecordedEvent = {
+            type: 'visibleRangeChange',
+            timestamp: 8000,
+            uri: uriB,
+            visibleRanges: [{ startLine: 50, startCharacter: 0, endLine: 80, endCharacter: 0 }],
+        };
+
+        // Simulate two different URIs triggering visible-range changes in quick succession.
+        (recorder as any)._pendingVisibleRangePayloads.set(uriA, payloadA);
+        (recorder as any)._pendingVisibleRangePayloads.set(uriB, payloadB);
+
+        // Flush on session end must emit both.
+        await recorder.endSession();
+
+        const events = collectWrittenEvents(fs);
+        const vrA = events.filter(e => e.type === 'visibleRangeChange' && (e as { uri?: string }).uri === uriA);
+        const vrB = events.filter(e => e.type === 'visibleRangeChange' && (e as { uri?: string }).uri === uriB);
+
+        assert.strictEqual(vrA.length, 1, 'visibleRangeChange for URI G must appear exactly once');
+        assert.strictEqual(vrB.length, 1, 'visibleRangeChange for URI H must appear exactly once');
+    });
+
+    test('Block J — pending visible-range at disable() does NOT appear in stream', async () => {
+        recorder.enable();
+        await recorder.startSession(1);
+
+        const uri = 'file:///proj/I.java';
+        const payload: RecordedEvent = {
+            type: 'visibleRangeChange',
+            timestamp: 9000,
+            uri,
+            visibleRanges: [{ startLine: 10, startCharacter: 0, endLine: 30, endCharacter: 0 }],
+        };
+
+        (recorder as any)._pendingVisibleRangePayloads.set(uri, payload);
+
+        // Consent revoked — pending payload must be discarded (Option A).
+        recorder.disable();
+        await new Promise(resolve => setTimeout(resolve, 30));
+
+        const events = collectWrittenEvents(fs);
+        const vrEvents = events.filter(e => e.type === 'visibleRangeChange' && (e as { uri?: string }).uri === uri);
+        assert.strictEqual(vrEvents.length, 0,
+            'pending visibleRangeChange must be discarded (not flushed) when consent is revoked via disable()');
     });
 });

@@ -158,10 +158,27 @@ export class SessionRecorder implements vscode.Disposable, WebSocketMessageHandl
      */
     private _snapshotRetries = new Map<string, number>();
     private static readonly MAX_SNAPSHOT_RETRIES = 3;
-    private _selectionDebounceTimer: ReturnType<typeof setTimeout> | undefined;
-    private _visibleRangeDebounceTimer: ReturnType<typeof setTimeout> | undefined;
-    private _pendingSelectionPayload: RecordedEvent | undefined;
-    private _pendingVisibleRangePayload: RecordedEvent | undefined;
+    /**
+     * Per-URI debounce timers for selection-change events (Block J).
+     * Keyed by document URI string so rapid switches between File A and File B
+     * each maintain an independent timer and neither event overwrites the other.
+     */
+    private _selectionDebounceTimers = new Map<string, ReturnType<typeof setTimeout>>();
+    /**
+     * Per-URI debounce timers for visible-range-change events (Block J).
+     */
+    private _visibleRangeDebounceTimers = new Map<string, ReturnType<typeof setTimeout>>();
+    /**
+     * Payloads serialized at trigger time (not callback time) for pending
+     * selection-change debounces. Keyed by URI so each file's latest event is
+     * captured independently. Cleared when the timer fires or on session end.
+     */
+    private _pendingSelectionPayloads = new Map<string, RecordedEvent>();
+    /**
+     * Payloads serialized at trigger time for pending visible-range-change
+     * debounces. Keyed by URI.
+     */
+    private _pendingVisibleRangePayloads = new Map<string, RecordedEvent>();
     private _pendingExecutions = new Map<vscode.TerminalShellExecution, PendingExecution>();
     private static readonly MAX_OUTPUT_CHARS = 10240;
     private static readonly SELECTION_DEBOUNCE_MS = 200;
@@ -856,16 +873,16 @@ export class SessionRecorder implements vscode.Disposable, WebSocketMessageHandl
 
         // GDPR-strict: discard any buffered debounced payloads. These are the
         // last bits of observation the user did not want recorded.
-        this._pendingSelectionPayload = undefined;
-        this._pendingVisibleRangePayload = undefined;
-        if (this._selectionDebounceTimer) {
-            clearTimeout(this._selectionDebounceTimer);
-            this._selectionDebounceTimer = undefined;
+        for (const timer of this._selectionDebounceTimers.values()) {
+            clearTimeout(timer);
         }
-        if (this._visibleRangeDebounceTimer) {
-            clearTimeout(this._visibleRangeDebounceTimer);
-            this._visibleRangeDebounceTimer = undefined;
+        this._selectionDebounceTimers.clear();
+        this._pendingSelectionPayloads.clear();
+        for (const timer of this._visibleRangeDebounceTimers.values()) {
+            clearTimeout(timer);
         }
+        this._visibleRangeDebounceTimers.clear();
+        this._pendingVisibleRangePayloads.clear();
 
         // Abort any still-running terminal shell executions.
         for (const entry of this._pendingExecutions.values()) {
@@ -909,30 +926,24 @@ export class SessionRecorder implements vscode.Disposable, WebSocketMessageHandl
     }
 
     private _flushPendingDebouncesForEnd(generation: number): void {
-        if (this._selectionDebounceTimer) {
-            clearTimeout(this._selectionDebounceTimer);
-            this._selectionDebounceTimer = undefined;
+        // Cancel all per-URI timers and flush their payloads (Block J).
+        for (const timer of this._selectionDebounceTimers.values()) {
+            clearTimeout(timer);
         }
-        if (this._visibleRangeDebounceTimer) {
-            clearTimeout(this._visibleRangeDebounceTimer);
-            this._visibleRangeDebounceTimer = undefined;
+        this._selectionDebounceTimers.clear();
+        for (const payload of this._pendingSelectionPayloads.values()) {
+            this._recordInternal(payload, { allowDuringEnding: true }, generation);
         }
-        if (this._pendingSelectionPayload) {
-            this._recordInternal(
-                this._pendingSelectionPayload,
-                { allowDuringEnding: true },
-                generation,
-            );
-            this._pendingSelectionPayload = undefined;
+        this._pendingSelectionPayloads.clear();
+
+        for (const timer of this._visibleRangeDebounceTimers.values()) {
+            clearTimeout(timer);
         }
-        if (this._pendingVisibleRangePayload) {
-            this._recordInternal(
-                this._pendingVisibleRangePayload,
-                { allowDuringEnding: true },
-                generation,
-            );
-            this._pendingVisibleRangePayload = undefined;
+        this._visibleRangeDebounceTimers.clear();
+        for (const payload of this._pendingVisibleRangePayloads.values()) {
+            this._recordInternal(payload, { allowDuringEnding: true }, generation);
         }
+        this._pendingVisibleRangePayloads.clear();
     }
 
     // ── Private: Listener setup ───────────────────────────────────────
@@ -990,37 +1001,55 @@ export class SessionRecorder implements vscode.Disposable, WebSocketMessageHandl
         });
         this._eventListenerDisposables.push(windowFocus);
 
-        // Selection changes (debounced 200ms) — payload cached so end path can flush it
+        // Selection changes (debounced 200ms, per-URI — Block J).
+        // Payload is serialized NOW (trigger time), not inside the callback,
+        // so the recorded selections reflect the state at the moment the event
+        // fired, not whatever the editor shows 200ms later.
         const selectionChange = vscode.window.onDidChangeTextEditorSelection(event => {
             if (this._phase !== 'recording') { return; }
             if (event.textEditor.document.uri.scheme !== 'file') { return; }
+            const uri = event.textEditor.document.uri.toString();
+            // Serialize at trigger time (fixes J.2: callback-time read).
             const payload = collectSelectionChange(event.textEditor, event.kind);
-            this._pendingSelectionPayload = payload;
+            this._pendingSelectionPayloads.set(uri, payload);
             const capturedGen = this._currentGeneration;
-            clearTimeout(this._selectionDebounceTimer);
-            this._selectionDebounceTimer = setTimeout(() => {
-                this._selectionDebounceTimer = undefined;
-                if (this._pendingSelectionPayload !== payload) { return; }
-                this._pendingSelectionPayload = undefined;
-                this._recordInternal(payload, {}, capturedGen);
+            // Clear any existing timer for this URI (fixes J.1: per-URI timer).
+            const existing = this._selectionDebounceTimers.get(uri);
+            if (existing !== undefined) { clearTimeout(existing); }
+            const timer = setTimeout(() => {
+                this._selectionDebounceTimers.delete(uri);
+                // Only record if this payload is still the pending one for this
+                // URI (guards against a race where a new trigger arrived in the
+                // tiny window between the timer firing and this line executing).
+                if (this._pendingSelectionPayloads.get(uri) === payload) {
+                    this._pendingSelectionPayloads.delete(uri);
+                    this._recordInternal(payload, {}, capturedGen);
+                }
             }, SessionRecorder.SELECTION_DEBOUNCE_MS);
+            this._selectionDebounceTimers.set(uri, timer);
         });
         this._eventListenerDisposables.push(selectionChange);
 
-        // Visible range changes (debounced 300ms)
+        // Visible range changes (debounced 300ms, per-URI — Block J).
         const visibleRangeChange = vscode.window.onDidChangeTextEditorVisibleRanges(event => {
             if (this._phase !== 'recording') { return; }
             if (event.textEditor.document.uri.scheme !== 'file') { return; }
+            const uri = event.textEditor.document.uri.toString();
+            // Serialize at trigger time (fixes J.2).
             const payload = collectVisibleRangeChange(event.textEditor);
-            this._pendingVisibleRangePayload = payload;
+            this._pendingVisibleRangePayloads.set(uri, payload);
             const capturedGen = this._currentGeneration;
-            clearTimeout(this._visibleRangeDebounceTimer);
-            this._visibleRangeDebounceTimer = setTimeout(() => {
-                this._visibleRangeDebounceTimer = undefined;
-                if (this._pendingVisibleRangePayload !== payload) { return; }
-                this._pendingVisibleRangePayload = undefined;
-                this._recordInternal(payload, {}, capturedGen);
+            // Clear any existing timer for this URI (fixes J.1).
+            const existing = this._visibleRangeDebounceTimers.get(uri);
+            if (existing !== undefined) { clearTimeout(existing); }
+            const timer = setTimeout(() => {
+                this._visibleRangeDebounceTimers.delete(uri);
+                if (this._pendingVisibleRangePayloads.get(uri) === payload) {
+                    this._pendingVisibleRangePayloads.delete(uri);
+                    this._recordInternal(payload, {}, capturedGen);
+                }
             }, SessionRecorder.VISIBLE_RANGE_DEBOUNCE_MS);
+            this._visibleRangeDebounceTimers.set(uri, timer);
         });
         this._eventListenerDisposables.push(visibleRangeChange);
 
@@ -1082,10 +1111,22 @@ export class SessionRecorder implements vscode.Disposable, WebSocketMessageHandl
     }
 
     private _disposeEventListeners(): void {
-        clearTimeout(this._selectionDebounceTimer);
-        clearTimeout(this._visibleRangeDebounceTimer);
-        this._selectionDebounceTimer = undefined;
-        this._visibleRangeDebounceTimer = undefined;
+        // Stop all pending debounce timers so their callbacks never fire after
+        // the listeners are torn down. Payload maps are cleared here too so no
+        // orphaned payloads remain after the timers are cancelled — this is safe
+        // because every caller either flushed (endSession path via
+        // _flushPendingDebouncesForEnd) or discarded (_doFinalizeAfterDisable)
+        // the pending payloads before reaching this point.
+        for (const timer of this._selectionDebounceTimers.values()) {
+            clearTimeout(timer);
+        }
+        this._selectionDebounceTimers.clear();
+        this._pendingSelectionPayloads.clear();
+        for (const timer of this._visibleRangeDebounceTimers.values()) {
+            clearTimeout(timer);
+        }
+        this._visibleRangeDebounceTimers.clear();
+        this._pendingVisibleRangePayloads.clear();
         while (this._eventListenerDisposables.length > 0) {
             const disposable = this._eventListenerDisposables.pop();
             disposable?.dispose();
