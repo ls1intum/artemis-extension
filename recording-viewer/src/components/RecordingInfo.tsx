@@ -31,7 +31,9 @@ const categories = [
     {
         title: 'AI Interaction',
         items: [
-            { badge: 'irisChatMessage', label: 'IrisChatMessage', desc: 'Sent and received chat messages with full content' },
+            { badge: 'irisChatMessage', label: 'IrisChatMessage', desc: 'Sent and received chat messages with full content (optionally includes messageId, sessionId, sentAt)' },
+            { badge: 'irisChatSendAttempt', label: 'IrisChatSendAttempt', desc: 'Send lifecycle: pending (before API call), sent (on success), failed (on error) — captures failed sends invisible in irisChatMessage' },
+            { badge: 'irisChatFeedback', label: 'IrisChatFeedback', desc: 'Helpful/not-helpful rating submitted by the user for a received message' },
         ],
     },
     {

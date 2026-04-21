@@ -93,6 +93,24 @@ export interface IrisChatMessageEvent {
     timestamp: number;
     direction: 'sent' | 'received';
     content: string;
+    messageId?: string;
+    sessionId?: string;
+    sentAt?: number;
+}
+
+export interface IrisChatSendAttemptEvent {
+    type: 'irisChatSendAttempt';
+    timestamp: number;
+    content: string;
+    status: 'pending' | 'sent' | 'failed';
+    errorMessage?: string;
+}
+
+export interface IrisChatFeedbackEvent {
+    type: 'irisChatFeedback';
+    timestamp: number;
+    messageId: string;
+    helpful: boolean;
 }
 
 export interface EqSnapshotEvent {
@@ -199,6 +217,8 @@ export type RecordedEvent =
     | SessionStartEvent
     | SessionEndEvent
     | IrisChatMessageEvent
+    | IrisChatSendAttemptEvent
+    | IrisChatFeedbackEvent
     | EqSnapshotEvent
     | EqEngineStateEvent
     | InterventionEvent

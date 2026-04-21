@@ -78,7 +78,11 @@ function eventSummary(event: RecordedEvent, sessionStartTime: number): React.Rea
         case 'sessionEnd':
             return <><span className="tt-time">{time}</span> Exercise {event.exerciseId}</>;
         case 'irisChatMessage':
-            return <><span className="tt-time">{time}</span> {event.direction === 'sent' ? 'SENT' : 'RECV'}: {event.content.length > 50 ? event.content.slice(0, 50) + '...' : event.content}</>;
+            return <><span className="tt-time">{time}</span> {event.direction === 'sent' ? 'SENT' : 'RECV'}: {event.content.length > 50 ? event.content.slice(0, 50) + '...' : event.content}{event.messageId ? ` (id:${event.messageId})` : ''}</>;
+        case 'irisChatSendAttempt':
+            return <><span className="tt-time">{time}</span> {event.status.toUpperCase()}: {event.content.length > 50 ? event.content.slice(0, 50) + '...' : event.content}{event.errorMessage ? ` — ${event.errorMessage}` : ''}</>;
+        case 'irisChatFeedback':
+            return <><span className="tt-time">{time}</span> msg:{event.messageId} | {event.helpful ? 'helpful' : 'not helpful'}</>;
         case 'windowFocus':
             return <><span className="tt-time">{time}</span> {event.focused ? 'focused' : 'blurred'}</>;
         case 'fileSnapshot':

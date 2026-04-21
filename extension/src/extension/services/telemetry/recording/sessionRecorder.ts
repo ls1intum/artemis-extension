@@ -347,7 +347,12 @@ export class SessionRecorder implements vscode.Disposable, WebSocketMessageHandl
 
     // ── Public recording methods for chat events ──────────────────────
 
-    recordIrisChatSent(text: string): void {
+    recordIrisChatSent(
+        text: string,
+        messageId?: string,
+        sessionId?: string,
+        sentAt?: number,
+    ): void {
         if (this._phase !== 'recording') {
             return;
         }
@@ -356,10 +361,18 @@ export class SessionRecorder implements vscode.Disposable, WebSocketMessageHandl
             timestamp: Date.now(),
             direction: 'sent',
             content: text,
+            messageId,
+            sessionId,
+            sentAt,
         }, {}, this._currentGeneration);
     }
 
-    recordIrisChatReceived(content: string): void {
+    recordIrisChatReceived(
+        content: string,
+        messageId?: string,
+        sessionId?: string,
+        sentAt?: number,
+    ): void {
         if (this._phase !== 'recording') {
             return;
         }
@@ -368,6 +381,49 @@ export class SessionRecorder implements vscode.Disposable, WebSocketMessageHandl
             timestamp: Date.now(),
             direction: 'received',
             content,
+            messageId,
+            sessionId,
+            sentAt,
+        }, {}, this._currentGeneration);
+    }
+
+    /**
+     * Record a send-attempt lifecycle event.
+     *
+     * Emit with status='pending' immediately before the API call, then again
+     * with status='sent' on success or status='failed' on error. This ensures
+     * failed sends are visible in the recording even when no irisChatMessage
+     * event is produced.
+     */
+    recordIrisChatSendAttempt(
+        content: string,
+        status: 'pending' | 'sent' | 'failed',
+        errorMessage?: string,
+    ): void {
+        if (this._phase !== 'recording') {
+            return;
+        }
+        this._recordInternal({
+            type: 'irisChatSendAttempt',
+            timestamp: Date.now(),
+            content,
+            status,
+            errorMessage,
+        }, {}, this._currentGeneration);
+    }
+
+    /**
+     * Record a helpful/unhelpful feedback submission for an Iris message.
+     */
+    recordIrisChatFeedback(messageId: string, helpful: boolean): void {
+        if (this._phase !== 'recording') {
+            return;
+        }
+        this._recordInternal({
+            type: 'irisChatFeedback',
+            timestamp: Date.now(),
+            messageId,
+            helpful,
         }, {}, this._currentGeneration);
     }
 

@@ -58,8 +58,18 @@ export function wireSessionRecorder(deps: RecorderWiringDeps): RecorderWiringRes
     disposables.push(chatWebviewProvider.onDidSendIrisChatMessage(text => {
         sessionRecorder.recordIrisChatSent(text);
     }));
-    disposables.push(chatWebviewProvider.websocketMessageHandler.onDidReceiveIrisChatMessage(content => {
-        sessionRecorder.recordIrisChatReceived(content);
+    disposables.push(chatWebviewProvider.websocketMessageHandler.onDidReceiveIrisChatMessage(msg => {
+        sessionRecorder.recordIrisChatReceived(msg.content, msg.messageId, msg.sessionId, msg.sentAt);
+    }));
+
+    // Chat send-attempt lifecycle (pending/sent/failed)
+    disposables.push(chatWebviewProvider.onDidAttemptIrisChatSend(({ content, status, errorMessage }) => {
+        sessionRecorder.recordIrisChatSendAttempt(content, status, errorMessage);
+    }));
+
+    // Chat feedback
+    disposables.push(chatWebviewProvider.onDidProvideIrisChatFeedback(({ messageId, helpful }) => {
+        sessionRecorder.recordIrisChatFeedback(messageId, helpful);
     }));
 
     // Telemetry EQ events

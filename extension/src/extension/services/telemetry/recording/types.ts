@@ -129,6 +129,37 @@ export interface IrisChatMessageEvent {
     timestamp: number;
     direction: 'sent' | 'received';
     content: string;
+    // Added in Block H: optional metadata from server response / WebSocket payload
+    messageId?: string;
+    sessionId?: string;
+    sentAt?: number;
+}
+
+/**
+ * Records a send attempt lifecycle: pending (before API call), sent (on success),
+ * or failed (on error). Emitted in addition to irisChatMessage so that:
+ *  - Failed sends (which produce no irisChatMessage) are still visible in the recording.
+ *  - The pending→sent timing is available for latency analysis.
+ *
+ * Lifecycle: pending → sent  OR  pending → failed
+ */
+export interface IrisChatSendAttemptEvent {
+    type: 'irisChatSendAttempt';
+    timestamp: number;
+    content: string;
+    status: 'pending' | 'sent' | 'failed';
+    errorMessage?: string;
+}
+
+/**
+ * Records a helpful/unhelpful rating submitted by the user for a received
+ * Iris message. Wired up when the webview's feedback UI fires the event.
+ */
+export interface IrisChatFeedbackEvent {
+    type: 'irisChatFeedback';
+    timestamp: number;
+    messageId: string;
+    helpful: boolean;
 }
 
 export interface EqSnapshotEvent {
@@ -253,6 +284,8 @@ export type RecordedEvent =
     | ConsentChangeEvent
     | StartupPhaseCompleteEvent
     | IrisChatMessageEvent
+    | IrisChatSendAttemptEvent
+    | IrisChatFeedbackEvent
     | EqSnapshotEvent
     | EqEngineStateEvent
     | InterventionEvent

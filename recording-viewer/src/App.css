@@ -594,6 +594,8 @@
 .event-badge.sessionStart { background: rgba(99, 102, 241, 0.15); color: #a5b4fc; }
 .event-badge.sessionEnd { background: rgba(239, 68, 68, 0.15); color: #f87171; }
 .event-badge.irisChatMessage { background: rgba(236, 72, 153, 0.15); color: #f472b6; }
+.event-badge.irisChatSendAttempt { background: rgba(251, 146, 60, 0.15); color: #fb923c; }
+.event-badge.irisChatFeedback { background: rgba(167, 139, 250, 0.15); color: #a78bfa; }
 .event-badge.intervention { background: rgba(249, 115, 22, 0.15); color: #f97316; }
 .event-badge.eqEngineState { background: rgba(99, 102, 241, 0.15); color: #818cf8; }
 .event-badge.viewNavigation { background: rgba(167, 139, 250, 0.15); color: #a78bfa; }
