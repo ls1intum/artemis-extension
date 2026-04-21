@@ -633,6 +633,12 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
                 this._onDidAttemptIrisChatSend.fire({ content, status: 'sent' });
                 this._onDidSendIrisChatMessage.fire(content);
             } else {
+                // Fire terminal 'failed' so the pending event is never orphaned.
+                this._onDidAttemptIrisChatSend.fire({
+                    content,
+                    status: 'failed',
+                    errorMessage: `send-rejected: ${result.reason ?? 'unknown'}`,
+                });
                 switch (result.reason) {
                     case 'no-ai':
                         this._postNoAiStatus(true);

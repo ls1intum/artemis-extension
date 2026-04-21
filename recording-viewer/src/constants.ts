@@ -12,6 +12,8 @@ export const MARKER_COLORS: Record<EventType, string> = {
     fileSnapshot: '#4ade80',
     sessionStart: '#a5b4fc',
     sessionEnd: '#f87171',
+    consentChange: '#fb7185',
+    startupPhaseComplete: '#a5f3fc',
     irisChatMessage: '#f472b6',
     irisChatSendAttempt: '#fb923c',
     irisChatFeedback: '#a78bfa',
@@ -31,7 +33,7 @@ export const MARKER_COLORS: Record<EventType, string> = {
 };
 
 export const ALL_EVENT_TYPES = [
-    'sessionStart', 'sessionEnd',
+    'sessionStart', 'sessionEnd', 'consentChange', 'startupPhaseComplete',
     'eqSnapshot', 'eqEngineState', 'intervention', 'buildResult',
     'textChange', 'save',
     'diagnostics',

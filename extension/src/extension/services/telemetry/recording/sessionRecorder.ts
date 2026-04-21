@@ -1375,14 +1375,14 @@ export class SessionRecorder implements vscode.Disposable, WebSocketMessageHandl
         }
 
         // 3. fileSwitch for the active editor (if any).
-        const activeUri = vscode.window.activeTextEditor?.document.uri.toString();
-        if (activeUri) {
+        const activeUri = vscode.window.activeTextEditor?.document.uri;
+        if (activeUri && shouldRecordUri(activeUri, this._exerciseRootUri)) {
             this._recordInternal(
-                { type: 'fileSwitch', timestamp: Date.now(), fromUri: undefined, toUri: activeUri },
+                { type: 'fileSwitch', timestamp: Date.now(), fromUri: undefined, toUri: activeUri.toString() },
                 { allowDuringStartup: true },
                 generation,
             );
-            this._lastActiveEditorUri = activeUri;
+            this._lastActiveEditorUri = activeUri.toString();
         }
 
         // 4. terminalOpenClose('opened') for every already-open terminal.
