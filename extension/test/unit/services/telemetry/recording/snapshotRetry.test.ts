@@ -210,20 +210,20 @@ suite('SessionRecorder — Block G: Snapshot Retry', () => {
         // Second attempt — succeeds (fs is no longer failing)
         await triggerSnapshot(recorder, uri, 'class Main {}', gen);
 
+        // Check in-memory state BEFORE endSession clears it via _resetSessionState().
+        const snapshotedUris = (recorder as any)._snapshotedUris as Set<string>;
+        assert.ok(snapshotedUris.has(uri), 'URI must be in _snapshotedUris after successful retry');
+
+        const retries = (recorder as any)._snapshotRetries as Map<string, number>;
+        assert.ok(!retries.has(uri), 'retry counter must be cleared after success');
+
+        // endSession flushes the buffer so the fileSnapshot event reaches appendedChunks.
         await recorder.endSession();
 
         const eventsAfterRetry = collectWrittenEvents(fs);
         const snapshots = eventsAfterRetry.filter(e => e.type === 'fileSnapshot') as Array<{ uri: string }>;
         assert.strictEqual(snapshots.length, 1, 'exactly one fileSnapshot after successful retry');
         assert.strictEqual(snapshots[0].uri, uri);
-
-        // URI must now be in _snapshotedUris
-        const snapshotedUris = (recorder as any)._snapshotedUris as Set<string>;
-        assert.ok(snapshotedUris.has(uri), 'URI must be in _snapshotedUris after successful retry');
-
-        // Retry counter cleaned up
-        const retries = (recorder as any)._snapshotRetries as Map<string, number>;
-        assert.ok(!retries.has(uri), 'retry counter must be cleared after success');
     });
 
     // ── Test 4: 3 consecutive failures → one fileSnapshotError event ──────
@@ -239,6 +239,14 @@ suite('SessionRecorder — Block G: Snapshot Retry', () => {
         await triggerSnapshot(recorder, uri, 'content', gen);
         await triggerSnapshot(recorder, uri, 'content', gen);
 
+        // Check in-memory state BEFORE endSession clears it via _resetSessionState().
+        const snapshotedUris = (recorder as any)._snapshotedUris as Set<string>;
+        assert.ok(snapshotedUris.has(uri), 'URI must be in _snapshotedUris after max-retry failure');
+
+        const retries = (recorder as any)._snapshotRetries as Map<string, number>;
+        assert.ok(!retries.has(uri), 'retry counter must be cleared after max retries');
+
+        // endSession flushes the buffer so the fileSnapshotError event reaches appendedChunks.
         await recorder.endSession();
 
         const events = collectWrittenEvents(fs);
@@ -250,14 +258,6 @@ suite('SessionRecorder — Block G: Snapshot Retry', () => {
         assert.strictEqual(errors.length, 1, 'exactly one fileSnapshotError must be emitted');
         assert.strictEqual(errors[0].uri, uri);
         assert.strictEqual(errors[0].reason, 'snapshot-write-failed-after-3-retries');
-
-        // URI must be permanently marked so no further attempts happen
-        const snapshotedUris = (recorder as any)._snapshotedUris as Set<string>;
-        assert.ok(snapshotedUris.has(uri), 'URI must be in _snapshotedUris after max-retry failure');
-
-        // Retry counter cleaned up after max reached
-        const retries = (recorder as any)._snapshotRetries as Map<string, number>;
-        assert.ok(!retries.has(uri), 'retry counter must be cleared after max retries');
     });
 
     // ── Test 5: After fileSnapshotError, further switches are no-ops ──────
@@ -275,33 +275,26 @@ suite('SessionRecorder — Block G: Snapshot Retry', () => {
 
         // URI is now in _snapshotedUris — any subsequent call from
         // _captureFirstOpenSnapshot would be guarded by the `has(uri)` check.
-        // Verify that directly calling _snapshotDocument is also a no-op
-        // (the canWriteSnapshot gate does not apply here, the snapshotedUris
-        // guard in the caller does — so we test the caller-side gate).
+        // Verify the set membership BEFORE endSession clears it via _resetSessionState().
         const snapshotedUrisBefore = (recorder as any)._snapshotedUris as Set<string>;
         assert.ok(snapshotedUrisBefore.has(uri), 'URI should be permanently marked at this point');
 
-        // Simulate the editor switch listener check (from _registerEventListeners):
-        // it checks `!_snapshotedUris.has(toUri)` before calling _captureFirstOpenSnapshot.
-        // So a 4th attempt must never happen.
-        const errorsBefore = collectWrittenEvents(fs).filter(e => e.type === 'fileSnapshotError');
-        assert.strictEqual(errorsBefore.length, 1, 'still exactly one fileSnapshotError before 4th attempt');
-
-        // Attempt 4 — should NOT be made because the caller checks _snapshotedUris.
-        // We test the invariant: if for any reason _snapshotDocument IS called again,
-        // it should still not emit a second error (because URI is in _snapshotedUris
-        // and canWriteSnapshot is still true but the _snapshotedUris guard in the
-        // editorSwitch listener would have blocked this). We skip the direct call
-        // here and just assert the set membership is the only guard needed.
+        // editorSwitch listener guard: _snapshotedUris.has(uri) must be true, blocking 4th attempt.
+        // This is the invariant that prevents further snapshot attempts for this URI.
         assert.ok(snapshotedUrisBefore.has(uri),
             'editorSwitch listener guard: _snapshotedUris.has(uri) must be true, blocking 4th attempt');
 
+        // endSession flushes the event buffer to disk so we can inspect it via collectWrittenEvents.
+        // The fileSnapshotError event is in the writer's buffer until the flush runs.
         await recorder.endSession();
 
+        // Verify exactly one fileSnapshotError in the event stream, confirming:
+        //   (a) the error was emitted after the 3rd failure, and
+        //   (b) no duplicate error was produced (the URI was permanently marked).
         const events = collectWrittenEvents(fs);
         const errorsAfterEnd = events.filter(e => e.type === 'fileSnapshotError');
         assert.strictEqual(errorsAfterEnd.length, 1,
-            'still exactly one fileSnapshotError after session end — no duplicate error events');
+            'exactly one fileSnapshotError in the event stream — no duplicate error events');
     });
 
     // ── Test 6: _snapshotRetries cleared on new session ───────────────────
