@@ -1,0 +1,4 @@
+{"type":"sessionStart","timestamp":1700300000000,"exerciseId":55,"participantId":"student-4"}
+{"type":"textChange","timestamp":1700300001000,"uri":"file:///workspace/src/Broken.java","changes":[{"range":{"startLine":0,"startCharacter":0,"endLine":0,"endCharacter":0},"rangeOffset":0,"rangeLength":0,"text":"class Broken {"}]}
+{"type":"save","timestamp":1700300002000,"uri":"file:///workspace/src/Broken.java"}
+{"type":"textChange","ti

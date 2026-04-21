@@ -1,0 +1,11 @@
+{"type":"sessionStart","timestamp":1700100000000,"exerciseId":99,"participantId":"student-2","schemaVersion":2}
+{"type":"textChange","timestamp":1700100001000,"uri":"file:///workspace/src/Solution.java","changes":[{"range":{"startLine":0,"startCharacter":0,"endLine":0,"endCharacter":0},"rangeOffset":0,"rangeLength":0,"text":"class Solution {"}]}
+{"type":"irisChatSendAttempt","timestamp":1700100002000,"content":"How do I fix this?","status":"sent"}
+{"type":"intervention","timestamp":1700100003000,"action":"blocked","level":"notification","shouldIntervene":false,"eq":0.1,"confidence":"insufficient"}
+{"type":"fileSnapshotError","timestamp":1700100004000,"uri":"file:///workspace/src/Solution.java","reason":"File not found after 3 retries"}
+{"type":"fileCreate","timestamp":1700100005000,"uri":"file:///workspace/src/Helper.java"}
+{"type":"textDocumentOpen","timestamp":1700100006000,"uri":"file:///workspace/src/Helper.java"}
+{"type":"textDocumentClose","timestamp":1700100007000,"uri":"file:///workspace/src/Solution.java"}
+{"type":"fileDelete","timestamp":1700100008000,"uri":"file:///workspace/src/Helper.java"}
+{"type":"fileRename","timestamp":1700100009000,"oldUri":"file:///workspace/src/Helper.java","newUri":"file:///workspace/src/Util.java"}
+{"type":"sessionEnd","timestamp":1700100010000,"exerciseId":99}

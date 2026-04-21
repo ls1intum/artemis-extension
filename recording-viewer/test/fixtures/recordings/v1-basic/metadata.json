@@ -1,0 +1,8 @@
+{
+  "sessionId": "v1-basic-session",
+  "exerciseId": 42,
+  "participantId": "student-1",
+  "startTime": 1700000000000,
+  "endTime": 1700000005000,
+  "eventCount": 6
+}

@@ -1,0 +1,6 @@
+{"type":"sessionStart","timestamp":1700000000000,"exerciseId":42,"participantId":"student-1"}
+{"type":"textChange","timestamp":1700000001000,"uri":"file:///workspace/src/Main.java","changes":[{"range":{"startLine":0,"startCharacter":0,"endLine":0,"endCharacter":0},"rangeOffset":0,"rangeLength":0,"text":"public class Main {"}]}
+{"type":"save","timestamp":1700000002000,"uri":"file:///workspace/src/Main.java"}
+{"type":"textChange","timestamp":1700000003000,"uri":"file:///workspace/src/Main.java","changes":[{"range":{"startLine":1,"startCharacter":0,"endLine":1,"endCharacter":0},"rangeOffset":19,"rangeLength":0,"text":"    public static void main(String[] args) {}"}]}
+{"type":"save","timestamp":1700000004000,"uri":"file:///workspace/src/Main.java"}
+{"type":"sessionEnd","timestamp":1700000005000,"exerciseId":42}

@@ -80,6 +80,8 @@ export interface SessionStartEvent {
     exerciseId: number;
     participantId: string | undefined;
     exerciseRoot?: string;
+    /** Schema version for forward-compat parsing. Introduced in Block AB (version 2). */
+    schemaVersion?: number;
 }
 
 export interface SessionEndEvent {
@@ -277,4 +279,8 @@ export interface SessionMetadata {
     startTime: number;
     endTime: number | undefined;
     eventCount: number;
+    /** Schema version for forward-compat parsing. Introduced in Block D (version 2). */
+    schemaVersion?: number;
+    /** Recorder version string, set by storageWriter at write time. */
+    recorderVersion?: string;
 }

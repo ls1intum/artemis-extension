@@ -1,13 +1,33 @@
-import type { RecordedEvent, SessionMetadata, LoadedSession } from './types';
+import type { RecordedEvent, SessionMetadata, SessionStartEvent } from './types';
+import type { LoadedSession } from './types';
+
+/**
+ * Resolve the schema version for a session.
+ *
+ * Precedence (highest to lowest):
+ *   1. metadata.schemaVersion  — written by storageWriter at flush time
+ *   2. firstSessionStartEvent.schemaVersion — written inline by recorder
+ *   3. 1 — legacy recordings that pre-date versioning
+ */
+export function resolveSchemaVersion(
+    metadata: SessionMetadata | undefined | null,
+    firstSessionStartEvent: SessionStartEvent | undefined,
+): number {
+    if (metadata?.schemaVersion != null) return metadata.schemaVersion;
+    if (firstSessionStartEvent?.schemaVersion != null) return firstSessionStartEvent.schemaVersion;
+    return 1;
+}
 
 export function parseEventsFile(text: string): RecordedEvent[] {
     const events: RecordedEvent[] = [];
-    for (const line of text.split('\n')) {
+    const lines = text.split('\n');
+    for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
         if (line.trim().length === 0) continue;
         try {
             events.push(JSON.parse(line) as RecordedEvent);
         } catch {
-            // Skip malformed JSONL lines
+            console.warn(`[parseSession] Skipping malformed JSONL line ${i + 1}: ${line.slice(0, 80)}`);
         }
     }
     return events;
@@ -49,5 +69,8 @@ export async function parseDroppedFiles(files: FileList): Promise<LoadedSession>
         fileName = files[0].name;
     }
 
-    return { metadata, events, fileName };
+    const firstSessionStart = events.find((e): e is SessionStartEvent => e.type === 'sessionStart');
+    const schemaVersion = resolveSchemaVersion(metadata, firstSessionStart);
+
+    return { metadata, events, fileName, schemaVersion };
 }
