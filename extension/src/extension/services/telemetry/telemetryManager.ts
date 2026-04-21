@@ -24,6 +24,7 @@ import { ResultDTO, WebSocketMessageHandler } from '../../types';
 import { VSCODE_CONFIG } from '../../utils/constants';
 import { logger, LogCategory } from '../loggingService';
 import type { ExerciseRegistry } from '../exerciseRegistry';
+import { shouldAcceptBuildResult } from './buildResultGuard';
 
 /**
  * Central orchestration service for EQ-based struggle detection.
@@ -189,25 +190,8 @@ export class TelemetryManager implements vscode.Disposable, WebSocketMessageHand
             return;
         }
 
-        // Guard 1: Skip results when no exercise session is active (Edge Case 1b).
-        // The WebSocket subscription (personalResults) delivers results for any
-        // participation of the user, not just the active exercise's.
-        if (this._activeExerciseId === undefined) {
+        if (!shouldAcceptBuildResult(result, this._activeExerciseId, this._exerciseRegistry)) {
             return;
-        }
-
-        // Guard 2: Skip results that belong to a different exercise than the
-        // active session. ResultDTO only carries a participationId, so we
-        // resolve it through ExerciseRegistry. Policy: permissive on unknown
-        // mapping — if the registry has not yet learned this participationId
-        // (e.g. first course load not finished), we let the result through
-        // rather than dropping real data. Known mismatches are dropped.
-        const resultParticipationId = result.participation?.id;
-        if (resultParticipationId !== undefined && this._exerciseRegistry) {
-            const mappedExerciseId = this._exerciseRegistry.getExerciseIdByParticipation(resultParticipationId);
-            if (mappedExerciseId !== undefined && mappedExerciseId !== this._activeExerciseId) {
-                return;
-            }
         }
 
         // Step 1: EQ snapshot FIRST (synchronous)

@@ -43,6 +43,7 @@ import * as crypto from 'crypto';
 import type { WebSocketMessageHandler, ResultDTO } from '../../../types';
 import type { RecordedEvent, SessionMetadata, SerializedErrorSnapshot } from './types';
 import type { PlatformCapabilities } from '../../../theia';
+import type { ExerciseRegistry } from '../../exerciseRegistry';
 import { RecordingStorageWriter } from './storageWriter';
 import {
     collectTextChange,
@@ -54,6 +55,7 @@ import {
     collectSelectionChange,
     collectVisibleRangeChange,
 } from './eventCollectors';
+import { shouldAcceptBuildResult } from '../buildResultGuard';
 import { logger, LogCategory } from '../../loggingService';
 
 interface PendingExecution {
@@ -165,15 +167,18 @@ export class SessionRecorder implements vscode.Disposable, WebSocketMessageHandl
     public readonly onDidChangeState = this._onDidChangeState.event;
 
     private readonly _capabilities?: PlatformCapabilities;
+    private readonly _exerciseRegistry?: ExerciseRegistry;
 
     constructor(
         globalStorageUri: vscode.Uri,
         capabilities?: PlatformCapabilities,
+        exerciseRegistry?: ExerciseRegistry,
         /** Injection point for tests. Production uses the default writer. */
         writer?: RecordingStorageWriter,
     ) {
         this._writer = writer ?? new RecordingStorageWriter(globalStorageUri.fsPath);
         this._capabilities = capabilities;
+        this._exerciseRegistry = exerciseRegistry;
     }
 
     // ── Phase reader (for control-flow in async methods) ──────────────
@@ -322,7 +327,14 @@ export class SessionRecorder implements vscode.Disposable, WebSocketMessageHandl
         if (this._phase !== 'recording') {
             return;
         }
-        this._recordInternal(collectBuildResult(result), {}, this._currentGeneration);
+        if (!shouldAcceptBuildResult(result, this._activeExerciseId, this._exerciseRegistry)) {
+            return;
+        }
+        this._recordInternal(
+            collectBuildResult(result, this._activeExerciseId),
+            {},
+            this._currentGeneration,
+        );
     }
 
     // ── Public recording methods for chat events ──────────────────────

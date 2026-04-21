@@ -199,7 +199,7 @@ export async function activate(context: vscode.ExtensionContext) {
 	const { sessionRecorder, disposable: recorderDisposable } = wireSessionRecorder({
 		context, consentService, artemisWebsocketService,
 		telemetryManager, artemisWebviewProvider, chatWebviewProvider,
-		capabilities,
+		capabilities, exerciseRegistry,
 	});
 	activeSessionRecorder = sessionRecorder;
 	context.subscriptions.push(recorderDisposable);

@@ -138,6 +138,7 @@ function makeRecorder(): { recorder: SessionRecorder; fs: FakeFs } {
     const recorder = new SessionRecorder(
         fakeUri,
         { hasTerminalShellExecution: false, hasVscodeGitExtension: false },
+        undefined,
         writer,
     );
     return { recorder, fs };

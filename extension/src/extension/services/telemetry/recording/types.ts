@@ -61,9 +61,16 @@ export interface BuildResultEvent {
     timestamp: number;
     successful: boolean | undefined;
     errorCount: number;
+    /** Legacy: flat array of detailText strings for failed test feedbacks. Kept for backwards compat. */
     failedTests: string[];
     buildFailed: boolean;
     buildErrorFamilies?: string[];
+    // Scoping fields (added in Block F)
+    exerciseId?: number;
+    participationId?: number;
+    submissionId?: number;
+    /** Structured failed-test details carrying both the test name and the failure message. */
+    failedTestDetails?: { testName: string; detail: string }[];
 }
 
 export interface WindowFocusEvent {

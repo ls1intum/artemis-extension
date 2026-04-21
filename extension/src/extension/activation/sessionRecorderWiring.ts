@@ -6,6 +6,7 @@ import { RecordingStatusBarService as RecordingStatusBarServiceImpl, SessionReco
 import type { RecordedEvent } from '../services/telemetry/recording/types';
 import type { ArtemisWebviewProvider, ChatWebviewProvider } from '../provider';
 import type { PlatformCapabilities } from '../theia';
+import type { ExerciseRegistry } from '../services/exerciseRegistry';
 
 export interface RecorderWiringDeps {
     context: vscode.ExtensionContext;
@@ -15,6 +16,7 @@ export interface RecorderWiringDeps {
     artemisWebviewProvider: ArtemisWebviewProvider;
     chatWebviewProvider: ChatWebviewProvider;
     capabilities?: PlatformCapabilities;
+    exerciseRegistry?: ExerciseRegistry;
 }
 
 export interface RecorderWiringResult {
@@ -26,10 +28,10 @@ export function wireSessionRecorder(deps: RecorderWiringDeps): RecorderWiringRes
     const {
         context, consentService, artemisWebsocketService,
         telemetryManager, artemisWebviewProvider, chatWebviewProvider,
-        capabilities,
+        capabilities, exerciseRegistry,
     } = deps;
 
-    const sessionRecorder = new SessionRecorderImpl(context.globalStorageUri, capabilities);
+    const sessionRecorder = new SessionRecorderImpl(context.globalStorageUri, capabilities, exerciseRegistry);
 
     if (consentService.isExtendedCollectionEnabled) {
         sessionRecorder.enable();
