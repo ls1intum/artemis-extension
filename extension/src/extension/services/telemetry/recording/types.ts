@@ -216,4 +216,8 @@ export interface SessionMetadata {
     startTime: number;
     endTime: number | undefined;
     eventCount: number;
+    /** Schema version for forward-compat parsing. Block D introduces version 2. */
+    schemaVersion?: number;
+    /** Recorder version string, set by storageWriter at write time. */
+    recorderVersion?: string;
 }

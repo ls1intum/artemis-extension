@@ -320,14 +320,16 @@ export class SessionRecorder implements vscode.Disposable, WebSocketMessageHandl
 
     // ── Disposable ────────────────────────────────────────────────────
 
-    dispose(): void {
+    async dispose(): Promise<void> {
         if (this._isRecording) {
-            void this.endSession().catch((err: unknown) => {
+            try {
+                await this.endSession();
+            } catch (err: unknown) {
                 logger.error('Failed to end recording session during dispose', LogCategory.TELEMETRY, err);
-            });
+            }
         }
         this._disposeEventListeners();
-        this._writer.dispose();
+        await this._writer.dispose();
         this._onDidChangeState.dispose();
     }
 
