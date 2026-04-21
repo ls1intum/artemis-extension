@@ -279,6 +279,7 @@
     "compile:clean": "npm run clean && npm run compile",
     "validate-recording": "tsx scripts/validate-recording.ts",
     "roundtrip-recording": "tsx scripts/roundtrip-recording.ts",
+    "event-coverage": "tsx scripts/event-coverage.ts",
     "prepare": "husky",
     "vscode:prepublish": "npm run package"
   },
