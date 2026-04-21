@@ -1,5 +1,6 @@
 import {
     InterventionDecision,
+    InterventionBlockedReason,
     InterventionState,
     EQConfidence,
     TriggerType,
@@ -49,6 +50,11 @@ export class InterventionDecisionEngine {
 
     /**
      * Evaluate whether to intervene based on current EQ and trigger context.
+     *
+     * `rawWanted` is true when EQ is above the severity threshold, regardless
+     * of confidence or guardrails. `shouldIntervene` is only true when ALL
+     * gates pass. When `rawWanted=true` and `shouldIntervene=false`, callers
+     * receive a `blockedReason` explaining which gate failed.
      */
     public evaluate(
         eq: number,
@@ -56,23 +62,27 @@ export class InterventionDecisionEngine {
         triggerType: TriggerType | undefined,
         interventionState: InterventionState,
     ): InterventionDecision {
-        // 1. Confidence gate: insufficient → no intervention
+        // 1. Map EQ to intervention level (severity only, no confidence gate here).
+        const level = this.mapEQToLevel(eq);
+        const rawWanted = level !== 'none';
+
+        // 2. Confidence gate: insufficient → block with reason 'low-confidence'
         //    ✅ Paper minimum: >=7 events = >=6 pairs [P3, Section 4]
         if (confidence === 'insufficient') {
             return {
+                rawWanted,
                 shouldIntervene: false,
-                level: 'none',
+                level,
                 triggerType,
                 eq,
                 confidence,
+                blockedReason: rawWanted ? 'low-confidence' : undefined,
             };
         }
 
-        // 2. Map EQ to intervention level
-        const level = this.mapEQToLevel(eq);
-
-        if (level === 'none') {
+        if (!rawWanted) {
             return {
+                rawWanted: false,
                 shouldIntervene: false,
                 level: 'none',
                 triggerType,
@@ -87,13 +97,47 @@ export class InterventionDecisionEngine {
             interventionState,
         );
 
+        const blockedReason: InterventionBlockedReason | undefined = shouldIntervene
+            ? undefined
+            : this._computeBlockedReason(level, eq, interventionState);
+
         return {
+            rawWanted: true,
             shouldIntervene,
             level,
             triggerType,
             eq,
             confidence,
+            blockedReason,
         };
+    }
+
+    /**
+     * Compute the reason why the InterventionFilter blocked a decision that
+     * had `rawWanted=true`. Returns the first matching reason in priority order.
+     */
+    private _computeBlockedReason(
+        level: RecommendedAction,
+        eq: number,
+        state: InterventionState,
+    ): InterventionBlockedReason {
+        // Warmup check (exercise hasn't started or hasn't elapsed 5 min)
+        // We call shouldInterveneEQ on a minimal level to probe each gate
+        // individually. Since InterventionFilter is a black box here, we
+        // approximate by evaluating the same guardrails in the same order.
+        // Mirror the order in InterventionFilter.shouldInterveneEQ:
+
+        // Check session-limit (most common for notification/proactive)
+        const LIMIT = 3; // MAX_INTERVENTIONS_PER_SESSION
+        if (state.sessionInterventionCount >= LIMIT) {
+            if (level !== 'proactive' || eq < 0.85) {
+                return 'session-limit';
+            }
+        }
+
+        // Warmup: if the filter blocked and session count is fine, assume warmup
+        // (we can't directly inspect InterventionFilter's private start time)
+        return 'warmup';
     }
 
     /**

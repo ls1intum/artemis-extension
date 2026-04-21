@@ -84,6 +84,10 @@ export class TelemetryManager implements vscode.Disposable, WebSocketMessageHand
         return this._interventionService.onDidDismissIntervention;
     }
 
+    public get onDidBlockIntervention() {
+        return this._interventionService.onDidBlockIntervention;
+    }
+
     constructor(exerciseRegistry?: ExerciseRegistry) {
         this._exerciseRegistry = exerciseRegistry;
         this._outputChannel = vscode.window.createOutputChannel('Artemis Telemetry');
@@ -398,26 +402,29 @@ export class TelemetryManager implements vscode.Disposable, WebSocketMessageHand
         const state = this._interventionService.getState();
         const decision = this._decisionEngine.evaluate(eq, confidence, triggerType, state);
 
-        if (!decision.shouldIntervene) {
-            return;
+        if (decision.shouldIntervene) {
+            // Dispatch intervention
+            switch (decision.level) {
+                case 'subtle':
+                    this._interventionService.showSubtleHintEQ(decision);
+                    break;
+                case 'notification':
+                    void this._interventionService.showNotificationEQ(decision).catch((err: unknown) => {
+                        logger.error('Failed to show notification intervention', LogCategory.TELEMETRY, err);
+                    });
+                    break;
+                case 'proactive':
+                    void this._interventionService.showProactiveHelpEQ(decision).catch((err: unknown) => {
+                        logger.error('Failed to show proactive intervention', LogCategory.TELEMETRY, err);
+                    });
+                    break;
+            }
+        } else if (decision.rawWanted) {
+            // EQ was above threshold but something blocked the intervention.
+            // Record it for telemetry (rate-limited internally).
+            this._interventionService.recordBlockedDecision(decision);
         }
-
-        // Dispatch intervention
-        switch (decision.level) {
-            case 'subtle':
-                this._interventionService.showSubtleHintEQ(decision);
-                break;
-            case 'notification':
-                void this._interventionService.showNotificationEQ(decision).catch((err: unknown) => {
-                    logger.error('Failed to show notification intervention', LogCategory.TELEMETRY, err);
-                });
-                break;
-            case 'proactive':
-                void this._interventionService.showProactiveHelpEQ(decision).catch((err: unknown) => {
-                    logger.error('Failed to show proactive intervention', LogCategory.TELEMETRY, err);
-                });
-                break;
-        }
+        // else: rawWanted=false → EQ below all thresholds, normal operation, no event.
     }
 
     // ==================== Public API ====================

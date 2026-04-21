@@ -371,12 +371,17 @@ export class SessionRecorder implements vscode.Disposable, WebSocketMessageHandl
     }
 
     recordIntervention(
-        action: 'shown' | 'accepted' | 'dismissed',
+        action: 'shown' | 'accepted' | 'dismissed' | 'blocked',
         level: 'subtle' | 'notification' | 'proactive',
         shouldIntervene: boolean,
         eq: number,
         confidence: 'sufficient' | 'insufficient',
         triggerType?: 'execution-error' | 'multiline-paste' | 'idle' | 'selection-maintained',
+        opts?: {
+            blockedReason?: 'cooldown' | 'warmup' | 'session-limit' | 'low-confidence';
+            dismissReason?: 'user-action' | 'hidden' | 'replaced' | 'session-end';
+            rawWanted?: boolean;
+        },
     ): void {
         if (this._phase !== 'recording') {
             return;
@@ -390,6 +395,9 @@ export class SessionRecorder implements vscode.Disposable, WebSocketMessageHandl
             eq,
             confidence,
             triggerType,
+            blockedReason: opts?.blockedReason,
+            dismissReason: opts?.dismissReason,
+            rawWanted: opts?.rawWanted,
         }, {}, this._currentGeneration);
     }
 

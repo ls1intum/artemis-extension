@@ -152,12 +152,21 @@ export interface EqEngineStateEvent {
 export interface InterventionEvent {
     type: 'intervention';
     timestamp: number;
-    action: 'shown' | 'accepted' | 'dismissed';
+    action: 'shown' | 'accepted' | 'dismissed' | 'blocked';
     level: 'subtle' | 'notification' | 'proactive';
     shouldIntervene: boolean;
     eq: number;
     confidence: 'sufficient' | 'insufficient';
     triggerType?: 'execution-error' | 'multiline-paste' | 'idle' | 'selection-maintained';
+    /** Populated when action='blocked'. Identifies why the intervention was blocked. */
+    blockedReason?: 'cooldown' | 'warmup' | 'session-limit' | 'low-confidence';
+    /** Populated when action='dismissed'. Identifies how the intervention was dismissed. */
+    dismissReason?: 'user-action' | 'hidden' | 'replaced' | 'session-end';
+    /**
+     * Whether the EQ was above the severity threshold, regardless of confidence/guardrails.
+     * Populated when action='blocked' to explain the signal that was suppressed.
+     */
+    rawWanted?: boolean;
 }
 
 export interface ViewNavigationEvent {

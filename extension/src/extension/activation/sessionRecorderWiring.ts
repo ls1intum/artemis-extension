@@ -76,10 +76,18 @@ export function wireSessionRecorder(deps: RecorderWiringDeps): RecorderWiringRes
             decision.shouldIntervene, decision.eq, decision.confidence, decision.triggerType,
         );
     }));
-    disposables.push(telemetryManager.onDidDismissIntervention(decision => {
+    disposables.push(telemetryManager.onDidDismissIntervention(payload => {
         sessionRecorder.recordIntervention(
-            'dismissed', decision.level as 'subtle' | 'notification' | 'proactive',
-            decision.shouldIntervene, decision.eq, decision.confidence, decision.triggerType,
+            'dismissed', payload.level as 'subtle' | 'notification' | 'proactive',
+            payload.shouldIntervene, payload.eq, payload.confidence, payload.triggerType,
+            { dismissReason: payload.dismissReason },
+        );
+    }));
+    disposables.push(telemetryManager.onDidBlockIntervention(({ decision }) => {
+        sessionRecorder.recordIntervention(
+            'blocked', decision.level as 'subtle' | 'notification' | 'proactive',
+            false, decision.eq, decision.confidence, decision.triggerType,
+            { blockedReason: decision.blockedReason, rawWanted: true },
         );
     }));
 
