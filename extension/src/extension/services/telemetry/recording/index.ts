@@ -1,4 +1,5 @@
 export { SessionRecorder } from './sessionRecorder';
+export type { StartupContributor, StartupContext } from './sessionRecorder';
 export { RecordingStatusBarService } from './recordingStatusBar';
 export { RecordingStorageWriter } from './storageWriter';
 export type {
@@ -6,4 +7,6 @@ export type {
     SessionMetadata,
     SerializedRange,
     SerializedDiagnostic,
+    ConsentChangeEvent,
+    StartupPhaseCompleteEvent,
 } from './types';

@@ -4,6 +4,38 @@
  * Runs parallel to TelemetryManager with its own VS Code listeners.
  * Only active when consent is Extended. Writes JSONL event streams
  * to {globalStorageUri}/recordings/{sessionId}/.
+ *
+ * ## Lifecycle FSM (Block AB)
+ *
+ * The recorder is a finite-state machine with six phases:
+ *
+ *   idle → starting → recording → ending → idle          (normal cycle)
+ *   {idle|starting|recording|ending} → disabling → disabled  (consent downgrade)
+ *   disabled → idle                                       (re-enable)
+ *
+ * `_phase` replaces the legacy `_isRecording` / `_isEnabled` booleans. Phase
+ * transitions other than the synchronous `disable()` kick-off happen inside
+ * the lifecycle mutex (`_lifecyclePromise`), so only one of `_doStart`,
+ * `_doEnd`, or `_doDisable` runs at a time.
+ *
+ * ## Session Generation Token
+ *
+ * Every successful `_doStart` increments `_currentGeneration`. `startSession`
+ * callers also receive their own `requestedGeneration` — if another start is
+ * enqueued before the current one reaches the commit point, the older
+ * request aborts (no `sessionStart` written) and the newer wins. Async work
+ * (snapshots, terminal output readers, debounce timers) captures the
+ * generation at dispatch time and re-checks before writing, so stale
+ * callbacks from a previous session can never contaminate a later one.
+ *
+ * ## Commit Boundary
+ *
+ * `_sessionStartWritten` flips to `true` only after the `sessionStart` event
+ * has been handed to the writer. It is the authoritative signal for
+ * "does the on-disk JSONL contain a session header?". `_committedGeneration`
+ * pairs with it: on consent downgrade, `_doDisable` finalises a session only
+ * when both are set AND the generation matches the one captured synchronously
+ * at `disable()` time — guaranteeing no finalise-after-abort races.
  */
 
 import * as vscode from 'vscode';
@@ -36,6 +68,8 @@ interface PendingExecution {
         cwd: string | undefined;
     } | undefined;
     aborted: boolean;
+    /** Generation token captured when the execution started. */
+    generation: number;
 }
 
 export interface RecordingState {
@@ -45,9 +79,66 @@ export interface RecordingState {
     eventCount: number;
 }
 
+/**
+ * Context supplied to startup contributors. Contributors run synchronously
+ * inside `_doStart`, after `sessionStart` + snapshots + initial diagnostics
+ * and before `startupPhaseComplete`, so they see a fully-committed session.
+ */
+export interface StartupContext {
+    exerciseId: number;
+    participantId: string | undefined;
+    exerciseRoot: string | undefined;
+    sessionId: string;
+    timestamp: number;
+}
+
+/**
+ * Synchronous producer of startup events. Returns zero or more events to be
+ * appended to the stream as part of session startup. MUST NOT perform async
+ * work — the recorder calls the contributor synchronously to guarantee
+ * deterministic event ordering.
+ */
+export type StartupContributor = (ctx: StartupContext) => RecordedEvent[];
+
+type RecorderPhase =
+    | 'idle'
+    | 'starting'
+    | 'recording'
+    | 'ending'
+    | 'disabling'
+    | 'disabled';
+
+interface RecordInternalOptions {
+    allowDuringStartup?: boolean;
+    allowDuringEnding?: boolean;
+}
+
 export class SessionRecorder implements vscode.Disposable, WebSocketMessageHandler {
-    private _isEnabled = false;
-    private _isRecording = false;
+    // ── Dispose guard ─────────────────────────────────────────────────
+
+    private _disposed = false;
+
+    // ── Phase + generation tracking ────────────────────────────────────
+
+    private _phase: RecorderPhase = 'disabled';
+    /** Monotonic counter; bumped every time startSession() or disable() is invoked. */
+    private _requestedGeneration = 0;
+    /** Generation of the currently-running (or just-committed) session. */
+    private _currentGeneration = 0;
+    /** Generation that owns the on-disk sessionStart event, if any. */
+    private _committedGeneration: number | undefined;
+    /** True iff `sessionStart` has been handed to the writer for the current session. */
+    private _sessionStartWritten = false;
+
+    /**
+     * Single Promise chain that serialises lifecycle transitions (_doStart,
+     * _doEnd, _doDisable). Like storageWriter's write lane but for the
+     * recorder's own state-mutating operations.
+     */
+    private _lifecyclePromise: Promise<void> = Promise.resolve();
+
+    // ── Session state ──────────────────────────────────────────────────
+
     private _activeSessionId: string | undefined;
     private _activeExerciseId: number | undefined;
     private _lastActiveEditorUri: string | undefined;
@@ -59,6 +150,8 @@ export class SessionRecorder implements vscode.Disposable, WebSocketMessageHandl
     private _snapshotedUris = new Set<string>();
     private _selectionDebounceTimer: ReturnType<typeof setTimeout> | undefined;
     private _visibleRangeDebounceTimer: ReturnType<typeof setTimeout> | undefined;
+    private _pendingSelectionPayload: RecordedEvent | undefined;
+    private _pendingVisibleRangePayload: RecordedEvent | undefined;
     private _pendingExecutions = new Map<vscode.TerminalShellExecution, PendingExecution>();
     private static readonly MAX_OUTPUT_CHARS = 10240;
     private static readonly SELECTION_DEBOUNCE_MS = 200;
@@ -66,62 +159,404 @@ export class SessionRecorder implements vscode.Disposable, WebSocketMessageHandl
 
     private _eventListenerDisposables: vscode.Disposable[] = [];
     private readonly _writer: RecordingStorageWriter;
+    private readonly _startupContributors: StartupContributor[] = [];
 
     private readonly _onDidChangeState = new vscode.EventEmitter<RecordingState>();
     public readonly onDidChangeState = this._onDidChangeState.event;
 
     private readonly _capabilities?: PlatformCapabilities;
 
-    constructor(globalStorageUri: vscode.Uri, capabilities?: PlatformCapabilities) {
-        this._writer = new RecordingStorageWriter(globalStorageUri.fsPath);
+    constructor(
+        globalStorageUri: vscode.Uri,
+        capabilities?: PlatformCapabilities,
+        /** Injection point for tests. Production uses the default writer. */
+        writer?: RecordingStorageWriter,
+    ) {
+        this._writer = writer ?? new RecordingStorageWriter(globalStorageUri.fsPath);
         this._capabilities = capabilities;
+    }
+
+    // ── Phase reader (for control-flow in async methods) ──────────────
+
+    /**
+     * Read `_phase` as the full `RecorderPhase` union. TypeScript narrows the
+     * field to the last-assigned literal inside the body of an async method,
+     * which would make `if (this._phase === 'disabling')` look like a
+     * type-mismatch after we set `this._phase = 'starting'` — even though
+     * `disable()` can legally flip it in between awaits. This accessor bypasses
+     * the narrowing.
+     */
+    private _currentPhase(): RecorderPhase {
+        return this._phase;
     }
 
     // ── Public state accessors ────────────────────────────────────────
 
-    get isEnabled(): boolean { return this._isEnabled; }
-    get isRecording(): boolean { return this._isRecording; }
+    /**
+     * True when the recorder is accepting work (i.e. consent has been granted
+     * and we are not in the process of tearing down). False during `disabling`
+     * and `disabled`, so listeners using this flag as a gate will also stop.
+     */
+    get isEnabled(): boolean {
+        return this._phase !== 'disabling' && this._phase !== 'disabled';
+    }
+    get isRecording(): boolean { return this._phase === 'recording'; }
     get activeExerciseId(): number | undefined { return this._activeExerciseId; }
     get eventCount(): number { return this._eventCount; }
+
+    // ── Startup contributors ──────────────────────────────────────────
+
+    /**
+     * Register a synchronous startup event producer. Contributor fires once
+     * per session, inside `_doStart`, between the initial-state events and the
+     * `startupPhaseComplete` marker. Returns a Disposable that deregisters the
+     * contributor.
+     */
+    public registerStartupContributor(contributor: StartupContributor): vscode.Disposable {
+        this._startupContributors.push(contributor);
+        return new vscode.Disposable(() => {
+            const idx = this._startupContributors.indexOf(contributor);
+            if (idx >= 0) {
+                this._startupContributors.splice(idx, 1);
+            }
+        });
+    }
 
     // ── Enable / Disable ──────────────────────────────────────────────
 
     enable(): void {
-        if (this._isEnabled) {
+        if (this._phase !== 'disabled') {
             return;
         }
-        this._isEnabled = true;
+        this._phase = 'idle';
         this._registerEventListeners();
         this._fireStateChange();
         logger.info('SessionRecorder enabled', LogCategory.TELEMETRY);
     }
 
+    /**
+     * Synchronously kicks off teardown. Transitions `_phase` to `disabling`
+     * immediately so that any further public record calls no-op, then
+     * enqueues the finalisation on the lifecycle mutex.
+     */
     disable(): void {
-        if (!this._isEnabled) {
+        if (this._phase === 'disabled' || this._phase === 'disabling') {
             return;
         }
-        this._isEnabled = false;
-        if (this._isRecording) {
-            void this.endSession().catch((err: unknown) => {
-                logger.error('Failed to end recording session during disable', LogCategory.TELEMETRY, err);
-            });
-        }
-        this._disposeEventListeners();
-        this._fireStateChange();
-        logger.info('SessionRecorder disabled', LogCategory.TELEMETRY);
+        // Capture "is there a committed session that needs a consentChange +
+        // sessionEnd?" at the moment consent was revoked. After setting
+        // _phase=disabling below, no new record() can commit a session, so
+        // these values are stable until _doDisable runs.
+        const shouldFinalize = this._sessionStartWritten
+            && (this._phase === 'starting' || this._phase === 'recording' || this._phase === 'ending');
+        const generation = this._committedGeneration;
+
+        this._phase = 'disabling';
+        // Invalidate any pending startSession() requests that have not yet
+        // reached their _doStart closure. The counter is MONOTONIC — we
+        // advance it so that every already-captured generation becomes less
+        // than `_requestedGeneration`. Combined with the post-commit rule
+        // that `_currentGeneration = requestedGen` only at commit point, no
+        // stale async callback from a previous generation can ever match a
+        // future `_currentGeneration` after a later enable/startSession
+        // cycle.
+        this._requestedGeneration++;
+
+        this._enqueueLifecycle('disable', () => this._doDisable({ shouldFinalize, generation }));
+        logger.info('SessionRecorder disable requested', LogCategory.TELEMETRY);
     }
 
     // ── Session lifecycle ─────────────────────────────────────────────
 
+    /**
+     * Enqueue a session-start. If a session is already running, the existing
+     * one is gracefully ended before the new one begins. Returns as soon as
+     * the enqueue is scheduled — callers may await the returned promise to
+     * know when the new session has fully started (or was superseded).
+     */
     async startSession(exerciseId: number, participantId?: string, exerciseRoot?: string): Promise<void> {
-        if (!this._isEnabled) {
+        if (this._phase === 'disabling' || this._phase === 'disabled') {
             return;
         }
 
-        // End any active session first
-        if (this._isRecording) {
-            await this.endSession();
+        const requestedGen = ++this._requestedGeneration;
+        return this._enqueueLifecycle('startSession', () =>
+            this._doStart(requestedGen, exerciseId, participantId, exerciseRoot));
+    }
+
+    /**
+     * Gracefully end the currently-active session (if any). Safe to call when
+     * no session is running; no-ops in that case.
+     */
+    async endSession(reason: 'user-end' | 'deactivate' = 'user-end'): Promise<void> {
+        if (this._phase === 'disabling' || this._phase === 'disabled') {
+            return;
         }
+        return this._enqueueLifecycle('endSession', () => this._doEnd(reason));
+    }
+
+    /**
+     * Queue a lifecycle operation on the mutex. Any thrown error is caught and
+     * logged — the stored `_lifecyclePromise` always settles fulfilled, so an
+     * unexpected throw in one operation cannot poison future lifecycle calls
+     * (which chain via `.then()`).
+     */
+    private _enqueueLifecycle(label: string, op: () => Promise<void>): Promise<void> {
+        this._lifecyclePromise = this._lifecyclePromise
+            .catch(err => {
+                logger.error(`Lifecycle lane recovered before ${label}`, LogCategory.TELEMETRY, err);
+            })
+            .then(async () => {
+                try {
+                    await op();
+                } catch (err) {
+                    logger.error(`Lifecycle operation failed: ${label}`, LogCategory.TELEMETRY, err);
+                }
+            });
+        return this._lifecyclePromise;
+    }
+
+    // ── WebSocketMessageHandler ───────────────────────────────────────
+
+    onNewResult(result: ResultDTO): void {
+        if (this._phase !== 'recording') {
+            return;
+        }
+        this._recordInternal(collectBuildResult(result), {}, this._currentGeneration);
+    }
+
+    // ── Public recording methods for chat events ──────────────────────
+
+    recordIrisChatSent(text: string): void {
+        if (this._phase !== 'recording') {
+            return;
+        }
+        this._recordInternal({
+            type: 'irisChatMessage',
+            timestamp: Date.now(),
+            direction: 'sent',
+            content: text,
+        }, {}, this._currentGeneration);
+    }
+
+    recordIrisChatReceived(content: string): void {
+        if (this._phase !== 'recording') {
+            return;
+        }
+        this._recordInternal({
+            type: 'irisChatMessage',
+            timestamp: Date.now(),
+            direction: 'received',
+            content,
+        }, {}, this._currentGeneration);
+    }
+
+    recordEqSnapshot(
+        eq: number,
+        confidence: 'sufficient' | 'insufficient',
+        source: 'save' | 'build' | 'trigger',
+        triggerType?: string,
+    ): void {
+        if (this._phase !== 'recording') {
+            return;
+        }
+        this._recordInternal({
+            type: 'eqSnapshot',
+            timestamp: Date.now(),
+            eq,
+            confidence,
+            source,
+            triggerType,
+        }, {}, this._currentGeneration);
+    }
+
+    recordIntervention(
+        action: 'shown' | 'accepted' | 'dismissed',
+        level: 'subtle' | 'notification' | 'proactive',
+        shouldIntervene: boolean,
+        eq: number,
+        confidence: 'sufficient' | 'insufficient',
+        triggerType?: 'execution-error' | 'multiline-paste' | 'idle' | 'selection-maintained',
+    ): void {
+        if (this._phase !== 'recording') {
+            return;
+        }
+        this._recordInternal({
+            type: 'intervention',
+            timestamp: Date.now(),
+            action,
+            level,
+            shouldIntervene,
+            eq,
+            confidence,
+            triggerType,
+        }, {}, this._currentGeneration);
+    }
+
+    recordViewNavigation(from: string, to: string): void {
+        if (this._phase !== 'recording') {
+            return;
+        }
+        this._recordInternal({
+            type: 'viewNavigation',
+            timestamp: Date.now(),
+            from,
+            to,
+        }, {}, this._currentGeneration);
+    }
+
+    recordPanelVisibility(panel: 'artemis' | 'chat', visible: boolean): void {
+        if (this._phase !== 'recording') {
+            return;
+        }
+        this._recordInternal({
+            type: 'panelVisibility',
+            timestamp: Date.now(),
+            panel,
+            visible,
+        }, {}, this._currentGeneration);
+    }
+
+    recordEqEngineState(
+        snapshots: SerializedErrorSnapshot[],
+        currentEQ: number,
+        pairCount: number,
+        confidence: 'sufficient' | 'insufficient',
+    ): void {
+        if (this._phase !== 'recording') {
+            return;
+        }
+        this._recordInternal({
+            type: 'eqEngineState',
+            timestamp: Date.now(),
+            snapshots,
+            currentEQ,
+            pairCount,
+            confidence,
+        }, {}, this._currentGeneration);
+    }
+
+    // ── Disposable ────────────────────────────────────────────────────
+
+    async dispose(): Promise<void> {
+        if (this._disposed) { return; }
+        this._disposed = true;
+        if (this._phase === 'recording' || this._phase === 'starting') {
+            try {
+                await this.endSession('deactivate');
+            } catch (err: unknown) {
+                logger.error('Failed to end recording session during dispose', LogCategory.TELEMETRY, err);
+            }
+        }
+        // Drain any outstanding lifecycle operations.
+        try {
+            await this._lifecyclePromise;
+        } catch {
+            /* lifecycle promise is always settled-success, but be defensive */
+        }
+        this._disposeEventListeners();
+        await this._writer.dispose();
+        this._onDidChangeState.dispose();
+    }
+
+    // ── Private: State notification ─────────────────────────────────────
+
+    private _fireStateChange(): void {
+        this._onDidChangeState.fire({
+            isEnabled: this.isEnabled,
+            isRecording: this.isRecording,
+            exerciseId: this._activeExerciseId,
+            eventCount: this._eventCount,
+        });
+    }
+
+    // ── Private: Event recording ──────────────────────────────────────
+
+    /**
+     * Internal event-recording path used by all event sources. Enforces phase
+     * and generation gates so stale callbacks from a previous session (or
+     * writes during startup / shutdown) cannot leak events into the stream.
+     *
+     * @param gen   Generation captured by the caller at dispatch time. If set,
+     *              the write is dropped when it does not match the current
+     *              generation. Omit only for synchronous callers that are
+     *              statically guaranteed to run inside the current session.
+     */
+    private _recordInternal(
+        event: RecordedEvent,
+        opts: RecordInternalOptions,
+        gen?: number,
+    ): void {
+        if (gen !== undefined && gen !== this._currentGeneration) {
+            return;
+        }
+
+        const phase = this._phase;
+        if (phase === 'recording') {
+            // always allowed
+        } else if (phase === 'starting' && opts.allowDuringStartup) {
+            // allowed
+        } else if (phase === 'ending' && opts.allowDuringEnding) {
+            // allowed
+        } else {
+            return;
+        }
+
+        this._eventCount++;
+        this._writer.appendEvent(event);
+    }
+
+    /**
+     * Lifecycle-only writer channel. Bypasses the phase gate used by
+     * `_recordInternal` — callers are trusted to write only during valid
+     * lifecycle transitions (sessionStart/End, consentChange, startupPhaseComplete).
+     */
+    private _writeLifecycleEvent(event: RecordedEvent): void {
+        this._eventCount++;
+        this._writer.appendEvent(event);
+    }
+
+    // ── Private: Lifecycle operations ─────────────────────────────────
+
+    /**
+     * Starts a new session. Runs inside the lifecycle mutex, so at most one
+     * `_doStart` / `_doEnd` / `_doDisable` executes at a time.
+     *
+     * The method has two re-check points:
+     *   - pre-commit (after `initSession`, before writing `sessionStart`) —
+     *     if the request was superseded or disable() fired, abort the writer.
+     *   - post-commit (after each async snapshot phase) — if disable() fired,
+     *     leave the commit in place so `_doDisable` can finalise it; if a
+     *     newer start was requested, end this session gracefully.
+     */
+    private async _doStart(
+        requestedGen: number,
+        exerciseId: number,
+        participantId: string | undefined,
+        exerciseRoot: string | undefined,
+    ): Promise<void> {
+        // Superseded before we even got scheduled (or disable() ran).
+        if (requestedGen !== this._requestedGeneration) {
+            return;
+        }
+        if (this._phase === 'disabling' || this._phase === 'disabled') {
+            return;
+        }
+
+        // End any in-flight session first. _doEnd sets phase back to idle.
+        if (this._phase === 'recording') {
+            await this._doEnd('user-end');
+            // Re-check after async work: disable() or a newer start may have fired.
+            if (requestedGen !== this._requestedGeneration) {
+                return;
+            }
+            if (this._currentPhase() === 'disabling' || this._currentPhase() === 'disabled') {
+                return;
+            }
+        }
+
+        this._phase = 'starting';
+        this._sessionStartWritten = false;
 
         const hex = crypto.randomBytes(3).toString('hex');
         const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
@@ -134,221 +569,285 @@ export class SessionRecorder implements vscode.Disposable, WebSocketMessageHandl
         this._lastActiveEditorUri = vscode.window.activeTextEditor?.document.uri.toString();
 
         await this._writer.initSession(this._activeSessionId);
-        this._isRecording = true;
-        this._fireStateChange();
 
-        // Record session start
-        this._record({
+        // Pre-commit re-check: if the request was superseded or consent was
+        // revoked while initSession was in flight, abort the writer so no
+        // partial session leaks to disk.
+        if (requestedGen !== this._requestedGeneration) {
+            if (this._currentPhase() === 'starting') {
+                this._phase = 'idle';
+            }
+            await this._writer.abort();
+            return;
+        }
+        if (this._currentPhase() === 'disabling' || this._currentPhase() === 'disabled') {
+            await this._writer.abort();
+            return;
+        }
+
+        // ── Commit point ──
+        this._currentGeneration = requestedGen;
+        const sessionStartTs = Date.now();
+        this._writeLifecycleEvent({
             type: 'sessionStart',
-            timestamp: Date.now(),
+            timestamp: sessionStartTs,
             exerciseId,
             participantId,
             exerciseRoot,
+            schemaVersion: 2,
         });
+        this._sessionStartWritten = true;
+        this._committedGeneration = requestedGen;
 
-        // Capture file snapshots of all open file:// documents
-        await this._captureOpenFileSnapshots();
+        // ── Phase 1: open-file snapshots (async) ──
+        await this._captureOpenFileSnapshots(requestedGen);
 
-        // Capture pre-existing diagnostics so replay sees errors before first diagnostics event
-        this._captureInitialDiagnostics();
+        // Post-commit check: phase first (disable() also advances _requestedGeneration,
+        // so the generation check below would also fire — we want the phase path).
+        if (this._currentPhase() === 'disabling' || this._currentPhase() === 'disabled') {
+            return; // _doDisable will finalize the committed session
+        }
+        if (requestedGen !== this._requestedGeneration) {
+            await this._doEnd('user-end');
+            return;
+        }
+
+        // ── Phase 2: initial diagnostics (sync) ──
+        this._captureInitialDiagnostics(requestedGen);
+
+        // ── Phase 3: startup contributors (sync) ──
+        const startupCtx: StartupContext = {
+            exerciseId,
+            participantId,
+            exerciseRoot,
+            sessionId: this._activeSessionId,
+            timestamp: Date.now(),
+        };
+        for (const contributor of this._startupContributors) {
+            let events: RecordedEvent[] = [];
+            try {
+                events = contributor(startupCtx);
+            } catch (err) {
+                logger.error('Startup contributor threw', LogCategory.TELEMETRY, err);
+                continue;
+            }
+            for (const ev of events) {
+                this._recordInternal(ev, { allowDuringStartup: true }, requestedGen);
+            }
+        }
+
+        // ── Phase 4: initial-state events (Block E, sync) ──
+        this._captureInitialStateEvents(requestedGen);
+
+        // Defensive post-commit re-check (sync path, so only disable can flip phase).
+        if (this._currentPhase() === 'disabling' || this._currentPhase() === 'disabled') {
+            return;
+        }
+        if (requestedGen !== this._requestedGeneration) {
+            await this._doEnd('user-end');
+            return;
+        }
+
+        this._phase = 'recording';
+        this._writeLifecycleEvent({
+            type: 'startupPhaseComplete',
+            timestamp: Date.now(),
+        });
+        this._fireStateChange();
 
         logger.info(`Recording session started: ${this._activeSessionId}`, LogCategory.TELEMETRY);
     }
 
-    async endSession(): Promise<void> {
-        if (!this._isRecording || !this._activeSessionId || this._activeExerciseId === undefined) {
+    /**
+     * Gracefully end the currently-active session. Only invoked via the
+     * normal lifecycle path (explicit endSession, superseded by newer start,
+     * or deactivate). Consent-downgrade goes through `_doDisable` instead.
+     */
+    private async _doEnd(reason: 'user-end' | 'deactivate'): Promise<void> {
+        if (this._phase !== 'recording' && this._phase !== 'starting') {
+            return;
+        }
+        if (!this._activeSessionId || this._activeExerciseId === undefined) {
             return;
         }
 
-        // Record session end
-        this._record({
+        const generation = this._currentGeneration;
+        this._phase = 'ending';
+
+        // Flush pending debounced payloads so the session ends with a complete
+        // picture. These use the ending-allowance so _recordInternal lets them
+        // through.
+        this._flushPendingDebouncesForEnd(generation);
+
+        // Abort any still-running terminal shell executions.
+        for (const entry of this._pendingExecutions.values()) {
+            entry.aborted = true;
+        }
+        this._pendingExecutions.clear();
+
+        const exerciseId = this._activeExerciseId;
+        this._writeLifecycleEvent({
             type: 'sessionEnd',
             timestamp: Date.now(),
-            exerciseId: this._activeExerciseId,
+            exerciseId,
         });
 
-        // Write metadata
         const metadata: SessionMetadata = {
             sessionId: this._activeSessionId,
-            exerciseId: this._activeExerciseId,
+            exerciseId,
             participantId: this._participantId,
             startTime: this._sessionStartTime!,
             endTime: Date.now(),
             eventCount: this._eventCount,
         };
+
+        await this._writer.flush();
         await this._writer.writeMetadata(metadata);
         await this._writer.endSession();
 
         logger.info(
-            `Recording session ended: ${this._activeSessionId} (${this._eventCount} events)`,
+            `Recording session ended (${reason}): ${this._activeSessionId} (${this._eventCount} events)`,
             LogCategory.TELEMETRY,
         );
 
-        this._isRecording = false;
+        // Clear commit-boundary flags only after the writer has fully
+        // finalized. Until then, a concurrent disable() must still see
+        // _sessionStartWritten=true and route through the downgrade path.
+        this._sessionStartWritten = false;
+        this._committedGeneration = undefined;
+        this._resetSessionState();
+        this._phase = 'idle';
+        this._fireStateChange();
+    }
+
+    /**
+     * Teardown path for consent downgrade. Runs after any in-flight _doStart
+     * has drained (via the lifecycle mutex). If `finalizeNow` holds, a
+     * consentChange + sessionEnd pair is written and metadata is flushed.
+     * Pending debounce payloads are DISCARDED on this path (GDPR-strict
+     * Option A): the user revoked consent, so the last cached keystroke
+     * derivative must not hit disk.
+     */
+    private async _doDisable(
+        params: { shouldFinalize: boolean; generation: number | undefined },
+    ): Promise<void> {
+        const { shouldFinalize, generation } = params;
+
+        const finalizeNow = shouldFinalize
+            && this._sessionStartWritten
+            && generation !== undefined
+            && this._committedGeneration === generation;
+
+        if (finalizeNow) {
+            try {
+                await this._doFinalizeAfterDisable(generation);
+            } catch (err) {
+                logger.error('Failed to finalize session during disable', LogCategory.TELEMETRY, err);
+            }
+        }
+
+        this._disposeEventListeners();
+        this._phase = 'disabled';
+        this._fireStateChange();
+        logger.info('SessionRecorder disabled', LogCategory.TELEMETRY);
+    }
+
+    private async _doFinalizeAfterDisable(generation: number): Promise<void> {
+        // Guard: another lifecycle op may have already finalized the session.
+        if (this._currentGeneration !== generation || !this._sessionStartWritten) {
+            return;
+        }
+        if (!this._activeSessionId || this._activeExerciseId === undefined) {
+            return;
+        }
+
+        const exerciseId = this._activeExerciseId;
+        const consentTs = Date.now();
+
+        this._writeLifecycleEvent({
+            type: 'consentChange',
+            timestamp: consentTs,
+            level: 'downgraded',
+        });
+
+        // GDPR-strict: discard any buffered debounced payloads. These are the
+        // last bits of observation the user did not want recorded.
+        this._pendingSelectionPayload = undefined;
+        this._pendingVisibleRangePayload = undefined;
+        if (this._selectionDebounceTimer) {
+            clearTimeout(this._selectionDebounceTimer);
+            this._selectionDebounceTimer = undefined;
+        }
+        if (this._visibleRangeDebounceTimer) {
+            clearTimeout(this._visibleRangeDebounceTimer);
+            this._visibleRangeDebounceTimer = undefined;
+        }
+
+        // Abort any still-running terminal shell executions.
+        for (const entry of this._pendingExecutions.values()) {
+            entry.aborted = true;
+        }
+        this._pendingExecutions.clear();
+
+        this._writeLifecycleEvent({
+            type: 'sessionEnd',
+            timestamp: Date.now(),
+            exerciseId,
+        });
+
+        const metadata: SessionMetadata = {
+            sessionId: this._activeSessionId,
+            exerciseId,
+            participantId: this._participantId,
+            startTime: this._sessionStartTime!,
+            endTime: Date.now(),
+            eventCount: this._eventCount,
+        };
+
+        await this._writer.flush();
+        await this._writer.writeMetadata(metadata);
+        await this._writer.endSession();
+
+        this._sessionStartWritten = false;
+        this._committedGeneration = undefined;
+        this._resetSessionState();
+    }
+
+    private _resetSessionState(): void {
         this._activeSessionId = undefined;
         this._activeExerciseId = undefined;
         this._participantId = undefined;
         this._exerciseRoot = undefined;
         this._sessionStartTime = undefined;
         this._snapshotedUris.clear();
-        for (const entry of this._pendingExecutions.values()) {
-            entry.aborted = true;
+        this._lastActiveEditorUri = undefined;
+    }
+
+    private _flushPendingDebouncesForEnd(generation: number): void {
+        if (this._selectionDebounceTimer) {
+            clearTimeout(this._selectionDebounceTimer);
+            this._selectionDebounceTimer = undefined;
         }
-        this._pendingExecutions.clear();
-        this._fireStateChange();
-    }
-
-    // ── WebSocketMessageHandler ───────────────────────────────────────
-
-    onNewResult(result: ResultDTO): void {
-        if (!this._isRecording) {
-            return;
+        if (this._visibleRangeDebounceTimer) {
+            clearTimeout(this._visibleRangeDebounceTimer);
+            this._visibleRangeDebounceTimer = undefined;
         }
-        this._record(collectBuildResult(result));
-    }
-
-    // ── Public recording methods for chat events ──────────────────────
-
-    recordIrisChatSent(text: string): void {
-        if (!this._isRecording) {
-            return;
+        if (this._pendingSelectionPayload) {
+            this._recordInternal(
+                this._pendingSelectionPayload,
+                { allowDuringEnding: true },
+                generation,
+            );
+            this._pendingSelectionPayload = undefined;
         }
-        this._record({
-            type: 'irisChatMessage',
-            timestamp: Date.now(),
-            direction: 'sent',
-            content: text,
-        });
-    }
-
-    recordIrisChatReceived(content: string): void {
-        if (!this._isRecording) {
-            return;
+        if (this._pendingVisibleRangePayload) {
+            this._recordInternal(
+                this._pendingVisibleRangePayload,
+                { allowDuringEnding: true },
+                generation,
+            );
+            this._pendingVisibleRangePayload = undefined;
         }
-        this._record({
-            type: 'irisChatMessage',
-            timestamp: Date.now(),
-            direction: 'received',
-            content,
-        });
-    }
-
-    recordEqSnapshot(
-        eq: number,
-        confidence: 'sufficient' | 'insufficient',
-        source: 'save' | 'build' | 'trigger',
-        triggerType?: string,
-    ): void {
-        if (!this._isRecording) {
-            return;
-        }
-        this._record({
-            type: 'eqSnapshot',
-            timestamp: Date.now(),
-            eq,
-            confidence,
-            source,
-            triggerType,
-        });
-    }
-
-    recordIntervention(
-        action: 'shown' | 'accepted' | 'dismissed',
-        level: 'subtle' | 'notification' | 'proactive',
-        shouldIntervene: boolean,
-        eq: number,
-        confidence: 'sufficient' | 'insufficient',
-        triggerType?: string,
-    ): void {
-        if (!this._isRecording) {
-            return;
-        }
-        this._record({
-            type: 'intervention',
-            timestamp: Date.now(),
-            action,
-            level,
-            shouldIntervene,
-            eq,
-            confidence,
-            triggerType: triggerType as 'execution-error' | 'multiline-paste' | 'idle' | 'selection-maintained' | undefined,
-        });
-    }
-
-    recordViewNavigation(from: string, to: string): void {
-        if (!this._isRecording) {
-            return;
-        }
-        this._record({
-            type: 'viewNavigation',
-            timestamp: Date.now(),
-            from,
-            to,
-        });
-    }
-
-    recordPanelVisibility(panel: 'artemis' | 'chat', visible: boolean): void {
-        if (!this._isRecording) {
-            return;
-        }
-        this._record({
-            type: 'panelVisibility',
-            timestamp: Date.now(),
-            panel,
-            visible,
-        });
-    }
-
-    recordEqEngineState(
-        snapshots: SerializedErrorSnapshot[],
-        currentEQ: number,
-        pairCount: number,
-        confidence: 'sufficient' | 'insufficient',
-    ): void {
-        if (!this._isRecording) {
-            return;
-        }
-        this._record({
-            type: 'eqEngineState',
-            timestamp: Date.now(),
-            snapshots,
-            currentEQ,
-            pairCount,
-            confidence,
-        });
-    }
-
-    // ── Disposable ────────────────────────────────────────────────────
-
-    async dispose(): Promise<void> {
-        if (this._isRecording) {
-            try {
-                await this.endSession();
-            } catch (err: unknown) {
-                logger.error('Failed to end recording session during dispose', LogCategory.TELEMETRY, err);
-            }
-        }
-        this._disposeEventListeners();
-        await this._writer.dispose();
-        this._onDidChangeState.dispose();
-    }
-
-    // ── Private: State notification ─────────────────────────────────────
-
-    private _fireStateChange(): void {
-        this._onDidChangeState.fire({
-            isEnabled: this._isEnabled,
-            isRecording: this._isRecording,
-            exerciseId: this._activeExerciseId,
-            eventCount: this._eventCount,
-        });
-    }
-
-    // ── Private: Event recording ──────────────────────────────────────
-
-    private _record(event: RecordedEvent): void {
-        this._eventCount++;
-        this._writer.appendEvent(event);
     }
 
     // ── Private: Listener setup ───────────────────────────────────────
@@ -356,120 +855,130 @@ export class SessionRecorder implements vscode.Disposable, WebSocketMessageHandl
     private _registerEventListeners(): void {
         // Text changes
         const textChange = vscode.workspace.onDidChangeTextDocument(event => {
-            if (!this._isRecording) { return; }
+            if (this._phase !== 'recording') { return; }
             if (event.document.uri.scheme !== 'file') { return; }
             if (event.contentChanges.length === 0) { return; }
-            this._record(collectTextChange(event));
+            this._recordInternal(collectTextChange(event), {}, this._currentGeneration);
         });
         this._eventListenerDisposables.push(textChange);
 
         // File save
         const save = vscode.workspace.onDidSaveTextDocument(doc => {
-            if (!this._isRecording) { return; }
+            if (this._phase !== 'recording') { return; }
             if (doc.uri.scheme !== 'file') { return; }
-            this._record(collectSave(doc));
+            this._recordInternal(collectSave(doc), {}, this._currentGeneration);
         });
         this._eventListenerDisposables.push(save);
 
         // Active editor switch + snapshot on first open
         const editorSwitch = vscode.window.onDidChangeActiveTextEditor(editor => {
-            if (!this._isRecording) { return; }
+            if (this._phase !== 'recording') { return; }
             const prev = this._lastActiveEditorUri;
             const toUri = editor?.document.uri.toString();
             this._lastActiveEditorUri = toUri;
             // Only record if at least one side is a file
             if (prev || editor?.document.uri.scheme === 'file') {
-                this._record(collectFileSwitch(prev, editor));
+                this._recordInternal(collectFileSwitch(prev, editor), {}, this._currentGeneration);
             }
             // Snapshot file if opened for the first time this session
             if (editor && editor.document.uri.scheme === 'file' && toUri && !this._snapshotedUris.has(toUri)) {
-                void this._captureFirstOpenSnapshot(editor);
+                const capturedGen = this._currentGeneration;
+                void this._captureFirstOpenSnapshot(editor, capturedGen);
             }
         });
         this._eventListenerDisposables.push(editorSwitch);
 
         // Diagnostics changes
         const diagnosticsChange = vscode.languages.onDidChangeDiagnostics(event => {
-            if (!this._isRecording) { return; }
+            if (this._phase !== 'recording') { return; }
             for (const uri of event.uris) {
                 if (uri.scheme !== 'file') { continue; }
-                this._record(collectDiagnostics(uri));
+                this._recordInternal(collectDiagnostics(uri), {}, this._currentGeneration);
             }
         });
         this._eventListenerDisposables.push(diagnosticsChange);
 
         // Window focus
         const windowFocus = vscode.window.onDidChangeWindowState(state => {
-            if (!this._isRecording) { return; }
-            this._record(collectWindowFocus(state));
+            if (this._phase !== 'recording') { return; }
+            this._recordInternal(collectWindowFocus(state), {}, this._currentGeneration);
         });
         this._eventListenerDisposables.push(windowFocus);
 
-        // Selection changes (debounced 200ms)
+        // Selection changes (debounced 200ms) — payload cached so end path can flush it
         const selectionChange = vscode.window.onDidChangeTextEditorSelection(event => {
-            if (!this._isRecording) { return; }
+            if (this._phase !== 'recording') { return; }
             if (event.textEditor.document.uri.scheme !== 'file') { return; }
+            const payload = collectSelectionChange(event.textEditor, event.kind);
+            this._pendingSelectionPayload = payload;
+            const capturedGen = this._currentGeneration;
             clearTimeout(this._selectionDebounceTimer);
             this._selectionDebounceTimer = setTimeout(() => {
-                if (!this._isRecording) { return; }
-                this._record(collectSelectionChange(event.textEditor, event.kind));
+                this._selectionDebounceTimer = undefined;
+                if (this._pendingSelectionPayload !== payload) { return; }
+                this._pendingSelectionPayload = undefined;
+                this._recordInternal(payload, {}, capturedGen);
             }, SessionRecorder.SELECTION_DEBOUNCE_MS);
         });
         this._eventListenerDisposables.push(selectionChange);
 
         // Visible range changes (debounced 300ms)
         const visibleRangeChange = vscode.window.onDidChangeTextEditorVisibleRanges(event => {
-            if (!this._isRecording) { return; }
+            if (this._phase !== 'recording') { return; }
             if (event.textEditor.document.uri.scheme !== 'file') { return; }
+            const payload = collectVisibleRangeChange(event.textEditor);
+            this._pendingVisibleRangePayload = payload;
+            const capturedGen = this._currentGeneration;
             clearTimeout(this._visibleRangeDebounceTimer);
             this._visibleRangeDebounceTimer = setTimeout(() => {
-                if (!this._isRecording) { return; }
-                this._record(collectVisibleRangeChange(event.textEditor));
+                this._visibleRangeDebounceTimer = undefined;
+                if (this._pendingVisibleRangePayload !== payload) { return; }
+                this._pendingVisibleRangePayload = undefined;
+                this._recordInternal(payload, {}, capturedGen);
             }, SessionRecorder.VISIBLE_RANGE_DEBOUNCE_MS);
         });
         this._eventListenerDisposables.push(visibleRangeChange);
 
         // Terminal open
         const terminalOpen = vscode.window.onDidOpenTerminal(terminal => {
-            if (!this._isRecording) { return; }
-            this._record({
+            if (this._phase !== 'recording') { return; }
+            this._recordInternal({
                 type: 'terminalOpenClose',
                 timestamp: Date.now(),
                 action: 'opened',
                 terminalName: terminal.name,
-            });
+            }, {}, this._currentGeneration);
         });
         this._eventListenerDisposables.push(terminalOpen);
 
         // Terminal close
         const terminalClose = vscode.window.onDidCloseTerminal(terminal => {
-            if (!this._isRecording) { return; }
-            this._record({
+            if (this._phase !== 'recording') { return; }
+            this._recordInternal({
                 type: 'terminalOpenClose',
                 timestamp: Date.now(),
                 action: 'closed',
                 terminalName: terminal.name,
-            });
+            }, {}, this._currentGeneration);
         });
         this._eventListenerDisposables.push(terminalClose);
 
         // Terminal shell execution tracking — only available in VS Code Desktop (not all Theia builds)
         if (this._capabilities?.hasTerminalShellExecution !== false) {
-            // Terminal shell execution start — begin collecting output
             const shellExecStart = vscode.window.onDidStartTerminalShellExecution(event => {
-                if (!this._isRecording) { return; }
+                if (this._phase !== 'recording') { return; }
                 const entry: PendingExecution = {
                     output: '', startTime: Date.now(), truncated: false,
                     readerDone: false, endInfo: undefined, aborted: false,
+                    generation: this._currentGeneration,
                 };
                 this._pendingExecutions.set(event.execution, entry);
                 void this._collectExecutionOutput(event.execution, entry);
             });
             this._eventListenerDisposables.push(shellExecStart);
 
-            // Terminal shell execution end — emit once reader is also done
             const shellExecEnd = vscode.window.onDidEndTerminalShellExecution(event => {
-                if (!this._isRecording) { return; }
+                if (this._phase !== 'recording') { return; }
                 const entry = this._pendingExecutions.get(event.execution);
                 if (!entry) { return; }
                 this._pendingExecutions.delete(event.execution);
@@ -490,6 +999,8 @@ export class SessionRecorder implements vscode.Disposable, WebSocketMessageHandl
     private _disposeEventListeners(): void {
         clearTimeout(this._selectionDebounceTimer);
         clearTimeout(this._visibleRangeDebounceTimer);
+        this._selectionDebounceTimer = undefined;
+        this._visibleRangeDebounceTimer = undefined;
         while (this._eventListenerDisposables.length > 0) {
             const disposable = this._eventListenerDisposables.pop();
             disposable?.dispose();
@@ -498,33 +1009,154 @@ export class SessionRecorder implements vscode.Disposable, WebSocketMessageHandl
 
     // ── Private: Snapshot capture ─────────────────────────────────────
 
-    private async _snapshotDocument(uri: string, content: string): Promise<void> {
-        const snapshotPath = this._writer.getSnapshotRelativePath(uri);
-        await this._writer.writeSnapshot(uri, content);
-        this._snapshotedUris.add(uri);
-        this._record({ type: 'fileSnapshot', timestamp: Date.now(), uri, snapshotPath });
+    /**
+     * Check that the captured generation is still current AND that the phase
+     * is a valid writing phase. Used as the gate before snapshot file I/O so
+     * we don't write user code to disk after consent revocation.
+     *
+     * Caveat: this predicate is evaluated synchronously before the writer
+     * enqueues the write. A snapshot that is already queued in the writer's
+     * lane when disable() fires will still hit disk. Fully-cancellable lane
+     * writes would need a lane-level predicate; not implemented here because
+     * the write lane's serialisation already makes this window very small
+     * and the alternative adds material complexity.
+     */
+    private _canWriteSnapshot(generation: number): boolean {
+        if (generation !== this._currentGeneration) { return false; }
+        const phase = this._currentPhase();
+        return phase === 'starting' || phase === 'recording';
     }
 
-    private async _captureOpenFileSnapshots(): Promise<void> {
+    private async _snapshotDocument(
+        uri: string,
+        content: string,
+        generation: number,
+        allowDuringStartup: boolean,
+    ): Promise<void> {
+        // Re-check BEFORE handing bytes to the writer. Protects against
+        // enqueuing snapshot file writes after consent revocation.
+        if (!this._canWriteSnapshot(generation)) {
+            return;
+        }
+        const snapshotPath = this._writer.getSnapshotRelativePath(uri);
+        await this._writer.writeSnapshot(uri, content);
+        // After the async writeSnapshot, the session may have rotated OR the
+        // phase may have flipped to disabled. Use the same consent/session
+        // gate as the pre-write check so that disabled-but-same-generation
+        // does not pollute `_snapshotedUris` (which tracks state for the
+        // next session).
+        if (!this._canWriteSnapshot(generation)) {
+            return;
+        }
+        this._snapshotedUris.add(uri);
+        this._recordInternal(
+            { type: 'fileSnapshot', timestamp: Date.now(), uri, snapshotPath },
+            { allowDuringStartup },
+            generation,
+        );
+    }
+
+    private async _captureOpenFileSnapshots(generation: number): Promise<void> {
         for (const doc of vscode.workspace.textDocuments) {
             if (doc.uri.scheme !== 'file') {
                 continue;
             }
+            // Stop starting new snapshot writes as soon as the session is
+            // superseded or disabled. Previously-queued snapshots may still
+            // complete — _snapshotDocument re-checks before the writer call
+            // to narrow that window.
+            if (!this._canWriteSnapshot(generation)) {
+                return;
+            }
             try {
-                await this._snapshotDocument(doc.uri.toString(), doc.getText());
+                await this._snapshotDocument(doc.uri.toString(), doc.getText(), generation, true);
             } catch (err) {
                 logger.error('Failed to capture file snapshot', LogCategory.TELEMETRY, err);
             }
         }
     }
 
-    private _captureInitialDiagnostics(): void {
+    private _captureInitialDiagnostics(generation: number): void {
         const allDiagnostics = vscode.languages.getDiagnostics();
         for (const [uri, diagnostics] of allDiagnostics) {
             if (uri.scheme !== 'file' || diagnostics.length === 0) {
                 continue;
             }
-            this._record(collectDiagnostics(uri));
+            this._recordInternal(
+                collectDiagnostics(uri),
+                { allowDuringStartup: true },
+                generation,
+            );
+        }
+    }
+
+    /**
+     * Emit the Block E initial-state events: windowFocus, selectionChange +
+     * visibleRangeChange for every visible editor, a synthetic fileSwitch
+     * seeding the active editor, and terminalOpenClose('opened') for every
+     * currently-open terminal. Panel-visibility seeds are supplied by
+     * Startup-Contributors registered from the provider layer.
+     */
+    private _captureInitialStateEvents(generation: number): void {
+        // 1. Window focus.
+        try {
+            this._recordInternal(
+                {
+                    type: 'windowFocus',
+                    timestamp: Date.now(),
+                    focused: vscode.window.state.focused,
+                },
+                { allowDuringStartup: true },
+                generation,
+            );
+        } catch (err) {
+            logger.error('Failed to emit initial windowFocus', LogCategory.TELEMETRY, err);
+        }
+
+        // 2. Selection + visible range for every visible file editor.
+        for (const editor of vscode.window.visibleTextEditors) {
+            if (editor.document.uri.scheme !== 'file') {
+                continue;
+            }
+            try {
+                this._recordInternal(
+                    collectSelectionChange(editor, undefined),
+                    { allowDuringStartup: true },
+                    generation,
+                );
+                this._recordInternal(
+                    collectVisibleRangeChange(editor),
+                    { allowDuringStartup: true },
+                    generation,
+                );
+            } catch (err) {
+                logger.error('Failed to emit initial editor state', LogCategory.TELEMETRY, err);
+            }
+        }
+
+        // 3. fileSwitch for the active editor (if any).
+        const activeUri = vscode.window.activeTextEditor?.document.uri.toString();
+        if (activeUri) {
+            this._recordInternal(
+                { type: 'fileSwitch', timestamp: Date.now(), fromUri: undefined, toUri: activeUri },
+                { allowDuringStartup: true },
+                generation,
+            );
+            this._lastActiveEditorUri = activeUri;
+        }
+
+        // 4. terminalOpenClose('opened') for every already-open terminal.
+        for (const terminal of vscode.window.terminals) {
+            this._recordInternal(
+                {
+                    type: 'terminalOpenClose',
+                    timestamp: Date.now(),
+                    action: 'opened',
+                    terminalName: terminal.name,
+                },
+                { allowDuringStartup: true },
+                generation,
+            );
         }
     }
 
@@ -555,9 +1187,10 @@ export class SessionRecorder implements vscode.Disposable, WebSocketMessageHandl
     }
 
     private _emitTerminalCommand(entry: PendingExecution): void {
-        if (!entry.endInfo || !this._isRecording) { return; }
+        if (!entry.endInfo) { return; }
+        if (this._phase !== 'recording') { return; }
         const now = Date.now();
-        this._record({
+        this._recordInternal({
             type: 'terminalCommand',
             timestamp: now,
             command: entry.endInfo.command,
@@ -567,12 +1200,12 @@ export class SessionRecorder implements vscode.Disposable, WebSocketMessageHandl
             cwd: entry.endInfo.cwd,
             terminalName: entry.endInfo.terminalName,
             durationMs: now - entry.startTime,
-        });
+        }, {}, entry.generation);
     }
 
-    private async _captureFirstOpenSnapshot(editor: vscode.TextEditor): Promise<void> {
+    private async _captureFirstOpenSnapshot(editor: vscode.TextEditor, generation: number): Promise<void> {
         try {
-            await this._snapshotDocument(editor.document.uri.toString(), editor.document.getText());
+            await this._snapshotDocument(editor.document.uri.toString(), editor.document.getText(), generation, false);
         } catch (err) {
             logger.error('Failed to capture first-open file snapshot', LogCategory.TELEMETRY, err);
         }

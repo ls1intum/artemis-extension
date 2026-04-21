@@ -25,6 +25,19 @@ export abstract class BaseWebviewProvider {
     /** Called for command-type messages after boilerplate handling. */
     protected abstract _handleCommand(message: Extract<WebviewToExtensionMessage, { type: 'command' }>): void;
 
+    /**
+     * Synchronously return the current panel visibility. Returns false when
+     * the view has not yet been resolved by VS Code.
+     *
+     * Used by session-recorder Startup-Contributors to seed a
+     * `panelVisibility` event reflecting the view's state at session start,
+     * even if the `onDidChangeVisibility` emitter has not fired yet this
+     * session.
+     */
+    public getCurrentVisibility(): boolean {
+        return this._view?.visible ?? false;
+    }
+
     /** Re-render the webview to pick up theme / config changes. */
     public refreshTheme(): void {
         Promise.resolve(this.render()).catch((err: unknown) => {

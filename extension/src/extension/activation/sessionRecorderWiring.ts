@@ -3,6 +3,7 @@ import type { ConsentService } from '../services/auth';
 import type { ArtemisWebsocketService } from '../services/websocket';
 import type { TelemetryManager, SessionRecorder } from '../services/telemetry';
 import { RecordingStatusBarService as RecordingStatusBarServiceImpl, SessionRecorder as SessionRecorderImpl } from '../services/telemetry';
+import type { RecordedEvent } from '../services/telemetry/recording/types';
 import type { ArtemisWebviewProvider, ChatWebviewProvider } from '../provider';
 import type { PlatformCapabilities } from '../theia';
 
@@ -93,24 +94,49 @@ export function wireSessionRecorder(deps: RecorderWiringDeps): RecorderWiringRes
         sessionRecorder.recordPanelVisibility('chat', visible);
     }));
 
-    // EQ engine state seeding on recording start
-    disposables.push(sessionRecorder.onDidChangeState(state => {
-        if (state.isRecording && state.eventCount <= 1) {
-            const eqState = telemetryManager.getEqEngineState();
-            if (eqState.snapshots.length > 0) {
-                sessionRecorder.recordEqEngineState(
-                    eqState.snapshots.map(s => ({
-                        timestamp: s.timestamp,
-                        hasErrors: s.hasErrors,
-                        errorFamilies: [...s.errorFamilies],
-                        errorCount: s.errorCount,
-                    })),
-                    eqState.currentEQ,
-                    eqState.pairCount,
-                    eqState.confidence,
-                );
-            }
+    // ── Startup contributors ─────────────────────────────────────────
+    // These run synchronously inside SessionRecorder._doStart, between the
+    // initial-state events and the `startupPhaseComplete` marker. They
+    // replace the old onDidChangeState seeding path (which fired after the
+    // first user event, not deterministically at session start).
+
+    // EQ engine state seeding
+    disposables.push(sessionRecorder.registerStartupContributor((ctx): RecordedEvent[] => {
+        const eqState = telemetryManager.getEqEngineState();
+        if (eqState.snapshots.length === 0) {
+            return [];
         }
+        return [{
+            type: 'eqEngineState',
+            timestamp: ctx.timestamp,
+            snapshots: eqState.snapshots.map(s => ({
+                timestamp: s.timestamp,
+                hasErrors: s.hasErrors,
+                errorFamilies: [...s.errorFamilies],
+                errorCount: s.errorCount,
+            })),
+            currentEQ: eqState.currentEQ,
+            pairCount: eqState.pairCount,
+            confidence: eqState.confidence,
+        }];
+    }));
+
+    // Panel visibility seeds — snapshot what is visible at session start.
+    disposables.push(sessionRecorder.registerStartupContributor((ctx): RecordedEvent[] => {
+        return [
+            {
+                type: 'panelVisibility',
+                timestamp: ctx.timestamp,
+                panel: 'artemis',
+                visible: artemisWebviewProvider.getCurrentVisibility(),
+            },
+            {
+                type: 'panelVisibility',
+                timestamp: ctx.timestamp,
+                panel: 'chat',
+                visible: chatWebviewProvider.getCurrentVisibility(),
+            },
+        ];
     }));
 
     // Recording status bar button
@@ -122,6 +148,6 @@ export function wireSessionRecorder(deps: RecorderWiringDeps): RecorderWiringRes
 
     return {
         sessionRecorder,
-        disposable: vscode.Disposable.from(sessionRecorder, ...disposables),
+        disposable: vscode.Disposable.from(...disposables),
     };
 }

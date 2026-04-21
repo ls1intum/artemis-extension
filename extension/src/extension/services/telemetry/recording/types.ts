@@ -85,12 +85,36 @@ export interface SessionStartEvent {
     exerciseId: number;
     participantId: string | undefined;
     exerciseRoot?: string;
+    /** Schema version for forward-compat parsing. Block AB introduces version 2. */
+    schemaVersion?: number;
 }
 
 export interface SessionEndEvent {
     type: 'sessionEnd';
     timestamp: number;
     exerciseId: number;
+}
+
+/**
+ * Emitted when user consent is downgraded (or upgraded) mid-session.
+ * Minimal payload — carries no user data — acts as a marker only. The
+ * downgraded path is followed by a `sessionEnd` and metadata finalisation.
+ */
+export interface ConsentChangeEvent {
+    type: 'consentChange';
+    timestamp: number;
+    level: 'downgraded' | 'upgraded';
+}
+
+/**
+ * Marker event indicating that all synchronous startup work (snapshots,
+ * initial diagnostics, initial-state events, startup contributors) has been
+ * flushed to the event stream. Consumers can use this as a cut-point for
+ * deterministic "seed state vs. runtime events" separation.
+ */
+export interface StartupPhaseCompleteEvent {
+    type: 'startupPhaseComplete';
+    timestamp: number;
 }
 
 export interface IrisChatMessageEvent {
@@ -196,6 +220,8 @@ export type RecordedEvent =
     | FileSnapshotEvent
     | SessionStartEvent
     | SessionEndEvent
+    | ConsentChangeEvent
+    | StartupPhaseCompleteEvent
     | IrisChatMessageEvent
     | EqSnapshotEvent
     | EqEngineStateEvent

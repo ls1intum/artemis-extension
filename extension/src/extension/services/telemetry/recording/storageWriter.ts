@@ -13,11 +13,9 @@
  * (`sessionStart`, `sessionEnd`, `consentChange`) are recorded like any other
  * event and share the same crash-durability boundary.
  *
- * NOTE: The VS Code `deactivate()` function in `extension.ts` is currently
- * synchronous. Making it async (so it can await SessionRecorder.dispose()) is
- * scoped to Block AB. Until that change lands, extension-unload durability is
- * best-effort: SessionRecorder.dispose() IS awaited when VS Code disposes
- * subscriptions, but `deactivate()` itself does not await it.
+ * On graceful extension unload, `deactivate()` in `extension.ts` is async
+ * and explicitly awaits `SessionRecorder.dispose()`, so all buffered events
+ * reach disk before the extension host tears down the process.
  *
  * ## Serialisation (Write Lane)
  *
@@ -82,6 +80,7 @@ export class RecordingStorageWriter {
     private _snapshotsDir: string | undefined;
     private _consecutiveErrors = 0;
     private _disabled = false;
+    private _disposed = false;
     private readonly _fs: RecordingFs;
 
     // ── Write-Lane state ──────────────────────────────────────────────────
@@ -236,6 +235,8 @@ export class RecordingStorageWriter {
      * warning is logged.
      */
     async dispose(): Promise<void> {
+        if (this._disposed) { return; }
+        this._disposed = true;
         this._stopFlushTimer();
 
         if (this._laneIdle) {
@@ -283,6 +284,7 @@ export class RecordingStorageWriter {
      * completed.
      */
     async abort(): Promise<void> {
+        if (this._disposed) { return; }
         this._stopFlushTimer();
         this._buffer = [];
         const dirToRemove = this._sessionDir;
