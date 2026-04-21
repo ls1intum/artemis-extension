@@ -56,6 +56,7 @@ import {
     collectVisibleRangeChange,
 } from './eventCollectors';
 import { shouldAcceptBuildResult } from '../buildResultGuard';
+import { shouldRecordUri } from './uriFilter';
 import { logger, LogCategory } from '../../loggingService';
 
 interface PendingExecution {
@@ -218,6 +219,17 @@ export class SessionRecorder implements vscode.Disposable, WebSocketMessageHandl
      */
     private _currentPhase(): RecorderPhase {
         return this._phase;
+    }
+
+    /**
+     * Parsed exercise root URI for use with `shouldRecordUri`. Returns
+     * `undefined` when no session is active (i.e. `_exerciseRoot` is unset).
+     * The exercise root is stored as a serialized URI string (e.g.
+     * "file:///workspace/ex1") so we parse on demand rather than storing a
+     * second field.
+     */
+    private get _exerciseRootUri(): vscode.Uri | undefined {
+        return this._exerciseRoot ? vscode.Uri.parse(this._exerciseRoot) : undefined;
     }
 
     // ── Public state accessors ────────────────────────────────────────
@@ -952,7 +964,7 @@ export class SessionRecorder implements vscode.Disposable, WebSocketMessageHandl
         // Text changes
         const textChange = vscode.workspace.onDidChangeTextDocument(event => {
             if (this._phase !== 'recording') { return; }
-            if (event.document.uri.scheme !== 'file') { return; }
+            if (!shouldRecordUri(event.document.uri, this._exerciseRootUri)) { return; }
             if (event.contentChanges.length === 0) { return; }
             this._recordInternal(collectTextChange(event), {}, this._currentGeneration);
         });
@@ -961,7 +973,7 @@ export class SessionRecorder implements vscode.Disposable, WebSocketMessageHandl
         // File save
         const save = vscode.workspace.onDidSaveTextDocument(doc => {
             if (this._phase !== 'recording') { return; }
-            if (doc.uri.scheme !== 'file') { return; }
+            if (!shouldRecordUri(doc.uri, this._exerciseRootUri)) { return; }
             this._recordInternal(collectSave(doc), {}, this._currentGeneration);
         });
         this._eventListenerDisposables.push(save);
@@ -972,12 +984,13 @@ export class SessionRecorder implements vscode.Disposable, WebSocketMessageHandl
             const prev = this._lastActiveEditorUri;
             const toUri = editor?.document.uri.toString();
             this._lastActiveEditorUri = toUri;
-            // Only record if at least one side is a file
-            if (prev || editor?.document.uri.scheme === 'file') {
+            // Record the switch when the destination is a recordable URI, or
+            // when there is a previous URI (switching away from a known editor).
+            if (prev || (editor && shouldRecordUri(editor.document.uri, this._exerciseRootUri))) {
                 this._recordInternal(collectFileSwitch(prev, editor), {}, this._currentGeneration);
             }
-            // Snapshot file if opened for the first time this session
-            if (editor && editor.document.uri.scheme === 'file' && toUri && !this._snapshotedUris.has(toUri)) {
+            // Snapshot file if it is recordable and opened for the first time this session.
+            if (editor && shouldRecordUri(editor.document.uri, this._exerciseRootUri) && toUri && !this._snapshotedUris.has(toUri)) {
                 const capturedGen = this._currentGeneration;
                 void this._captureFirstOpenSnapshot(editor, capturedGen);
             }
@@ -988,7 +1001,7 @@ export class SessionRecorder implements vscode.Disposable, WebSocketMessageHandl
         const diagnosticsChange = vscode.languages.onDidChangeDiagnostics(event => {
             if (this._phase !== 'recording') { return; }
             for (const uri of event.uris) {
-                if (uri.scheme !== 'file') { continue; }
+                if (!shouldRecordUri(uri, this._exerciseRootUri)) { continue; }
                 this._recordInternal(collectDiagnostics(uri), {}, this._currentGeneration);
             }
         });
@@ -1007,7 +1020,7 @@ export class SessionRecorder implements vscode.Disposable, WebSocketMessageHandl
         // fired, not whatever the editor shows 200ms later.
         const selectionChange = vscode.window.onDidChangeTextEditorSelection(event => {
             if (this._phase !== 'recording') { return; }
-            if (event.textEditor.document.uri.scheme !== 'file') { return; }
+            if (!shouldRecordUri(event.textEditor.document.uri, this._exerciseRootUri)) { return; }
             const uri = event.textEditor.document.uri.toString();
             // Serialize at trigger time (fixes J.2: callback-time read).
             const payload = collectSelectionChange(event.textEditor, event.kind);
@@ -1033,7 +1046,7 @@ export class SessionRecorder implements vscode.Disposable, WebSocketMessageHandl
         // Visible range changes (debounced 300ms, per-URI — Block J).
         const visibleRangeChange = vscode.window.onDidChangeTextEditorVisibleRanges(event => {
             if (this._phase !== 'recording') { return; }
-            if (event.textEditor.document.uri.scheme !== 'file') { return; }
+            if (!shouldRecordUri(event.textEditor.document.uri, this._exerciseRootUri)) { return; }
             const uri = event.textEditor.document.uri.toString();
             // Serialize at trigger time (fixes J.2).
             const payload = collectVisibleRangeChange(event.textEditor);
@@ -1214,7 +1227,7 @@ export class SessionRecorder implements vscode.Disposable, WebSocketMessageHandl
 
     private async _captureOpenFileSnapshots(generation: number): Promise<void> {
         for (const doc of vscode.workspace.textDocuments) {
-            if (doc.uri.scheme !== 'file') {
+            if (!shouldRecordUri(doc.uri, this._exerciseRootUri)) {
                 continue;
             }
             // Stop starting new snapshot writes as soon as the session is
@@ -1235,7 +1248,7 @@ export class SessionRecorder implements vscode.Disposable, WebSocketMessageHandl
     private _captureInitialDiagnostics(generation: number): void {
         const allDiagnostics = vscode.languages.getDiagnostics();
         for (const [uri, diagnostics] of allDiagnostics) {
-            if (uri.scheme !== 'file' || diagnostics.length === 0) {
+            if (!shouldRecordUri(uri, this._exerciseRootUri) || diagnostics.length === 0) {
                 continue;
             }
             this._recordInternal(
@@ -1271,7 +1284,7 @@ export class SessionRecorder implements vscode.Disposable, WebSocketMessageHandl
 
         // 2. Selection + visible range for every visible file editor.
         for (const editor of vscode.window.visibleTextEditors) {
-            if (editor.document.uri.scheme !== 'file') {
+            if (!shouldRecordUri(editor.document.uri, this._exerciseRootUri)) {
                 continue;
             }
             try {
