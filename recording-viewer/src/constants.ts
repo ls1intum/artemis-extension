@@ -23,6 +23,11 @@ export const MARKER_COLORS: Record<EventType, string> = {
     terminalCommand: '#22d3ee',
     terminalOpenClose: '#67e8f9',
     fileSnapshotError: '#f87171',
+    fileCreate: '#86efac',
+    fileDelete: '#fca5a5',
+    fileRename: '#fdba74',
+    textDocumentOpen: '#7dd3fc',
+    textDocumentClose: '#93c5fd',
 };
 
 export const ALL_EVENT_TYPES = [
@@ -37,6 +42,8 @@ export const ALL_EVENT_TYPES = [
     'selectionChange', 'visibleRangeChange',
     'terminalCommand', 'terminalOpenClose',
     'fileSnapshotError',
+    'fileCreate', 'fileDelete', 'fileRename',
+    'textDocumentOpen', 'textDocumentClose',
 ] as const satisfies readonly EventType[];
 
 // Compile error if a new event type is added but not listed above

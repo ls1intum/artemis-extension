@@ -194,6 +194,20 @@ function EventDetail({ event }: { event: RecordedEvent }) {
                     {shortenUri(event.uri)} | {event.reason}
                 </span>
             );
+        case 'fileCreate':
+            return <span className="event-detail">{shortenUri(event.uri)}</span>;
+        case 'fileDelete':
+            return <span className="event-detail">{shortenUri(event.uri)}</span>;
+        case 'fileRename':
+            return (
+                <span className="event-detail">
+                    {shortenUri(event.oldUri)} &rarr; {shortenUri(event.newUri)}
+                </span>
+            );
+        case 'textDocumentOpen':
+            return <span className="event-detail">{shortenUri(event.uri)}</span>;
+        case 'textDocumentClose':
+            return <span className="event-detail">{shortenUri(event.uri)}</span>;
         default:
             return null;
     }

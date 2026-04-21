@@ -1090,6 +1090,77 @@ export class SessionRecorder implements vscode.Disposable, WebSocketMessageHandl
         });
         this._eventListenerDisposables.push(terminalClose);
 
+        // File workspace events (Block K)
+        const fileCreate = vscode.workspace.onDidCreateFiles(event => {
+            if (this._phase !== 'recording') { return; }
+            const gen = this._currentGeneration;
+            for (const uri of event.files) {
+                if (!shouldRecordUri(uri, this._exerciseRootUri)) { continue; }
+                this._recordInternal({
+                    type: 'fileCreate',
+                    timestamp: Date.now(),
+                    uri: uri.toString(),
+                }, {}, gen);
+            }
+        });
+        this._eventListenerDisposables.push(fileCreate);
+
+        const fileDelete = vscode.workspace.onDidDeleteFiles(event => {
+            if (this._phase !== 'recording') { return; }
+            const gen = this._currentGeneration;
+            for (const uri of event.files) {
+                if (!shouldRecordUri(uri, this._exerciseRootUri)) { continue; }
+                this._recordInternal({
+                    type: 'fileDelete',
+                    timestamp: Date.now(),
+                    uri: uri.toString(),
+                }, {}, gen);
+            }
+        });
+        this._eventListenerDisposables.push(fileDelete);
+
+        const fileRename = vscode.workspace.onDidRenameFiles(event => {
+            if (this._phase !== 'recording') { return; }
+            const gen = this._currentGeneration;
+            for (const { oldUri, newUri } of event.files) {
+                // Record when either end of the rename is within the exercise root.
+                if (!shouldRecordUri(oldUri, this._exerciseRootUri) && !shouldRecordUri(newUri, this._exerciseRootUri)) {
+                    continue;
+                }
+                this._recordInternal({
+                    type: 'fileRename',
+                    timestamp: Date.now(),
+                    oldUri: oldUri.toString(),
+                    newUri: newUri.toString(),
+                }, {}, gen);
+            }
+        });
+        this._eventListenerDisposables.push(fileRename);
+
+        const textDocumentOpen = vscode.workspace.onDidOpenTextDocument(doc => {
+            if (this._phase !== 'recording') { return; }
+            if (!shouldRecordUri(doc.uri, this._exerciseRootUri)) { return; }
+            const gen = this._currentGeneration;
+            this._recordInternal({
+                type: 'textDocumentOpen',
+                timestamp: Date.now(),
+                uri: doc.uri.toString(),
+            }, {}, gen);
+        });
+        this._eventListenerDisposables.push(textDocumentOpen);
+
+        const textDocumentClose = vscode.workspace.onDidCloseTextDocument(doc => {
+            if (this._phase !== 'recording') { return; }
+            if (!shouldRecordUri(doc.uri, this._exerciseRootUri)) { return; }
+            const gen = this._currentGeneration;
+            this._recordInternal({
+                type: 'textDocumentClose',
+                timestamp: Date.now(),
+                uri: doc.uri.toString(),
+            }, {}, gen);
+        });
+        this._eventListenerDisposables.push(textDocumentClose);
+
         // Terminal shell execution tracking — only available in VS Code Desktop (not all Theia builds)
         if (this._capabilities?.hasTerminalShellExecution !== false) {
             const shellExecStart = vscode.window.onDidStartTerminalShellExecution(event => {

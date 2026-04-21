@@ -29,6 +29,16 @@ const categories = [
         ],
     },
     {
+        title: 'File System',
+        items: [
+            { badge: 'fileCreate', label: 'FileCreate', desc: 'File created inside the exercise root (workspace onDidCreateFiles)' },
+            { badge: 'fileDelete', label: 'FileDelete', desc: 'File deleted inside the exercise root (workspace onDidDeleteFiles)' },
+            { badge: 'fileRename', label: 'FileRename', desc: 'File renamed/moved inside or into/out of the exercise root (oldUri + newUri)' },
+            { badge: 'textDocumentOpen', label: 'TextDocumentOpen', desc: 'Text document opened in the editor (workspace onDidOpenTextDocument)' },
+            { badge: 'textDocumentClose', label: 'TextDocumentClose', desc: 'Text document closed in the editor (workspace onDidCloseTextDocument)' },
+        ],
+    },
+    {
         title: 'AI Interaction',
         items: [
             { badge: 'irisChatMessage', label: 'IrisChatMessage', desc: 'Sent and received chat messages with full content (optionally includes messageId, sessionId, sentAt)' },

@@ -204,6 +204,39 @@ export interface FileSnapshotErrorEvent {
     reason: string;
 }
 
+// ── Block K: Workspace file events (schemaVersion 2) ─────────────────
+
+export interface FileCreateEvent {
+    type: 'fileCreate';
+    timestamp: number;
+    uri: string;
+}
+
+export interface FileDeleteEvent {
+    type: 'fileDelete';
+    timestamp: number;
+    uri: string;
+}
+
+export interface FileRenameEvent {
+    type: 'fileRename';
+    timestamp: number;
+    oldUri: string;
+    newUri: string;
+}
+
+export interface TextDocumentOpenEvent {
+    type: 'textDocumentOpen';
+    timestamp: number;
+    uri: string;
+}
+
+export interface TextDocumentCloseEvent {
+    type: 'textDocumentClose';
+    timestamp: number;
+    uri: string;
+}
+
 // ── Discriminated union ───────────────────────────────────────────────
 
 export type RecordedEvent =
@@ -228,7 +261,12 @@ export type RecordedEvent =
     | VisibleRangeChangeEvent
     | TerminalCommandEvent
     | TerminalOpenCloseEvent
-    | FileSnapshotErrorEvent;
+    | FileSnapshotErrorEvent
+    | FileCreateEvent
+    | FileDeleteEvent
+    | FileRenameEvent
+    | TextDocumentOpenEvent
+    | TextDocumentCloseEvent;
 
 // ── Session metadata ──────────────────────────────────────────────────
 

@@ -103,6 +103,16 @@ function eventSummary(event: RecordedEvent, sessionStartTime: number): React.Rea
             return <><span className="tt-time">{time}</span> {event.action} | {event.terminalName}</>;
         case 'fileSnapshotError':
             return <><span className="tt-time">{time}</span> {shortenUri(event.uri)} | {event.reason}</>;
+        case 'fileCreate':
+            return <><span className="tt-time">{time}</span> {shortenUri(event.uri)}</>;
+        case 'fileDelete':
+            return <><span className="tt-time">{time}</span> {shortenUri(event.uri)}</>;
+        case 'fileRename':
+            return <><span className="tt-time">{time}</span> {shortenUri(event.oldUri)} → {shortenUri(event.newUri)}</>;
+        case 'textDocumentOpen':
+            return <><span className="tt-time">{time}</span> {shortenUri(event.uri)}</>;
+        case 'textDocumentClose':
+            return <><span className="tt-time">{time}</span> {shortenUri(event.uri)}</>;
         default:
             return <span className="tt-time">{time}</span>;
     }

@@ -11,4 +11,9 @@ export type {
     ConsentChangeEvent,
     StartupPhaseCompleteEvent,
     FileSnapshotErrorEvent,
+    FileCreateEvent,
+    FileDeleteEvent,
+    FileRenameEvent,
+    TextDocumentOpenEvent,
+    TextDocumentCloseEvent,
 } from './types';
