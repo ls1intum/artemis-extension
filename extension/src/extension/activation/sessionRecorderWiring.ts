@@ -8,7 +8,7 @@ import type { ArtemisWebviewProvider, ChatWebviewProvider } from '../provider';
 import type { PlatformCapabilities } from '../theia';
 import type { ExerciseRegistry } from '../services/exerciseRegistry';
 
-export interface RecorderWiringDeps {
+interface RecorderWiringDeps {
     context: vscode.ExtensionContext;
     consentService: ConsentService;
     artemisWebsocketService: ArtemisWebsocketService;
@@ -19,7 +19,7 @@ export interface RecorderWiringDeps {
     exerciseRegistry?: ExerciseRegistry;
 }
 
-export interface RecorderWiringResult {
+interface RecorderWiringResult {
     sessionRecorder: SessionRecorder;
     disposable: vscode.Disposable;
 }

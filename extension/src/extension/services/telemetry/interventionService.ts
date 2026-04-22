@@ -11,14 +11,14 @@ import {
 /**
  * Payload emitted by onDidBlockIntervention.
  */
-export interface BlockedInterventionPayload {
+interface BlockedInterventionPayload {
     decision: InterventionDecision;
 }
 
 /**
  * Payload emitted by onDidDismissIntervention (extends InterventionDecision with dismissReason).
  */
-export interface DismissInterventionPayload extends InterventionDecision {
+interface DismissInterventionPayload extends InterventionDecision {
     dismissReason: InterventionDismissReason;
 }
 
@@ -26,7 +26,7 @@ export interface DismissInterventionPayload extends InterventionDecision {
  * Payload emitted by onDidAcceptIntervention — identical to InterventionDecision for now,
  * typed separately to allow future extension.
  */
-export type AcceptInterventionPayload = InterventionDecision;
+type AcceptInterventionPayload = InterventionDecision;
 
 /**
  * Service that handles UI interventions based on struggle detection.
