@@ -45,38 +45,13 @@ import type { RecordedEvent, SessionMetadata, SerializedErrorSnapshot } from './
 import type { PlatformCapabilities } from '../../../theia';
 import type { ExerciseRegistry } from '../../exerciseRegistry';
 import { RecordingStorageWriter } from './storageWriter';
-import {
-    collectTextChange,
-    collectSave,
-    collectFileSwitch,
-    collectDiagnostics,
-    collectBuildResult,
-    collectWindowFocus,
-    collectSelectionChange,
-    collectVisibleRangeChange,
-} from './eventCollectors';
+import { collectBuildResult } from './eventCollectors';
 import { shouldAcceptBuildResult } from '../buildResultGuard';
-import { shouldRecordUri } from './uriFilter';
 import { logger, LogCategory } from '../../loggingService';
 import { RecorderLifecycleState, type RecorderPhase as RecorderPhaseFromState } from './lifecycle/recorderLifecycleState';
 import { SnapshotManager } from './snapshots/snapshotManager';
 import { StartupCapture, type StartupContext as StartupContextFromModule, type StartupContributor as StartupContributorFromModule } from './startup/startupCapture';
-
-interface PendingExecution {
-    output: string;
-    startTime: number;
-    truncated: boolean;
-    readerDone: boolean;
-    endInfo: {
-        exitCode: number | undefined;
-        terminalName: string;
-        command: string;
-        cwd: string | undefined;
-    } | undefined;
-    aborted: boolean;
-    /** Generation token captured when the execution started. */
-    generation: number;
-}
+import { ObservationRegistry } from './observation/observationRegistry';
 
 export interface RecordingState {
     isEnabled: boolean;
@@ -129,35 +104,23 @@ export class SessionRecorder implements vscode.Disposable, WebSocketMessageHandl
 
     // ── Session state ──────────────────────────────────────────────────
 
-    private _lastActiveEditorUri: string | undefined;
     private readonly _snapshots: SnapshotManager;
-    /**
-     * Per-URI debounce timers for selection-change events (Block J).
-     * Keyed by document URI string so rapid switches between File A and File B
-     * each maintain an independent timer and neither event overwrites the other.
-     */
-    private _selectionDebounceTimers = new Map<string, ReturnType<typeof setTimeout>>();
-    /**
-     * Per-URI debounce timers for visible-range-change events (Block J).
-     */
-    private _visibleRangeDebounceTimers = new Map<string, ReturnType<typeof setTimeout>>();
-    /**
-     * Payloads serialized at trigger time (not callback time) for pending
-     * selection-change debounces. Keyed by URI so each file's latest event is
-     * captured independently. Cleared when the timer fires or on session end.
-     */
-    private _pendingSelectionPayloads = new Map<string, RecordedEvent>();
-    /**
-     * Payloads serialized at trigger time for pending visible-range-change
-     * debounces. Keyed by URI.
-     */
-    private _pendingVisibleRangePayloads = new Map<string, RecordedEvent>();
-    private _pendingExecutions = new Map<vscode.TerminalShellExecution, PendingExecution>();
-    private static readonly MAX_OUTPUT_CHARS = 10240;
-    private static readonly SELECTION_DEBOUNCE_MS = 200;
-    private static readonly VISIBLE_RANGE_DEBOUNCE_MS = 300;
+    private readonly _observation: ObservationRegistry;
 
-    private _eventListenerDisposables: vscode.Disposable[] = [];
+    // Test-access shims (getters only). Forward to ObservationRegistry.
+    private get _pendingSelectionPayloads(): Map<string, RecordedEvent> {
+        return (this._observation as unknown as { _pendingSelectionPayloads: Map<string, RecordedEvent> })._pendingSelectionPayloads;
+    }
+    private get _pendingVisibleRangePayloads(): Map<string, RecordedEvent> {
+        return (this._observation as unknown as { _pendingVisibleRangePayloads: Map<string, RecordedEvent> })._pendingVisibleRangePayloads;
+    }
+    private get _lastActiveEditorUri(): string | undefined {
+        return (this._observation as unknown as { _lastActiveEditorUri: string | undefined })._lastActiveEditorUri;
+    }
+    private set _lastActiveEditorUri(uri: string | undefined) {
+        this._observation.seedActiveEditor(uri);
+    }
+
     private readonly _writer: RecordingStorageWriter;
     private readonly _startup: StartupCapture;
 
@@ -185,6 +148,12 @@ export class SessionRecorder implements vscode.Disposable, WebSocketMessageHandl
         });
         this._startup = new StartupCapture({
             record: (event, opts, gen) => this._recordInternal(event, opts, gen),
+        });
+        this._observation = new ObservationRegistry({
+            state: this._state,
+            snapshots: this._snapshots,
+            record: (event, opts, gen) => this._recordInternal(event, opts, gen),
+            capabilities: this._capabilities,
         });
     }
 
@@ -246,7 +215,7 @@ export class SessionRecorder implements vscode.Disposable, WebSocketMessageHandl
             return;
         }
         this._state.transitionPhase(['disabled'], 'idle');
-        this._registerEventListeners();
+        this._observation.enable();
         this._fireStateChange();
         logger.info('SessionRecorder enabled', LogCategory.TELEMETRY);
     }
@@ -278,6 +247,12 @@ export class SessionRecorder implements vscode.Disposable, WebSocketMessageHandl
         // future `_currentGeneration` after a later enable/startSession
         // cycle.
         this._state.bumpRequestedGeneration();
+
+        // Sync prelude (GDPR Option A): discard buffered debounced payloads
+        // and abort pending terminal executions. The user revoked consent,
+        // so the last cached keystroke derivative must not hit disk.
+        this._observation.discardDebouncesForConsentDowngrade();
+        this._observation.setExerciseContext(undefined);
 
         this._enqueueLifecycle('disable', () => this._doDisable({ shouldFinalize, generation }));
         logger.info('SessionRecorder disable requested', LogCategory.TELEMETRY);
@@ -542,7 +517,7 @@ export class SessionRecorder implements vscode.Disposable, WebSocketMessageHandl
         } catch {
             /* lifecycle promise is always settled-success, but be defensive */
         }
-        this._disposeEventListeners();
+        this._observation.disposeSubscriptions();
         await this._writer.dispose();
         this._onDidChangeState.dispose();
     }
@@ -655,7 +630,8 @@ export class SessionRecorder implements vscode.Disposable, WebSocketMessageHandl
             exerciseRoot,
             sessionStartTime: Date.now(),
         });
-        this._lastActiveEditorUri = vscode.window.activeTextEditor?.document.uri.toString();
+        this._observation.setExerciseContext(this._exerciseRootUri);
+        this._observation.seedActiveEditor(vscode.window.activeTextEditor?.document.uri.toString());
 
         await this._writer.initSession(sessionId);
 
@@ -750,16 +726,8 @@ export class SessionRecorder implements vscode.Disposable, WebSocketMessageHandl
         const generation = this._currentGeneration;
         this._state.transitionPhase(['recording', 'starting'], 'ending');
 
-        // Flush pending debounced payloads so the session ends with a complete
-        // picture. These use the ending-allowance so _recordInternal lets them
-        // through.
-        this._flushPendingDebouncesForEnd(generation);
-
-        // Abort any still-running terminal shell executions.
-        for (const entry of this._pendingExecutions.values()) {
-            entry.aborted = true;
-        }
-        this._pendingExecutions.clear();
+        // Flush pending debounced payloads + abort pending terminal execs.
+        this._observation.flushDebouncesForEnd(generation);
 
         const exerciseId = active.exerciseId;
         this._writeLifecycleEvent({
@@ -790,6 +758,7 @@ export class SessionRecorder implements vscode.Disposable, WebSocketMessageHandl
         // finalized. Until then, a concurrent disable() must still see
         // _sessionStartWritten=true and route through the downgrade path.
         this._state.clearCommitAfterFinalize();
+        this._observation.setExerciseContext(undefined);
         this._resetSessionState();
         this._state.clearActiveSessionAfterFinalize();
         this._fireStateChange();
@@ -821,7 +790,7 @@ export class SessionRecorder implements vscode.Disposable, WebSocketMessageHandl
             }
         }
 
-        this._disposeEventListeners();
+        this._observation.disposeSubscriptions();
         // If _doFinalizeAfterDisable ran, phase already moved to 'disabled'
         // via clearActiveSessionAfterFinalize(). Otherwise, force the flip now.
         if (this._phase !== 'disabled') {
@@ -850,24 +819,10 @@ export class SessionRecorder implements vscode.Disposable, WebSocketMessageHandl
             level: 'downgraded',
         });
 
-        // GDPR-strict: discard any buffered debounced payloads. These are the
-        // last bits of observation the user did not want recorded.
-        for (const timer of this._selectionDebounceTimers.values()) {
-            clearTimeout(timer);
-        }
-        this._selectionDebounceTimers.clear();
-        this._pendingSelectionPayloads.clear();
-        for (const timer of this._visibleRangeDebounceTimers.values()) {
-            clearTimeout(timer);
-        }
-        this._visibleRangeDebounceTimers.clear();
-        this._pendingVisibleRangePayloads.clear();
-
-        // Abort any still-running terminal shell executions.
-        for (const entry of this._pendingExecutions.values()) {
-            entry.aborted = true;
-        }
-        this._pendingExecutions.clear();
+        // GDPR-strict discard already happened in the sync prelude of
+        // disable(). This redundant no-op stays for defence-in-depth if
+        // anything async leaked a payload back in.
+        this._observation.discardDebouncesForConsentDowngrade();
 
         this._writeLifecycleEvent({
             type: 'sessionEnd',
@@ -898,329 +853,5 @@ export class SessionRecorder implements vscode.Disposable, WebSocketMessageHandl
         this._lastActiveEditorUri = undefined;
     }
 
-    private _flushPendingDebouncesForEnd(generation: number): void {
-        // Cancel all per-URI timers and flush their payloads (Block J).
-        for (const timer of this._selectionDebounceTimers.values()) {
-            clearTimeout(timer);
-        }
-        this._selectionDebounceTimers.clear();
-        for (const payload of this._pendingSelectionPayloads.values()) {
-            this._recordInternal(payload, { allowDuringEnding: true }, generation);
-        }
-        this._pendingSelectionPayloads.clear();
-
-        for (const timer of this._visibleRangeDebounceTimers.values()) {
-            clearTimeout(timer);
-        }
-        this._visibleRangeDebounceTimers.clear();
-        for (const payload of this._pendingVisibleRangePayloads.values()) {
-            this._recordInternal(payload, { allowDuringEnding: true }, generation);
-        }
-        this._pendingVisibleRangePayloads.clear();
-    }
-
-    // ── Private: Listener setup ───────────────────────────────────────
-
-    private _registerEventListeners(): void {
-        // Text changes
-        const textChange = vscode.workspace.onDidChangeTextDocument(event => {
-            if (this._phase !== 'recording') { return; }
-            if (!shouldRecordUri(event.document.uri, this._exerciseRootUri)) { return; }
-            if (event.contentChanges.length === 0) { return; }
-            this._recordInternal(collectTextChange(event), {}, this._currentGeneration);
-        });
-        this._eventListenerDisposables.push(textChange);
-
-        // File save
-        const save = vscode.workspace.onDidSaveTextDocument(doc => {
-            if (this._phase !== 'recording') { return; }
-            if (!shouldRecordUri(doc.uri, this._exerciseRootUri)) { return; }
-            this._recordInternal(collectSave(doc), {}, this._currentGeneration);
-        });
-        this._eventListenerDisposables.push(save);
-
-        // Active editor switch + snapshot on first open
-        const editorSwitch = vscode.window.onDidChangeActiveTextEditor(editor => {
-            if (this._phase !== 'recording') { return; }
-            const prev = this._lastActiveEditorUri;
-            const toUri = editor?.document.uri.toString();
-            this._lastActiveEditorUri = toUri;
-            // Record the switch when the destination is a recordable URI, or
-            // when there is a previous URI (switching away from a known editor).
-            if (prev || (editor && shouldRecordUri(editor.document.uri, this._exerciseRootUri))) {
-                this._recordInternal(collectFileSwitch(prev, editor), {}, this._currentGeneration);
-            }
-            // Snapshot file if it is recordable and opened for the first time this session.
-            if (editor && shouldRecordUri(editor.document.uri, this._exerciseRootUri) && toUri && !this._snapshots.hasSnapshot(toUri)) {
-                const capturedGen = this._currentGeneration;
-                const content = editor.document.getText();
-                void this._snapshots.snapshotContent(toUri, content, capturedGen, { allowDuringStartup: false })
-                    .catch(err => logger.error('Failed to capture first-open file snapshot', LogCategory.TELEMETRY, err));
-            }
-        });
-        this._eventListenerDisposables.push(editorSwitch);
-
-        // Diagnostics changes
-        const diagnosticsChange = vscode.languages.onDidChangeDiagnostics(event => {
-            if (this._phase !== 'recording') { return; }
-            for (const uri of event.uris) {
-                if (!shouldRecordUri(uri, this._exerciseRootUri)) { continue; }
-                this._recordInternal(collectDiagnostics(uri), {}, this._currentGeneration);
-            }
-        });
-        this._eventListenerDisposables.push(diagnosticsChange);
-
-        // Window focus
-        const windowFocus = vscode.window.onDidChangeWindowState(state => {
-            if (this._phase !== 'recording') { return; }
-            this._recordInternal(collectWindowFocus(state), {}, this._currentGeneration);
-        });
-        this._eventListenerDisposables.push(windowFocus);
-
-        // Selection changes (debounced 200ms, per-URI — Block J).
-        // Payload is serialized NOW (trigger time), not inside the callback,
-        // so the recorded selections reflect the state at the moment the event
-        // fired, not whatever the editor shows 200ms later.
-        const selectionChange = vscode.window.onDidChangeTextEditorSelection(event => {
-            if (this._phase !== 'recording') { return; }
-            if (!shouldRecordUri(event.textEditor.document.uri, this._exerciseRootUri)) { return; }
-            const uri = event.textEditor.document.uri.toString();
-            // Serialize at trigger time (fixes J.2: callback-time read).
-            const payload = collectSelectionChange(event.textEditor, event.kind);
-            this._pendingSelectionPayloads.set(uri, payload);
-            const capturedGen = this._currentGeneration;
-            // Clear any existing timer for this URI (fixes J.1: per-URI timer).
-            const existing = this._selectionDebounceTimers.get(uri);
-            if (existing !== undefined) { clearTimeout(existing); }
-            const timer = setTimeout(() => {
-                this._selectionDebounceTimers.delete(uri);
-                // Only record if this payload is still the pending one for this
-                // URI (guards against a race where a new trigger arrived in the
-                // tiny window between the timer firing and this line executing).
-                if (this._pendingSelectionPayloads.get(uri) === payload) {
-                    this._pendingSelectionPayloads.delete(uri);
-                    this._recordInternal(payload, {}, capturedGen);
-                }
-            }, SessionRecorder.SELECTION_DEBOUNCE_MS);
-            this._selectionDebounceTimers.set(uri, timer);
-        });
-        this._eventListenerDisposables.push(selectionChange);
-
-        // Visible range changes (debounced 300ms, per-URI — Block J).
-        const visibleRangeChange = vscode.window.onDidChangeTextEditorVisibleRanges(event => {
-            if (this._phase !== 'recording') { return; }
-            if (!shouldRecordUri(event.textEditor.document.uri, this._exerciseRootUri)) { return; }
-            const uri = event.textEditor.document.uri.toString();
-            // Serialize at trigger time (fixes J.2).
-            const payload = collectVisibleRangeChange(event.textEditor);
-            this._pendingVisibleRangePayloads.set(uri, payload);
-            const capturedGen = this._currentGeneration;
-            // Clear any existing timer for this URI (fixes J.1).
-            const existing = this._visibleRangeDebounceTimers.get(uri);
-            if (existing !== undefined) { clearTimeout(existing); }
-            const timer = setTimeout(() => {
-                this._visibleRangeDebounceTimers.delete(uri);
-                if (this._pendingVisibleRangePayloads.get(uri) === payload) {
-                    this._pendingVisibleRangePayloads.delete(uri);
-                    this._recordInternal(payload, {}, capturedGen);
-                }
-            }, SessionRecorder.VISIBLE_RANGE_DEBOUNCE_MS);
-            this._visibleRangeDebounceTimers.set(uri, timer);
-        });
-        this._eventListenerDisposables.push(visibleRangeChange);
-
-        // Terminal open
-        const terminalOpen = vscode.window.onDidOpenTerminal(terminal => {
-            if (this._phase !== 'recording') { return; }
-            this._recordInternal({
-                type: 'terminalOpenClose',
-                timestamp: Date.now(),
-                action: 'opened',
-                terminalName: terminal.name,
-            }, {}, this._currentGeneration);
-        });
-        this._eventListenerDisposables.push(terminalOpen);
-
-        // Terminal close
-        const terminalClose = vscode.window.onDidCloseTerminal(terminal => {
-            if (this._phase !== 'recording') { return; }
-            this._recordInternal({
-                type: 'terminalOpenClose',
-                timestamp: Date.now(),
-                action: 'closed',
-                terminalName: terminal.name,
-            }, {}, this._currentGeneration);
-        });
-        this._eventListenerDisposables.push(terminalClose);
-
-        // File workspace events (Block K)
-        const fileCreate = vscode.workspace.onDidCreateFiles(event => {
-            if (this._phase !== 'recording') { return; }
-            const gen = this._currentGeneration;
-            for (const uri of event.files) {
-                if (!shouldRecordUri(uri, this._exerciseRootUri)) { continue; }
-                this._recordInternal({
-                    type: 'fileCreate',
-                    timestamp: Date.now(),
-                    uri: uri.toString(),
-                }, {}, gen);
-            }
-        });
-        this._eventListenerDisposables.push(fileCreate);
-
-        const fileDelete = vscode.workspace.onDidDeleteFiles(event => {
-            if (this._phase !== 'recording') { return; }
-            const gen = this._currentGeneration;
-            for (const uri of event.files) {
-                if (!shouldRecordUri(uri, this._exerciseRootUri)) { continue; }
-                this._recordInternal({
-                    type: 'fileDelete',
-                    timestamp: Date.now(),
-                    uri: uri.toString(),
-                }, {}, gen);
-            }
-        });
-        this._eventListenerDisposables.push(fileDelete);
-
-        const fileRename = vscode.workspace.onDidRenameFiles(event => {
-            if (this._phase !== 'recording') { return; }
-            const gen = this._currentGeneration;
-            for (const { oldUri, newUri } of event.files) {
-                // Record when either end of the rename is within the exercise root.
-                if (!shouldRecordUri(oldUri, this._exerciseRootUri) && !shouldRecordUri(newUri, this._exerciseRootUri)) {
-                    continue;
-                }
-                this._recordInternal({
-                    type: 'fileRename',
-                    timestamp: Date.now(),
-                    oldUri: oldUri.toString(),
-                    newUri: newUri.toString(),
-                }, {}, gen);
-            }
-        });
-        this._eventListenerDisposables.push(fileRename);
-
-        const textDocumentOpen = vscode.workspace.onDidOpenTextDocument(doc => {
-            if (this._phase !== 'recording') { return; }
-            if (!shouldRecordUri(doc.uri, this._exerciseRootUri)) { return; }
-            const gen = this._currentGeneration;
-            this._recordInternal({
-                type: 'textDocumentOpen',
-                timestamp: Date.now(),
-                uri: doc.uri.toString(),
-            }, {}, gen);
-        });
-        this._eventListenerDisposables.push(textDocumentOpen);
-
-        const textDocumentClose = vscode.workspace.onDidCloseTextDocument(doc => {
-            if (this._phase !== 'recording') { return; }
-            if (!shouldRecordUri(doc.uri, this._exerciseRootUri)) { return; }
-            const gen = this._currentGeneration;
-            this._recordInternal({
-                type: 'textDocumentClose',
-                timestamp: Date.now(),
-                uri: doc.uri.toString(),
-            }, {}, gen);
-        });
-        this._eventListenerDisposables.push(textDocumentClose);
-
-        // Terminal shell execution tracking — only available in VS Code Desktop (not all Theia builds)
-        if (this._capabilities?.hasTerminalShellExecution !== false) {
-            const shellExecStart = vscode.window.onDidStartTerminalShellExecution(event => {
-                if (this._phase !== 'recording') { return; }
-                const entry: PendingExecution = {
-                    output: '', startTime: Date.now(), truncated: false,
-                    readerDone: false, endInfo: undefined, aborted: false,
-                    generation: this._currentGeneration,
-                };
-                this._pendingExecutions.set(event.execution, entry);
-                void this._collectExecutionOutput(event.execution, entry);
-            });
-            this._eventListenerDisposables.push(shellExecStart);
-
-            const shellExecEnd = vscode.window.onDidEndTerminalShellExecution(event => {
-                if (this._phase !== 'recording') { return; }
-                const entry = this._pendingExecutions.get(event.execution);
-                if (!entry) { return; }
-                this._pendingExecutions.delete(event.execution);
-                entry.endInfo = {
-                    exitCode: event.exitCode,
-                    terminalName: event.terminal.name,
-                    command: event.execution.commandLine.value,
-                    cwd: event.execution.cwd?.toString(),
-                };
-                if (entry.readerDone) {
-                    this._emitTerminalCommand(entry);
-                }
-            });
-            this._eventListenerDisposables.push(shellExecEnd);
-        }
-    }
-
-    private _disposeEventListeners(): void {
-        // Stop all pending debounce timers so their callbacks never fire after
-        // the listeners are torn down. Payload maps are cleared here too so no
-        // orphaned payloads remain after the timers are cancelled — this is safe
-        // because every caller either flushed (endSession path via
-        // _flushPendingDebouncesForEnd) or discarded (_doFinalizeAfterDisable)
-        // the pending payloads before reaching this point.
-        for (const timer of this._selectionDebounceTimers.values()) {
-            clearTimeout(timer);
-        }
-        this._selectionDebounceTimers.clear();
-        this._pendingSelectionPayloads.clear();
-        for (const timer of this._visibleRangeDebounceTimers.values()) {
-            clearTimeout(timer);
-        }
-        this._visibleRangeDebounceTimers.clear();
-        this._pendingVisibleRangePayloads.clear();
-        while (this._eventListenerDisposables.length > 0) {
-            const disposable = this._eventListenerDisposables.pop();
-            disposable?.dispose();
-        }
-    }
-
-    private async _collectExecutionOutput(
-        execution: vscode.TerminalShellExecution,
-        entry: PendingExecution,
-    ): Promise<void> {
-        try {
-            for await (const data of execution.read()) {
-                if (entry.aborted) { return; }
-                if (!entry.truncated) {
-                    const remaining = SessionRecorder.MAX_OUTPUT_CHARS - entry.output.length;
-                    if (data.length <= remaining) {
-                        entry.output += data;
-                    } else {
-                        entry.output += data.substring(0, remaining);
-                        entry.truncated = true;
-                    }
-                }
-            }
-        } catch (err) {
-            logger.error('Failed to read terminal execution output', LogCategory.TELEMETRY, err);
-        }
-        entry.readerDone = true;
-        if (entry.endInfo && !entry.aborted) {
-            this._emitTerminalCommand(entry);
-        }
-    }
-
-    private _emitTerminalCommand(entry: PendingExecution): void {
-        if (!entry.endInfo) { return; }
-        if (this._phase !== 'recording') { return; }
-        const now = Date.now();
-        this._recordInternal({
-            type: 'terminalCommand',
-            timestamp: now,
-            command: entry.endInfo.command,
-            exitCode: entry.endInfo.exitCode,
-            output: entry.output,
-            outputTruncated: entry.truncated,
-            cwd: entry.endInfo.cwd,
-            terminalName: entry.endInfo.terminalName,
-            durationMs: now - entry.startTime,
-        }, {}, entry.generation);
-    }
 
 }
