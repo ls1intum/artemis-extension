@@ -41,7 +41,7 @@
 import * as vscode from 'vscode';
 import * as crypto from 'crypto';
 import type { WebSocketMessageHandler, ResultDTO } from '../../../types';
-import type { RecordedEvent, SessionMetadata, SerializedErrorSnapshot, FileSnapshotErrorEvent } from './types';
+import type { RecordedEvent, SessionMetadata, SerializedErrorSnapshot } from './types';
 import type { PlatformCapabilities } from '../../../theia';
 import type { ExerciseRegistry } from '../../exerciseRegistry';
 import { RecordingStorageWriter } from './storageWriter';
@@ -59,6 +59,7 @@ import { shouldAcceptBuildResult } from '../buildResultGuard';
 import { shouldRecordUri } from './uriFilter';
 import { logger, LogCategory } from '../../loggingService';
 import { RecorderLifecycleState, type RecorderPhase as RecorderPhaseFromState } from './lifecycle/recorderLifecycleState';
+import { SnapshotManager } from './snapshots/snapshotManager';
 
 interface PendingExecution {
     output: string;
@@ -146,15 +147,7 @@ export class SessionRecorder implements vscode.Disposable, WebSocketMessageHandl
     // ── Session state ──────────────────────────────────────────────────
 
     private _lastActiveEditorUri: string | undefined;
-    private _snapshotedUris = new Set<string>();
-    /**
-     * Tracks the number of consecutive write failures per URI during the
-     * current session. Once the count reaches MAX_SNAPSHOT_RETRIES, the URI
-     * is added to `_snapshotedUris` to prevent further attempts and a
-     * `fileSnapshotError` lifecycle event is emitted once.
-     */
-    private _snapshotRetries = new Map<string, number>();
-    private static readonly MAX_SNAPSHOT_RETRIES = 3;
+    private readonly _snapshots: SnapshotManager;
     /**
      * Per-URI debounce timers for selection-change events (Block J).
      * Keyed by document URI string so rapid switches between File A and File B
@@ -201,6 +194,12 @@ export class SessionRecorder implements vscode.Disposable, WebSocketMessageHandl
         this._writer = writer ?? new RecordingStorageWriter(globalStorageUri.fsPath);
         this._capabilities = capabilities;
         this._exerciseRegistry = exerciseRegistry;
+        this._snapshots = new SnapshotManager({
+            state: this._state,
+            writer: this._writer,
+            record: (event, opts, gen) => this._recordInternal(event, opts, gen),
+            lifecycleAppend: event => this._writeLifecycleEvent(event),
+        });
     }
 
     // ── Phase reader (for control-flow in async methods) ──────────────
@@ -708,7 +707,7 @@ export class SessionRecorder implements vscode.Disposable, WebSocketMessageHandl
         });
 
         // ── Phase 1: open-file snapshots (async) ──
-        await this._captureOpenFileSnapshots(requestedGen);
+        await this._snapshots.captureOpenFileSnapshots(requestedGen, this._exerciseRootUri);
 
         // Post-commit check: phase first (disable() also advances _requestedGeneration,
         // so the generation check below would also fire — we want the phase path).
@@ -927,8 +926,7 @@ export class SessionRecorder implements vscode.Disposable, WebSocketMessageHandl
     }
 
     private _resetSessionState(): void {
-        this._snapshotedUris.clear();
-        this._snapshotRetries.clear();
+        this._snapshots.reset();
         this._lastActiveEditorUri = undefined;
     }
 
@@ -985,9 +983,11 @@ export class SessionRecorder implements vscode.Disposable, WebSocketMessageHandl
                 this._recordInternal(collectFileSwitch(prev, editor), {}, this._currentGeneration);
             }
             // Snapshot file if it is recordable and opened for the first time this session.
-            if (editor && shouldRecordUri(editor.document.uri, this._exerciseRootUri) && toUri && !this._snapshotedUris.has(toUri)) {
+            if (editor && shouldRecordUri(editor.document.uri, this._exerciseRootUri) && toUri && !this._snapshots.hasSnapshot(toUri)) {
                 const capturedGen = this._currentGeneration;
-                void this._captureFirstOpenSnapshot(editor, capturedGen);
+                const content = editor.document.getText();
+                void this._snapshots.snapshotContent(toUri, content, capturedGen, { allowDuringStartup: false })
+                    .catch(err => logger.error('Failed to capture first-open file snapshot', LogCategory.TELEMETRY, err));
             }
         });
         this._eventListenerDisposables.push(editorSwitch);
@@ -1212,104 +1212,7 @@ export class SessionRecorder implements vscode.Disposable, WebSocketMessageHandl
         }
     }
 
-    // ── Private: Snapshot capture ─────────────────────────────────────
-
-    /**
-     * Check that the captured generation is still current AND that the phase
-     * is a valid writing phase. Used as the gate before snapshot file I/O so
-     * we don't write user code to disk after consent revocation.
-     *
-     * Caveat: this predicate is evaluated synchronously before the writer
-     * enqueues the write. A snapshot that is already queued in the writer's
-     * lane when disable() fires will still hit disk. Fully-cancellable lane
-     * writes would need a lane-level predicate; not implemented here because
-     * the write lane's serialisation already makes this window very small
-     * and the alternative adds material complexity.
-     */
-    private _canWriteSnapshot(generation: number): boolean {
-        if (generation !== this._currentGeneration) { return false; }
-        const phase = this._currentPhase();
-        return phase === 'starting' || phase === 'recording';
-    }
-
-    private async _snapshotDocument(
-        uri: string,
-        content: string,
-        generation: number,
-        allowDuringStartup: boolean,
-    ): Promise<void> {
-        // Re-check BEFORE handing bytes to the writer. Protects against
-        // enqueuing snapshot file writes after consent revocation.
-        if (!this._canWriteSnapshot(generation)) {
-            return;
-        }
-        const snapshotPath = this._writer.getSnapshotRelativePath(uri);
-        const success = await this._writer.writeSnapshot(uri, content);
-
-        // After the async writeSnapshot, the session may have rotated OR the
-        // phase may have flipped to disabled. Use the same consent/session
-        // gate as the pre-write check so that disabled-but-same-generation
-        // does not pollute `_snapshotedUris` (which tracks state for the
-        // next session).
-        if (!this._canWriteSnapshot(generation)) {
-            return;
-        }
-
-        if (!success) {
-            // Increment retry counter for this URI.
-            const retries = (this._snapshotRetries.get(uri) ?? 0) + 1;
-            this._snapshotRetries.set(uri, retries);
-
-            if (retries >= SessionRecorder.MAX_SNAPSHOT_RETRIES) {
-                // Max retries reached: mark URI as permanently "vergeben" so no
-                // further attempts are made, then emit a single error lifecycle event.
-                this._snapshotedUris.add(uri);
-                this._snapshotRetries.delete(uri);
-                const errorEvent: FileSnapshotErrorEvent = {
-                    type: 'fileSnapshotError',
-                    timestamp: Date.now(),
-                    uri,
-                    reason: 'snapshot-write-failed-after-3-retries',
-                };
-                this._writeLifecycleEvent(errorEvent);
-                logger.warn(
-                    `[SessionRecorder] Snapshot permanently failed for ${uri} after ${SessionRecorder.MAX_SNAPSHOT_RETRIES} retries`,
-                    LogCategory.TELEMETRY,
-                );
-            }
-            // On failure (below max retries), do NOT add to _snapshotedUris so
-            // _captureFirstOpenSnapshot will retry on the next editor switch.
-            return;
-        }
-
-        this._snapshotedUris.add(uri);
-        this._snapshotRetries.delete(uri);
-        this._recordInternal(
-            { type: 'fileSnapshot', timestamp: Date.now(), uri, snapshotPath },
-            { allowDuringStartup },
-            generation,
-        );
-    }
-
-    private async _captureOpenFileSnapshots(generation: number): Promise<void> {
-        for (const doc of vscode.workspace.textDocuments) {
-            if (!shouldRecordUri(doc.uri, this._exerciseRootUri)) {
-                continue;
-            }
-            // Stop starting new snapshot writes as soon as the session is
-            // superseded or disabled. Previously-queued snapshots may still
-            // complete — _snapshotDocument re-checks before the writer call
-            // to narrow that window.
-            if (!this._canWriteSnapshot(generation)) {
-                return;
-            }
-            try {
-                await this._snapshotDocument(doc.uri.toString(), doc.getText(), generation, true);
-            } catch (err) {
-                logger.error('Failed to capture file snapshot', LogCategory.TELEMETRY, err);
-            }
-        }
-    }
+    // ── Private: Startup capture helpers (sync) ───────────────────────
 
     private _captureInitialDiagnostics(generation: number): void {
         const allDiagnostics = vscode.languages.getDiagnostics();
@@ -1438,11 +1341,4 @@ export class SessionRecorder implements vscode.Disposable, WebSocketMessageHandl
         }, {}, entry.generation);
     }
 
-    private async _captureFirstOpenSnapshot(editor: vscode.TextEditor, generation: number): Promise<void> {
-        try {
-            await this._snapshotDocument(editor.document.uri.toString(), editor.document.getText(), generation, false);
-        } catch (err) {
-            logger.error('Failed to capture first-open file snapshot', LogCategory.TELEMETRY, err);
-        }
-    }
 }

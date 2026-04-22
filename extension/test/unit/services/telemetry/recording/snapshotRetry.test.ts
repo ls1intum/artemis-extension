@@ -111,9 +111,10 @@ function makeRecorder(): { recorder: SessionRecorder; fs: FakeFs } {
 }
 
 /**
- * Directly call _snapshotDocument via (recorder as any) to simulate an
- * editor switch that triggers a snapshot. This is the cleanest way to test
- * the retry logic without spinning up VS Code's real text editor events.
+ * Directly call SnapshotManager.snapshotContent via (recorder as any) to
+ * simulate an editor switch that triggers a snapshot. This is the cleanest
+ * way to test the retry logic without spinning up VS Code's real text
+ * editor events.
  */
 async function triggerSnapshot(
     recorder: SessionRecorder,
@@ -121,7 +122,15 @@ async function triggerSnapshot(
     content: string,
     generation: number,
 ): Promise<void> {
-    await (recorder as any)._snapshotDocument(uri, content, generation, false);
+    await (recorder as any)._snapshots.snapshotContent(uri, content, generation, { allowDuringStartup: false });
+}
+
+function getSnapshotedUris(recorder: SessionRecorder): Set<string> {
+    return (recorder as any)._snapshots._snapshotedUris as Set<string>;
+}
+
+function getSnapshotRetries(recorder: SessionRecorder): Map<string, number> {
+    return (recorder as any)._snapshots._snapshotRetries as Map<string, number>;
 }
 
 // ── Suite ────────────────────────────────────────────────────────────────────
@@ -179,11 +188,11 @@ suite('SessionRecorder — Block G: Snapshot Retry', () => {
         assert.strictEqual(snapshots.length, 0, 'no fileSnapshot should be emitted on first failure');
 
         // URI must NOT be in _snapshotedUris so a retry can happen
-        const snapshotedUris = (recorder as any)._snapshotedUris as Set<string>;
+        const snapshotedUris = getSnapshotedUris(recorder);
         assert.ok(!snapshotedUris.has(uri), 'URI must not be in _snapshotedUris after first failure');
 
         // retry counter should be 1
-        const retries = (recorder as any)._snapshotRetries as Map<string, number>;
+        const retries = getSnapshotRetries(recorder);
         assert.strictEqual(retries.get(uri), 1, 'retry counter must be 1 after first failure');
     });
 
@@ -204,17 +213,17 @@ suite('SessionRecorder — Block G: Snapshot Retry', () => {
         assert.strictEqual(snapshotsAfterFailure.length, 0, 'no snapshot after first failure');
 
         // URI is still not in _snapshotedUris — simulate next editor switch
-        const snapshotedUrisBefore = (recorder as any)._snapshotedUris as Set<string>;
+        const snapshotedUrisBefore = getSnapshotedUris(recorder);
         assert.ok(!snapshotedUrisBefore.has(uri), 'URI must not be snapshotted yet, enabling retry');
 
         // Second attempt — succeeds (fs is no longer failing)
         await triggerSnapshot(recorder, uri, 'class Main {}', gen);
 
         // Check in-memory state BEFORE endSession clears it via _resetSessionState().
-        const snapshotedUris = (recorder as any)._snapshotedUris as Set<string>;
+        const snapshotedUris = getSnapshotedUris(recorder);
         assert.ok(snapshotedUris.has(uri), 'URI must be in _snapshotedUris after successful retry');
 
-        const retries = (recorder as any)._snapshotRetries as Map<string, number>;
+        const retries = getSnapshotRetries(recorder);
         assert.ok(!retries.has(uri), 'retry counter must be cleared after success');
 
         // endSession flushes the buffer so the fileSnapshot event reaches appendedChunks.
@@ -240,10 +249,10 @@ suite('SessionRecorder — Block G: Snapshot Retry', () => {
         await triggerSnapshot(recorder, uri, 'content', gen);
 
         // Check in-memory state BEFORE endSession clears it via _resetSessionState().
-        const snapshotedUris = (recorder as any)._snapshotedUris as Set<string>;
+        const snapshotedUris = getSnapshotedUris(recorder);
         assert.ok(snapshotedUris.has(uri), 'URI must be in _snapshotedUris after max-retry failure');
 
-        const retries = (recorder as any)._snapshotRetries as Map<string, number>;
+        const retries = getSnapshotRetries(recorder);
         assert.ok(!retries.has(uri), 'retry counter must be cleared after max retries');
 
         // endSession flushes the buffer so the fileSnapshotError event reaches appendedChunks.
@@ -276,7 +285,7 @@ suite('SessionRecorder — Block G: Snapshot Retry', () => {
         // URI is now in _snapshotedUris — any subsequent call from
         // _captureFirstOpenSnapshot would be guarded by the `has(uri)` check.
         // Verify the set membership BEFORE endSession clears it via _resetSessionState().
-        const snapshotedUrisBefore = (recorder as any)._snapshotedUris as Set<string>;
+        const snapshotedUrisBefore = getSnapshotedUris(recorder);
         assert.ok(snapshotedUrisBefore.has(uri), 'URI should be permanently marked at this point');
 
         // editorSwitch listener guard: _snapshotedUris.has(uri) must be true, blocking 4th attempt.
@@ -307,14 +316,14 @@ suite('SessionRecorder — Block G: Snapshot Retry', () => {
         const gen = (recorder as any)._currentGeneration as number;
         await triggerSnapshot(recorder, uri, 'content', gen);
 
-        const retriesBefore = (recorder as any)._snapshotRetries as Map<string, number>;
+        const retriesBefore = getSnapshotRetries(recorder);
         assert.strictEqual(retriesBefore.get(uri), 1, 'retry counter is 1 before session restart');
 
         // End session and start a new one
         await recorder.endSession();
         await recorder.startSession(43, 'p-2');
 
-        const retriesAfter = (recorder as any)._snapshotRetries as Map<string, number>;
+        const retriesAfter = getSnapshotRetries(recorder);
         assert.strictEqual(retriesAfter.size, 0, '_snapshotRetries must be empty after new session starts');
 
         await recorder.endSession();
