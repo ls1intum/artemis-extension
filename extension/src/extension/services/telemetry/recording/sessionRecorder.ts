@@ -58,6 +58,7 @@ import {
 import { shouldAcceptBuildResult } from '../buildResultGuard';
 import { shouldRecordUri } from './uriFilter';
 import { logger, LogCategory } from '../../loggingService';
+import { RecorderLifecycleState, type RecorderPhase as RecorderPhaseFromState } from './lifecycle/recorderLifecycleState';
 
 interface PendingExecution {
     output: string;
@@ -103,13 +104,7 @@ export interface StartupContext {
  */
 export type StartupContributor = (ctx: StartupContext) => RecordedEvent[];
 
-type RecorderPhase =
-    | 'idle'
-    | 'starting'
-    | 'recording'
-    | 'ending'
-    | 'disabling'
-    | 'disabled';
+type RecorderPhase = RecorderPhaseFromState;
 
 interface RecordInternalOptions {
     allowDuringStartup?: boolean;
@@ -121,17 +116,25 @@ export class SessionRecorder implements vscode.Disposable, WebSocketMessageHandl
 
     private _disposed = false;
 
-    // ── Phase + generation tracking ────────────────────────────────────
+    // ── Lifecycle state (phase + generation + active session) ─────────
 
-    private _phase: RecorderPhase = 'disabled';
-    /** Monotonic counter; bumped every time startSession() or disable() is invoked. */
-    private _requestedGeneration = 0;
-    /** Generation of the currently-running (or just-committed) session. */
-    private _currentGeneration = 0;
-    /** Generation that owns the on-disk sessionStart event, if any. */
-    private _committedGeneration: number | undefined;
-    /** True iff `sessionStart` has been handed to the writer for the current session. */
-    private _sessionStartWritten = false;
+    private readonly _state = new RecorderLifecycleState();
+
+    // Forwarding getters — field-level access is preserved so most callers
+    // remain unchanged. Writes go through the explicit _state.* methods.
+    private get _phase(): RecorderPhase { return this._state.phase; }
+    private get _requestedGeneration(): number { return this._state.requestedGeneration; }
+    private get _currentGeneration(): number { return this._state.currentGeneration; }
+    private get _committedGeneration(): number | undefined { return this._state.committedGeneration; }
+    private get _sessionStartWritten(): boolean {
+        return this._state.activeSession?.sessionStartWritten ?? false;
+    }
+    private get _activeSessionId(): string | undefined { return this._state.activeSession?.sessionId; }
+    private get _activeExerciseId(): number | undefined { return this._state.activeSession?.exerciseId; }
+    private get _participantId(): string | undefined { return this._state.activeSession?.participantId; }
+    private get _exerciseRoot(): string | undefined { return this._state.activeSession?.exerciseRoot; }
+    private get _sessionStartTime(): number | undefined { return this._state.activeSession?.sessionStartTime; }
+    private get _eventCount(): number { return this._state.activeSession?.eventCount ?? 0; }
 
     /**
      * Single Promise chain that serialises lifecycle transitions (_doStart,
@@ -142,14 +145,7 @@ export class SessionRecorder implements vscode.Disposable, WebSocketMessageHandl
 
     // ── Session state ──────────────────────────────────────────────────
 
-    private _activeSessionId: string | undefined;
-    private _activeExerciseId: number | undefined;
     private _lastActiveEditorUri: string | undefined;
-    private _eventCount = 0;
-    private _sessionStartTime: number | undefined;
-    private _participantId: string | undefined;
-
-    private _exerciseRoot: string | undefined;
     private _snapshotedUris = new Set<string>();
     /**
      * Tracks the number of consecutive write failures per URI during the
@@ -270,7 +266,7 @@ export class SessionRecorder implements vscode.Disposable, WebSocketMessageHandl
         if (this._phase !== 'disabled') {
             return;
         }
-        this._phase = 'idle';
+        this._state.transitionPhase(['disabled'], 'idle');
         this._registerEventListeners();
         this._fireStateChange();
         logger.info('SessionRecorder enabled', LogCategory.TELEMETRY);
@@ -293,7 +289,7 @@ export class SessionRecorder implements vscode.Disposable, WebSocketMessageHandl
             && (this._phase === 'starting' || this._phase === 'recording' || this._phase === 'ending');
         const generation = this._committedGeneration;
 
-        this._phase = 'disabling';
+        this._state.forcePhase('disabling');
         // Invalidate any pending startSession() requests that have not yet
         // reached their _doStart closure. The counter is MONOTONIC — we
         // advance it so that every already-captured generation becomes less
@@ -302,7 +298,7 @@ export class SessionRecorder implements vscode.Disposable, WebSocketMessageHandl
         // stale async callback from a previous generation can ever match a
         // future `_currentGeneration` after a later enable/startSession
         // cycle.
-        this._requestedGeneration++;
+        this._state.bumpRequestedGeneration();
 
         this._enqueueLifecycle('disable', () => this._doDisable({ shouldFinalize, generation }));
         logger.info('SessionRecorder disable requested', LogCategory.TELEMETRY);
@@ -321,7 +317,7 @@ export class SessionRecorder implements vscode.Disposable, WebSocketMessageHandl
             return;
         }
 
-        const requestedGen = ++this._requestedGeneration;
+        const requestedGen = this._state.bumpRequestedGeneration();
         return this._enqueueLifecycle('startSession', () =>
             this._doStart(requestedGen, exerciseId, participantId, exerciseRoot));
     }
@@ -615,7 +611,7 @@ export class SessionRecorder implements vscode.Disposable, WebSocketMessageHandl
             return;
         }
 
-        this._eventCount++;
+        this._state.incrementEventCount();
         this._writer.appendEvent(event);
     }
 
@@ -625,7 +621,7 @@ export class SessionRecorder implements vscode.Disposable, WebSocketMessageHandl
      * lifecycle transitions (sessionStart/End, consentChange, startupPhaseComplete).
      */
     private _writeLifecycleEvent(event: RecordedEvent): void {
-        this._eventCount++;
+        this._state.incrementEventCount();
         this._writer.appendEvent(event);
     }
 
@@ -668,27 +664,28 @@ export class SessionRecorder implements vscode.Disposable, WebSocketMessageHandl
             }
         }
 
-        this._phase = 'starting';
-        this._sessionStartWritten = false;
+        this._state.transitionPhase(['idle'], 'starting');
 
         const hex = crypto.randomBytes(3).toString('hex');
         const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-        this._activeSessionId = `${exerciseId}-${timestamp}-${hex}`;
-        this._activeExerciseId = exerciseId;
-        this._participantId = participantId;
-        this._exerciseRoot = exerciseRoot;
-        this._eventCount = 0;
-        this._sessionStartTime = Date.now();
+        const sessionId = `${exerciseId}-${timestamp}-${hex}`;
+        this._state.beginSession({
+            sessionId,
+            exerciseId,
+            participantId,
+            exerciseRoot,
+            sessionStartTime: Date.now(),
+        });
         this._lastActiveEditorUri = vscode.window.activeTextEditor?.document.uri.toString();
 
-        await this._writer.initSession(this._activeSessionId);
+        await this._writer.initSession(sessionId);
 
         // Pre-commit re-check: if the request was superseded or consent was
         // revoked while initSession was in flight, abort the writer so no
         // partial session leaks to disk.
         if (requestedGen !== this._requestedGeneration) {
             if (this._currentPhase() === 'starting') {
-                this._phase = 'idle';
+                this._state.clearActiveSessionAfterFinalize();
             }
             await this._writer.abort();
             return;
@@ -698,8 +695,8 @@ export class SessionRecorder implements vscode.Disposable, WebSocketMessageHandl
             return;
         }
 
-        // ── Commit point ──
-        this._currentGeneration = requestedGen;
+        // ── Commit point ── (atomic: generation commit + sessionStart write)
+        this._state.markSessionStartWritten(requestedGen);
         const sessionStartTs = Date.now();
         this._writeLifecycleEvent({
             type: 'sessionStart',
@@ -709,8 +706,6 @@ export class SessionRecorder implements vscode.Disposable, WebSocketMessageHandl
             exerciseRoot,
             schemaVersion: 2,
         });
-        this._sessionStartWritten = true;
-        this._committedGeneration = requestedGen;
 
         // ── Phase 1: open-file snapshots (async) ──
         await this._captureOpenFileSnapshots(requestedGen);
@@ -733,7 +728,7 @@ export class SessionRecorder implements vscode.Disposable, WebSocketMessageHandl
             exerciseId,
             participantId,
             exerciseRoot,
-            sessionId: this._activeSessionId,
+            sessionId,
             timestamp: Date.now(),
         };
         for (const contributor of this._startupContributors) {
@@ -761,14 +756,14 @@ export class SessionRecorder implements vscode.Disposable, WebSocketMessageHandl
             return;
         }
 
-        this._phase = 'recording';
         this._writeLifecycleEvent({
             type: 'startupPhaseComplete',
             timestamp: Date.now(),
         });
+        this._state.markStartupComplete();
         this._fireStateChange();
 
-        logger.info(`Recording session started: ${this._activeSessionId}`, LogCategory.TELEMETRY);
+        logger.info(`Recording session started: ${sessionId}`, LogCategory.TELEMETRY);
     }
 
     /**
@@ -780,12 +775,13 @@ export class SessionRecorder implements vscode.Disposable, WebSocketMessageHandl
         if (this._phase !== 'recording' && this._phase !== 'starting') {
             return;
         }
-        if (!this._activeSessionId || this._activeExerciseId === undefined) {
+        const active = this._state.activeSession;
+        if (!active) {
             return;
         }
 
         const generation = this._currentGeneration;
-        this._phase = 'ending';
+        this._state.transitionPhase(['recording', 'starting'], 'ending');
 
         // Flush pending debounced payloads so the session ends with a complete
         // picture. These use the ending-allowance so _recordInternal lets them
@@ -798,7 +794,7 @@ export class SessionRecorder implements vscode.Disposable, WebSocketMessageHandl
         }
         this._pendingExecutions.clear();
 
-        const exerciseId = this._activeExerciseId;
+        const exerciseId = active.exerciseId;
         this._writeLifecycleEvent({
             type: 'sessionEnd',
             timestamp: Date.now(),
@@ -806,12 +802,12 @@ export class SessionRecorder implements vscode.Disposable, WebSocketMessageHandl
         });
 
         const metadata: SessionMetadata = {
-            sessionId: this._activeSessionId,
+            sessionId: active.sessionId,
             exerciseId,
-            participantId: this._participantId,
-            startTime: this._sessionStartTime!,
+            participantId: active.participantId,
+            startTime: active.sessionStartTime,
             endTime: Date.now(),
-            eventCount: this._eventCount,
+            eventCount: active.eventCount,
         };
 
         await this._writer.flush();
@@ -819,17 +815,16 @@ export class SessionRecorder implements vscode.Disposable, WebSocketMessageHandl
         await this._writer.endSession();
 
         logger.info(
-            `Recording session ended (${reason}): ${this._activeSessionId} (${this._eventCount} events)`,
+            `Recording session ended (${reason}): ${active.sessionId} (${active.eventCount} events)`,
             LogCategory.TELEMETRY,
         );
 
         // Clear commit-boundary flags only after the writer has fully
         // finalized. Until then, a concurrent disable() must still see
         // _sessionStartWritten=true and route through the downgrade path.
-        this._sessionStartWritten = false;
-        this._committedGeneration = undefined;
+        this._state.clearCommitAfterFinalize();
         this._resetSessionState();
-        this._phase = 'idle';
+        this._state.clearActiveSessionAfterFinalize();
         this._fireStateChange();
     }
 
@@ -860,7 +855,11 @@ export class SessionRecorder implements vscode.Disposable, WebSocketMessageHandl
         }
 
         this._disposeEventListeners();
-        this._phase = 'disabled';
+        // If _doFinalizeAfterDisable ran, phase already moved to 'disabled'
+        // via clearActiveSessionAfterFinalize(). Otherwise, force the flip now.
+        if (this._phase !== 'disabled') {
+            this._state.forcePhase('disabled');
+        }
         this._fireStateChange();
         logger.info('SessionRecorder disabled', LogCategory.TELEMETRY);
     }
@@ -870,11 +869,12 @@ export class SessionRecorder implements vscode.Disposable, WebSocketMessageHandl
         if (this._currentGeneration !== generation || !this._sessionStartWritten) {
             return;
         }
-        if (!this._activeSessionId || this._activeExerciseId === undefined) {
+        const active = this._state.activeSession;
+        if (!active) {
             return;
         }
 
-        const exerciseId = this._activeExerciseId;
+        const exerciseId = active.exerciseId;
         const consentTs = Date.now();
 
         this._writeLifecycleEvent({
@@ -909,29 +909,24 @@ export class SessionRecorder implements vscode.Disposable, WebSocketMessageHandl
         });
 
         const metadata: SessionMetadata = {
-            sessionId: this._activeSessionId,
+            sessionId: active.sessionId,
             exerciseId,
-            participantId: this._participantId,
-            startTime: this._sessionStartTime!,
+            participantId: active.participantId,
+            startTime: active.sessionStartTime,
             endTime: Date.now(),
-            eventCount: this._eventCount,
+            eventCount: active.eventCount,
         };
 
         await this._writer.flush();
         await this._writer.writeMetadata(metadata);
         await this._writer.endSession();
 
-        this._sessionStartWritten = false;
-        this._committedGeneration = undefined;
+        this._state.clearCommitAfterFinalize();
         this._resetSessionState();
+        this._state.clearActiveSessionAfterFinalize();
     }
 
     private _resetSessionState(): void {
-        this._activeSessionId = undefined;
-        this._activeExerciseId = undefined;
-        this._participantId = undefined;
-        this._exerciseRoot = undefined;
-        this._sessionStartTime = undefined;
         this._snapshotedUris.clear();
         this._snapshotRetries.clear();
         this._lastActiveEditorUri = undefined;
