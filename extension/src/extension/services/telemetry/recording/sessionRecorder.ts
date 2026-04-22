@@ -74,20 +74,11 @@ export class SessionRecorder implements vscode.Disposable, WebSocketMessageHandl
 
     private readonly _state = new RecorderLifecycleState();
 
-    // Forwarding getters — field-level access is preserved so most callers
-    // remain unchanged. Writes go through the explicit _state.* methods.
+    // Forwarding getters — used internally by record-phase guards and by
+    // whitebox tests. Writes go through explicit _state.* methods.
     private get _phase(): RecorderPhase { return this._state.phase; }
-    private get _requestedGeneration(): number { return this._state.requestedGeneration; }
     private get _currentGeneration(): number { return this._state.currentGeneration; }
-    private get _committedGeneration(): number | undefined { return this._state.committedGeneration; }
-    private get _sessionStartWritten(): boolean {
-        return this._state.activeSession?.sessionStartWritten ?? false;
-    }
-    private get _activeSessionId(): string | undefined { return this._state.activeSession?.sessionId; }
     private get _activeExerciseId(): number | undefined { return this._state.activeSession?.exerciseId; }
-    private get _participantId(): string | undefined { return this._state.activeSession?.participantId; }
-    private get _exerciseRoot(): string | undefined { return this._state.activeSession?.exerciseRoot; }
-    private get _sessionStartTime(): number | undefined { return this._state.activeSession?.sessionStartTime; }
     private get _eventCount(): number { return this._state.activeSession?.eventCount ?? 0; }
 
     // ── Session state ──────────────────────────────────────────────────
@@ -95,18 +86,13 @@ export class SessionRecorder implements vscode.Disposable, WebSocketMessageHandl
     private readonly _snapshots: SnapshotManager;
     private readonly _observation: ObservationRegistry;
 
-    // Test-access shims (getters only). Forward to ObservationRegistry.
+    // Test-access shims (getters only). Forward to ObservationRegistry —
+    // existing sessionRecorder.test.ts whiteboxes these per-URI maps.
     private get _pendingSelectionPayloads(): Map<string, RecordedEvent> {
         return (this._observation as unknown as { _pendingSelectionPayloads: Map<string, RecordedEvent> })._pendingSelectionPayloads;
     }
     private get _pendingVisibleRangePayloads(): Map<string, RecordedEvent> {
         return (this._observation as unknown as { _pendingVisibleRangePayloads: Map<string, RecordedEvent> })._pendingVisibleRangePayloads;
-    }
-    private get _lastActiveEditorUri(): string | undefined {
-        return (this._observation as unknown as { _lastActiveEditorUri: string | undefined })._lastActiveEditorUri;
-    }
-    private set _lastActiveEditorUri(uri: string | undefined) {
-        this._observation.seedActiveEditor(uri);
     }
 
     private readonly _writer: RecordingStorageWriter;
@@ -155,30 +141,12 @@ export class SessionRecorder implements vscode.Disposable, WebSocketMessageHandl
         });
     }
 
-    /**
-     * Parsed exercise root URI for use with `shouldRecordUri`. Returns
-     * `undefined` when no session is active (i.e. `_exerciseRoot` is unset).
-     * The exercise root is stored as a serialized URI string (e.g.
-     * "file:///workspace/ex1") so we parse on demand rather than storing a
-     * second field.
-     */
-    private get _exerciseRootUri(): vscode.Uri | undefined {
-        return this._exerciseRoot ? vscode.Uri.parse(this._exerciseRoot) : undefined;
-    }
-
     // ── Public state accessors ────────────────────────────────────────
 
-    /**
-     * True when the recorder is accepting work (i.e. consent has been granted
-     * and we are not in the process of tearing down). False during `disabling`
-     * and `disabled`, so listeners using this flag as a gate will also stop.
-     */
-    get isEnabled(): boolean {
-        return this._phase !== 'disabling' && this._phase !== 'disabled';
-    }
-    get isRecording(): boolean { return this._phase === 'recording'; }
-    get activeExerciseId(): number | undefined { return this._activeExerciseId; }
-    get eventCount(): number { return this._eventCount; }
+    get isEnabled(): boolean { return this._state.isEnabled; }
+    get isRecording(): boolean { return this._state.isRecording; }
+    get activeExerciseId(): number | undefined { return this._state.activeSession?.exerciseId; }
+    get eventCount(): number { return this._state.activeSession?.eventCount ?? 0; }
 
     // ── Startup contributors ──────────────────────────────────────────
 
