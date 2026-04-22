@@ -60,6 +60,7 @@ import { shouldRecordUri } from './uriFilter';
 import { logger, LogCategory } from '../../loggingService';
 import { RecorderLifecycleState, type RecorderPhase as RecorderPhaseFromState } from './lifecycle/recorderLifecycleState';
 import { SnapshotManager } from './snapshots/snapshotManager';
+import { StartupCapture, type StartupContext as StartupContextFromModule, type StartupContributor as StartupContributorFromModule } from './startup/startupCapture';
 
 interface PendingExecution {
     output: string;
@@ -84,26 +85,8 @@ export interface RecordingState {
     eventCount: number;
 }
 
-/**
- * Context supplied to startup contributors. Contributors run synchronously
- * inside `_doStart`, after `sessionStart` + snapshots + initial diagnostics
- * and before `startupPhaseComplete`, so they see a fully-committed session.
- */
-export interface StartupContext {
-    exerciseId: number;
-    participantId: string | undefined;
-    exerciseRoot: string | undefined;
-    sessionId: string;
-    timestamp: number;
-}
-
-/**
- * Synchronous producer of startup events. Returns zero or more events to be
- * appended to the stream as part of session startup. MUST NOT perform async
- * work — the recorder calls the contributor synchronously to guarantee
- * deterministic event ordering.
- */
-export type StartupContributor = (ctx: StartupContext) => RecordedEvent[];
+export type StartupContext = StartupContextFromModule;
+export type StartupContributor = StartupContributorFromModule;
 
 type RecorderPhase = RecorderPhaseFromState;
 
@@ -176,7 +159,7 @@ export class SessionRecorder implements vscode.Disposable, WebSocketMessageHandl
 
     private _eventListenerDisposables: vscode.Disposable[] = [];
     private readonly _writer: RecordingStorageWriter;
-    private readonly _startupContributors: StartupContributor[] = [];
+    private readonly _startup: StartupCapture;
 
     private readonly _onDidChangeState = new vscode.EventEmitter<RecordingState>();
     public readonly onDidChangeState = this._onDidChangeState.event;
@@ -199,6 +182,9 @@ export class SessionRecorder implements vscode.Disposable, WebSocketMessageHandl
             writer: this._writer,
             record: (event, opts, gen) => this._recordInternal(event, opts, gen),
             lifecycleAppend: event => this._writeLifecycleEvent(event),
+        });
+        this._startup = new StartupCapture({
+            record: (event, opts, gen) => this._recordInternal(event, opts, gen),
         });
     }
 
@@ -250,13 +236,7 @@ export class SessionRecorder implements vscode.Disposable, WebSocketMessageHandl
      * contributor.
      */
     public registerStartupContributor(contributor: StartupContributor): vscode.Disposable {
-        this._startupContributors.push(contributor);
-        return new vscode.Disposable(() => {
-            const idx = this._startupContributors.indexOf(contributor);
-            if (idx >= 0) {
-                this._startupContributors.splice(idx, 1);
-            }
-        });
+        return this._startup.register(contributor);
     }
 
     // ── Enable / Disable ──────────────────────────────────────────────
@@ -719,10 +699,7 @@ export class SessionRecorder implements vscode.Disposable, WebSocketMessageHandl
             return;
         }
 
-        // ── Phase 2: initial diagnostics (sync) ──
-        this._captureInitialDiagnostics(requestedGen);
-
-        // ── Phase 3: startup contributors (sync) ──
+        // ── Phases 2-4: diagnostics + contributors + initial-state (sync) ──
         const startupCtx: StartupContext = {
             exerciseId,
             participantId,
@@ -730,21 +707,12 @@ export class SessionRecorder implements vscode.Disposable, WebSocketMessageHandl
             sessionId,
             timestamp: Date.now(),
         };
-        for (const contributor of this._startupContributors) {
-            let events: RecordedEvent[] = [];
-            try {
-                events = contributor(startupCtx);
-            } catch (err) {
-                logger.error('Startup contributor threw', LogCategory.TELEMETRY, err);
-                continue;
-            }
-            for (const ev of events) {
-                this._recordInternal(ev, { allowDuringStartup: true }, requestedGen);
-            }
-        }
-
-        // ── Phase 4: initial-state events (Block E, sync) ──
-        this._captureInitialStateEvents(requestedGen);
+        this._startup.emitStartupEvents(
+            startupCtx,
+            requestedGen,
+            this._exerciseRootUri,
+            uri => { this._lastActiveEditorUri = uri; },
+        );
 
         // Defensive post-commit re-check (sync path, so only disable can flip phase).
         if (this._currentPhase() === 'disabling' || this._currentPhase() === 'disabled') {
@@ -1209,92 +1177,6 @@ export class SessionRecorder implements vscode.Disposable, WebSocketMessageHandl
         while (this._eventListenerDisposables.length > 0) {
             const disposable = this._eventListenerDisposables.pop();
             disposable?.dispose();
-        }
-    }
-
-    // ── Private: Startup capture helpers (sync) ───────────────────────
-
-    private _captureInitialDiagnostics(generation: number): void {
-        const allDiagnostics = vscode.languages.getDiagnostics();
-        for (const [uri, diagnostics] of allDiagnostics) {
-            if (!shouldRecordUri(uri, this._exerciseRootUri) || diagnostics.length === 0) {
-                continue;
-            }
-            this._recordInternal(
-                collectDiagnostics(uri),
-                { allowDuringStartup: true },
-                generation,
-            );
-        }
-    }
-
-    /**
-     * Emit the Block E initial-state events: windowFocus, selectionChange +
-     * visibleRangeChange for every visible editor, a synthetic fileSwitch
-     * seeding the active editor, and terminalOpenClose('opened') for every
-     * currently-open terminal. Panel-visibility seeds are supplied by
-     * Startup-Contributors registered from the provider layer.
-     */
-    private _captureInitialStateEvents(generation: number): void {
-        // 1. Window focus.
-        try {
-            this._recordInternal(
-                {
-                    type: 'windowFocus',
-                    timestamp: Date.now(),
-                    focused: vscode.window.state.focused,
-                },
-                { allowDuringStartup: true },
-                generation,
-            );
-        } catch (err) {
-            logger.error('Failed to emit initial windowFocus', LogCategory.TELEMETRY, err);
-        }
-
-        // 2. Selection + visible range for every visible file editor.
-        for (const editor of vscode.window.visibleTextEditors) {
-            if (!shouldRecordUri(editor.document.uri, this._exerciseRootUri)) {
-                continue;
-            }
-            try {
-                this._recordInternal(
-                    collectSelectionChange(editor, undefined),
-                    { allowDuringStartup: true },
-                    generation,
-                );
-                this._recordInternal(
-                    collectVisibleRangeChange(editor),
-                    { allowDuringStartup: true },
-                    generation,
-                );
-            } catch (err) {
-                logger.error('Failed to emit initial editor state', LogCategory.TELEMETRY, err);
-            }
-        }
-
-        // 3. fileSwitch for the active editor (if any).
-        const activeUri = vscode.window.activeTextEditor?.document.uri;
-        if (activeUri && shouldRecordUri(activeUri, this._exerciseRootUri)) {
-            this._recordInternal(
-                { type: 'fileSwitch', timestamp: Date.now(), fromUri: undefined, toUri: activeUri.toString() },
-                { allowDuringStartup: true },
-                generation,
-            );
-            this._lastActiveEditorUri = activeUri.toString();
-        }
-
-        // 4. terminalOpenClose('opened') for every already-open terminal.
-        for (const terminal of vscode.window.terminals) {
-            this._recordInternal(
-                {
-                    type: 'terminalOpenClose',
-                    timestamp: Date.now(),
-                    action: 'opened',
-                    terminalName: terminal.name,
-                },
-                { allowDuringStartup: true },
-                generation,
-            );
         }
     }
 
