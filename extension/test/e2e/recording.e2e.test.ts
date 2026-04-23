@@ -2,13 +2,14 @@
  * E2E Test: Session Recorder (VS Code-only)
  *
  * Drives the SessionRecorder through a deterministic sequence of VS Code
- * actions (text edits, saves, file ops, selections, terminal) and asserts
- * that the on-disk JSONL captures the expected event types.
+ * actions and asserts on EXACT counts and payload content — not just
+ * "something was recorded". The goal is to catch real bugs (wrong range,
+ * wrong URI, listener removal, off-by-one, stale generation) — not just
+ * the "nothing is broken enough to crash" level.
  *
- * Does NOT depend on Artemis or Iris — everything happens inside the
- * extension host and a temporary workspace directory.
+ * Does NOT depend on Artemis or Iris.
  *
- * Run: npm run test:e2e  (uses label "e2e" in .vscode-test.mjs)
+ * Run: npm run test:recorder-e2e
  */
 
 import * as assert from 'assert';
@@ -19,196 +20,354 @@ import { spawnSync } from 'child_process';
 import * as vscode from 'vscode';
 
 import { SessionRecorder } from '../../src/extension/services/telemetry/recording/sessionRecorder';
-import type { RecordedEvent } from '../../src/extension/services/telemetry/recording/types';
+import type {
+    RecordedEvent,
+    TextChangeEvent,
+    SaveEvent,
+    FileCreateEvent,
+    FileDeleteEvent,
+    FileRenameEvent,
+    FileSnapshotEvent,
+    SelectionChangeEvent,
+    TerminalOpenCloseEvent,
+    SessionStartEvent,
+    SessionEndEvent,
+} from '../../src/extension/services/telemetry/recording/types';
 
 const sleep = (ms: number) => new Promise<void>(resolve => setTimeout(resolve, ms));
 
 suite('Session Recorder — E2E (VS Code only)', function () {
     this.timeout(180_000);
 
-    let storageDir: string;
     let workspaceDir: string;
-    let recorder: SessionRecorder;
+    let storageDir: string;
+    let recorder: SessionRecorder | undefined;
 
     suiteSetup(() => {
-        storageDir = fs.mkdtempSync(path.join(os.tmpdir(), 'recorder-storage-'));
         workspaceDir = fs.mkdtempSync(path.join(os.tmpdir(), 'recorder-workspace-'));
     });
 
-    suiteTeardown(async () => {
-        try {
-            if (recorder && !(recorder as unknown as { _disposed: boolean })._disposed) {
-                await recorder.dispose();
-            }
-        } catch {
-            // best-effort cleanup
-        }
-        fs.rmSync(storageDir, { recursive: true, force: true });
+    suiteTeardown(() => {
         fs.rmSync(workspaceDir, { recursive: true, force: true });
     });
 
-    test('records canonical event types across a typical editing session', async () => {
+    teardown(async () => {
+        if (recorder && !(recorder as unknown as { _disposed: boolean })._disposed) {
+            try { await recorder.dispose(); } catch { /* best-effort */ }
+        }
+        recorder = undefined;
+        if (storageDir) {
+            fs.rmSync(storageDir, { recursive: true, force: true });
+            storageDir = '';
+        }
+    });
+
+    test('captures canonical events with exact counts and real payloads', async () => {
+        storageDir = fs.mkdtempSync(path.join(os.tmpdir(), 'recorder-storage-'));
         const storageUri = vscode.Uri.file(storageDir);
         const workspaceUri = vscode.Uri.file(workspaceDir);
 
         recorder = new SessionRecorder(storageUri);
         recorder.enable();
+        const sessionStartWallclock = Date.now();
         await recorder.startSession(1, 'e2e-test', workspaceUri.toString());
 
-        // Wait for startup phase to complete before first action.
+        // Wait for startup phase to complete.
         await sleep(300);
 
-        // --- Action 1: create file A via WorkspaceEdit (fires fileCreate) ---
+        // ── Action sequence (every action has a matching assertion below) ──
+
+        // 1. Create file A with initial content 'hello\n'.
         const fileA = vscode.Uri.file(path.join(workspaceDir, 'a.txt'));
         {
             const edit = new vscode.WorkspaceEdit();
             edit.createFile(fileA, { overwrite: true });
             edit.insert(fileA, new vscode.Position(0, 0), 'hello\n');
-            assert.ok(await vscode.workspace.applyEdit(edit), 'createFile edit applied');
+            assert.ok(await vscode.workspace.applyEdit(edit), 'create A applied');
         }
         const docA = await vscode.workspace.openTextDocument(fileA);
         const editorA = await vscode.window.showTextDocument(docA);
         await docA.save();
         await sleep(200);
 
-        // --- Action 2: text edit ----------------------------------------
-        const editResult = await editorA.edit(eb => {
+        // 2. Insert ' world' at line 0 char 5 → file becomes 'hello world\n'.
+        const editApplied = await editorA.edit(eb => {
             eb.insert(new vscode.Position(0, 5), ' world');
         });
-        assert.ok(editResult, 'text edit applied');
+        assert.ok(editApplied, 'insert " world" applied');
         await sleep(100);
+        assert.ok(docA.isDirty, 'docA dirty after insert');
 
-        // --- Action 3: save (requires dirty doc) -------------------------
-        assert.ok(docA.isDirty, 'doc should be dirty before save');
-        const saved = await docA.save();
-        assert.ok(saved, 'docA.save() returned true');
+        const saveResult = await docA.save();
+        assert.ok(saveResult, 'docA.save() reports success');
         await sleep(200);
 
-        // --- Action 4: selection change (debounce 200ms) -----------------
+        // 3. Selection (0,0)-(0,5) — 'hello'.
         editorA.selection = new vscode.Selection(0, 0, 0, 5);
-        await sleep(400);
+        await sleep(400); // selection debounce = 200ms
 
-        // --- Action 5: create + switch to file B ------------------------
+        // 4. Create file B.
         const fileB = vscode.Uri.file(path.join(workspaceDir, 'b.txt'));
         {
             const edit = new vscode.WorkspaceEdit();
             edit.createFile(fileB, { overwrite: true });
             edit.insert(fileB, new vscode.Position(0, 0), 'other\n');
-            assert.ok(await vscode.workspace.applyEdit(edit), 'createFile B applied');
+            assert.ok(await vscode.workspace.applyEdit(edit), 'create B applied');
         }
         const docB = await vscode.workspace.openTextDocument(fileB);
         await vscode.window.showTextDocument(docB);
         await sleep(200);
 
-        // --- Action 6: rename A → C via WorkspaceEdit (fires fileRename) --
+        // 5. Rename A → C.
         const fileC = vscode.Uri.file(path.join(workspaceDir, 'c.txt'));
         {
             const edit = new vscode.WorkspaceEdit();
             edit.renameFile(fileA, fileC, { overwrite: true });
-            assert.ok(await vscode.workspace.applyEdit(edit), 'rename applied');
+            assert.ok(await vscode.workspace.applyEdit(edit), 'rename A→C applied');
         }
         await sleep(200);
 
-        // --- Action 7: delete B via WorkspaceEdit (fires fileDelete) -----
+        // 6. Delete B.
         {
             const edit = new vscode.WorkspaceEdit();
             edit.deleteFile(fileB, { ignoreIfNotExists: true });
-            assert.ok(await vscode.workspace.applyEdit(edit), 'delete applied');
+            assert.ok(await vscode.workspace.applyEdit(edit), 'delete B applied');
         }
         await sleep(200);
 
-        // --- Action 8: open + close terminal ----------------------------
+        // 7. Terminal: open + close.
         const terminal = vscode.window.createTerminal({ name: 'recorder-e2e-term' });
         terminal.show();
         await sleep(200);
         terminal.dispose();
         await sleep(200);
 
-        // --- End session -------------------------------------------------
+        // ── End session ────────────────────────────────────────────────────
+        const sessionEndWallclock = Date.now();
         await recorder.endSession();
 
-        // --- Read JSONL --------------------------------------------------
+        // ── Read JSONL ─────────────────────────────────────────────────────
         const recordingsDir = path.join(storageDir, 'recordings');
-        assert.ok(fs.existsSync(recordingsDir), 'recordings/ directory missing');
-
         const sessionDirs = fs.readdirSync(recordingsDir).filter(d =>
             fs.statSync(path.join(recordingsDir, d)).isDirectory(),
         );
-        assert.strictEqual(sessionDirs.length, 1, `expected 1 session, got ${sessionDirs.length}`);
-
+        assert.strictEqual(sessionDirs.length, 1, 'exactly one session dir');
         const sessionDir = path.join(recordingsDir, sessionDirs[0]);
         const jsonlPath = path.join(sessionDir, 'events.jsonl');
-        assert.ok(fs.existsSync(jsonlPath), 'events.jsonl missing');
 
         const raw = fs.readFileSync(jsonlPath, 'utf-8').trim();
-        assert.ok(raw.length > 0, 'events.jsonl is empty');
-
         const events: RecordedEvent[] = raw.split('\n').map(l => JSON.parse(l) as RecordedEvent);
-        const typeCounts = events.reduce<Record<string, number>>((acc, e) => {
-            acc[e.type] = (acc[e.type] ?? 0) + 1;
-            return acc;
-        }, {});
+        const count = (type: RecordedEvent['type']) => events.filter(e => e.type === type).length;
 
-        // Log all captured types for debugging.
-        console.log('\n=== Captured event type counts ===');
-        for (const [type, count] of Object.entries(typeCounts).sort()) {
-            console.log(`  ${type}: ${count}`);
-        }
-        console.log('==================================\n');
+        // ── Exact-count assertions ─────────────────────────────────────────
+        assert.strictEqual(count('sessionStart'), 1, 'exactly 1 sessionStart');
+        assert.strictEqual(count('sessionEnd'), 1, 'exactly 1 sessionEnd');
+        assert.strictEqual(count('startupPhaseComplete'), 1, 'exactly 1 startupPhaseComplete');
+        assert.strictEqual(count('fileCreate'), 2, '2 fileCreate (A + B)');
+        assert.strictEqual(count('fileDelete'), 1, '1 fileDelete (B)');
+        assert.strictEqual(count('fileRename'), 1, '1 fileRename (A→C)');
+        assert.strictEqual(count('terminalOpenClose'), 2, '2 terminalOpenClose (opened + closed)');
 
-        // --- Assertions: lifecycle --------------------------------------
+        // ── Ordering ───────────────────────────────────────────────────────
         assert.strictEqual(events[0].type, 'sessionStart', 'first event is sessionStart');
-        assert.strictEqual(events[events.length - 1].type, 'sessionEnd', 'last event is sessionEnd');
-        assert.strictEqual(typeCounts.sessionStart, 1, 'exactly one sessionStart');
-        assert.strictEqual(typeCounts.sessionEnd, 1, 'exactly one sessionEnd');
-        assert.strictEqual(typeCounts.startupPhaseComplete, 1, 'exactly one startupPhaseComplete');
+        assert.strictEqual(events.at(-1)?.type, 'sessionEnd', 'last event is sessionEnd');
 
-        // --- Assertions: core editing -----------------------------------
-        assert.ok((typeCounts.textChange ?? 0) >= 1, `textChange present (got ${typeCounts.textChange ?? 0})`);
-        assert.ok((typeCounts.save ?? 0) >= 1, `save present (got ${typeCounts.save ?? 0})`);
-        assert.ok((typeCounts.fileSnapshot ?? 0) >= 1, `fileSnapshot present (got ${typeCounts.fileSnapshot ?? 0})`);
-        assert.ok((typeCounts.fileSwitch ?? 0) >= 1, `fileSwitch present (got ${typeCounts.fileSwitch ?? 0})`);
-        assert.ok((typeCounts.selectionChange ?? 0) >= 1, `selectionChange present (got ${typeCounts.selectionChange ?? 0})`);
-        assert.ok((typeCounts.textDocumentOpen ?? 0) >= 1, `textDocumentOpen present (got ${typeCounts.textDocumentOpen ?? 0})`);
+        // ── Session boundary timestamps ────────────────────────────────────
+        const sessionStart = events[0] as SessionStartEvent;
+        const sessionEnd = events.at(-1) as SessionEndEvent;
+        assert.strictEqual(sessionStart.exerciseId, 1, 'sessionStart.exerciseId');
+        assert.strictEqual(sessionStart.participantId, 'e2e-test', 'sessionStart.participantId');
+        assert.strictEqual(sessionStart.exerciseRoot, workspaceUri.toString(), 'sessionStart.exerciseRoot');
+        assert.strictEqual(sessionStart.schemaVersion, 2, 'sessionStart.schemaVersion');
+        assert.strictEqual(sessionEnd.exerciseId, 1, 'sessionEnd.exerciseId');
+        assert.ok(sessionStart.timestamp >= sessionStartWallclock - 1000, 'sessionStart.timestamp plausible');
+        assert.ok(sessionEnd.timestamp <= sessionEndWallclock + 1000, 'sessionEnd.timestamp plausible');
 
-        // --- Assertions: workspace file ops -----------------------------
-        assert.ok((typeCounts.fileCreate ?? 0) >= 1, `fileCreate present (got ${typeCounts.fileCreate ?? 0})`);
-        assert.ok((typeCounts.fileRename ?? 0) >= 1, `fileRename present (got ${typeCounts.fileRename ?? 0})`);
-        assert.ok((typeCounts.fileDelete ?? 0) >= 1, `fileDelete present (got ${typeCounts.fileDelete ?? 0})`);
+        // ── Timestamp monotonicity (critical invariant) ────────────────────
+        for (let i = 1; i < events.length; i++) {
+            assert.ok(
+                events[i].timestamp >= events[i - 1].timestamp,
+                `timestamp regression at event[${i}] (${events[i - 1].type}→${events[i].type}): `
+                    + `${events[i - 1].timestamp} → ${events[i].timestamp}`,
+            );
+        }
 
-        // --- Assertions: terminal ---------------------------------------
-        assert.ok(
-            (typeCounts.terminalOpenClose ?? 0) >= 1,
-            `terminalOpenClose present (got ${typeCounts.terminalOpenClose ?? 0})`,
+        // ── textChange: verify real payload for the ' world' insert ────────
+        const textChanges = events.filter((e): e is TextChangeEvent => e.type === 'textChange');
+        const worldInsert = textChanges.find(e =>
+            e.uri === fileA.toString()
+            && e.changes.some(c =>
+                c.text === ' world'
+                && c.range.startLine === 0
+                && c.range.startCharacter === 5
+                && c.range.endLine === 0
+                && c.range.endCharacter === 5
+                && c.rangeLength === 0
+                && c.rangeOffset === 5,
+            ),
+        );
+        assert.ok(worldInsert, 'textChange for " world" insert captured with exact payload');
+
+        // ── save: verify both saves fired for fileA ────────────────────────
+        const saves = events.filter((e): e is SaveEvent => e.type === 'save');
+        const savesForA = saves.filter(e => e.uri === fileA.toString());
+        assert.ok(savesForA.length >= 1, 'at least 1 save for fileA');
+
+        // ── fileCreate: URIs are fileA and fileB (in either order) ─────────
+        const fileCreates = events.filter((e): e is FileCreateEvent => e.type === 'fileCreate');
+        assert.deepStrictEqual(
+            new Set(fileCreates.map(e => e.uri)),
+            new Set([fileA.toString(), fileB.toString()]),
+            'fileCreate URIs match A and B',
         );
 
-        // --- Assertions: metadata ---------------------------------------
+        // ── fileRename: exact oldUri/newUri ────────────────────────────────
+        const fileRenames = events.filter((e): e is FileRenameEvent => e.type === 'fileRename');
+        assert.strictEqual(fileRenames[0].oldUri, fileA.toString(), 'rename oldUri = fileA');
+        assert.strictEqual(fileRenames[0].newUri, fileC.toString(), 'rename newUri = fileC');
+
+        // ── fileDelete: exact URI ──────────────────────────────────────────
+        const fileDeletes = events.filter((e): e is FileDeleteEvent => e.type === 'fileDelete');
+        assert.strictEqual(fileDeletes[0].uri, fileB.toString(), 'delete uri = fileB');
+
+        // ── selectionChange: our explicit (0,0)-(0,5) selection is there ───
+        const selectionChanges = events.filter((e): e is SelectionChangeEvent => e.type === 'selectionChange');
+        const ourSelection = selectionChanges.find(e =>
+            e.uri === fileA.toString()
+            && e.selections.length === 1
+            && e.selections[0].startLine === 0
+            && e.selections[0].startCharacter === 0
+            && e.selections[0].endLine === 0
+            && e.selections[0].endCharacter === 5,
+        );
+        assert.ok(ourSelection, 'selectionChange (0,0)-(0,5) on fileA captured');
+
+        // ── terminalOpenClose: exact sequence ──────────────────────────────
+        const terminalEvents = events.filter((e): e is TerminalOpenCloseEvent => e.type === 'terminalOpenClose');
+        assert.deepStrictEqual(
+            terminalEvents.map(e => ({ action: e.action, terminalName: e.terminalName })),
+            [
+                { action: 'opened', terminalName: 'recorder-e2e-term' },
+                { action: 'closed', terminalName: 'recorder-e2e-term' },
+            ],
+            'terminal sequence is exactly opened→closed with matching name',
+        );
+
+        // ── Snapshot content verification ──────────────────────────────────
+        const fileSnapshots = events.filter((e): e is FileSnapshotEvent => e.type === 'fileSnapshot');
+        const snapshotA = fileSnapshots.find(e => e.uri === fileA.toString());
+        assert.ok(snapshotA, 'fileSnapshot for fileA recorded');
+        const snapshotAAbs = path.join(sessionDir, snapshotA.snapshotPath);
+        assert.ok(fs.existsSync(snapshotAAbs), `snapshot file on disk at ${snapshotA.snapshotPath}`);
+        const snapshotAContent = fs.readFileSync(snapshotAAbs, 'utf-8');
+        assert.strictEqual(snapshotAContent, 'hello\n', 'snapshot of fileA has initial content "hello\\n"');
+
+        // ── Reconstruction: replay post-snapshot textChanges on the snapshot ─
+        // Only textChanges AFTER the snapshot timestamp contribute — earlier
+        // changes are already baked into the snapshot content.
+        const aChanges = textChanges.filter(e =>
+            e.uri === fileA.toString() && e.timestamp >= snapshotA.timestamp,
+        );
+        let reconstructed = snapshotAContent;
+        for (const event of aChanges) {
+            for (const c of event.changes) {
+                reconstructed = reconstructed.slice(0, c.rangeOffset) + c.text + reconstructed.slice(c.rangeOffset + c.rangeLength);
+            }
+        }
+        assert.strictEqual(
+            reconstructed,
+            'hello world\n',
+            `replaying post-snapshot textChanges must reconstruct "hello world\\n", got "${reconstructed}"`,
+        );
+
+        // ── Metadata ───────────────────────────────────────────────────────
         const metaPath = path.join(sessionDir, 'metadata.json');
-        assert.ok(fs.existsSync(metaPath), 'metadata.json missing');
         const metadata = JSON.parse(fs.readFileSync(metaPath, 'utf-8')) as {
             schemaVersion: number;
             sessionId: string;
             exerciseId: number;
+            participantId: string | undefined;
             eventCount: number;
+            startTime: number;
+            endTime: number | undefined;
         };
-        assert.strictEqual(metadata.schemaVersion, 2, 'schemaVersion is 2');
-        assert.strictEqual(metadata.exerciseId, 1, 'exerciseId matches');
-        assert.ok(metadata.sessionId.length > 0, 'sessionId is set');
-        assert.ok(metadata.eventCount >= events.length - 2, 'eventCount roughly matches jsonl');
+        assert.strictEqual(metadata.schemaVersion, 2, 'metadata.schemaVersion');
+        assert.strictEqual(metadata.exerciseId, 1, 'metadata.exerciseId');
+        assert.strictEqual(metadata.participantId, 'e2e-test', 'metadata.participantId');
+        assert.strictEqual(metadata.sessionId, sessionDirs[0], 'metadata.sessionId matches dir name');
+        // eventCount is decremented on disable-discard only, so it should match the jsonl exactly here.
+        assert.strictEqual(metadata.eventCount, events.length, 'metadata.eventCount matches jsonl lines');
+        assert.ok(metadata.endTime !== undefined && metadata.endTime >= metadata.startTime, 'endTime >= startTime');
 
-        // --- CLI validation ---------------------------------------------
+        // ── CLI validation ─────────────────────────────────────────────────
         runCliCheck('validate-recording', sessionDir);
         runCliCheck('roundtrip-recording', sessionDir);
+
+        // ── Negative: post-endSession actions must not produce new events ──
+        const eventCountBeforePost = events.length;
+        const fileD = vscode.Uri.file(path.join(workspaceDir, 'd.txt'));
+        {
+            const edit = new vscode.WorkspaceEdit();
+            edit.createFile(fileD, { overwrite: true });
+            edit.insert(fileD, new vscode.Position(0, 0), 'post-end\n');
+            assert.ok(await vscode.workspace.applyEdit(edit), 'post-end create applied');
+        }
+        const postDoc = await vscode.workspace.openTextDocument(fileD);
+        await vscode.window.showTextDocument(postDoc);
+        await sleep(500);
+
+        const rawAfter = fs.readFileSync(jsonlPath, 'utf-8').trim();
+        const eventsAfter = rawAfter.split('\n').map(l => JSON.parse(l) as RecordedEvent);
+        assert.strictEqual(
+            eventsAfter.length,
+            eventCountBeforePost,
+            `no events recorded after endSession (was ${eventCountBeforePost}, now ${eventsAfter.length})`,
+        );
+
+        // Cleanup the post-end probe file so suite teardown workspace stays clean.
+        try {
+            await vscode.workspace.fs.delete(fileD);
+        } catch { /* ignore */ }
+    });
+
+    test('disabled recorder records nothing even when VS Code events fire', async () => {
+        storageDir = fs.mkdtempSync(path.join(os.tmpdir(), 'recorder-storage-disabled-'));
+        const storageUri = vscode.Uri.file(storageDir);
+
+        recorder = new SessionRecorder(storageUri);
+        // Deliberately: do NOT call recorder.enable().
+
+        // Generate VS Code events that would normally be recorded.
+        const probe = vscode.Uri.file(path.join(workspaceDir, 'probe-disabled.txt'));
+        {
+            const edit = new vscode.WorkspaceEdit();
+            edit.createFile(probe, { overwrite: true });
+            edit.insert(probe, new vscode.Position(0, 0), 'should-not-record\n');
+            assert.ok(await vscode.workspace.applyEdit(edit), 'probe create applied');
+        }
+        const probeDoc = await vscode.workspace.openTextDocument(probe);
+        const probeEditor = await vscode.window.showTextDocument(probeDoc);
+        await probeEditor.edit(eb => eb.insert(new vscode.Position(0, 0), 'x'));
+        await probeDoc.save();
+        await sleep(300);
+
+        // No recordings dir should exist (nothing was ever started).
+        const recordingsDir = path.join(storageDir, 'recordings');
+        const hasAny = fs.existsSync(recordingsDir) && fs.readdirSync(recordingsDir).length > 0;
+        assert.strictEqual(hasAny, false, 'no session dirs written when recorder never enabled');
+
+        // Cleanup probe file.
+        try {
+            await vscode.workspace.fs.delete(probe);
+        } catch { /* ignore */ }
     });
 });
 
 /**
  * Run a recorder CLI script against the session directory and fail the
- * test if the script exits non-zero. Runs from the extension root so
- * relative paths in the scripts resolve correctly.
+ * test if the script exits non-zero.
  */
 function runCliCheck(script: 'validate-recording' | 'roundtrip-recording', sessionDir: string): void {
-    // __dirname at runtime is <extension>/out/test/e2e — go up 3 levels.
     const extensionRoot = path.resolve(__dirname, '..', '..', '..');
     const scriptPath = path.join(extensionRoot, 'scripts', `${script}.ts`);
     const result = spawnSync('npx', ['tsx', scriptPath, sessionDir], {
