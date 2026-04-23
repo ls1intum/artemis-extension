@@ -199,7 +199,7 @@ export async function activate(context: vscode.ExtensionContext) {
 	const { sessionRecorder, disposable: recorderDisposable } = wireSessionRecorder({
 		context, consentService, artemisWebsocketService,
 		telemetryManager, artemisWebviewProvider, chatWebviewProvider,
-		capabilities,
+		capabilities, exerciseRegistry,
 	});
 	activeSessionRecorder = sessionRecorder;
 	context.subscriptions.push(recorderDisposable);
@@ -258,9 +258,16 @@ export async function activate(context: vscode.ExtensionContext) {
 
 }
 
-export function deactivate() {
+export async function deactivate(): Promise<void> {
+	// Await the recorder dispose so all buffered events reach disk before
+	// the extension host tears us down. VS Code accepts a Promise return
+	// from deactivate and waits for it during graceful shutdown.
 	if (activeSessionRecorder) {
-		void activeSessionRecorder.endSession();
+		try {
+			await activeSessionRecorder.dispose();
+		} catch (err) {
+			logger.error('Failed to dispose SessionRecorder during deactivate', LogCategory.TELEMETRY, err);
+		}
 		activeSessionRecorder = undefined;
 	}
 	if (activeTelemetryManager) {

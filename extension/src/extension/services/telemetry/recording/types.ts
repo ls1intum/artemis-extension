@@ -61,9 +61,16 @@ export interface BuildResultEvent {
     timestamp: number;
     successful: boolean | undefined;
     errorCount: number;
+    /** Legacy: flat array of detailText strings for failed test feedbacks. Kept for backwards compat. */
     failedTests: string[];
     buildFailed: boolean;
     buildErrorFamilies?: string[];
+    // Scoping fields (added in Block F)
+    exerciseId?: number;
+    participationId?: number;
+    submissionId?: number;
+    /** Structured failed-test details carrying both the test name and the failure message. */
+    failedTestDetails?: { testName: string; detail: string }[];
 }
 
 export interface WindowFocusEvent {
@@ -85,6 +92,8 @@ export interface SessionStartEvent {
     exerciseId: number;
     participantId: string | undefined;
     exerciseRoot?: string;
+    /** Schema version for forward-compat parsing. Block AB introduces version 2. */
+    schemaVersion?: number;
 }
 
 export interface SessionEndEvent {
@@ -93,11 +102,64 @@ export interface SessionEndEvent {
     exerciseId: number;
 }
 
+/**
+ * Emitted when user consent is downgraded (or upgraded) mid-session.
+ * Minimal payload — carries no user data — acts as a marker only. The
+ * downgraded path is followed by a `sessionEnd` and metadata finalisation.
+ */
+export interface ConsentChangeEvent {
+    type: 'consentChange';
+    timestamp: number;
+    level: 'downgraded' | 'upgraded';
+}
+
+/**
+ * Marker event indicating that all synchronous startup work (snapshots,
+ * initial diagnostics, initial-state events, startup contributors) has been
+ * flushed to the event stream. Consumers can use this as a cut-point for
+ * deterministic "seed state vs. runtime events" separation.
+ */
+export interface StartupPhaseCompleteEvent {
+    type: 'startupPhaseComplete';
+    timestamp: number;
+}
+
 export interface IrisChatMessageEvent {
     type: 'irisChatMessage';
     timestamp: number;
     direction: 'sent' | 'received';
     content: string;
+    // Added in Block H: optional metadata from server response / WebSocket payload
+    messageId?: string;
+    sessionId?: string;
+    sentAt?: number;
+}
+
+/**
+ * Records a send attempt lifecycle: pending (before API call), sent (on success),
+ * or failed (on error). Emitted in addition to irisChatMessage so that:
+ *  - Failed sends (which produce no irisChatMessage) are still visible in the recording.
+ *  - The pending→sent timing is available for latency analysis.
+ *
+ * Lifecycle: pending → sent  OR  pending → failed
+ */
+export interface IrisChatSendAttemptEvent {
+    type: 'irisChatSendAttempt';
+    timestamp: number;
+    content: string;
+    status: 'pending' | 'sent' | 'failed';
+    errorMessage?: string;
+}
+
+/**
+ * Records a helpful/unhelpful rating submitted by the user for a received
+ * Iris message. Wired up when the webview's feedback UI fires the event.
+ */
+export interface IrisChatFeedbackEvent {
+    type: 'irisChatFeedback';
+    timestamp: number;
+    messageId: string;
+    helpful: boolean;
 }
 
 export interface EqSnapshotEvent {
@@ -128,12 +190,21 @@ export interface EqEngineStateEvent {
 export interface InterventionEvent {
     type: 'intervention';
     timestamp: number;
-    action: 'shown' | 'accepted' | 'dismissed';
+    action: 'shown' | 'accepted' | 'dismissed' | 'blocked';
     level: 'subtle' | 'notification' | 'proactive';
     shouldIntervene: boolean;
     eq: number;
     confidence: 'sufficient' | 'insufficient';
     triggerType?: 'execution-error' | 'multiline-paste' | 'idle' | 'selection-maintained';
+    /** Populated when action='blocked'. Identifies why the intervention was blocked. */
+    blockedReason?: 'cooldown' | 'warmup' | 'session-limit' | 'low-confidence';
+    /** Populated when action='dismissed'. Identifies how the intervention was dismissed. */
+    dismissReason?: 'user-action' | 'hidden' | 'replaced' | 'session-end';
+    /**
+     * Whether the EQ was above the severity threshold, regardless of confidence/guardrails.
+     * Populated when action='blocked' to explain the signal that was suppressed.
+     */
+    rawWanted?: boolean;
 }
 
 export interface ViewNavigationEvent {
@@ -184,6 +255,53 @@ export interface TerminalOpenCloseEvent {
     terminalName: string;
 }
 
+/**
+ * Emitted once per URI after three consecutive snapshot-write failures.
+ * Acts as a permanent "give up" marker so consumers know a snapshot is
+ * missing and why. Written via `_writeLifecycleEvent` (bypass phase gate)
+ * only while recording is active.
+ */
+export interface FileSnapshotErrorEvent {
+    type: 'fileSnapshotError';
+    timestamp: number;
+    uri: string;
+    /** Short human-readable reason, e.g. 'snapshot-write-failed-after-3-retries' or an fs error message. */
+    reason: string;
+}
+
+// ── Block K: Workspace file events (schemaVersion 2) ─────────────────
+
+export interface FileCreateEvent {
+    type: 'fileCreate';
+    timestamp: number;
+    uri: string;
+}
+
+export interface FileDeleteEvent {
+    type: 'fileDelete';
+    timestamp: number;
+    uri: string;
+}
+
+export interface FileRenameEvent {
+    type: 'fileRename';
+    timestamp: number;
+    oldUri: string;
+    newUri: string;
+}
+
+export interface TextDocumentOpenEvent {
+    type: 'textDocumentOpen';
+    timestamp: number;
+    uri: string;
+}
+
+export interface TextDocumentCloseEvent {
+    type: 'textDocumentClose';
+    timestamp: number;
+    uri: string;
+}
+
 // ── Discriminated union ───────────────────────────────────────────────
 
 export type RecordedEvent =
@@ -196,7 +314,11 @@ export type RecordedEvent =
     | FileSnapshotEvent
     | SessionStartEvent
     | SessionEndEvent
+    | ConsentChangeEvent
+    | StartupPhaseCompleteEvent
     | IrisChatMessageEvent
+    | IrisChatSendAttemptEvent
+    | IrisChatFeedbackEvent
     | EqSnapshotEvent
     | EqEngineStateEvent
     | InterventionEvent
@@ -205,7 +327,13 @@ export type RecordedEvent =
     | SelectionChangeEvent
     | VisibleRangeChangeEvent
     | TerminalCommandEvent
-    | TerminalOpenCloseEvent;
+    | TerminalOpenCloseEvent
+    | FileSnapshotErrorEvent
+    | FileCreateEvent
+    | FileDeleteEvent
+    | FileRenameEvent
+    | TextDocumentOpenEvent
+    | TextDocumentCloseEvent;
 
 // ── Session metadata ──────────────────────────────────────────────────
 
@@ -216,4 +344,8 @@ export interface SessionMetadata {
     startTime: number;
     endTime: number | undefined;
     eventCount: number;
+    /** Schema version for forward-compat parsing. Block D introduces version 2. */
+    schemaVersion?: number;
+    /** Recorder version string, set by storageWriter at write time. */
+    recorderVersion?: string;
 }

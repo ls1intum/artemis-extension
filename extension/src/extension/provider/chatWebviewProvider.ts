@@ -48,6 +48,33 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
     private readonly _onDidSendIrisChatMessage = new vscode.EventEmitter<string>();
     public readonly onDidSendIrisChatMessage = this._onDidSendIrisChatMessage.event;
 
+    /**
+     * Fired at each stage of a send attempt:
+     *   - { status: 'pending' }   immediately before the API call
+     *   - { status: 'sent' }      after the API call succeeds
+     *   - { status: 'failed', errorMessage }  after the API call throws
+     *
+     * Consumers (e.g. sessionRecorderWiring) use this to record the full
+     * send lifecycle, including failed sends that never become irisChatMessage events.
+     */
+    private readonly _onDidAttemptIrisChatSend = new vscode.EventEmitter<{
+        content: string;
+        status: 'pending' | 'sent' | 'failed';
+        errorMessage?: string;
+    }>();
+    public readonly onDidAttemptIrisChatSend = this._onDidAttemptIrisChatSend.event;
+
+    /**
+     * Fired when the user submits helpful/unhelpful feedback for a message.
+     * The event is emitted AFTER the API call has been dispatched (fire-and-forget
+     * from the recording perspective — we don't wait for the server's ack).
+     */
+    private readonly _onDidProvideIrisChatFeedback = new vscode.EventEmitter<{
+        messageId: string;
+        helpful: boolean;
+    }>();
+    public readonly onDidProvideIrisChatFeedback = this._onDidProvideIrisChatFeedback.event;
+
     private readonly _onDidChangePanelVisibility = new vscode.EventEmitter<boolean>();
     public readonly onDidChangePanelVisibility = this._onDidChangePanelVisibility.event;
 
@@ -66,6 +93,8 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
         super(LogCategory.IRIS_CHAT);
         this._disposables.push(this._onDidChangeExerciseContext);
         this._disposables.push(this._onDidSendIrisChatMessage);
+        this._disposables.push(this._onDidAttemptIrisChatSend);
+        this._disposables.push(this._onDidProvideIrisChatFeedback);
         this._disposables.push(this._onDidChangePanelVisibility);
         this._contextStore = new ContextStore(this._extensionContext);
         this._disposables.push(this._contextStore);
@@ -587,16 +616,29 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
     private async _handleChatMessage(message: { text?: string }): Promise<void> {
         if (typeof message.text !== 'string') { return; }
 
+        const content = message.text;
+
+        // Emit pending before the API call so the recording captures send attempts
+        // even when the call never returns (e.g. network hang).
+        this._onDidAttemptIrisChatSend.fire({ content, status: 'pending' });
+
         try {
             const result = await this._chatMessageService.sendMessage({
-                text: message.text,
+                text: content,
                 isNoAiEnabled: this._noAiDetectionService.isNoAiEnabled,
                 struggleContext: this.getStruggleContext(),
             });
 
             if (result.sent) {
-                this._onDidSendIrisChatMessage.fire(message.text!);
+                this._onDidAttemptIrisChatSend.fire({ content, status: 'sent' });
+                this._onDidSendIrisChatMessage.fire(content);
             } else {
+                // Fire terminal 'failed' so the pending event is never orphaned.
+                this._onDidAttemptIrisChatSend.fire({
+                    content,
+                    status: 'failed',
+                    errorMessage: `send-rejected: ${result.reason ?? 'unknown'}`,
+                });
                 switch (result.reason) {
                     case 'no-ai':
                         this._postNoAiStatus(true);
@@ -614,6 +656,7 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
             }
         } catch (error: unknown) {
             const errorMessage = error instanceof Error ? error.message : String(error);
+            this._onDidAttemptIrisChatSend.fire({ content, status: 'failed', errorMessage });
             vscode.window.showErrorMessage(`Failed to send message: ${errorMessage}`);
             this._postMessageSafe({
                 type: ExtensionMsg.AddMessage,
@@ -643,8 +686,15 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
             return;
         }
 
+        const isHelpful = feedback === 'positive';
+
+        // Fire the recording event before the API call (fire-and-forget for recording).
+        this._onDidProvideIrisChatFeedback.fire({
+            messageId: String(messageId),
+            helpful: isHelpful,
+        });
+
         try {
-            const isHelpful = feedback === 'positive';
             await this._artemisApiService.markMessageHelpful(sessionId, messageId, isHelpful);
             logger.info(`Feedback submitted: ${feedback} for message ${messageId} in session ${sessionId}`, LogCategory.IRIS_CHAT);
         } catch (error) {

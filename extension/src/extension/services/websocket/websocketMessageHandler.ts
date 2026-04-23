@@ -13,8 +13,18 @@ export type ReconnectResult =
     | { status: 'no-service' }
     | { status: 'failed'; error: string };
 
+export interface ReceivedIrisChatMessage {
+    content: string;
+    /** Numeric message ID from the Artemis server, stringified for recording. */
+    messageId?: string;
+    /** Numeric session ID from the Artemis server, stringified for recording. */
+    sessionId?: string;
+    /** Unix-ms timestamp derived from the server's sentAt ISO string. */
+    sentAt?: number;
+}
+
 export class IrisWebSocketMessageHandler {
-    private readonly _onDidReceiveIrisChatMessage = new vscode.EventEmitter<string>();
+    private readonly _onDidReceiveIrisChatMessage = new vscode.EventEmitter<ReceivedIrisChatMessage>();
     public readonly onDidReceiveIrisChatMessage = this._onDidReceiveIrisChatMessage.event;
 
     constructor(
@@ -49,17 +59,28 @@ export class IrisWebSocketMessageHandler {
             // Only show assistant messages (user messages were already shown)
             if (msg.sender !== 'USER' && content) {
                 logger.info('🤖 Sending assistant message to webview (this should hide thinking indicator)', LogCategory.WEBSOCKET);
+                const sentAtMs = msg.sentAt ? new Date(msg.sentAt).getTime() : undefined;
                 this._postMessage({
                     type: ExtensionMsg.AddMessage,
                     message: {
                         id: msg.id,
                         role: 'assistant',
                         content: content,
-                        timestamp: msg.sentAt ? new Date(msg.sentAt).getTime() : Date.now(),
+                        timestamp: sentAtMs ?? Date.now(),
                         helpful: typeof msg['helpful'] === 'boolean' ? msg['helpful'] : null
                     }
                 });
-                this._onDidReceiveIrisChatMessage.fire(content);
+
+                // Build the enriched received-message payload for recording.
+                // sessionId is not available in the per-message payload; it is
+                // stored at the subscription level. We omit it here and rely on
+                // the recorder consumer to enrich it if needed in the future.
+                const receivedMsg: ReceivedIrisChatMessage = {
+                    content,
+                    messageId: msg.id !== undefined ? String(msg.id) : undefined,
+                    sentAt: sentAtMs,
+                };
+                this._onDidReceiveIrisChatMessage.fire(receivedMsg);
                 logger.info('Assistant message sent to webview', LogCategory.WEBSOCKET);
             } else {
                 logger.info('Skipping message (either USER message or no content)', LogCategory.WEBSOCKET);

@@ -257,10 +257,39 @@ export interface CompileEquivalentEvent {
 }
 
 /**
+ * Reason why an intervention was blocked (i.e. rawWanted=true but shouldIntervene=false).
+ *
+ * - 'cooldown'        — InterventionService internal cooldown (notification/proactive only)
+ * - 'warmup'          — Exercise hasn't reached the 5-minute warmup yet
+ * - 'session-limit'   — Max interventions per session exceeded
+ * - 'low-confidence'  — EQ above threshold but confidence gate is 'insufficient'
+ */
+export type InterventionBlockedReason = 'cooldown' | 'warmup' | 'session-limit' | 'low-confidence';
+
+/**
+ * Reason why an intervention was dismissed.
+ *
+ * - 'user-action'  — User explicitly clicked "Not now" / "Later"
+ * - 'hidden'       — Hint was hidden implicitly (e.g. build succeeded, session ended)
+ * - 'replaced'     — A newer intervention replaced the current one
+ * - 'session-end'  — Session ended while intervention was pending
+ */
+export type InterventionDismissReason = 'user-action' | 'hidden' | 'replaced' | 'session-end';
+
+/**
  * Decision output from the intervention decision engine
  */
 export interface InterventionDecision {
-    /** Whether to intervene */
+    /**
+     * True when EQ is above the severity threshold, ignoring confidence and
+     * guardrails. This is the "raw" want signal — the engine wanted to show
+     * something based on severity alone.
+     *
+     * Example: EQ=0.5 (above notification threshold), confidence=insufficient
+     *   → rawWanted=true, shouldIntervene=false, blockedReason='low-confidence'
+     */
+    rawWanted: boolean;
+    /** Whether to actually show an intervention (rawWanted AND confidence AND guardrails pass) */
     shouldIntervene: boolean;
     /** Intervention level */
     level: RecommendedAction;
@@ -270,4 +299,9 @@ export interface InterventionDecision {
     eq: number;
     /** Current EQ confidence */
     confidence: EQConfidence;
+    /**
+     * Populated when rawWanted=true and shouldIntervene=false.
+     * Identifies why the intervention was blocked.
+     */
+    blockedReason?: InterventionBlockedReason;
 }

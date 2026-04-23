@@ -1,5 +1,6 @@
 import { useState, useCallback, useRef, useMemo } from 'react';
-import type { Annotation, AnnotationLabel, LoadedSession, RecordedEvent, SessionMetadata, ReplayEqSnapshot, VideoSyncConfig } from './types';
+import type { Annotation, AnnotationLabel, LoadedSession, RecordedEvent, SessionMetadata, SessionStartEvent, ReplayEqSnapshot, VideoSyncConfig } from './types';
+import { resolveSchemaVersion } from './parseSession';
 import { FileDropZone } from './components/FileDropZone';
 import { RecordingInfo } from './components/RecordingInfo';
 import { SessionList } from './components/SessionList';
@@ -102,7 +103,9 @@ function App() {
             setIsVideoPlaying(false);
             videoTimeRef.current = 0;
             setZoomedXDomain(null);
-            setSession({ metadata, events, fileName: sessionId, replayEq, annotations: loadedAnnotations });
+            const firstSessionStart = events.find(e => e.type === 'sessionStart') as SessionStartEvent | undefined;
+            const schemaVersion = resolveSchemaVersion(metadata, firstSessionStart);
+            setSession({ metadata, events, fileName: sessionId, schemaVersion, replayEq, annotations: loadedAnnotations });
         } catch (err) {
             console.error('Failed to load session:', err);
         } finally {

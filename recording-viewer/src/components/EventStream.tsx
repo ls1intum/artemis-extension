@@ -110,6 +110,21 @@ function EventDetail({ event }: { event: RecordedEvent }) {
                 <span className="event-detail">
                     {event.direction === 'sent' ? 'SENT' : 'RECV'}:&nbsp;
                     {event.content.length > 80 ? event.content.slice(0, 80) + '...' : event.content}
+                    {event.messageId && <span className="event-meta"> id:{event.messageId}</span>}
+                </span>
+            );
+        case 'irisChatSendAttempt':
+            return (
+                <span className="event-detail">
+                    {event.status.toUpperCase()}:&nbsp;
+                    {event.content.length > 80 ? event.content.slice(0, 80) + '...' : event.content}
+                    {event.errorMessage && <span className="event-error"> — {event.errorMessage}</span>}
+                </span>
+            );
+        case 'irisChatFeedback':
+            return (
+                <span className="event-detail">
+                    msg:{event.messageId} | {event.helpful ? 'helpful' : 'not helpful'}
                 </span>
             );
         case 'windowFocus':
@@ -173,6 +188,26 @@ function EventDetail({ event }: { event: RecordedEvent }) {
                     {event.action} | {event.terminalName}
                 </span>
             );
+        case 'fileSnapshotError':
+            return (
+                <span className="event-detail">
+                    {shortenUri(event.uri)} | {event.reason}
+                </span>
+            );
+        case 'fileCreate':
+            return <span className="event-detail">{shortenUri(event.uri)}</span>;
+        case 'fileDelete':
+            return <span className="event-detail">{shortenUri(event.uri)}</span>;
+        case 'fileRename':
+            return (
+                <span className="event-detail">
+                    {shortenUri(event.oldUri)} &rarr; {shortenUri(event.newUri)}
+                </span>
+            );
+        case 'textDocumentOpen':
+            return <span className="event-detail">{shortenUri(event.uri)}</span>;
+        case 'textDocumentClose':
+            return <span className="event-detail">{shortenUri(event.uri)}</span>;
         default:
             return null;
     }

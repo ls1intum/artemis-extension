@@ -452,10 +452,15 @@ suite('EQ Threshold Boundary Tests (InterventionDecisionEngine)', () => {
 
     // --- Confidence gate overrides EQ ---
 
-    test('EQ = 1.0 but confidence = insufficient → no intervention', () => {
+    test('EQ = 1.0 but confidence = insufficient → no intervention (but level reflects severity)', () => {
+        // Block C: rawWanted separates severity from the gate decision.
+        // When confidence is insufficient, shouldIntervene is false but the level
+        // now reflects the EQ severity (not 'none') so the blocked reason can be reported.
         const result = decisionEngine.evaluate(1.0, 'insufficient', 'idle', defaultState);
         assert.strictEqual(result.shouldIntervene, false);
-        assert.strictEqual(result.level, 'none');
+        assert.strictEqual(result.level, 'proactive', 'level reflects severity even when confidence gate blocks');
+        assert.strictEqual(result.rawWanted, true, 'rawWanted=true when EQ is above threshold');
+        assert.strictEqual(result.blockedReason, 'low-confidence');
     });
 
     test('EQ = 0.15 with confidence = sufficient → subtle intervention', () => {

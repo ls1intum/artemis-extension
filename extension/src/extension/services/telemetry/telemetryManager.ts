@@ -24,6 +24,7 @@ import { ResultDTO, WebSocketMessageHandler } from '../../types';
 import { VSCODE_CONFIG } from '../../utils/constants';
 import { logger, LogCategory } from '../loggingService';
 import type { ExerciseRegistry } from '../exerciseRegistry';
+import { shouldAcceptBuildResult } from './buildResultGuard';
 
 /**
  * Central orchestration service for EQ-based struggle detection.
@@ -82,6 +83,10 @@ export class TelemetryManager implements vscode.Disposable, WebSocketMessageHand
 
     public get onDidDismissIntervention() {
         return this._interventionService.onDidDismissIntervention;
+    }
+
+    public get onDidBlockIntervention() {
+        return this._interventionService.onDidBlockIntervention;
     }
 
     constructor(exerciseRegistry?: ExerciseRegistry) {
@@ -185,25 +190,8 @@ export class TelemetryManager implements vscode.Disposable, WebSocketMessageHand
             return;
         }
 
-        // Guard 1: Skip results when no exercise session is active (Edge Case 1b).
-        // The WebSocket subscription (personalResults) delivers results for any
-        // participation of the user, not just the active exercise's.
-        if (this._activeExerciseId === undefined) {
+        if (!shouldAcceptBuildResult(result, this._activeExerciseId, this._exerciseRegistry)) {
             return;
-        }
-
-        // Guard 2: Skip results that belong to a different exercise than the
-        // active session. ResultDTO only carries a participationId, so we
-        // resolve it through ExerciseRegistry. Policy: permissive on unknown
-        // mapping — if the registry has not yet learned this participationId
-        // (e.g. first course load not finished), we let the result through
-        // rather than dropping real data. Known mismatches are dropped.
-        const resultParticipationId = result.participation?.id;
-        if (resultParticipationId !== undefined && this._exerciseRegistry) {
-            const mappedExerciseId = this._exerciseRegistry.getExerciseIdByParticipation(resultParticipationId);
-            if (mappedExerciseId !== undefined && mappedExerciseId !== this._activeExerciseId) {
-                return;
-            }
         }
 
         // Step 1: EQ snapshot FIRST (synchronous)
@@ -398,26 +386,29 @@ export class TelemetryManager implements vscode.Disposable, WebSocketMessageHand
         const state = this._interventionService.getState();
         const decision = this._decisionEngine.evaluate(eq, confidence, triggerType, state);
 
-        if (!decision.shouldIntervene) {
-            return;
+        if (decision.shouldIntervene) {
+            // Dispatch intervention
+            switch (decision.level) {
+                case 'subtle':
+                    this._interventionService.showSubtleHintEQ(decision);
+                    break;
+                case 'notification':
+                    void this._interventionService.showNotificationEQ(decision).catch((err: unknown) => {
+                        logger.error('Failed to show notification intervention', LogCategory.TELEMETRY, err);
+                    });
+                    break;
+                case 'proactive':
+                    void this._interventionService.showProactiveHelpEQ(decision).catch((err: unknown) => {
+                        logger.error('Failed to show proactive intervention', LogCategory.TELEMETRY, err);
+                    });
+                    break;
+            }
+        } else if (decision.rawWanted) {
+            // EQ was above threshold but something blocked the intervention.
+            // Record it for telemetry (rate-limited internally).
+            this._interventionService.recordBlockedDecision(decision);
         }
-
-        // Dispatch intervention
-        switch (decision.level) {
-            case 'subtle':
-                this._interventionService.showSubtleHintEQ(decision);
-                break;
-            case 'notification':
-                void this._interventionService.showNotificationEQ(decision).catch((err: unknown) => {
-                    logger.error('Failed to show notification intervention', LogCategory.TELEMETRY, err);
-                });
-                break;
-            case 'proactive':
-                void this._interventionService.showProactiveHelpEQ(decision).catch((err: unknown) => {
-                    logger.error('Failed to show proactive intervention', LogCategory.TELEMETRY, err);
-                });
-                break;
-        }
+        // else: rawWanted=false → EQ below all thresholds, normal operation, no event.
     }
 
     // ==================== Public API ====================

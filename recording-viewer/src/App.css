@@ -594,6 +594,8 @@
 .event-badge.sessionStart { background: rgba(99, 102, 241, 0.15); color: #a5b4fc; }
 .event-badge.sessionEnd { background: rgba(239, 68, 68, 0.15); color: #f87171; }
 .event-badge.irisChatMessage { background: rgba(236, 72, 153, 0.15); color: #f472b6; }
+.event-badge.irisChatSendAttempt { background: rgba(251, 146, 60, 0.15); color: #fb923c; }
+.event-badge.irisChatFeedback { background: rgba(167, 139, 250, 0.15); color: #a78bfa; }
 .event-badge.intervention { background: rgba(249, 115, 22, 0.15); color: #f97316; }
 .event-badge.eqEngineState { background: rgba(99, 102, 241, 0.15); color: #818cf8; }
 .event-badge.viewNavigation { background: rgba(167, 139, 250, 0.15); color: #a78bfa; }
@@ -602,6 +604,12 @@
 .event-badge.visibleRangeChange { background: rgba(20, 184, 166, 0.15); color: #14b8a6; }
 .event-badge.terminalCommand { background: rgba(34, 211, 238, 0.15); color: #22d3ee; }
 .event-badge.terminalOpenClose { background: rgba(103, 232, 249, 0.12); color: #67e8f9; }
+.event-badge.fileSnapshotError { background: rgba(239, 68, 68, 0.15); color: #f87171; }
+.event-badge.fileCreate { background: rgba(134, 239, 172, 0.15); color: #86efac; }
+.event-badge.fileDelete { background: rgba(252, 165, 165, 0.15); color: #fca5a5; }
+.event-badge.fileRename { background: rgba(253, 186, 116, 0.15); color: #fdba74; }
+.event-badge.textDocumentOpen { background: rgba(125, 211, 252, 0.15); color: #7dd3fc; }
+.event-badge.textDocumentClose { background: rgba(147, 197, 253, 0.15); color: #93c5fd; }
 
 /* ── Event details ───────────────────────────────────────────────────── */
 

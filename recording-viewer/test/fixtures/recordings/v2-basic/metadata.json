@@ -1,0 +1,10 @@
+{
+  "sessionId": "v2-basic-session",
+  "exerciseId": 99,
+  "participantId": "student-2",
+  "startTime": 1700100000000,
+  "endTime": 1700100010000,
+  "eventCount": 11,
+  "schemaVersion": 2,
+  "recorderVersion": "0.4.1"
+}

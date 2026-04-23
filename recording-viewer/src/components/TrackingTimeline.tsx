@@ -78,7 +78,11 @@ function eventSummary(event: RecordedEvent, sessionStartTime: number): React.Rea
         case 'sessionEnd':
             return <><span className="tt-time">{time}</span> Exercise {event.exerciseId}</>;
         case 'irisChatMessage':
-            return <><span className="tt-time">{time}</span> {event.direction === 'sent' ? 'SENT' : 'RECV'}: {event.content.length > 50 ? event.content.slice(0, 50) + '...' : event.content}</>;
+            return <><span className="tt-time">{time}</span> {event.direction === 'sent' ? 'SENT' : 'RECV'}: {event.content.length > 50 ? event.content.slice(0, 50) + '...' : event.content}{event.messageId ? ` (id:${event.messageId})` : ''}</>;
+        case 'irisChatSendAttempt':
+            return <><span className="tt-time">{time}</span> {event.status.toUpperCase()}: {event.content.length > 50 ? event.content.slice(0, 50) + '...' : event.content}{event.errorMessage ? ` — ${event.errorMessage}` : ''}</>;
+        case 'irisChatFeedback':
+            return <><span className="tt-time">{time}</span> msg:{event.messageId} | {event.helpful ? 'helpful' : 'not helpful'}</>;
         case 'windowFocus':
             return <><span className="tt-time">{time}</span> {event.focused ? 'focused' : 'blurred'}</>;
         case 'fileSnapshot':
@@ -97,6 +101,18 @@ function eventSummary(event: RecordedEvent, sessionStartTime: number): React.Rea
             return <><span className="tt-time">{time}</span> <code>{event.command.length > 40 ? event.command.slice(0, 40) + '...' : event.command}</code> exit: {event.exitCode ?? '?'}</>;
         case 'terminalOpenClose':
             return <><span className="tt-time">{time}</span> {event.action} | {event.terminalName}</>;
+        case 'fileSnapshotError':
+            return <><span className="tt-time">{time}</span> {shortenUri(event.uri)} | {event.reason}</>;
+        case 'fileCreate':
+            return <><span className="tt-time">{time}</span> {shortenUri(event.uri)}</>;
+        case 'fileDelete':
+            return <><span className="tt-time">{time}</span> {shortenUri(event.uri)}</>;
+        case 'fileRename':
+            return <><span className="tt-time">{time}</span> {shortenUri(event.oldUri)} → {shortenUri(event.newUri)}</>;
+        case 'textDocumentOpen':
+            return <><span className="tt-time">{time}</span> {shortenUri(event.uri)}</>;
+        case 'textDocumentClose':
+            return <><span className="tt-time">{time}</span> {shortenUri(event.uri)}</>;
         default:
             return <span className="tt-time">{time}</span>;
     }
