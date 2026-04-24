@@ -272,7 +272,7 @@ export function CourseListView({ vscodeApi }: CourseListViewProps) {
                                     <div className={styles.courseColorIndicator} style={{ backgroundColor: courseColor }} />
                                     <div className={styles.courseContent}>
                                         <div className={styles.courseHeader}>
-                                            <div className={styles.courseTitle}>{course.title}</div>
+                                            <div className={styles.courseTitle} title={course.title}>{course.title}</div>
                                             <Badge variant="info" className={styles.courseSemester}>
                                                 {semester}
                                             </Badge>
@@ -327,7 +327,7 @@ export function CourseListView({ vscodeApi }: CourseListViewProps) {
                                     <div className={styles.courseColorIndicator} style={{ backgroundColor: courseColor }} />
                                     <div className={styles.courseContent}>
                                         <div className={styles.courseHeader}>
-                                            <div className={styles.courseTitle}>{course.title}</div>
+                                            <div className={styles.courseTitle} title={course.title}>{course.title}</div>
                                             <Badge variant="muted" className={styles.courseSemester}>
                                                 {semester}
                                             </Badge>

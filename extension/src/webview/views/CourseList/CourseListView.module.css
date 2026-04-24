@@ -14,7 +14,7 @@
 
 .controlsGrid {
     display: grid;
-    grid-template-columns: repeat(3, 1fr) auto;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
     gap: 1rem;
     align-items: end;
 }
@@ -22,11 +22,21 @@
 .controlGroup {
     display: flex;
     flex-direction: column;
+    min-width: 0;
+}
+
+.controlGroup select {
+    width: 100%;
+    min-width: 0;
 }
 
 .controlGroupAction {
     display: flex;
     align-items: end;
+}
+
+.controlGroupAction > * {
+    width: 100%;
 }
 
 .coursesSection {
@@ -57,6 +67,7 @@
 
 .courseContent {
     flex: 1;
+    min-width: 0;
     display: flex;
     flex-direction: column;
     gap: 0.5rem;
@@ -67,12 +78,18 @@
     flex-direction: row;
     align-items: center;
     gap: 0.75rem;
+    min-width: 0;
 }
 
 .courseTitle {
     font-weight: 600;
     font-size: 1rem;
     color: var(--vscode-foreground);
+    min-width: 0;
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .courseSemester {
@@ -90,7 +107,8 @@
 .courseStats {
     display: flex;
     flex-direction: row;
-    gap: 1.5rem;
+    flex-wrap: wrap;
+    gap: 0.25rem 1.5rem;
     font-size: 0.8125rem;
     color: var(--vscode-descriptionForeground);
 }
@@ -108,6 +126,7 @@
     border-left: 3px solid var(--vscode-textLink-foreground);
     color: var(--vscode-foreground);
     font-size: 0.875rem;
+    overflow-wrap: anywhere;
 }
 
 .noCourses {
