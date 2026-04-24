@@ -135,12 +135,15 @@ suite('Session Recorder — E2E (VS Code only)', function () {
         }
         await sleep(200);
 
-        // 7. Terminal: open + close.
+        // 7. Terminal: open + close. Terminal close events are not flushed on
+        // endSession (observationRegistry only flushes selection/visibleRange
+        // debounces), so wait long enough for onDidCloseTerminal to fire while
+        // phase is still `recording`.
         const terminal = vscode.window.createTerminal({ name: 'recorder-e2e-term' });
         terminal.show();
-        await sleep(200);
+        await sleep(300);
         terminal.dispose();
-        await sleep(200);
+        await sleep(800);
 
         // ── End session ────────────────────────────────────────────────────
         const sessionEndWallclock = Date.now();
@@ -208,10 +211,20 @@ suite('Session Recorder — E2E (VS Code only)', function () {
         );
         assert.ok(worldInsert, 'textChange for " world" insert captured with exact payload');
 
-        // ── save: verify both saves fired for fileA ────────────────────────
+        // ── save: at least one save for fileA MUST follow the " world" insert ─
+        // Tighter than "count >= 1": we verify the save semantically follows
+        // the edit it was supposed to persist. Catches a listener that fires
+        // but on the wrong URI, or a save captured from a different file.
         const saves = events.filter((e): e is SaveEvent => e.type === 'save');
-        const savesForA = saves.filter(e => e.uri === fileA.toString());
-        assert.ok(savesForA.length >= 1, 'at least 1 save for fileA');
+        const worldInsertIdx = events.indexOf(worldInsert);
+        const postInsertSaveA = events.slice(worldInsertIdx + 1).find(
+            (e): e is SaveEvent => e.type === 'save' && e.uri === fileA.toString(),
+        );
+        assert.ok(postInsertSaveA, 'save for fileA AFTER " world" insert captured');
+        // And all save events must carry real URIs (no blank/malformed).
+        for (const s of saves) {
+            assert.ok(s.uri.length > 0 && s.uri.startsWith('file:'), `save uri well-formed: ${s.uri}`);
+        }
 
         // ── fileCreate: URIs are fileA and fileB (in either order) ─────────
         const fileCreates = events.filter((e): e is FileCreateEvent => e.type === 'fileCreate');
@@ -262,14 +275,20 @@ suite('Session Recorder — E2E (VS Code only)', function () {
         const snapshotAContent = fs.readFileSync(snapshotAAbs, 'utf-8');
         assert.strictEqual(snapshotAContent, 'hello\n', 'snapshot of fileA has initial content "hello\\n"');
 
-        // ── Reconstruction: replay post-snapshot textChanges on the snapshot ─
-        // Only textChanges AFTER the snapshot timestamp contribute — earlier
-        // changes are already baked into the snapshot content.
-        const aChanges = textChanges.filter(e =>
-            e.uri === fileA.toString() && e.timestamp >= snapshotA.timestamp,
-        );
+        // ── Reconstruction: replay textChanges appearing AFTER the fileSnapshot
+        // event in JSONL order — this is a conservative cut-point. (Semantic
+        // snapshot content is captured SYNC at getText() time but the
+        // fileSnapshot event is emitted POST async write; a change in that
+        // window can land in both snapshot content AND JSONL. The roundtrip
+        // CLI has a separate known bug — it replays ALL textChanges without a
+        // cut-point. In this test's deterministic timing, the " world" edit
+        // happens well after snapshot-write completes, so index-based works.)
+        const snapshotAIdx = events.indexOf(snapshotA);
+        const aChangesAfterSnapshot = events
+            .slice(snapshotAIdx + 1)
+            .filter((e): e is TextChangeEvent => e.type === 'textChange' && e.uri === fileA.toString());
         let reconstructed = snapshotAContent;
-        for (const event of aChanges) {
+        for (const event of aChangesAfterSnapshot) {
             for (const c of event.changes) {
                 reconstructed = reconstructed.slice(0, c.rangeOffset) + c.text + reconstructed.slice(c.rangeOffset + c.rangeLength);
             }
@@ -330,36 +349,187 @@ suite('Session Recorder — E2E (VS Code only)', function () {
         } catch { /* ignore */ }
     });
 
-    test('disabled recorder records nothing even when VS Code events fire', async () => {
+    test('after disable(), subsequent VS Code events are not recorded', async () => {
+        // Strong negative: exercise the real enable→start→end→disable FSM path.
+        // Bugs this catches that a "never-enabled" test could not:
+        //   - Listeners that stay registered after disable()
+        //   - Session created after disable() (phase gate broken)
+        //   - New textChange/save events written to the ended session's JSONL
         storageDir = fs.mkdtempSync(path.join(os.tmpdir(), 'recorder-storage-disabled-'));
         const storageUri = vscode.Uri.file(storageDir);
+        const workspaceUri = vscode.Uri.file(workspaceDir);
 
         recorder = new SessionRecorder(storageUri);
-        // Deliberately: do NOT call recorder.enable().
+        recorder.enable();
+        await recorder.startSession(2, 'negative-test', workspaceUri.toString());
+        await sleep(200);
 
-        // Generate VS Code events that would normally be recorded.
-        const probe = vscode.Uri.file(path.join(workspaceDir, 'probe-disabled.txt'));
+        // Record at least one real event so the session dir is definitely
+        // committed and we can compare JSONL line count later.
+        const probe = vscode.Uri.file(path.join(workspaceDir, 'probe-negative.txt'));
         {
             const edit = new vscode.WorkspaceEdit();
             edit.createFile(probe, { overwrite: true });
-            edit.insert(probe, new vscode.Position(0, 0), 'should-not-record\n');
+            edit.insert(probe, new vscode.Position(0, 0), 'before-disable\n');
             assert.ok(await vscode.workspace.applyEdit(edit), 'probe create applied');
         }
-        const probeDoc = await vscode.workspace.openTextDocument(probe);
-        const probeEditor = await vscode.window.showTextDocument(probeDoc);
-        await probeEditor.edit(eb => eb.insert(new vscode.Position(0, 0), 'x'));
-        await probeDoc.save();
-        await sleep(300);
+        await sleep(200);
 
-        // No recordings dir should exist (nothing was ever started).
+        await recorder.endSession();
+        recorder.disable();
+        await sleep(100);
+
+        // Snapshot JSONL state pre-action.
         const recordingsDir = path.join(storageDir, 'recordings');
-        const hasAny = fs.existsSync(recordingsDir) && fs.readdirSync(recordingsDir).length > 0;
-        assert.strictEqual(hasAny, false, 'no session dirs written when recorder never enabled');
+        const sessionDirs = fs.readdirSync(recordingsDir).filter(d =>
+            fs.statSync(path.join(recordingsDir, d)).isDirectory(),
+        );
+        assert.strictEqual(sessionDirs.length, 1, 'one session dir from the pre-disable run');
+        const jsonlPath = path.join(recordingsDir, sessionDirs[0], 'events.jsonl');
+        const lineCountBefore = fs.readFileSync(jsonlPath, 'utf-8').trim().split('\n').length;
 
-        // Cleanup probe file.
-        try {
-            await vscode.workspace.fs.delete(probe);
-        } catch { /* ignore */ }
+        // Fire events that WOULD have been recorded.
+        {
+            const edit = new vscode.WorkspaceEdit();
+            edit.insert(probe, new vscode.Position(0, 0), 'AFTER-DISABLE-');
+            assert.ok(await vscode.workspace.applyEdit(edit), 'post-disable edit applied');
+        }
+        const probeDoc = await vscode.workspace.openTextDocument(probe);
+        await probeDoc.save();
+        await sleep(400);
+
+        // JSONL must not grow, no new session dir must appear.
+        const lineCountAfter = fs.readFileSync(jsonlPath, 'utf-8').trim().split('\n').length;
+        assert.strictEqual(lineCountAfter, lineCountBefore, 'JSONL did not grow after disable()');
+        const sessionDirsAfter = fs.readdirSync(recordingsDir).filter(d =>
+            fs.statSync(path.join(recordingsDir, d)).isDirectory(),
+        );
+        assert.strictEqual(sessionDirsAfter.length, 1, 'no new session dir created after disable()');
+
+        try { await vscode.workspace.fs.delete(probe); } catch { /* ignore */ }
+    });
+
+    test('re-used recorder with disable/enable cycle: two sessions stay isolated and listeners do not leak', async () => {
+        // Catches listener-lifetime bugs in two places:
+        //   1. Between two sessions on the SAME enabled instance (no duplicate
+        //      subscriptions, no bleed between sessions).
+        //   2. Across a disable()→enable() cycle (subscriptions are enable-scoped,
+        //      so consent-downgrade-then-upgrade could leave stale handlers if
+        //      disposal is incomplete).
+        storageDir = fs.mkdtempSync(path.join(os.tmpdir(), 'recorder-storage-reuse-'));
+        const storageUri = vscode.Uri.file(storageDir);
+        const workspaceUri = vscode.Uri.file(workspaceDir);
+
+        recorder = new SessionRecorder(storageUri);
+        recorder.enable();
+
+        // ── Session 1 ──────────────────────────────────────────────────────
+        await recorder.startSession(10, 'session-1', workspaceUri.toString());
+        await sleep(200);
+        const file1 = vscode.Uri.file(path.join(workspaceDir, 'reuse-1.txt'));
+        {
+            const edit = new vscode.WorkspaceEdit();
+            edit.createFile(file1, { overwrite: true });
+            edit.insert(file1, new vscode.Position(0, 0), 'session-1\n');
+            assert.ok(await vscode.workspace.applyEdit(edit), 'session-1 create applied');
+        }
+        await sleep(200);
+        await recorder.endSession();
+
+        // ── Consent-cycle boundary: disable + re-enable on same instance ──
+        // If disable()'s listener teardown is incomplete, enable() will
+        // double-register and session 2 will show duplicate events (caught
+        // by the "no duplicate fileCreate" assertion below).
+        recorder.disable();
+        await sleep(100);
+
+        // Fire events between disable and re-enable. These MUST NOT land in
+        // any JSONL (no session is active anyway).
+        const leakProbe = vscode.Uri.file(path.join(workspaceDir, 'leak-probe.txt'));
+        {
+            const edit = new vscode.WorkspaceEdit();
+            edit.createFile(leakProbe, { overwrite: true });
+            assert.ok(await vscode.workspace.applyEdit(edit), 'leak probe created');
+        }
+        await sleep(200);
+
+        recorder.enable();
+        await sleep(100);
+
+        // ── Session 2 ──────────────────────────────────────────────────────
+        await recorder.startSession(20, 'session-2', workspaceUri.toString());
+        await sleep(200);
+        const file2 = vscode.Uri.file(path.join(workspaceDir, 'reuse-2.txt'));
+        {
+            const edit = new vscode.WorkspaceEdit();
+            edit.createFile(file2, { overwrite: true });
+            edit.insert(file2, new vscode.Position(0, 0), 'session-2\n');
+            assert.ok(await vscode.workspace.applyEdit(edit), 'session-2 create applied');
+        }
+        await sleep(200);
+        await recorder.endSession();
+
+        // ── Verify two distinct sessions with correctly attributed events ─
+        const recordingsDir = path.join(storageDir, 'recordings');
+        const sessionDirs = fs.readdirSync(recordingsDir)
+            .filter(d => fs.statSync(path.join(recordingsDir, d)).isDirectory())
+            .sort(); // deterministic order
+        assert.strictEqual(sessionDirs.length, 2, 'exactly two session dirs');
+
+        const readEvents = (dir: string): RecordedEvent[] =>
+            fs.readFileSync(path.join(recordingsDir, dir, 'events.jsonl'), 'utf-8')
+                .trim().split('\n').map(l => JSON.parse(l) as RecordedEvent);
+
+        // Attribute sessions by their metadata (sort order is unstable across
+        // filesystems — session IDs are ULIDs, so we identify by exerciseId).
+        const metaOf = (dir: string) => JSON.parse(
+            fs.readFileSync(path.join(recordingsDir, dir, 'metadata.json'), 'utf-8'),
+        ) as { exerciseId: number; participantId: string | undefined };
+
+        const s1Dir = sessionDirs.find(d => metaOf(d).exerciseId === 10);
+        const s2Dir = sessionDirs.find(d => metaOf(d).exerciseId === 20);
+        assert.ok(s1Dir, 'session 1 dir identified');
+        assert.ok(s2Dir, 'session 2 dir identified');
+        assert.notStrictEqual(s1Dir, s2Dir, 'session dirs are distinct');
+
+        assert.strictEqual(metaOf(s1Dir).participantId, 'session-1', 's1 participantId');
+        assert.strictEqual(metaOf(s2Dir).participantId, 'session-2', 's2 participantId');
+
+        // Session 1 must contain fileCreate for file1, NOT for file2.
+        const s1Events = readEvents(s1Dir);
+        const s2Events = readEvents(s2Dir);
+        const s1CreateURIs = s1Events.filter((e): e is FileCreateEvent => e.type === 'fileCreate').map(e => e.uri);
+        const s2CreateURIs = s2Events.filter((e): e is FileCreateEvent => e.type === 'fileCreate').map(e => e.uri);
+        assert.ok(s1CreateURIs.includes(file1.toString()), 's1 has fileCreate for file1');
+        assert.ok(!s1CreateURIs.includes(file2.toString()), 's1 does NOT have fileCreate for file2');
+        assert.ok(s2CreateURIs.includes(file2.toString()), 's2 has fileCreate for file2');
+        assert.ok(!s2CreateURIs.includes(file1.toString()), 's2 does NOT have fileCreate for file1');
+
+        // Listener-duplication check: if listeners got registered twice across
+        // sessions, we'd see duplicate fileCreate events for the SAME uri in
+        // the SAME session. (WorkspaceEdit.createFile fires onDidCreateFiles
+        // exactly once per call.)
+        assert.strictEqual(
+            s1CreateURIs.filter(u => u === file1.toString()).length, 1,
+            'file1 fileCreate is not duplicated (listener registered once)',
+        );
+        assert.strictEqual(
+            s2CreateURIs.filter(u => u === file2.toString()).length, 1,
+            'file2 fileCreate is not duplicated (listener registered once)',
+        );
+
+        // ── Leak check: the file created between disable and enable must
+        // not appear in EITHER session's JSONL. If disable() leaves stale
+        // listeners, leakProbe's fileCreate would be recorded.
+        const allCreateURIs = [...s1CreateURIs, ...s2CreateURIs];
+        assert.ok(
+            !allCreateURIs.includes(leakProbe.toString()),
+            `leak-probe fileCreate must not appear in any session (found in: ${allCreateURIs.filter(u => u === leakProbe.toString())})`,
+        );
+
+        try { await vscode.workspace.fs.delete(file1); } catch { /* ignore */ }
+        try { await vscode.workspace.fs.delete(file2); } catch { /* ignore */ }
+        try { await vscode.workspace.fs.delete(leakProbe); } catch { /* ignore */ }
     });
 });
 
