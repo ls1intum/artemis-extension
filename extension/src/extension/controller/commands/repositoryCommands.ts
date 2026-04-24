@@ -319,18 +319,13 @@ export class RepositoryCommandModule {
             const repoName = path.basename(repositoryUri).replace(/\.git$/, '');
             const repoPath = path.join(selectedPath, repoName);
 
-            if (getTheiaEnvironment().isTheia) {
-                // Theia: programmatic clone with progress notification
-                await cloneRepositoryProgrammatic(cloneUrl, repoPath, exerciseTitle);
-            } else {
-                // VS Code: terminal-based clone for visual feedback
-                const terminal = vscode.window.createTerminal(`Exercise ${exerciseId}`);
-                terminal.show();
-                terminal.sendText(`cd "${selectedPath}"`);
-                terminal.sendText(`git clone ${cloneUrl}`);
-            }
-
-            vscode.window.showInformationMessage(`Cloning repository for "${exerciseTitle}" to ${selectedPath} using participation token...`);
+            // Run git clone as an awaitable child process (same for Theia and
+            // VS Code Desktop). A terminal-based fire-and-forget clone cannot
+            // reliably signal success or failure back to the extension, which
+            // caused the "Open Folder" prompt to appear even when the clone
+            // errored out. Using the programmatic clone, a thrown error lands
+            // in the outer catch and the prompt is only reached on success.
+            await cloneRepositoryProgrammatic(cloneUrl, repoPath, exerciseTitle);
 
             if (this.clonedRepositories.size >= 10 && !this.clonedRepositories.has(exerciseId)) {
                 const firstKey = this.clonedRepositories.keys().next().value;
@@ -338,37 +333,25 @@ export class RepositoryCommandModule {
                     this.clonedRepositories.delete(firstKey);
                 }
             }
-
             this.clonedRepositories.set(exerciseId, { path: repoPath, title: exerciseTitle });
 
-            // Poll for the cloned directory to appear (up to 60s)
-            const pollInterval = 2000;
-            const maxAttempts = 30;
-            let attempts = 0;
-            const pollTimer = setInterval(() => {
-                attempts++;
-                if (fs.existsSync(repoPath)) {
-                    clearInterval(pollTimer);
-                    this.context.sendMessage({
-                        type: ExtensionMsg.ShowClonedRepoNotice,
-                        exerciseTitle: exerciseTitle
-                    });
-                } else if (attempts >= maxAttempts) {
-                    clearInterval(pollTimer);
-                    this.clonedRepositories.delete(exerciseId);
-                }
-            }, pollInterval);
+            this.context.sendMessage({
+                type: ExtensionMsg.ShowClonedRepoNotice,
+                exerciseTitle: exerciseTitle
+            });
 
-            const openAction = await vscode.window.showInformationMessage('Open the cloned repository when ready?', 'Open Folder', 'Skip');
+            const openAction = await vscode.window.showInformationMessage(
+                `Open cloned repository "${exerciseTitle}"?`,
+                'Open Folder',
+                'Skip'
+            );
             if (openAction === 'Open Folder') {
-                setTimeout(() => {
-                    const repoUri = vscode.Uri.file(repoPath);
-                    void vscode.commands.executeCommand('vscode.openFolder', repoUri, true);
-                }, 3000);
+                const repoUri = vscode.Uri.file(repoPath);
+                void vscode.commands.executeCommand('vscode.openFolder', repoUri, true);
             }
         } catch (error: unknown) {
             logger.error('Clone repository error:', LogCategory.SUBMISSION, error);
-            vscode.window.showErrorMessage('Failed to clone repository.');
+            vscode.window.showErrorMessage(`Failed to clone repository: ${extractErrorMessage(error)}`);
         }
     };
 
