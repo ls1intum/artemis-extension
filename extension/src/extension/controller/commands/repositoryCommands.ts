@@ -119,6 +119,7 @@ export class RepositoryCommandModule {
         return {
             [WebviewCmd.CheckRepositoryStatus]: this.handleCheckRepositoryStatus,
             [WebviewCmd.CloneRepository]: this.handleCloneRepository,
+            [WebviewCmd.CopyAuthenticatedCloneUrl]: this.handleCopyAuthenticatedCloneUrl,
             [WebviewCmd.SubmitExercise]: this.handleSubmitExercise,
             [WebviewCmd.SaveGitIdentity]: this.handleSaveGitIdentity,
             [WebviewCmd.RequestGitIdentity]: this.handleRequestGitIdentity,
@@ -352,6 +353,29 @@ export class RepositoryCommandModule {
         } catch (error: unknown) {
             logger.error('Clone repository error:', LogCategory.SUBMISSION, error);
             vscode.window.showErrorMessage(`Failed to clone repository: ${extractErrorMessage(error)}`);
+        }
+    };
+
+    private handleCopyAuthenticatedCloneUrl = async (message: WebviewToExtensionMessage): Promise<void> => {
+        try {
+            const { participationId, repositoryUri } = getPayload<WebCmd<'copyAuthenticatedCloneUrl'>>(message);
+            if (!participationId || !repositoryUri) {
+                vscode.window.showErrorMessage('Cannot copy clone URL: missing participation or repository URL.');
+                return;
+            }
+
+            const authenticatedUrl = await this.buildAuthenticatedUrl(participationId, repositoryUri);
+            if (!authenticatedUrl) {
+                return;
+            }
+
+            await vscode.env.clipboard.writeText(authenticatedUrl);
+            vscode.window.showInformationMessage(
+                'Authenticated clone URL copied to clipboard. It contains a VCS access token, so do not share it.'
+            );
+        } catch (error: unknown) {
+            logger.error('Failed to copy authenticated clone URL:', LogCategory.SUBMISSION, error);
+            vscode.window.showErrorMessage(`Failed to copy clone URL: ${extractErrorMessage(error)}`);
         }
     };
 

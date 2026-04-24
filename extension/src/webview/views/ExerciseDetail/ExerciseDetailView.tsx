@@ -379,6 +379,14 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
                             postCommand(vscodeApi, 'copyToClipboard', { text: repositoryUri });
                         }
                     }}
+                    onCopyAuthenticatedCloneUrl={() => {
+                        if (participationId && repositoryUri) {
+                            postCommand(vscodeApi, 'copyAuthenticatedCloneUrl', {
+                                participationId,
+                                repositoryUri,
+                            });
+                        }
+                    }}
                     onStartPractice={() => {
                         if (exercise.id === undefined) {return;}
                         postCommand(vscodeApi, 'startPractice', { exerciseId: exercise.id, exerciseTitle: exercise.title });

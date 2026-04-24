@@ -30,6 +30,7 @@ export interface ParticipationActionsProps {
   onOpenRepository?: () => void;
   onPullChanges?: () => void;
   onCopyCloneUrl?: () => void;
+  onCopyAuthenticatedCloneUrl?: () => void;
   onOpenInBrowser?: () => void;
   onToggleCommitMessage?: () => void;
   onCommitMessageChange?: (message: string) => void;
@@ -62,6 +63,7 @@ export function ParticipationActions({
   onOpenRepository,
   onPullChanges,
   onCopyCloneUrl,
+  onCopyAuthenticatedCloneUrl,
   onOpenInBrowser,
   onToggleCommitMessage,
   onCommitMessageChange,
@@ -285,9 +287,16 @@ export function ParticipationActions({
                 <button className={styles.dropdownItem} onClick={() => { setIsDropdownOpen(false); onPullChanges?.(); }}>
                   Pull Changes
                 </button>
-                <button className={styles.dropdownItem} onClick={() => { setIsDropdownOpen(false); onCopyCloneUrl?.(); }}>
-                  Copy Clone URL
-                </button>
+                {onCopyCloneUrl && (
+                  <button className={styles.dropdownItem} onClick={() => { setIsDropdownOpen(false); onCopyCloneUrl(); }}>
+                    Copy Clone URL
+                  </button>
+                )}
+                {onCopyAuthenticatedCloneUrl && (
+                  <button className={styles.dropdownItem} onClick={() => { setIsDropdownOpen(false); onCopyAuthenticatedCloneUrl(); }}>
+                    Copy Clone URL with Token
+                  </button>
+                )}
                 {!isExamExercise && (
                   <button className={styles.dropdownItem} onClick={() => { setIsDropdownOpen(false); onOpenInBrowser?.(); }}>
                     Open in browser
