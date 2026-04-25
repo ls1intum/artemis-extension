@@ -19,7 +19,8 @@ interface IrisChatViewProps {
 export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
     const store = useChatStore();
     const {
-        setIrisState, setShowDiagnostics, addMessage, setMessages,
+        setIrisState, setShowDiagnostics, addMessage,
+        applyLoadedMessages, setMessageLoadError,
         clearMessages, setReferencedFiles, setWebSocketStatus,
         setDisabledMessage, setNoAiDetected, setIrisStages, resetTransientChatUi,
     } = store;
@@ -86,16 +87,38 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
             }
 
             case ExtensionMsg.LoadMessages: {
+                // Discard any load that does not match the currently active
+                // local session. This covers the obvious "user switched
+                // sessions while a load was in flight" case AND the subtler
+                // one where there is no active session at all (clearMessages,
+                // never-selected, etc.) — in both we must not mutate the
+                // store with a payload the user has navigated away from.
+                const currentSessionId = useChatStore.getState().activeSessionId;
+                if (currentSessionId !== msg.localSessionId) {
+                    break;
+                }
                 resetTransientChatUi();
-                setMessages(msg.messages.map((m) => ({
-                    id: m.id,
-                    localId: crypto.randomUUID(),
-                    role: m.role,
-                    content: m.content,
-                    timestamp: m.timestamp,
-                    helpful: m.helpful ?? null,
-                    status: 'sent' as const,
-                })));
+                applyLoadedMessages(
+                    msg.localSessionId,
+                    msg.messages.map((m) => ({
+                        id: m.id,
+                        localId: crypto.randomUUID(),
+                        role: m.role,
+                        content: m.content,
+                        timestamp: m.timestamp,
+                        helpful: m.helpful ?? null,
+                        status: 'sent' as const,
+                    })),
+                );
+                break;
+            }
+
+            case ExtensionMsg.LoadMessagesError: {
+                const currentSessionId = useChatStore.getState().activeSessionId;
+                if (currentSessionId !== msg.localSessionId) {
+                    break;
+                }
+                setMessageLoadError(msg.localSessionId);
                 break;
             }
 
@@ -139,7 +162,7 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
                 break;
             }
         }
-    }, [setIrisState, setShowDiagnostics, addMessage, setMessages, clearMessages, setReferencedFiles, setWebSocketStatus, setDisabledMessage, setNoAiDetected, setIrisStages, resetTransientChatUi]);
+    }, [setIrisState, setShowDiagnostics, addMessage, applyLoadedMessages, setMessageLoadError, clearMessages, setReferencedFiles, setWebSocketStatus, setDisabledMessage, setNoAiDetected, setIrisStages, resetTransientChatUi]);
 
     // State persistence (only forceContextPicker)
     useEffect(() => {
@@ -230,7 +253,10 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
         disabledBannerText = 'AI assistance is disabled. A .noai file was detected in your workspace.';
     }
 
-    // Compute disabled placeholder for input
+    // Compute disabled placeholder for input. Order matters: real
+    // unavailability ('no context', '.noai', explicit disabled) wins over
+    // the transient 'loading' state — we only fall through to 'Loading…'
+    // when the chat is otherwise usable but still waiting for hydration.
     let disabledPlaceholder: string | undefined;
     if (store.context === null) {
         disabledPlaceholder = 'Select a course or exercise to start chatting';
@@ -251,6 +277,29 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
         [store.irisStages],
     );
 
+    // Hydrated when either no context is selected (legit "Select a course"
+    // steady state) or when the active session has a successful load. The
+    // gap "context set + activeSessionId === null" is the cold-start window
+    // and renders the loader. Keyed on local UUID, not Artemis id, because
+    // brand-new sessions have a UUID before the server round-trip returns.
+    const messagesHydrated =
+        store.hasReceivedInitialIrisState
+        && (
+            store.context === null
+            || (store.activeSessionId !== null
+                && store.messageLoad !== null
+                && store.messageLoad.localSessionId === store.activeSessionId
+                && store.messageLoad.status === 'success')
+        );
+    const messagesErrored =
+        store.activeSessionId !== null
+        && store.messageLoad !== null
+        && store.messageLoad.localSessionId === store.activeSessionId
+        && store.messageLoad.status === 'error';
+    const messagesLoading = !messagesHydrated && !messagesErrored;
+
+    const irisLogoUri = document.getElementById('root')?.dataset.irisLogoUri;
+
     return (
         <div className={styles.container}>
             {/* Header */}
@@ -258,7 +307,7 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
                 <div className={styles.headerLeft}>
                     {/* Iris logo */}
                     <img
-                        src={document.getElementById('root')?.dataset.irisLogoUri}
+                        src={irisLogoUri}
                         alt=""
                         width="24"
                         height="24"
@@ -387,16 +436,32 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
                 </div>
             )}
 
-            {/* Message list with context switch animation */}
+            {/* Message list with context-switch animation and hydration loader.
+                Hierarchy: error UI > loader (context-switch animation OR
+                pending hydration) > populated/welcome list. */}
             <div className={clsx(styles.messagesSection, {
                 [styles.contextSwitching]: contextSwitching
             })}>
-                {contextSwitching ? (
-                    // Skeleton placeholders during context switch
-                    <div className={styles.skeletonContainer}>
-                        <div className={clsx(styles.skeleton, styles.skeleton1)} />
-                        <div className={clsx(styles.skeleton, styles.skeleton2)} />
-                        <div className={clsx(styles.skeleton, styles.skeleton3)} />
+                {messagesErrored ? (
+                    <div className={styles.loadingState}>
+                        <div className={styles.loadError} role="alert">
+                            Failed to load chat history. Try selecting the
+                            session again or reconnecting.
+                        </div>
+                    </div>
+                ) : (contextSwitching || messagesLoading) ? (
+                    <div className={styles.loadingState} aria-busy="true" aria-live="polite">
+                        {irisLogoUri && (
+                            <img
+                                src={irisLogoUri}
+                                alt=""
+                                width="48"
+                                height="48"
+                                className={styles.loadingLogo}
+                            />
+                        )}
+                        <span>Loading conversation…</span>
+                        <span className={styles.loadingSpinner} aria-hidden="true" />
                     </div>
                 ) : (
                     <ChatMessageList
@@ -419,11 +484,17 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
                     onOpenFile={handleOpenFile}
                 />
 
-                {/* Chat input */}
+                {/* Chat input — disabled while we are still hydrating the
+                    message list so a fast user does not race the load and
+                    have their just-sent message swallowed when the server
+                    snapshot arrives. */}
                 <ChatInput
                     onSend={handleSendMessage}
-                    disabled={isChatDisabled || store.context === null}
-                    disabledPlaceholder={disabledPlaceholder}
+                    disabled={isChatDisabled || store.context === null || messagesLoading}
+                    disabledPlaceholder={
+                        disabledPlaceholder
+                        ?? (messagesLoading ? 'Loading conversation…' : undefined)
+                    }
                 />
 
                 {/* Disclaimer */}

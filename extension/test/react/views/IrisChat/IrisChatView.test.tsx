@@ -29,6 +29,23 @@ vi.mock('../../../../src/webview/views/IrisChat/components/CodeBlock', () => ({
 	),
 }));
 
+// Helper: seed a fully-hydrated session so tests that just want to
+// exercise input/messaging can do `useChatStore.setState({ context, ...HYDRATED })`
+// without re-typing the whole state-shape.
+const HYDRATED = {
+	activeSessionId: 'local-test',
+	sessions: [{
+		id: 'local-test',
+		artemisSessionId: undefined,
+		preview: '',
+		title: '',
+		messageCount: 0,
+		createdAt: 0,
+		lastActivity: 0,
+	}],
+	messageLoad: { localSessionId: 'local-test', status: 'success' as const },
+};
+
 describe('IrisChatView', () => {
 	beforeEach(() => {
 		useChatStore.setState({
@@ -40,6 +57,7 @@ describe('IrisChatView', () => {
 			allExercises: [],
 			allCourses: [],
 			messages: [],
+			messageLoad: null,
 			streaming: { isStreaming: false, messageLocalId: null, visibleChunks: [] },
 			irisStages: [],
 			isLoading: false,
@@ -48,6 +66,9 @@ describe('IrisChatView', () => {
 			isNoAiDetected: false,
 			referencedFiles: null,
 			showDiagnostics: false,
+			// Default tests to post-init so they exercise the steady-state
+			// rendering. Cold-mount tests opt out by setting this to false.
+			hasReceivedInitialIrisState: true,
 		});
 	});
 
@@ -79,6 +100,7 @@ describe('IrisChatView', () => {
 				locked: false,
 				source: 'user-selected',
 			},
+			...HYDRATED,
 		});
 		const mockApi = createMockVsCodeApi();
 		render(<IrisChatView vscodeApi={mockApi} />);
@@ -102,6 +124,7 @@ describe('IrisChatView', () => {
 				locked: false,
 				source: 'user-selected',
 			},
+			...HYDRATED,
 		});
 		const mockApi = createMockVsCodeApi();
 		render(<IrisChatView vscodeApi={mockApi} />);
@@ -129,6 +152,7 @@ describe('IrisChatView', () => {
 				locked: false,
 				source: 'user-selected',
 			},
+			...HYDRATED,
 		});
 		const mockApi = createMockVsCodeApi();
 		render(<IrisChatView vscodeApi={mockApi} />);
@@ -142,11 +166,15 @@ describe('IrisChatView', () => {
 	});
 
 	it('loads messages from loadMessages extension event', async () => {
+		// LoadMessages is gated on activeSessionId — set it to match the payload.
+		useChatStore.setState({ activeSessionId: 'local-test' });
 		const mockApi = createMockVsCodeApi();
 		render(<IrisChatView vscodeApi={mockApi} />);
 
 		dispatchExtensionMessage({
 			type: 'loadMessages',
+			localSessionId: 'local-test',
+			artemisSessionId: 42,
 			messages: [
 				{ id: 1, role: 'user', content: 'Hi there', timestamp: Date.now(), helpful: null },
 				{ id: 2, role: 'assistant', content: 'Hello!', timestamp: Date.now(), helpful: null },
@@ -192,6 +220,267 @@ describe('IrisChatView', () => {
 		const mockApi = createMockVsCodeApi();
 		render(<IrisChatView vscodeApi={mockApi} />);
 		expect(screen.getByText('WebSocket disconnected')).toBeInTheDocument();
+	});
+
+	describe('Message hydration loader', () => {
+		// Helper to set up a state where there IS an active session waiting for hydration.
+		const seedActiveSession = (localSessionId: string, artemisSessionId?: number) => {
+			useChatStore.setState({
+				context: {
+					type: 'exercise',
+					id: 1,
+					title: 'Test Exercise',
+					shortName: 'TE',
+					courseId: 10,
+					locked: false,
+					source: 'user-selected',
+				},
+				activeSessionId: localSessionId,
+				sessions: [
+					{
+						id: localSessionId,
+						artemisSessionId: artemisSessionId ?? undefined,
+						preview: '',
+						title: '',
+						messageCount: 0,
+						createdAt: 0,
+						lastActivity: 0,
+					},
+				],
+			});
+		};
+
+		it('shows loader while messageLoad is null for the active session', () => {
+			seedActiveSession('local-A', 42);
+			const mockApi = createMockVsCodeApi();
+			const { container } = render(<IrisChatView vscodeApi={mockApi} />);
+
+			// Welcome state should NOT be shown while we wait for hydration.
+			expect(screen.queryByText("Hi! I'm Iris, your AI tutor.")).not.toBeInTheDocument();
+			// Loader is identified by its 'Loading conversation' text.
+			expect(screen.getByText(/Loading conversation/i)).toBeInTheDocument();
+		});
+
+		it('shows loader for a brand-new local session that has no artemisSessionId yet', () => {
+			// New-session path: local UUID exists, but server has not returned an id yet.
+			seedActiveSession('local-new');
+			const mockApi = createMockVsCodeApi();
+			const { container } = render(<IrisChatView vscodeApi={mockApi} />);
+
+			expect(screen.queryByText("Hi! I'm Iris, your AI tutor.")).not.toBeInTheDocument();
+			expect(screen.getByText(/Loading conversation/i)).toBeInTheDocument();
+		});
+
+		it('hides loader and shows welcome state after empty LoadMessages for the active session', async () => {
+			seedActiveSession('local-A', 42);
+			const mockApi = createMockVsCodeApi();
+			render(<IrisChatView vscodeApi={mockApi} />);
+
+			dispatchExtensionMessage({ type: 'loadMessages', localSessionId: 'local-A', artemisSessionId: 42, messages: [] });
+
+			await waitFor(() => {
+				expect(screen.getByText("Hi! I'm Iris, your AI tutor.")).toBeInTheDocument();
+			});
+		});
+
+		it('ignores stale LoadMessages for a different local session and leaves the store untouched', () => {
+			seedActiveSession('local-current', 99);
+			const mockApi = createMockVsCodeApi();
+			const { container } = render(<IrisChatView vscodeApi={mockApi} />);
+
+			dispatchExtensionMessage({
+				type: 'loadMessages',
+				localSessionId: 'local-stale',
+				artemisSessionId: 42,
+				messages: [
+					{ id: 1, role: 'user', content: 'stale', timestamp: 0, helpful: null },
+				],
+			});
+
+			// Stale message must not appear; loader stays; store keeps no record of the stale load.
+			expect(screen.queryByText('stale')).not.toBeInTheDocument();
+			expect(screen.getByText(/Loading conversation/i)).toBeInTheDocument();
+			expect(useChatStore.getState().messageLoad).toBeNull();
+			expect(useChatStore.getState().messages).toEqual([]);
+		});
+
+		it('discards a late-arriving stale load that fires after the current session has hydrated', async () => {
+			seedActiveSession('local-current', 99);
+			const mockApi = createMockVsCodeApi();
+			render(<IrisChatView vscodeApi={mockApi} />);
+
+			// Current session hydrates with one message.
+			dispatchExtensionMessage({
+				type: 'loadMessages',
+				localSessionId: 'local-current',
+				artemisSessionId: 99,
+				messages: [
+					{ id: 10, role: 'assistant', content: 'live', timestamp: 0, helpful: null },
+				],
+			});
+			await waitFor(() => {
+				expect(screen.getByText('live')).toBeInTheDocument();
+			});
+
+			// A late stale response for a different session arrives. It must NOT
+			// overwrite the live messages or flip the load state back to that session.
+			dispatchExtensionMessage({
+				type: 'loadMessages',
+				localSessionId: 'local-old',
+				artemisSessionId: 42,
+				messages: [
+					{ id: 7, role: 'user', content: 'should not appear', timestamp: 0, helpful: null },
+				],
+			});
+
+			expect(screen.queryByText('should not appear')).not.toBeInTheDocument();
+			expect(screen.getByText('live')).toBeInTheDocument();
+			expect(useChatStore.getState().messageLoad).toEqual({ localSessionId: 'local-current', status: 'success' });
+		});
+
+		it('A→B same-context switch: a late load tagged with A is discarded once B is active', async () => {
+			seedActiveSession('local-A', 1);
+			const mockApi = createMockVsCodeApi();
+			render(<IrisChatView vscodeApi={mockApi} />);
+
+			// User switches to B before A's load completes.
+			seedActiveSession('local-B', 2);
+
+			// A's late response now arrives. Must NOT mutate store state.
+			dispatchExtensionMessage({
+				type: 'loadMessages',
+				localSessionId: 'local-A',
+				artemisSessionId: 1,
+				messages: [
+					{ id: 1, role: 'user', content: 'from-A', timestamp: 0, helpful: null },
+				],
+			});
+
+			expect(useChatStore.getState().messageLoad).toBeNull();
+			expect(useChatStore.getState().messages).toEqual([]);
+			expect(screen.queryByText('from-A')).not.toBeInTheDocument();
+		});
+
+		it('rejects late stale LoadMessages when no session is active (post-clear leak guard)', () => {
+			// Default state in beforeEach has activeSessionId === null.
+			const mockApi = createMockVsCodeApi();
+			render(<IrisChatView vscodeApi={mockApi} />);
+
+			dispatchExtensionMessage({
+				type: 'loadMessages',
+				localSessionId: 'local-stale',
+				artemisSessionId: 99,
+				messages: [
+					{ id: 7, role: 'user', content: 'should not appear', timestamp: 0, helpful: null },
+				],
+			});
+
+			// With no active session, a stale load must not pollute the store.
+			expect(useChatStore.getState().messageLoad).toBeNull();
+			expect(useChatStore.getState().messages).toEqual([]);
+		});
+
+		it('shows error UI when LoadMessagesError matches the active session', async () => {
+			seedActiveSession('local-A', 42);
+			const mockApi = createMockVsCodeApi();
+			render(<IrisChatView vscodeApi={mockApi} />);
+
+			dispatchExtensionMessage({ type: 'loadMessagesError', localSessionId: 'local-A' });
+
+			await waitFor(() => {
+				expect(screen.getByText(/Failed to load chat history/i)).toBeInTheDocument();
+			});
+		});
+
+		it('keeps loader on the very first render before any UpdateIrisState (cold-mount welcome flash guard)', () => {
+			// Pre-init state: no snapshot has arrived yet. Even though
+			// activeSessionId is null, the welcome state must NOT flash —
+			// we cannot tell "no session" from "snapshot pending" until
+			// the first UpdateIrisState push.
+			useChatStore.setState({
+				activeSessionId: null,
+				messageLoad: null,
+				hasReceivedInitialIrisState: false,
+			});
+			const mockApi = createMockVsCodeApi();
+			const { container } = render(<IrisChatView vscodeApi={mockApi} />);
+
+			expect(screen.queryByText("Hi! I'm Iris, your AI tutor.")).not.toBeInTheDocument();
+			expect(screen.getByText(/Loading conversation/i)).toBeInTheDocument();
+		});
+
+		it('keeps loader when UpdateIrisState arrives with a context but no active session yet', async () => {
+			// The cold-start path posts a snapshot before any sessions have
+			// been imported, so the first UpdateIrisState often carries
+			// `context: <something>` together with `activeSessionId: null`.
+			// That state means "sessions are still loading" — the Iris
+			// greeting must NOT flash; the loader stays up until either
+			// LoadMessages arrives or a follow-up snapshot brings the
+			// imported session id.
+			useChatStore.setState({
+				activeSessionId: null,
+				messageLoad: null,
+				hasReceivedInitialIrisState: false,
+			});
+			const mockApi = createMockVsCodeApi();
+			const { container } = render(<IrisChatView vscodeApi={mockApi} />);
+
+			dispatchExtensionMessage({
+				type: 'updateIrisState',
+				state: {
+					context: {
+						type: 'exercise',
+						id: 1,
+						title: 'Test Exercise',
+						shortName: 'TE',
+						courseId: 10,
+						locked: false,
+						source: 'user-selected',
+					},
+					activeSessionId: null,
+					sessions: [],
+					recentExercises: [],
+					recentCourses: [],
+					allExercises: [],
+					allCourses: [],
+				},
+			});
+
+			await waitFor(() => {
+				expect(screen.getByText(/Loading conversation/i)).toBeInTheDocument();
+			});
+			expect(screen.queryByText("Hi! I'm Iris, your AI tutor.")).not.toBeInTheDocument();
+		});
+
+		it('shows welcome ("Select a course") when UpdateIrisState arrives with no context', async () => {
+			// The legitimate "no work to do" steady state: extension says no
+			// context selected. WelcomeState renders the "Select a course
+			// or exercise" copy — that is hydrated.
+			useChatStore.setState({
+				activeSessionId: null,
+				messageLoad: null,
+				hasReceivedInitialIrisState: false,
+			});
+			const mockApi = createMockVsCodeApi();
+			render(<IrisChatView vscodeApi={mockApi} />);
+
+			dispatchExtensionMessage({
+				type: 'updateIrisState',
+				state: {
+					context: null,
+					activeSessionId: null,
+					sessions: [],
+					recentExercises: [],
+					recentCourses: [],
+					allExercises: [],
+					allCourses: [],
+				},
+			});
+
+			await waitFor(() => {
+				expect(screen.getByText(/Select a course or exercise/i)).toBeInTheDocument();
+			});
+		});
 	});
 
 	it('does not show banner during initial connect or reconnect attempts', () => {
@@ -285,6 +574,7 @@ describe('IrisChatView', () => {
 					locked: false,
 					source: 'user-selected',
 				},
+				...HYDRATED,
 			});
 		});
 
@@ -317,11 +607,14 @@ describe('IrisChatView', () => {
 		});
 
 		it('clears irisStages when LoadMessages arrives', async () => {
+			useChatStore.setState({ activeSessionId: 'local-test' });
 			const mockApi = createMockVsCodeApi();
 			render(<IrisChatView vscodeApi={mockApi} />);
 
 			dispatchExtensionMessage({
 				type: 'loadMessages',
+				localSessionId: 'local-test',
+				artemisSessionId: 42,
 				messages: [{ id: 1, role: 'user', content: 'Loaded', timestamp: Date.now(), helpful: null }],
 			});
 

@@ -517,14 +517,22 @@ suite('IrisChatSessionService Test Suite', () => {
                 settings: { enabled: true }
             });
 
+            // Use non-empty sessions — empty ones are intentionally skipped
+            // by importSessionsToStore (they would not contribute to the
+            // session list, breaking the assertion below).
             mockApiService.getCourseChatSessionsWithMessages.resolves([
-                { id: 1, creationDate: '2024-01-01T10:00:00Z', messages: [] },
-                { id: 2, creationDate: '2024-01-03T10:00:00Z', messages: [] }, // Newest
-                { id: 3, creationDate: '2024-01-02T10:00:00Z', messages: [] }
+                { id: 1, creationDate: '2024-01-01T10:00:00Z', messages: [{ sender: 'USER', content: [{ textContent: 'Q1' }] }] },
+                { id: 2, creationDate: '2024-01-03T10:00:00Z', messages: [{ sender: 'USER', content: [{ textContent: 'Q2' }] }] }, // Newest
+                { id: 3, creationDate: '2024-01-02T10:00:00Z', messages: [{ sender: 'USER', content: [{ textContent: 'Q3' }] }] }
             ]);
 
             mockIrisWebSocketSessionClient.initializeSession.resolves(2);
-            mockApiService.getChatMessages.resolves([]);
+            // Match the imported session's messageCount=1 so the stale
+            // session-id cleanup branch in initializeIrisSessionAndLoadMessages
+            // does not strip the active session's artemisSessionId.
+            mockApiService.getChatMessages.resolves([
+                { id: 1, sender: 'USER', content: [{ textContent: 'Q2' }], sentAt: '2024-01-03T10:00:00Z' } as never
+            ]);
 
             await chatSessionService.loadAllSessionsForContext();
 
@@ -624,12 +632,19 @@ suite('IrisChatSessionService Test Suite', () => {
                 settings: { enabled: true }
             });
 
+            // Non-empty server session — empty ones are skipped by
+            // importSessionsToStore, which would defeat the assertion that
+            // the API session ends up in the store.
             mockApiService.getCourseChatSessionsWithMessages.resolves([
-                { id: 1, creationDate: '2024-01-01T10:00:00Z', messages: [] }
+                { id: 1, creationDate: '2024-01-01T10:00:00Z', messages: [{ sender: 'USER', content: [{ textContent: 'Hi' }] }] }
             ]);
 
             mockIrisWebSocketSessionClient.initializeSession.resolves(1);
-            mockApiService.getChatMessages.resolves([]);
+            // Return a message matching the imported session so the stale
+            // cleanup branch does not strip the artemisSessionId.
+            mockApiService.getChatMessages.resolves([
+                { id: 1, sender: 'USER', content: [{ textContent: 'Hi' }], sentAt: '2024-01-01T10:00:00Z' } as never
+            ]);
 
             await chatSessionService.loadAllSessionsForContext();
 
@@ -665,6 +680,178 @@ suite('IrisChatSessionService Test Suite', () => {
             assert.ok(postMessageSpy.calledWith(
                 sinon.match({ type: 'hideDisabledState' })
             ));
+        });
+
+        test('posts snapshot before LoadMessages so webview accepts the imported-session payload', async () => {
+            // Reproduces the cold-start race the empty-state-flash fix
+            // addresses: without an interim postSnapshot, the webview's
+            // activeSessionId is still null/stale when LoadMessages arrives
+            // and the localSessionId guard discards the payload.
+            const context: ActiveContext = {
+                type: 'course',
+                id: 101,
+                title: 'Test Course',
+                source: 'user-selected',
+                locked: false,
+                selectedAt: Date.now()
+            };
+            contextStore.setActiveContext(context);
+
+            mockApiService.getIrisCourseChatSettings.resolves({ settings: { enabled: true } });
+            mockApiService.getCourseChatSessionsWithMessages.resolves([
+                { id: 7, creationDate: '2024-02-01T10:00:00Z', messages: [{ sender: 'USER', content: [{ textContent: 'Hello' }] }] }
+            ]);
+            mockIrisWebSocketSessionClient.initializeSession.resolves(7);
+            mockApiService.getChatMessages.resolves([]);
+
+            await chatSessionService.loadAllSessionsForContext();
+
+            // Find LoadMessages call and the snapshot calls; assert at
+            // least one snapshot landed before LoadMessages.
+            const loadMessagesCall = postMessageSpy.getCalls().find(
+                c => c.args[0]?.type === 'loadMessages'
+            );
+            assert.ok(loadMessagesCall, 'Should emit loadMessages');
+
+            const snapshotBeforeLoad = onPostSnapshotSpy.getCalls().some(
+                snap => snap.calledBefore(loadMessagesCall)
+            );
+            assert.ok(snapshotBeforeLoad,
+                'postSnapshot must fire before LoadMessages so the webview has the new local session UUID');
+
+            // Pin the bug shape: LoadMessages must be tagged with the
+            // local session id that became active. A future refactor that
+            // emits an unrelated earlier snapshot but skips the
+            // imported-session snapshot would still satisfy the looser
+            // ordering check above; this one would not.
+            const activeSession = contextStore.snapshot().activeSession;
+            assert.ok(activeSession, 'An active session should exist after loading');
+            assert.strictEqual(
+                (loadMessagesCall.args[0] as { localSessionId: string }).localSessionId,
+                activeSession.id,
+                'LoadMessages must carry the local session id that ended up active after import',
+            );
+        });
+
+        test('falls back to createNewSession when all server sessions are empty', async () => {
+            // importSessionsToStore returns the actually-imported count,
+            // not sessions.length. With all empty server sessions, count
+            // is 0, so loadAllSessionsForContext must fall back to
+            // createNewSession instead of leaving the store empty.
+            const context: ActiveContext = {
+                type: 'course',
+                id: 101,
+                title: 'Test Course',
+                source: 'user-selected',
+                locked: false,
+                selectedAt: Date.now()
+            };
+            contextStore.setActiveContext(context);
+
+            mockApiService.getIrisCourseChatSettings.resolves({ settings: { enabled: true } });
+            mockApiService.getCourseChatSessionsWithMessages.resolves([
+                { id: 1, creationDate: '2024-01-01T10:00:00Z', messages: [] },
+                { id: 2, creationDate: '2024-01-02T10:00:00Z', messages: [] }
+            ]);
+            mockIrisWebSocketSessionClient.createNewSession.resolves(99);
+
+            await chatSessionService.loadAllSessionsForContext();
+
+            // Fallback path: createNewSession → resetSession.
+            assert.ok(mockIrisWebSocketSessionClient.resetSession.called,
+                'Should fall back to createNewSession when no real sessions imported');
+
+            // Server sessions skipped, exactly one fresh session in store.
+            const snapshot = contextStore.snapshot();
+            const importedFromServer = snapshot.sessions.filter(
+                s => s.artemisSessionId === 1 || s.artemisSessionId === 2
+            );
+            assert.strictEqual(importedFromServer.length, 0,
+                'Empty server sessions must not be imported');
+        });
+
+        test('imports only non-empty sessions from a mixed payload', async () => {
+            const context: ActiveContext = {
+                type: 'course',
+                id: 101,
+                title: 'Test Course',
+                source: 'user-selected',
+                locked: false,
+                selectedAt: Date.now()
+            };
+            contextStore.setActiveContext(context);
+
+            mockApiService.getIrisCourseChatSettings.resolves({ settings: { enabled: true } });
+            mockApiService.getCourseChatSessionsWithMessages.resolves([
+                { id: 1, creationDate: '2024-01-01T10:00:00Z', messages: [{ sender: 'USER', content: [{ textContent: 'A' }] }] },
+                { id: 2, creationDate: '2024-01-02T10:00:00Z', messages: [] },
+                { id: 3, creationDate: '2024-01-03T10:00:00Z', messages: [{ sender: 'USER', content: [{ textContent: 'B' }] }] }
+            ]);
+            mockIrisWebSocketSessionClient.initializeSession.resolves(3);
+            // Match the active (newest, id=3) session's content to keep its
+            // artemisSessionId mapping after hydration.
+            mockApiService.getChatMessages.resolves([
+                { id: 1, sender: 'USER', content: [{ textContent: 'B' }], sentAt: '2024-01-03T10:00:00Z' } as never
+            ]);
+
+            await chatSessionService.loadAllSessionsForContext();
+
+            const snapshot = contextStore.snapshot();
+            const fromServer = snapshot.sessions.filter(
+                s => s.artemisSessionId === 1 || s.artemisSessionId === 2 || s.artemisSessionId === 3
+            );
+            assert.strictEqual(fromServer.length, 2, 'Only non-empty sessions imported');
+            assert.ok(fromServer.find(s => s.artemisSessionId === 1));
+            assert.ok(!fromServer.find(s => s.artemisSessionId === 2),
+                'Empty session #2 must not be imported');
+            assert.ok(fromServer.find(s => s.artemisSessionId === 3));
+        });
+
+        test('emits LoadMessagesError after posting snapshot so the webview accepts the error', async () => {
+            // Same race shape as the LoadMessages success path: if the
+            // snapshot does not arrive first, the webview discards the
+            // error too (the localSessionId guard at IrisChatView line
+            // 116 rejects mismatches).
+            const context: ActiveContext = {
+                type: 'course',
+                id: 101,
+                title: 'Test Course',
+                source: 'user-selected',
+                locked: false,
+                selectedAt: Date.now()
+            };
+            contextStore.setActiveContext(context);
+
+            mockApiService.getIrisCourseChatSettings.resolves({ settings: { enabled: true } });
+            mockApiService.getCourseChatSessionsWithMessages.resolves([
+                { id: 5, creationDate: '2024-01-05T10:00:00Z', messages: [{ sender: 'USER', content: [{ textContent: 'X' }] }] }
+            ]);
+            // Simulate server failure during message hydration.
+            mockIrisWebSocketSessionClient.initializeSession.resolves(5);
+            mockApiService.getChatMessages.rejects(new Error('boom'));
+
+            await chatSessionService.loadAllSessionsForContext();
+
+            const errorCall = postMessageSpy.getCalls().find(
+                c => c.args[0]?.type === 'loadMessagesError'
+            );
+            assert.ok(errorCall, 'Should emit loadMessagesError when hydration fails');
+
+            const snapshotBeforeError = onPostSnapshotSpy.getCalls().some(
+                snap => snap.calledBefore(errorCall)
+            );
+            assert.ok(snapshotBeforeError,
+                'postSnapshot must fire before LoadMessagesError so the webview shows the error UI for the imported session');
+
+            // Same strictness as the success path: the error must be
+            // tagged with the local session id that became active.
+            const activeSession = contextStore.snapshot().activeSession;
+            assert.ok(activeSession, 'An active session should exist even if hydration failed');
+            assert.strictEqual(
+                (errorCall.args[0] as { localSessionId: string }).localSessionId,
+                activeSession.id,
+                'LoadMessagesError must carry the local session id that ended up active after import',
+            );
         });
     });
 
@@ -709,6 +896,53 @@ suite('IrisChatSessionService Test Suite', () => {
             await new Promise(resolve => setTimeout(resolve, 10));
 
             assert.ok(mockIrisWebSocketSessionClient.createNewSession.calledOnce);
+        });
+
+        test('does not attach the new artemis id to a different session if the user switched mid-flight', async () => {
+            const context: ActiveContext = {
+                type: 'course',
+                id: 101,
+                title: 'Test Course',
+                source: 'user-selected',
+                locked: false,
+                selectedAt: Date.now()
+            };
+            contextStore.setActiveContext(context);
+
+            // Pre-existing session B with its own artemis id we must not clobber.
+            // Bump messageCount so cleanupEmptySessions (called inside switchSession)
+            // does not prune B before we can switch back to it.
+            contextStore.createSession();
+            contextStore.incrementActiveSessionMessageCount();
+            const initialSnapshot = contextStore.snapshot();
+            const sessionBId = initialSnapshot.sessions[0].id;
+            contextStore.setArtemisSessionId(7); // B has artemisSessionId=7
+
+            // Make the server-create promise resolve later so we can switch first.
+            let resolveCreate: (id: number) => void = () => { /* noop */ };
+            mockIrisWebSocketSessionClient.createNewSession.callsFake(
+                () => new Promise<number>(resolve => { resolveCreate = resolve; }),
+            );
+
+            // Trigger new-session creation — this becomes session N (active).
+            chatSessionService.createNewSession();
+            const afterCreateSnapshot = contextStore.snapshot();
+            const sessionNId = afterCreateSnapshot.activeSession!.id;
+            assert.notStrictEqual(sessionNId, sessionBId, 'precondition: N and B are distinct sessions');
+
+            // User switches back to B before server responds.
+            contextStore.switchSession(sessionBId);
+            assert.strictEqual(contextStore.snapshot().activeSession?.id, sessionBId);
+
+            // Now N's create resolves with artemisSessionId 99.
+            resolveCreate(99);
+            await new Promise(resolve => setTimeout(resolve, 10));
+
+            // B must still have its original artemisSessionId, not N's 99.
+            const finalSnapshot = contextStore.snapshot();
+            const sessionB = finalSnapshot.sessions.find(s => s.id === sessionBId);
+            assert.strictEqual(sessionB?.artemisSessionId, 7,
+                'session B must keep its own artemisSessionId (7); the late create response for N must not clobber it');
         });
     });
 
@@ -765,6 +999,11 @@ suite('IrisChatSessionService Test Suite', () => {
             assert.strictEqual(snapshot.sessions.length, 1, 'Should have 1 reloaded session');
         });
 
+        // The snapshot-before-LoadMessages ordering invariant lives with the
+        // cold-start test in the loadAllSessionsForContext suite — both
+        // paths share _fetchImportAndActivate, so duplicating the assertion
+        // here is just coupling without value.
+
         test('should call resetSession when clearing all sessions', async () => {
             const context: ActiveContext = {
                 type: 'course',
@@ -777,11 +1016,14 @@ suite('IrisChatSessionService Test Suite', () => {
             contextStore.setActiveContext(context);
 
             mockApiService.getCourseChatSessionsWithMessages.resolves([]);
+            mockIrisWebSocketSessionClient.createNewSession.resolves(99);
 
             await chatSessionService.resetAndReloadSessions();
 
             // _clearAllSessions should call resetSession to avoid stale session IDs
-            assert.ok(mockIrisWebSocketSessionClient.resetSession.calledOnce, 'Should reset session during clear');
+            // (the no-server-sessions fallback also calls createNewSession,
+            // which itself calls resetSession — so the spy fires twice).
+            assert.ok(mockIrisWebSocketSessionClient.resetSession.called, 'Should reset session during clear');
         });
 
         test('should return 0 when no sessions found on server', async () => {
@@ -796,10 +1038,38 @@ suite('IrisChatSessionService Test Suite', () => {
             contextStore.setActiveContext(context);
 
             mockApiService.getCourseChatSessionsWithMessages.resolves([]);
+            mockIrisWebSocketSessionClient.createNewSession.resolves(99);
 
             const count = await chatSessionService.resetAndReloadSessions();
 
             assert.strictEqual(count, 0);
+        });
+
+        test('falls back to createNewSession when reload finds zero server sessions', async () => {
+            // After the hydration predicate change in IrisChatView, leaving
+            // the user with "context set + activeSessionId === null" parks
+            // the chat on the loading state forever. The fallback ensures
+            // they always land on a usable empty session.
+            const context: ActiveContext = {
+                type: 'course',
+                id: 101,
+                title: 'Test Course',
+                source: 'user-selected',
+                locked: false,
+                selectedAt: Date.now()
+            };
+            contextStore.setActiveContext(context);
+
+            mockApiService.getCourseChatSessionsWithMessages.resolves([]);
+            mockIrisWebSocketSessionClient.createNewSession.resolves(99);
+
+            await chatSessionService.resetAndReloadSessions();
+
+            const snapshot = contextStore.snapshot();
+            assert.ok(snapshot.activeSession,
+                'Should have an active session after reset+reload with empty server payload');
+            assert.strictEqual(snapshot.activeSession?.messageCount, 0,
+                'Fallback session should be a fresh empty session');
         });
 
         test('should propagate error on API failure', async () => {
