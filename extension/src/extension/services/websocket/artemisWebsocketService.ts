@@ -11,6 +11,8 @@ import {
 } from '../../types';
 import type { WebSocketMessageHandler } from '../../types';
 import type { ConnectionState } from './connectionState';
+import { deriveDisplayStatus } from './displayStatus';
+import type { WebSocketDisplayStatus } from '../../../shared/messageContracts';
 
 /**
  * Delay in milliseconds before emitting non-connected states to consumers.
@@ -606,6 +608,38 @@ export class ArtemisWebsocketService {
     /** Public read-only accessor for connection state. */
     public get connectionState(): ConnectionState {
         return this._connectionState;
+    }
+
+    /**
+     * Derived UI status that consumers (status bar, chat webview) render off.
+     * Single source of truth for "is this connecting, reconnecting, or has it
+     * truly given up?". The mapping considers both the connection-state
+     * machine and whether STOMP has an active client that will keep
+     * retrying — without that signal a failed first connect would render
+     * as 'connecting' indefinitely. See displayStatus.ts for the pure
+     * mapping; this method layers on the runtime "is a retry pending?"
+     * check that the helper alone cannot answer.
+     */
+    public getDisplayStatus(): WebSocketDisplayStatus {
+        const baseStatus = deriveDisplayStatus(this._connectionState, this._wasConnectedOnce);
+
+        // Folded states ('connected', 'disconnected') are already terminal
+        // for the UI — return as-is.
+        if (baseStatus === 'connected' || baseStatus === 'disconnected') {
+            return baseStatus;
+        }
+
+        // 'connecting' / 'reconnecting' from the helper is only honest if
+        // STOMP is actively trying. If the client never activated (e.g.,
+        // setup threw before activate()) or has been deactivated, no retry
+        // is in flight and we should surface that to the user instead of
+        // pretending we're still connecting.
+        const stompTrying = this._client?.active === true;
+        const inFlightConnectingState = this._connectionState === 'connecting';
+        if (!stompTrying && !inFlightConnectingState) {
+            return 'disconnected';
+        }
+        return baseStatus;
     }
 
     /**

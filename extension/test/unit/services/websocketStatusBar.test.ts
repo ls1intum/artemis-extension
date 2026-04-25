@@ -3,6 +3,7 @@ import * as sinon from 'sinon';
 import * as vscode from 'vscode';
 import { WebSocketStatusBarService } from '../../../src/extension/services/websocket/websocketStatusBar';
 import { ArtemisWebsocketService } from '../../../src/extension/services/websocket/artemisWebsocketService';
+import type { WebSocketDisplayStatus } from '../../../src/shared/messageContracts';
 
 /**
  * Tests for WebSocketStatusBarService visibility logic.
@@ -20,6 +21,12 @@ suite('WebSocketStatusBarService', () => {
     let sandbox: sinon.SinonSandbox;
     let mockWsService: sinon.SinonStubbedInstance<ArtemisWebsocketService> & { reconnectAttempts: number };
     let capturedCallback: (isConnected: boolean, wasEverConnected?: boolean) => void;
+    /**
+     * Drive the mock through a (status, isConnected, wasEverConnected) tuple
+     * and fire the captured callback so the status bar pulls the new value
+     * via getDisplayStatus(). Mirrors how the real service drives the bar.
+     */
+    let driveState: (status: WebSocketDisplayStatus, isConnected?: boolean, wasEverConnected?: boolean) => void;
     let mockStatusBarItem: {
         text: string;
         backgroundColor: vscode.ThemeColor | undefined;
@@ -75,8 +82,11 @@ suite('WebSocketStatusBarService', () => {
             return { dispose: () => {} } as vscode.Disposable;
         });
 
-        // Build mock websocket service
-        // We need a partial mock that captures the onConnectionStateChange callback
+        // Build mock websocket service. The status bar now reads its UI status
+        // from getDisplayStatus(); the callback only signals "something
+        // changed, refresh". So the test must set the stub return value
+        // before firing the callback. driveState() encapsulates that.
+        let currentStatus: WebSocketDisplayStatus = 'disconnected';
         mockWsService = {
             onConnectionStateChange: sandbox.stub().callsFake((cb: (isConnected: boolean, wasEverConnected?: boolean) => void) => {
                 capturedCallback = cb;
@@ -84,6 +94,7 @@ suite('WebSocketStatusBarService', () => {
                 cb(false, false);
                 return () => {};
             }),
+            getDisplayStatus: sandbox.stub().callsFake((): WebSocketDisplayStatus => currentStatus),
             isConnected: sandbox.stub().returns(false),
             hasGivenUp: sandbox.stub().returns(false),
             getDebugInfoAsync: sandbox.stub().resolves({
@@ -111,6 +122,11 @@ suite('WebSocketStatusBarService', () => {
             resetConnectionState: sandbox.stub(),
             reconnectAttempts: 0,
         } as unknown as sinon.SinonStubbedInstance<ArtemisWebsocketService> & { reconnectAttempts: number };
+
+        driveState = (status, isConnected = status === 'connected', wasEverConnected = status === 'reconnecting' || status === 'connected') => {
+            currentStatus = status;
+            capturedCallback(isConnected, wasEverConnected);
+        };
     });
 
     teardown(() => {
@@ -130,8 +146,8 @@ suite('WebSocketStatusBarService', () => {
 
             createService();
 
-            // Simulate connected, was ever connected
-            capturedCallback(true, true);
+            // Simulate connected
+            driveState('connected');
 
             // Should be hidden (setting is off, not disconnected/reconnecting)
             assert.ok(mockStatusBarItem.hide.called, 'Status bar should be hidden when setting is off and connected');
@@ -144,7 +160,7 @@ suite('WebSocketStatusBarService', () => {
             createService();
 
             // Simulate connected
-            capturedCallback(true, true);
+            driveState('connected');
 
             // Should be shown (setting is on)
             assert.ok(mockStatusBarItem.show.called, 'Status bar should be shown when setting is on and connected');
@@ -159,8 +175,8 @@ suite('WebSocketStatusBarService', () => {
             mockStatusBarItem.show.resetHistory();
             mockStatusBarItem.hide.resetHistory();
 
-            // Simulate disconnected (wasEverConnected=false means Disconnected status)
-            capturedCallback(false, false);
+            // Simulate disconnected (retries exhausted)
+            driveState('disconnected');
 
             assert.ok(mockStatusBarItem.show.called, 'Status bar MUST be shown when disconnected regardless of setting');
             assert.ok(!mockStatusBarItem.hide.called, 'Status bar must NOT be hidden when disconnected');
@@ -174,26 +190,24 @@ suite('WebSocketStatusBarService', () => {
             mockStatusBarItem.show.resetHistory();
             mockStatusBarItem.hide.resetHistory();
 
-            // Simulate reconnecting: wasEverConnected=true means Reconnecting status
-            capturedCallback(false, true);
+            // Simulate reconnecting (had a prior successful connection)
+            driveState('reconnecting');
 
             assert.ok(mockStatusBarItem.show.called, 'Status bar MUST be shown when reconnecting regardless of setting');
         });
 
-        test('ALWAYS shown when gaveUp (override rule ignores showWebSocketStatusBar)', () => {
+        test('ALWAYS shown when retries are exhausted (override rule ignores showWebSocketStatusBar)', () => {
             configValues.showWebSocketStatusBar = false;
             configValues.developerMode = false;
-
-            (mockWsService.hasGivenUp as sinon.SinonStub).returns(true);
 
             createService();
             mockStatusBarItem.show.resetHistory();
             mockStatusBarItem.hide.resetHistory();
 
-            // Simulate disconnect notification after giving up
-            capturedCallback(false, true);
+            // 'disconnected' display status now folds gave-up into the same UI state
+            driveState('disconnected');
 
-            assert.ok(mockStatusBarItem.show.called, 'Status bar MUST be shown when gaveUp regardless of setting');
+            assert.ok(mockStatusBarItem.show.called, 'Status bar MUST be shown when retries are exhausted');
         });
     });
 
@@ -202,7 +216,7 @@ suite('WebSocketStatusBarService', () => {
             configValues.showWebSocketStatusBar = true;
 
             createService();
-            capturedCallback(true, true);
+            driveState('connected');
 
             assert.ok(
                 mockStatusBarItem.text.includes('$(plug)'),
@@ -221,7 +235,7 @@ suite('WebSocketStatusBarService', () => {
             mockWsService.reconnectAttempts = 3;
 
             createService();
-            capturedCallback(false, true); // wasEverConnected=true → Reconnecting
+            driveState('reconnecting');
 
             assert.ok(
                 mockStatusBarItem.text.includes('$(sync~spin)'),
@@ -241,7 +255,7 @@ suite('WebSocketStatusBarService', () => {
             configValues.showWebSocketStatusBar = false;
 
             createService();
-            capturedCallback(false, false); // wasEverConnected=false → Disconnected
+            driveState('disconnected');
 
             assert.ok(
                 mockStatusBarItem.text.includes('$(debug-disconnect)'),
@@ -255,7 +269,7 @@ suite('WebSocketStatusBarService', () => {
 
         test('disconnected status has errorBackground', () => {
             createService();
-            capturedCallback(false, false);
+            driveState('disconnected');
 
             assert.ok(
                 mockStatusBarItem.backgroundColor instanceof vscode.ThemeColor,
@@ -265,7 +279,7 @@ suite('WebSocketStatusBarService', () => {
 
         test('reconnecting status has warningBackground', () => {
             createService();
-            capturedCallback(false, true); // Reconnecting
+            driveState('reconnecting');
 
             assert.ok(
                 mockStatusBarItem.backgroundColor instanceof vscode.ThemeColor,
@@ -283,11 +297,11 @@ suite('WebSocketStatusBarService', () => {
                 createService();
 
                 // First simulate reconnecting
-                capturedCallback(false, true);
+                driveState('reconnecting');
                 mockStatusBarItem.hide.resetHistory();
 
                 // Then simulate successful reconnect
-                capturedCallback(true, true);
+                driveState('connected');
 
                 // Status bar should still be shown immediately (flash)
                 assert.ok(!mockStatusBarItem.hide.called, 'Should not hide immediately on reconnect');
@@ -311,7 +325,7 @@ suite('WebSocketStatusBarService', () => {
                 mockStatusBarItem.hide.resetHistory();
 
                 // Simulate successful reconnect
-                capturedCallback(true, true);
+                driveState('connected');
 
                 // Advance past timeout
                 clock.tick(3000);
@@ -340,8 +354,8 @@ suite('WebSocketStatusBarService', () => {
                 const service = createService();
 
                 // Simulate reconnection to set the flash timeout
-                capturedCallback(false, true);
-                capturedCallback(true, true);
+                driveState('reconnecting');
+                driveState('connected');
 
                 // Dispose before timeout fires
                 mockStatusBarItem.hide.resetHistory();
@@ -365,7 +379,7 @@ suite('WebSocketStatusBarService', () => {
             mockWsService.reconnectAttempts = 7;
 
             createService();
-            capturedCallback(false, true); // Reconnecting
+            driveState('reconnecting');
 
             assert.ok(
                 mockStatusBarItem.text.includes('7/20'),

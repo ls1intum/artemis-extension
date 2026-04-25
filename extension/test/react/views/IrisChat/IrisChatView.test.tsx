@@ -43,7 +43,7 @@ describe('IrisChatView', () => {
 			streaming: { isStreaming: false, messageLocalId: null, visibleChunks: [] },
 			irisStages: [],
 			isLoading: false,
-			isWebSocketConnected: true,
+			webSocketStatus: 'connected',
 			disabledMessage: null,
 			isNoAiDetected: false,
 			referencedFiles: null,
@@ -187,15 +187,30 @@ describe('IrisChatView', () => {
 		expect(screen.getByText(/\.noai file was detected/i)).toBeInTheDocument();
 	});
 
-	it('shows WebSocket disconnected banner when not connected', () => {
-		useChatStore.setState({ isWebSocketConnected: false });
+	it('shows WebSocket disconnected banner when retries are exhausted', () => {
+		useChatStore.setState({ webSocketStatus: 'disconnected' });
 		const mockApi = createMockVsCodeApi();
 		render(<IrisChatView vscodeApi={mockApi} />);
 		expect(screen.getByText('WebSocket disconnected')).toBeInTheDocument();
 	});
 
+	it('does not show banner during initial connect or reconnect attempts', () => {
+		useChatStore.setState({ webSocketStatus: 'connecting' });
+		const mockApi = createMockVsCodeApi();
+		const { rerender } = render(<IrisChatView vscodeApi={mockApi} />);
+		expect(screen.queryByText('WebSocket disconnected')).not.toBeInTheDocument();
+
+		useChatStore.setState({ webSocketStatus: 'reconnecting' });
+		rerender(<IrisChatView vscodeApi={mockApi} />);
+		expect(screen.queryByText('WebSocket disconnected')).not.toBeInTheDocument();
+
+		useChatStore.setState({ webSocketStatus: 'unknown' });
+		rerender(<IrisChatView vscodeApi={mockApi} />);
+		expect(screen.queryByText('WebSocket disconnected')).not.toBeInTheDocument();
+	});
+
 	it('reconnect button sends reconnectWebSocket command', async () => {
-		useChatStore.setState({ isWebSocketConnected: false });
+		useChatStore.setState({ webSocketStatus: 'disconnected' });
 		const mockApi = createMockVsCodeApi();
 		render(<IrisChatView vscodeApi={mockApi} />);
 
@@ -326,22 +341,22 @@ describe('IrisChatView', () => {
 			});
 		});
 
-		it('clears irisStages when UpdateWebSocketStatus(false) arrives', async () => {
+		it('clears irisStages when UpdateWebSocketStatus reports a non-connected state', async () => {
 			const mockApi = createMockVsCodeApi();
 			render(<IrisChatView vscodeApi={mockApi} />);
 
-			dispatchExtensionMessage({ type: 'updateWebSocketStatus', isConnected: false });
+			dispatchExtensionMessage({ type: 'updateWebSocketStatus', status: 'disconnected' });
 
 			await waitFor(() => {
 				expect(useChatStore.getState().irisStages).toEqual([]);
 			});
 		});
 
-		it('does not clear irisStages when UpdateWebSocketStatus(true) arrives', async () => {
+		it('does not clear irisStages when UpdateWebSocketStatus reports connected', async () => {
 			const mockApi = createMockVsCodeApi();
 			render(<IrisChatView vscodeApi={mockApi} />);
 
-			dispatchExtensionMessage({ type: 'updateWebSocketStatus', isConnected: true });
+			dispatchExtensionMessage({ type: 'updateWebSocketStatus', status: 'connected' });
 
 			await waitFor(() => {
 				expect(useChatStore.getState().irisStages).toHaveLength(1);

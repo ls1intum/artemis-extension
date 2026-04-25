@@ -5,7 +5,7 @@ import type { IrisChatMessage, IrisStageDTO } from '../../types';
 import { logger, LogCategory } from '../loggingService';
 import { extractIrisMessageContent } from '../iris/messageUtils';
 import { ExtensionMsg } from '../../../shared/messageContracts';
-import type { ExtensionToWebviewMessage } from '../../../shared/messageContracts';
+import type { ExtensionToWebviewMessage, WebSocketDisplayStatus } from '../../../shared/messageContracts';
 
 export type ReconnectResult =
     | { status: 'reconnected' }
@@ -130,7 +130,7 @@ export class IrisWebSocketMessageHandler {
 
         try {
             if (this._websocketService.isConnected()) {
-                this._updateWebSocketStatus(true);
+                this.publishCurrentStatus();
                 return { status: 'already-connected' };
             }
 
@@ -146,26 +146,32 @@ export class IrisWebSocketMessageHandler {
             }
 
             if (this._websocketService.isConnected()) {
-                this._updateWebSocketStatus(true);
+                this.publishCurrentStatus();
                 return { status: 'reconnected' };
             }
 
             return { status: 'failed', error: 'Connection attempt did not establish' };
         } catch (error: unknown) {
             logger.error('Failed to reconnect WebSocket', LogCategory.WEBSOCKET, error);
-            this._updateWebSocketStatus(false);
+            this.publishCurrentStatus();
             return { status: 'failed', error: error instanceof Error ? error.message : String(error) };
         }
     }
 
-    public updateWebSocketStatus(isConnected: boolean): void {
-        this._updateWebSocketStatus(isConnected);
+    /**
+     * Push the current display status to the webview. Reads it from the
+     * websocket service so the status bar and the chat webview cannot
+     * disagree about what state the connection is in.
+     */
+    public publishCurrentStatus(): void {
+        const status = this._websocketService?.getDisplayStatus() ?? 'disconnected';
+        this.publishStatus(status);
     }
 
-    private _updateWebSocketStatus(isConnected: boolean): void {
+    public publishStatus(status: WebSocketDisplayStatus): void {
         this._postMessage({
             type: ExtensionMsg.UpdateWebSocketStatus,
-            isConnected: isConnected
+            status,
         });
     }
 }

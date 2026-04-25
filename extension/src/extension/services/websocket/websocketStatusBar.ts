@@ -2,17 +2,7 @@ import * as vscode from 'vscode';
 import { ArtemisWebsocketService } from './artemisWebsocketService';
 import { VSCODE_CONFIG } from '../../utils';
 import { logger, LogCategory } from '../loggingService';
-
-/**
- * WebSocket connection status enumeration
- */
-enum WebSocketStatus {
-    Connected = 'connected',
-    Disconnected = 'disconnected',
-    Reconnecting = 'reconnecting',
-    Connecting = 'connecting',
-    GaveUp = 'gaveup'
-}
+import type { WebSocketDisplayStatus } from '../../../shared/messageContracts';
 
 /**
  * Debug info interface matching ArtemisWebsocketService.getDebugInfoAsync() return type
@@ -55,7 +45,7 @@ export class WebSocketStatusBarService implements vscode.Disposable {
     private _websocketService: ArtemisWebsocketService;
     private _disposables: vscode.Disposable[] = [];
     private _unsubscribeFromState?: () => void;
-    private _currentStatus: WebSocketStatus = WebSocketStatus.Disconnected;
+    private _currentStatus: WebSocketDisplayStatus = 'disconnected';
     private _lastError?: string;
     private _isDebugMode: boolean = false;
     private _showStatusBar: boolean = false;
@@ -100,15 +90,15 @@ export class WebSocketStatusBarService implements vscode.Disposable {
             })
         );
 
-        // Subscribe to connection state changes
+        // Subscribe to connection state changes; pull the current display
+        // status from the websocket service so this and the chat webview share
+        // the exact same projection.
         this._unsubscribeFromState = this._websocketService.onConnectionStateChange(
-            (isConnected, wasEverConnected) => {
-                this._updateStatus(isConnected, wasEverConnected);
-            }
+            () => this._refreshStatus()
         );
 
         // Initial status update
-        this._updateStatusFromService();
+        this._refreshStatus();
     }
 
     /**
@@ -128,56 +118,36 @@ export class WebSocketStatusBarService implements vscode.Disposable {
     }
 
     /**
-     * Update status from WebSocket service state
+     * Pull the current display status from the websocket service and update
+     * the status bar accordingly. Single projection, single source of truth —
+     * the chat webview reads the same status via the message channel.
      */
-    private _updateStatusFromService(): void {
-        const isConnected = this._websocketService.isConnected();
-        const hasGivenUp = this._websocketService.hasGivenUp();
-
-        if (hasGivenUp) {
-            this._currentStatus = WebSocketStatus.GaveUp;
-        } else if (isConnected) {
-            this._currentStatus = WebSocketStatus.Connected;
-        } else {
-            this._currentStatus = WebSocketStatus.Disconnected;
-        }
-
-        this._updateStatusBarItem();
-    }
-
-    /**
-     * Update status based on connection state callback
-     */
-    private _updateStatus(isConnected: boolean, wasEverConnected?: boolean): void {
-        const hasGivenUp = this._websocketService.hasGivenUp();
+    private _refreshStatus(): void {
         const previousStatus = this._currentStatus;
+        const newStatus = this._websocketService.getDisplayStatus();
+        this._currentStatus = newStatus;
 
-        if (hasGivenUp) {
-            this._currentStatus = WebSocketStatus.GaveUp;
-        } else if (isConnected) {
-            this._currentStatus = WebSocketStatus.Connected;
-            this._lastError = undefined; // Clear error on successful connection
-        } else if (wasEverConnected) {
-            // Was connected before, now trying to reconnect
-            this._currentStatus = WebSocketStatus.Reconnecting;
-        } else {
-            this._currentStatus = WebSocketStatus.Disconnected;
+        if (newStatus === 'connected') {
+            this._lastError = undefined;
         }
 
-        // Handle the reconnect flash: when transitioning FROM Reconnecting TO connected
-        // and the user setting is off, schedule a 2-second hide.
-        // Only applies when coming from Reconnecting state (not initial connect from Disconnected).
-        if (isConnected && !hasGivenUp && !this._showStatusBar && !this._isDebugMode) {
-            if (previousStatus === WebSocketStatus.Reconnecting) {
-                // Clear any existing timeout to avoid stacking
-                if (this._reconnectHideTimeout) {
-                    clearTimeout(this._reconnectHideTimeout);
-                }
-                this._reconnectHideTimeout = setTimeout(() => {
-                    this._reconnectHideTimeout = undefined;
-                    this._statusBarItem.hide();
-                }, 2000);
+        // Reconnect flash: when transitioning from reconnecting to connected
+        // and the user has the status bar hidden, briefly keep it visible so
+        // the user sees the recovery, then hide. Only fires for reconnects;
+        // initial 'connecting' → 'connected' transitions stay quiet.
+        if (
+            newStatus === 'connected'
+            && previousStatus === 'reconnecting'
+            && !this._showStatusBar
+            && !this._isDebugMode
+        ) {
+            if (this._reconnectHideTimeout) {
+                clearTimeout(this._reconnectHideTimeout);
             }
+            this._reconnectHideTimeout = setTimeout(() => {
+                this._reconnectHideTimeout = undefined;
+                this._statusBarItem.hide();
+            }, 2000);
         }
 
         this._updateStatusBarItem();
@@ -186,17 +156,16 @@ export class WebSocketStatusBarService implements vscode.Disposable {
     /**
      * Apply the visibility rule based on current status and settings.
      *
-     * Override rule: disconnected/reconnecting/gaveUp states ALWAYS show, regardless of settings.
+     * Override rule: disconnected/reconnecting states ALWAYS show, regardless of settings.
      * Normal state: only show when showStatusBar or isDebugMode is true.
      * Reconnect flash: if a hide timeout is pending (2s after reconnect), keep showing.
      */
     private _applyVisibility(): void {
-        const isDisconnected =
-            this._currentStatus === WebSocketStatus.Disconnected ||
-            this._currentStatus === WebSocketStatus.GaveUp;
-        const isReconnecting = this._currentStatus === WebSocketStatus.Reconnecting;
+        const needsAttention =
+            this._currentStatus === 'disconnected'
+            || this._currentStatus === 'reconnecting';
 
-        if (isDisconnected || isReconnecting) {
+        if (needsAttention) {
             // Override rule: ALWAYS show
             this._statusBarItem.show();
         } else if (this._showStatusBar || this._isDebugMode) {
@@ -221,29 +190,24 @@ export class WebSocketStatusBarService implements vscode.Disposable {
         let backgroundColor: vscode.ThemeColor | undefined;
 
         switch (this._currentStatus) {
-            case WebSocketStatus.Connected:
+            case 'connected':
                 icon = '$(plug)';
                 text = 'WS Connected';
                 backgroundColor = undefined;
                 break;
-            case WebSocketStatus.Reconnecting: {
+            case 'reconnecting': {
                 const attempts = this._websocketService.reconnectAttempts;
                 icon = '$(sync~spin)';
                 text = `Reconnecting (${attempts}/20)...`;
                 backgroundColor = new vscode.ThemeColor('statusBarItem.warningBackground');
                 break;
             }
-            case WebSocketStatus.Connecting:
+            case 'connecting':
                 icon = '$(sync~spin)';
                 text = 'WS Connecting...';
                 backgroundColor = undefined;
                 break;
-            case WebSocketStatus.GaveUp:
-                icon = '$(debug-disconnect)';
-                text = 'WS Disconnected';
-                backgroundColor = new vscode.ThemeColor('statusBarItem.errorBackground');
-                break;
-            case WebSocketStatus.Disconnected:
+            case 'disconnected':
             default:
                 icon = '$(debug-disconnect)';
                 text = 'WS Disconnected';
@@ -433,8 +397,7 @@ export class WebSocketStatusBarService implements vscode.Disposable {
      * Handle reconnect action
      */
     private async _handleReconnect(): Promise<void> {
-        this._currentStatus = WebSocketStatus.Connecting;
-        this._updateStatusBarItem();
+        this._refreshStatus();
 
         await vscode.window.withProgress({
             location: vscode.ProgressLocation.Notification,
@@ -444,7 +407,7 @@ export class WebSocketStatusBarService implements vscode.Disposable {
             await this._websocketService.connect();
         });
 
-        this._updateStatusFromService();
+        this._refreshStatus();
 
         if (this._websocketService.isConnected()) {
             vscode.window.showInformationMessage('WebSocket connected');
@@ -456,8 +419,7 @@ export class WebSocketStatusBarService implements vscode.Disposable {
      */
     private async _handleDisconnect(): Promise<void> {
         await this._websocketService.disconnect();
-        this._currentStatus = WebSocketStatus.Disconnected;
-        this._updateStatusBarItem();
+        this._refreshStatus();
         vscode.window.showInformationMessage('WebSocket disconnected');
     }
 
@@ -467,9 +429,7 @@ export class WebSocketStatusBarService implements vscode.Disposable {
     private async _handleResetAndReconnect(): Promise<void> {
         this._websocketService.resetConnectionState();
         this._lastError = undefined;
-
-        this._currentStatus = WebSocketStatus.Connecting;
-        this._updateStatusBarItem();
+        this._refreshStatus();
 
         await vscode.window.withProgress({
             location: vscode.ProgressLocation.Notification,
@@ -479,7 +439,7 @@ export class WebSocketStatusBarService implements vscode.Disposable {
             await this._websocketService.connect();
         });
 
-        this._updateStatusFromService();
+        this._refreshStatus();
 
         if (this._websocketService.isConnected()) {
             vscode.window.showInformationMessage('WebSocket reset and connected');

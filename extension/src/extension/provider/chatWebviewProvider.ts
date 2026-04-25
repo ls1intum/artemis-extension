@@ -156,7 +156,7 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
                 this._irisSessionManager.onDidReceiveMessage(data => this._websocketMessageHandler.handleIrisWebSocketMessage(data))
             );
             this._disposables.push(
-                this._irisSessionManager.onDidConnectionStateChange(isConnected => this._websocketMessageHandler.updateWebSocketStatus(isConnected))
+                this._irisSessionManager.onDidConnectionStateChange(() => this._websocketMessageHandler.publishCurrentStatus())
             );
         }
 
@@ -262,7 +262,7 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
 
         // Send current WebSocket connection status so the banner reflects reality
         if (this._websocketService) {
-            this._websocketMessageHandler.updateWebSocketStatus(this._websocketService.isConnected());
+            this._websocketMessageHandler.publishCurrentStatus();
         }
     }
 
@@ -729,7 +729,7 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
         }
         if (this._websocketService.isConnected()) {
             vscode.window.showInformationMessage('WebSocket is already connected');
-            this._websocketMessageHandler.updateWebSocketStatus(true);
+            this._websocketMessageHandler.publishCurrentStatus();
             return;
         }
 

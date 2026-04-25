@@ -9,7 +9,15 @@ import type {
     StreamingState,
     IrisStageDTO,
 } from '../views/IrisChat/types';
-import type { ExtMsg } from '../../shared/messageContracts';
+import type { ExtMsg, WebSocketDisplayStatus } from '../../shared/messageContracts';
+
+/**
+ * Webview-side connection status. Mirrors the extension's
+ * {@link WebSocketDisplayStatus} plus a synthetic 'unknown' state used for
+ * the very first render before any extension push has arrived. 'unknown'
+ * intentionally renders nothing — it suppresses the cold-start banner flash.
+ */
+export type ChatWebSocketStatus = WebSocketDisplayStatus | 'unknown';
 
 interface ChatState {
     // Context
@@ -32,7 +40,7 @@ interface ChatState {
 
     // UI state
     isLoading: boolean;
-    isWebSocketConnected: boolean;
+    webSocketStatus: ChatWebSocketStatus;
     disabledMessage: string | null;   // Non-null = Iris disabled (reason as string)
     isNoAiDetected: boolean;
     referencedFiles: ReferencedFilesData | null;
@@ -56,7 +64,7 @@ interface ChatState {
 
     // UI actions
     setLoading: (loading: boolean) => void;
-    setWebSocketConnected: (connected: boolean) => void;
+    setWebSocketStatus: (status: ChatWebSocketStatus) => void;
     setDisabledMessage: (message: string | null) => void;
     setNoAiDetected: (detected: boolean) => void;
     setReferencedFiles: (data: ReferencedFilesData | null) => void;
@@ -84,7 +92,7 @@ export const useChatStore = create<ChatState>()(
             streaming: IDLE_STREAMING,
             irisStages: [],
             isLoading: false,
-            isWebSocketConnected: false,
+            webSocketStatus: 'unknown',
             disabledMessage: null,
             isNoAiDetected: false,
             referencedFiles: null,
@@ -195,8 +203,8 @@ export const useChatStore = create<ChatState>()(
                 set({ isLoading: loading }, false, 'setLoading');
             },
 
-            setWebSocketConnected: (connected) => {
-                set({ isWebSocketConnected: connected }, false, 'setWebSocketConnected');
+            setWebSocketStatus: (status) => {
+                set({ webSocketStatus: status }, false, 'setWebSocketStatus');
             },
 
             setDisabledMessage: (message) => {

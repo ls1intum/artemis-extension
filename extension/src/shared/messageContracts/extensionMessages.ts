@@ -12,6 +12,18 @@ import type {
 import type { CourseData, ArchivedCourse, CourseDetailData, RecentCourseNode } from './domainTypes';
 import type { ChatContextType } from '../types/context';
 
+/**
+ * Display-facing projection of the websocket connection state. Both the chat
+ * webview and the status bar render off this. The webview store also has an
+ * additional 'unknown' state for its first render, before any extension push
+ * has arrived; the extension itself never emits 'unknown'.
+ */
+export type WebSocketDisplayStatus =
+    | 'connecting'
+    | 'connected'
+    | 'reconnecting'
+    | 'disconnected';
+
 /** All Extension->Webview message types (const object for string-literal compatibility) */
 export const ExtensionMsg = {
     // View initialization
@@ -228,7 +240,7 @@ interface ExtensionMsgPayloads {
         excludedFiles: Array<{ path: string; reason?: string }>;
         totalCount: number;
     };
-    updateWebSocketStatus: { isConnected: boolean };
+    updateWebSocketStatus: { status: WebSocketDisplayStatus };
     showDisabledState: { message: string };
     hideDisabledState: undefined;
     updateNoAiStatus: {
