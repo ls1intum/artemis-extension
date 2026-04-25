@@ -7,13 +7,13 @@ import { extractIrisMessageContent } from '../iris/messageUtils';
 import { ExtensionMsg } from '../../../shared/messageContracts';
 import type { ExtensionToWebviewMessage, WebSocketDisplayStatus } from '../../../shared/messageContracts';
 
-export type ReconnectResult =
+type ReconnectResult =
     | { status: 'reconnected' }
     | { status: 'already-connected' }
     | { status: 'no-service' }
     | { status: 'failed'; error: string };
 
-export interface ReceivedIrisChatMessage {
+interface ReceivedIrisChatMessage {
     content: string;
     /** Numeric message ID from the Artemis server, stringified for recording. */
     messageId?: string;

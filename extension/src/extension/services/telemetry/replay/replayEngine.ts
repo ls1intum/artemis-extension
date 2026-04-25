@@ -24,7 +24,7 @@ import {
     createSnapshotFromBuildEvent,
 } from './snapshotReconstructor';
 
-export interface ReplayEqSnapshot {
+interface ReplayEqSnapshot {
     timestamp: number;
     eq: number;
     confidence: 'sufficient' | 'insufficient';

@@ -2,18 +2,18 @@
  * Comprehensive list of AI extensions to detect and display in the AI Checker
  */
 
-export interface AiExtensionInfo {
+interface AiExtensionInfo {
     id: string;
     name: string;
     description: string;
 }
 
-export interface AiProvider {
+interface AiProvider {
     color: string;
     extensions: AiExtensionInfo[];
 }
 
-export interface AiExtensionsBlocklist {
+interface AiExtensionsBlocklist {
     [provider: string]: AiProvider;
 }
 

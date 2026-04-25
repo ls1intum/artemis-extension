@@ -2,7 +2,7 @@ import { ReactNode } from 'react';
 import clsx from 'clsx';
 import styles from './BackLink.module.css';
 
-export interface BackLinkProps {
+interface BackLinkProps {
   children: ReactNode;
   onClick?: () => void;
   className?: string;

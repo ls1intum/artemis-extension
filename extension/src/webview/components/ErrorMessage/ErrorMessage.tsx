@@ -1,6 +1,6 @@
 import styles from './ErrorMessage.module.css';
 
-export interface ErrorMessageProps {
+interface ErrorMessageProps {
     error: string;
     onRetry: () => void;
 }

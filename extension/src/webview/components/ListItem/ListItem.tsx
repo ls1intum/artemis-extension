@@ -2,7 +2,7 @@ import { ReactNode } from 'react';
 import clsx from 'clsx';
 import styles from './ListItem.module.css';
 
-export interface ListItemProps {
+interface ListItemProps {
   children?: ReactNode;
   icon?: ReactNode;
   title?: string;

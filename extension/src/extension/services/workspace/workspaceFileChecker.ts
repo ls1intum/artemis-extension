@@ -51,7 +51,7 @@ const EXCLUDED_DIRECTORIES = new Set([
     'vendor', 'packages', 'deps',
 ]);
 
-export interface FileCheckOptions {
+interface FileCheckOptions {
     /** Include file contents in the result */
     includeContent?: boolean;
     /** Include detailed status/reason for each file */

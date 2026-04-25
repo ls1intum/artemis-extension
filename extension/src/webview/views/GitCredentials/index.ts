@@ -3,4 +3,3 @@
  */
 
 export { GitCredentialsView } from './GitCredentialsView';
-export type { GitCredentialsViewProps, GitCredentialsPersistedState } from './types';

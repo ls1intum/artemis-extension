@@ -2,7 +2,7 @@ import { ReactNode } from 'react';
 import clsx from 'clsx';
 import styles from './Badge.module.css';
 
-export interface BadgeProps {
+interface BadgeProps {
   children: ReactNode;
   variant?: 'default' | 'success' | 'warning' | 'error' | 'info' | 'muted';
   className?: string;

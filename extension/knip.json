@@ -2,11 +2,24 @@
   "$schema": "https://unpkg.com/knip@5/schema.json",
   "entry": [
     "src/extension.ts",
-    "src/webview/index.tsx"
+    "src/webview/index.tsx",
+    "esbuild.js",
+    "test/**/*.{ts,tsx}",
+    ".mocharc.ui.yml",
+    ".vscode-test.mjs"
   ],
   "project": [
-    "src/**/*.{ts,tsx}"
+    "src/**/*.{ts,tsx}",
+    "test/**/*.{ts,tsx}"
   ],
-  "ignoreDependencies": ["vscode"],
-  "ignore": ["test/**", "esbuild.js"]
+  "ignoreDependencies": [
+    "@types/vscode",
+    "@types/dompurify",
+    "@types/katex",
+    "@types/marked",
+    "@vscode/test-electron",
+    "axe-core",
+    "mocha-junit-reporter"
+  ],
+  "ignoreBinaries": ["vsce"]
 }

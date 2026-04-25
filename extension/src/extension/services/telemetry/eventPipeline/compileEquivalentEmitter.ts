@@ -13,7 +13,6 @@ import { ResultDTO } from '../../../types';
 import { shouldDedupSnapshot } from '../metrics/snapshotDedup';
 import { LINT_SOURCE_DENYLIST } from './lintDenylist';
 import { shouldRecordUri } from '../recording/uriFilter';
-export { LINT_SOURCE_DENYLIST };
 
 /**
  * Emits CompileEquivalentEvents from save events and build results.
@@ -251,7 +250,7 @@ export function classifyBuildResult(result: ResultDTO): BuildResultClassificatio
  * Check if a diagnostic is a compiler diagnostic (not lint).
  * [ADAPTATION] Paper had no linter; denylist filter is engineering-necessary.
  */
-export function isCompilerDiagnostic(d: vscode.Diagnostic): boolean {
+function isCompilerDiagnostic(d: vscode.Diagnostic): boolean {
     const source = (d.source ?? '').toLowerCase();
     return d.severity === vscode.DiagnosticSeverity.Error
         && !LINT_SOURCE_DENYLIST.has(source);
@@ -262,7 +261,7 @@ export function isCompilerDiagnostic(d: vscode.Diagnostic): boolean {
  * MVP: source:code (1:1 mapping, conservative).
  * [ADAPTATION] Paper had single error type; VS Code has hundreds of error codes.
  */
-export function getErrorFamily(d: vscode.Diagnostic): string {
+function getErrorFamily(d: vscode.Diagnostic): string {
     const source = d.source ?? 'unknown';
     const code = typeof d.code === 'object' ? String(d.code.value) : String(d.code ?? 'unknown');
     return `${source}:${code}`;

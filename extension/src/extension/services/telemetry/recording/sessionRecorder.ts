@@ -53,15 +53,15 @@ import { SnapshotManager } from './snapshots/snapshotManager';
 import { StartupCapture, type StartupContext as StartupContextFromModule, type StartupContributor as StartupContributorFromModule } from './startup/startupCapture';
 import { ObservationRegistry } from './observation/observationRegistry';
 
-export interface RecordingState {
+interface RecordingState {
     isEnabled: boolean;
     isRecording: boolean;
     exerciseId: number | undefined;
     eventCount: number;
 }
 
-export type StartupContext = StartupContextFromModule;
-export type StartupContributor = StartupContributorFromModule;
+type StartupContext = StartupContextFromModule;
+type StartupContributor = StartupContributorFromModule;
 
 type RecorderPhase = RecorderPhaseFromState;
 

@@ -21,12 +21,12 @@ export interface TestCase {
   type?: 'structural' | 'behavioral';
 }
 
-export interface Feedback {
+interface Feedback {
   type: 'positive' | 'negative' | 'neutral';
   text: string;
 }
 
-export interface SubmissionStatusProps {
+interface SubmissionStatusProps {
   status: SubmissionStatusType;
   score?: number;
   maxScore?: number;

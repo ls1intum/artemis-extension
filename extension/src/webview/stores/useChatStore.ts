@@ -17,7 +17,7 @@ import type { ExtMsg, WebSocketDisplayStatus } from '../../shared/messageContrac
  * the very first render before any extension push has arrived. 'unknown'
  * intentionally renders nothing — it suppresses the cold-start banner flash.
  */
-export type ChatWebSocketStatus = WebSocketDisplayStatus | 'unknown';
+type ChatWebSocketStatus = WebSocketDisplayStatus | 'unknown';
 
 interface ChatState {
     // Context

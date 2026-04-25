@@ -22,7 +22,7 @@ export interface StartupContext {
  */
 export type StartupContributor = (ctx: StartupContext) => RecordedEvent[];
 
-export interface StartupCaptureDeps {
+interface StartupCaptureDeps {
     record: (
         event: RecordedEvent,
         opts: { allowDuringStartup?: boolean; allowDuringEnding?: boolean },

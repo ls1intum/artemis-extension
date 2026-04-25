@@ -20,7 +20,7 @@ import type { CourseDataCache } from '../services/courseDataCache';
 import { getReactWebviewHtml } from '../services/ui';
 import { logger, LogCategory } from '../services/loggingService';
 
-export interface ExerciseContextChangeEvent {
+interface ExerciseContextChangeEvent {
     exerciseId: number;
     previousExerciseId?: number;
     exerciseRoot?: vscode.Uri;

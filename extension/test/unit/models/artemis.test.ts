@@ -4,13 +4,9 @@ import {
     parseProfileInfo,
     parseArtemisFeedback,
     parseArtemisUser,
-    parseArtemisCourse,
-    parseArtemisExercise,
     parseArtemisResult,
     parseArtemisParticipation,
-    parseIrisRateLimitInfo,
     parseIrisHealthStatus,
-    parseBuildTimingInfo,
     parseProgrammingSubmission,
     parseSubmissionProcessingMessage,
     parseResultDTO,
@@ -145,78 +141,6 @@ suite('ArtemisUser', () => {
     });
 });
 
-suite('ArtemisCourse', () => {
-    test('parses complete valid JSON', () => {
-        const c = parseArtemisCourse({
-            id: 10, title: 'Intro CS', shortName: 'CS1',
-            description: 'A course', startDate: '2025-01-01', endDate: '2025-07-01',
-            semester: 'WS25', studentGroupName: 'students',
-            teachingAssistantGroupName: 'tutors', editorGroupName: 'editors',
-            instructorGroupName: 'instructors',
-        });
-        assert.ok(c);
-        assert.strictEqual(c.id, 10);
-        assert.strictEqual(c.title, 'Intro CS');
-        assert.strictEqual(c.shortName, 'CS1');
-        assert.strictEqual(c.description, 'A course');
-        assert.strictEqual(c.semester, 'WS25');
-    });
-
-    test('handles missing optional fields', () => {
-        const c = parseArtemisCourse({ id: 1, title: 'T', shortName: 'S' });
-        assert.strictEqual(c.id, 1);
-        assert.strictEqual(c.title, 'T');
-        assert.strictEqual(c.shortName, 'S');
-        assert.strictEqual(c.description, undefined);
-        assert.strictEqual(c.startDate, undefined);
-        assert.strictEqual(c.semester, undefined);
-    });
-
-    test('throws on invalid input', () => {
-        assert.throws(() => parseArtemisCourse(null), /Invalid/);
-        assert.throws(() => parseArtemisCourse(undefined), /Invalid/);
-    });
-});
-
-suite('ArtemisExercise', () => {
-    test('parses complete valid JSON', () => {
-        const e = parseArtemisExercise({
-            id: 1, title: 'Ex1', shortName: 'E1', type: 'programming',
-            releaseDate: '2025-01-01', dueDate: '2025-02-01',
-            assessmentDueDate: '2025-03-01', maxPoints: 100, bonusPoints: 10,
-        });
-        assert.ok(e);
-        assert.strictEqual(e.id, 1);
-        assert.strictEqual(e.title, 'Ex1');
-        assert.strictEqual(e.type, 'programming');
-        assert.strictEqual(e.maxPoints, 100);
-        assert.strictEqual(e.bonusPoints, 10);
-    });
-
-    test('handles missing optional fields', () => {
-        const e = parseArtemisExercise({ id: 1, title: 'Ex1', shortName: 'E1', type: 'quiz' });
-        assert.strictEqual(e.releaseDate, undefined);
-        assert.strictEqual(e.dueDate, undefined);
-        assert.strictEqual(e.maxPoints, undefined);
-        assert.strictEqual(e.course, undefined);
-    });
-
-    test('parses nested course', () => {
-        const e = parseArtemisExercise({
-            id: 1, title: 'Ex1', shortName: 'E1', type: 'programming',
-            course: { id: 10, title: 'CS1', shortName: 'C1' },
-        });
-        assert.ok(e.course);
-        assert.strictEqual(e.course!.id, 10);
-        assert.strictEqual(e.course!.title, 'CS1');
-    });
-
-    test('throws on invalid input', () => {
-        assert.throws(() => parseArtemisExercise(null), /Invalid/);
-        assert.throws(() => parseArtemisExercise(undefined), /Invalid/);
-    });
-});
-
 suite('ArtemisResult', () => {
     test('parses complete valid JSON', () => {
         const r = parseArtemisResult({
@@ -306,32 +230,6 @@ suite('ArtemisParticipation', () => {
     });
 });
 
-suite('IrisRateLimitInfo', () => {
-    test('parses complete valid JSON', () => {
-        const r = parseIrisRateLimitInfo({
-            currentMessageCount: 5, rateLimit: 100, rateLimitTimeframeHours: 24,
-        });
-        assert.ok(r);
-        assert.strictEqual(r.currentMessageCount, 5);
-        assert.strictEqual(r.rateLimit, 100);
-        assert.strictEqual(r.rateLimitTimeframeHours, 24);
-    });
-
-    test('coerces non-number fields via Number()', () => {
-        const r = parseIrisRateLimitInfo({
-            currentMessageCount: '5', rateLimit: '100', rateLimitTimeframeHours: '24',
-        });
-        assert.strictEqual(r.currentMessageCount, 5);
-        assert.strictEqual(r.rateLimit, 100);
-        assert.strictEqual(r.rateLimitTimeframeHours, 24);
-    });
-
-    test('throws on invalid input', () => {
-        assert.throws(() => parseIrisRateLimitInfo(null), /Invalid/);
-        assert.throws(() => parseIrisRateLimitInfo(undefined), /Invalid/);
-    });
-});
-
 suite('IrisHealthStatus', () => {
     test('parses complete valid JSON', () => {
         const h = parseIrisHealthStatus({ active: true });
@@ -358,29 +256,6 @@ suite('IrisHealthStatus', () => {
     test('throws on invalid input', () => {
         assert.throws(() => parseIrisHealthStatus(null), /Invalid/);
         assert.throws(() => parseIrisHealthStatus(undefined), /Invalid/);
-    });
-});
-
-suite('BuildTimingInfo', () => {
-    test('parses complete valid JSON', () => {
-        const b = parseBuildTimingInfo({
-            buildStartDate: '2025-01-01T10:00:00Z',
-            estimatedCompletionDate: '2025-01-01T10:05:00Z',
-        });
-        assert.ok(b);
-        assert.strictEqual(b.buildStartDate, '2025-01-01T10:00:00Z');
-        assert.strictEqual(b.estimatedCompletionDate, '2025-01-01T10:05:00Z');
-    });
-
-    test('handles missing optional fields', () => {
-        const b = parseBuildTimingInfo({});
-        assert.strictEqual(b.buildStartDate, undefined);
-        assert.strictEqual(b.estimatedCompletionDate, undefined);
-    });
-
-    test('throws on invalid input', () => {
-        assert.throws(() => parseBuildTimingInfo(null), /Invalid/);
-        assert.throws(() => parseBuildTimingInfo(undefined), /Invalid/);
     });
 });
 

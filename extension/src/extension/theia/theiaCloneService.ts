@@ -53,7 +53,7 @@ export async function cloneRepositoryProgrammatic(
  * Configures git identity from Theia environment variables.
  * Called after auto-clone to ensure commits have the correct author.
  */
-export async function configureGitIdentityFromEnv(
+async function configureGitIdentityFromEnv(
     theiaEnv: TheiaEnvironment,
     cwd: string,
 ): Promise<void> {

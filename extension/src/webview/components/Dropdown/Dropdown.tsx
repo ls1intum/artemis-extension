@@ -6,7 +6,7 @@ export interface DropdownOption {
   value: string;
 }
 
-export interface DropdownProps {
+interface DropdownProps {
   value: string;
   onChange: (value: string) => void;
   options: DropdownOption[];

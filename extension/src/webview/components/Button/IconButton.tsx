@@ -9,7 +9,7 @@ import RefreshCw from 'lucide-react/dist/esm/icons/refresh-cw';
 import Settings from 'lucide-react/dist/esm/icons/settings';
 import styles from './IconButton.module.css';
 
-export interface IconButtonProps {
+interface IconButtonProps {
   icon: ReactNode;
   onClick?: () => void;
   ariaLabel: string;
@@ -38,7 +38,7 @@ export function IconButton({
 }
 
 // Named preset exports
-export interface CloseIconButtonProps {
+interface CloseIconButtonProps {
   onClick?: () => void;
   disabled?: boolean;
   className?: string;
@@ -65,7 +65,7 @@ IconButton.Close = function CloseIconButton({
   );
 };
 
-export interface CheckmarkIconButtonProps {
+interface CheckmarkIconButtonProps {
   onClick?: () => void;
   disabled?: boolean;
   className?: string;
@@ -92,7 +92,7 @@ IconButton.Checkmark = function CheckmarkIconButton({
   );
 };
 
-export interface BurgerMenuIconButtonProps {
+interface BurgerMenuIconButtonProps {
   onClick?: () => void;
   disabled?: boolean;
   className?: string;
@@ -128,7 +128,7 @@ IconButton.BurgerMenu = function BurgerMenuIconButton({
   );
 };
 
-export interface CollapseIconButtonProps {
+interface CollapseIconButtonProps {
   onClick?: () => void;
   disabled?: boolean;
   className?: string;
@@ -170,7 +170,7 @@ IconButton.Collapse = function CollapseIconButton({
   );
 };
 
-export interface FullscreenIconButtonProps {
+interface FullscreenIconButtonProps {
   onClick?: () => void;
   disabled?: boolean;
   className?: string;
@@ -197,7 +197,7 @@ IconButton.Fullscreen = function FullscreenIconButton({
   );
 };
 
-export interface ReloadIconButtonProps {
+interface ReloadIconButtonProps {
   onClick?: () => void;
   disabled?: boolean;
   className?: string;
@@ -232,7 +232,7 @@ IconButton.Reload = function ReloadIconButton({
   );
 };
 
-export interface SettingsIconButtonProps {
+interface SettingsIconButtonProps {
   onClick?: () => void;
   disabled?: boolean;
   className?: string;

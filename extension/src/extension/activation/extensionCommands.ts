@@ -566,7 +566,7 @@ function registerShowJwtTokenCommand(authManager: AuthManager): vscode.Disposabl
 
 // ── Aggregate registration ───────────────────────────────────────────
 
-export interface CommandDeps {
+interface CommandDeps {
     context: vscode.ExtensionContext;
     authManager: AuthManager;
     artemisApiService: ArtemisApiService;
