@@ -63,7 +63,7 @@ describe('Iris Chat Flow', () => {
 			messages: [],
 			streaming: { isStreaming: false, messageLocalId: null, visibleChunks: [] },
 			isLoading: false,
-			isWebSocketConnected: true,
+			webSocketStatus: 'connected',
 			disabledMessage: null,
 			isNoAiDetected: false,
 			referencedFiles: null,
@@ -506,15 +506,15 @@ describe('Iris Chat Flow', () => {
 	});
 
 	describe('WebSocket connectivity', () => {
-		it('shows WebSocket disconnected banner when not connected', () => {
-			useChatStore.setState({ isWebSocketConnected: false });
+		it('shows WebSocket disconnected banner when retries are exhausted', () => {
+			useChatStore.setState({ webSocketStatus: 'disconnected' });
 			const mockApi = createMockVsCodeApi();
 			render(<IrisChatView vscodeApi={mockApi} />);
 			expect(screen.getByText('WebSocket disconnected')).toBeInTheDocument();
 		});
 
 		it('hides WebSocket banner when connection is restored via updateWebSocketStatus', async () => {
-			useChatStore.setState({ isWebSocketConnected: false });
+			useChatStore.setState({ webSocketStatus: 'disconnected' });
 			const mockApi = createMockVsCodeApi();
 			render(<IrisChatView vscodeApi={mockApi} />);
 
@@ -522,7 +522,7 @@ describe('Iris Chat Flow', () => {
 
 			dispatchExtensionMessage({
 				type: 'updateWebSocketStatus',
-				isConnected: true,
+				status: 'connected',
 			});
 
 			await waitFor(() => {

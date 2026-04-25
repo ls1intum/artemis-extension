@@ -43,7 +43,7 @@ describe('useChatStore', () => {
 		expect(result.current.streaming.messageLocalId).toBeNull();
 		expect(result.current.streaming.visibleChunks).toEqual([]);
 		expect(result.current.isLoading).toBe(false);
-		expect(result.current.isWebSocketConnected).toBe(false);
+		expect(result.current.webSocketStatus).toBe('unknown');
 		expect(result.current.disabledMessage).toBeNull();
 		expect(result.current.isNoAiDetected).toBe(false);
 		expect(result.current.referencedFiles).toBeNull();
@@ -228,14 +228,14 @@ describe('useChatStore', () => {
 		expect(result.current.isLoading).toBe(false);
 	});
 
-	it('setWebSocketConnected updates isWebSocketConnected', () => {
+	it('setWebSocketStatus updates webSocketStatus', () => {
 		const { result } = renderHook(() => useChatStore());
 
 		act(() => {
-			result.current.setWebSocketConnected(true);
+			result.current.setWebSocketStatus('connected');
 		});
 
-		expect(result.current.isWebSocketConnected).toBe(true);
+		expect(result.current.webSocketStatus).toBe('connected');
 	});
 
 	it('setDisabledMessage sets disabled reason', () => {

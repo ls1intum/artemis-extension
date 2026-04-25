@@ -20,7 +20,7 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
     const store = useChatStore();
     const {
         setIrisState, setShowDiagnostics, addMessage, setMessages,
-        clearMessages, setReferencedFiles, setWebSocketConnected,
+        clearMessages, setReferencedFiles, setWebSocketStatus,
         setDisabledMessage, setNoAiDetected, setIrisStages, resetTransientChatUi,
     } = store;
     const [sideMenuOpen, setSideMenuOpen] = useState(false);
@@ -113,8 +113,8 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
             }
 
             case ExtensionMsg.UpdateWebSocketStatus: {
-                setWebSocketConnected(msg.isConnected);
-                if (!msg.isConnected) {
+                setWebSocketStatus(msg.status);
+                if (msg.status !== 'connected') {
                     resetTransientChatUi();
                 }
                 break;
@@ -139,7 +139,7 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
                 break;
             }
         }
-    }, [setIrisState, setShowDiagnostics, addMessage, setMessages, clearMessages, setReferencedFiles, setWebSocketConnected, setDisabledMessage, setNoAiDetected, setIrisStages, resetTransientChatUi]);
+    }, [setIrisState, setShowDiagnostics, addMessage, setMessages, clearMessages, setReferencedFiles, setWebSocketStatus, setDisabledMessage, setNoAiDetected, setIrisStages, resetTransientChatUi]);
 
     // State persistence (only forceContextPicker)
     useEffect(() => {
@@ -369,8 +369,13 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
                 </div>
             )}
 
-            {/* WebSocket status banner (hidden when chat is already disabled) */}
-            {!store.isWebSocketConnected && !isChatDisabled && (
+            {/* WebSocket status banner: shown when the connection is in a
+                terminal state the user must act on (retries exhausted, or
+                client torn down without a pending retry). Transient states
+                ('connecting', 'reconnecting') and the pre-init 'unknown'
+                state suppress the banner — the status bar already surfaces
+                that detail. */}
+            {store.webSocketStatus === 'disconnected' && !isChatDisabled && (
                 <div className={styles.websocketBanner}>
                     <span>WebSocket disconnected</span>
                     <button
