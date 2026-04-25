@@ -290,14 +290,8 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
     }
 
     public async clearAllSessions(): Promise<void> {
-        // Despite the historical name, the user-facing command this method
-        // backs ("Reset Iris Chat") is documented as "clear all local Iris
-        // chat session data and reload from Artemis" — i.e. the same
-        // contract as the in-webview "Reset & Sync Sessions" menu button,
-        // which also goes through resetAndReloadSessions. Delegating here
-        // keeps the two entry points aligned and ensures the webview ends
-        // up on a hydrated session (or a server fallback) rather than
-        // stuck on the loading state with activeSessionId === null.
+        // Mirrors the in-webview "Reset & Sync Sessions" menu button so the
+        // command-palette and webview entry points behave identically.
         logger.info('Resetting Iris sessions (clear + reload)...', LogCategory.IRIS_CHAT);
         await this._chatSessionService.resetAndReloadSessions();
         logger.info('Reset complete', LogCategory.IRIS_CHAT);

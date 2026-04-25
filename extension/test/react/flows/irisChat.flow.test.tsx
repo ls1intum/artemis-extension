@@ -569,7 +569,7 @@ describe('Iris Chat Flow', () => {
 	});
 
 	describe('Cold-mount hydration flow', () => {
-		it('cold mount → snapshot with imported session → LoadMessages: skeleton then messages, no welcome flash', async () => {
+		it('cold mount → snapshot with imported session → LoadMessages: loader then messages, no welcome flash', async () => {
 			// Pre-init: nothing rendered yet. Simulate the real cold-start
 			// sequence the extension produces: a postSnapshot first (with
 			// the imported session UUID), then LoadMessages tagged with
@@ -582,7 +582,7 @@ describe('Iris Chat Flow', () => {
 			const mockApi = createMockVsCodeApi();
 			const { container } = render(<IrisChatView vscodeApi={mockApi} />);
 
-			// Frame 1: skeleton, never welcome.
+			// Frame 1: loader, never welcome.
 			expect(screen.queryByText("Hi! I'm Iris, your AI tutor.")).not.toBeInTheDocument();
 			expect(screen.getByText(/Loading conversation/i)).toBeInTheDocument();
 
@@ -610,7 +610,7 @@ describe('Iris Chat Flow', () => {
 				},
 			});
 
-			// Still skeleton — load has not arrived yet.
+			// Still loader — load has not arrived yet.
 			expect(screen.queryByText("Hi! I'm Iris, your AI tutor.")).not.toBeInTheDocument();
 
 			// LoadMessages arrives tagged with the same local UUID.
@@ -633,7 +633,7 @@ describe('Iris Chat Flow', () => {
 			// Reproduces the pre-fix bug: LoadMessages emit beats the snapshot
 			// to the webview. Without the extension-side fix, the webview's
 			// activeSessionId is null and the localSessionId guard rejects
-			// the payload, leaving the chat stuck on skeleton.
+			// the payload, leaving the chat stuck on the loader.
 			useChatStore.setState({
 				activeSessionId: null,
 				messageLoad: null,
@@ -651,7 +651,7 @@ describe('Iris Chat Flow', () => {
 				],
 			});
 
-			// Guard rejects: messageLoad still null, no messages, skeleton stays.
+			// Guard rejects: messageLoad still null, no messages, loader stays.
 			expect(useChatStore.getState().messageLoad).toBeNull();
 			expect(useChatStore.getState().messages).toEqual([]);
 			expect(screen.getByText(/Loading conversation/i)).toBeInTheDocument();

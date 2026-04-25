@@ -999,45 +999,10 @@ suite('IrisChatSessionService Test Suite', () => {
             assert.strictEqual(snapshot.sessions.length, 1, 'Should have 1 reloaded session');
         });
 
-        test('posts snapshot before LoadMessages on reload', async () => {
-            // resetAndReloadSessions shares _fetchImportAndActivate with the
-            // cold-start path, so it must satisfy the same ordering invariant.
-            const context: ActiveContext = {
-                type: 'course',
-                id: 101,
-                title: 'Test Course',
-                source: 'user-selected',
-                locked: false,
-                selectedAt: Date.now()
-            };
-            contextStore.setActiveContext(context);
-
-            mockApiService.getCourseChatSessionsWithMessages.resolves([
-                { id: 8, creationDate: '2024-03-01T10:00:00Z', messages: [{ sender: 'USER', content: [{ textContent: 'Hey' }] }] }
-            ]);
-            mockIrisWebSocketSessionClient.initializeSession.resolves(8);
-            mockApiService.getChatMessages.resolves([]);
-
-            await chatSessionService.resetAndReloadSessions();
-
-            const loadMessagesCall = postMessageSpy.getCalls().find(
-                c => c.args[0]?.type === 'loadMessages'
-            );
-            assert.ok(loadMessagesCall, 'Should emit loadMessages during reload');
-            const snapshotBeforeLoad = onPostSnapshotSpy.getCalls().some(
-                snap => snap.calledBefore(loadMessagesCall)
-            );
-            assert.ok(snapshotBeforeLoad,
-                'postSnapshot must fire before LoadMessages so the webview accepts the reload payload');
-
-            const activeSession = contextStore.snapshot().activeSession;
-            assert.ok(activeSession, 'An active session should exist after reload');
-            assert.strictEqual(
-                (loadMessagesCall.args[0] as { localSessionId: string }).localSessionId,
-                activeSession.id,
-                'Reload LoadMessages must carry the local session id that ended up active after import',
-            );
-        });
+        // The snapshot-before-LoadMessages ordering invariant lives with the
+        // cold-start test in the loadAllSessionsForContext suite — both
+        // paths share _fetchImportAndActivate, so duplicating the assertion
+        // here is just coupling without value.
 
         test('should call resetSession when clearing all sessions', async () => {
             const context: ActiveContext = {

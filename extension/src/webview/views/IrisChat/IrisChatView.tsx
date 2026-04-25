@@ -277,22 +277,11 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
         [store.irisStages],
     );
 
-    // Track whether the message list for the *currently active* session has
-    // been hydrated. We key on the local session UUID rather than the
-    // Artemis server session id because new sessions have a UUID
-    // immediately but no server id until the create round-trip returns.
-    //
-    // "Hydrated" means one of:
-    //   1. No context is selected — the "Select a course" welcome copy is
-    //      the legitimate steady-state UI.
-    //   2. A context AND a session are set, AND we have a successful
-    //      LoadMessages for that session.
-    //
-    // Specifically, "context set + activeSessionId === null" is treated as
-    // LOADING, not hydrated. That state shows up in the cold-start window
-    // between the first snapshot (no sessions imported yet) and the
-    // imported-session snapshot, and it is exactly the moment we want to
-    // show the skeleton instead of flashing the Iris greeting.
+    // Hydrated when either no context is selected (legit "Select a course"
+    // steady state) or when the active session has a successful load. The
+    // gap "context set + activeSessionId === null" is the cold-start window
+    // and renders the loader. Keyed on local UUID, not Artemis id, because
+    // brand-new sessions have a UUID before the server round-trip returns.
     const messagesHydrated =
         store.hasReceivedInitialIrisState
         && (
@@ -309,6 +298,8 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
         && store.messageLoad.status === 'error';
     const messagesLoading = !messagesHydrated && !messagesErrored;
 
+    const irisLogoUri = document.getElementById('root')?.dataset.irisLogoUri;
+
     return (
         <div className={styles.container}>
             {/* Header */}
@@ -316,7 +307,7 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
                 <div className={styles.headerLeft}>
                     {/* Iris logo */}
                     <img
-                        src={document.getElementById('root')?.dataset.irisLogoUri}
+                        src={irisLogoUri}
                         alt=""
                         width="24"
                         height="24"
@@ -460,9 +451,9 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
                     </div>
                 ) : (contextSwitching || messagesLoading) ? (
                     <div className={styles.loadingState} aria-busy="true" aria-live="polite">
-                        {document.getElementById('root')?.dataset.irisLogoUri && (
+                        {irisLogoUri && (
                             <img
-                                src={document.getElementById('root')!.dataset.irisLogoUri}
+                                src={irisLogoUri}
                                 alt=""
                                 width="48"
                                 height="48"

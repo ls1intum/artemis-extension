@@ -39,13 +39,9 @@ interface ChatState {
     activeSessionId: string | null;
     sessions: ChatSession[];
     /**
-     * Becomes true on the first UpdateIrisState push from the extension.
-     * Until then, the webview has no idea whether `activeSessionId === null`
-     * means "no session at all" (legitimately empty → welcome state) or
-     * "snapshot just hasn't arrived yet" (cold-mount frame). Treating
-     * pre-init as "still loading" suppresses the welcome-state flash on
-     * the very first render. The flag never resets — once initialized,
-     * the store remains so for the lifetime of the React tree.
+     * Flips to true on the first UpdateIrisState. Lets the renderer
+     * distinguish "no session" from "snapshot pending" so the cold-mount
+     * frame stays on the loader instead of flashing the welcome state.
      */
     hasReceivedInitialIrisState: boolean;
     recentExercises: ContextItem[];
@@ -58,7 +54,7 @@ interface ChatState {
     /**
      * Outcome of the most recent message hydration. `null` means we have
      * not yet received a load result for any session; the webview shows
-     * the loading skeleton until this matches the active session.
+     * the loader until this matches the active session.
      */
     messageLoad: MessageLoadResult | null;
 

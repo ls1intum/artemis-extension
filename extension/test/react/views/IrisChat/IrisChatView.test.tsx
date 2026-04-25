@@ -222,7 +222,7 @@ describe('IrisChatView', () => {
 		expect(screen.getByText('WebSocket disconnected')).toBeInTheDocument();
 	});
 
-	describe('Message hydration skeleton', () => {
+	describe('Message hydration loader', () => {
 		// Helper to set up a state where there IS an active session waiting for hydration.
 		const seedActiveSession = (localSessionId: string, artemisSessionId?: number) => {
 			useChatStore.setState({
@@ -250,18 +250,18 @@ describe('IrisChatView', () => {
 			});
 		};
 
-		it('shows skeleton while messageLoad is null for the active session', () => {
+		it('shows loader while messageLoad is null for the active session', () => {
 			seedActiveSession('local-A', 42);
 			const mockApi = createMockVsCodeApi();
 			const { container } = render(<IrisChatView vscodeApi={mockApi} />);
 
 			// Welcome state should NOT be shown while we wait for hydration.
 			expect(screen.queryByText("Hi! I'm Iris, your AI tutor.")).not.toBeInTheDocument();
-			// Skeleton uses CSS module class; assert at least one skeleton bar is rendered.
+			// Loader is identified by its 'Loading conversation' text.
 			expect(screen.getByText(/Loading conversation/i)).toBeInTheDocument();
 		});
 
-		it('shows skeleton for a brand-new local session that has no artemisSessionId yet', () => {
+		it('shows loader for a brand-new local session that has no artemisSessionId yet', () => {
 			// New-session path: local UUID exists, but server has not returned an id yet.
 			seedActiveSession('local-new');
 			const mockApi = createMockVsCodeApi();
@@ -271,7 +271,7 @@ describe('IrisChatView', () => {
 			expect(screen.getByText(/Loading conversation/i)).toBeInTheDocument();
 		});
 
-		it('hides skeleton and shows welcome state after empty LoadMessages for the active session', async () => {
+		it('hides loader and shows welcome state after empty LoadMessages for the active session', async () => {
 			seedActiveSession('local-A', 42);
 			const mockApi = createMockVsCodeApi();
 			render(<IrisChatView vscodeApi={mockApi} />);
@@ -297,7 +297,7 @@ describe('IrisChatView', () => {
 				],
 			});
 
-			// Stale message must not appear; skeleton stays; store keeps no record of the stale load.
+			// Stale message must not appear; loader stays; store keeps no record of the stale load.
 			expect(screen.queryByText('stale')).not.toBeInTheDocument();
 			expect(screen.getByText(/Loading conversation/i)).toBeInTheDocument();
 			expect(useChatStore.getState().messageLoad).toBeNull();
@@ -392,7 +392,7 @@ describe('IrisChatView', () => {
 			});
 		});
 
-		it('keeps skeleton on the very first render before any UpdateIrisState (cold-mount welcome flash guard)', () => {
+		it('keeps loader on the very first render before any UpdateIrisState (cold-mount welcome flash guard)', () => {
 			// Pre-init state: no snapshot has arrived yet. Even though
 			// activeSessionId is null, the welcome state must NOT flash —
 			// we cannot tell "no session" from "snapshot pending" until
@@ -409,12 +409,12 @@ describe('IrisChatView', () => {
 			expect(screen.getByText(/Loading conversation/i)).toBeInTheDocument();
 		});
 
-		it('keeps skeleton when UpdateIrisState arrives with a context but no active session yet', async () => {
+		it('keeps loader when UpdateIrisState arrives with a context but no active session yet', async () => {
 			// The cold-start path posts a snapshot before any sessions have
 			// been imported, so the first UpdateIrisState often carries
 			// `context: <something>` together with `activeSessionId: null`.
 			// That state means "sessions are still loading" — the Iris
-			// greeting must NOT flash; the skeleton stays up until either
+			// greeting must NOT flash; the loader stays up until either
 			// LoadMessages arrives or a follow-up snapshot brings the
 			// imported session id.
 			useChatStore.setState({
