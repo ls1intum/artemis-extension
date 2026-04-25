@@ -8,3 +8,16 @@ export enum DiagnosticSeverity {
     Information = 2,
     Hint = 3,
 }
+
+export const Uri = {
+    parse(value: string) {
+        let url: URL;
+        try {
+            url = new URL(value);
+        } catch {
+            return { scheme: '', authority: '', path: value, fsPath: value, toString: () => value };
+        }
+        const path = decodeURIComponent(url.pathname);
+        return { scheme: url.protocol.replace(':', ''), authority: url.host, path, fsPath: path, toString: () => value };
+    },
+};
