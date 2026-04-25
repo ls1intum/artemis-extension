@@ -56,3 +56,12 @@ jobs:
         with:
           name: junit-reports
           path: extension/reports/
+
+      - name: Dead code analysis
+        run: npm run knip
+
+      - name: Build extension
+        run: npm run package
+
+      - name: Package VSIX
+        run: npx @vscode/vsce package --no-dependencies
