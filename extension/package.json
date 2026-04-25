@@ -140,8 +140,7 @@
           "type": "webview",
           "id": "artemis.loginView",
           "name": "Artemis",
-          "icon": "media/artemis-logo.png",
-          "when": "iris:extensionReady"
+          "icon": "media/artemis-logo.png"
         }
       ],
       "iris-chat": [
