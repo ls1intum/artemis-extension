@@ -231,11 +231,25 @@ export class IrisChatSessionService {
             return;
         }
 
+        // Capture the local session id at the *start* of the load. We use
+        // this — not a fresh snapshot at emit time — for both the artemis-id
+        // mapping write and the LoadMessages payload, so a same-context
+        // session switch during the await chain cannot mislabel response A
+        // as belonging to session B.
+        const startSnapshot = this.deps.contextStore.snapshot();
+        const activeLocalSession = startSnapshot.activeSession;
+        const startLocalSessionId = activeLocalSession?.id;
+
+        if (!startLocalSessionId) {
+            logger.warn('initializeIrisSessionAndLoadMessages called with no active local session; aborting', LogCategory.IRIS_CHAT);
+            return;
+        }
+
+        const isStillStartSession = (): boolean =>
+            this.deps.contextStore.snapshot().activeSession?.id === startLocalSessionId;
+
         try {
             logger.info(`Initializing Iris session for ${context.type}: ${context.title} (ID: ${context.id})`, LogCategory.IRIS_CHAT);
-
-            const snapshot = this.deps.contextStore.snapshot();
-            const activeLocalSession = snapshot.activeSession;
 
             logger.info('Active local session:', LogCategory.IRIS_CHAT, {
                 id: activeLocalSession?.id,
@@ -248,7 +262,7 @@ export class IrisChatSessionService {
 
             if (contextGuard && !contextGuard()) { return; }
 
-            if (!activeLocalSession?.artemisSessionId) {
+            if (!activeLocalSession?.artemisSessionId && isStillStartSession()) {
                 logger.info(`Storing NEW Artemis session ID mapping: ${sessionId}`, LogCategory.IRIS_CHAT);
                 this.deps.contextStore.setArtemisSessionId(sessionId);
                 this.deps.postSnapshot();
@@ -263,7 +277,7 @@ export class IrisChatSessionService {
             if (contextGuard && !contextGuard()) { return; }
 
             if (activeLocalSession?.messageCount && activeLocalSession.messageCount > 0 &&
-                (!messages || messages.length === 0)) {
+                (!messages || messages.length === 0) && isStillStartSession()) {
                 logger.warn(`Warning: Expected ${activeLocalSession.messageCount} messages but got none. Stored session might be stale.`, LogCategory.IRIS_CHAT);
                 logger.warn('Clearing stale Artemis session ID mapping...', LogCategory.IRIS_CHAT);
 
@@ -271,31 +285,40 @@ export class IrisChatSessionService {
                 this.deps.postSnapshot();
             }
 
-            if (messages && messages.length > 0) {
-                logger.info('Sending messages to webview', LogCategory.IRIS_CHAT, messages);
+            const formattedMessages = (messages ?? []).map((msg: IrisChatMessage) => {
+                const content = extractIrisMessageContent(msg.content);
 
-                const formattedMessages = messages.map((msg: IrisChatMessage) => {
-                    const content = extractIrisMessageContent(msg.content);
+                return {
+                    id: msg.id,
+                    role: (msg.sender === 'USER' ? 'user' : 'assistant') as 'user' | 'assistant',
+                    content: content,
+                    timestamp: msg.sentAt ? new Date(msg.sentAt).getTime() : Date.now(),
+                    helpful: (msg as { helpful?: boolean | null }).helpful
+                };
+            });
 
-                    return {
-                        id: msg.id,
-                        role: (msg.sender === 'USER' ? 'user' : 'assistant') as 'user' | 'assistant',
-                        content: content,
-                        timestamp: msg.sentAt ? new Date(msg.sentAt).getTime() : Date.now(),
-                        helpful: (msg as { helpful?: boolean | null }).helpful
-                    };
-                });
-
-                this.deps.postMessage({
-                    type: ExtensionMsg.LoadMessages,
-                    messages: formattedMessages
-                });
-                logger.info('Messages sent to webview', LogCategory.IRIS_CHAT);
-            } else {
-                logger.info('No messages to load or view not ready', LogCategory.IRIS_CHAT);
-            }
+            // Always emit LoadMessages — even with an empty array — so the
+            // webview can flip out of its loading state. We tag with the
+            // local session id captured at start; if the user switched
+            // sessions during the await, the webview discards this load
+            // (the new session will get its own emit when its own load
+            // completes).
+            this.deps.postMessage({
+                type: ExtensionMsg.LoadMessages,
+                localSessionId: startLocalSessionId,
+                artemisSessionId: sessionId,
+                messages: formattedMessages,
+            });
+            logger.info(`Sent ${formattedMessages.length} message(s) to webview for session ${sessionId}`, LogCategory.IRIS_CHAT);
         } catch (error: unknown) {
             logger.error('Error initializing Iris session', LogCategory.IRIS_CHAT, error);
+            // Emit an explicit failure signal keyed to the session that
+            // *started* the load, not whatever is active now. The webview
+            // will show the error UI only if that session is still active.
+            this.deps.postMessage({
+                type: ExtensionMsg.LoadMessagesError,
+                localSessionId: startLocalSessionId,
+            });
             const errorMessage = error instanceof Error ? error.message : String(error);
             throw new Error(`Failed to connect to Iris: ${errorMessage}`);
         }
@@ -316,18 +339,51 @@ export class IrisChatSessionService {
 
         this.deps.postMessage({ type: ExtensionMsg.ClearChatMessages });
 
-        // Create a brand new Iris session on the server
+        // Create a brand new Iris session on the server.
+        // The local session UUID exists immediately (created above); we
+        // capture it now so the LoadMessages / LoadMessagesError emitted
+        // below carries the right key even after async operations.
         const activeContext = this.deps.contextStore.getActiveContext();
-        if (activeContext && irisSessionManager) {
+        const newLocalSessionId = this.deps.contextStore.snapshot().activeSession?.id;
+        if (activeContext && irisSessionManager && newLocalSessionId) {
+            // Capture the local session UUID at start so the .then/.catch
+            // handlers below operate on the session that *initiated* the
+            // create, not whatever happens to be active when the server
+            // responds. Guarding the artemis-id write on this id is what
+            // prevents N's server id from being attached to B if the user
+            // switches sessions during the round-trip.
+            const isStillNewSession = (): boolean =>
+                this.deps.contextStore.snapshot().activeSession?.id === newLocalSessionId;
+
             irisSessionManager.createNewSession(activeContext)
                 .then(sessionId => {
-                    // Guard: only store if context hasn't switched during the async operation
-                    if (this.deps.contextStore.getActiveContext()?.id === activeContext.id) {
-                        this._storeArtemisSessionId(sessionId);
+                    if (!isStillNewSession()) {
+                        logger.info(
+                            `Discarding new-session response for ${newLocalSessionId}: user switched sessions during the create round-trip`,
+                            LogCategory.IRIS_CHAT,
+                        );
+                        return;
                     }
+                    this._storeArtemisSessionId(sessionId);
+                    // A brand-new server session has no message history.
+                    // Emit an empty LoadMessages so the webview flips out
+                    // of its loading skeleton and renders the welcome
+                    // state for this session.
+                    this.deps.postMessage({
+                        type: ExtensionMsg.LoadMessages,
+                        localSessionId: newLocalSessionId,
+                        artemisSessionId: sessionId,
+                        messages: [],
+                    });
                 })
                 .catch((err: unknown) => {
                     logger.error('Error creating new Iris session:', LogCategory.IRIS_CHAT, err);
+                    if (isStillNewSession()) {
+                        this.deps.postMessage({
+                            type: ExtensionMsg.LoadMessagesError,
+                            localSessionId: newLocalSessionId,
+                        });
+                    }
                 });
         }
     }

@@ -110,6 +110,15 @@ describe('Iris Chat Flow', () => {
 					allCourses: [],
 				},
 			});
+			// And the matching LoadMessages — the real extension always emits
+			// one once the session has finished initialising; the input stays
+			// disabled until then so the user does not race the hydration.
+			dispatchExtensionMessage({
+				type: 'loadMessages',
+				localSessionId: 'session-1',
+				artemisSessionId: 1,
+				messages: [],
+			});
 
 			await waitFor(() => {
 				const textarea = screen.getByRole('textbox', { name: 'Chat input' });
@@ -350,12 +359,16 @@ describe('Iris Chat Flow', () => {
 
 	describe('Conversation history', () => {
 		it('preserves message history across multiple exchanges', async () => {
+			// LoadMessages is gated on activeSessionId — set it to match the dispatched payload.
+			useChatStore.setState({ activeSessionId: 'local-test' });
 			const mockApi = createMockVsCodeApi();
 			render(<IrisChatView vscodeApi={mockApi} />);
 
 			// Load multiple messages from extension
 			dispatchExtensionMessage({
 				type: 'loadMessages',
+				localSessionId: 'local-test',
+				artemisSessionId: 42,
 				messages: [
 					{ id: 1, role: 'user', content: 'First question', timestamp: Date.now() - 2000 },
 					{ id: 2, role: 'assistant', content: 'First answer', timestamp: Date.now() - 1500 },

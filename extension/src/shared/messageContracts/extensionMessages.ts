@@ -61,6 +61,7 @@ export const ExtensionMsg = {
     ShowContextPicker: 'showContextPicker',
     AddMessage: 'addMessage',
     LoadMessages: 'loadMessages',
+    LoadMessagesError: 'loadMessagesError',
     ClearChatMessages: 'clearChatMessages',
     UpdateReferencedFiles: 'updateReferencedFiles',
     UpdateWebSocketStatus: 'updateWebSocketStatus',
@@ -226,6 +227,11 @@ interface ExtensionMsgPayloads {
         };
     };
     loadMessages: {
+        /** Local session UUID this load belongs to. The webview ignores
+         *  loads whose id no longer matches the currently active session,
+         *  so a slow response cannot pollute a freshly switched view. */
+        localSessionId: string;
+        artemisSessionId: number;
         messages: Array<{
             id?: number;
             role: 'user' | 'assistant';
@@ -234,6 +240,7 @@ interface ExtensionMsgPayloads {
             helpful?: boolean | null;
         }>;
     };
+    loadMessagesError: { localSessionId: string };
     clearChatMessages: undefined;
     updateReferencedFiles: {
         includedFiles: string[];

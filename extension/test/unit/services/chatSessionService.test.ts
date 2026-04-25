@@ -710,6 +710,53 @@ suite('IrisChatSessionService Test Suite', () => {
 
             assert.ok(mockIrisWebSocketSessionClient.createNewSession.calledOnce);
         });
+
+        test('does not attach the new artemis id to a different session if the user switched mid-flight', async () => {
+            const context: ActiveContext = {
+                type: 'course',
+                id: 101,
+                title: 'Test Course',
+                source: 'user-selected',
+                locked: false,
+                selectedAt: Date.now()
+            };
+            contextStore.setActiveContext(context);
+
+            // Pre-existing session B with its own artemis id we must not clobber.
+            // Bump messageCount so cleanupEmptySessions (called inside switchSession)
+            // does not prune B before we can switch back to it.
+            contextStore.createSession();
+            contextStore.incrementActiveSessionMessageCount();
+            const initialSnapshot = contextStore.snapshot();
+            const sessionBId = initialSnapshot.sessions[0].id;
+            contextStore.setArtemisSessionId(7); // B has artemisSessionId=7
+
+            // Make the server-create promise resolve later so we can switch first.
+            let resolveCreate: (id: number) => void = () => { /* noop */ };
+            mockIrisWebSocketSessionClient.createNewSession.callsFake(
+                () => new Promise<number>(resolve => { resolveCreate = resolve; }),
+            );
+
+            // Trigger new-session creation — this becomes session N (active).
+            chatSessionService.createNewSession();
+            const afterCreateSnapshot = contextStore.snapshot();
+            const sessionNId = afterCreateSnapshot.activeSession!.id;
+            assert.notStrictEqual(sessionNId, sessionBId, 'precondition: N and B are distinct sessions');
+
+            // User switches back to B before server responds.
+            contextStore.switchSession(sessionBId);
+            assert.strictEqual(contextStore.snapshot().activeSession?.id, sessionBId);
+
+            // Now N's create resolves with artemisSessionId 99.
+            resolveCreate(99);
+            await new Promise(resolve => setTimeout(resolve, 10));
+
+            // B must still have its original artemisSessionId, not N's 99.
+            const finalSnapshot = contextStore.snapshot();
+            const sessionB = finalSnapshot.sessions.find(s => s.id === sessionBId);
+            assert.strictEqual(sessionB?.artemisSessionId, 7,
+                'session B must keep its own artemisSessionId (7); the late create response for N must not clobber it');
+        });
     });
 
     suite('switchToSession', () => {

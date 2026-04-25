@@ -19,6 +19,20 @@ import type { ExtMsg, WebSocketDisplayStatus } from '../../shared/messageContrac
  */
 export type ChatWebSocketStatus = WebSocketDisplayStatus | 'unknown';
 
+/**
+ * Result of the most recent message hydration attempt, keyed by the
+ * webview-local session UUID. The webview compares the recorded id
+ * against the active session before treating the chat as hydrated, so
+ * a stale fetch (e.g. after rapid session switching) does not flip the
+ * UI out of its loading state. Local UUID is preferred over the Artemis
+ * server session id because brand-new sessions have a UUID immediately
+ * but no server id until the create round-trip returns.
+ */
+export interface MessageLoadResult {
+    localSessionId: string;
+    status: 'success' | 'error';
+}
+
 interface ChatState {
     // Context
     context: ChatContext | null;
@@ -31,6 +45,12 @@ interface ChatState {
 
     // Messages
     messages: ChatMessage[];
+    /**
+     * Outcome of the most recent message hydration. `null` means we have
+     * not yet received a load result for any session; the webview shows
+     * the loading skeleton until this matches the active session.
+     */
+    messageLoad: MessageLoadResult | null;
 
     // Streaming
     streaming: StreamingState;
@@ -49,6 +69,10 @@ interface ChatState {
     // Actions
     setIrisState: (state: ExtMsg<'updateIrisState'>['state']) => void;
     setMessages: (messages: ChatMessage[]) => void;
+    /** Apply messages and record a successful hydration for the given session. */
+    applyLoadedMessages: (localSessionId: string, messages: ChatMessage[]) => void;
+    /** Record that hydration failed for the given session. */
+    setMessageLoadError: (localSessionId: string) => void;
     addMessage: (message: ChatMessage) => void;
     clearMessages: () => void;
     setMessageStatus: (localId: string, status: 'sending' | 'sent' | 'error', errorMessage?: string) => void;
@@ -89,6 +113,7 @@ export const useChatStore = create<ChatState>()(
             allExercises: [],
             allCourses: [],
             messages: [],
+            messageLoad: null,
             streaming: IDLE_STREAMING,
             irisStages: [],
             isLoading: false,
@@ -131,6 +156,19 @@ export const useChatStore = create<ChatState>()(
                 set({ messages }, false, 'setMessages');
             },
 
+            applyLoadedMessages: (localSessionId, messages) => {
+                set({
+                    messages,
+                    messageLoad: { localSessionId, status: 'success' },
+                }, false, 'applyLoadedMessages');
+            },
+
+            setMessageLoadError: (localSessionId) => {
+                set({
+                    messageLoad: { localSessionId, status: 'error' },
+                }, false, 'setMessageLoadError');
+            },
+
             addMessage: (message) => {
                 set((state) => ({
                     messages: [...state.messages, message],
@@ -140,6 +178,7 @@ export const useChatStore = create<ChatState>()(
             clearMessages: () => {
                 set({
                     messages: [],
+                    messageLoad: null,
                     irisStages: [],
                     streaming: IDLE_STREAMING,
                 }, false, 'clearMessages');

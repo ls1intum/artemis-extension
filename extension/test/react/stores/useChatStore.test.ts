@@ -238,6 +238,53 @@ describe('useChatStore', () => {
 		expect(result.current.webSocketStatus).toBe('connected');
 	});
 
+	it('messageLoad starts as null and applyLoadedMessages records success per session', () => {
+		const { result } = renderHook(() => useChatStore());
+
+		expect(result.current.messageLoad).toBeNull();
+
+		act(() => {
+			result.current.applyLoadedMessages('local-A', [
+				{ id: 1, localId: 'a', role: 'user', content: 'Hi', timestamp: 1, helpful: null, status: 'sent' },
+			]);
+		});
+
+		expect(result.current.messages).toHaveLength(1);
+		expect(result.current.messageLoad).toEqual({ localSessionId: 'local-A', status: 'success' });
+	});
+
+	it('setMessageLoadError records the failed sessionId without touching messages', () => {
+		const { result } = renderHook(() => useChatStore());
+
+		act(() => {
+			result.current.applyLoadedMessages('local-A', [
+				{ id: 1, localId: 'a', role: 'user', content: 'Old', timestamp: 1, helpful: null, status: 'sent' },
+			]);
+		});
+		act(() => {
+			result.current.setMessageLoadError('local-A');
+		});
+
+		expect(result.current.messages).toHaveLength(1);
+		expect(result.current.messageLoad).toEqual({ localSessionId: 'local-A', status: 'error' });
+	});
+
+	it('clearMessages also resets messageLoad so the next session shows the skeleton', () => {
+		const { result } = renderHook(() => useChatStore());
+
+		act(() => {
+			result.current.applyLoadedMessages('local-A', [
+				{ id: 1, localId: 'a', role: 'user', content: 'Hi', timestamp: 1, helpful: null, status: 'sent' },
+			]);
+		});
+		act(() => {
+			result.current.clearMessages();
+		});
+
+		expect(result.current.messages).toEqual([]);
+		expect(result.current.messageLoad).toBeNull();
+	});
+
 	it('setDisabledMessage sets disabled reason', () => {
 		const { result } = renderHook(() => useChatStore());
 
