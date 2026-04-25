@@ -8,12 +8,12 @@ import type { StartupCapture, StartupContext } from '../startup/startupCapture';
 import type { RecorderLifecycleState, RecorderPhase } from './recorderLifecycleState';
 import { logger, LogCategory } from '../../../loggingService';
 
-export interface RecordInternalOptions {
+interface RecordInternalOptions {
     allowDuringStartup?: boolean;
     allowDuringEnding?: boolean;
 }
 
-export interface LifecycleControllerDeps {
+interface LifecycleControllerDeps {
     state: RecorderLifecycleState;
     writer: RecordingStorageWriter;
     snapshots: SnapshotManager;

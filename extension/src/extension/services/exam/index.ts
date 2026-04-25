@@ -1,1 +1,0 @@
-export { getExamErrorMessage } from './examErrorHandler';

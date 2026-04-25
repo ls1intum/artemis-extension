@@ -9,7 +9,7 @@ import type { AdaptiveCadence } from './intervention/adaptiveCadence';
 /**
  * Dependencies injected into DebugDashboard from TelemetryManager.
  */
-export interface DebugDashboardDeps {
+interface DebugDashboardDeps {
     eqEngine: ErrorQuotientEngine;
     inactivityService: InactivityService;
     thrashingDetector: ThrashingDetector;

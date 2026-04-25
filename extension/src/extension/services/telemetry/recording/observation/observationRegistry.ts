@@ -31,7 +31,7 @@ interface PendingExecution {
     generation: number;
 }
 
-export interface ObservationRegistryDeps {
+interface ObservationRegistryDeps {
     state: RecorderLifecycleState;
     snapshots: SnapshotManager;
     record: (

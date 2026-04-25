@@ -8,7 +8,7 @@ const execFileAsync = promisify(execFile);
 /**
  * Type for the file exists checker function (used for dependency injection in tests)
  */
-export type FileExistsChecker = (uri: vscode.Uri) => Promise<boolean>;
+type FileExistsChecker = (uri: vscode.Uri) => Promise<boolean>;
 
 /**
  * Service that detects the presence of a .noai file in the workspace or git repository.

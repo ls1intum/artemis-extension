@@ -21,7 +21,7 @@ export type RecorderPhase =
  * `disabling` until `clearActiveSessionAfterFinalize()` so that the async
  * teardown path can still emit metadata.
  */
-export interface ActiveSessionState {
+interface ActiveSessionState {
     readonly sessionId: string;
     readonly exerciseId: number;
     readonly participantId: string | undefined;
@@ -36,7 +36,7 @@ export interface ActiveSessionState {
  * Emitted whenever phase or active session changes. Mirrors the existing
  * `RecordingState` shape for consumer compatibility.
  */
-export interface RecordingState {
+interface RecordingState {
     isEnabled: boolean;
     isRecording: boolean;
     exerciseId: number | undefined;

@@ -7,7 +7,7 @@ import type { IrisServiceDeps } from './sessionSyncUtils';
 
 // ── Policy helpers (pure functions) ──────────────────────────────
 
-export function pickBestContext(snapshot: ContextSnapshot): ActiveContext | null {
+function pickBestContext(snapshot: ContextSnapshot): ActiveContext | null {
     const exercises = [...snapshot.recentExercises].sort((a, b) =>
         b.priority - a.priority || (b.lastViewed ?? 0) - (a.lastViewed ?? 0)
     );
@@ -44,7 +44,7 @@ export function pickBestContext(snapshot: ContextSnapshot): ActiveContext | null
     return null;
 }
 
-export function shouldOverrideWithWorkspace(
+function shouldOverrideWithWorkspace(
     active: ActiveContext | null,
     detected: TrackedExercise,
 ): boolean {
@@ -60,7 +60,7 @@ export type ChatContextReason =
     | 'default'
     | 'workspace-detected';
 
-export interface SwitchContextParams {
+interface SwitchContextParams {
     type: ChatContextType;
     id: number;
     title: string;

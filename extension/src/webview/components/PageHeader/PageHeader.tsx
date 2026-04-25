@@ -2,7 +2,7 @@ import { ReactNode } from 'react';
 import { Container } from '../Container';
 import styles from './PageHeader.module.css';
 
-export interface PageHeaderProps {
+interface PageHeaderProps {
   title: string;
   subtitle?: string;
   children?: ReactNode;

@@ -1,7 +1,7 @@
 import { Container, Button } from '..';
 import styles from './AskIris.module.css';
 
-export interface AskIrisProps {
+interface AskIrisProps {
   description: string;
   onClick: () => void;
 }

@@ -100,7 +100,7 @@ export async function getWorkspaceRepositoryUrl(
 /**
  * Status of the current workspace relative to an expected exercise repository.
  */
-export interface WorkspaceStatus {
+interface WorkspaceStatus {
     isConnected: boolean;
     hasChanges: boolean;
     isPracticeRepo: boolean;
@@ -346,7 +346,7 @@ export async function findWorkspaceCourseInArchive(
  * Detect workspace exercise with registry population fallback, then register it in a ContextStore.
  * Used by ChatWebviewProvider to auto-detect the workspace exercise on load.
  */
-export interface WorkspaceRegistrationCallbacks {
+interface WorkspaceRegistrationCallbacks {
     registerExercise: (input: {
         id: number;
         title: string;

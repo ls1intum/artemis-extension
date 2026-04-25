@@ -129,7 +129,7 @@ function now(): number {
     return Date.now();
 }
 
-export interface ActiveContextChangeEvent {
+interface ActiveContextChangeEvent {
     current: ActiveContext | null;
     previous: ActiveContext | null;
 }

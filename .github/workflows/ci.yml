@@ -2,7 +2,6 @@ name: CI
 
 on:
   pull_request:
-    branches: [main, dev]
   push:
     branches: [dev]
 
@@ -35,3 +34,12 @@ jobs:
 
       - name: Tests
         run: npx vitest run
+
+      - name: Dead code analysis
+        run: npm run knip
+
+      - name: Build extension
+        run: npm run package
+
+      - name: Package VSIX
+        run: npx @vscode/vsce package --no-dependencies

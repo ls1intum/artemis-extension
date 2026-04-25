@@ -3,4 +3,3 @@
  */
 
 export { ServiceStatusView } from './ServiceStatusView';
-export type { ServiceStatusViewProps } from './types';

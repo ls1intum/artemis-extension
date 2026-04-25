@@ -5,7 +5,7 @@ import { shouldRecordUri } from '../uriFilter';
 import type { RecorderLifecycleState } from '../lifecycle/recorderLifecycleState';
 import { logger, LogCategory } from '../../../loggingService';
 
-export interface SnapshotManagerDeps {
+interface SnapshotManagerDeps {
     state: RecorderLifecycleState;
     writer: RecordingStorageWriter;
     record: (

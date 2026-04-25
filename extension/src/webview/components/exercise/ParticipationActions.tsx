@@ -9,10 +9,10 @@ import styles from './ParticipationActions.module.css';
 
 export type ExerciseType = 'programming' | 'quiz' | 'modeling' | 'text' | 'file-upload';
 export type ParticipationStatusType = 'not-started' | 'in-progress' | 'submitted' | 'graded';
-export type RepositoryStatus = 'connected' | 'disconnected' | 'checking' | 'unknown';
-export type WorkspaceStatus = 'clean' | 'dirty' | 'checking' | 'disconnected' | 'wrong-repo';
+type RepositoryStatus = 'connected' | 'disconnected' | 'checking' | 'unknown';
+type WorkspaceStatus = 'clean' | 'dirty' | 'checking' | 'disconnected' | 'wrong-repo';
 
-export interface ParticipationActionsProps {
+interface ParticipationActionsProps {
   exerciseType: ExerciseType;
   participationStatus: ParticipationStatusType;
   hasRepository?: boolean;

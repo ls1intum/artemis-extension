@@ -14,7 +14,7 @@ function now(): number {
     return Date.now();
 }
 
-export interface SessionState {
+interface SessionState {
     sessions: Record<string, StoredSession[]>;
     activeSessionId: string | null;
 }

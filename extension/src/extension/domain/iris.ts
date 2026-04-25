@@ -6,7 +6,7 @@ export interface IrisRateLimitInfo {
     readonly rateLimitTimeframeHours: number;
 }
 
-export function parseIrisRateLimitInfo(data: unknown): IrisRateLimitInfo {
+function parseIrisRateLimitInfo(data: unknown): IrisRateLimitInfo {
     if (!data || typeof data !== 'object') {
         throw new Error('Invalid IrisRateLimitInfo data');
     }

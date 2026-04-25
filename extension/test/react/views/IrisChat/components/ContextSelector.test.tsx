@@ -59,7 +59,7 @@ describe('ContextSelector', () => {
 			source: 'user-selected',
 		};
 		render(<ContextSelector {...defaultProps} context={context} />);
-		expect(screen.getByText('Sorting Algorithms')).toBeInTheDocument();
+		expect(screen.getByText(/Sorting Algorithms/)).toBeInTheDocument();
 	});
 
 	it('opens dropdown when header button clicked', async () => {
@@ -182,7 +182,7 @@ describe('ContextSelector', () => {
 			/>
 		);
 
-		await userEvent.click(screen.getByText('Sorting Algorithms'));
+		await userEvent.click(screen.getByRole('button', { name: /Sorting Algorithms/ }));
 
 		expect(screen.getByText('Preview of session session-1')).toBeInTheDocument();
 	});
@@ -205,7 +205,7 @@ describe('ContextSelector', () => {
 			/>
 		);
 
-		await userEvent.click(screen.getByText('Test Exercise'));
+		await userEvent.click(screen.getByRole('button', { name: /Test Exercise/ }));
 		expect(screen.getByText('New Conversation')).toBeInTheDocument();
 	});
 
@@ -229,7 +229,7 @@ describe('ContextSelector', () => {
 			/>
 		);
 
-		await userEvent.click(screen.getByText('Test Exercise'));
+		await userEvent.click(screen.getByRole('button', { name: /Test Exercise/ }));
 		await userEvent.click(screen.getByText('New Conversation'));
 
 		expect(onCreateNewSession).toHaveBeenCalledOnce();
@@ -268,7 +268,7 @@ describe('ContextSelector', () => {
 			/>
 		);
 
-		await userEvent.click(screen.getByText('My Exercise'));
+		await userEvent.click(screen.getByRole('button', { name: /My Exercise/ }));
 		expect(screen.getByText('Switch to Different Context')).toBeInTheDocument();
 	});
 
@@ -292,7 +292,7 @@ describe('ContextSelector', () => {
 			/>
 		);
 
-		await userEvent.click(screen.getByText('Exercise'));
+		await userEvent.click(screen.getByRole('button', { name: /Exercise/ }));
 		await userEvent.click(screen.getByText('Preview of session session-abc'));
 
 		expect(onSelectSession).toHaveBeenCalledWith('session-abc');

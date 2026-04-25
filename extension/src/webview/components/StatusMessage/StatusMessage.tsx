@@ -1,9 +1,9 @@
 import styles from './StatusMessage.module.css';
 import clsx from 'clsx';
 
-export type StatusType = 'success' | 'error' | 'warning' | 'info';
+type StatusType = 'success' | 'error' | 'warning' | 'info';
 
-export interface StatusMessageProps {
+interface StatusMessageProps {
     message: string;
     type: StatusType;
     'data-testid'?: string;

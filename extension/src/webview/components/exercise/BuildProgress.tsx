@@ -4,13 +4,13 @@ import styles from './BuildProgress.module.css';
 
 export type BuildState = 'idle' | 'building' | 'queued' | 'success' | 'failed';
 
-export interface LogEntry {
+interface LogEntry {
   level: 'info' | 'warning' | 'error';
   message: string;
   timestamp?: string;
 }
 
-export interface BuildProgressProps {
+interface BuildProgressProps {
   status: BuildState;
   progress?: number;
   logEntries?: LogEntry[];

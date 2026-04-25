@@ -20,7 +20,7 @@ import type {
 
 // ── Serialization helpers ─────────────────────────────────────────────
 
-export function serializeRange(range: vscode.Range): SerializedRange {
+function serializeRange(range: vscode.Range): SerializedRange {
     return {
         startLine: range.start.line,
         startCharacter: range.start.character,

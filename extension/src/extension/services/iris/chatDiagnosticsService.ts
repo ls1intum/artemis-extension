@@ -4,7 +4,7 @@ import { ExerciseRegistry } from '../exerciseRegistry';
 import { logger } from '../loggingService';
 import { fetchSessionsWithMessages } from './sessionSyncUtils';
 
-export interface DebugSessionsResult {
+interface DebugSessionsResult {
     report: string;
     sessionCount: number;
 }

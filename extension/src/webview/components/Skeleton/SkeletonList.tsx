@@ -1,7 +1,7 @@
 import { Skeleton } from './Skeleton';
 import styles from './Skeleton.module.css';
 
-export interface SkeletonListProps {
+interface SkeletonListProps {
     count?: number;
 }
 

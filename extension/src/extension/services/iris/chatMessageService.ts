@@ -9,13 +9,13 @@ import { logger, LogCategory } from '../loggingService';
 import { ExtensionMsg } from '../../../shared/messageContracts';
 import type { IrisServiceDeps } from './sessionSyncUtils';
 
-export interface SendMessageInput {
+interface SendMessageInput {
     text: string;
     isNoAiEnabled: boolean;
     struggleContext?: StruggleContext;
 }
 
-export type SendMessageResult =
+type SendMessageResult =
     | { sent: true }
     | { sent: false; reason: 'no-ai' | 'no-context' | 'iris-disabled'; contextLabel?: string };
 

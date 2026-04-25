@@ -3,12 +3,12 @@ import { promisify } from 'util';
 
 const execFileAsync = promisify(execFile);
 
-export interface GitCommandOptions {
+interface GitCommandOptions {
     cwd: string;
     timeout?: number;
 }
 
-export interface GitIdentity {
+interface GitIdentity {
     name: string;
     email: string;
 }

@@ -2,7 +2,7 @@ import { useState, KeyboardEvent, FocusEvent } from 'react';
 import clsx from 'clsx';
 import styles from './TextInput.module.css';
 
-export interface TextInputProps {
+interface TextInputProps {
   value: string;
   onChange: (value: string) => void;
   placeholder?: string;
