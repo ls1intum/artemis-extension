@@ -29,6 +29,23 @@ vi.mock('../../../../src/webview/views/IrisChat/components/CodeBlock', () => ({
 	),
 }));
 
+// Helper: seed a fully-hydrated session so tests that just want to
+// exercise input/messaging can do `useChatStore.setState({ context, ...HYDRATED })`
+// without re-typing the whole state-shape.
+const HYDRATED = {
+	activeSessionId: 'local-test',
+	sessions: [{
+		id: 'local-test',
+		artemisSessionId: undefined,
+		preview: '',
+		title: '',
+		messageCount: 0,
+		createdAt: 0,
+		lastActivity: 0,
+	}],
+	messageLoad: { localSessionId: 'local-test', status: 'success' as const },
+};
+
 describe('IrisChatView', () => {
 	beforeEach(() => {
 		useChatStore.setState({
@@ -40,6 +57,7 @@ describe('IrisChatView', () => {
 			allExercises: [],
 			allCourses: [],
 			messages: [],
+			messageLoad: null,
 			streaming: { isStreaming: false, messageLocalId: null, visibleChunks: [] },
 			irisStages: [],
 			isLoading: false,
@@ -48,6 +66,9 @@ describe('IrisChatView', () => {
 			isNoAiDetected: false,
 			referencedFiles: null,
 			showDiagnostics: false,
+			// Default tests to post-init so they exercise the steady-state
+			// rendering. Cold-mount tests opt out by setting this to false.
+			hasReceivedInitialIrisState: true,
 		});
 	});
 
@@ -79,6 +100,7 @@ describe('IrisChatView', () => {
 				locked: false,
 				source: 'user-selected',
 			},
+			...HYDRATED,
 		});
 		const mockApi = createMockVsCodeApi();
 		render(<IrisChatView vscodeApi={mockApi} />);
@@ -102,6 +124,7 @@ describe('IrisChatView', () => {
 				locked: false,
 				source: 'user-selected',
 			},
+			...HYDRATED,
 		});
 		const mockApi = createMockVsCodeApi();
 		render(<IrisChatView vscodeApi={mockApi} />);
@@ -129,6 +152,7 @@ describe('IrisChatView', () => {
 				locked: false,
 				source: 'user-selected',
 			},
+			...HYDRATED,
 		});
 		const mockApi = createMockVsCodeApi();
 		render(<IrisChatView vscodeApi={mockApi} />);
@@ -234,7 +258,7 @@ describe('IrisChatView', () => {
 			// Welcome state should NOT be shown while we wait for hydration.
 			expect(screen.queryByText("Hi! I'm Iris, your AI tutor.")).not.toBeInTheDocument();
 			// Skeleton uses CSS module class; assert at least one skeleton bar is rendered.
-			expect(container.querySelectorAll('[class*="skeleton"]').length).toBeGreaterThan(0);
+			expect(screen.getByText(/Loading conversation/i)).toBeInTheDocument();
 		});
 
 		it('shows skeleton for a brand-new local session that has no artemisSessionId yet', () => {
@@ -244,7 +268,7 @@ describe('IrisChatView', () => {
 			const { container } = render(<IrisChatView vscodeApi={mockApi} />);
 
 			expect(screen.queryByText("Hi! I'm Iris, your AI tutor.")).not.toBeInTheDocument();
-			expect(container.querySelectorAll('[class*="skeleton"]').length).toBeGreaterThan(0);
+			expect(screen.getByText(/Loading conversation/i)).toBeInTheDocument();
 		});
 
 		it('hides skeleton and shows welcome state after empty LoadMessages for the active session', async () => {
@@ -275,7 +299,7 @@ describe('IrisChatView', () => {
 
 			// Stale message must not appear; skeleton stays; store keeps no record of the stale load.
 			expect(screen.queryByText('stale')).not.toBeInTheDocument();
-			expect(container.querySelectorAll('[class*="skeleton"]').length).toBeGreaterThan(0);
+			expect(screen.getByText(/Loading conversation/i)).toBeInTheDocument();
 			expect(useChatStore.getState().messageLoad).toBeNull();
 			expect(useChatStore.getState().messages).toEqual([]);
 		});
@@ -365,6 +389,96 @@ describe('IrisChatView', () => {
 
 			await waitFor(() => {
 				expect(screen.getByText(/Failed to load chat history/i)).toBeInTheDocument();
+			});
+		});
+
+		it('keeps skeleton on the very first render before any UpdateIrisState (cold-mount welcome flash guard)', () => {
+			// Pre-init state: no snapshot has arrived yet. Even though
+			// activeSessionId is null, the welcome state must NOT flash —
+			// we cannot tell "no session" from "snapshot pending" until
+			// the first UpdateIrisState push.
+			useChatStore.setState({
+				activeSessionId: null,
+				messageLoad: null,
+				hasReceivedInitialIrisState: false,
+			});
+			const mockApi = createMockVsCodeApi();
+			const { container } = render(<IrisChatView vscodeApi={mockApi} />);
+
+			expect(screen.queryByText("Hi! I'm Iris, your AI tutor.")).not.toBeInTheDocument();
+			expect(screen.getByText(/Loading conversation/i)).toBeInTheDocument();
+		});
+
+		it('keeps skeleton when UpdateIrisState arrives with a context but no active session yet', async () => {
+			// The cold-start path posts a snapshot before any sessions have
+			// been imported, so the first UpdateIrisState often carries
+			// `context: <something>` together with `activeSessionId: null`.
+			// That state means "sessions are still loading" — the Iris
+			// greeting must NOT flash; the skeleton stays up until either
+			// LoadMessages arrives or a follow-up snapshot brings the
+			// imported session id.
+			useChatStore.setState({
+				activeSessionId: null,
+				messageLoad: null,
+				hasReceivedInitialIrisState: false,
+			});
+			const mockApi = createMockVsCodeApi();
+			const { container } = render(<IrisChatView vscodeApi={mockApi} />);
+
+			dispatchExtensionMessage({
+				type: 'updateIrisState',
+				state: {
+					context: {
+						type: 'exercise',
+						id: 1,
+						title: 'Test Exercise',
+						shortName: 'TE',
+						courseId: 10,
+						locked: false,
+						source: 'user-selected',
+					},
+					activeSessionId: null,
+					sessions: [],
+					recentExercises: [],
+					recentCourses: [],
+					allExercises: [],
+					allCourses: [],
+				},
+			});
+
+			await waitFor(() => {
+				expect(screen.getByText(/Loading conversation/i)).toBeInTheDocument();
+			});
+			expect(screen.queryByText("Hi! I'm Iris, your AI tutor.")).not.toBeInTheDocument();
+		});
+
+		it('shows welcome ("Select a course") when UpdateIrisState arrives with no context', async () => {
+			// The legitimate "no work to do" steady state: extension says no
+			// context selected. WelcomeState renders the "Select a course
+			// or exercise" copy — that is hydrated.
+			useChatStore.setState({
+				activeSessionId: null,
+				messageLoad: null,
+				hasReceivedInitialIrisState: false,
+			});
+			const mockApi = createMockVsCodeApi();
+			render(<IrisChatView vscodeApi={mockApi} />);
+
+			dispatchExtensionMessage({
+				type: 'updateIrisState',
+				state: {
+					context: null,
+					activeSessionId: null,
+					sessions: [],
+					recentExercises: [],
+					recentCourses: [],
+					allExercises: [],
+					allCourses: [],
+				},
+			});
+
+			await waitFor(() => {
+				expect(screen.getByText(/Select a course or exercise/i)).toBeInTheDocument();
 			});
 		});
 	});
@@ -460,6 +574,7 @@ describe('IrisChatView', () => {
 					locked: false,
 					source: 'user-selected',
 				},
+				...HYDRATED,
 			});
 		});
 

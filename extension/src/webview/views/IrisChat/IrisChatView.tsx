@@ -281,13 +281,27 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
     // been hydrated. We key on the local session UUID rather than the
     // Artemis server session id because new sessions have a UUID
     // immediately but no server id until the create round-trip returns.
-    // While there is no active session at all (e.g. no context selected
-    // yet), there is nothing to load and we treat that as hydrated.
+    //
+    // "Hydrated" means one of:
+    //   1. No context is selected — the "Select a course" welcome copy is
+    //      the legitimate steady-state UI.
+    //   2. A context AND a session are set, AND we have a successful
+    //      LoadMessages for that session.
+    //
+    // Specifically, "context set + activeSessionId === null" is treated as
+    // LOADING, not hydrated. That state shows up in the cold-start window
+    // between the first snapshot (no sessions imported yet) and the
+    // imported-session snapshot, and it is exactly the moment we want to
+    // show the skeleton instead of flashing the Iris greeting.
     const messagesHydrated =
-        store.activeSessionId === null
-        || (store.messageLoad !== null
-            && store.messageLoad.localSessionId === store.activeSessionId
-            && store.messageLoad.status === 'success');
+        store.hasReceivedInitialIrisState
+        && (
+            store.context === null
+            || (store.activeSessionId !== null
+                && store.messageLoad !== null
+                && store.messageLoad.localSessionId === store.activeSessionId
+                && store.messageLoad.status === 'success')
+        );
     const messagesErrored =
         store.activeSessionId !== null
         && store.messageLoad !== null
@@ -431,24 +445,32 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
                 </div>
             )}
 
-            {/* Message list with context-switch animation and hydration skeleton.
-                Hierarchy: error UI > skeleton (context-switch animation OR
+            {/* Message list with context-switch animation and hydration loader.
+                Hierarchy: error UI > loader (context-switch animation OR
                 pending hydration) > populated/welcome list. */}
             <div className={clsx(styles.messagesSection, {
                 [styles.contextSwitching]: contextSwitching
             })}>
                 {messagesErrored ? (
-                    <div className={styles.skeletonContainer}>
+                    <div className={styles.loadingState}>
                         <div className={styles.loadError} role="alert">
                             Failed to load chat history. Try selecting the
                             session again or reconnecting.
                         </div>
                     </div>
                 ) : (contextSwitching || messagesLoading) ? (
-                    <div className={styles.skeletonContainer}>
-                        <div className={clsx(styles.skeleton, styles.skeleton1)} />
-                        <div className={clsx(styles.skeleton, styles.skeleton2)} />
-                        <div className={clsx(styles.skeleton, styles.skeleton3)} />
+                    <div className={styles.loadingState} aria-busy="true" aria-live="polite">
+                        {document.getElementById('root')?.dataset.irisLogoUri && (
+                            <img
+                                src={document.getElementById('root')!.dataset.irisLogoUri}
+                                alt=""
+                                width="48"
+                                height="48"
+                                className={styles.loadingLogo}
+                            />
+                        )}
+                        <span>Loading conversation…</span>
+                        <span className={styles.loadingSpinner} aria-hidden="true" />
                     </div>
                 ) : (
                     <ChatMessageList

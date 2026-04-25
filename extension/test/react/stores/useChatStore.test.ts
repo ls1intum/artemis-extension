@@ -48,6 +48,28 @@ describe('useChatStore', () => {
 		expect(result.current.isNoAiDetected).toBe(false);
 		expect(result.current.referencedFiles).toBeNull();
 		expect(result.current.showDiagnostics).toBe(false);
+		expect(result.current.hasReceivedInitialIrisState).toBe(false);
+	});
+
+	it('hasReceivedInitialIrisState flips to true on first setIrisState and stays true after clearMessages', () => {
+		const { result } = renderHook(() => useChatStore());
+
+		expect(result.current.hasReceivedInitialIrisState).toBe(false);
+
+		act(() => {
+			result.current.setIrisState(makeIrisState());
+		});
+
+		expect(result.current.hasReceivedInitialIrisState).toBe(true);
+
+		// clearMessages must not reset the flag — the webview is still
+		// considered initialized, just emptied. Resetting would re-trigger
+		// the cold-mount skeleton on every session switch.
+		act(() => {
+			result.current.clearMessages();
+		});
+
+		expect(result.current.hasReceivedInitialIrisState).toBe(true);
 	});
 
 	it('addMessage appends a message to the messages array', () => {

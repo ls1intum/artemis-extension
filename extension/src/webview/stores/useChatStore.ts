@@ -38,6 +38,16 @@ interface ChatState {
     context: ChatContext | null;
     activeSessionId: string | null;
     sessions: ChatSession[];
+    /**
+     * Becomes true on the first UpdateIrisState push from the extension.
+     * Until then, the webview has no idea whether `activeSessionId === null`
+     * means "no session at all" (legitimately empty → welcome state) or
+     * "snapshot just hasn't arrived yet" (cold-mount frame). Treating
+     * pre-init as "still loading" suppresses the welcome-state flash on
+     * the very first render. The flag never resets — once initialized,
+     * the store remains so for the lifetime of the React tree.
+     */
+    hasReceivedInitialIrisState: boolean;
     recentExercises: ContextItem[];
     recentCourses: ContextItem[];
     allExercises: ContextItem[];
@@ -108,6 +118,7 @@ export const useChatStore = create<ChatState>()(
             context: null,
             activeSessionId: null,
             sessions: [],
+            hasReceivedInitialIrisState: false,
             recentExercises: [],
             recentCourses: [],
             allExercises: [],
@@ -149,6 +160,7 @@ export const useChatStore = create<ChatState>()(
                     recentCourses: state.recentCourses,
                     allExercises: state.allExercises,
                     allCourses: state.allCourses,
+                    hasReceivedInitialIrisState: true,
                 }, false, 'setIrisState');
             },
 

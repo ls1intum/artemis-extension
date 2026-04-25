@@ -58,8 +58,8 @@ function registerResetIrisChatCommand(chatWebviewProvider: ChatWebviewProvider):
                 title: "Resetting Iris Chat Sessions...",
                 cancellable: false
             }, async () => {
-                chatWebviewProvider.clearAllSessions();
-                vscode.window.showInformationMessage('✅ Iris chat sessions have been reset. Local session data cleared.');
+                await chatWebviewProvider.clearAllSessions();
+                vscode.window.showInformationMessage('✅ Iris chat sessions have been reset and reloaded from Artemis.');
             });
         } catch (error: unknown) {
             vscode.window.showErrorMessage(`Failed to reset Iris chat: ${extractErrorMessage(error)}`);

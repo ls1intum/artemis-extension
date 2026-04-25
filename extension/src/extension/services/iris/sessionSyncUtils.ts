@@ -37,7 +37,10 @@ export async function fetchSessionsWithMessages(
  * Sorts sessions newest-first, extracts preview from first user message,
  * and imports each session into the context store.
  *
- * Returns the number of imported sessions.
+ * Returns the number of sessions actually imported. Empty server sessions
+ * (no messages) are skipped — callers rely on this count to decide whether
+ * to fall back to creating a fresh session, so it must reflect what is
+ * really in the store, not the raw server payload size.
  *
  * NOTE: createSessionWithDetails() prepends sessions. Since we iterate
  * newest-first and prepend each time, the stored array ends up oldest-first.
@@ -57,6 +60,7 @@ export function importSessionsToStore(
         return timeB - timeA; // newest first
     });
 
+    let imported = 0;
     for (const session of sessions) {
         const messageCount = session.messages?.length || 0;
 
@@ -89,7 +93,8 @@ export function importSessionsToStore(
             session.messages || [],
             typeof session.title === 'string' ? session.title : undefined,
         );
+        imported++;
     }
 
-    return sessions.length;
+    return imported;
 }

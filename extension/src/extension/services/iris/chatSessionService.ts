@@ -424,6 +424,15 @@ export class IrisChatSessionService {
         const count = await this._fetchImportAndActivate(targetContext, loadToken);
         if (count === -1) { return 0; } // context changed
 
+        // Mirror loadAllSessionsForContext's no-server-sessions fallback: a
+        // context with zero imported sessions and no replacement leaves the
+        // webview in "context set + activeSessionId === null" — which the
+        // hydration predicate treats as still loading. Create a fresh local
+        // session so the user lands in a usable empty conversation.
+        if (count === 0 && this.isCurrentContext(targetContext, loadToken)) {
+            this.createNewSession();
+        }
+
         this.deps.postSnapshot();
         return count;
     }
@@ -466,6 +475,16 @@ export class IrisChatSessionService {
             }
 
             this.deps.contextStore.switchToFirstSession();
+
+            // Push the freshly-imported session UUIDs to the webview BEFORE
+            // emitting LoadMessages. Without this, the LoadMessages emit
+            // (tagged with the new local UUID) reaches the webview while it
+            // still has activeSessionId === null, and the localSessionId
+            // guard in IrisChatView discards the payload — leaving the chat
+            // stuck on the loading skeleton until the user manually picks a
+            // session. The trailing postSnapshot in loadAllSessionsForContext
+            // is too late for that race.
+            this.deps.postSnapshot();
 
             if (!this.isCurrentContext(targetContext, loadToken)) {
                 logger.info('Context changed before loading messages, aborting load', LogCategory.IRIS_CHAT);
