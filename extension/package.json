@@ -98,6 +98,11 @@
         "command": "artemis.showJwtToken",
         "title": "Artemis: Show JWT Token (Developer)",
         "icon": "$(key)"
+      },
+      {
+        "command": "artemis.showTheiaEnvironment",
+        "title": "Artemis: Show Theia Environment (Diagnostic)",
+        "icon": "$(info)"
       }
     ],
     "menus": {
