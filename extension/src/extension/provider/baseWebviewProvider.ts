@@ -13,6 +13,12 @@ import { logger, LogCategory } from '../services/loggingService';
 export abstract class BaseWebviewProvider {
     protected _view?: vscode.WebviewView;
     protected readonly _disposables: vscode.Disposable[] = [];
+    /**
+     * Disposables tied to the current webview view resolution. Cleared on
+     * every re-resolve so listeners registered in resolveWebviewView() do
+     * not accumulate across view destroy/recreate cycles.
+     */
+    protected _viewDisposables: vscode.Disposable[] = [];
 
     constructor(protected readonly _logCategory: LogCategory = LogCategory.VIEW) {}
 
@@ -45,10 +51,19 @@ export abstract class BaseWebviewProvider {
         });
     }
 
-    /** Dispose every item in `_disposables` (LIFO order). */
+    /** Dispose every item in `_disposables` and `_viewDisposables` (LIFO order). */
     protected _drainDisposables(): void {
+        this._drainViewDisposables();
         while (this._disposables.length > 0) {
             const d = this._disposables.pop();
+            d?.dispose();
+        }
+    }
+
+    /** Dispose only the per-view-resolution disposables. */
+    private _drainViewDisposables(): void {
+        while (this._viewDisposables.length > 0) {
+            const d = this._viewDisposables.pop();
             d?.dispose();
         }
     }
@@ -67,6 +82,7 @@ export abstract class BaseWebviewProvider {
     protected _resetReadyState(): void {
         this._webviewReady = false;
         this._pendingMessages = [];
+        this._drainViewDisposables();
     }
 
     /** Hard cap on pending messages to prevent unbounded growth. */
