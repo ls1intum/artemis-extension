@@ -19,15 +19,7 @@ import type { ExtMsg, WebSocketDisplayStatus } from '../../shared/messageContrac
  */
 type ChatWebSocketStatus = WebSocketDisplayStatus | 'unknown';
 
-/**
- * Result of the most recent message hydration attempt, keyed by the
- * webview-local session UUID. The webview compares the recorded id
- * against the active session before treating the chat as hydrated, so
- * a stale fetch (e.g. after rapid session switching) does not flip the
- * UI out of its loading state. Local UUID is preferred over the Artemis
- * server session id because brand-new sessions have a UUID immediately
- * but no server id until the create round-trip returns.
- */
+
 export interface MessageLoadResult {
     localSessionId: string;
     status: 'success' | 'error';
