@@ -195,7 +195,7 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
         const messageListener = webviewView.webview.onDidReceiveMessage(message => {
             this._handleMessage(message);
         });
-        this._disposables.push(messageListener);
+        this._viewDisposables.push(messageListener);
 
         // Handle visibility changes — resend data when panel becomes visible
         const visibilityListener = webviewView.onDidChangeVisibility(() => {
@@ -237,7 +237,7 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
                 logger.debug('Sidebar webview became hidden', LogCategory.VIEW);
             }
         });
-        this._disposables.push(visibilityListener);
+        this._viewDisposables.push(visibilityListener);
 
         // Listen for configuration changes to re-render when settings change
         const configListener = vscode.workspace.onDidChangeConfiguration(event => {
@@ -245,7 +245,7 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
                 this.refreshTheme();
             }
         });
-        this._disposables.push(configListener);
+        this._viewDisposables.push(configListener);
     }
 
     // ── Rendering ──────────────────────────────────────────────────────

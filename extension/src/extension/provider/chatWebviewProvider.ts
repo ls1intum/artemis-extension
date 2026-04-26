@@ -205,7 +205,7 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
         const messageListener = webviewView.webview.onDidReceiveMessage(message => {
             this._handleMessage(message);
         });
-        this._disposables.push(messageListener);
+        this._viewDisposables.push(messageListener);
 
         const visibilityListener = webviewView.onDidChangeVisibility(() => {
             this._onDidChangePanelVisibility.fire(webviewView.visible);
@@ -216,25 +216,24 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
                 logger.debug('Iris Chat view became hidden', LogCategory.VIEW);
             }
         });
-        this._disposables.push(visibilityListener);
+        this._viewDisposables.push(visibilityListener);
 
         const workspaceListener = vscode.workspace.onDidChangeWorkspaceFolders(() => {
             void this._detectWorkspaceExercise().catch((err: unknown) => {
                 logger.error('Failed to detect workspace exercise after folder change', LogCategory.IRIS_CHAT, err);
             });
         });
-        this._disposables.push(workspaceListener);
+        this._viewDisposables.push(workspaceListener);
 
         const configListener = vscode.workspace.onDidChangeConfiguration(event => {
             if (event.affectsConfiguration('artemis.developerMode')) {
                 this.refreshTheme();
             }
             if (event.affectsConfiguration('artemis.iris.sendUncommittedChanges')) {
-                // Update file display when setting changes
                 void this._fileMonitorService.triggerUpdate();
             }
         });
-        this._disposables.push(configListener);
+        this._viewDisposables.push(configListener);
 
         // Init data is sent when the webview signals ready (see _handleMessage / _sendInitData)
     }
