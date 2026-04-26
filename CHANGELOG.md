@@ -2,7 +2,17 @@
 
 All notable changes to the Artemis VS Code extension will be documented in this file.
 
-## [Unreleased] - 0.4.1
+## [Unreleased]
+
+### Added
+
+- **Theia Environment Diagnostic Command**: New `Artemis: Show Theia Environment (Diagnostic)` command that surfaces detection signals (`uiKind`, `DATA_BRIDGE_ENABLED`, `THEIA`) and the snapshot of managed env vars (`ARTEMIS_URL`, `ARTEMIS_TOKEN`, `GIT_URI`, `GIT_USER`, `GIT_MAIL`). Token is masked, `GIT_URI` reduced to host+path so embedded credentials never leak. Used to diagnose Theia auto-clone failures.
+
+### Fixed
+
+- **Cold-start Welcome Flash**: Eliminated the brief "Hi! I'm Iris" welcome state that flashed before message hydration completed on chat cold-start. Replaced the skeleton placeholder with a centered Iris logo + spinner so the loading state is visible across the whole panel instead of just the input row.
+
+## [0.4.1] - 2026-04-26
 ### Added
 
 - **Session Titles**: Iris chat sessions display LLM-generated titles from Artemis in the session list and chat header.
