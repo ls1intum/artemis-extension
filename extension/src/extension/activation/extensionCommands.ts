@@ -8,6 +8,7 @@ import type { ArtemisWebviewProvider, ChatWebviewProvider } from '../provider';
 import { logger, LogCategory } from '../services/loggingService';
 import { processPlantUml, normalizeRelativePath, extractErrorMessage, VSCODE_CONFIG } from '../utils';
 import { executeReplayCommand } from '../services/telemetry/replay';
+import { getTheiaEnvironment } from '../theia';
 
 // ── Individual command registrations ─────────────────────────────────
 
@@ -564,6 +565,80 @@ function registerShowJwtTokenCommand(authManager: AuthManager): vscode.Disposabl
     });
 }
 
+/**
+ * Diagnostic command: dumps the detected Theia environment so we can verify
+ * managed-deployment activation (esp. for #109). Token is masked, GIT_URI
+ * is reduced to its host so embedded credentials never leak into the UI.
+ */
+function registerShowTheiaEnvironmentCommand(): vscode.Disposable {
+    return vscode.commands.registerCommand('artemis.showTheiaEnvironment', async () => {
+        const env = getTheiaEnvironment();
+        const uiKind = vscode.env.uiKind === vscode.UIKind.Web ? 'Web' : 'Desktop';
+        const dataBridgeEnabled = process.env.DATA_BRIDGE_ENABLED;
+        const theiaFlag = process.env.THEIA;
+        const workspaceFolders = vscode.workspace.workspaceFolders ?? [];
+
+        const mask = (v: string | undefined): string =>
+            v ? `present (${v.length} chars)` : 'missing';
+
+        const gitUriDisplay = ((): string => {
+            if (!env.gitUri) { return 'missing'; }
+            try {
+                const u = new URL(env.gitUri);
+                return `present (host: ${u.host}, path: ${u.pathname})`;
+            } catch {
+                return 'present (unparseable)';
+            }
+        })();
+
+        const lines = [
+            `# Theia Environment Diagnostic`,
+            ``,
+            `**Result:** ${env.isTheia ? 'Theia detected ✅' : 'Theia NOT detected ❌'}`,
+            `**Managed environment:** ${env.isManagedEnvironment ? 'Yes' : 'No'}`,
+            ``,
+            `## Detection signals`,
+            `- \`vscode.env.uiKind\`: ${uiKind}`,
+            `- \`process.env.DATA_BRIDGE_ENABLED\`: ${dataBridgeEnabled ?? '(unset)'}`,
+            `- \`process.env.THEIA\`: ${theiaFlag ?? '(unset)'}`,
+            ``,
+            `## Environment variables (snapshot at activation)`,
+            `- \`ARTEMIS_URL\`: ${env.artemisUrl ?? 'missing'}`,
+            `- \`ARTEMIS_TOKEN\`: ${mask(env.artemisToken)}`,
+            `- \`GIT_URI\`: ${gitUriDisplay}`,
+            `- \`GIT_USER\`: ${env.gitUser ?? 'missing'}`,
+            `- \`GIT_MAIL\`: ${env.gitMail ?? 'missing'}`,
+            ``,
+            `## Workspace`,
+            `- Folder count: ${workspaceFolders.length}`,
+            ...workspaceFolders.map((f, i) => `  ${i + 1}. \`${f.uri.fsPath}\``),
+        ];
+        const details = lines.join('\n');
+
+        const summary = env.isTheia
+            ? `✅ Theia detected (uiKind=${uiKind}, managed=${env.isManagedEnvironment})`
+            : `❌ Theia NOT detected (uiKind=${uiKind}, DATA_BRIDGE_ENABLED=${dataBridgeEnabled ?? 'unset'})`;
+
+        const action = await vscode.window.showInformationMessage(
+            summary,
+            { modal: false },
+            'Show Details',
+            'Copy to Clipboard',
+        );
+
+        if (action === 'Show Details') {
+            const doc = await vscode.workspace.openTextDocument({
+                content: details,
+                language: 'markdown',
+            });
+            await vscode.window.showTextDocument(doc, { preview: true });
+        } else if (action === 'Copy to Clipboard') {
+            await vscode.env.clipboard.writeText(details);
+            vscode.window.showInformationMessage('Theia environment copied to clipboard');
+        }
+    });
+}
+
 // ── Aggregate registration ───────────────────────────────────────────
 
 interface CommandDeps {
@@ -594,5 +669,6 @@ export function registerAllCommands(deps: CommandDeps): vscode.Disposable {
         registerReplaySessionCommand(deps.context.globalStorageUri),
         registerOpenRecordingsFolderCommand(deps.context.globalStorageUri),
         registerShowJwtTokenCommand(deps.authManager),
+        registerShowTheiaEnvironmentCommand(),
     );
 }
