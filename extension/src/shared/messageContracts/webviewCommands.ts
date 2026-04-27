@@ -44,6 +44,7 @@ export const WebviewCmd = {
     CloneRepository: 'cloneRepository',
     CopyAuthenticatedCloneUrl: 'copyAuthenticatedCloneUrl',
     OpenRepository: 'openRepository',
+    OpenClonedRepository: 'openClonedRepository',
     SubmitExercise: 'submitExercise',
     StartExercise: 'startExercise',
     StartPractice: 'startPractice',
@@ -137,6 +138,7 @@ interface WebviewCmdPayloads {
     cloneRepository: { participationId: number; repositoryUri: string; exerciseTitle: string };
     copyAuthenticatedCloneUrl: { participationId: number; repositoryUri: string };
     openRepository: { repositoryUri?: string };
+    openClonedRepository: { participationId: number };
     submitExercise: { participationId: number; exerciseId?: number; exerciseTitle?: string; commitMessage?: string };
     startExercise: { exerciseId: number };
     startPractice: { exerciseId: number; exerciseTitle?: string };
@@ -230,6 +232,7 @@ export const COMMANDS_REQUIRING_PAYLOAD = new Set<string>([
     WebviewCmd.RenderPlantUmlInline,
     WebviewCmd.ViewBuildLog,
     WebviewCmd.GoToSource,
+    WebviewCmd.OpenClonedRepository,
 ]);
 
 /** Auto-generated command messages */

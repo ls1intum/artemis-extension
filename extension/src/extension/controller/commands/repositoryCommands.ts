@@ -126,6 +126,7 @@ export class RepositoryCommandModule {
             [WebviewCmd.StartPractice]: this.handleStartPractice,
             [WebviewCmd.StartExercise]: this.handleStartExercise,
             [WebviewCmd.OpenRepository]: this.handleOpenRepository,
+            [WebviewCmd.OpenClonedRepository]: this.handleOpenClonedRepository,
             [WebviewCmd.ViewBuildLog]: this.handleViewBuildLog,
             [WebviewCmd.GoToSource]: this.handleGoToSource,
         };
@@ -338,7 +339,8 @@ export class RepositoryCommandModule {
 
             this.context.sendMessage({
                 type: ExtensionMsg.ShowClonedRepoNotice,
-                exerciseTitle: exerciseTitle
+                exerciseTitle: exerciseTitle,
+                participationId,
             });
 
             const openAction = await vscode.window.showInformationMessage(
@@ -749,6 +751,44 @@ export class RepositoryCommandModule {
         } catch (err: unknown) {
             logger.error('Failed to navigate to source error:', LogCategory.SUBMISSION, err);
             vscode.window.showErrorMessage('Failed to navigate to source error.');
+        }
+    };
+
+    private handleOpenClonedRepository = async (message: WebviewToExtensionMessage): Promise<void> => {
+        try {
+            const { participationId } = getPayload<WebCmd<'openClonedRepository'>>(message);
+            const repoInfo = this.clonedRepositories.get(participationId);
+
+            if (!repoInfo) {
+                vscode.window.showWarningMessage('Cloned repository not found. It may have been moved or deleted.');
+                return;
+            }
+
+            try {
+                const stats = fs.statSync(repoInfo.path);
+                if (!stats.isDirectory()) {
+                    this.clonedRepositories.delete(participationId);
+                    vscode.window.showWarningMessage('Cloned repository path is not a directory.');
+                    return;
+                }
+            } catch {
+                this.clonedRepositories.delete(participationId);
+                vscode.window.showWarningMessage('Cloned repository not found. It may have been moved or deleted.');
+                return;
+            }
+
+            const repoUri = vscode.Uri.file(repoInfo.path);
+
+            const currentFolder = vscode.workspace.workspaceFolders?.[0];
+            if (currentFolder && currentFolder.uri.fsPath === repoInfo.path) {
+                await vscode.commands.executeCommand('workbench.view.explorer');
+                return;
+            }
+
+            await vscode.commands.executeCommand('vscode.openFolder', repoUri, true);
+        } catch (error: unknown) {
+            logger.error('Open cloned repository error:', LogCategory.SUBMISSION, error);
+            vscode.window.showErrorMessage('Failed to open cloned repository.');
         }
     };
 
