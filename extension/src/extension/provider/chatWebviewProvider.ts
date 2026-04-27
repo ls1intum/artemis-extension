@@ -189,6 +189,7 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
         _token: vscode.CancellationToken,
     ) {
         logger.debug('Iris Chat webview being resolved/loaded', LogCategory.VIEW);
+        this._drainViewDisposables();
         this._view = webviewView;
         this._resetReadyState();
 

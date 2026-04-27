@@ -61,7 +61,7 @@ export abstract class BaseWebviewProvider {
     }
 
     /** Dispose only the per-view-resolution disposables. */
-    private _drainViewDisposables(): void {
+    protected _drainViewDisposables(): void {
         while (this._viewDisposables.length > 0) {
             const d = this._viewDisposables.pop();
             d?.dispose();
@@ -82,7 +82,6 @@ export abstract class BaseWebviewProvider {
     protected _resetReadyState(): void {
         this._webviewReady = false;
         this._pendingMessages = [];
-        this._drainViewDisposables();
     }
 
     /** Hard cap on pending messages to prevent unbounded growth. */

@@ -164,6 +164,7 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
         context: vscode.WebviewViewResolveContext,
         _token: vscode.CancellationToken,
     ) {
+        this._drainViewDisposables();
         this._view = webviewView;
 
         this._resetReadyState();
