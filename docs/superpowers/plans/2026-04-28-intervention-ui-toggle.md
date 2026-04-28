@@ -1280,6 +1280,7 @@ This task creates the first test file under `extension/test/unit/activation/`. T
 
 - `wireSessionRecorder` constructs its own `SessionRecorderImpl` internally using `context.globalStorageUri`, so we cannot inject a `FakeFs` writer. Instead, the harness uses a **real temporary directory** as `globalStorageUri` and reads JSONL events back from disk after `endSession`.
 - The `vscode.workspace.getConfiguration` stub must be installed **before** `wireSessionRecorder` runs, because the wiring's runtime listener captures the initial config values at wiring time. Otherwise, the cached value may already match the test's "after" value (e.g. real config `showInterventions=false`), producing no diff and no event.
+- **Possible runtime hardening:** If a test fails at runtime with "command 'artemis.…' already registered" because the wired `RecordingStatusBarServiceImpl` re-registers a command across tests, add `sinon.stub(vscode.commands, 'registerCommand').returns(new vscode.Disposable(() => {}));` inside `makeWiringHarness` (right next to the other stubs) and `.restore()` it in `dispose()`. Only add this if you actually hit the duplicate-registration error; otherwise leave it out to keep the harness minimal.
 
 - [ ] **Step 1: Create the new wiring test file**
 
