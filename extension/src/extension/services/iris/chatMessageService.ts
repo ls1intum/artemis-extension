@@ -113,11 +113,11 @@ export class ChatMessageService {
 
     /**
      * Ensure WebSocket is connected before sending a message.
-     * 
-     * SAFETY: Uses ensureConnection() which has all safety guards:
-     * - Rate limiting
-     * - Max attempts
-     * - Mutex protection
+     *
+     * SAFETY: connect() has all safety guards built in:
+     * - State machine guards (connecting/disconnecting/gave-up)
+     * - Max attempts (20 attempts, then gives up)
+     * - Mutex protection via connection state
      */
     private async _ensureWebSocketConnection(): Promise<void> {
         logger.websocket('🔍 Checking WebSocket connection before sending message...');
@@ -133,15 +133,10 @@ export class ChatMessageService {
 
         logger.websocket('⚠️ WebSocket not connected, attempting to connect...');
         try {
-            // Use ensureConnection() which has all safety guards
-            const connected = await this._websocketService.ensureConnection();
-            if (connected) {
-                logger.websocket('✅ WebSocket connected successfully');
-            } else {
-                logger.warn('⚠️ WebSocket connection not established', LogCategory.WEBSOCKET);
-            }
-        } catch (error) {
-            logger.error('❌ Failed to connect WebSocket', LogCategory.WEBSOCKET, error as Error);
+            await this._websocketService.connect();
+            logger.websocket('✅ WebSocket connected successfully');
+        } catch {
+            logger.warn('⚠️ WebSocket connection not established', LogCategory.WEBSOCKET);
         }
     }
 

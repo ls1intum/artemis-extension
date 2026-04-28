@@ -54,7 +54,7 @@ suite('ChatMessageService', () => {
                 postMessage: postMessageSpy,
                 postSnapshot: postSnapshotSpy,
             },
-            { isConnected: () => true, ensureConnection: sandbox.stub().resolves(true) } as any,
+            { isConnected: () => true, connect: sandbox.stub().resolves() } as any,
             () => mockSessionManager as any,
             mockChatSessionService as any,
         );

@@ -12,7 +12,7 @@ import type { WebSocketDisplayStatus } from '../../../src/shared/messageContract
  * - vscode.workspace.getConfiguration (controls showWebSocketStatusBar / developerMode)
  * - vscode.window.createStatusBarItem (captures mock status bar item)
  * - vscode.commands.registerCommand (captures command handler)
- * - ArtemisWebsocketService (mock with captured onConnectionStateChange callback)
+ * - ArtemisWebsocketService (mock with captured onDidChangeConnectionState callback)
  *
  * Tests fire the captured callback directly to simulate connection state changes
  * and then assert on the mock status bar item's text, backgroundColor, show(), and hide().
@@ -88,35 +88,12 @@ suite('WebSocketStatusBarService', () => {
         // before firing the callback. driveState() encapsulates that.
         let currentStatus: WebSocketDisplayStatus = 'disconnected';
         mockWsService = {
-            onConnectionStateChange: sandbox.stub().callsFake((cb: (isConnected: boolean, wasEverConnected?: boolean) => void) => {
-                capturedCallback = cb;
-                // Immediately invoke with initial state (not connected, never connected)
-                cb(false, false);
-                return () => {};
+            onDidChangeConnectionState: sandbox.stub().callsFake((cb: (event: { connected: boolean; wasEverConnected: boolean }) => void) => {
+                capturedCallback = (isConnected: boolean, wasEverConnected?: boolean) => cb({ connected: isConnected, wasEverConnected: wasEverConnected ?? false });
+                return { dispose: () => {} };
             }),
             getDisplayStatus: sandbox.stub().callsFake((): WebSocketDisplayStatus => currentStatus),
             isConnected: sandbox.stub().returns(false),
-            hasGivenUp: sandbox.stub().returns(false),
-            getDebugInfoAsync: sandbox.stub().resolves({
-                isConnected: false,
-                isConnecting: false,
-                isDisconnecting: false,
-                wasConnectedOnce: false,
-                connectionGaveUp: false,
-                clientConnected: false,
-                clientActive: false,
-                subscriptionCount: 0,
-                subscriptions: [],
-                callbackCount: 0,
-                reconnectAttempts: 0,
-                maxReconnectAttempts: 20,
-                currentReconnectDelay: 500,
-                sessionId: 'test-session',
-                serverUrl: 'https://artemis.tum.de',
-                websocketUrl: 'wss://artemis.tum.de/websocket/websocket',
-                hasCookie: false,
-                hasJwtToken: false,
-            }),
             connect: sandbox.stub().resolves(),
             disconnect: sandbox.stub().resolves(),
             resetConnectionState: sandbox.stub(),

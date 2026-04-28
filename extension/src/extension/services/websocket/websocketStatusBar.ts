@@ -18,7 +18,7 @@ export class WebSocketStatusBarService implements vscode.Disposable {
     private readonly _statusBarItem: vscode.StatusBarItem;
     private readonly _websocketService: ArtemisWebsocketService;
     private readonly _disposables: vscode.Disposable[] = [];
-    private _unsubscribeFromState?: () => void;
+    private _stateSubscription?: vscode.Disposable;
     private _currentStatus: WebSocketDisplayStatus = 'disconnected';
     private _showStatusBar = false;
     private _reconnectHideTimeout?: ReturnType<typeof setTimeout>;
@@ -51,7 +51,7 @@ export class WebSocketStatusBarService implements vscode.Disposable {
             })
         );
 
-        this._unsubscribeFromState = this._websocketService.onConnectionStateChange(
+        this._stateSubscription = this._websocketService.onDidChangeConnectionState(
             () => this._refreshStatus()
         );
 
@@ -160,9 +160,9 @@ export class WebSocketStatusBarService implements vscode.Disposable {
             clearTimeout(this._reconnectHideTimeout);
             this._reconnectHideTimeout = undefined;
         }
-        if (this._unsubscribeFromState) {
-            this._unsubscribeFromState();
-            this._unsubscribeFromState = undefined;
+        if (this._stateSubscription) {
+            this._stateSubscription.dispose();
+            this._stateSubscription = undefined;
         }
         this._statusBarItem.dispose();
         for (const d of this._disposables) {

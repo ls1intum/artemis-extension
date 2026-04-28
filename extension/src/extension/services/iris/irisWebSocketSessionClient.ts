@@ -35,7 +35,7 @@ export class IrisWebSocketSessionClient implements vscode.Disposable {
      */
     private _currentArtemisSessionId?: number;
     private _irisUnsubscribe?: () => void;
-    private _connectionStateUnsubscribe?: () => void;
+    private _connectionStateSubscription?: vscode.Disposable;
     private _lastResubscribeAttempt: number = 0;
     private _isSubscribed: boolean = false;
 
@@ -55,9 +55,9 @@ export class IrisWebSocketSessionClient implements vscode.Disposable {
         logger.session('Disposing...');
 
         // Unsubscribe from connection state changes FIRST
-        if (this._connectionStateUnsubscribe) {
-            this._connectionStateUnsubscribe();
-            this._connectionStateUnsubscribe = undefined;
+        if (this._connectionStateSubscription) {
+            this._connectionStateSubscription.dispose();
+            this._connectionStateSubscription = undefined;
         }
 
         this.unsubscribe();
@@ -195,8 +195,8 @@ export class IrisWebSocketSessionClient implements vscode.Disposable {
      * 3. Rate-limits resubscription attempts
      */
     private _startWebSocketMonitoring(): void {
-        // Store unsubscribe function for cleanup in dispose()
-        this._connectionStateUnsubscribe = this._websocketService.onConnectionStateChange((isConnected: boolean) => {
+        // Store subscription disposable for cleanup in dispose()
+        this._connectionStateSubscription = this._websocketService.onDidChangeConnectionState(({ connected: isConnected }) => {
             logger.session(`WebSocket connection state changed: ${isConnected}`);
             this._onDidConnectionStateChange.fire(isConnected);
 

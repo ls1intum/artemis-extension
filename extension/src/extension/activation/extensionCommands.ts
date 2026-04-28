@@ -142,18 +142,37 @@ function registerIrisHealthCheckCommand(
     });
 }
 
-function registerWebSocketStatusCommand(artemisWebsocketService: ArtemisWebsocketService): vscode.Disposable {
+function registerWebSocketStatusCommand(
+    artemisWebsocketService: ArtemisWebsocketService,
+    authManager: AuthManager,
+): vscode.Disposable {
     return vscode.commands.registerCommand('artemis.checkWebSocketStatus', async () => {
         try {
-            const debugInfo = await artemisWebsocketService.getDebugInfoAsync();
+            const debugInfo = artemisWebsocketService.getDiagnostics();
             const isConnected = artemisWebsocketService.isConnected();
+            const connectionState = artemisWebsocketService.connectionState;
+
+            let hasCookie = false;
+            let hasJwtToken = false;
+            let cookiePreview: string | undefined;
+            try {
+                const headers = await authManager.getAuthHeaders();
+                hasCookie = Object.keys(headers).length > 0;
+                if (hasCookie) {
+                    const headerValue = headers['Cookie'] || headers['Authorization'] || '';
+                    hasJwtToken = headerValue.length > 0;
+                    cookiePreview = headerValue.substring(0, 20) + '...';
+                }
+            } catch { /* ignore auth errors in diagnostics */ }
+
             const icon = isConnected ? '🟢' : '🔴';
 
             const statusLines = [
                 `${icon} **WebSocket Status**`,
                 ``,
                 `**Connection:**`,
-                `• Connected: ${debugInfo.isConnected ? 'Yes ✅' : 'No ❌'}`,
+                `• Connected: ${isConnected ? 'Yes ✅' : 'No ❌'}`,
+                `• State: ${connectionState}`,
                 `• Client Active: ${debugInfo.clientActive ? 'Yes ✅' : 'No ❌'}`,
                 `• Client Connected: ${debugInfo.clientConnected ? 'Yes ✅' : 'No ❌'}`,
                 ``,
@@ -161,7 +180,7 @@ function registerWebSocketStatusCommand(artemisWebsocketService: ArtemisWebsocke
                 ...debugInfo.subscriptions.map(sub => `• ${sub}`),
             ];
 
-            if (!isConnected && !debugInfo.hasCookie) {
+            if (!isConnected && !hasCookie) {
                 statusLines.push(``, `⚠️ **Not connected - Please log in to Artemis first**`);
             }
 
@@ -172,30 +191,28 @@ function registerWebSocketStatusCommand(artemisWebsocketService: ArtemisWebsocke
                 `• WebSocket URL: ${debugInfo.websocketUrl}`,
                 ``,
                 `**Authentication:**`,
-                `• Has Cookie: ${debugInfo.hasCookie ? 'Yes ✅' : 'No ❌'}`,
-                `• Has JWT Token: ${debugInfo.hasJwtToken ? 'Yes ✅' : 'No ❌'}`,
+                `• Has Cookie: ${hasCookie ? 'Yes ✅' : 'No ❌'}`,
+                `• Has JWT Token: ${hasJwtToken ? 'Yes ✅' : 'No ❌'}`,
             );
 
-            if (debugInfo.cookiePreview) {
-                statusLines.push(`• Cookie Preview: ${debugInfo.cookiePreview}`);
+            if (cookiePreview) {
+                statusLines.push(`• Cookie Preview: ${cookiePreview}`);
             }
 
             statusLines.push(
                 ``,
                 `**Reconnection:**`,
                 `• Attempts: ${debugInfo.reconnectAttempts}/${debugInfo.maxReconnectAttempts}`,
-                `• Current Delay: ${debugInfo.currentReconnectDelay}ms`,
-                `• Gave Up: ${debugInfo.connectionGaveUp ? 'Yes ⛔' : 'No'}`,
+                `• Gave Up: ${connectionState === 'gave-up' ? 'Yes ⛔' : 'No'}`,
                 `• Session ID: ${debugInfo.sessionId}`,
-                `• Callbacks: ${debugInfo.callbackCount}`,
             );
 
             const message = statusLines.join('\n');
 
             let actions: string[];
-            if (!debugInfo.hasCookie) {
+            if (!hasCookie) {
                 actions = ['Login to Artemis', 'Show Details', 'Copy to Clipboard'];
-            } else if (debugInfo.connectionGaveUp) {
+            } else if (connectionState === 'gave-up') {
                 actions = ['Reset & Retry', 'Show Details', 'Copy to Clipboard'];
             } else if (!isConnected) {
                 actions = ['Retry Connection', 'Show Details', 'Copy to Clipboard'];
@@ -204,7 +221,7 @@ function registerWebSocketStatusCommand(artemisWebsocketService: ArtemisWebsocke
             }
 
             const action = await vscode.window.showInformationMessage(
-                `${icon} WebSocket: ${isConnected ? 'Connected' : 'Disconnected'}${debugInfo.connectionGaveUp ? ' (gave up)' : ''}${!debugInfo.hasCookie ? ' (Not logged in)' : ''}`,
+                `${icon} WebSocket: ${isConnected ? 'Connected' : 'Disconnected'}${connectionState === 'gave-up' ? ' (gave up)' : ''}${!hasCookie ? ' (Not logged in)' : ''}`,
                 { modal: false },
                 ...actions
             );
@@ -659,7 +676,7 @@ export function registerAllCommands(deps: CommandDeps): vscode.Disposable {
         registerLogoutCommand(deps.authManager, deps.artemisApiService, deps.updateAuthContext, deps.artemisWebviewProvider),
         registerResetIrisChatCommand(deps.chatWebviewProvider),
         registerIrisHealthCheckCommand(deps.authManager, deps.artemisApiService, deps.providerRegistry),
-        registerWebSocketStatusCommand(deps.artemisWebsocketService),
+        registerWebSocketStatusCommand(deps.artemisWebsocketService, deps.authManager),
         registerConnectWebSocketCommand(deps.authManager, deps.artemisWebsocketService),
         registerPlantUmlRenderCommand(deps.artemisApiService),
         registerGoToSourceErrorCommand(),
