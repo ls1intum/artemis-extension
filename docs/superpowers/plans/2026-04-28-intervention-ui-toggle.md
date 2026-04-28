@@ -79,7 +79,7 @@ Expected: exit 0.
 - [ ] **Step 4: Verify clean unit-test baseline (intervention area)**
 
 ```bash
-npx vscode-test --label unit --grep "InterventionService" 2>&1 | tee /tmp/intervention-toggle-baseline-tests.txt | tail -30
+npm run compile-tests && npx vscode-test --label unit --grep "InterventionService" 2>&1 | tee /tmp/intervention-toggle-baseline-tests.txt | tail -30
 ```
 
 Expected: existing intervention tests pass. If any fail, stop and report — do not proceed on a red baseline.
@@ -452,8 +452,7 @@ If the existing test file already has a `setup` that stubs `createStatusBarItem`
 
 ```bash
 cd /Users/liamberger/claudeworktrees/MA-intervention-ui-toggle/extension
-npm run compile-tests 2>&1 | tail -5
-npx vscode-test --label unit --grep "hideHint\\(\\) — full status-bar reset" 2>&1 | tee /tmp/intervention-toggle-task5-fail.txt | tail -20
+npm run compile-tests && npx vscode-test --label unit --grep "hideHint\\(\\) — full status-bar reset" 2>&1 | tee /tmp/intervention-toggle-task5-fail.txt | tail -20
 ```
 
 Expected: test fails because `hideHint()` does not currently reset `text` / `tooltip` / `backgroundColor`.
@@ -507,8 +506,7 @@ public hideHint(): void {
 
 ```bash
 cd /Users/liamberger/claudeworktrees/MA-intervention-ui-toggle/extension
-npm run compile-tests 2>&1 | tail -5
-npx vscode-test --label unit --grep "hideHint\\(\\) — full status-bar reset" 2>&1 | tail -15
+npm run compile-tests && npx vscode-test --label unit --grep "hideHint\\(\\) — full status-bar reset" 2>&1 | tail -15
 ```
 
 Expected: pass.
@@ -516,7 +514,7 @@ Expected: pass.
 - [ ] **Step 3: Run the full `InterventionService` suite — expect no regression**
 
 ```bash
-npx vscode-test --label unit --grep "InterventionService" 2>&1 | tail -20
+npm run compile-tests && npx vscode-test --label unit --grep "InterventionService" 2>&1 | tail -20
 ```
 
 Expected: all existing intervention-service tests still pass.
@@ -869,8 +867,7 @@ suite('TelemetryManager — intervention UI toggle', () => {
 
 ```bash
 cd /Users/liamberger/claudeworktrees/MA-intervention-ui-toggle/extension
-npm run compile-tests 2>&1 | tail -5
-npx vscode-test --label unit --grep "intervention UI toggle" 2>&1 | tee /tmp/intervention-toggle-task8-fail.txt | tail -80
+npm run compile-tests && npx vscode-test --label unit --grep "intervention UI toggle" 2>&1 | tee /tmp/intervention-toggle-task8-fail.txt | tail -80
 ```
 
 Expected: every gate-dependent test (T1, T2, T3, T4, T7, T9) fails because the gate is not implemented yet. T5, T6, T8 may already pass; that is fine.
@@ -1008,8 +1005,7 @@ if (decision.shouldIntervene) {
 
 ```bash
 cd /Users/liamberger/claudeworktrees/MA-intervention-ui-toggle/extension
-npm run compile-tests 2>&1 | tail -5
-npx vscode-test --label unit --grep "intervention UI toggle" 2>&1 | tee /tmp/intervention-toggle-task9-pass.txt | tail -40
+npm run compile-tests && npx vscode-test --label unit --grep "intervention UI toggle" 2>&1 | tee /tmp/intervention-toggle-task9-pass.txt | tail -40
 ```
 
 Expected: all 9 tests (T1–T9) pass. If any fail, inspect the output and adjust the implementation. Do **not** modify the test assertions.
@@ -1017,7 +1013,7 @@ Expected: all 9 tests (T1–T9) pass. If any fail, inspect the output and adjust
 - [ ] **Step 4: Run the broader telemetry suite — expect no regressions**
 
 ```bash
-npx vscode-test --label unit --grep "TelemetryManager|InterventionService" 2>&1 | tail -30
+npm run compile-tests && npx vscode-test --label unit --grep "TelemetryManager|InterventionService" 2>&1 | tail -30
 ```
 
 Expected: no regressions in existing tests.
@@ -1114,8 +1110,7 @@ import type {
 
 ```bash
 cd /Users/liamberger/claudeworktrees/MA-intervention-ui-toggle/extension
-npm run compile-tests 2>&1 | tail -5
-npx vscode-test --label unit --grep "SessionRecorder — intervention suppression" 2>&1 | tee /tmp/intervention-toggle-task10-fail.txt | tail -40
+npm run compile-tests && npx vscode-test --label unit --grep "SessionRecorder — intervention suppression" 2>&1 | tee /tmp/intervention-toggle-task10-fail.txt | tail -40
 ```
 
 Expected behaviour: `compile-tests` may itself fail — `recordIntervention('suppressed', ...)` does not type-check yet, and `recordConfigurationSnapshot` / `recordConfigurationChange` do not exist. **Either** of these counts as "red". If `compile-tests` succeeds but tests fail at runtime, that is also red. Capture the output and proceed to Task 11.
@@ -1129,10 +1124,13 @@ git commit -m "test(recording): add failing tests for suppressed action and conf
 
 ---
 
-## Task 11: SessionRecorder — `'suppressed'` action support (TDD green for first test)
+## Task 11: SessionRecorder — implement all three new methods (TDD green for all recorder tests)
 
 **Files:**
-- Modify: `extension/src/extension/services/telemetry/recording/sessionRecorder.ts:300-329`
+- Modify: `extension/src/extension/services/telemetry/recording/sessionRecorder.ts:300-329` (`recordIntervention`)
+- Modify: `extension/src/extension/services/telemetry/recording/sessionRecorder.ts` (insert two new methods near line 350, after `recordPanelVisibility`)
+
+All three Task-10 tests can only go green together because `compile-tests` would still fail if `recordConfigurationSnapshot`/`recordConfigurationChange` are missing while their tests reference them. Implementing the three methods in one task keeps the TDD red→green cycle clean for the recorder layer.
 
 - [ ] **Step 1: Widen `recordIntervention` to accept the new action and reason**
 
@@ -1208,33 +1206,9 @@ recordIntervention(
 }
 ```
 
-- [ ] **Step 2: Compile tests; first test should now pass**
+- [ ] **Step 2: Add `recordConfigurationSnapshot` and `recordConfigurationChange`**
 
-```bash
-cd /Users/liamberger/claudeworktrees/MA-intervention-ui-toggle/extension
-npm run compile-tests 2>&1 | tail -5
-npx vscode-test --label unit --grep "recordIntervention with suppressed action" 2>&1 | tail -15
-```
-
-Expected: pass.
-
-- [ ] **Step 3: Commit**
-
-```bash
-git add extension/src/extension/services/telemetry/recording/sessionRecorder.ts
-git commit -m "feat(recording): support 'suppressed' intervention action and reason"
-```
-
----
-
-## Task 12: SessionRecorder — config snapshot/change methods (TDD green for remaining tests)
-
-**Files:**
-- Modify: `extension/src/extension/services/telemetry/recording/sessionRecorder.ts` (insert near other `record*` methods, around line 350 after `recordPanelVisibility`)
-
-- [ ] **Step 1: Add the two new methods**
-
-Insert after `recordPanelVisibility`:
+Insert after `recordPanelVisibility` (around line 350):
 
 ```ts
 recordConfigurationSnapshot(struggleDetectionEnabled: boolean, showInterventions: boolean): void {
@@ -1264,37 +1238,48 @@ recordConfigurationChange(changes: {
 }
 ```
 
-- [ ] **Step 2: Compile tests and run the recording suite — expect pass**
+- [ ] **Step 3: Compile tests and run the recording suite — expect pass**
 
 ```bash
 cd /Users/liamberger/claudeworktrees/MA-intervention-ui-toggle/extension
-npm run compile-tests 2>&1 | tail -5
-npx vscode-test --label unit --grep "SessionRecorder — intervention suppression" 2>&1 | tail -30
+npm run compile-tests && npx vscode-test --label unit --grep "SessionRecorder — intervention suppression" 2>&1 | tail -30
 ```
 
-Expected: all three tests in the new suite pass. Then check no regressions in the broader suite:
+Expected: all three tests pass.
+
+- [ ] **Step 4: Run the broader recording suite — expect no regressions**
 
 ```bash
-npx vscode-test --label unit --grep "SessionRecorder" 2>&1 | tail -30
+npm run compile-tests && npx vscode-test --label unit --grep "SessionRecorder" 2>&1 | tail -30
 ```
 
 Expected: no regressions.
 
-- [ ] **Step 3: Commit**
+- [ ] **Step 5: Commit**
 
 ```bash
 git add extension/src/extension/services/telemetry/recording/sessionRecorder.ts
-git commit -m "feat(recording): add configuration snapshot and change recorders"
+git commit -m "feat(recording): support suppressed action and configuration provenance
+
+- recordIntervention accepts action='suppressed' with optional
+  suppressionReason='user-disabled'
+- New recordConfigurationSnapshot and recordConfigurationChange methods
+  for session-classification provenance"
 ```
 
 ---
 
-## Task 13: Test — wiring integration (TDD red)
+## Task 12: Test — wiring integration (TDD red)
 
 **Files:**
 - Create: `extension/test/unit/activation/sessionRecorderWiring.test.ts`
 
 This task creates the first test file under `extension/test/unit/activation/`. The directory does not yet exist; `compile-tests` and `vscode-test` accept additional sub-directories under `test/unit/` automatically (the `.vscode-test.mjs` glob is `out/test/unit/**/*.test.js`).
+
+**Important harness design notes:**
+
+- `wireSessionRecorder` constructs its own `SessionRecorderImpl` internally using `context.globalStorageUri`, so we cannot inject a `FakeFs` writer. Instead, the harness uses a **real temporary directory** as `globalStorageUri` and reads JSONL events back from disk after `endSession`.
+- The `vscode.workspace.getConfiguration` stub must be installed **before** `wireSessionRecorder` runs, because the wiring's runtime listener captures the initial config values at wiring time. Otherwise, the cached value may already match the test's "after" value (e.g. real config `showInterventions=false`), producing no diff and no event.
 
 - [ ] **Step 1: Create the new wiring test file**
 
@@ -1304,20 +1289,24 @@ Create `extension/test/unit/activation/sessionRecorderWiring.test.ts` with this 
 /**
  * Integration tests for sessionRecorderWiring.
  *
- * Constructs a real TelemetryManager + SessionRecorder, calls wireSessionRecorder,
- * drives suppression/config-change events, and asserts they reach the JSONL
- * stream via the FakeFs.
+ * Constructs a real TelemetryManager + (wireSessionRecorder-built) SessionRecorder
+ * pointing at a temp directory; drives suppression and config-change events,
+ * and asserts they reach the on-disk JSONL stream.
  *
- * Whitebox brittleness note: stubs `vscode.workspace.onDidChangeConfiguration`
- * to capture and synchronously invoke the listener that wiring registers.
+ * Whitebox brittleness:
+ *  - Fires TelemetryManager._onDidSuppressIntervention directly via cast.
+ *  - Stubs vscode.workspace.onDidChangeConfiguration to capture the listener.
+ *  - Stubs vscode.workspace.getConfiguration with mutable backing values.
  */
 
 import * as assert from 'assert';
+import * as fs from 'fs/promises';
+import * as os from 'os';
+import * as path from 'path';
 import * as sinon from 'sinon';
 import * as vscode from 'vscode';
 import { TelemetryManager } from '../../../src/extension/services/telemetry/telemetryManager';
 import { SessionRecorder } from '../../../src/extension/services/telemetry/recording/sessionRecorder';
-import { RecordingStorageWriter, type RecordingFs } from '../../../src/extension/services/telemetry/recording/storageWriter';
 import { wireSessionRecorder } from '../../../src/extension/activation/sessionRecorderWiring';
 import type { RecordedEvent, InterventionEvent, ConfigurationSnapshotEvent, ConfigurationChangeEvent } from '../../../src/extension/services/telemetry/recording/types';
 import type { ConsentService } from '../../../src/extension/services/auth';
@@ -1325,28 +1314,37 @@ import type { ArtemisWebsocketService } from '../../../src/extension/services/we
 import type { ArtemisWebviewProvider, ChatWebviewProvider } from '../../../src/extension/provider';
 import type { InterventionDecision } from '../../../src/extension/services/telemetry/types';
 
-class FakeFs implements RecordingFs {
-    appendedChunks: string[] = [];
-    writtenFiles: { path: string; data: string }[] = [];
-    syncChunks: string[] = [];
-    mkdir(): Promise<string | undefined> { return Promise.resolve(undefined); }
-    writeFile(p: string, data: string): Promise<void> { this.writtenFiles.push({ path: p, data }); return Promise.resolve(); }
-    appendFile(_p: string, data: string): Promise<void> { this.appendedChunks.push(data); return Promise.resolve(); }
-    rm(): Promise<void> { return Promise.resolve(); }
-    appendFileSync(_p: string, data: string): void { this.syncChunks.push(data); }
+interface MutableConfigState {
+    enabled: boolean;
+    showInterventions: unknown;   // unknown so tests can simulate non-boolean
+    developerMode: boolean;
 }
 
-function collectWrittenEvents(fs: FakeFs): RecordedEvent[] {
-    const events: RecordedEvent[] = [];
-    for (const chunk of [...fs.appendedChunks, ...fs.syncChunks]) {
-        for (const line of chunk.split('\n').filter(Boolean)) {
-            try { events.push(JSON.parse(line) as RecordedEvent); } catch { /* skip */ }
-        }
-    }
-    return events;
+function installConfigStub(state: MutableConfigState): sinon.SinonStub {
+    const original = vscode.workspace.getConfiguration;
+    return sinon.stub(vscode.workspace, 'getConfiguration').callsFake((section?: string) => {
+        const real = original.call(vscode.workspace, section);
+        return {
+            ...real,
+            get: <T>(key: string, def?: T): T => {
+                if (section === 'artemis.struggleDetection' && key === 'enabled') {
+                    return state.enabled as unknown as T;
+                }
+                if (section === 'artemis.struggleDetection' && key === 'showInterventions') {
+                    return state.showInterventions as T;
+                }
+                if (section === 'artemis' && key === 'developerMode') {
+                    return state.developerMode as unknown as T;
+                }
+                return def as T;
+            },
+            inspect: real.inspect.bind(real),
+            update: real.update.bind(real),
+            has: real.has.bind(real),
+        } as unknown as vscode.WorkspaceConfiguration;
+    });
 }
 
-/** Stub the minimum of ConsentService that wireSessionRecorder reads. */
 function stubConsent(extended: boolean): ConsentService {
     const onConsentChanged = new vscode.EventEmitter<'pending' | 'declined' | 'basic' | 'extended'>();
     return {
@@ -1355,7 +1353,6 @@ function stubConsent(extended: boolean): ConsentService {
     } as unknown as ConsentService;
 }
 
-/** Stub WebSocket service — wireSessionRecorder only registers/unregisters handlers. */
 function stubWebsocket(): ArtemisWebsocketService {
     return {
         registerMessageHandler: sinon.stub(),
@@ -1390,25 +1387,57 @@ function stubChatProvider(): ChatWebviewProvider {
     } as unknown as ChatWebviewProvider;
 }
 
-function makeWiringHarness(): {
+/** Read every events.jsonl file produced under tmpDir/recordings/<sessionId>/ and return the parsed events. */
+async function readAllRecordedEvents(tmpDir: string): Promise<RecordedEvent[]> {
+    const recordingsRoot = path.join(tmpDir, 'recordings');
+    const events: RecordedEvent[] = [];
+    let sessionDirs: string[];
+    try {
+        sessionDirs = await fs.readdir(recordingsRoot);
+    } catch {
+        return events; // recordings dir not created yet
+    }
+    for (const sessionId of sessionDirs) {
+        const eventsPath = path.join(recordingsRoot, sessionId, 'events.jsonl');
+        let content: string;
+        try {
+            content = await fs.readFile(eventsPath, 'utf-8');
+        } catch {
+            continue;
+        }
+        for (const line of content.split('\n').filter(Boolean)) {
+            try { events.push(JSON.parse(line) as RecordedEvent); } catch { /* skip malformed */ }
+        }
+    }
+    return events;
+}
+
+interface WiringHarness {
     telemetryManager: TelemetryManager;
     recorder: SessionRecorder;
-    fs: FakeFs;
-    capturedConfigListener: ((e: vscode.ConfigurationChangeEvent) => void) | undefined;
-    onDidChangeConfigStub: sinon.SinonStub;
+    tmpDir: string;
+    configState: MutableConfigState;
+    capturedConfigListener: () => ((e: vscode.ConfigurationChangeEvent) => void) | undefined;
     dispose: () => Promise<void>;
-} {
-    const fs = new FakeFs();
-    const writer = new RecordingStorageWriter('/fake-base', fs, 'test-version');
-    const fakeUri = vscode.Uri.file('/fake-base');
-    const recorder = new SessionRecorder(fakeUri, undefined, undefined, writer);
-    const telemetryManager = new TelemetryManager();
-    let capturedConfigListener: ((e: vscode.ConfigurationChangeEvent) => void) | undefined;
-    const onDidChangeConfigStub = sinon.stub(vscode.workspace, 'onDidChangeConfiguration').callsFake((listener: (e: vscode.ConfigurationChangeEvent) => void) => {
-        capturedConfigListener = listener;
+}
+
+async function makeWiringHarness(initial: MutableConfigState): Promise<WiringHarness> {
+    const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'wiring-test-'));
+    const configState: MutableConfigState = { ...initial };
+
+    // STEP 1: Install config stub BEFORE wireSessionRecorder runs.
+    const configStub = installConfigStub(configState);
+
+    // STEP 2: Stub onDidChangeConfiguration to capture the listener.
+    let captured: ((e: vscode.ConfigurationChangeEvent) => void) | undefined;
+    const onConfigStub = sinon.stub(vscode.workspace, 'onDidChangeConfiguration').callsFake((listener: (e: vscode.ConfigurationChangeEvent) => void) => {
+        captured = listener;
         return new vscode.Disposable(() => { /* noop */ });
     });
-    const ctx = { globalStorageUri: fakeUri, subscriptions: [] } as unknown as vscode.ExtensionContext;
+
+    // STEP 3: Construct manager and wiring.
+    const telemetryManager = new TelemetryManager();
+    const ctx = { globalStorageUri: vscode.Uri.file(tmpDir), subscriptions: [] } as unknown as vscode.ExtensionContext;
     const wiring = wireSessionRecorder({
         context: ctx,
         consentService: stubConsent(true),
@@ -1419,27 +1448,29 @@ function makeWiringHarness(): {
         capabilities: undefined,
         exerciseRegistry: undefined,
     });
+
     return {
         telemetryManager,
         recorder: wiring.sessionRecorder,
-        fs,
-        get capturedConfigListener() { return capturedConfigListener; },
-        onDidChangeConfigStub,
+        tmpDir,
+        configState,
+        capturedConfigListener: () => captured,
         dispose: async () => {
             wiring.disposable.dispose();
             try { await wiring.sessionRecorder.dispose(); } catch { /* ignore */ }
             telemetryManager.dispose();
-            onDidChangeConfigStub.restore();
+            onConfigStub.restore();
+            configStub.restore();
+            try { await fs.rm(tmpDir, { recursive: true, force: true }); } catch { /* ignore */ }
         },
     };
 }
 
 suite('sessionRecorderWiring — suppression and configuration provenance', () => {
     test('suppression event is recorded as action=suppressed', async () => {
-        const harness = makeWiringHarness();
+        const harness = await makeWiringHarness({ enabled: true, showInterventions: true, developerMode: false });
         try {
             await harness.recorder.startSession(42);
-            // Drive a suppression event from the TelemetryManager side.
             const decision: InterventionDecision = {
                 rawWanted: true,
                 shouldIntervene: true,
@@ -1452,7 +1483,7 @@ suite('sessionRecorderWiring — suppression and configuration provenance', () =
                 ._onDidSuppressIntervention.fire({ decision, reason: 'user-disabled' });
             await harness.recorder.endSession();
 
-            const events = collectWrittenEvents(harness.fs);
+            const events = await readAllRecordedEvents(harness.tmpDir);
             const intervention = events.find(e => e.type === 'intervention') as InterventionEvent | undefined;
             assert.ok(intervention, 'intervention event missing');
             assert.strictEqual(intervention!.action, 'suppressed');
@@ -1464,58 +1495,38 @@ suite('sessionRecorderWiring — suppression and configuration provenance', () =
     });
 
     test('configurationSnapshot is emitted at startup', async () => {
-        const harness = makeWiringHarness();
+        const harness = await makeWiringHarness({ enabled: true, showInterventions: false, developerMode: false });
         try {
             await harness.recorder.startSession(42);
             await harness.recorder.endSession();
 
-            const events = collectWrittenEvents(harness.fs);
+            const events = await readAllRecordedEvents(harness.tmpDir);
             const snap = events.find(e => e.type === 'configurationSnapshot') as ConfigurationSnapshotEvent | undefined;
             assert.ok(snap, 'configurationSnapshot missing — startup contributor not registered?');
-            assert.strictEqual(typeof snap!.struggleDetectionEnabled, 'boolean');
-            assert.strictEqual(typeof snap!.showInterventions, 'boolean');
+            assert.strictEqual(snap!.struggleDetectionEnabled, true);
+            assert.strictEqual(snap!.showInterventions, false);
         } finally {
             await harness.dispose();
         }
     });
 
     test('configurationChange is recorded when the listener fires', async () => {
-        const harness = makeWiringHarness();
+        // Initial config: showInterventions=true. Listener caches that on construction.
+        const harness = await makeWiringHarness({ enabled: true, showInterventions: true, developerMode: false });
         try {
             await harness.recorder.startSession(42);
-            assert.ok(harness.capturedConfigListener, 'wireSessionRecorder did not register an onDidChangeConfiguration listener');
+            const listener = harness.capturedConfigListener();
+            assert.ok(listener, 'wireSessionRecorder did not register an onDidChangeConfiguration listener');
 
-            // Stub workspace.getConfiguration to return values that DIFFER from what
-            // the listener cached at wiring time, so a change is detected.
-            const originalGet = vscode.workspace.getConfiguration;
-            const cfgStub = sinon.stub(vscode.workspace, 'getConfiguration').callsFake((section?: string) => {
-                const real = originalGet.call(vscode.workspace, section);
-                return {
-                    ...real,
-                    get: <T>(key: string, def?: T): T => {
-                        if (section === 'artemis.struggleDetection' && key === 'showInterventions') {
-                            return false as unknown as T;
-                        }
-                        if (section === 'artemis.struggleDetection' && key === 'enabled') {
-                            return true as unknown as T;
-                        }
-                        return def as T;
-                    },
-                    inspect: real.inspect.bind(real),
-                    update: real.update.bind(real),
-                    has: real.has.bind(real),
-                } as unknown as vscode.WorkspaceConfiguration;
-            });
-            try {
-                harness.capturedConfigListener!({
-                    affectsConfiguration: (k: string) => k === 'artemis.struggleDetection',
-                } as vscode.ConfigurationChangeEvent);
-            } finally {
-                cfgStub.restore();
-            }
+            // Mutate the backing state; the configStub's get() will now return false.
+            harness.configState.showInterventions = false;
+            listener!({
+                affectsConfiguration: (k: string) => k === 'artemis.struggleDetection',
+            } as vscode.ConfigurationChangeEvent);
+
             await harness.recorder.endSession();
 
-            const events = collectWrittenEvents(harness.fs);
+            const events = await readAllRecordedEvents(harness.tmpDir);
             const change = events.find(e => e.type === 'configurationChange') as ConfigurationChangeEvent | undefined;
             assert.ok(change, 'configurationChange missing');
             assert.deepStrictEqual(change!.changes, { showInterventions: false });
@@ -1530,11 +1541,10 @@ suite('sessionRecorderWiring — suppression and configuration provenance', () =
 
 ```bash
 cd /Users/liamberger/claudeworktrees/MA-intervention-ui-toggle/extension
-npm run compile-tests 2>&1 | tail -5
-npx vscode-test --label unit --grep "sessionRecorderWiring — suppression" 2>&1 | tee /tmp/intervention-toggle-task13-fail.txt | tail -40
+npm run compile-tests && npx vscode-test --label unit --grep "sessionRecorderWiring — suppression" 2>&1 | tee /tmp/intervention-toggle-task12-fail.txt | tail -40
 ```
 
-Expected: tests fail. Either compile fails (because `_onDidSuppressIntervention` not yet emitted in wiring, or wiring does not subscribe / register a config listener), or runtime fails because no `intervention`/`configurationSnapshot`/`configurationChange` event reaches the JSONL.
+Expected: tests fail. Either compile fails (because the wiring does not yet subscribe to `onDidSuppressIntervention` or register the config-snapshot startup contributor or the runtime config listener), or runtime fails because no `intervention`/`configurationSnapshot`/`configurationChange` event reaches the JSONL.
 
 - [ ] **Step 3: Commit (red tests)**
 
@@ -1545,7 +1555,7 @@ git commit -m "test(activation): add failing wiring tests for suppression and co
 
 ---
 
-## Task 14: Wiring — implement subscriptions and provenance (TDD green)
+## Task 13: Wiring — implement subscriptions and provenance (TDD green)
 
 **Files:**
 - Modify: `extension/src/extension/activation/sessionRecorderWiring.ts`
@@ -1635,8 +1645,7 @@ disposables.push(vscode.workspace.onDidChangeConfiguration(event => {
 
 ```bash
 cd /Users/liamberger/claudeworktrees/MA-intervention-ui-toggle/extension
-npm run compile-tests 2>&1 | tail -5
-npx vscode-test --label unit --grep "sessionRecorderWiring — suppression" 2>&1 | tee /tmp/intervention-toggle-task14-pass.txt | tail -30
+npm run compile-tests && npx vscode-test --label unit --grep "sessionRecorderWiring — suppression" 2>&1 | tee /tmp/intervention-toggle-task13-pass.txt | tail -30
 ```
 
 Expected: all three wiring tests pass.
@@ -1644,7 +1653,7 @@ Expected: all three wiring tests pass.
 - [ ] **Step 5: Run full unit suite — expect no regressions**
 
 ```bash
-npx vscode-test --label unit 2>&1 | tail -30
+npm run compile-tests && npx vscode-test --label unit 2>&1 | tail -30
 ```
 
 Expected: no regressions.
@@ -1665,7 +1674,7 @@ git commit -m "feat(recording): wire suppressed interventions and config provena
 
 ---
 
-## Task 15: Final integration sweep — types, lint (full), full unit run, package
+## Task 14: Final integration sweep — types, lint (full), full unit run, package
 
 - [ ] **Step 1: Type-check**
 
@@ -1687,8 +1696,7 @@ Expected: exit 0. If lint warnings appear in any file you modified, fix them in-
 - [ ] **Step 3: Full unit-test run**
 
 ```bash
-npm run compile-tests 2>&1 | tail -5
-npx vscode-test --label unit 2>&1 | tee /tmp/intervention-toggle-final-tests.txt | tail -50
+npm run compile-tests && npx vscode-test --label unit 2>&1 | tee /tmp/intervention-toggle-final-tests.txt | tail -50
 ```
 
 Expected: all tests pass.
@@ -1714,7 +1722,7 @@ If everything was already green, skip the commit.
 
 ---
 
-## Task 16: Manual smoke test in Extension Development Host (UAT)
+## Task 15: Manual smoke test in Extension Development Host (UAT)
 
 **Files:** none (manual)
 
@@ -1761,8 +1769,8 @@ This task does not modify code.
 
 ## Done
 
-After Task 16:
-- All 15 functional tasks committed on `feat/intervention-ui-toggle`
+After Task 15:
+- All 14 functional tasks committed on `feat/intervention-ui-toggle`
 - Unit tests green (compile-tests + vscode-test)
 - Type-check + full lint clean
 - Production build succeeds
