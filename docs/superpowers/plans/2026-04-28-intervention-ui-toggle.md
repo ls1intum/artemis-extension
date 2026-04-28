@@ -23,25 +23,27 @@
 | `extension/src/extension/services/telemetry/types.ts` | Modify | Add `InterventionSuppressionReason` and `SuppressedInterventionPayload` |
 | `extension/src/extension/services/telemetry/recording/types.ts` | Modify | Add `'suppressed'` to `InterventionEvent.action`, add `suppressionReason`, add `ConfigurationSnapshotEvent` and `ConfigurationChangeEvent`, update `RecordedEvent` union |
 | `extension/src/extension/services/telemetry/interventionService.ts` | Modify | Extend `hideHint()` to reset `text` / `tooltip` / `backgroundColor` |
-| `extension/src/extension/services/telemetry/telemetryManager.ts` | Modify | Add `_showInterventions` field + `onDidSuppressIntervention` emitter; gate `_evaluateAndIntervene`; load + live-handle setting in `_loadConfiguration`; export `getShowInterventions()` for tests |
-| `extension/src/extension/services/telemetry/recording/sessionRecorder.ts` | Modify | Add `'suppressed'` action to `recordIntervention`; add `recordConfigurationSnapshot` and `recordConfigurationChange` methods |
-| `extension/src/extension/activation/sessionRecorderWiring.ts` | Modify | Subscribe to `onDidSuppressIntervention` → `recordIntervention('suppressed', …)`; add startup contributor for `configurationSnapshot`; subscribe to `vscode.workspace.onDidChangeConfiguration` for the two struggle keys → `recordConfigurationChange` |
+| `extension/src/extension/services/telemetry/telemetryManager.ts` | Modify | Add `_showInterventions` field + `onDidSuppressIntervention` emitter; gate `_evaluateAndIntervene`; load + live-handle setting in `_loadConfiguration` |
+| `extension/src/extension/services/telemetry/recording/sessionRecorder.ts` | Modify | Add `'suppressed'` action to `recordIntervention`; add `recordConfigurationSnapshot` and `recordConfigurationChange` |
+| `extension/src/extension/activation/sessionRecorderWiring.ts` | Modify | Subscribe to `onDidSuppressIntervention`; add startup contributor for `configurationSnapshot`; subscribe to `vscode.workspace.onDidChangeConfiguration` for the two struggle keys → `recordConfigurationChange` |
 | `extension/test/unit/services/telemetry/interventionService.test.ts` | Modify | Add tests for the extended `hideHint()` field-reset behaviour |
 | `extension/test/unit/services/telemetry/telemetryManagerInterventionToggle.test.ts` | **Create** | Toggle on/off paths, event emission, no UI calls, no state advancement, type-guard fallback, live-toggle behaviour |
 | `extension/test/unit/services/telemetry/recording/sessionRecorder.test.ts` | Modify | Add tests for `recordIntervention('suppressed', …)`, `recordConfigurationSnapshot`, `recordConfigurationChange` |
+| `extension/test/unit/activation/sessionRecorderWiring.test.ts` | **Create** | Integration tests: TelemetryManager + SessionRecorder + wiring drive suppression and config-change events end-to-end into the JSONL stream |
 
 ---
 
 ## Conventions & Reminders
 
 - **Branch:** Already created at `feat/intervention-ui-toggle` off `origin/dev` in worktree `~/claudeworktrees/MA-intervention-ui-toggle`.
-- **Run all commands from the worktree root:** `/Users/liamberger/claudeworktrees/MA-intervention-ui-toggle`. Tests live under `extension/`, so most npm commands run from `extension/`.
+- **Run all commands from the worktree root:** `/Users/liamberger/claudeworktrees/MA-intervention-ui-toggle`. Most npm commands run from `extension/`.
+- **NEVER invoke `vscode-test` without `compile-tests` first.** `vscode-test` runs the JS in `out/test/unit/**/*.test.js`. If you forget to compile, you may run *stale* tests (or none at all if the test file is newly created). Every test step in this plan uses the chain `npm run compile-tests && npx vscode-test --label unit --grep "…"`. Do not shortcut.
 - **Test runner:** vscode-test (Mocha) for unit tests under `extension/test/unit/`. Use `suite`/`test`/`setup`/`teardown` (Mocha BDD-not-installed). Assertions: node `assert`. Stubs/spies: `sinon`.
-- **Test file naming:** match the existing convention — see `interventionService.test.ts`, `sessionRecorder.test.ts`.
-- **Commit style:** match recent log on `dev` (Conventional Commits — `feat:`, `test:`, `docs:`, etc.). No Co-Authored-By line. No em dashes in commit messages.
+- **Whitebox access pattern:** Several tests in this plan reach into TS-`private` fields via `(tm as unknown as { _field: T })._field`. This works because TypeScript `private` is compile-time only; the field exists at runtime. If `TelemetryManager` later migrates to ECMAScript `#private` fields or renames `_evaluateAndIntervene`/`_decisionEngine`/`_showInterventions`/`_loadConfiguration`, these tests need updating. Note this in your code review.
+- **Commit style:** Conventional Commits (`feat:`, `test:`, `docs:`, etc.). No Co-Authored-By line. No em dashes anywhere.
 - **Commit cadence:** every task ends with a commit. Stage only the files actually changed; never `git add -A`.
-- **Lint/typecheck:** after edits, run `npm run check-types` and `npm run lint:src` from `extension/`. Final-final step before merging is `npm run compile`.
-- **First-time worktree setup:** before Task 1, run `npm install` inside `extension/` (the worktree has no `node_modules` yet). Verified-clean baseline: run `npm run check-types` and report success before starting.
+- **Lint/typecheck:** after edits, run `npm run check-types`. Final-final integration step uses `npm run lint` (lints both `src` and `test`) and `npm run package`.
+- **First-time worktree setup:** before Task 1, run `npm install` inside `extension/` (the worktree has no `node_modules` yet).
 
 ---
 
@@ -58,25 +60,33 @@ npm install 2>&1 | tee /tmp/intervention-toggle-install.log | tail -20
 
 Expected: install succeeds. If `npm install` fails, abort and report.
 
-- [ ] **Step 2: Verify clean type baseline**
+- [ ] **Step 2: Compile tests**
+
+```bash
+npm run compile-tests 2>&1 | tail -10
+```
+
+Expected: exit 0.
+
+- [ ] **Step 3: Verify clean type baseline**
 
 ```bash
 npm run check-types 2>&1 | tee /tmp/intervention-toggle-baseline-types.txt | tail -10
 ```
 
-Expected: exit 0, no errors. (Worktree starts from `origin/dev`, which should be green.)
+Expected: exit 0.
 
-- [ ] **Step 3: Verify clean unit-test baseline (intervention area only)**
+- [ ] **Step 4: Verify clean unit-test baseline (intervention area)**
 
 ```bash
 npx vscode-test --label unit --grep "InterventionService" 2>&1 | tee /tmp/intervention-toggle-baseline-tests.txt | tail -30
 ```
 
-Expected: existing intervention tests pass. If any fail, report and stop — do not proceed with new work on a red baseline.
+Expected: existing intervention tests pass. If any fail, stop and report — do not proceed on a red baseline.
 
-- [ ] **Step 4: Commit nothing**
+- [ ] **Step 5: Commit nothing**
 
-This task makes no source changes; just confirms environment is ready. Skip commit.
+This task makes no source changes; just confirms environment is ready.
 
 ---
 
@@ -186,7 +196,7 @@ git commit -m "feat(constants): add SHOW_INTERVENTIONS_KEY for new struggle sett
 ## Task 3: Telemetry types — suppression payload
 
 **Files:**
-- Modify: `extension/src/extension/services/telemetry/types.ts` (after the `InterventionDecision` interface, near line 320 — locate by searching for the existing `InterventionBlockedReason` type)
+- Modify: `extension/src/extension/services/telemetry/types.ts` (after the `InterventionDismissReason` type definition near line 277)
 
 - [ ] **Step 1: Add the suppression-reason and payload types**
 
@@ -354,7 +364,7 @@ cd /Users/liamberger/claudeworktrees/MA-intervention-ui-toggle/extension
 npm run check-types 2>&1 | tee /tmp/intervention-toggle-typecheck-task4.txt | tail -30
 ```
 
-Expected: errors in `sessionRecorderWiring.ts` and `sessionRecorder.ts` will surface only after Tasks 5–8 — at this stage only the type definitions changed, so type-check should still pass.
+Expected: pass. (The type definitions changed but no consumer call sites broke yet.)
 
 - [ ] **Step 5: Commit**
 
@@ -371,23 +381,24 @@ Schema-level changes only:
 
 ---
 
-## Task 5: Test — `hideHint()` resets text/tooltip/backgroundColor (TDD)
+## Task 5: Test — `hideHint()` resets text/tooltip/backgroundColor (TDD red)
 
 **Files:**
-- Test: `extension/test/unit/services/telemetry/interventionService.test.ts` (add new `suite` block at the bottom of the file)
+- Modify: `extension/test/unit/services/telemetry/interventionService.test.ts` (add `vscode` import + new `suite` block at the bottom)
 
-- [ ] **Step 1: Locate where the existing tests construct an `InterventionService`**
+- [ ] **Step 1: Add the `vscode` import**
 
-```bash
-cd /Users/liamberger/claudeworktrees/MA-intervention-ui-toggle/extension
-grep -n "new InterventionService\|createStatusBarItem" test/unit/services/telemetry/interventionService.test.ts | head -10
+The existing file imports only `assert`, `sinon`, and telemetry classes. At the top of the file, alongside those imports, add:
+
+```ts
+import * as vscode from 'vscode';
 ```
 
-Note the helper used to instantiate the service and to access the underlying status bar item (the file already stubs `vscode.window.createStatusBarItem`).
+(If the import is already present, skip this sub-step. Verify by grepping `^import \* as vscode` first.)
 
-- [ ] **Step 2: Add the new test suite at the end of `interventionService.test.ts`**
+- [ ] **Step 2: Append the new test suite at the end of the file**
 
-Append the following block after the existing suite, **without modifying** the existing tests:
+After the existing suite closes, append:
 
 ```ts
 suite('InterventionService.hideHint() — full status-bar reset', () => {
@@ -435,13 +446,14 @@ suite('InterventionService.hideHint() — full status-bar reset', () => {
 });
 ```
 
-If the existing test file already has a `setup` that stubs `createStatusBarItem`, reuse that pattern (do not double-stub). If the existing pattern is incompatible, mirror it exactly here so that all tests in the file use the same approach.
+If the existing test file already has a `setup` that stubs `createStatusBarItem`, mirror that exact pattern instead of double-stubbing.
 
-- [ ] **Step 3: Run the new test — expect failure**
+- [ ] **Step 3: Compile tests and run the new test — expect failure**
 
 ```bash
 cd /Users/liamberger/claudeworktrees/MA-intervention-ui-toggle/extension
-npx vscode-test --label unit --grep "hideHint() — full status-bar reset" 2>&1 | tee /tmp/intervention-toggle-task5-fail.txt | tail -20
+npm run compile-tests 2>&1 | tail -5
+npx vscode-test --label unit --grep "hideHint\\(\\) — full status-bar reset" 2>&1 | tee /tmp/intervention-toggle-task5-fail.txt | tail -20
 ```
 
 Expected: test fails because `hideHint()` does not currently reset `text` / `tooltip` / `backgroundColor`.
@@ -455,7 +467,7 @@ git commit -m "test(intervention): add failing test for hideHint full reset"
 
 ---
 
-## Task 6: Implement `hideHint()` reset
+## Task 6: Implement `hideHint()` reset (TDD green)
 
 **Files:**
 - Modify: `extension/src/extension/services/telemetry/interventionService.ts:254-261`
@@ -491,22 +503,23 @@ public hideHint(): void {
 }
 ```
 
-- [ ] **Step 2: Run the new test — expect pass**
+- [ ] **Step 2: Compile tests and run the new test — expect pass**
 
 ```bash
 cd /Users/liamberger/claudeworktrees/MA-intervention-ui-toggle/extension
-npx vscode-test --label unit --grep "hideHint() — full status-bar reset" 2>&1 | tail -15
+npm run compile-tests 2>&1 | tail -5
+npx vscode-test --label unit --grep "hideHint\\(\\) — full status-bar reset" 2>&1 | tail -15
 ```
 
 Expected: pass.
 
-- [ ] **Step 3: Run the full `InterventionService` suite — expect pass**
+- [ ] **Step 3: Run the full `InterventionService` suite — expect no regression**
 
 ```bash
 npx vscode-test --label unit --grep "InterventionService" 2>&1 | tail -20
 ```
 
-Expected: all existing intervention-service tests still pass (no regressions).
+Expected: all existing intervention-service tests still pass.
 
 - [ ] **Step 4: Commit**
 
@@ -516,19 +529,19 @@ git commit -m "feat(intervention): clear text/tooltip/backgroundColor in hideHin
 
 Prevents stale labels and warning-coloured backgrounds from bleeding
 through if the status bar item is later shown for an unrelated reason.
-Required precondition for the live UI-toggle off→hide path."
+Required precondition for the live UI-toggle off->hide path."
 ```
 
 ---
 
-## Task 7: TelemetryManager — toggle field, emitter, getter (foundational, no behaviour change yet)
+## Task 7: TelemetryManager — toggle field + emitter (foundational)
 
 **Files:**
-- Modify: `extension/src/extension/services/telemetry/telemetryManager.ts` (around lines 1-25 for imports, 55-90 for fields/getters, 442-465 for `_loadConfiguration`)
+- Modify: `extension/src/extension/services/telemetry/telemetryManager.ts` (imports near line 2; field block near line 57; getters near line 90; `dispose()` near line 162)
 
-- [ ] **Step 1: Add the type import**
+- [ ] **Step 1: Extend the type import**
 
-Open `telemetryManager.ts`. The existing type import (line 2) already pulls from `./types`. Append `SuppressedInterventionPayload` to the imported names:
+Open `telemetryManager.ts`. The existing import from `./types` (line 2) currently lists `StruggleContext, TriggerType, EQConfidence, EQState, RecommendedAction`. Replace with:
 
 ```ts
 import {
@@ -541,32 +554,24 @@ import {
 } from './types';
 ```
 
-- [ ] **Step 2: Add the new field, emitter, and event accessor**
+- [ ] **Step 2: Add the new field next to `_isEnabled`**
 
-Find the existing field block ending with `_debugMode: boolean = false;` (around line 63). Just below the existing intervention-event accessors (i.e. after `onDidBlockIntervention` getter at line 90), add:
+Around line 57, immediately after `private _isEnabled: boolean = true;`, add:
+
+```ts
+private _showInterventions: boolean = true;
+```
+
+- [ ] **Step 3: Add the suppression event emitter and accessor**
+
+Just below the existing `onDidBlockIntervention` getter (around line 90), add:
 
 ```ts
 private readonly _onDidSuppressIntervention = new vscode.EventEmitter<SuppressedInterventionPayload>();
 public readonly onDidSuppressIntervention = this._onDidSuppressIntervention.event;
 ```
 
-Add a new private field next to `_isEnabled` (around line 57):
-
-```ts
-private _showInterventions: boolean = true;
-```
-
-In `dispose()` (around line 162), append `this._onDidSuppressIntervention.dispose();` to the disposal list (model after the existing `_onDidCalculateEQ.dispose()` if present, or add it next to other disposable emitters).
-
-- [ ] **Step 3: Add a public read-accessor for tests**
-
-Below `public isEnabled(): boolean { return this._isEnabled; }` (around line 436), add:
-
-```ts
-public getShowInterventions(): boolean {
-    return this._showInterventions;
-}
-```
+Inside `dispose()` (around line 162-180), find the existing emitter-disposal block (look for `this._onDidCalculateEQ.dispose();`) and add `this._onDidSuppressIntervention.dispose();` right after it. If `_onDidCalculateEQ.dispose()` is not present in `dispose()`, dispose the new emitter at the end of the method, before the `_log('TelemetryManager disposed')` call.
 
 - [ ] **Step 4: Type-check**
 
@@ -575,7 +580,7 @@ cd /Users/liamberger/claudeworktrees/MA-intervention-ui-toggle/extension
 npm run check-types 2>&1 | tail -10
 ```
 
-Expected: pass. (The new emitter is wired but not yet fired — behaviour unchanged.)
+Expected: pass. (Emitter declared but never fired — behaviour unchanged.)
 
 - [ ] **Step 5: Commit**
 
@@ -589,7 +594,7 @@ fired; setting not yet read. Behaviour unchanged."
 
 ---
 
-## Task 8: Test — toggle off → suppression event fires, no UI calls (TDD, red)
+## Task 8: Test — TelemetryManager toggle behaviour (TDD red)
 
 **Files:**
 - Create: `extension/test/unit/services/telemetry/telemetryManagerInterventionToggle.test.ts`
@@ -603,14 +608,16 @@ Create `extension/test/unit/services/telemetry/telemetryManagerInterventionToggl
  * Unit tests for the artemis.struggleDetection.showInterventions toggle.
  *
  * Covers:
- *  T1. Toggle off → onDidSuppressIntervention fires once with original decision (shouldIntervene=true preserved).
- *  T2. Toggle off → no calls to vscode.window.showInformationMessage / showWarningMessage / statusBarItem.show().
- *  T3. Toggle off → no UI-delivery state advancement (lastInterventionTime=0, sessionInterventionCount=0).
+ *  T1. Toggle off → onDidSuppressIntervention fires once (decision unchanged);
+ *      onDidShowIntervention and onDidBlockIntervention do NOT fire.
+ *  T2. Toggle off → no calls to vscode.window.show*Message or statusBarItem.show.
+ *  T3. Toggle off → UI-delivery state does not advance.
  *  T4. Toggle off → suppression events are NOT rate-limited.
- *  T5. Toggle on (default) → existing show path still fires; no suppression event.
- *  T6. Live-toggle on→off with subtle hint visible → hideHint called; dismiss event with reason 'hidden' fires.
- *  T7. Live-toggle off→on → no spurious events.
- *  T8. Setting type guard: non-boolean value falls back to true.
+ *  T5. Toggle off → onDidCalculateEQ still fires.
+ *  T6. Toggle on (default) → existing show path runs; no suppression event.
+ *  T7. Live-toggle on→off with subtle visible → hideHint called; dismiss reason 'hidden'.
+ *  T8. Live-toggle off→on → no spurious events.
+ *  T9. Setting type guard: non-boolean falls back to true.
  */
 
 import * as assert from 'assert';
@@ -657,12 +664,14 @@ function stubGetConfiguration(values: ConfigStubValues): sinon.SinonStub {
  * Drive a synthetic eligible decision through TelemetryManager._evaluateAndIntervene.
  * Uses a controlled private accessor since _evaluateAndIntervene is private and
  * trigger-emitter wiring would couple this test to unrelated subsystems.
+ *
+ * Whitebox brittleness: depends on private field/method names
+ * `_decisionEngine` and `_evaluateAndIntervene`.
  */
 function driveEligibleDecision(
     tm: TelemetryManager,
     overrides: Partial<InterventionDecision> = {},
 ): void {
-    // Cast to expose the private method specifically for whitebox testing.
     type Internal = {
         _evaluateAndIntervene(triggerType: 'execution-error' | 'multiline-paste' | 'idle' | 'selection-maintained'): void;
         _decisionEngine: { evaluate: (...args: unknown[]) => InterventionDecision };
@@ -685,7 +694,7 @@ function driveEligibleDecision(
 }
 
 suite('TelemetryManager — intervention UI toggle', () => {
-    let getConfigStub: sinon.SinonStub;
+    let getConfigStub: sinon.SinonStub | undefined;
     let showInfoStub: sinon.SinonStub;
     let showWarnStub: sinon.SinonStub;
     let createStatusBarStub: sinon.SinonStub;
@@ -708,23 +717,30 @@ suite('TelemetryManager — intervention UI toggle', () => {
 
     teardown(() => {
         getConfigStub?.restore();
+        getConfigStub = undefined;
         showInfoStub.restore();
         showWarnStub.restore();
         createStatusBarStub.restore();
     });
 
-    test('T1: toggle off → suppression event fires with shouldIntervene=true preserved', () => {
+    test('T1: toggle off → suppression event fires; no show/block events', () => {
         getConfigStub = stubGetConfiguration({ showInterventions: false });
         const tm = new TelemetryManager();
-        const captured: SuppressedInterventionPayload[] = [];
-        tm.onDidSuppressIntervention(payload => captured.push(payload));
+        const suppressed: SuppressedInterventionPayload[] = [];
+        const shown: InterventionDecision[] = [];
+        const blocked: unknown[] = [];
+        tm.onDidSuppressIntervention(payload => suppressed.push(payload));
+        tm.onDidShowIntervention(d => shown.push(d));
+        tm.onDidBlockIntervention(p => blocked.push(p));
 
         driveEligibleDecision(tm, { level: 'subtle' });
 
-        assert.strictEqual(captured.length, 1);
-        assert.strictEqual(captured[0].reason, 'user-disabled');
-        assert.strictEqual(captured[0].decision.shouldIntervene, true);
-        assert.strictEqual(captured[0].decision.level, 'subtle');
+        assert.strictEqual(suppressed.length, 1, 'expected exactly one suppression event');
+        assert.strictEqual(suppressed[0].reason, 'user-disabled');
+        assert.strictEqual(suppressed[0].decision.shouldIntervene, true, 'decision.shouldIntervene must be preserved as true');
+        assert.strictEqual(suppressed[0].decision.level, 'subtle');
+        assert.strictEqual(shown.length, 0, 'onDidShowIntervention must not fire when suppressed');
+        assert.strictEqual(blocked.length, 0, 'onDidBlockIntervention must not fire when suppressed');
         tm.dispose();
     });
 
@@ -750,7 +766,6 @@ suite('TelemetryManager — intervention UI toggle', () => {
             driveEligibleDecision(tm, { level: 'notification' });
         }
 
-        // Whitebox: read intervention service state via the public getter chain.
         const internal = tm as unknown as { _interventionService: { getState(): { lastInterventionTime: number; sessionInterventionCount: number; lastDismissed: boolean; lastAccepted: boolean } } };
         const state = internal._interventionService.getState();
         assert.strictEqual(state.lastInterventionTime, 0, 'lastInterventionTime advanced');
@@ -774,7 +789,19 @@ suite('TelemetryManager — intervention UI toggle', () => {
         tm.dispose();
     });
 
-    test('T5: toggle on (default) → no suppression event; show path runs', () => {
+    test('T5: toggle off → onDidCalculateEQ still fires for the trigger', () => {
+        getConfigStub = stubGetConfiguration({ showInterventions: false });
+        const tm = new TelemetryManager();
+        const eqEvents: unknown[] = [];
+        tm.onDidCalculateEQ(e => eqEvents.push(e));
+
+        driveEligibleDecision(tm, { level: 'subtle' });
+
+        assert.strictEqual(eqEvents.length >= 1, true, 'onDidCalculateEQ must fire for trigger evaluation even when UI suppressed');
+        tm.dispose();
+    });
+
+    test('T6: toggle on (default) → no suppression event; show path runs', () => {
         getConfigStub = stubGetConfiguration({ showInterventions: true });
         const tm = new TelemetryManager();
         const captured: SuppressedInterventionPayload[] = [];
@@ -787,7 +814,7 @@ suite('TelemetryManager — intervention UI toggle', () => {
         tm.dispose();
     });
 
-    test('T6: live-toggle on→off with subtle visible → hideHint called; dismiss reason hidden', () => {
+    test('T7: live-toggle on→off with subtle visible → hideHint called; dismiss reason hidden', () => {
         getConfigStub = stubGetConfiguration({ showInterventions: true });
         const tm = new TelemetryManager();
 
@@ -795,10 +822,10 @@ suite('TelemetryManager — intervention UI toggle', () => {
         const dismissals: Array<{ dismissReason: string }> = [];
         tm.onDidDismissIntervention(payload => dismissals.push(payload));
 
-        // Flip the stubbed config, then re-trigger config loading directly.
-        // We invoke _loadConfiguration() instead of firing a fake
-        // onDidChangeConfiguration event because TelemetryManager re-runs
-        // _loadConfiguration unconditionally on any matching event — calling
+        // Flip the stubbed config, then re-trigger configuration loading.
+        // We invoke _loadConfiguration directly (whitebox) instead of firing a
+        // fake ConfigurationChangeEvent: TelemetryManager re-runs
+        // _loadConfiguration unconditionally on a matching event, so calling
         // it directly is equivalent and avoids brittle event mocking.
         getConfigStub.restore();
         getConfigStub = stubGetConfiguration({ showInterventions: false });
@@ -810,7 +837,7 @@ suite('TelemetryManager — intervention UI toggle', () => {
         tm.dispose();
     });
 
-    test('T7: live-toggle off→on → no spurious events', () => {
+    test('T8: live-toggle off→on → no spurious events', () => {
         getConfigStub = stubGetConfiguration({ showInterventions: false });
         const tm = new TelemetryManager();
         const suppressed: SuppressedInterventionPayload[] = [];
@@ -827,24 +854,26 @@ suite('TelemetryManager — intervention UI toggle', () => {
         tm.dispose();
     });
 
-    test('T8: type guard — non-boolean setting falls back to true', () => {
+    test('T9: type guard — non-boolean setting falls back to true', () => {
         getConfigStub = stubGetConfiguration({ showInterventions: 'not-a-boolean' });
         const tm = new TelemetryManager();
 
-        assert.strictEqual(tm.getShowInterventions(), true);
+        const internal = tm as unknown as { _showInterventions: boolean };
+        assert.strictEqual(internal._showInterventions, true);
         tm.dispose();
     });
 });
 ```
 
-- [ ] **Step 2: Run the new tests — expect failure**
+- [ ] **Step 2: Compile tests and run the new tests — expect failure**
 
 ```bash
 cd /Users/liamberger/claudeworktrees/MA-intervention-ui-toggle/extension
-npx vscode-test --label unit --grep "intervention UI toggle" 2>&1 | tee /tmp/intervention-toggle-task8-fail.txt | tail -60
+npm run compile-tests 2>&1 | tail -5
+npx vscode-test --label unit --grep "intervention UI toggle" 2>&1 | tee /tmp/intervention-toggle-task8-fail.txt | tail -80
 ```
 
-Expected: every test fails (gate not implemented yet). T5 may pass; that is fine.
+Expected: every gate-dependent test (T1, T2, T3, T4, T7, T9) fails because the gate is not implemented yet. T5, T6, T8 may already pass; that is fine.
 
 - [ ] **Step 3: Commit (red tests)**
 
@@ -852,17 +881,18 @@ Expected: every test fails (gate not implemented yet). T5 may pass; that is fine
 git add extension/test/unit/services/telemetry/telemetryManagerInterventionToggle.test.ts
 git commit -m "test(telemetry): add failing tests for intervention UI toggle
 
-Covers suppression event semantics, no UI calls, no state advancement,
-non-rate-limited emission, live-toggle transitions, and type guard."
+Covers suppression-event semantics with no show/block emission, no UI
+calls, no state advancement, non-rate-limited emission, EQ event
+preservation, live-toggle transitions, and type guard."
 ```
 
 ---
 
-## Task 9: TelemetryManager — implement the gate + setting load
+## Task 9: TelemetryManager — implement the gate (TDD green)
 
 **Files:**
 - Modify: `extension/src/extension/services/telemetry/telemetryManager.ts:377-412` (`_evaluateAndIntervene`)
-- Modify: `extension/src/extension/services/telemetry/telemetryManager.ts:442-465` (`_loadConfiguration`)
+- Modify: `extension/src/extension/services/telemetry/telemetryManager.ts:442-466` (`_loadConfiguration`)
 
 - [ ] **Step 1: Replace the entire `_loadConfiguration` method**
 
@@ -893,7 +923,7 @@ private _loadConfiguration(): void {
         this._log('Struggle detection enabled');
     }
 
-    // Live transition on→off for the UI toggle: clear any visible hint so a
+    // Live transition on->off for the UI toggle: clear any visible hint so a
     // status-bar lightbulb / coloured remnant disappears immediately. We do
     // NOT log on every load (only on transitions) to avoid noise.
     if (previousShowInterventions && !this._showInterventions) {
@@ -974,16 +1004,17 @@ if (decision.shouldIntervene) {
 }
 ```
 
-- [ ] **Step 3: Run the toggle tests — expect pass**
+- [ ] **Step 3: Compile tests and run the toggle suite — expect pass**
 
 ```bash
 cd /Users/liamberger/claudeworktrees/MA-intervention-ui-toggle/extension
+npm run compile-tests 2>&1 | tail -5
 npx vscode-test --label unit --grep "intervention UI toggle" 2>&1 | tee /tmp/intervention-toggle-task9-pass.txt | tail -40
 ```
 
-Expected: all 8 tests pass. If any fail, inspect output and adjust the implementation (do **not** change the test assertions).
+Expected: all 9 tests (T1–T9) pass. If any fail, inspect the output and adjust the implementation. Do **not** modify the test assertions.
 
-- [ ] **Step 4: Run the broader telemetry suite — expect pass**
+- [ ] **Step 4: Run the broader telemetry suite — expect no regressions**
 
 ```bash
 npx vscode-test --label unit --grep "TelemetryManager|InterventionService" 2>&1 | tail -30
@@ -1005,12 +1036,105 @@ hideHint() so any visible status-bar hint disappears immediately."
 
 ---
 
-## Task 10: Recording — `recordIntervention('suppressed', …)` support
+## Task 10: Test — sessionRecorder for `'suppressed'` and config events (TDD red)
+
+**Files:**
+- Modify: `extension/test/unit/services/telemetry/recording/sessionRecorder.test.ts` (append at end)
+
+- [ ] **Step 1: Append the new test suite using the existing harness helpers**
+
+The file already exposes a `makeRecorder()` factory and a `collectWrittenEvents(fakeFs)` helper that returns parsed `RecordedEvent[]` from a `FakeFs`. Append the following suite at the very bottom of `sessionRecorder.test.ts` (after the last existing `suite(...)` closes):
+
+```ts
+suite('SessionRecorder — intervention suppression and configuration provenance', () => {
+    test('recordIntervention with suppressed action persists suppressionReason', async () => {
+        const { recorder, fs } = makeRecorder();
+        recorder.enable();
+        await recorder.startSession(42);
+        recorder.recordIntervention(
+            'suppressed', 'notification', true, 0.55, 'sufficient', 'execution-error',
+            { suppressionReason: 'user-disabled', rawWanted: true },
+        );
+        await recorder.endSession();
+        const events = collectWrittenEvents(fs);
+        const intervention = events.find(e => e.type === 'intervention') as InterventionEvent | undefined;
+        assert.ok(intervention, 'intervention event missing');
+        assert.strictEqual(intervention!.action, 'suppressed');
+        assert.strictEqual(intervention!.shouldIntervene, true);
+        assert.strictEqual(intervention!.suppressionReason, 'user-disabled');
+        assert.strictEqual(intervention!.rawWanted, true);
+        assert.strictEqual(intervention!.level, 'notification');
+        assert.strictEqual(intervention!.triggerType, 'execution-error');
+        try { await recorder.dispose(); } catch { /* ignore */ }
+    });
+
+    test('recordConfigurationSnapshot persists both keys', async () => {
+        const { recorder, fs } = makeRecorder();
+        recorder.enable();
+        await recorder.startSession(42);
+        recorder.recordConfigurationSnapshot(true, false);
+        await recorder.endSession();
+        const events = collectWrittenEvents(fs);
+        const snap = events.find(e => e.type === 'configurationSnapshot') as ConfigurationSnapshotEvent | undefined;
+        assert.ok(snap, 'configurationSnapshot missing');
+        assert.strictEqual(snap!.struggleDetectionEnabled, true);
+        assert.strictEqual(snap!.showInterventions, false);
+        try { await recorder.dispose(); } catch { /* ignore */ }
+    });
+
+    test('recordConfigurationChange persists only the changed key', async () => {
+        const { recorder, fs } = makeRecorder();
+        recorder.enable();
+        await recorder.startSession(42);
+        recorder.recordConfigurationChange({ showInterventions: false });
+        await recorder.endSession();
+        const events = collectWrittenEvents(fs);
+        const change = events.find(e => e.type === 'configurationChange') as ConfigurationChangeEvent | undefined;
+        assert.ok(change, 'configurationChange missing');
+        assert.deepStrictEqual(change!.changes, { showInterventions: false });
+        try { await recorder.dispose(); } catch { /* ignore */ }
+    });
+});
+```
+
+If `InterventionEvent`, `ConfigurationSnapshotEvent`, or `ConfigurationChangeEvent` are not yet imported in this test file, add them to the existing `import type { … }` line at the top:
+
+```ts
+import type {
+    RecordedEvent,
+    InterventionEvent,
+    ConfigurationSnapshotEvent,
+    ConfigurationChangeEvent,
+} from '../../../../../src/extension/services/telemetry/recording/types';
+```
+
+(The path mirrors the existing `RecordedEvent` import in this file.)
+
+- [ ] **Step 2: Compile tests and run — expect failure**
+
+```bash
+cd /Users/liamberger/claudeworktrees/MA-intervention-ui-toggle/extension
+npm run compile-tests 2>&1 | tail -5
+npx vscode-test --label unit --grep "SessionRecorder — intervention suppression" 2>&1 | tee /tmp/intervention-toggle-task10-fail.txt | tail -40
+```
+
+Expected behaviour: `compile-tests` may itself fail — `recordIntervention('suppressed', ...)` does not type-check yet, and `recordConfigurationSnapshot` / `recordConfigurationChange` do not exist. **Either** of these counts as "red". If `compile-tests` succeeds but tests fail at runtime, that is also red. Capture the output and proceed to Task 11.
+
+- [ ] **Step 3: Commit (red tests)**
+
+```bash
+git add extension/test/unit/services/telemetry/recording/sessionRecorder.test.ts
+git commit -m "test(recording): add failing tests for suppressed action and config events"
+```
+
+---
+
+## Task 11: SessionRecorder — `'suppressed'` action support (TDD green for first test)
 
 **Files:**
 - Modify: `extension/src/extension/services/telemetry/recording/sessionRecorder.ts:300-329`
 
-- [ ] **Step 1: Widen the `action` parameter and accept `suppressionReason`**
+- [ ] **Step 1: Widen `recordIntervention` to accept the new action and reason**
 
 Replace the existing `recordIntervention` method:
 
@@ -1084,11 +1208,12 @@ recordIntervention(
 }
 ```
 
-- [ ] **Step 2: Type-check**
+- [ ] **Step 2: Compile tests; first test should now pass**
 
 ```bash
 cd /Users/liamberger/claudeworktrees/MA-intervention-ui-toggle/extension
-npm run check-types 2>&1 | tail -10
+npm run compile-tests 2>&1 | tail -5
+npx vscode-test --label unit --grep "recordIntervention with suppressed action" 2>&1 | tail -15
 ```
 
 Expected: pass.
@@ -1102,14 +1227,14 @@ git commit -m "feat(recording): support 'suppressed' intervention action and rea
 
 ---
 
-## Task 11: Recording — `recordConfigurationSnapshot` and `recordConfigurationChange`
+## Task 12: SessionRecorder — config snapshot/change methods (TDD green for remaining tests)
 
 **Files:**
-- Modify: `extension/src/extension/services/telemetry/recording/sessionRecorder.ts` (add new methods near other `record*` methods, around line 350)
+- Modify: `extension/src/extension/services/telemetry/recording/sessionRecorder.ts` (insert near other `record*` methods, around line 350 after `recordPanelVisibility`)
 
 - [ ] **Step 1: Add the two new methods**
 
-Insert after `recordPanelVisibility` (around line 350):
+Insert after `recordPanelVisibility`:
 
 ```ts
 recordConfigurationSnapshot(struggleDetectionEnabled: boolean, showInterventions: boolean): void {
@@ -1139,14 +1264,21 @@ recordConfigurationChange(changes: {
 }
 ```
 
-- [ ] **Step 2: Type-check**
+- [ ] **Step 2: Compile tests and run the recording suite — expect pass**
 
 ```bash
 cd /Users/liamberger/claudeworktrees/MA-intervention-ui-toggle/extension
-npm run check-types 2>&1 | tail -10
+npm run compile-tests 2>&1 | tail -5
+npx vscode-test --label unit --grep "SessionRecorder — intervention suppression" 2>&1 | tail -30
 ```
 
-Expected: pass.
+Expected: all three tests in the new suite pass. Then check no regressions in the broader suite:
+
+```bash
+npx vscode-test --label unit --grep "SessionRecorder" 2>&1 | tail -30
+```
+
+Expected: no regressions.
 
 - [ ] **Step 3: Commit**
 
@@ -1157,7 +1289,263 @@ git commit -m "feat(recording): add configuration snapshot and change recorders"
 
 ---
 
-## Task 12: Recording wiring — subscribe to suppression and config-change
+## Task 13: Test — wiring integration (TDD red)
+
+**Files:**
+- Create: `extension/test/unit/activation/sessionRecorderWiring.test.ts`
+
+This task creates the first test file under `extension/test/unit/activation/`. The directory does not yet exist; `compile-tests` and `vscode-test` accept additional sub-directories under `test/unit/` automatically (the `.vscode-test.mjs` glob is `out/test/unit/**/*.test.js`).
+
+- [ ] **Step 1: Create the new wiring test file**
+
+Create `extension/test/unit/activation/sessionRecorderWiring.test.ts` with this content:
+
+```ts
+/**
+ * Integration tests for sessionRecorderWiring.
+ *
+ * Constructs a real TelemetryManager + SessionRecorder, calls wireSessionRecorder,
+ * drives suppression/config-change events, and asserts they reach the JSONL
+ * stream via the FakeFs.
+ *
+ * Whitebox brittleness note: stubs `vscode.workspace.onDidChangeConfiguration`
+ * to capture and synchronously invoke the listener that wiring registers.
+ */
+
+import * as assert from 'assert';
+import * as sinon from 'sinon';
+import * as vscode from 'vscode';
+import { TelemetryManager } from '../../../src/extension/services/telemetry/telemetryManager';
+import { SessionRecorder } from '../../../src/extension/services/telemetry/recording/sessionRecorder';
+import { RecordingStorageWriter, type RecordingFs } from '../../../src/extension/services/telemetry/recording/storageWriter';
+import { wireSessionRecorder } from '../../../src/extension/activation/sessionRecorderWiring';
+import type { RecordedEvent, InterventionEvent, ConfigurationSnapshotEvent, ConfigurationChangeEvent } from '../../../src/extension/services/telemetry/recording/types';
+import type { ConsentService } from '../../../src/extension/services/auth';
+import type { ArtemisWebsocketService } from '../../../src/extension/services/websocket';
+import type { ArtemisWebviewProvider, ChatWebviewProvider } from '../../../src/extension/provider';
+import type { InterventionDecision } from '../../../src/extension/services/telemetry/types';
+
+class FakeFs implements RecordingFs {
+    appendedChunks: string[] = [];
+    writtenFiles: { path: string; data: string }[] = [];
+    syncChunks: string[] = [];
+    mkdir(): Promise<string | undefined> { return Promise.resolve(undefined); }
+    writeFile(p: string, data: string): Promise<void> { this.writtenFiles.push({ path: p, data }); return Promise.resolve(); }
+    appendFile(_p: string, data: string): Promise<void> { this.appendedChunks.push(data); return Promise.resolve(); }
+    rm(): Promise<void> { return Promise.resolve(); }
+    appendFileSync(_p: string, data: string): void { this.syncChunks.push(data); }
+}
+
+function collectWrittenEvents(fs: FakeFs): RecordedEvent[] {
+    const events: RecordedEvent[] = [];
+    for (const chunk of [...fs.appendedChunks, ...fs.syncChunks]) {
+        for (const line of chunk.split('\n').filter(Boolean)) {
+            try { events.push(JSON.parse(line) as RecordedEvent); } catch { /* skip */ }
+        }
+    }
+    return events;
+}
+
+/** Stub the minimum of ConsentService that wireSessionRecorder reads. */
+function stubConsent(extended: boolean): ConsentService {
+    const onConsentChanged = new vscode.EventEmitter<'pending' | 'declined' | 'basic' | 'extended'>();
+    return {
+        get isExtendedCollectionEnabled() { return extended; },
+        onConsentChanged: onConsentChanged.event,
+    } as unknown as ConsentService;
+}
+
+/** Stub WebSocket service — wireSessionRecorder only registers/unregisters handlers. */
+function stubWebsocket(): ArtemisWebsocketService {
+    return {
+        registerMessageHandler: sinon.stub(),
+        unregisterMessageHandler: sinon.stub(),
+    } as unknown as ArtemisWebsocketService;
+}
+
+function stubWebviewProvider(): ArtemisWebviewProvider {
+    const onDidChangeViewNavigation = new vscode.EventEmitter<{ from: string; to: string }>();
+    const onDidChangePanelVisibility = new vscode.EventEmitter<boolean>();
+    return {
+        getCurrentVisibility: () => false,
+        onDidChangeViewNavigation: onDidChangeViewNavigation.event,
+        onDidChangePanelVisibility: onDidChangePanelVisibility.event,
+    } as unknown as ArtemisWebviewProvider;
+}
+
+function stubChatProvider(): ChatWebviewProvider {
+    const onDidSendIrisChatMessage = new vscode.EventEmitter<string>();
+    const onDidAttemptIrisChatSend = new vscode.EventEmitter<{ content: string; status: 'pending' | 'sent' | 'failed'; errorMessage?: string }>();
+    const onDidProvideIrisChatFeedback = new vscode.EventEmitter<{ messageId: string; helpful: boolean }>();
+    const onDidChangePanelVisibility = new vscode.EventEmitter<boolean>();
+    const onDidReceiveIrisChatMessage = new vscode.EventEmitter<{ content: string; messageId?: string; sessionId?: string; sentAt?: number }>();
+    return {
+        getCurrentVisibility: () => false,
+        getSelectedExerciseId: () => 42,
+        onDidSendIrisChatMessage: onDidSendIrisChatMessage.event,
+        onDidAttemptIrisChatSend: onDidAttemptIrisChatSend.event,
+        onDidProvideIrisChatFeedback: onDidProvideIrisChatFeedback.event,
+        onDidChangePanelVisibility: onDidChangePanelVisibility.event,
+        websocketMessageHandler: { onDidReceiveIrisChatMessage: onDidReceiveIrisChatMessage.event },
+    } as unknown as ChatWebviewProvider;
+}
+
+function makeWiringHarness(): {
+    telemetryManager: TelemetryManager;
+    recorder: SessionRecorder;
+    fs: FakeFs;
+    capturedConfigListener: ((e: vscode.ConfigurationChangeEvent) => void) | undefined;
+    onDidChangeConfigStub: sinon.SinonStub;
+    dispose: () => Promise<void>;
+} {
+    const fs = new FakeFs();
+    const writer = new RecordingStorageWriter('/fake-base', fs, 'test-version');
+    const fakeUri = vscode.Uri.file('/fake-base');
+    const recorder = new SessionRecorder(fakeUri, undefined, undefined, writer);
+    const telemetryManager = new TelemetryManager();
+    let capturedConfigListener: ((e: vscode.ConfigurationChangeEvent) => void) | undefined;
+    const onDidChangeConfigStub = sinon.stub(vscode.workspace, 'onDidChangeConfiguration').callsFake((listener: (e: vscode.ConfigurationChangeEvent) => void) => {
+        capturedConfigListener = listener;
+        return new vscode.Disposable(() => { /* noop */ });
+    });
+    const ctx = { globalStorageUri: fakeUri, subscriptions: [] } as unknown as vscode.ExtensionContext;
+    const wiring = wireSessionRecorder({
+        context: ctx,
+        consentService: stubConsent(true),
+        artemisWebsocketService: stubWebsocket(),
+        telemetryManager,
+        artemisWebviewProvider: stubWebviewProvider(),
+        chatWebviewProvider: stubChatProvider(),
+        capabilities: undefined,
+        exerciseRegistry: undefined,
+    });
+    return {
+        telemetryManager,
+        recorder: wiring.sessionRecorder,
+        fs,
+        get capturedConfigListener() { return capturedConfigListener; },
+        onDidChangeConfigStub,
+        dispose: async () => {
+            wiring.disposable.dispose();
+            try { await wiring.sessionRecorder.dispose(); } catch { /* ignore */ }
+            telemetryManager.dispose();
+            onDidChangeConfigStub.restore();
+        },
+    };
+}
+
+suite('sessionRecorderWiring — suppression and configuration provenance', () => {
+    test('suppression event is recorded as action=suppressed', async () => {
+        const harness = makeWiringHarness();
+        try {
+            await harness.recorder.startSession(42);
+            // Drive a suppression event from the TelemetryManager side.
+            const decision: InterventionDecision = {
+                rawWanted: true,
+                shouldIntervene: true,
+                level: 'notification',
+                triggerType: 'execution-error',
+                eq: 0.55,
+                confidence: 'sufficient',
+            };
+            (harness.telemetryManager as unknown as { _onDidSuppressIntervention: vscode.EventEmitter<{ decision: InterventionDecision; reason: 'user-disabled' }> })
+                ._onDidSuppressIntervention.fire({ decision, reason: 'user-disabled' });
+            await harness.recorder.endSession();
+
+            const events = collectWrittenEvents(harness.fs);
+            const intervention = events.find(e => e.type === 'intervention') as InterventionEvent | undefined;
+            assert.ok(intervention, 'intervention event missing');
+            assert.strictEqual(intervention!.action, 'suppressed');
+            assert.strictEqual(intervention!.suppressionReason, 'user-disabled');
+            assert.strictEqual(intervention!.shouldIntervene, true);
+        } finally {
+            await harness.dispose();
+        }
+    });
+
+    test('configurationSnapshot is emitted at startup', async () => {
+        const harness = makeWiringHarness();
+        try {
+            await harness.recorder.startSession(42);
+            await harness.recorder.endSession();
+
+            const events = collectWrittenEvents(harness.fs);
+            const snap = events.find(e => e.type === 'configurationSnapshot') as ConfigurationSnapshotEvent | undefined;
+            assert.ok(snap, 'configurationSnapshot missing — startup contributor not registered?');
+            assert.strictEqual(typeof snap!.struggleDetectionEnabled, 'boolean');
+            assert.strictEqual(typeof snap!.showInterventions, 'boolean');
+        } finally {
+            await harness.dispose();
+        }
+    });
+
+    test('configurationChange is recorded when the listener fires', async () => {
+        const harness = makeWiringHarness();
+        try {
+            await harness.recorder.startSession(42);
+            assert.ok(harness.capturedConfigListener, 'wireSessionRecorder did not register an onDidChangeConfiguration listener');
+
+            // Stub workspace.getConfiguration to return values that DIFFER from what
+            // the listener cached at wiring time, so a change is detected.
+            const originalGet = vscode.workspace.getConfiguration;
+            const cfgStub = sinon.stub(vscode.workspace, 'getConfiguration').callsFake((section?: string) => {
+                const real = originalGet.call(vscode.workspace, section);
+                return {
+                    ...real,
+                    get: <T>(key: string, def?: T): T => {
+                        if (section === 'artemis.struggleDetection' && key === 'showInterventions') {
+                            return false as unknown as T;
+                        }
+                        if (section === 'artemis.struggleDetection' && key === 'enabled') {
+                            return true as unknown as T;
+                        }
+                        return def as T;
+                    },
+                    inspect: real.inspect.bind(real),
+                    update: real.update.bind(real),
+                    has: real.has.bind(real),
+                } as unknown as vscode.WorkspaceConfiguration;
+            });
+            try {
+                harness.capturedConfigListener!({
+                    affectsConfiguration: (k: string) => k === 'artemis.struggleDetection',
+                } as vscode.ConfigurationChangeEvent);
+            } finally {
+                cfgStub.restore();
+            }
+            await harness.recorder.endSession();
+
+            const events = collectWrittenEvents(harness.fs);
+            const change = events.find(e => e.type === 'configurationChange') as ConfigurationChangeEvent | undefined;
+            assert.ok(change, 'configurationChange missing');
+            assert.deepStrictEqual(change!.changes, { showInterventions: false });
+        } finally {
+            await harness.dispose();
+        }
+    });
+});
+```
+
+- [ ] **Step 2: Compile tests and run — expect failure**
+
+```bash
+cd /Users/liamberger/claudeworktrees/MA-intervention-ui-toggle/extension
+npm run compile-tests 2>&1 | tail -5
+npx vscode-test --label unit --grep "sessionRecorderWiring — suppression" 2>&1 | tee /tmp/intervention-toggle-task13-fail.txt | tail -40
+```
+
+Expected: tests fail. Either compile fails (because `_onDidSuppressIntervention` not yet emitted in wiring, or wiring does not subscribe / register a config listener), or runtime fails because no `intervention`/`configurationSnapshot`/`configurationChange` event reaches the JSONL.
+
+- [ ] **Step 3: Commit (red tests)**
+
+```bash
+git add extension/test/unit/activation/sessionRecorderWiring.test.ts
+git commit -m "test(activation): add failing wiring tests for suppression and config provenance"
+```
+
+---
+
+## Task 14: Wiring — implement subscriptions and provenance (TDD green)
 
 **Files:**
 - Modify: `extension/src/extension/activation/sessionRecorderWiring.ts`
@@ -1178,15 +1566,21 @@ disposables.push(telemetryManager.onDidSuppressIntervention(({ decision, reason 
 
 - [ ] **Step 2: Add the configuration-snapshot startup contributor**
 
-After the existing panel-visibility startup contributor (around line 145-160), add a new startup contributor near the end of the contributor block:
+Add a new import at the top of the file alongside the existing imports:
+
+```ts
+import { VSCODE_CONFIG } from '../utils/constants';
+```
+
+After the existing panel-visibility startup contributor (around line 145-160), add a new startup contributor:
 
 ```ts
 // Configuration snapshot — captures struggle-detection setting values at
 // session start so analysis can classify control vs treatment sessions.
 disposables.push(sessionRecorder.registerStartupContributor((ctx): RecordedEvent[] => {
-    const struggleConfig = vscode.workspace.getConfiguration('artemis.struggleDetection');
-    const enabled = struggleConfig.get<boolean>('enabled', true);
-    const rawShow = struggleConfig.get<unknown>('showInterventions', true);
+    const struggleConfig = vscode.workspace.getConfiguration(VSCODE_CONFIG.STRUGGLE_DETECTION.SECTION);
+    const enabled = struggleConfig.get<boolean>(VSCODE_CONFIG.STRUGGLE_DETECTION.ENABLED_KEY, true);
+    const rawShow = struggleConfig.get<unknown>(VSCODE_CONFIG.STRUGGLE_DETECTION.SHOW_INTERVENTIONS_KEY, true);
     const showInterventions = typeof rawShow === 'boolean' ? rawShow : true;
     return [{
         type: 'configurationSnapshot',
@@ -1204,25 +1598,24 @@ Inside `wireSessionRecorder`, before the `// Recording status bar button` commen
 ```ts
 // Runtime configuration changes for struggle-detection settings — recorded
 // so mid-session flips can be reconciled with intervention events by timestamp.
-let lastStruggleEnabled = (() => {
-    const cfg = vscode.workspace.getConfiguration('artemis.struggleDetection');
-    return cfg.get<boolean>('enabled', true);
-})();
-let lastShowInterventions = (() => {
-    const cfg = vscode.workspace.getConfiguration('artemis.struggleDetection');
-    const raw = cfg.get<unknown>('showInterventions', true);
+const readStruggleEnabled = (): boolean => {
+    const cfg = vscode.workspace.getConfiguration(VSCODE_CONFIG.STRUGGLE_DETECTION.SECTION);
+    return cfg.get<boolean>(VSCODE_CONFIG.STRUGGLE_DETECTION.ENABLED_KEY, true);
+};
+const readShowInterventions = (): boolean => {
+    const cfg = vscode.workspace.getConfiguration(VSCODE_CONFIG.STRUGGLE_DETECTION.SECTION);
+    const raw = cfg.get<unknown>(VSCODE_CONFIG.STRUGGLE_DETECTION.SHOW_INTERVENTIONS_KEY, true);
     return typeof raw === 'boolean' ? raw : true;
-})();
+};
+let lastStruggleEnabled = readStruggleEnabled();
+let lastShowInterventions = readShowInterventions();
 
 disposables.push(vscode.workspace.onDidChangeConfiguration(event => {
-    if (!event.affectsConfiguration('artemis.struggleDetection')) {
+    if (!event.affectsConfiguration(VSCODE_CONFIG.STRUGGLE_DETECTION.SECTION)) {
         return;
     }
-    const cfg = vscode.workspace.getConfiguration('artemis.struggleDetection');
-    const newEnabled = cfg.get<boolean>('enabled', true);
-    const rawShow = cfg.get<unknown>('showInterventions', true);
-    const newShow = typeof rawShow === 'boolean' ? rawShow : true;
-
+    const newEnabled = readStruggleEnabled();
+    const newShow = readShowInterventions();
     const changes: { struggleDetectionEnabled?: boolean; showInterventions?: boolean } = {};
     if (newEnabled !== lastStruggleEnabled) {
         changes.struggleDetectionEnabled = newEnabled;
@@ -1238,16 +1631,25 @@ disposables.push(vscode.workspace.onDidChangeConfiguration(event => {
 }));
 ```
 
-- [ ] **Step 4: Type-check**
+- [ ] **Step 4: Compile tests and run wiring suite — expect pass**
 
 ```bash
 cd /Users/liamberger/claudeworktrees/MA-intervention-ui-toggle/extension
-npm run check-types 2>&1 | tail -10
+npm run compile-tests 2>&1 | tail -5
+npx vscode-test --label unit --grep "sessionRecorderWiring — suppression" 2>&1 | tee /tmp/intervention-toggle-task14-pass.txt | tail -30
 ```
 
-Expected: pass.
+Expected: all three wiring tests pass.
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 5: Run full unit suite — expect no regressions**
+
+```bash
+npx vscode-test --label unit 2>&1 | tail -30
+```
+
+Expected: no regressions.
+
+- [ ] **Step 6: Commit**
 
 ```bash
 git add extension/src/extension/activation/sessionRecorderWiring.ts
@@ -1263,105 +1665,7 @@ git commit -m "feat(recording): wire suppressed interventions and config provena
 
 ---
 
-## Task 13: Recording-layer tests
-
-**Files:**
-- Modify: `extension/test/unit/services/telemetry/recording/sessionRecorder.test.ts` (append new `suite` block at end)
-
-- [ ] **Step 1: Append the new test suite using the existing harness helpers**
-
-The file already exposes a `makeRecorder()` factory and a `collectWrittenEvents(fakeFs)` helper that returns parsed `RecordedEvent[]` from the `FakeFs`. Append the following suite at the very bottom of `sessionRecorder.test.ts` (after the last existing `suite(...)` closes):
-
-```ts
-suite('SessionRecorder — intervention suppression and configuration provenance', () => {
-    test('recordIntervention with suppressed action persists suppressionReason', async () => {
-        const { recorder, fs } = makeRecorder();
-        recorder.enable();
-        await recorder.startSession(42);
-        recorder.recordIntervention(
-            'suppressed', 'notification', true, 0.55, 'sufficient', 'execution-error',
-            { suppressionReason: 'user-disabled', rawWanted: true },
-        );
-        await recorder.endSession();
-        const events = collectWrittenEvents(fs);
-        const intervention = events.find(e => e.type === 'intervention');
-        assert.ok(intervention, 'intervention event missing');
-        if (intervention.type !== 'intervention') {
-            throw new Error('unreachable');
-        }
-        assert.strictEqual(intervention.action, 'suppressed');
-        assert.strictEqual(intervention.shouldIntervene, true);
-        assert.strictEqual(intervention.suppressionReason, 'user-disabled');
-        assert.strictEqual(intervention.rawWanted, true);
-        assert.strictEqual(intervention.level, 'notification');
-        assert.strictEqual(intervention.triggerType, 'execution-error');
-        try { await recorder.dispose(); } catch { /* ignore */ }
-    });
-
-    test('recordConfigurationSnapshot persists both keys', async () => {
-        const { recorder, fs } = makeRecorder();
-        recorder.enable();
-        await recorder.startSession(42);
-        recorder.recordConfigurationSnapshot(true, false);
-        await recorder.endSession();
-        const events = collectWrittenEvents(fs);
-        const snap = events.find(e => e.type === 'configurationSnapshot');
-        assert.ok(snap, 'configurationSnapshot missing');
-        if (snap.type !== 'configurationSnapshot') {
-            throw new Error('unreachable');
-        }
-        assert.strictEqual(snap.struggleDetectionEnabled, true);
-        assert.strictEqual(snap.showInterventions, false);
-        try { await recorder.dispose(); } catch { /* ignore */ }
-    });
-
-    test('recordConfigurationChange persists only the changed key', async () => {
-        const { recorder, fs } = makeRecorder();
-        recorder.enable();
-        await recorder.startSession(42);
-        recorder.recordConfigurationChange({ showInterventions: false });
-        await recorder.endSession();
-        const events = collectWrittenEvents(fs);
-        const change = events.find(e => e.type === 'configurationChange');
-        assert.ok(change, 'configurationChange missing');
-        if (change.type !== 'configurationChange') {
-            throw new Error('unreachable');
-        }
-        assert.deepStrictEqual(change.changes, { showInterventions: false });
-        try { await recorder.dispose(); } catch { /* ignore */ }
-    });
-});
-```
-
-The `if (X.type !== 'Y') throw …` discriminator narrows the union type after `events.find` so the subsequent property access type-checks. (This pattern matches existing tests in the file — verify by skimming the surrounding code if the pattern looks unfamiliar.)
-
-- [ ] **Step 2: Run the new tests — expect pass**
-
-```bash
-cd /Users/liamberger/claudeworktrees/MA-intervention-ui-toggle/extension
-npx vscode-test --label unit --grep "SessionRecorder — intervention suppression" 2>&1 | tee /tmp/intervention-toggle-task13.txt | tail -40
-```
-
-Expected: all three tests pass.
-
-- [ ] **Step 3: Run the full recording suite — expect no regressions**
-
-```bash
-npx vscode-test --label unit --grep "SessionRecorder" 2>&1 | tail -30
-```
-
-Expected: no regressions.
-
-- [ ] **Step 4: Commit**
-
-```bash
-git add extension/test/unit/services/telemetry/recording/sessionRecorder.test.ts
-git commit -m "test(recording): cover suppressed action and configuration events"
-```
-
----
-
-## Task 14: Final integration sweep — types, lint, full unit run
+## Task 15: Final integration sweep — types, lint (full), full unit run, package
 
 - [ ] **Step 1: Type-check**
 
@@ -1372,17 +1676,18 @@ npm run check-types 2>&1 | tail -10
 
 Expected: exit 0.
 
-- [ ] **Step 2: Lint**
+- [ ] **Step 2: Lint (src + test)**
 
 ```bash
-npm run lint:src 2>&1 | tee /tmp/intervention-toggle-final-lint.txt | tail -30
+npm run lint 2>&1 | tee /tmp/intervention-toggle-final-lint.txt | tail -30
 ```
 
-Expected: exit 0. If lint warnings appear in any file you modified, fix them in-place and amend the relevant commit (use `git commit --amend` only if the amend stays inside the same task scope; otherwise create a new fixup commit).
+Expected: exit 0. If lint warnings appear in any file you modified, fix them in-place.
 
 - [ ] **Step 3: Full unit-test run**
 
 ```bash
+npm run compile-tests 2>&1 | tail -5
 npx vscode-test --label unit 2>&1 | tee /tmp/intervention-toggle-final-tests.txt | tail -50
 ```
 
@@ -1409,11 +1714,11 @@ If everything was already green, skip the commit.
 
 ---
 
-## Task 15: Manual smoke test in Extension Development Host (UAT)
+## Task 16: Manual smoke test in Extension Development Host (UAT)
 
 **Files:** none (manual)
 
-This task confirms the toggle behaves correctly end-to-end in a live VS Code session. It is **not** automatable in the unit-test harness because it exercises the real `vscode.window` modal popups and Extension Settings UI.
+This task confirms the toggle behaves correctly end-to-end in a live VS Code session. It is **not** automatable in the unit-test harness because it exercises real `vscode.window` modal popups and the Settings UI.
 
 - [ ] **Step 1: Launch the Extension Development Host**
 
@@ -1456,14 +1761,14 @@ This task does not modify code.
 
 ## Done
 
-After Task 15:
-- All 14+ tasks committed on `feat/intervention-ui-toggle`
-- Unit tests green
-- Type-check + lint clean
+After Task 16:
+- All 15 functional tasks committed on `feat/intervention-ui-toggle`
+- Unit tests green (compile-tests + vscode-test)
+- Type-check + full lint clean
 - Production build succeeds
 - Manual smoke test signed off
 
 Next steps (handled outside this plan):
-- Open a PR against `dev` (per `.claude/CLAUDE.md`).
+- Open a PR against `dev` (per `extension/.claude/CLAUDE.md`).
 - Codex review of the diff before merge (per global CLAUDE.md).
 - After merge, push the same branch into the standalone `~/Documents/private/artemis-extension/` copy if needed for F5 work outside the MA project.
