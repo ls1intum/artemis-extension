@@ -6,7 +6,7 @@
 
 ## Goal
 
-Add a user-facing setting that suppresses **all** struggle-detection UI surfaces (status-bar lightbulb, info notifications, warning notifications) while keeping the full telemetry / recording pipeline running unchanged.
+Add a user-facing setting that suppresses **all** struggle-detection UI surfaces (status-bar lightbulb, info notifications, warning notifications) while keeping the observation, EQ, trigger, decision, and recording pipeline active. UI delivery is replaced by explicit suppressed-opportunity recording. UI-delivery state (cooldown, session counters, adaptive cadence) does not advance.
 
 Use case: thesis evaluation needs a clean control condition. Sessions where the system observes and records the same trigger / EQ / decision signal as in the treatment condition, but the participant sees no AI-driven prompts.
 
