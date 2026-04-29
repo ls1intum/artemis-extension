@@ -566,17 +566,18 @@ suite('Block C — TelemetryManager dispatch routing', () => {
 suite('InterventionService.hideHint() — full status-bar reset', () => {
     let svc: InterventionService;
     let statusBarItem: vscode.StatusBarItem;
-    let createStub: sinon.SinonStub;
+    let sandbox: sinon.SinonSandbox;
 
     setup(() => {
+        sandbox = sinon.createSandbox();
         statusBarItem = {
             text: '',
             tooltip: undefined,
             backgroundColor: undefined,
             command: undefined,
-            show: sinon.stub(),
-            hide: sinon.stub(),
-            dispose: sinon.stub(),
+            show: sandbox.stub(),
+            hide: sandbox.stub(),
+            dispose: sandbox.stub(),
             alignment: vscode.StatusBarAlignment.Right,
             priority: 100,
             color: undefined,
@@ -584,13 +585,13 @@ suite('InterventionService.hideHint() — full status-bar reset', () => {
             id: 'mock',
             accessibilityInformation: undefined,
         } as unknown as vscode.StatusBarItem;
-        createStub = sinon.stub(vscode.window, 'createStatusBarItem').returns(statusBarItem);
+        sandbox.stub(vscode.window, 'createStatusBarItem').returns(statusBarItem);
         svc = new InterventionService();
     });
 
     teardown(() => {
         svc.dispose();
-        createStub.restore();
+        sandbox.restore();
     });
 
     test('hideHint clears text, tooltip, and backgroundColor', () => {
