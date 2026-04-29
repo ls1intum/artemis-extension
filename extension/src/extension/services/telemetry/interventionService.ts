@@ -257,6 +257,9 @@ export class InterventionService implements vscode.Disposable, SessionResettable
             this._currentSubtleDecision = undefined;
         }
         this._statusBarItem.command = 'iris.chatView.focus';
+        this._statusBarItem.text = '';
+        this._statusBarItem.tooltip = undefined;
+        this._statusBarItem.backgroundColor = undefined;
         this._statusBarItem.hide();
     }
 
