@@ -1,8 +1,8 @@
 import * as vscode from 'vscode';
 import { ArtemisApiService } from '../api';
 import { AuthManager, AuthFlowHandler } from '../services/auth';
-import { ArtemisWebsocketService, SubmissionWebSocketHandler } from '../services/websocket';
-import { ViewInitDataService, FullscreenPanelManager, BuildDiagnosticsService, ExerciseOpeningService, StartPageResolver } from '../services/ui';
+import { ArtemisWebsocketService } from '../services/websocket';
+import { ViewInitDataService, FullscreenPanelManager, BuildDiagnosticsService, ExerciseOpeningService, StartPageResolver, SubmissionWebSocketHandler } from '../services/ui';
 import type { IProviderRegistry } from '../services/ui';
 import type { StartPageResult } from '../services/ui';
 import { ExerciseRegistry } from '../services/exerciseRegistry';

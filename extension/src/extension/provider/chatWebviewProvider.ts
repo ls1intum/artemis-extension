@@ -10,7 +10,8 @@ import { ExtensionMsg, WebviewCmd, getPayload } from '../../shared/messageContra
 import type { WebCmd, WebviewToExtensionMessage } from '../../shared/messageContracts';
 import { openSettings, openFileInWorkspace } from '../controller/commands/utilityCommands';
 import { ArtemisApiService } from '../api';
-import { ArtemisWebsocketService, IrisWebSocketMessageHandler } from '../services/websocket';
+import { ArtemisWebsocketService } from '../services/websocket';
+import { IrisWebSocketMessageHandler } from '../services/iris';
 import { FileMonitorService, NoAiDetectionService, detectAndRegisterWorkspaceExercise } from '../services/workspace';
 import { IrisWebSocketSessionClient, ChatDiagnosticsService, IrisChatSessionService, ChatMessageService, ChatContextManager, ContextStore, IRIS_CHAT_HELP_MARKDOWN } from '../services/iris';
 import type { IrisServiceDeps, ChatContextReason } from '../services/iris';

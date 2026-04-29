@@ -1,9 +1,9 @@
 import * as vscode from 'vscode';
-import { ArtemisWebsocketService } from './artemisWebsocketService';
-import { IrisWebSocketSessionClient } from '../iris/irisWebSocketSessionClient';
+import { ArtemisWebsocketService } from '../websocket/artemisWebsocketService';
+import { IrisWebSocketSessionClient } from './irisWebSocketSessionClient';
 import type { IrisChatMessage, IrisStageDTO } from '../../types';
 import { logger, LogCategory } from '../loggingService';
-import { extractIrisMessageContent } from '../iris/messageUtils';
+import { extractIrisMessageContent } from './messageUtils';
 import { ExtensionMsg } from '../../../shared/messageContracts';
 import type { ExtensionToWebviewMessage, WebSocketDisplayStatus } from '../../../shared/messageContracts';
 

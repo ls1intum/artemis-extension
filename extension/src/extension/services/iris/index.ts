@@ -3,6 +3,7 @@ export { ChatDiagnosticsService } from './chatDiagnosticsService';
 export { ChatMessageService } from './chatMessageService';
 export { IrisChatSessionService } from './chatSessionService';
 export { IrisWebSocketSessionClient } from './irisWebSocketSessionClient';
+export { IrisWebSocketMessageHandler } from './irisWebSocketMessageHandler';
 export type { IrisServiceDeps } from './sessionSyncUtils';
 export { IRIS_CHAT_HELP_MARKDOWN } from './helpContent';
 export { ContextStore } from './contextStore';
