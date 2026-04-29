@@ -42,42 +42,42 @@
     "commands": [
       {
         "command": "artemis.login",
-        "title": "Login to Artemis",
+        "title": "Artemis: Login",
         "icon": "$(sign-in)"
       },
       {
         "command": "artemis.logout",
-        "title": "Logout from Artemis",
+        "title": "Artemis: Logout",
         "icon": "$(sign-out)"
       },
       {
         "command": "artemis.checkIrisHealth",
-        "title": "Check Iris Health Status",
+        "title": "Artemis: Check Iris Health Status",
         "icon": "$(heart)"
       },
       {
         "command": "artemis.resetIrisChat",
-        "title": "Reset Iris Chat Sessions (Debug)",
+        "title": "Artemis: Reset Iris Chat Sessions (Debug)",
         "icon": "$(refresh)"
       },
       {
         "command": "artemis.checkWebSocketStatus",
-        "title": "Check WebSocket Connection Status",
+        "title": "Artemis: Check WebSocket Connection Status",
         "icon": "$(broadcast)"
       },
       {
         "command": "artemis.connectWebSocket",
-        "title": "Connect to Artemis WebSocket",
+        "title": "Artemis: Connect WebSocket",
         "icon": "$(plug)"
       },
       {
         "command": "artemis.showStruggleScore",
-        "title": "Show Struggle Detection Score (Debug)",
+        "title": "Artemis: Show Struggle Detection Score (Debug)",
         "icon": "$(graph)"
       },
       {
         "command": "artemis.replaySession",
-        "title": "Replay Session (EQ Tuning)",
+        "title": "Artemis: Replay Session (EQ Tuning)",
         "icon": "$(play)"
       },
       {
