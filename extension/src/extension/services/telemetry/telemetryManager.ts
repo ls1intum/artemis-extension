@@ -5,6 +5,7 @@ import {
     EQConfidence,
     EQState,
     RecommendedAction,
+    SuppressedInterventionPayload,
 } from './types';
 import type { SessionResettable, SessionStartContext } from './types';
 import { DiagnosticPersistenceService } from './diagnosticPersistenceService';
@@ -55,6 +56,7 @@ export class TelemetryManager implements vscode.Disposable, WebSocketMessageHand
     // State
     private _websocketService: ArtemisWebsocketService | undefined;
     private _isEnabled: boolean = true;
+    private _showInterventions: boolean = true;
     private readonly _sessionServices: SessionResettable[];
     private _activeExerciseId: number | undefined;
     private _lastTriggerType: TriggerType | undefined;
@@ -88,6 +90,9 @@ export class TelemetryManager implements vscode.Disposable, WebSocketMessageHand
     public get onDidBlockIntervention() {
         return this._interventionService.onDidBlockIntervention;
     }
+
+    private readonly _onDidSuppressIntervention = new vscode.EventEmitter<SuppressedInterventionPayload>();
+    public readonly onDidSuppressIntervention = this._onDidSuppressIntervention.event;
 
     constructor(exerciseRegistry?: ExerciseRegistry) {
         this._exerciseRegistry = exerciseRegistry;
@@ -174,6 +179,7 @@ export class TelemetryManager implements vscode.Disposable, WebSocketMessageHand
         }
 
         this._onDidCalculateEQ.dispose();
+        this._onDidSuppressIntervention.dispose();
     }
 
     // ==================== WebSocket Message Handler ====================
