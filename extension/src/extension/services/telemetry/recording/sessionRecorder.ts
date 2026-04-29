@@ -298,7 +298,7 @@ export class SessionRecorder implements vscode.Disposable, WebSocketMessageHandl
     }
 
     recordIntervention(
-        action: 'shown' | 'accepted' | 'dismissed' | 'blocked',
+        action: 'shown' | 'accepted' | 'dismissed' | 'blocked' | 'suppressed',
         level: 'subtle' | 'notification' | 'proactive',
         shouldIntervene: boolean,
         eq: number,
@@ -306,6 +306,7 @@ export class SessionRecorder implements vscode.Disposable, WebSocketMessageHandl
         triggerType?: 'execution-error' | 'multiline-paste' | 'idle' | 'selection-maintained',
         opts?: {
             blockedReason?: 'cooldown' | 'warmup' | 'session-limit' | 'low-confidence';
+            suppressionReason?: 'user-disabled';
             dismissReason?: 'user-action' | 'hidden' | 'replaced' | 'session-end';
             rawWanted?: boolean;
         },
@@ -323,6 +324,7 @@ export class SessionRecorder implements vscode.Disposable, WebSocketMessageHandl
             confidence,
             triggerType,
             blockedReason: opts?.blockedReason,
+            suppressionReason: opts?.suppressionReason,
             dismissReason: opts?.dismissReason,
             rawWanted: opts?.rawWanted,
         }, {}, this._currentGeneration);
@@ -349,6 +351,32 @@ export class SessionRecorder implements vscode.Disposable, WebSocketMessageHandl
             timestamp: Date.now(),
             panel,
             visible,
+        }, {}, this._currentGeneration);
+    }
+
+    recordConfigurationSnapshot(struggleDetectionEnabled: boolean, showInterventions: boolean): void {
+        if (this._phase !== 'recording') {
+            return;
+        }
+        this._lifecycle.recordInternal({
+            type: 'configurationSnapshot',
+            timestamp: Date.now(),
+            struggleDetectionEnabled,
+            showInterventions,
+        }, {}, this._currentGeneration);
+    }
+
+    recordConfigurationChange(changes: {
+        struggleDetectionEnabled?: boolean;
+        showInterventions?: boolean;
+    }): void {
+        if (this._phase !== 'recording') {
+            return;
+        }
+        this._lifecycle.recordInternal({
+            type: 'configurationChange',
+            timestamp: Date.now(),
+            changes,
         }, {}, this._currentGeneration);
     }
 
