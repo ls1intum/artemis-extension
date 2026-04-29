@@ -6,6 +6,27 @@ const POLL_INTERVAL_MS = 500;
 const POLL_TIMEOUT_MS = 10_000;
 
 /**
+ * Keys the EduIDE LandingPage forwards into the LaunchRequest and that the
+ * operator therefore POSTs to the data-bridge. Source of truth:
+ * `EduIDE-Landing-Page/src/App.tsx` (env construction near LaunchRequest creation).
+ *
+ * Used by {@link probeDataBridge} to enumerate what the bridge should hold.
+ * `DATA_BRIDGE_ENABLED` is intentionally absent: it is set as a container env
+ * var by the operator at pod boot, never injected through the bridge.
+ */
+export const KNOWN_BRIDGE_KEYS = [
+    'THEIA',
+    'ARTEMIS_URL',
+    'ARTEMIS_TOKEN',
+    'GIT_URI',
+    'GIT_USER',
+    'GIT_MAIL',
+    'TEMPLATE',
+] as const;
+
+export type KnownBridgeKey = (typeof KNOWN_BRIDGE_KEYS)[number];
+
+/**
  * Reads environment variables via the EduIDE data-bridge companion extension.
  *
  * In cloud deployments, the IDE container may start before credentials are
@@ -47,8 +68,13 @@ export async function readEnvVarsViaDataBridge<T extends string>(
 
     while (Date.now() < deadline) {
         try {
+            // The data-bridge `getEnv` command requires a `string[]` argument
+            // (validated server-side via arktype). Calling without args makes
+            // the command return its error summary as a plain string, not a
+            // record — which silently masquerades as an empty result.
             const envMap = await vscode.commands.executeCommand<Record<string, string>>(
                 DATA_BRIDGE_COMMAND,
+                [...names],
             );
 
             if (envMap && typeof envMap === 'object') {
@@ -73,4 +99,69 @@ export async function readEnvVarsViaDataBridge<T extends string>(
         LogCategory.GENERAL,
     );
     return undefined;
+}
+
+export interface DataBridgeProbeResult {
+    /** Whether the `dataBridge.getEnv` command is registered (extension installed + active). */
+    readonly commandAvailable: boolean;
+    /** Whether `DATA_BRIDGE_ENABLED` env var is set (the bridge's own activation gate). */
+    readonly bridgeEnabledFlag: string | undefined;
+    /** Whether the live call returned a usable response. */
+    readonly responded: boolean;
+    /** Per-key values returned by the bridge for the probed keys (undefined = key not in bridge storage). */
+    readonly values: Partial<Record<KnownBridgeKey, string>>;
+    /** Error message if the call threw or returned a non-record. */
+    readonly error?: string;
+}
+
+/**
+ * One-shot live probe of the data-bridge state. Unlike {@link readEnvVarsViaDataBridge}
+ * this does not poll, does not gate on `DATA_BRIDGE_ENABLED`, and does not fall
+ * back — it reports raw observed state so the diagnostic command can show
+ * exactly why detection is failing (extension absent vs. command error vs.
+ * empty storage vs. partial values).
+ */
+export async function probeDataBridge(
+    keys: readonly KnownBridgeKey[] = KNOWN_BRIDGE_KEYS,
+): Promise<DataBridgeProbeResult> {
+    const bridgeEnabledFlag = process.env.DATA_BRIDGE_ENABLED;
+
+    const commands = await vscode.commands.getCommands(true);
+    if (!commands.includes(DATA_BRIDGE_COMMAND)) {
+        return { commandAvailable: false, bridgeEnabledFlag, responded: false, values: {} };
+    }
+
+    try {
+        const raw = await vscode.commands.executeCommand<Record<string, string> | string>(
+            DATA_BRIDGE_COMMAND,
+            [...keys],
+        );
+
+        if (typeof raw !== 'object' || raw === null) {
+            return {
+                commandAvailable: true,
+                bridgeEnabledFlag,
+                responded: false,
+                values: {},
+                error: typeof raw === 'string' ? `Bridge returned error: ${raw}` : `Unexpected response type: ${typeof raw}`,
+            };
+        }
+
+        const values: Partial<Record<KnownBridgeKey, string>> = {};
+        for (const key of keys) {
+            const v = (raw as Record<string, string>)[key];
+            if (typeof v === 'string' && v.length > 0) {
+                values[key] = v;
+            }
+        }
+        return { commandAvailable: true, bridgeEnabledFlag, responded: true, values };
+    } catch (e) {
+        return {
+            commandAvailable: true,
+            bridgeEnabledFlag,
+            responded: false,
+            values: {},
+            error: e instanceof Error ? e.message : String(e),
+        };
+    }
 }

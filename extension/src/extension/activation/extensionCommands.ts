@@ -8,7 +8,7 @@ import type { ArtemisWebviewProvider, ChatWebviewProvider } from '../provider';
 import { logger, LogCategory } from '../services/loggingService';
 import { processPlantUml, normalizeRelativePath, extractErrorMessage, VSCODE_CONFIG } from '../utils';
 import { executeReplayCommand } from '../services/telemetry/replay';
-import { getTheiaEnvironment } from '../theia';
+import { getTheiaEnvironment, probeDataBridge, KNOWN_BRIDGE_KEYS } from '../theia';
 
 // ── Individual command registrations ─────────────────────────────────
 
@@ -608,6 +608,45 @@ function registerShowTheiaEnvironmentCommand(): vscode.Disposable {
             }
         })();
 
+        const probe = await probeDataBridge();
+
+        const formatBridgeValue = (key: string, value: string | undefined): string => {
+            if (!value) { return 'missing'; }
+            if (key === 'ARTEMIS_TOKEN') { return `present (${value.length} chars)`; }
+            if (key === 'GIT_URI') {
+                try {
+                    const u = new URL(value);
+                    return `present (host: ${u.host}, path: ${u.pathname})`;
+                } catch {
+                    return 'present (unparseable)';
+                }
+            }
+            return value;
+        };
+
+        const probeLines: string[] = ['', '## Live data-bridge probe'];
+        if (!probe.commandAvailable) {
+            probeLines.push(
+                `- \`dataBridge.getEnv\` command: **not registered**`,
+                `- Bridge extension is not installed or not active.`,
+                `- \`process.env.DATA_BRIDGE_ENABLED\`: ${probe.bridgeEnabledFlag ?? '(unset)'}`,
+            );
+        } else if (!probe.responded) {
+            probeLines.push(
+                `- \`dataBridge.getEnv\` command: ✅ registered`,
+                `- Probe failed: ${probe.error ?? 'unknown error'}`,
+            );
+        } else {
+            const presentCount = Object.keys(probe.values).length;
+            probeLines.push(
+                `- \`dataBridge.getEnv\` command: ✅ registered, responded`,
+                `- Keys present in bridge: ${presentCount}/${KNOWN_BRIDGE_KEYS.length}`,
+            );
+            for (const key of KNOWN_BRIDGE_KEYS) {
+                probeLines.push(`- \`${key}\`: ${formatBridgeValue(key, probe.values[key])}`);
+            }
+        }
+
         const lines = [
             `# Theia Environment Diagnostic`,
             ``,
@@ -625,6 +664,7 @@ function registerShowTheiaEnvironmentCommand(): vscode.Disposable {
             `- \`GIT_URI\`: ${gitUriDisplay}`,
             `- \`GIT_USER\`: ${env.gitUser ?? 'missing'}`,
             `- \`GIT_MAIL\`: ${env.gitMail ?? 'missing'}`,
+            ...probeLines,
             ``,
             `## Workspace`,
             `- Folder count: ${workspaceFolders.length}`,
