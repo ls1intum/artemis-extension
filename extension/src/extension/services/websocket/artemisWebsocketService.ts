@@ -127,31 +127,22 @@ export class ArtemisWebsocketService {
             return this._connectDeferred.promise;
         }
 
-        // Set mutex IMMEDIATELY
         this._transitionTo('connecting');
+        // Generation bumped before deactivation so old lifecycle callbacks are ignored
         const generation = ++this._connectionGeneration;
 
-        // Create promise BEFORE async work so concurrent callers can share it
         this._connectDeferred = createDeferred<void>();
         this._startSafetyTimeout();
 
         try {
-            // Now safe to deactivate existing connection
             if (this._client) {
                 this._log('Deactivating existing connection before reconnect');
-                // Temporarily transition to disconnecting to prevent onDisconnected from triggering reconnect
-                this._transitionTo('disconnecting');
-                try {
-                    await this._client.deactivate();
-                } finally {
-                    this._transitionTo('disconnected');
-                    this._transitionTo('connecting');
-                }
+                await this._client.deactivate();
                 this._clearSubscriptions();
                 this._client = undefined;
             }
 
-            const serverUrl = this._getServerUrl();
+            const serverUrl = resolveServerUrl();
             this._log(`Connecting to Artemis WebSocket (attempt ${this._reconnectAttempts + 1}/${MAX_CONNECTION_ATTEMPTS})...`);
 
             const authHeaders = await this._authManager.getAuthHeaders();
@@ -181,16 +172,13 @@ export class ArtemisWebsocketService {
             const stompConfig: StompConfig = {
                 brokerURL: wsUrl,
                 connectHeaders: {},
-                // Exponential backoff - STOMP library handles reconnection
                 reconnectDelay: INITIAL_RECONNECT_DELAY_MS,
                 reconnectTimeMode: ReconnectionTimeMode.EXPONENTIAL,
                 maxReconnectDelay: MAX_RECONNECT_DELAY_MS,
-                // Connection timeout - abort and retry after 10 seconds (matching webapp)
                 connectionTimeout: CONNECTION_TIMEOUT_MS,
-                // Heartbeat settings - must match server (10 seconds)
+                // Must match Artemis server heartbeat (10s)
                 heartbeatIncoming: HEARTBEAT_INTERVAL_MS,
                 heartbeatOutgoing: HEARTBEAT_INTERVAL_MS,
-                // Discard WebSocket on communication failure (matching webapp)
                 discardWebsocketOnCommFailure: true,
 
                 webSocketFactory: () => {
@@ -294,15 +282,10 @@ export class ArtemisWebsocketService {
 
     /** Disconnect from the WebSocket server. */
     public async disconnect(): Promise<void> {
-        // Invalidate any in-flight connect() continuation
         this._connectionGeneration++;
-        // Set flag to prevent reconnect loop
         this._transitionTo('disconnecting');
-
-        // Clear any pending connect promise
         this._settleDeferred(new Error('Disconnected'));
 
-        // Clear any pending disconnect notification
         if (this._connectionStateDebounceTimer) {
             clearTimeout(this._connectionStateDebounceTimer);
             this._connectionStateDebounceTimer = undefined;
@@ -310,11 +293,8 @@ export class ArtemisWebsocketService {
 
         if (this._client) {
             this._log('Disconnecting from Artemis WebSocket (intentional)');
-
-            // Unsubscribe from all topics
             this._clearSubscriptions();
 
-            // Deactivate the client
             try {
                 await this._client.deactivate();
             } catch (e) {
@@ -322,10 +302,9 @@ export class ArtemisWebsocketService {
             }
             this._client = undefined;
 
-            // Notify consumers BEFORE resetting wasConnectedOnce so they see (false, true)
+            // Fire before resetting wasConnectedOnce so consumers see (false, true)
             this._onDidChangeConnectionState.fire({ connected: false, wasEverConnected: this._wasConnectedOnce });
 
-            // Reset all state on intentional disconnect
             this._wasConnectedOnce = false;
             this._reconnectAttempts = 0;
             this._sessionId = this._generateSecureSessionId();
@@ -415,12 +394,9 @@ export class ArtemisWebsocketService {
 
         const subscription = this._client.subscribe(topic, (message: IMessage) => {
             try {
-                this._log(`📨 Received WebSocket message for Iris session ${sessionId}`);
                 const data: unknown = JSON.parse(message.body);
-                this._log(`📦 Message data preview: ${JSON.stringify(data).substring(0, 200)}...`);
-                this._log(`🔔 Invoking onMessage callback for session ${sessionId}`);
+                this._log(`Received Iris message for session ${sessionId}`);
                 onMessage(data);
-                this._log(`✅ onMessage callback completed for session ${sessionId}`);
             } catch (error) {
                 const stack = error instanceof Error ? error.stack : String(error);
                 this._log(`Error processing Iris message: ${stack}`);
@@ -451,17 +427,11 @@ export class ArtemisWebsocketService {
     public getDisplayStatus(): WebSocketDisplayStatus {
         const baseStatus = deriveDisplayStatus(this._connectionState, this._wasConnectedOnce);
 
-        // Folded states ('connected', 'disconnected') are already terminal
-        // for the UI — return as-is.
         if (baseStatus === 'connected' || baseStatus === 'disconnected') {
             return baseStatus;
         }
 
-        // 'connecting' / 'reconnecting' from the helper is only honest if
-        // STOMP is actively trying. If the client never activated (e.g.,
-        // setup threw before activate()) or has been deactivated, no retry
-        // is in flight and we should surface that to the user instead of
-        // pretending we're still connecting.
+        // Only report 'connecting'/'reconnecting' if STOMP is actively retrying
         const stompTrying = this._client?.active === true;
         const inFlightConnectingState = this._connectionState === 'connecting';
         if (!stompTrying && !inFlightConnectingState) {
@@ -482,7 +452,7 @@ export class ArtemisWebsocketService {
         serverUrl: string;
         websocketUrl: string;
     } {
-        const serverUrl = this._getServerUrl();
+        const serverUrl = resolveServerUrl();
         return {
             clientConnected: this._client?.connected ?? false,
             clientActive: this._client?.active ?? false,
@@ -499,8 +469,6 @@ export class ArtemisWebsocketService {
     /** Dispose and cleanup. */
     public dispose(): void {
         this._log('Disposing WebSocket service');
-
-        // Dispose EventEmitter to prevent memory leaks
         this._onDidChangeConnectionState.dispose();
         this._messageHandlers = [];
 
@@ -615,14 +583,9 @@ export class ArtemisWebsocketService {
     private _onError(message: string): void {
         this._log(`❌ ${message}`);
         logger.error(message, LogCategory.WEBSOCKET);
-        // Reject the connect() promise if pending
         this._settleDeferred(new Error(message));
         this._clearSubscriptions();
         this._transitionTo('disconnected');
-    }
-
-    private _getServerUrl(): string {
-        return resolveServerUrl();
     }
 
     private _buildWebSocketUrl(serverUrl: string): string {
