@@ -88,6 +88,7 @@ function driveEligibleDecision(
 }
 
 suite('TelemetryManager — intervention UI toggle', () => {
+    let sandbox: sinon.SinonSandbox;
     let getConfigStub: sinon.SinonStub | undefined;
     let showInfoStub: sinon.SinonStub;
     let showWarnStub: sinon.SinonStub;
@@ -95,26 +96,25 @@ suite('TelemetryManager — intervention UI toggle', () => {
     let statusBarItem: { show: sinon.SinonStub; hide: sinon.SinonStub; dispose: sinon.SinonStub; text: string; tooltip: string | undefined; backgroundColor: vscode.ThemeColor | undefined; command: string | undefined };
 
     setup(() => {
+        sandbox = sinon.createSandbox();
         statusBarItem = {
-            show: sinon.stub(),
-            hide: sinon.stub(),
-            dispose: sinon.stub(),
+            show: sandbox.stub(),
+            hide: sandbox.stub(),
+            dispose: sandbox.stub(),
             text: '',
             tooltip: undefined,
             backgroundColor: undefined,
             command: undefined,
         };
-        createStatusBarStub = sinon.stub(vscode.window, 'createStatusBarItem').returns(statusBarItem as unknown as vscode.StatusBarItem);
-        showInfoStub = sinon.stub(vscode.window, 'showInformationMessage');
-        showWarnStub = sinon.stub(vscode.window, 'showWarningMessage');
+        createStatusBarStub = sandbox.stub(vscode.window, 'createStatusBarItem').returns(statusBarItem as unknown as vscode.StatusBarItem);
+        showInfoStub = sandbox.stub(vscode.window, 'showInformationMessage');
+        showWarnStub = sandbox.stub(vscode.window, 'showWarningMessage');
     });
 
     teardown(() => {
         getConfigStub?.restore();
         getConfigStub = undefined;
-        showInfoStub.restore();
-        showWarnStub.restore();
-        createStatusBarStub.restore();
+        sandbox.restore();
     });
 
     test('T1: toggle off → suppression event fires; no show/block events', () => {
