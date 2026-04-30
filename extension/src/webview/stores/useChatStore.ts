@@ -20,7 +20,7 @@ import type { ExtMsg, WebSocketDisplayStatus } from '../../shared/messageContrac
 type ChatWebSocketStatus = WebSocketDisplayStatus | 'unknown';
 
 
-export interface MessageLoadResult {
+interface MessageLoadResult {
     localSessionId: string;
     status: 'success' | 'error';
 }
