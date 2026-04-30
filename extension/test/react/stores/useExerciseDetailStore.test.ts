@@ -287,11 +287,11 @@ describe('useExerciseDetailStore', () => {
 
 		// Simulate receiving clonedNotice and dirtyPagesStatus from a previous exercise
 		act(() => {
-			result.current.setClonedNotice('Old Exercise');
+			result.current.setClonedNotice('Old Exercise', 42);
 			result.current.setDirtyPagesStatus({ hasDirtyPages: true, dirtyFileCount: 3, autoSaveEnabled: false });
 		});
 
-		expect(result.current.clonedNotice).toBe('Old Exercise');
+		expect(result.current.clonedNotice).toEqual({ exerciseTitle: 'Old Exercise', participationId: 42 });
 		expect(result.current.dirtyPagesStatus?.hasDirtyPages).toBe(true);
 
 		// Switch to a new exercise

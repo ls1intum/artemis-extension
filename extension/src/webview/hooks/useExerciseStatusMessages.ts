@@ -17,7 +17,7 @@ export function useExerciseStatusMessages(vscodeApi: VsCodeApi): void {
                 setRepoStatus({ isConnected: msg.isConnected, hasChanges: msg.hasChanges, isPracticeRepo: msg.isPracticeRepo });
                 break;
             case ExtensionMsg.ShowClonedRepoNotice:
-                setClonedNotice(msg.exerciseTitle);
+                setClonedNotice(msg.exerciseTitle, msg.participationId);
                 break;
             case ExtensionMsg.UpdateDirtyPagesStatus:
                 setDirtyPagesStatus({ hasDirtyPages: msg.hasDirtyPages, dirtyFileCount: msg.dirtyFileCount, autoSaveEnabled: msg.autoSaveEnabled });

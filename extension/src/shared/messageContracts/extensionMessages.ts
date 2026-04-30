@@ -269,7 +269,7 @@ interface ExtensionMsgPayloads {
         dirtyFileCount: number;
         autoSaveEnabled: boolean;
     };
-    showClonedRepoNotice: { exerciseTitle: string };
+    showClonedRepoNotice: { exerciseTitle: string; participationId: number };
     gitCredentialsResult: {
         status: 'success' | 'error' | 'warning' | 'info';
         message: string;
