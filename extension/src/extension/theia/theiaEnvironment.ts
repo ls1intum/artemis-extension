@@ -3,7 +3,8 @@ import { VSCODE_ENVIRONMENT, type TheiaEnvironment } from './types';
 
 /**
  * Environment variable names used for Theia/EduIDE integration.
- * These are set by the EduIDE container orchestrator before extension activation.
+ * The EduIDE operator POSTs these to the data-bridge after pod boot;
+ * the bridge then exposes them via the `dataBridge.getEnv` command.
  */
 const THEIA_ENV_VARS = [
     'ARTEMIS_URL',
