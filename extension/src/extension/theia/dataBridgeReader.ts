@@ -24,7 +24,7 @@ export const KNOWN_BRIDGE_KEYS = [
     'TEMPLATE',
 ] as const;
 
-export type KnownBridgeKey = (typeof KNOWN_BRIDGE_KEYS)[number];
+type KnownBridgeKey = (typeof KNOWN_BRIDGE_KEYS)[number];
 
 /**
  * Reads environment variables via the EduIDE data-bridge companion extension.
@@ -101,7 +101,7 @@ export async function readEnvVarsViaDataBridge<T extends string>(
     return undefined;
 }
 
-export interface DataBridgeProbeResult {
+interface DataBridgeProbeResult {
     /** Whether the `dataBridge.getEnv` command is registered (extension installed + active). */
     readonly commandAvailable: boolean;
     /** Whether `DATA_BRIDGE_ENABLED` env var is set (the bridge's own activation gate). */

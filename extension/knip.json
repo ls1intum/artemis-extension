@@ -3,7 +3,6 @@
   "entry": [
     "src/extension.ts",
     "src/webview/index.tsx",
-    "esbuild.js",
     "test/**/*.{ts,tsx}",
     ".mocharc.ui.yml",
     ".vscode-test.mjs"
