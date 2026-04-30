@@ -11,7 +11,7 @@ import { ExerciseRegistry } from './extension/services/exerciseRegistry';
 import { CourseDataCache } from './extension/services/courseDataCache';
 import { createProviderRegistry } from './extension/services/ui';
 import { logger, LogCategory } from './extension/services/loggingService';
-import { VSCODE_CONFIG, resolveServerUrl } from './extension/utils';
+import { VSCODE_CONFIG } from './extension/utils';
 import { registerAllCommands } from './extension/activation/extensionCommands';
 import { wireSessionRecorder } from './extension/activation/sessionRecorderWiring';
 import { initializeTheiaContext, detectPlatformCapabilities, authenticateFromEnvironment, autoCloneIfNeeded } from './extension/theia';
@@ -155,25 +155,15 @@ export async function activate(context: vscode.ExtensionContext) {
 
 	// 401 handler: environment-aware auth teardown
 	if (theiaEnv.isTheia) {
-		// Theia: attempt to re-read token from environment (orchestrator may have refreshed it)
-		artemisApiService.onAuthExpired = async () => {
-			const { readEnvVar } = await import('./extension/theia/index.js');
-			const freshToken = await readEnvVar('ARTEMIS_TOKEN');
-			const currentToken = await authManager.getStoredTokenValue();
-			if (freshToken && freshToken !== currentToken) {
-				logger.info('Theia token refreshed from environment, re-authenticating', LogCategory.AUTH);
-				const freshUrl = await readEnvVar('ARTEMIS_URL');
-				await authManager.storeArtemisCredentials(freshToken, freshUrl || resolveServerUrl(), false);
-				artemisApiService.resetAuthExpiredGuard();
-				void artemisWebsocketService.connect().catch(error => {
-					logger.error('WebSocket reconnect after token refresh failed', LogCategory.WEBSOCKET, error);
-				});
-			} else {
-				void updateAuthContext(false);
-				vscode.window.showErrorMessage(
-					'Your session has expired. Please restart your workspace to re-authenticate.'
-				);
-			}
+		// Theia tool tokens have a fixed 1-day lifetime and the operator
+		// injects credentials only once at session boot, so a 401 means the
+		// session is unrecoverable from inside the extension. Direct the
+		// student back to "Open Online IDE" to start a fresh session.
+		artemisApiService.onAuthExpired = () => {
+			void updateAuthContext(false);
+			vscode.window.showErrorMessage(
+				'Your session has expired. Please restart your workspace to re-authenticate.'
+			);
 		};
 	} else {
 		// VS Code: interactive re-authentication via sidebar

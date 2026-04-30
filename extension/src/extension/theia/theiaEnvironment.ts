@@ -1,5 +1,3 @@
-import * as vscode from 'vscode';
-import { readEnvVars } from './envVarReader';
 import { readEnvVarsViaDataBridge } from './dataBridgeReader';
 import { VSCODE_ENVIRONMENT, type TheiaEnvironment } from './types';
 
@@ -44,36 +42,19 @@ export function getTheiaEnvironment(): TheiaEnvironment {
  * Detects whether the extension is running inside a Theia-based IDE
  * and reads all relevant environment variables.
  *
- * Detection uses functional prerequisites (presence of specific env vars)
- * combined with a secondary UI-kind check to prevent false positives when
- * a developer accidentally has ARTEMIS_URL in their shell profile.
- *
- * This function is async because env var reading may require exec() in
- * Theia environments where process.env is unreliable.
+ * The data-bridge is the sole source of truth: in EduIDE deployments the
+ * orchestrator POSTs credentials into the bridge after pod boot, and the
+ * bridge command is only registered when its activation gate
+ * (`DATA_BRIDGE_ENABLED=1`) is set. On regular VS Code Desktop neither is
+ * true, so the call returns undefined and detection cleanly resolves to
+ * the non-Theia default.
  */
 async function detectTheiaEnvironment(): Promise<TheiaEnvironment> {
-    // Try data-bridge first (EduIDE cloud deployments with late-arriving credentials).
-    // Returns undefined immediately if data-bridge extension is not installed (no overhead).
-    // Falls back to process env if data-bridge is unavailable or times out.
-    const env = await readEnvVarsViaDataBridge(THEIA_ENV_VARS)
-        ?? await readEnvVars(THEIA_ENV_VARS);
+    const env = await readEnvVarsViaDataBridge(THEIA_ENV_VARS);
 
-    const hasTheiaEnvVars = !!(env.ARTEMIS_TOKEN || env.ARTEMIS_URL);
-    const isWebUI = vscode.env.uiKind === vscode.UIKind.Web;
-    const dataBridgeEnabled = process.env.DATA_BRIDGE_ENABLED === '1'
-        || process.env.DATA_BRIDGE_ENABLED === 'true';
-
-    // Env vars alone in Desktop mode are likely accidental (e.g., shell profile).
-    // Require either a web UI host (Theia) or the DATA_BRIDGE_ENABLED flag
-    // (set by the EduIDE container orchestrator at boot).
-    const isTheia = hasTheiaEnvVars && (isWebUI || dataBridgeEnabled);
-
-    if (!isTheia) {
+    if (!env || !(env.ARTEMIS_TOKEN || env.ARTEMIS_URL)) {
         return VSCODE_ENVIRONMENT;
     }
-
-    // Managed environment requires both URL and token for full automation
-    const isManagedEnvironment = !!(env.ARTEMIS_URL && env.ARTEMIS_TOKEN);
 
     return Object.freeze({
         isTheia: true,
@@ -82,6 +63,6 @@ async function detectTheiaEnvironment(): Promise<TheiaEnvironment> {
         gitUri: env.GIT_URI,
         gitUser: env.GIT_USER,
         gitMail: env.GIT_MAIL,
-        isManagedEnvironment,
+        isManagedEnvironment: !!(env.ARTEMIS_URL && env.ARTEMIS_TOKEN),
     });
 }
