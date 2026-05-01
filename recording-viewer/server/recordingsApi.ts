@@ -294,11 +294,17 @@ export function createRecordingsApi(config: AppConfig): ApiHandler {
                 res.write?.(': heartbeat\n\n');
             }, 15_000);
 
-            // Watch for the events file disappearing (session deleted while streaming)
+            // Watch for the events file disappearing (session deleted while streaming).
+            // Seen-then-gone semantics: don't fire session-gone if the file never appeared
+            // (race window during initSession where the dir exists but events.jsonl hasn't
+            // been written yet). Only fire if the file existed and then disappeared.
+            let seenFile = fs.existsSync(path.join(sessionDir, 'events.jsonl'));
             const fileWatcher = setInterval(() => {
                 if (closed) return;
-                const eventsPath = path.join(sessionDir, 'events.jsonl');
-                if (!fs.existsSync(eventsPath)) {
+                const exists = fs.existsSync(path.join(sessionDir, 'events.jsonl'));
+                if (exists) {
+                    seenFile = true;
+                } else if (seenFile) {
                     res.write?.('event: session-gone\ndata: {}\n\n');
                     cleanup();
                 }

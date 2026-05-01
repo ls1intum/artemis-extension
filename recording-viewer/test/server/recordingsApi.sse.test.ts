@@ -90,4 +90,27 @@ describe('SSE /api/recordings/:id/events/stream', () => {
         await new Promise(r => setTimeout(r, 50));
         expect(captured.status).toBe(404);
     });
+
+    it('does not fire session-gone if events.jsonl is missing at connect time but appears later', async () => {
+        // Empty session dir without events.jsonl
+        fs.mkdirSync(path.join(tmpDir, 'sess-pending'), { recursive: true });
+        const api = createRecordingsApi(cfg());
+        const { req, res, captured, triggerClose } = makeStreamReqRes();
+        (req as unknown as { url: string }).url = '/api/recordings/sess-pending/events/stream';
+        api(req, res, () => {});
+        try {
+            // Wait briefly to confirm stream opened
+            await new Promise(r => setTimeout(r, 200));
+            expect(captured.status).toBe(200); // stream opened
+            // events.jsonl appears later (simulating initSession completing)
+            fs.writeFileSync(path.join(tmpDir, 'sess-pending/events.jsonl'), '{"type":"first","timestamp":1}\n');
+            // Wait for at least one tailer poll cycle (1s) + margin
+            const ok = await waitFor(() => captured.written.join('').includes('id: 1'));
+            expect(ok).toBe(true);
+            // Verify NO session-gone was emitted
+            expect(captured.written.join('')).not.toMatch(/event: session-gone/);
+        } finally {
+            triggerClose();
+        }
+    });
 });
