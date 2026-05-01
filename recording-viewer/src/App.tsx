@@ -58,6 +58,7 @@ export function RecordingViewerApp({ authStatus }: RecordingViewerAppProps) {
 
     const isLiveSession = stickyLive;
     const isReadOnly = !authStatus.allowWrite;
+    const writesDisabled = isLiveSession || isReadOnly;
 
     const saveAnnotations = useCallback(async (updated: Annotation[]) => {
         setAnnotations(updated);
@@ -66,7 +67,9 @@ export function RecordingViewerApp({ authStatus }: RecordingViewerAppProps) {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(updated),
-            }).catch(() => {/* best-effort persist */});
+            }).catch((err) => {
+                console.warn('Failed to persist annotations:', err);
+            });
         }
     }, [apiFetch]);
 
@@ -372,7 +375,7 @@ export function RecordingViewerApp({ authStatus }: RecordingViewerAppProps) {
                 <h1>Artemis Extension Session Analyzer</h1>
                 {session && (
                     <div className="header-actions">
-                        {activeSessionId.current && !isLiveSession && (
+                        {activeSessionId.current && !writesDisabled && (
                             <button className="reset-btn" onClick={handleOpenSessionFolder} title="Open session folder in Finder">
                                 Open Folder
                             </button>
@@ -417,25 +420,27 @@ export function RecordingViewerApp({ authStatus }: RecordingViewerAppProps) {
                                 videoTimeRef={videoTimeRef}
                                 onPlayStateChange={handleVideoPlayStateChange}
                             />
-                            <div className="video-config-row">
-                                <OffsetConfig
-                                    videoTimeAtSessionStartSeconds={videoSyncConfig.videoTimeAtSessionStartSeconds}
-                                    onOffsetChange={handleOffsetChange}
-                                />
-                                <VideoUpload
-                                    sessionId={activeSessionId.current}
-                                    hasVideo={true}
-                                    onUploadComplete={handleVideoUploadComplete}
-                                />
-                                <SubtitleUpload
-                                    sessionId={activeSessionId.current}
-                                    hasSubtitles={hasSubtitles}
-                                    onUploadComplete={handleSubtitleUploadComplete}
-                                />
-                            </div>
+                            {!writesDisabled && (
+                                <div className="video-config-row">
+                                    <OffsetConfig
+                                        videoTimeAtSessionStartSeconds={videoSyncConfig.videoTimeAtSessionStartSeconds}
+                                        onOffsetChange={handleOffsetChange}
+                                    />
+                                    <VideoUpload
+                                        sessionId={activeSessionId.current}
+                                        hasVideo={true}
+                                        onUploadComplete={handleVideoUploadComplete}
+                                    />
+                                    <SubtitleUpload
+                                        sessionId={activeSessionId.current}
+                                        hasSubtitles={hasSubtitles}
+                                        onUploadComplete={handleSubtitleUploadComplete}
+                                    />
+                                </div>
+                            )}
                         </div>
                     )}
-                    {activeSessionId.current && !videoSyncConfig && !isLiveSession && (
+                    {activeSessionId.current && !videoSyncConfig && !writesDisabled && (
                         <VideoUpload
                             sessionId={activeSessionId.current}
                             hasVideo={false}
@@ -477,7 +482,7 @@ export function RecordingViewerApp({ authStatus }: RecordingViewerAppProps) {
                                 )}
                             </div>
                         )}
-                        {!isLiveSession && (
+                        {!writesDisabled && (
                             <FreeAnnotationForm
                                 sessionStartTime={sessionStartTime}
                                 onAdd={handleAddAnnotation}
@@ -504,10 +509,10 @@ export function RecordingViewerApp({ authStatus }: RecordingViewerAppProps) {
                                 fullXDomain={xDomain}
                                 annotations={annotations}
                                 enabledTypes={ALL_ENABLED}
-                                onAddAnnotation={isLiveSession ? undefined : handleAddAnnotation}
-                                onUpdateAnnotation={isLiveSession ? undefined : handleUpdateAnnotation}
-                                onDeleteAnnotation={isLiveSession ? undefined : handleDeleteAnnotation}
-                                readOnly={isLiveSession}
+                                onAddAnnotation={writesDisabled ? undefined : handleAddAnnotation}
+                                onUpdateAnnotation={writesDisabled ? undefined : handleUpdateAnnotation}
+                                onDeleteAnnotation={writesDisabled ? undefined : handleDeleteAnnotation}
+                                readOnly={writesDisabled}
                                 onViewInList={handleViewInList}
                                 videoTimeRef={videoTimeRef}
                                 onSeekVideo={videoSyncConfig ? handleVideoSeek : undefined}
@@ -522,10 +527,10 @@ export function RecordingViewerApp({ authStatus }: RecordingViewerAppProps) {
                             sessionStartTime={sessionStartTime}
                             annotations={annotations}
                             enabledTypes={ALL_ENABLED}
-                            onAddAnnotation={isLiveSession ? undefined : handleAddAnnotation}
-                            onUpdateAnnotation={isLiveSession ? undefined : handleUpdateAnnotation}
-                            onDeleteAnnotation={isLiveSession ? undefined : handleDeleteAnnotation}
-                            readOnly={isLiveSession}
+                            onAddAnnotation={writesDisabled ? undefined : handleAddAnnotation}
+                            onUpdateAnnotation={writesDisabled ? undefined : handleUpdateAnnotation}
+                            onDeleteAnnotation={writesDisabled ? undefined : handleDeleteAnnotation}
+                            readOnly={writesDisabled}
                             scrollToTimestamp={scrollToTimestamp}
                             onScrollComplete={handleScrollComplete}
                             videoTimeRef={videoTimeRef}
