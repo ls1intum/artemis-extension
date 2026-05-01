@@ -1,6 +1,6 @@
 import * as crypto from 'crypto';
 
-export const SESSION_COOKIE_NAME = 'iris_live_session';
+export const SESSION_COOKIE_NAME = 'recording_viewer_session';
 const SESSION_MAX_AGE_SECONDS = 7 * 24 * 3600; // 7 days
 
 export function isValidToken(provided: string, expected: string | undefined): boolean {

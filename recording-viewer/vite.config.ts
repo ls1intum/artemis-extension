@@ -10,8 +10,8 @@ const RECORDINGS_DIR = path.join(
     'Library/Application Support/Code/User/globalStorage/aet-tum.iris-thaumantias/recordings',
 )
 
-const liveToken = process.env.IRIS_LIVE_TOKEN
-const allowWrite = process.env.IRIS_LIVE_ALLOW_WRITE === '1' || !liveToken
+const liveToken = process.env.RECORDING_VIEWER_TOKEN
+const allowWrite = process.env.RECORDING_VIEWER_ALLOW_WRITE === '1' || !liveToken
 
 function recordingsApiPlugin() {
     const config: AppConfig = { recordingsDir: RECORDINGS_DIR, liveToken, allowWrite }
@@ -25,13 +25,13 @@ function recordingsApiPlugin() {
 }
 
 function resolveBindHost(): string {
-    const explicit = process.env.IRIS_LIVE_BIND;
+    const explicit = process.env.RECORDING_VIEWER_BIND;
     const hasToken = Boolean(liveToken);
     if (explicit) {
         const isLocal = explicit === '127.0.0.1' || explicit === 'localhost' || explicit === '::1';
         if (!hasToken && !isLocal) {
             throw new Error(
-                'IRIS_LIVE_BIND set to non-local interface but IRIS_LIVE_TOKEN is missing. ' +
+                'RECORDING_VIEWER_BIND set to non-local interface but RECORDING_VIEWER_TOKEN is missing. ' +
                 'Refusing to expose recordings without authentication.',
             );
         }

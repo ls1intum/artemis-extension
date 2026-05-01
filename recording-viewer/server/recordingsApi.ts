@@ -146,7 +146,7 @@ export function createRecordingsApi(config: AppConfig): ApiHandler {
                 method === 'POST';
             if (isMutating && !config.allowWrite && !isAnnotationPost) {
                 sendJson(res, 403, {
-                    error: 'Write operation disabled in live mode (set IRIS_LIVE_ALLOW_WRITE=1 to enable)',
+                    error: 'Write operation disabled in live mode (set RECORDING_VIEWER_ALLOW_WRITE=1 to enable)',
                 });
                 return;
             }

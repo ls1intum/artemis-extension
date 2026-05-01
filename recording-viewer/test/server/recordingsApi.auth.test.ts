@@ -34,7 +34,7 @@ describe('auth gate', () => {
         const handle = makeRes();
         await invoke(api, makeReq('POST', '/api/auth/login', JSON.stringify({ token: 'secret' })), handle);
         expect(handle.captured.status).toBe(200);
-        expect(handle.captured.headers['Set-Cookie']).toMatch(/iris_live_session=secret/);
+        expect(handle.captured.headers['Set-Cookie']).toMatch(/recording_viewer_session=secret/);
     });
 
     it('login with wrong token returns 401', async () => {
@@ -47,21 +47,21 @@ describe('auth gate', () => {
     it('cookie passes auth gate', async () => {
         const api = createRecordingsApi(baseConfig({ liveToken: 'secret' }));
         const handle = makeRes();
-        await invoke(api, makeReq('GET', '/api/recordings', undefined, { cookie: 'iris_live_session=secret' }), handle);
+        await invoke(api, makeReq('GET', '/api/recordings', undefined, { cookie: 'recording_viewer_session=secret' }), handle);
         expect(handle.captured.status).toBe(200);
     });
 
     it('blocks DELETE /recordings/:id when allowWrite=false', async () => {
         const api = createRecordingsApi(baseConfig({ liveToken: 't', allowWrite: false }));
         const handle = makeRes();
-        await invoke(api, makeReq('DELETE', '/api/recordings/some-id', undefined, { cookie: 'iris_live_session=t' }), handle);
+        await invoke(api, makeReq('DELETE', '/api/recordings/some-id', undefined, { cookie: 'recording_viewer_session=t' }), handle);
         expect(handle.captured.status).toBe(403);
     });
 
     it('blocks PUT /recordings/:id/annotations (full-replace) when allowWrite=false', async () => {
         const api = createRecordingsApi(baseConfig({ liveToken: 't', allowWrite: false }));
         const handle = makeRes();
-        await invoke(api, makeReq('PUT', '/api/recordings/sess-1/annotations', '[]', { cookie: 'iris_live_session=t' }), handle);
+        await invoke(api, makeReq('PUT', '/api/recordings/sess-1/annotations', '[]', { cookie: 'recording_viewer_session=t' }), handle);
         expect(handle.captured.status).toBe(403);
     });
 
@@ -71,7 +71,7 @@ describe('auth gate', () => {
         const handle = makeRes();
         await invoke(api, makeReq('POST', '/api/recordings/sess-1/annotations',
             JSON.stringify({ label: 'high-struggle', text: '' }),
-            { cookie: 'iris_live_session=t' }), handle);
+            { cookie: 'recording_viewer_session=t' }), handle);
         // Endpoint will be implemented in Task 11; for now, gate must pass through.
         // 200 or 404 are both acceptable here. NOT 403, NOT 401.
         expect(handle.captured.status).not.toBe(403);
