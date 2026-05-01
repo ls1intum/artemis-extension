@@ -2,7 +2,8 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { execFile } from 'child_process';
 import type { AppConfig, IncomingRequest, ServerResponse } from './types';
-import { sendJson } from './http';
+import { sendJson, parseCookies, readJsonBody } from './http';
+import { isValidToken, buildSessionCookie, isSessionCookieValid } from './auth';
 
 export type ApiHandler = (req: IncomingRequest, res: ServerResponse, next: () => void) => void;
 
@@ -79,13 +80,74 @@ export function createRecordingsApi(config: AppConfig): ApiHandler {
     }
 
     return (req: IncomingRequest, res: ServerResponse, next: () => void) => {
+        const method = req.method?.toUpperCase() ?? 'GET';
+        const urlPath = (req.url ?? '').split('?')[0];
+
+        // ─── Auth endpoints ───────────────────────────────────────────────
+        if (urlPath === '/api/auth/login' && method === 'POST') {
+            void (async () => {
+                try {
+                    const body = await readJsonBody(req, 4096);
+                    const token = (body as { token?: unknown })?.token;
+                    if (typeof token !== 'string' || !isValidToken(token, config.liveToken)) {
+                        sendJson(res, 401, { error: 'Invalid token' });
+                        return;
+                    }
+                    res.setHeader('Set-Cookie', buildSessionCookie(token));
+                    sendJson(res, 200, { ok: true });
+                } catch {
+                    sendJson(res, 400, { error: 'Invalid request body' });
+                }
+            })();
+            return;
+        }
+
+        if (urlPath === '/api/auth/logout' && method === 'POST') {
+            res.setHeader('Set-Cookie', buildSessionCookie('', { clear: true }));
+            sendJson(res, 200, { ok: true });
+            return;
+        }
+
+        if (urlPath === '/api/auth/status' && method === 'GET') {
+            const cookies = parseCookies(req);
+            sendJson(res, 200, {
+                authenticated: isSessionCookieValid(cookies, config.liveToken),
+                authRequired: Boolean(config.liveToken),
+                allowWrite: config.allowWrite,
+            });
+            return;
+        }
+
+        // ─── Auth gate for /api/recordings and /api/live ──────────────────
+        if (urlPath.startsWith('/api/recordings') || urlPath.startsWith('/api/live')) {
+            if (config.liveToken) {
+                const cookies = parseCookies(req);
+                if (!isSessionCookieValid(cookies, config.liveToken)) {
+                    sendJson(res, 401, { error: 'Authentication required' });
+                    return;
+                }
+            }
+            // Mutating-endpoint gate.
+            // Live mode (allowWrite=false) blocks all writes EXCEPT POST /annotations
+            // (the live struggle-tagging endpoint).
+            const isAnnotationPost =
+                method === 'POST' &&
+                /^\/api\/recordings\/[^/]+\/annotations$/.test(urlPath);
+            const isMutating =
+                method === 'PUT' ||
+                method === 'DELETE' ||
+                method === 'POST';
+            if (isMutating && !config.allowWrite && !isAnnotationPost) {
+                sendJson(res, 403, {
+                    error: 'Write operation disabled in live mode (set IRIS_LIVE_ALLOW_WRITE=1 to enable)',
+                });
+                return;
+            }
+        }
+
         if (!req.url?.startsWith('/api/recordings')) {
             return next();
         }
-
-        const method = req.method?.toUpperCase() ?? 'GET';
-        // Strip query string for route matching
-        const urlPath = req.url.split('?')[0];
 
         // POST /api/recordings/open-folder
         if (urlPath === '/api/recordings/open-folder' && method === 'POST') {
