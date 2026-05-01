@@ -429,6 +429,84 @@ export function createRecordingsApi(config: AppConfig): ApiHandler {
             return;
         }
 
+        // POST /api/recordings/:sessionId/annotations — append a single
+        // anchored annotation (live struggle-tagging endpoint).
+        const VALID_LABELS = new Set([
+            'confident', 'light-struggle', 'medium-struggle', 'high-struggle', 'blocked',
+            'idle', 'trial-error', 'reading', 'off-task', 'using-ai',
+        ]);
+        const ESTIMATED_FLUSH_LAG_MS = 2_500;
+        const FUTURE_TIMESTAMP_TOLERANCE_MS = 1_000;
+
+        const annotPostMatch = urlPath.match(/^\/api\/recordings\/([^/]+)\/annotations$/);
+        if (annotPostMatch && method === 'POST') {
+            const sessionDir = resolveSessionDir(annotPostMatch[1]);
+            if (!sessionDir) { sendJson(res, 400, { error: 'Invalid session ID' }); return; }
+            if (!fs.existsSync(sessionDir)) { sendJson(res, 404, { error: 'Session not found' }); return; }
+            const annotPath = path.join(sessionDir, 'annotations.json');
+
+            void (async () => {
+                let parsed: { label?: unknown; text?: unknown; referenceEventTimestamp?: unknown; reactionDelayMs?: unknown };
+                try {
+                    parsed = await readJsonBody(req, 64_000) as typeof parsed;
+                } catch (err) {
+                    const msg = err instanceof Error ? err.message : String(err);
+                    sendJson(res, 400, { error: msg });
+                    return;
+                }
+
+                if (parsed.label !== undefined && (typeof parsed.label !== 'string' || !VALID_LABELS.has(parsed.label))) {
+                    sendJson(res, 400, { error: 'Invalid label' });
+                    return;
+                }
+                const text = typeof parsed.text === 'string' ? parsed.text : '';
+                const reactionDelay = (typeof parsed.reactionDelayMs === 'number' && Number.isFinite(parsed.reactionDelayMs) && parsed.reactionDelayMs >= 0)
+                    ? Math.min(parsed.reactionDelayMs, 5_000)
+                    : 300;
+                const now = Date.now();
+                let timestamp: number;
+                if (typeof parsed.referenceEventTimestamp === 'number' && Number.isFinite(parsed.referenceEventTimestamp)) {
+                    timestamp = Math.min(parsed.referenceEventTimestamp + reactionDelay, now + FUTURE_TIMESTAMP_TOLERANCE_MS);
+                } else {
+                    timestamp = now - ESTIMATED_FLUSH_LAG_MS;
+                }
+                const annotation = {
+                    id: `${now}-${Math.random().toString(36).slice(2, 8)}`,
+                    timestamp,
+                    text,
+                    label: parsed.label,
+                    createdAt: now,
+                };
+
+                let existing: unknown[] = [];
+                if (fs.existsSync(annotPath)) {
+                    try {
+                        const raw = fs.readFileSync(annotPath, 'utf-8');
+                        const arr = JSON.parse(raw);
+                        if (!Array.isArray(arr)) {
+                            sendJson(res, 409, { error: 'Existing annotations.json is not an array' });
+                            return;
+                        }
+                        existing = arr;
+                    } catch {
+                        sendJson(res, 409, { error: 'Existing annotations.json is corrupt JSON; refusing to overwrite' });
+                        return;
+                    }
+                }
+                existing.push(annotation);
+
+                try {
+                    const tmp = annotPath + '.tmp';
+                    fs.writeFileSync(tmp, JSON.stringify(existing, null, 2), 'utf-8');
+                    fs.renameSync(tmp, annotPath);
+                    sendJson(res, 200, { ok: true, annotation });
+                } catch (err) {
+                    sendJson(res, 500, { error: String(err) });
+                }
+            })();
+            return;
+        }
+
         // PUT /api/recordings/:sessionId/annotations
         const annotPutMatch = urlPath.match(/^\/api\/recordings\/([^/]+)\/annotations$/);
         if (annotPutMatch && method === 'PUT') {
