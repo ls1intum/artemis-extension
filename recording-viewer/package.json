@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:live": "node -e \"if(!process.env.IRIS_LIVE_TOKEN){console.error('IRIS_LIVE_TOKEN must be set');process.exit(1)}\" && vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview",

@@ -24,7 +24,24 @@ function recordingsApiPlugin() {
     }
 }
 
+function resolveBindHost(): string {
+    const explicit = process.env.IRIS_LIVE_BIND;
+    const hasToken = Boolean(liveToken);
+    if (explicit) {
+        const isLocal = explicit === '127.0.0.1' || explicit === 'localhost' || explicit === '::1';
+        if (!hasToken && !isLocal) {
+            throw new Error(
+                'IRIS_LIVE_BIND set to non-local interface but IRIS_LIVE_TOKEN is missing. ' +
+                'Refusing to expose recordings without authentication.',
+            );
+        }
+        return explicit;
+    }
+    return hasToken ? '0.0.0.0' : '127.0.0.1';
+}
+
 // https://vite.dev/config/
 export default defineConfig({
     plugins: [react(), recordingsApiPlugin()],
+    server: { host: resolveBindHost() },
 })
