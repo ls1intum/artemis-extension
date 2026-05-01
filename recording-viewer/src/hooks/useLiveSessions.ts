@@ -16,7 +16,11 @@ export function useLiveSessions(enabled: boolean, intervalMs = 5_000): Set<strin
                     if (!res.ok || cancelled) return;
                     return res.json().then((json: { sessions: LiveSession[] }) => {
                         if (cancelled) return;
-                        setIds(new Set(json.sessions.map(s => s.id)));
+                        setIds(prev => {
+                            const ids = json.sessions.map(s => s.id);
+                            if (prev.size === ids.length && ids.every(id => prev.has(id))) return prev;
+                            return new Set(ids);
+                        });
                     });
                 })
                 .catch(() => { /* ignore */ });

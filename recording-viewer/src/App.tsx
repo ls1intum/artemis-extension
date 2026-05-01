@@ -171,13 +171,16 @@ export function RecordingViewerApp({ authStatus }: RecordingViewerAppProps) {
     useEffect(() => {
         if (live.error === 'Session ended' && activeSessionId.current) {
             const id = activeSessionId.current;
+            // Stash current live events into session so display doesn't blank out
+            // during the 500ms grace before archive reload.
+            setSession((prev) => prev ? { ...prev, events: live.events } : prev);
             setEndedLiveSessionId(id);
             setStickyLive(false);
             setTimeout(() => {
                 if (activeSessionId.current === id) void loadFromApi(id, false);
             }, 500);
         }
-    }, [live.error, loadFromApi]);
+    }, [live.error, live.events, loadFromApi]);
 
     useLiveHotkeys(isLiveSession, useCallback(async (label) => {
         const ann = await liveAnnot.post(label, live.latestEventTimestamp, reactionDelayMs);
