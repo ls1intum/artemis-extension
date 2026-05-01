@@ -33,7 +33,7 @@ export function parseCookies(req: IncomingRequest): Record<string, string> {
  */
 export async function readJsonBody(req: IncomingRequest, maxBytes = 65_536): Promise<unknown> {
     return new Promise((resolve, reject) => {
-        let body = '';
+        const chunks: Buffer[] = [];
         let total = 0;
         let done = false;
         req.on('data', (chunk: Buffer) => {
@@ -44,17 +44,22 @@ export async function readJsonBody(req: IncomingRequest, maxBytes = 65_536): Pro
                 reject(new Error('Body too large'));
                 return;
             }
-            body += chunk.toString();
+            chunks.push(chunk);
         });
         req.on('end', () => {
             if (done) return;
             done = true;
-            try { resolve(JSON.parse(body)); } catch (err) { reject(err); }
+            try {
+                const body = Buffer.concat(chunks).toString('utf8');
+                resolve(JSON.parse(body));
+            } catch (err) {
+                reject(err);
+            }
         });
-        req.on('error', () => {
+        req.on('error', (err) => {
             if (done) return;
             done = true;
-            reject(new Error('Request error'));
+            reject(err);
         });
     });
 }

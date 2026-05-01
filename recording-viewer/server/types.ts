@@ -19,6 +19,7 @@ export interface IncomingRequest {
     method?: string;
     headers?: Record<string, string | string[] | undefined>;
     on(event: 'data', cb: (chunk: Buffer) => void): void;
-    on(event: 'end' | 'close' | 'error', cb: () => void): void;
+    on(event: 'end' | 'close', cb: () => void): void;
+    on(event: 'error', cb: (err: Error) => void): void;
     pipe(dest: NodeJS.WritableStream): void;
 }
