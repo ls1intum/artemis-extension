@@ -44,6 +44,8 @@ export function createRecordingsApi(config: AppConfig): ApiHandler {
     // the end timestamp is valid VTT cue settings (line:, position:, align:, size:, vertical:).
     const VTT_TIMING_LINE = /^(?:\d+:)?\d{1,2}:\d{2}\.\d{1,3}\s*-->\s*(?:\d+:)?\d{1,2}:\d{2}\.\d{1,3}(?:\s+.*)?$/;
 
+    const LIVE_FRESHNESS_WINDOW_MS = 15 * 60_000;
+
     function padTimestamp(h: string, m: string, s: string, ms: string): string {
         const hh = h.padStart(2, '0');
         // Pad ms to exactly 3 digits.
@@ -148,6 +150,48 @@ export function createRecordingsApi(config: AppConfig): ApiHandler {
                 });
                 return;
             }
+        }
+
+        // GET /api/live/sessions: list "live" sessions based on events.jsonl mtime
+        // and metadata.endTime heuristic. A session is live when:
+        //   - events.jsonl exists AND mtime is within LIVE_FRESHNESS_WINDOW_MS
+        //   - metadata.json is missing OR has endTime == null
+        if (urlPath === '/api/live/sessions' && method === 'GET') {
+            try {
+                if (!fs.existsSync(recordingsDir)) {
+                    sendJson(res, 200, { sessions: [] });
+                    return;
+                }
+                const now = Date.now();
+                const entries = fs.readdirSync(recordingsDir, { withFileTypes: true });
+                const live: Array<{ id: string; metadata: unknown }> = [];
+                for (const e of entries) {
+                    if (!e.isDirectory()) continue;
+                    const eventsPath = path.join(recordingsDir, e.name, 'events.jsonl');
+                    if (!fs.existsSync(eventsPath)) continue;
+                    let mtimeMs: number;
+                    try { mtimeMs = fs.statSync(eventsPath).mtimeMs; } catch { continue; }
+                    if (now - mtimeMs > LIVE_FRESHNESS_WINDOW_MS) continue;
+
+                    const metaPath = path.join(recordingsDir, e.name, 'metadata.json');
+                    let metadata: unknown = null;
+                    if (fs.existsSync(metaPath)) {
+                        try {
+                            const meta = JSON.parse(fs.readFileSync(metaPath, 'utf-8'));
+                            if (meta && typeof meta === 'object' && 'endTime' in meta && meta.endTime != null) {
+                                // session ended, not live
+                                continue;
+                            }
+                            metadata = meta;
+                        } catch { /* corrupt metadata: treat as missing */ }
+                    }
+                    live.push({ id: e.name, metadata });
+                }
+                sendJson(res, 200, { sessions: live });
+            } catch (err) {
+                sendJson(res, 500, { error: String(err) });
+            }
+            return;
         }
 
         if (!req.url?.startsWith('/api/recordings')) {
