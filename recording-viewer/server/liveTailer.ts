@@ -58,6 +58,7 @@ export class LiveTailer {
 
     stop(): void {
         if (this._timer) { clearTimeout(this._timer); this._timer = undefined; }
+        this._listeners.clear();
     }
 
     /**

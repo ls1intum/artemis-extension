@@ -39,4 +39,24 @@ describe('LiveTailerRegistry', () => {
         b.release();
         expect(reg.size()).toBe(0);
     });
+
+    it('creates a fresh tailer after full release (no zombie reuse)', () => {
+        const reg = new LiveTailerRegistry(tmpDir);
+        const a = reg.acquire('sess-1');
+        a.release();
+        const b = reg.acquire('sess-1');
+        expect(b.tailer).not.toBe(a.tailer);
+        b.release();
+    });
+
+    it('disposeAll() stops all tailers and clears the registry', () => {
+        fs.mkdirSync(path.join(tmpDir, 'sess-2'));
+        fs.writeFileSync(path.join(tmpDir, 'sess-2/events.jsonl'), '');
+        const reg = new LiveTailerRegistry(tmpDir);
+        reg.acquire('sess-1');
+        reg.acquire('sess-2');
+        expect(reg.size()).toBe(2);
+        reg.disposeAll();
+        expect(reg.size()).toBe(0);
+    });
 });
