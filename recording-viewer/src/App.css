@@ -1759,3 +1759,12 @@
     color: #ef4444;
     background: rgba(239, 68, 68, 0.1);
 }
+
+.login-screen { display: flex; align-items: center; justify-content: center; min-height: 100vh; background: #0f172a; }
+.login-form { background: #1e293b; padding: 2rem; border-radius: 8px; width: 360px; color: #f1f5f9; }
+.login-form h1 { margin-top: 0; }
+.login-form input { width: 100%; padding: 0.6rem; margin: 0.5rem 0; border: 1px solid #334155; background: #0f172a; color: inherit; border-radius: 4px; }
+.login-form button { width: 100%; padding: 0.6rem; background: #3b82f6; color: white; border: none; border-radius: 4px; cursor: pointer; }
+.login-form button:disabled { opacity: 0.5; cursor: not-allowed; }
+.login-error { color: #f87171; margin-top: 0.75rem; font-size: 0.9rem; }
+.loading-screen { display: flex; align-items: center; justify-content: center; min-height: 100vh; background: #0f172a; color: #94a3b8; }

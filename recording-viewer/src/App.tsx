@@ -15,10 +15,17 @@ import { SubtitleUpload } from './components/SubtitleUpload';
 import { OffsetConfig } from './components/OffsetConfig';
 import { FreeAnnotationForm } from './components/FreeAnnotationForm';
 import { ALL_EVENT_TYPES } from './constants';
+import type { AuthStatus } from './hooks/useAuth';
 
 const ALL_ENABLED = new Set(ALL_EVENT_TYPES);
 
-function App() {
+interface RecordingViewerAppProps { authStatus: AuthStatus }
+
+export function RecordingViewerApp({ authStatus }: RecordingViewerAppProps) {
+    void authStatus; // consumed in Task 19
+    const apiFetch = useCallback((url: string, init?: RequestInit) => {
+        return fetch(url, { ...init, credentials: 'include' });
+    }, []);
     const [session, setSession] = useState<LoadedSession | null>(null);
     const [loading, setLoading] = useState(false);
     const [annotations, setAnnotations] = useState<Annotation[]>([]);
@@ -35,13 +42,13 @@ function App() {
     const saveAnnotations = useCallback(async (updated: Annotation[]) => {
         setAnnotations(updated);
         if (activeSessionId.current) {
-            await fetch(`/api/recordings/${activeSessionId.current}/annotations`, {
+            await apiFetch(`/api/recordings/${activeSessionId.current}/annotations`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(updated),
             }).catch(() => {/* best-effort persist */});
         }
-    }, []);
+    }, [apiFetch]);
 
     const handleAddAnnotation = useCallback((timestamp: number, text: string, label?: AnnotationLabel) => {
         const annotation: Annotation = {
@@ -68,12 +75,12 @@ function App() {
         setScrollToTimestamp(null);
         try {
             const [eventsRes, metaRes, replayRes, annotRes, videoSyncRes, subsRes] = await Promise.all([
-                fetch(`/api/recordings/${sessionId}/events`),
-                fetch(`/api/recordings/${sessionId}/metadata`),
-                fetch(`/api/recordings/${sessionId}/replay-eq`),
-                fetch(`/api/recordings/${sessionId}/annotations`),
-                fetch(`/api/recordings/${sessionId}/video-sync`),
-                fetch(`/api/recordings/${sessionId}/subtitles`, { method: 'HEAD' }),
+                apiFetch(`/api/recordings/${sessionId}/events`),
+                apiFetch(`/api/recordings/${sessionId}/metadata`),
+                apiFetch(`/api/recordings/${sessionId}/replay-eq`),
+                apiFetch(`/api/recordings/${sessionId}/annotations`),
+                apiFetch(`/api/recordings/${sessionId}/video-sync`),
+                apiFetch(`/api/recordings/${sessionId}/subtitles`, { method: 'HEAD' }),
             ]);
 
             const events: RecordedEvent[] = await eventsRes.json();
@@ -111,7 +118,7 @@ function App() {
         } finally {
             setLoading(false);
         }
-    }, []);
+    }, [apiFetch]);
 
     const handleFileSession = useCallback((loaded: LoadedSession) => {
         activeSessionId.current = null;
@@ -161,20 +168,20 @@ function App() {
 
     const handleOpenSessionFolder = useCallback(() => {
         if (!activeSessionId.current) return;
-        fetch(`/api/recordings/${encodeURIComponent(activeSessionId.current)}/open`, { method: 'POST' })
+        apiFetch(`/api/recordings/${encodeURIComponent(activeSessionId.current)}/open`, { method: 'POST' })
             .catch(() => {/* best-effort */});
-    }, []);
+    }, [apiFetch]);
 
     const handleOffsetChange = useCallback(async (newOffset: number) => {
         if (!activeSessionId.current || !videoSyncConfig) return;
         const updated = { ...videoSyncConfig, videoTimeAtSessionStartSeconds: newOffset };
         setVideoSyncConfig(updated);
-        await fetch(`/api/recordings/${activeSessionId.current}/video-sync`, {
+        await apiFetch(`/api/recordings/${activeSessionId.current}/video-sync`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(updated),
         }).catch(() => {/* best-effort */});
-    }, [videoSyncConfig]);
+    }, [videoSyncConfig, apiFetch]);
 
     const handleVideoPlayStateChange = useCallback((playing: boolean) => {
         setIsVideoPlaying(playing);
@@ -436,5 +443,3 @@ function App() {
         </div>
     );
 }
-
-export default App;
