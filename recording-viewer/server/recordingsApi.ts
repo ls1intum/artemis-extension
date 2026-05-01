@@ -4,6 +4,7 @@ import { execFile } from 'child_process';
 import type { AppConfig, IncomingRequest, ServerResponse } from './types';
 import { sendJson, parseCookies, readJsonBody } from './http';
 import { isValidToken, buildSessionCookie, isSessionCookieValid } from './auth';
+import { LiveTailerRegistry } from './liveTailerRegistry';
 
 export type ApiHandler = (req: IncomingRequest, res: ServerResponse, next: () => void) => void;
 
@@ -21,6 +22,10 @@ export function createRecordingsApi(config: AppConfig): ApiHandler {
         if (!resolved.startsWith(recordingsDir + path.sep)) return null;
         return resolved;
     }
+
+    // Live-tailer registry — shared across all SSE requests so multiple subscribers
+    // to the same session reuse one underlying file poller.
+    const tailerRegistry = new LiveTailerRegistry(recordingsDir);
 
     // Track concurrent video uploads per session
     const uploadInProgress = new Map<string, boolean>();
@@ -254,6 +259,63 @@ export function createRecordingsApi(config: AppConfig): ApiHandler {
             } catch (err) {
                 sendJson(res, 500, { error: String(err) });
             }
+            return;
+        }
+
+        // GET /api/recordings/:sessionId/events/stream — SSE live tail
+        // MUST come before the /events route below so it doesn't get shadowed.
+        const streamMatch = urlPath.match(/^\/api\/recordings\/([^/]+)\/events\/stream$/);
+        if (streamMatch && method === 'GET') {
+            const sessionIdRaw = streamMatch[1];
+            const sessionDir = resolveSessionDir(sessionIdRaw);
+            if (!sessionDir || !fs.existsSync(sessionDir)) {
+                sendJson(res, 404, { error: 'Session not found' });
+                return;
+            }
+            const sessionId = decodeURIComponent(sessionIdRaw);
+
+            res.setHeader('Content-Type', 'text/event-stream');
+            res.setHeader('Cache-Control', 'no-cache, no-store');
+            res.setHeader('Connection', 'keep-alive');
+            res.setHeader('X-Accel-Buffering', 'no');
+            res.writeHead(200);
+            res.write?.(': stream open\n\n');
+
+            let closed = false;
+            const handle = tailerRegistry.acquire(sessionId);
+            const unsubscribe = handle.tailer.subscribe((line, lineNo) => {
+                if (closed) return;
+                // SSE: id field becomes the EventSource.lastEventId on the client.
+                res.write?.(`id: ${lineNo}\ndata: ${line}\n\n`);
+            });
+
+            const heartbeat = setInterval(() => {
+                if (closed) return;
+                res.write?.(': heartbeat\n\n');
+            }, 15_000);
+
+            // Watch for the events file disappearing (session deleted while streaming)
+            const fileWatcher = setInterval(() => {
+                if (closed) return;
+                const eventsPath = path.join(sessionDir, 'events.jsonl');
+                if (!fs.existsSync(eventsPath)) {
+                    res.write?.('event: session-gone\ndata: {}\n\n');
+                    cleanup();
+                }
+            }, 5_000);
+
+            function cleanup() {
+                if (closed) return;
+                closed = true;
+                clearInterval(heartbeat);
+                clearInterval(fileWatcher);
+                unsubscribe();
+                handle.release();
+                try { res.end(); } catch { /* already ended */ }
+            }
+
+            req.on('close', cleanup);
+            req.on('error', cleanup);
             return;
         }
 
