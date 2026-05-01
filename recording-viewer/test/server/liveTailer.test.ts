@@ -96,6 +96,17 @@ describe('LiveTailer (deterministic)', () => {
         expect(got).toEqual([]);
     });
 
+    it('concurrent pollOnce calls do not double-emit lines (re-entrancy guard)', async () => {
+        fs.writeFileSync(filePath, '{"a":1}\n{"a":2}\n{"a":3}\n');
+        const got: string[] = [];
+        const t = new LiveTailer(filePath);
+        t.subscribe((line) => got.push(line));
+        // Fire two concurrent pollOnce calls. The guard should make the second one
+        // return the same in-flight promise; lines must be emitted exactly once.
+        await Promise.all([t.pollOnce(), t.pollOnce()]);
+        expect(got).toEqual(['{"a":1}', '{"a":2}', '{"a":3}']);
+    });
+
     it('handles missing file gracefully', async () => {
         const missing = path.join(tmpDir, 'nope.jsonl');
         const got: string[] = [];

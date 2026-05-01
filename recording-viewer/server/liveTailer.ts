@@ -32,6 +32,7 @@ export class LiveTailer {
     private readonly _pollIntervalMs: number;
     private readonly _maxChunkBytes: number;
     private readonly _filePath: string;
+    private _inFlight: Promise<void> | undefined;
 
     constructor(filePath: string, opts: TailerOptions = {}) {
         this._filePath = filePath;
@@ -62,8 +63,18 @@ export class LiveTailer {
     /**
      * One synchronous-ish polling pass. Public for deterministic testing
      * and for the SSE server's "poll-now-on-watch-event" optimisation.
+     *
+     * Re-entrancy safe: concurrent callers share a single in-flight pass so
+     * lines are never double-emitted when `start()`'s timer overlaps with a
+     * watch-event-driven `pollOnce()` call.
      */
     async pollOnce(): Promise<void> {
+        if (this._inFlight) return this._inFlight;
+        this._inFlight = this._doPoll().finally(() => { this._inFlight = undefined; });
+        return this._inFlight;
+    }
+
+    private async _doPoll(): Promise<void> {
         let stat: fs.BigIntStats;
         try { stat = await fsPromises.stat(this._filePath, { bigint: true }); }
         catch { return; }
