@@ -342,15 +342,13 @@ export function RecordingViewerApp({ authStatus }: RecordingViewerAppProps) {
     }, [autoFollowLive, isLiveSession, xDomain, zoomedXDomain]);
 
     const handleToggleAutoFollow = useCallback(() => {
-        setAutoFollowLive((prev) => {
-            const next = !prev;
-            if (next && zoomedXDomain && xDomain) {
-                const range = zoomedXDomain[1] - zoomedXDomain[0];
-                setZoomedXDomain([xDomain[1] - range, xDomain[1]]);
-            }
-            return next;
-        });
-    }, [xDomain, zoomedXDomain]);
+        const next = !autoFollowLive;
+        setAutoFollowLive(next);
+        if (next && zoomedXDomain && xDomain) {
+            const range = zoomedXDomain[1] - zoomedXDomain[0];
+            setZoomedXDomain([xDomain[1] - range, xDomain[1]]);
+        }
+    }, [autoFollowLive, xDomain, zoomedXDomain]);
 
     const handleZoomChange = useCallback((domain: [number, number] | null) => {
         setZoomedXDomain(domain);
@@ -376,11 +374,11 @@ export function RecordingViewerApp({ authStatus }: RecordingViewerAppProps) {
         const range = max - min;
         const fullRange = xDomain[1] - xDomain[0];
         const newRange = range * 1.5;
+        setAutoFollowLive(false);
         if (newRange >= fullRange) {
             setZoomedXDomain(null);
             return;
         }
-        setAutoFollowLive(false);
         let newMin = (min + max) / 2 - newRange / 2;
         let newMax = (min + max) / 2 + newRange / 2;
         if (newMin < xDomain[0]) { newMin = xDomain[0]; newMax = newMin + newRange; }
@@ -507,7 +505,7 @@ export function RecordingViewerApp({ authStatus }: RecordingViewerAppProps) {
                                 {zoomedXDomain && (
                                     <button className="zoom-btn reset" onClick={() => setZoomedXDomain(null)} title="Reset zoom">Reset</button>
                                 )}
-                                {isLiveSession && (
+                                {isLiveSession && zoomedXDomain && (
                                     <button
                                         className={`zoom-btn follow ${autoFollowLive ? 'active' : ''}`}
                                         onClick={handleToggleAutoFollow}

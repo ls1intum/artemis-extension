@@ -77,37 +77,44 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPl
         },
     }), [sessionToVideoTime, videoTimeToSession]);
 
-    // Frame callback: update videoTimeRef with current session timestamp
+    // Frame callback: update videoTimeRef with current session timestamp.
+    // requestVideoFrameCallback is in lib.dom now but still missing on older
+    // Safari/Firefox at runtime, so cast to optional and feature-check.
     useEffect(() => {
         const video = videoRef.current;
         if (!video) return;
 
+        const vfcHost = video as HTMLVideoElement & {
+            requestVideoFrameCallback?: HTMLVideoElement['requestVideoFrameCallback'];
+            cancelVideoFrameCallback?: HTMLVideoElement['cancelVideoFrameCallback'];
+        };
+
         let rafId: number;
 
-        if ('requestVideoFrameCallback' in video) {
+        if (vfcHost.requestVideoFrameCallback && vfcHost.cancelVideoFrameCallback) {
+            const requestVfc = vfcHost.requestVideoFrameCallback.bind(vfcHost);
+            const cancelVfc = vfcHost.cancelVideoFrameCallback.bind(vfcHost);
             const onFrame = () => {
                 if (!isProgrammaticSeek.current) {
                     (videoTimeRef as React.MutableRefObject<number>).current = videoTimeToSession(video.currentTime);
                 }
                 setCurrentTime(video.currentTime);
-                rafId = (video as HTMLVideoElement & { requestVideoFrameCallback: (cb: () => void) => number }).requestVideoFrameCallback(onFrame);
+                rafId = requestVfc(onFrame);
             };
-            rafId = (video as HTMLVideoElement & { requestVideoFrameCallback: (cb: () => void) => number }).requestVideoFrameCallback(onFrame);
-            return () => {
-                (video as HTMLVideoElement & { cancelVideoFrameCallback: (id: number) => void }).cancelVideoFrameCallback(rafId);
-            };
-        } else {
-            // Fallback: requestAnimationFrame
-            const onFrame = () => {
-                if (!isProgrammaticSeek.current) {
-                    (videoTimeRef as React.MutableRefObject<number>).current = videoTimeToSession(video.currentTime);
-                }
-                setCurrentTime(video.currentTime);
-                rafId = requestAnimationFrame(onFrame);
-            };
-            rafId = requestAnimationFrame(onFrame);
-            return () => cancelAnimationFrame(rafId);
+            rafId = requestVfc(onFrame);
+            return () => cancelVfc(rafId);
         }
+
+        // Fallback: requestAnimationFrame
+        const onFrame = () => {
+            if (!isProgrammaticSeek.current) {
+                (videoTimeRef as React.MutableRefObject<number>).current = videoTimeToSession(video.currentTime);
+            }
+            setCurrentTime(video.currentTime);
+            rafId = requestAnimationFrame(onFrame);
+        };
+        rafId = requestAnimationFrame(onFrame);
+        return () => cancelAnimationFrame(rafId);
     }, [videoTimeRef, videoTimeToSession]);
 
     // Clear programmatic seek flag on seeked event
