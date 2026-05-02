@@ -4,7 +4,6 @@ import {
     ChatContextType,
     ContextSnapshot,
     ContextSource,
-    StoredSession,
     TrackedCourse,
     TrackedExercise,
     type IrisChatMessage,
@@ -12,17 +11,8 @@ import {
 import { logger } from '../loggingService';
 import { SessionManager } from './sessionManager';
 import { calculateExercisePriority, calculateCoursePriority, byPriorityThenRecency, byLastViewedDesc } from './contextPriorityScorer';
-
-interface StoredState {
-    version: number;
-    activeContext: ActiveContext | null;
-    activeSessionId: string | null;
-    recentExercises: TrackedExercise[];
-    recentCourses: TrackedCourse[];
-    allExercises: TrackedExercise[];
-    allCourses: TrackedCourse[];
-    sessions: Record<string, StoredSession[]>;
-}
+import type { StoredState } from './contextStateTypes';
+import { ContextPersistence } from './contextPersistence';
 
 interface ExerciseInput {
     id: number;
@@ -50,9 +40,6 @@ interface ContextStoreOptions {
     exerciseHistoryLimit?: number;
     courseHistoryLimit?: number;
 }
-
-const STORE_KEY = 'iris.contextStore';
-const STORE_VERSION = 1;
 
 const DEFAULT_OPTIONS: Required<ContextStoreOptions> = {
     maxRecentExercises: 5,
@@ -86,6 +73,7 @@ interface ActiveContextChangeEvent {
 export class ContextStore {
     private state: StoredState;
     private options: Required<ContextStoreOptions>;
+    private readonly _persistence: ContextPersistence;
     private readonly _sessionManager: SessionManager;
 
     private readonly _onDidChangeActiveContext = new vscode.EventEmitter<ActiveContextChangeEvent>();
@@ -93,68 +81,17 @@ export class ContextStore {
 
     constructor(private readonly context: vscode.ExtensionContext, options?: ContextStoreOptions) {
         this.options = { ...DEFAULT_OPTIONS, ...(options ?? {}) };
-        this.state = this.loadState();
+        this._persistence = new ContextPersistence(context);
+        this.state = this._persistence.load();
         this._sessionManager = new SessionManager(
             () => this.state,
             () => this.state.activeContext,
-            () => this.saveState(),
+            () => this._persistence.save(this.state),
         );
     }
 
     public dispose(): void {
         this._onDidChangeActiveContext.dispose();
-    }
-
-    private loadState(): StoredState {
-        const raw = this.context.globalState.get<StoredState>(STORE_KEY);
-        if (!raw) {
-            return this.defaultState();
-        }
-        if (raw.version !== STORE_VERSION) {
-            return this.migrateState(raw);
-        }
-        // Don't load sessions from storage - always start fresh
-        return {
-            ...raw,
-            sessions: {},
-            activeSessionId: null,
-        };
-    }
-
-    private migrateState(previous: StoredState): StoredState {
-        return {
-            version: STORE_VERSION,
-            activeContext: previous.activeContext ?? null,
-            activeSessionId: previous.activeSessionId ?? null,
-            recentExercises: previous.recentExercises ?? [],
-            recentCourses: previous.recentCourses ?? [],
-            allExercises: previous.allExercises ?? [],
-            allCourses: previous.allCourses ?? [],
-            sessions: previous.sessions ?? {},
-        };
-    }
-
-    private defaultState(): StoredState {
-        return {
-            version: STORE_VERSION,
-            activeContext: null,
-            activeSessionId: null,
-            recentExercises: [],
-            recentCourses: [],
-            allExercises: [],
-            allCourses: [],
-            sessions: {},
-        };
-    }
-
-    private saveState(): void {
-        // Don't persist sessions and activeSessionId - only save exercise/course tracking
-        const stateToPersist: StoredState = {
-            ...this.state,
-            sessions: {}, // Never persist sessions
-            activeSessionId: null, // Never persist active session
-        };
-        this.context.globalState.update(STORE_KEY, stateToPersist).then(undefined, (err: unknown) => logger.error('Failed to persist state', undefined, err));
     }
 
     public snapshot(): ContextSnapshot {
@@ -207,7 +144,7 @@ export class ContextStore {
         this.upsertExercise(input);
         this.recalculateExercisePriorities();
         this.trimExerciseHistory();
-        this.saveState();
+        this._persistence.save(this.state);
         return this.snapshot();
     }
 
@@ -215,7 +152,7 @@ export class ContextStore {
         this.upsertCourse(input);
         this.recalculateCoursePriorities();
         this.trimCourseHistory();
-        this.saveState();
+        this._persistence.save(this.state);
         return this.snapshot();
     }
 
@@ -228,7 +165,7 @@ export class ContextStore {
             this.clearActiveContext();
         }
 
-        this.saveState();
+        this._persistence.save(this.state);
         return this.snapshot();
     }
 
@@ -241,7 +178,7 @@ export class ContextStore {
             this.clearActiveContext();
         }
 
-        this.saveState();
+        this._persistence.save(this.state);
         return this.snapshot();
     }
 
@@ -257,7 +194,7 @@ export class ContextStore {
 
         logger.context('New active context set to:', this.state.activeContext);
 
-        this.saveState();
+        this._persistence.save(this.state);
         this._fireContextChangeIfNeeded(previous, this.state.activeContext);
         return this.snapshot();
     }
@@ -268,7 +205,7 @@ export class ContextStore {
                 ...this.state.activeContext,
                 locked: false,
             };
-            this.saveState();
+            this._persistence.save(this.state);
         }
         return this.snapshot();
     }
@@ -277,7 +214,7 @@ export class ContextStore {
         const previous = this.state.activeContext;
         this.state.activeContext = null;
         this.state.activeSessionId = null;
-        this.saveState();
+        this._persistence.save(this.state);
         this._fireContextChangeIfNeeded(previous, null);
         return this.snapshot();
     }
