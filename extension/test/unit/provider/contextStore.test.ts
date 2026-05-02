@@ -624,6 +624,120 @@ suite('ContextStore Test Suite', () => {
         assert.strictEqual(snapshot.activeSession?.id, initialSessionId);
     });
 
+    // ── New tests (Task 0 — lock invariants before refactor) ──────────
+
+    test('should clear active context on removeExercise even when id is absent from tracked lists', () => {
+        // Set active context for an exercise that was never registered in any tracked list
+        contextStore.setActiveContext({
+            type: 'exercise',
+            id: 999,
+            title: 'Phantom Exercise',
+            source: 'user-selected',
+            selectedAt: 0,
+            locked: false,
+        });
+
+        // Confirm the id is not in any tracked list
+        const before = contextStore.snapshot();
+        assert.strictEqual(before.allExercises.find(e => e.id === 999), undefined);
+        assert.strictEqual(before.recentExercises.find(e => e.id === 999), undefined);
+
+        // Subscribe spy before triggering removal
+        let firedCount = 0;
+        let firedEvent: { current: ActiveContext | null; previous: ActiveContext | null } | undefined;
+        contextStore.onDidChangeActiveContext(event => {
+            firedCount++;
+            firedEvent = event;
+        });
+
+        contextStore.removeExercise(999);
+
+        assert.strictEqual(contextStore.getActiveContext(), null, 'getActiveContext() must return null');
+        assert.strictEqual(firedCount, 1, 'onDidChangeActiveContext must fire exactly once');
+        assert.strictEqual(firedEvent?.current, null);
+        assert.strictEqual(firedEvent?.previous?.id, 999);
+        assert.strictEqual(firedEvent?.previous?.type, 'exercise');
+
+        const after = contextStore.snapshot();
+        assert.strictEqual(after.allExercises.length, 0);
+        assert.strictEqual(after.recentExercises.length, 0);
+    });
+
+    test('should clear active context on removeCourse even when id is absent from tracked lists', () => {
+        // Set active context for a course that was never registered in any tracked list
+        contextStore.setActiveContext({
+            type: 'course',
+            id: 999,
+            title: 'Phantom Course',
+            source: 'user-selected',
+            selectedAt: 0,
+            locked: false,
+        });
+
+        // Confirm the id is not in any tracked list
+        const before = contextStore.snapshot();
+        assert.strictEqual(before.allCourses.find(c => c.id === 999), undefined);
+        assert.strictEqual(before.recentCourses.find(c => c.id === 999), undefined);
+
+        let firedCount = 0;
+        let firedEvent: { current: ActiveContext | null; previous: ActiveContext | null } | undefined;
+        contextStore.onDidChangeActiveContext(event => {
+            firedCount++;
+            firedEvent = event;
+        });
+
+        contextStore.removeCourse(999);
+
+        assert.strictEqual(contextStore.getActiveContext(), null, 'getActiveContext() must return null');
+        assert.strictEqual(firedCount, 1, 'onDidChangeActiveContext must fire exactly once');
+        assert.strictEqual(firedEvent?.current, null);
+        assert.strictEqual(firedEvent?.previous?.id, 999);
+        assert.strictEqual(firedEvent?.previous?.type, 'course');
+
+        const after = contextStore.snapshot();
+        assert.strictEqual(after.allCourses.length, 0);
+        assert.strictEqual(after.recentCourses.length, 0);
+    });
+
+    test('should preserve sessions and activeSessionId from previous-version stored state via migration', () => {
+        // Pre-populate globalState with a version-mismatched StoredState that carries sessions
+        const storedSession = {
+            id: 'sess-A',
+            contextKey: 'exercise:123',
+            preview: 'hi',
+            messageCount: 0,
+            createdAt: 1700000000000,
+            lastActivity: 1700000000000,
+        };
+        const oldState = {
+            version: 0,  // != STORE_VERSION (1), triggers migrateState()
+            activeContext: {
+                type: 'exercise' as const,
+                id: 123,
+                title: 'Migrated Exercise',
+                source: 'user-selected' as const,
+                locked: false,
+                selectedAt: 1700000000000,
+            },
+            activeSessionId: 'sess-A',
+            sessions: { 'exercise:123': [storedSession] },
+            recentExercises: [],
+            recentCourses: [],
+            allExercises: [],
+            allCourses: [],
+        };
+
+        mockContext.globalState.get = () => oldState as any;
+
+        const store = new ContextStore(mockContext);
+        const snap = store.snapshot();
+
+        // Migration must preserve both sessions map and activeSessionId
+        assert.ok(snap.sessions.length > 0, 'migrated sessions array must be non-empty');
+        assert.ok(snap.activeSession !== null, 'migrated activeSession must not be null');
+        assert.strictEqual(snap.activeSession?.id, 'sess-A', 'activeSessionId from migration must resolve to the stored session');
+    });
+
     test('should calculate exercise priority with time-based rules', () => {
         // Mock Date.now
         const originalNow = Date.now;
