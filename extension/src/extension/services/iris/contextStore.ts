@@ -2,37 +2,17 @@ import * as vscode from 'vscode';
 import {
     ActiveContext,
     ContextSnapshot,
-    ContextSource,
-    TrackedCourse,
-    TrackedExercise,
     type IrisChatMessage,
 } from '../../types';
 import { logger } from '../loggingService';
 import { SessionManager } from './sessionManager';
-import { calculateExercisePriority, calculateCoursePriority, byPriorityThenRecency, byLastViewedDesc } from './contextPriorityScorer';
 import type { StoredState } from './contextStateTypes';
 import { ContextPersistence } from './contextPersistence';
 import { buildContextSnapshot } from './contextSnapshot';
+import { TrackedItemRepository } from './trackedItemRepository';
+import type { TrackedExercise, TrackedCourse } from '../../types';
 
-interface ExerciseInput {
-    id: number;
-    title: string;
-    shortName?: string;
-    courseId?: number;
-    releaseDate?: string;
-    dueDate?: string;
-    score?: number;
-    repositoryUri?: string;
-    source?: ContextSource;
-    isWorkspace?: boolean;
-}
-
-interface CourseInput {
-    id: number;
-    title: string;
-    shortName?: string;
-    source?: ContextSource;
-}
+export type { ExerciseInput, CourseInput } from './trackedItemRepository';
 
 interface ContextStoreOptions {
     maxRecentExercises?: number;
@@ -47,11 +27,6 @@ const DEFAULT_OPTIONS: Required<ContextStoreOptions> = {
     exerciseHistoryLimit: 50,
     courseHistoryLimit: 30,
 };
-
-const ARCHIVE_LIMITS = {
-    ALL_EXERCISES: 1000,
-    ALL_COURSES: 400,
-} as const;
 
 // ── Utilities ─────────────────────────────────────────────────────
 
@@ -69,6 +44,7 @@ export class ContextStore {
     private options: Required<ContextStoreOptions>;
     private readonly _persistence: ContextPersistence;
     private readonly _sessionManager: SessionManager;
+    private readonly _repository: TrackedItemRepository;
 
     private readonly _onDidChangeActiveContext = new vscode.EventEmitter<ActiveContextChangeEvent>();
     public readonly onDidChangeActiveContext = this._onDidChangeActiveContext.event;
@@ -81,6 +57,13 @@ export class ContextStore {
             () => this.state,
             () => this.state.activeContext,
             () => this._persistence.save(this.state),
+        );
+        this._repository = new TrackedItemRepository(
+            () => this.state,
+            {
+                exerciseHistoryLimit: this.options.exerciseHistoryLimit,
+                courseHistoryLimit: this.options.courseHistoryLimit,
+            },
         );
     }
 
@@ -97,34 +80,31 @@ export class ContextStore {
     }
 
     public getExerciseById(exerciseId: number): TrackedExercise | undefined {
-        return this.state.allExercises.find(exercise => exercise.id === exerciseId)
-            ?? this.state.recentExercises.find(exercise => exercise.id === exerciseId);
+        return this._repository.getExerciseById(exerciseId);
     }
 
     public getWorkspaceExercise(): TrackedExercise | undefined {
-        return this.state.allExercises.find(ex => ex.isWorkspace)
-            ?? this.state.recentExercises.find(ex => ex.isWorkspace);
+        return this._repository.getWorkspaceExercise();
     }
 
-    public registerExercise(input: ExerciseInput): ContextSnapshot {
-        this.upsertExercise(input);
-        this.recalculateExercisePriorities();
-        this.trimExerciseHistory();
+    public registerExercise(input: Parameters<TrackedItemRepository['upsertExercise']>[0]): ContextSnapshot {
+        this._repository.upsertExercise(input);
+        this._repository.recalculateExercisePriorities();
+        this._repository.trimExerciseHistory();
         this._persistence.save(this.state);
         return this.snapshot();
     }
 
-    public registerCourse(input: CourseInput): ContextSnapshot {
-        this.upsertCourse(input);
-        this.recalculateCoursePriorities();
-        this.trimCourseHistory();
+    public registerCourse(input: Parameters<TrackedItemRepository['upsertCourse']>[0]): ContextSnapshot {
+        this._repository.upsertCourse(input);
+        this._repository.recalculateCoursePriorities();
+        this._repository.trimCourseHistory();
         this._persistence.save(this.state);
         return this.snapshot();
     }
 
     public removeExercise(exerciseId: number): ContextSnapshot {
-        this.state.recentExercises = this.state.recentExercises.filter(ex => ex.id !== exerciseId);
-        this.state.allExercises = this.state.allExercises.filter(ex => ex.id !== exerciseId);
+        this._repository.removeExercise(exerciseId);
 
         const active = this.state.activeContext;
         if (active?.type === 'exercise' && active.id === exerciseId) {
@@ -136,8 +116,7 @@ export class ContextStore {
     }
 
     public removeCourse(courseId: number): ContextSnapshot {
-        this.state.recentCourses = this.state.recentCourses.filter(course => course.id !== courseId);
-        this.state.allCourses = this.state.allCourses.filter(course => course.id !== courseId);
+        this._repository.removeCourse(courseId);
 
         const active = this.state.activeContext;
         if (active?.type === 'course' && active.id === courseId) {
@@ -237,165 +216,10 @@ export class ContextStore {
         this._sessionManager.clearAllSessions();
     }
 
-    private upsertExercise(input: ExerciseInput): TrackedExercise {
-        const existing =
-            this.state.allExercises.find(ex => ex.id === input.id) ??
-            this.state.recentExercises.find(ex => ex.id === input.id);
-
-        const lastViewed = now();
-        const isWorkspace = input.isWorkspace ?? existing?.isWorkspace ?? false;
-
-        // If this exercise is being marked as workspace, clear the flag from all other exercises
-        if (isWorkspace) {
-            this.clearWorkspaceFlagFromOtherExercises(input.id);
-        }
-
-        const merged: TrackedExercise = {
-            id: input.id,
-            title: input.title || existing?.title || `Exercise ${input.id}`,
-            shortName: input.shortName ?? existing?.shortName,
-            courseId: input.courseId ?? existing?.courseId,
-            releaseDate: input.releaseDate ?? existing?.releaseDate,
-            dueDate: input.dueDate ?? existing?.dueDate,
-            lastViewed,
-            score: input.score ?? existing?.score,
-            repositoryUri: input.repositoryUri ?? existing?.repositoryUri,
-            isWorkspace,
-            priority: 0,
-            lastUpdated: now(),
-        };
-
-        merged.priority = calculateExercisePriority(merged);
-
-        this.state.allExercises = this.upsertList(
-            this.state.allExercises,
-            merged,
-            item => item.id === merged.id
-        );
-        this.state.recentExercises = this.upsertList(
-            this.state.recentExercises,
-            merged,
-            item => item.id === merged.id
-        );
-
-        return merged;
-    }
-
-    /**
-     * Clears the isWorkspace flag from all exercises except the specified one.
-     * This ensures only one exercise can be marked as the current workspace at a time.
-     */
-    private clearWorkspaceFlagFromOtherExercises(currentWorkspaceId: number): void {
-        this.state.allExercises = this.state.allExercises.map(exercise => {
-            if (exercise.id !== currentWorkspaceId && exercise.isWorkspace) {
-                return {
-                    ...exercise,
-                    isWorkspace: false,
-                    priority: calculateExercisePriority({ ...exercise, isWorkspace: false }),
-                };
-            }
-            return exercise;
-        });
-
-        this.state.recentExercises = this.state.recentExercises.map(exercise => {
-            if (exercise.id !== currentWorkspaceId && exercise.isWorkspace) {
-                return {
-                    ...exercise,
-                    isWorkspace: false,
-                    priority: calculateExercisePriority({ ...exercise, isWorkspace: false }),
-                };
-            }
-            return exercise;
-        });
-    }
-
-    private upsertCourse(input: CourseInput): TrackedCourse {
-        const existing =
-            this.state.allCourses.find(course => course.id === input.id) ??
-            this.state.recentCourses.find(course => course.id === input.id);
-
-        const lastViewed = now();
-        const merged: TrackedCourse = {
-            id: input.id,
-            title: input.title || existing?.title || `Course ${input.id}`,
-            shortName: input.shortName ?? existing?.shortName,
-            lastViewed,
-            priority: 0,
-            lastUpdated: now(),
-        };
-
-        merged.priority = calculateCoursePriority(merged);
-
-        this.state.allCourses = this.upsertList(
-            this.state.allCourses,
-            merged,
-            item => item.id === merged.id
-        );
-        this.state.recentCourses = this.upsertList(
-            this.state.recentCourses,
-            merged,
-            item => item.id === merged.id
-        );
-
-        return merged;
-    }
-
-    private upsertList<T>(list: T[], value: T, matcher: (item: T) => boolean): T[] {
-        const index = list.findIndex(matcher);
-        if (index === -1) {
-            return [value, ...list];
-        }
-        const next = [...list];
-        // Spread both objects assuming they're object types
-        next[index] = { ...(list[index] as object), ...(value as object) } as T;
-        return next;
-    }
-
-    private trimExerciseHistory(): void {
-        if (this.state.recentExercises.length > this.options.exerciseHistoryLimit) {
-            this.state.recentExercises = this.state.recentExercises
-                .sort(byPriorityThenRecency)
-                .slice(0, this.options.exerciseHistoryLimit);
-        }
-        if (this.state.allExercises.length > ARCHIVE_LIMITS.ALL_EXERCISES) {
-            this.state.allExercises = this.state.allExercises
-                .sort(byLastViewedDesc)
-                .slice(0, ARCHIVE_LIMITS.ALL_EXERCISES);
-        }
-    }
-
-    private trimCourseHistory(): void {
-        if (this.state.recentCourses.length > this.options.courseHistoryLimit) {
-            this.state.recentCourses = this.state.recentCourses
-                .sort(byPriorityThenRecency)
-                .slice(0, this.options.courseHistoryLimit);
-        }
-        if (this.state.allCourses.length > ARCHIVE_LIMITS.ALL_COURSES) {
-            this.state.allCourses = this.state.allCourses
-                .sort(byLastViewedDesc)
-                .slice(0, ARCHIVE_LIMITS.ALL_COURSES);
-        }
-    }
-
-    private recalculateExercisePriorities(): void {
-        this.state.recentExercises = this.state.recentExercises.map(exercise => ({
-            ...exercise,
-            priority: calculateExercisePriority(exercise),
-        }));
-    }
-
-    private recalculateCoursePriorities(): void {
-        this.state.recentCourses = this.state.recentCourses.map(course => ({
-            ...course,
-            priority: calculateCoursePriority(course),
-        }));
-    }
-
     private _fireContextChangeIfNeeded(previous: ActiveContext | null, current: ActiveContext | null): void {
         const changed = previous?.type !== current?.type || previous?.id !== current?.id;
         if (changed) {
             this._onDidChangeActiveContext.fire({ current, previous });
         }
     }
-
 }
