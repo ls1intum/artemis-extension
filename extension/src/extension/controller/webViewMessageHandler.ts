@@ -143,8 +143,8 @@ export class WebViewMessageHandler {
     /**
      * Check if an exercise has a recently cloned repository.
      */
-    public hasRecentlyClonedRepo(exerciseId: number): boolean {
-        return this.repositoryModule.hasRecentlyClonedRepo(exerciseId);
+    public hasRecentlyClonedRepo(participationId: number): boolean {
+        return this.repositoryModule.hasRecentlyClonedRepo(participationId);
     }
 
     /**

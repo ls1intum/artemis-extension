@@ -25,7 +25,7 @@ export class RepositoryCommandModule {
     private currentWorkspacePath?: string;
     private workspaceChangeDebounce?: NodeJS.Timeout;
     private workspaceListenersRegistered = false;
-    private clonedRepositories: Map<number, { path: string; title: string }> = new Map();
+    private clonedRepositoriesByParticipationId: Map<number, { path: string; title: string }> = new Map();
     private dirtyPagesCheckDebounce?: NodeJS.Timeout;
     private readonly listenerDisposables: vscode.Disposable[] = [];
     private readonly gitService: GitService;
@@ -132,14 +132,14 @@ export class RepositoryCommandModule {
         };
     }
 
-    public hasRecentlyClonedRepo(exerciseId: number): boolean {
-        const repoInfo = this.clonedRepositories.get(exerciseId);
+    public hasRecentlyClonedRepo(participationId: number): boolean {
+        const repoInfo = this.clonedRepositoriesByParticipationId.get(participationId);
         if (!repoInfo) {
             return false;
         }
         // Validate that the cached path still exists
         if (!fs.existsSync(repoInfo.path)) {
-            this.clonedRepositories.delete(exerciseId);
+            this.clonedRepositoriesByParticipationId.delete(participationId);
             return false;
         }
         return true;
@@ -204,7 +204,6 @@ export class RepositoryCommandModule {
         try {
             const payload = getPayload<WebCmd<'cloneRepository'>>(message);
             const { participationId, repositoryUri, exerciseTitle } = payload;
-            const exerciseId = participationId; // Use participationId for tracking
             if (!participationId || !repositoryUri) {
                 vscode.window.showErrorMessage('Cannot clone: missing participation or repository URL.');
                 return;
@@ -329,13 +328,13 @@ export class RepositoryCommandModule {
             // in the outer catch and the prompt is only reached on success.
             await cloneRepositoryProgrammatic(cloneUrl, repoPath, exerciseTitle);
 
-            if (this.clonedRepositories.size >= 10 && !this.clonedRepositories.has(exerciseId)) {
-                const firstKey = this.clonedRepositories.keys().next().value;
+            if (this.clonedRepositoriesByParticipationId.size >= 10 && !this.clonedRepositoriesByParticipationId.has(participationId)) {
+                const firstKey = this.clonedRepositoriesByParticipationId.keys().next().value;
                 if (firstKey !== undefined) {
-                    this.clonedRepositories.delete(firstKey);
+                    this.clonedRepositoriesByParticipationId.delete(firstKey);
                 }
             }
-            this.clonedRepositories.set(exerciseId, { path: repoPath, title: exerciseTitle });
+            this.clonedRepositoriesByParticipationId.set(participationId, { path: repoPath, title: exerciseTitle });
 
             this.context.sendMessage({
                 type: ExtensionMsg.ShowClonedRepoNotice,
@@ -757,7 +756,7 @@ export class RepositoryCommandModule {
     private handleOpenClonedRepository = async (message: WebviewToExtensionMessage): Promise<void> => {
         try {
             const { participationId } = getPayload<WebCmd<'openClonedRepository'>>(message);
-            const repoInfo = this.clonedRepositories.get(participationId);
+            const repoInfo = this.clonedRepositoriesByParticipationId.get(participationId);
 
             if (!repoInfo) {
                 vscode.window.showWarningMessage('Cloned repository not found. It may have been moved or deleted.');
@@ -767,12 +766,12 @@ export class RepositoryCommandModule {
             try {
                 const stats = fs.statSync(repoInfo.path);
                 if (!stats.isDirectory()) {
-                    this.clonedRepositories.delete(participationId);
+                    this.clonedRepositoriesByParticipationId.delete(participationId);
                     vscode.window.showWarningMessage('Cloned repository path is not a directory.');
                     return;
                 }
             } catch {
-                this.clonedRepositories.delete(participationId);
+                this.clonedRepositoriesByParticipationId.delete(participationId);
                 vscode.window.showWarningMessage('Cloned repository not found. It may have been moved or deleted.');
                 return;
             }
