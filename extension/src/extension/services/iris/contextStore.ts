@@ -1,7 +1,6 @@
 import * as vscode from 'vscode';
 import {
     ActiveContext,
-    ChatContextType,
     ContextSnapshot,
     ContextSource,
     TrackedCourse,
@@ -13,6 +12,7 @@ import { SessionManager } from './sessionManager';
 import { calculateExercisePriority, calculateCoursePriority, byPriorityThenRecency, byLastViewedDesc } from './contextPriorityScorer';
 import type { StoredState } from './contextStateTypes';
 import { ContextPersistence } from './contextPersistence';
+import { buildContextSnapshot } from './contextSnapshot';
 
 interface ExerciseInput {
     id: number;
@@ -55,12 +55,6 @@ const ARCHIVE_LIMITS = {
 
 // ── Utilities ─────────────────────────────────────────────────────
 
-const SESSION_KEY_SEPARATOR = ':';
-
-function getContextKey(type: ChatContextType, id: number): string {
-    return `${type}${SESSION_KEY_SEPARATOR}${id}`;
-}
-
 function now(): number {
     return Date.now();
 }
@@ -95,35 +89,7 @@ export class ContextStore {
     }
 
     public snapshot(): ContextSnapshot {
-        const active = this.state.activeContext;
-        const activeKey = active ? getContextKey(active.type, active.id) : null;
-        const sessions = activeKey ? [...(this.state.sessions[activeKey] ?? [])] : [];
-        const activeSession =
-            sessions.find(session => session.id === this.state.activeSessionId) ?? sessions[0] ?? null;
-
-        const recentExercises = [...this.state.recentExercises]
-            .sort(byPriorityThenRecency)
-            .slice(0, this.options.maxRecentExercises);
-        const recentCourses = [...this.state.recentCourses]
-            .sort(byPriorityThenRecency)
-            .slice(0, this.options.maxRecentCourses);
-
-        const allExercises = [...this.state.allExercises].sort((a, b) =>
-            a.title.localeCompare(b.title, undefined, { sensitivity: 'base' })
-        );
-        const allCourses = [...this.state.allCourses].sort((a, b) =>
-            a.title.localeCompare(b.title, undefined, { sensitivity: 'base' })
-        );
-
-        return {
-            activeContext: active,
-            activeSession,
-            sessions,
-            recentExercises,
-            recentCourses,
-            allExercises,
-            allCourses,
-        };
+        return buildContextSnapshot(this.state, this.options);
     }
 
     public getActiveContext(): ActiveContext | null {
