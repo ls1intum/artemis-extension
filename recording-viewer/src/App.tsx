@@ -136,6 +136,7 @@ export function RecordingViewerApp({ authStatus }: RecordingViewerAppProps) {
             setIsVideoPlaying(false);
             videoTimeRef.current = 0;
             setZoomedXDomain(null);
+            setAutoFollowLive(true);
             const firstSessionStart = events.find(e => e.type === 'sessionStart') as SessionStartEvent | undefined;
             const schemaVersion = resolveSchemaVersion(metadata, firstSessionStart);
             setSession({ metadata, events, fileName: sessionId, schemaVersion, replayEq, annotations: loadedAnnotations });
@@ -203,6 +204,7 @@ export function RecordingViewerApp({ authStatus }: RecordingViewerAppProps) {
         setViewMode('timeline');
         setScrollToTimestamp(null);
         setZoomedXDomain(null);
+        setAutoFollowLive(true);
         setStickyLive(false);
         setEndedLiveSessionId(null);
         setSession(loaded);
@@ -218,6 +220,7 @@ export function RecordingViewerApp({ authStatus }: RecordingViewerAppProps) {
         setViewMode('timeline');
         setScrollToTimestamp(null);
         setZoomedXDomain(null);
+        setAutoFollowLive(true);
         setSession(null);
     }, []);
 
@@ -281,6 +284,7 @@ export function RecordingViewerApp({ authStatus }: RecordingViewerAppProps) {
     const [viewMode, setViewMode] = useState<'timeline' | 'list'>('timeline');
     const [scrollToTimestamp, setScrollToTimestamp] = useState<number | null>(null);
     const [zoomedXDomain, setZoomedXDomain] = useState<[number, number] | null>(null);
+    const [autoFollowLive, setAutoFollowLive] = useState(true);
 
     const handleViewInList = useCallback((timestamp: number) => {
         setScrollToTimestamp(timestamp);
@@ -328,8 +332,29 @@ export function RecordingViewerApp({ authStatus }: RecordingViewerAppProps) {
 
     const effectiveXDomain = zoomedXDomain ?? xDomain;
 
+    // Slide the zoomed window right when new live events arrive, preserving width.
+    // Only active when isLiveSession + autoFollowLive + currently zoomed in.
+    useEffect(() => {
+        if (!autoFollowLive || !isLiveSession || !zoomedXDomain || !xDomain) return;
+        if (xDomain[1] <= zoomedXDomain[1]) return;
+        const range = zoomedXDomain[1] - zoomedXDomain[0];
+        setZoomedXDomain([xDomain[1] - range, xDomain[1]]);
+    }, [autoFollowLive, isLiveSession, xDomain, zoomedXDomain]);
+
+    const handleToggleAutoFollow = useCallback(() => {
+        setAutoFollowLive((prev) => {
+            const next = !prev;
+            if (next && zoomedXDomain && xDomain) {
+                const range = zoomedXDomain[1] - zoomedXDomain[0];
+                setZoomedXDomain([xDomain[1] - range, xDomain[1]]);
+            }
+            return next;
+        });
+    }, [xDomain, zoomedXDomain]);
+
     const handleZoomChange = useCallback((domain: [number, number] | null) => {
         setZoomedXDomain(domain);
+        setAutoFollowLive(false);
     }, []);
 
     const handleZoomIn = useCallback(() => {
@@ -341,6 +366,7 @@ export function RecordingViewerApp({ authStatus }: RecordingViewerAppProps) {
         if (newRange < 2000) return;
         const center = (min + max) / 2;
         setZoomedXDomain([center - newRange / 2, center + newRange / 2]);
+        setAutoFollowLive(false);
     }, [xDomain, zoomedXDomain]);
 
     const handleZoomOut = useCallback(() => {
@@ -354,6 +380,7 @@ export function RecordingViewerApp({ authStatus }: RecordingViewerAppProps) {
             setZoomedXDomain(null);
             return;
         }
+        setAutoFollowLive(false);
         let newMin = (min + max) / 2 - newRange / 2;
         let newMax = (min + max) / 2 + newRange / 2;
         if (newMin < xDomain[0]) { newMin = xDomain[0]; newMax = newMin + newRange; }
@@ -479,6 +506,15 @@ export function RecordingViewerApp({ authStatus }: RecordingViewerAppProps) {
                                 <button className="zoom-btn" onClick={handleZoomOut} title="Zoom out">&minus;</button>
                                 {zoomedXDomain && (
                                     <button className="zoom-btn reset" onClick={() => setZoomedXDomain(null)} title="Reset zoom">Reset</button>
+                                )}
+                                {isLiveSession && (
+                                    <button
+                                        className={`zoom-btn follow ${autoFollowLive ? 'active' : ''}`}
+                                        onClick={handleToggleAutoFollow}
+                                        title={autoFollowLive ? 'Auto-follow latest events (on)' : 'Auto-follow latest events (off)'}
+                                    >
+                                        Follow
+                                    </button>
                                 )}
                             </div>
                         )}

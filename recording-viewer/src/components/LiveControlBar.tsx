@@ -49,11 +49,11 @@ export function LiveControlBar({
             <div className="live-legend">
                 <strong>Struggle:</strong>
                 {STRUGGLE_LABELS.map((s, i) => (
-                    <span key={s.value} style={{ color: s.color }}>{i + 1}={s.label.split(' ')[0]}</span>
+                    <span key={s.value} style={{ color: s.color }}>{i + 1}={s.label}</span>
                 ))}
                 <strong>Context:</strong>
                 {CONTEXT_LABELS.map((s, i) => (
-                    <span key={s.value} style={{ color: s.color }}>{'qwert'[i]}={s.label.split(' ')[0]}</span>
+                    <span key={s.value} style={{ color: s.color }}>{'qwert'[i]}={s.label}</span>
                 ))}
             </div>
             {toastVisible && (

@@ -1722,6 +1722,17 @@
     font-size: 12px;
     font-weight: 400;
 }
+.zoom-btn.follow {
+    width: auto;
+    padding: 0 10px;
+    font-size: 12px;
+    font-weight: 500;
+}
+.zoom-btn.follow.active {
+    background: rgba(239, 68, 68, 0.15);
+    color: #ef4444;
+    border-color: rgba(239, 68, 68, 0.3);
+}
 
 /* ── Follow playback button ─────────────────────────────────────────── */
 
