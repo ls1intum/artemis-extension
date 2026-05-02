@@ -18,6 +18,19 @@ cd artemis-extension/recording-viewer
 npm run dev:live
 ```
 
+#### Quick local testing
+
+For fast iteration on the same network without picking a token, use the
+convenience script with a baked-in token:
+
+```bash
+npm run dev:live:token   # token = dev-only-do-not-use-in-prod
+```
+
+Do NOT use this in a real study or on a shared/public network. The token is in
+the repo, so anyone with source access knows it. Use `dev:live` with a real
+random token for anything that matters.
+
 ### Connect (observer laptop)
 
 Open `http://<recording-laptop-IP>:5173` in any browser. Enter the token.
