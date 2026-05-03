@@ -78,8 +78,8 @@ export function ContextSelector({
     const messageCount = activeSession?.messageCount || 0;
 
     const showShortcuts = q.length === 0;
-    const showConversationsSection = context !== null && q.length === 0;
-    const showWorkspaceShortcuts = showShortcuts && (workspaceExercise || workspaceCourse);
+    const showWorkspaceShortcuts = !!(showShortcuts && (workspaceExercise || workspaceCourse));
+    const showTopSection = q.length === 0 && (context !== null || showWorkspaceShortcuts);
 
     const toggleDropdown = () => {
         setIsOpen(!isOpen);
@@ -181,90 +181,27 @@ export function ContextSelector({
                     </div>
 
                     <div className={styles.dropdownContent}>
-                        {showConversationsSection && (
-                            <div className={styles.section}>
-                                {sessions.length > 0 && (
-                                    <>
-                                        <div className={styles.sectionHeader}>Conversations</div>
-                                        <div className={styles.sessionsScroll}>
-                                            {sessions.map(session => (
-                                                <button
-                                                    key={session.id}
-                                                    className={clsx(styles.sessionItem, {
-                                                        [styles.sessionItemActive]:
-                                                            session.id === activeSessionId,
-                                                    })}
-                                                    onClick={() => handleSelectSession(session.id)}
-                                                >
-                                                    <svg
-                                                        width="14"
-                                                        height="14"
-                                                        viewBox="0 0 24 24"
-                                                        fill="none"
-                                                        className={styles.sessionIcon}
-                                                    >
-                                                        <path
-                                                            d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"
-                                                            stroke="currentColor"
-                                                            strokeWidth="2"
-                                                            strokeLinecap="round"
-                                                            strokeLinejoin="round"
-                                                        />
-                                                    </svg>
-                                                    <div className={styles.sessionContent}>
-                                                        <span className={styles.sessionPreview}>
-                                                            {session.title || session.preview}
-                                                        </span>
-                                                        <span className={styles.sessionMeta}>
-                                                            {session.messageCount} messages · {formatRelativeTime(session.lastActivity)}
-                                                        </span>
-                                                    </div>
-                                                    {session.id === activeSessionId && (
-                                                        <svg
-                                                            width="16"
-                                                            height="16"
-                                                            viewBox="0 0 24 24"
-                                                            fill="none"
-                                                            className={styles.checkIcon}
-                                                        >
-                                                            <polyline
-                                                                points="20 6 9 17 4 12"
-                                                                stroke="currentColor"
-                                                                strokeWidth="2"
-                                                                strokeLinecap="round"
-                                                                strokeLinejoin="round"
-                                                            />
-                                                        </svg>
-                                                    )}
-                                                </button>
-                                            ))}
-                                        </div>
-                                    </>
-                                )}
-                                <div className={styles.actions}>
-                                    <button
-                                        className={styles.actionButton}
-                                        onClick={() => {
-                                            onCreateNewSession();
-                                            setIsOpen(false);
-                                        }}
-                                        disabled={!canCreateNewSession}
-                                    >
-                                        <span className={styles.actionButtonContent}>
-                                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                                <line x1="12" y1="5" x2="12" y2="19" />
-                                                <line x1="5" y1="12" x2="19" y2="12" />
-                                            </svg>
-                                            New Conversation
-                                        </span>
-                                    </button>
-                                </div>
-                            </div>
-                        )}
-
-                        {showWorkspaceShortcuts && (
+                        {showTopSection && (
                             <div className={styles.section}>
                                 <div className={styles.actions}>
+                                    {context !== null && (
+                                        <button
+                                            className={styles.actionButton}
+                                            onClick={() => {
+                                                onCreateNewSession();
+                                                setIsOpen(false);
+                                            }}
+                                            disabled={!canCreateNewSession}
+                                        >
+                                            <span className={styles.actionButtonContent}>
+                                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                                    <line x1="12" y1="5" x2="12" y2="19" />
+                                                    <line x1="5" y1="12" x2="19" y2="12" />
+                                                </svg>
+                                                New Conversation
+                                            </span>
+                                        </button>
+                                    )}
                                     {workspaceExercise && (
                                         <button
                                             className={styles.actionButton}
@@ -310,8 +247,67 @@ export function ContextSelector({
                             </div>
                         )}
 
+                        {context !== null && sessions.length > 0 && q.length === 0 && (
+                            <div className={clsx(styles.section, styles.scrollSection)}>
+                                <div className={styles.sectionHeader}>Conversations</div>
+                                <div className={styles.sessionsScroll}>
+                                    {sessions.map(session => (
+                                        <button
+                                            key={session.id}
+                                            className={clsx(styles.sessionItem, {
+                                                [styles.sessionItemActive]:
+                                                    session.id === activeSessionId,
+                                            })}
+                                            onClick={() => handleSelectSession(session.id)}
+                                        >
+                                            <svg
+                                                width="14"
+                                                height="14"
+                                                viewBox="0 0 24 24"
+                                                fill="none"
+                                                className={styles.sessionIcon}
+                                            >
+                                                <path
+                                                    d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"
+                                                    stroke="currentColor"
+                                                    strokeWidth="2"
+                                                    strokeLinecap="round"
+                                                    strokeLinejoin="round"
+                                                />
+                                            </svg>
+                                            <div className={styles.sessionContent}>
+                                                <span className={styles.sessionPreview}>
+                                                    {session.title || session.preview}
+                                                </span>
+                                                <span className={styles.sessionMeta}>
+                                                    {session.messageCount} messages · {formatRelativeTime(session.lastActivity)}
+                                                </span>
+                                            </div>
+                                            {session.id === activeSessionId && (
+                                                <svg
+                                                    width="16"
+                                                    height="16"
+                                                    viewBox="0 0 24 24"
+                                                    fill="none"
+                                                    className={styles.checkIcon}
+                                                >
+                                                    <polyline
+                                                        points="20 6 9 17 4 12"
+                                                        stroke="currentColor"
+                                                        strokeWidth="2"
+                                                        strokeLinecap="round"
+                                                        strokeLinejoin="round"
+                                                    />
+                                                </svg>
+                                            )}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
                         {filteredExercises.length > 0 && (
-                            <div className={styles.section}>
+                            <div className={clsx(styles.section, styles.scrollSection)}>
                                 <div className={styles.sectionHeader}>Exercises</div>
                                 <div className={styles.itemsScroll}>
                                     {filteredExercises.map((exercise) => {
@@ -346,7 +342,7 @@ export function ContextSelector({
                         )}
 
                         {filteredCourses.length > 0 && (
-                            <div className={styles.section}>
+                            <div className={clsx(styles.section, styles.scrollSection)}>
                                 <div className={styles.sectionHeader}>Courses</div>
                                 <div className={styles.itemsScroll}>
                                     {filteredCourses.map((course) => (
