@@ -83,11 +83,21 @@
     border: 1px solid var(--vscode-notifications-border);
     border-radius: 0 0 6px 6px;
     box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
-    max-height: 480px;
+    max-height: calc(100vh - 80px);
     display: flex;
     flex-direction: column;
     z-index: 1000;
     overflow: hidden;
+}
+
+.sessionsScroll {
+    max-height: 168px;
+    overflow-y: auto;
+}
+
+.itemsScroll {
+    max-height: 108px;
+    overflow-y: auto;
 }
 
 .searchContainer {
