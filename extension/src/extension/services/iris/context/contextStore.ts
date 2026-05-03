@@ -13,8 +13,6 @@ import { TrackedItemRepository } from './trackedItemRepository';
 import type { ExerciseInput, CourseInput } from './trackedItemRepository';
 import type { TrackedExercise, TrackedCourse } from '../../../types';
 
-export type { ExerciseInput, CourseInput };
-
 interface ContextStoreOptions {
     maxRecentExercises?: number;
     maxRecentCourses?: number;

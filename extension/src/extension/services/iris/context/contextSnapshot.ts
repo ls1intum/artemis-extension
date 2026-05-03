@@ -4,11 +4,11 @@ import { byPriorityThenRecency } from './contextPriorityScorer';
 
 const SESSION_KEY_SEPARATOR = ':';
 
-export function getContextKey(type: ChatContextType, id: number): string {
+function getContextKey(type: ChatContextType, id: number): string {
     return `${type}${SESSION_KEY_SEPARATOR}${id}`;
 }
 
-export interface BuildSnapshotOptions {
+interface BuildSnapshotOptions {
     maxRecentExercises: number;
     maxRecentCourses: number;
 }

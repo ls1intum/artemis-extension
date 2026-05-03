@@ -27,7 +27,7 @@ export interface CourseInput {
     source?: ContextSource;
 }
 
-export interface TrackedItemRepositoryOptions {
+interface TrackedItemRepositoryOptions {
     exerciseHistoryLimit: number;
     courseHistoryLimit: number;
 }
