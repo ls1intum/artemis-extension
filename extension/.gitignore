@@ -42,3 +42,7 @@ test/ui/screenshots/
 # Environment
 .env
 .env.local
+
+# Tool artifacts (RuVector agent memory, Claude Code session locks)
+ruvector.db
+.claude/scheduled_tasks.lock
