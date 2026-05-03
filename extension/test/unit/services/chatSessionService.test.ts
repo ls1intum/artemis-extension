@@ -1,10 +1,10 @@
 import * as assert from 'assert';
 import * as sinon from 'sinon';
 import * as vscode from 'vscode';
-import { IrisChatSessionService } from '../../../src/extension/services/iris/chatSessionService';
-import { ContextStore } from '../../../src/extension/services/iris/contextStore';
+import { IrisChatSessionService } from '../../../src/extension/services/iris/chat/chatSessionService';
+import { ContextStore } from '../../../src/extension/services/iris/context/contextStore';
 import { ArtemisApiService } from '../../../src/extension/api';
-import { IrisWebSocketSessionClient } from '../../../src/extension/services/iris/irisWebSocketSessionClient';
+import { IrisWebSocketSessionClient } from '../../../src/extension/services/iris/transport/irisWebSocketSessionClient';
 import { ActiveContext } from '../../../src/extension/types';
 import { MockExtensionContext } from '../mocks/vscodeMocks';
 

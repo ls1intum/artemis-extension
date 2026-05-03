@@ -1,9 +1,9 @@
 import { IrisChatSessionService } from './chatSessionService';
-import { IrisWebSocketSessionClient } from './irisWebSocketSessionClient';
-import { ActiveContext, ChatContextType, ContextSnapshot, TrackedExercise } from '../../types';
-import { logger, LogCategory } from '../loggingService';
-import { ExtensionMsg } from '../../../shared/messageContracts';
-import type { IrisServiceDeps } from './sessionSyncUtils';
+import { IrisWebSocketSessionClient } from '../transport/irisWebSocketSessionClient';
+import { ActiveContext, ChatContextType, ContextSnapshot, TrackedExercise } from '../../../types';
+import { logger, LogCategory } from '../../loggingService';
+import { ExtensionMsg } from '../../../../shared/messageContracts';
+import type { IrisServiceDeps } from '../context/sessionSyncUtils';
 
 // ── Policy helpers (pure functions) ──────────────────────────────
 
