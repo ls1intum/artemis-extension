@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import type { StoredState } from './contextStateTypes';
-import { logger } from '../loggingService';
+import { logger } from '../../loggingService';
 
 const STORE_KEY = 'iris.contextStore';
 const STORE_VERSION = 1;

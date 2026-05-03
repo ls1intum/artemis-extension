@@ -1,4 +1,4 @@
-import type { ActiveContext, StoredSession, TrackedCourse, TrackedExercise } from '../../types';
+import type { ActiveContext, StoredSession, TrackedCourse, TrackedExercise } from '../../../types';
 
 export interface StoredState {
     version: number;

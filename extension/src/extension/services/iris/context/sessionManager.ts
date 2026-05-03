@@ -1,4 +1,4 @@
-import type { StoredSession, ActiveContext, ChatContextType, IrisChatMessage } from '../../types';
+import type { StoredSession, ActiveContext, ChatContextType, IrisChatMessage } from '../../../types';
 
 const SESSION_KEY_SEPARATOR = ':';
 

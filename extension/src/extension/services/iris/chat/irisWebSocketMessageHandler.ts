@@ -1,11 +1,11 @@
 import * as vscode from 'vscode';
-import { ArtemisWebsocketService } from '../websocket/artemisWebsocketService';
-import { IrisWebSocketSessionClient } from './irisWebSocketSessionClient';
-import type { IrisChatMessage, IrisStageDTO } from '../../types';
-import { logger, LogCategory } from '../loggingService';
+import { ArtemisWebsocketService } from '../../websocket/artemisWebsocketService';
+import { IrisWebSocketSessionClient } from '../transport/irisWebSocketSessionClient';
+import type { IrisChatMessage, IrisStageDTO } from '../../../types';
+import { logger, LogCategory } from '../../loggingService';
 import { extractIrisMessageContent } from './messageUtils';
-import { ExtensionMsg } from '../../../shared/messageContracts';
-import type { ExtensionToWebviewMessage, WebSocketDisplayStatus } from '../../../shared/messageContracts';
+import { ExtensionMsg } from '../../../../shared/messageContracts';
+import type { ExtensionToWebviewMessage, WebSocketDisplayStatus } from '../../../../shared/messageContracts';
 
 type ReconnectResult =
     | { status: 'reconnected' }

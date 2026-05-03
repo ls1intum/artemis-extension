@@ -1,5 +1,5 @@
 import type { StoredState } from './contextStateTypes';
-import type { ChatContextType, ContextSnapshot } from '../../types';
+import type { ChatContextType, ContextSnapshot } from '../../../types';
 import { byPriorityThenRecency } from './contextPriorityScorer';
 
 const SESSION_KEY_SEPARATOR = ':';

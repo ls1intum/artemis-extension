@@ -1,10 +1,10 @@
 import * as assert from 'assert';
 import * as sinon from 'sinon';
 import * as vscode from 'vscode';
-import { ChatContextManager } from '../../../src/extension/services/iris/chatContextManager';
-import { ContextStore } from '../../../src/extension/services/iris/contextStore';
-import { IrisChatSessionService } from '../../../src/extension/services/iris/chatSessionService';
-import { IrisWebSocketSessionClient } from '../../../src/extension/services/iris/irisWebSocketSessionClient';
+import { ChatContextManager } from '../../../src/extension/services/iris/chat/chatContextManager';
+import { ContextStore } from '../../../src/extension/services/iris/context/contextStore';
+import { IrisChatSessionService } from '../../../src/extension/services/iris/chat/chatSessionService';
+import { IrisWebSocketSessionClient } from '../../../src/extension/services/iris/transport/irisWebSocketSessionClient';
 import { MockExtensionContext } from '../mocks/vscodeMocks';
 
 suite('ChatContextManager Test Suite', () => {

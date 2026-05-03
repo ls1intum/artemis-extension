@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import type { StoredSession, ContextSnapshot } from '../types';
-import type { ContextStore } from '../services/iris/contextStore';
+import type { ContextStore } from '../services/iris/context/contextStore';
 import { ExtensionMsg } from '../../shared/messageContracts';
 import type { ExtMsg, ExtensionToWebviewMessage } from '../../shared/messageContracts';
 

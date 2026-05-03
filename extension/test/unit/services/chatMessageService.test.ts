@@ -1,9 +1,9 @@
 import * as assert from 'assert';
 import * as vscode from 'vscode';
 import * as sinon from 'sinon';
-import { ChatMessageService } from '../../../src/extension/services/iris/chatMessageService';
-import { IrisChatSessionService } from '../../../src/extension/services/iris/chatSessionService';
-import { ContextStore } from '../../../src/extension/services/iris/contextStore';
+import { ChatMessageService } from '../../../src/extension/services/iris/chat/chatMessageService';
+import { IrisChatSessionService } from '../../../src/extension/services/iris/chat/chatSessionService';
+import { ContextStore } from '../../../src/extension/services/iris/context/contextStore';
 import { ArtemisApiService } from '../../../src/extension/api';
 import { MockExtensionContext } from '../mocks/vscodeMocks';
 import * as workspaceFileChecker from '../../../src/extension/services/workspace/workspaceFileChecker';

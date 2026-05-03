@@ -1,4 +1,4 @@
-import { TrackedCourse, TrackedExercise } from '../../types';
+import { TrackedCourse, TrackedExercise } from '../../../types';
 
 /**
  * Priority scoring weights for exercise ranking in the context selector.

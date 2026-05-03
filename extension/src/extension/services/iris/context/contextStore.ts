@@ -3,15 +3,15 @@ import {
     ActiveContext,
     ContextSnapshot,
     type IrisChatMessage,
-} from '../../types';
-import { logger } from '../loggingService';
+} from '../../../types';
+import { logger } from '../../loggingService';
 import { SessionManager } from './sessionManager';
 import type { StoredState } from './contextStateTypes';
 import { ContextPersistence } from './contextPersistence';
 import { buildContextSnapshot } from './contextSnapshot';
 import { TrackedItemRepository } from './trackedItemRepository';
 import type { ExerciseInput, CourseInput } from './trackedItemRepository';
-import type { TrackedExercise, TrackedCourse } from '../../types';
+import type { TrackedExercise, TrackedCourse } from '../../../types';
 
 export type { ExerciseInput, CourseInput };
 

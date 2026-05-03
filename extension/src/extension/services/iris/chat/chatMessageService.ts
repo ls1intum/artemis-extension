@@ -1,13 +1,13 @@
 import * as vscode from 'vscode';
-import { ArtemisWebsocketService } from '../websocket/artemisWebsocketService';
-import { IrisWebSocketSessionClient } from './irisWebSocketSessionClient';
+import { ArtemisWebsocketService } from '../../websocket/artemisWebsocketService';
+import { IrisWebSocketSessionClient } from '../transport/irisWebSocketSessionClient';
 import { IrisChatSessionService } from './chatSessionService';
-import { ActiveContext } from '../../types';
-import { checkWorkspaceFiles } from '../workspace/workspaceFileChecker';
-import { StruggleContext } from '../telemetry';
-import { logger, LogCategory } from '../loggingService';
-import { ExtensionMsg } from '../../../shared/messageContracts';
-import type { IrisServiceDeps } from './sessionSyncUtils';
+import { ActiveContext } from '../../../types';
+import { checkWorkspaceFiles } from '../../workspace/workspaceFileChecker';
+import { StruggleContext } from '../../telemetry';
+import { logger, LogCategory } from '../../loggingService';
+import { ExtensionMsg } from '../../../../shared/messageContracts';
+import type { IrisServiceDeps } from '../context/sessionSyncUtils';
 
 interface SendMessageInput {
     text: string;

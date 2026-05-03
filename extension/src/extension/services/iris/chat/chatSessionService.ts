@@ -1,10 +1,10 @@
-import { ActiveContext, ApiError, type IrisChatMessage, type IrisSettingsResponse } from '../../types';
-import type { IrisWebSocketSessionClient } from './irisWebSocketSessionClient';
+import { ActiveContext, ApiError, type IrisChatMessage, type IrisSettingsResponse } from '../../../types';
+import type { IrisWebSocketSessionClient } from '../transport/irisWebSocketSessionClient';
 import { extractIrisMessageContent } from './messageUtils';
-import { logger, LogCategory } from '../loggingService';
-import { ExtensionMsg } from '../../../shared/messageContracts';
-import { fetchSessionsWithMessages, importSessionsToStore } from './sessionSyncUtils';
-import type { IrisServiceDeps } from './sessionSyncUtils';
+import { logger, LogCategory } from '../../loggingService';
+import { ExtensionMsg } from '../../../../shared/messageContracts';
+import { fetchSessionsWithMessages, importSessionsToStore } from '../context/sessionSyncUtils';
+import type { IrisServiceDeps } from '../context/sessionSyncUtils';
 
 /**
  * Orchestrates Iris chat session lifecycle (create, load, switch).
