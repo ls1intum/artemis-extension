@@ -306,6 +306,8 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
         shortName?: string,
         courseId?: number,
     ): void {
+        // Omit isWorkspace — workspaceDetectionService is the sole authority for
+        // that flag. Setting it here would clobber a previously-detected flag.
         this._chatContextManager.registerExerciseAndAutoSelect({
             id: exerciseId,
             title: exerciseTitle,
@@ -314,7 +316,6 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
             releaseDate,
             dueDate,
             source: 'system-default',
-            isWorkspace: /\\(Workspace\\)/i.test(exerciseTitle),
         });
     }
 
@@ -528,6 +529,8 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
                         studentParticipations?: Array<{ repositoryUri?: string }>;
                     };
                     if (ex.id && ex.title && ex.studentParticipations?.length) {
+                        // Omit isWorkspace so a previously workspace-detected
+                        // flag is preserved by upsertExercise's nullish-fallback.
                         this._chatContextManager.registerExerciseAndAutoSelect({
                             id: ex.id,
                             title: ex.title,
@@ -536,7 +539,6 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
                             releaseDate: ex.releaseDate ?? ex.startDate,
                             dueDate: ex.dueDate,
                             source: 'system-default',
-                            isWorkspace: false,
                         });
                     }
                 }
