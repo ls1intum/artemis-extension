@@ -7,11 +7,13 @@ import type { IrisServiceDeps } from '../context/sessionSyncUtils';
 
 // ── Policy helpers (pure functions) ──────────────────────────────
 
-function pickBestContext(snapshot: ContextSnapshot): ActiveContext | null {
-    const exercises = [...snapshot.recentExercises].sort((a, b) =>
-        b.priority - a.priority || (b.lastViewed ?? 0) - (a.lastViewed ?? 0)
-    );
-    const best = exercises[0];
+/**
+ * Pure policy: pick the default context when nothing is active. The snapshot
+ * is already sorted (workspace first, then by lastViewed desc), so we just
+ * take the head of each list.
+ */
+export function pickBestContextFromSnapshot(snapshot: ContextSnapshot): ActiveContext | null {
+    const best = snapshot.exercises[0];
     if (best) {
         return {
             type: 'exercise',
@@ -24,11 +26,7 @@ function pickBestContext(snapshot: ContextSnapshot): ActiveContext | null {
             selectedAt: Date.now(),
         };
     }
-
-    const courses = [...snapshot.recentCourses].sort((a, b) =>
-        b.priority - a.priority || (b.lastViewed ?? 0) - (a.lastViewed ?? 0)
-    );
-    const bestCourse = courses[0];
+    const bestCourse = snapshot.courses[0];
     if (bestCourse) {
         return {
             type: 'course',
@@ -40,7 +38,6 @@ function pickBestContext(snapshot: ContextSnapshot): ActiveContext | null {
             selectedAt: Date.now(),
         };
     }
-
     return null;
 }
 
@@ -236,7 +233,7 @@ export class ChatContextManager {
 
     private _autoSelectFromSnapshot(): void {
         const snapshot = this.deps.contextStore.snapshot();
-        const best = pickBestContext(snapshot);
+        const best = pickBestContextFromSnapshot(snapshot);
         if (best) {
             this.deps.contextStore.setActiveContext(best);
             this.deps.contextStore.switchToFirstSession();

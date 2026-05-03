@@ -14,17 +14,13 @@ import type { ExerciseInput, CourseInput } from './trackedItemRepository';
 import type { TrackedExercise, TrackedCourse } from '../../../types';
 
 interface ContextStoreOptions {
-    maxRecentExercises?: number;
-    maxRecentCourses?: number;
-    exerciseHistoryLimit?: number;
-    courseHistoryLimit?: number;
+    exerciseArchiveLimit?: number;
+    courseArchiveLimit?: number;
 }
 
 const DEFAULT_OPTIONS: Required<ContextStoreOptions> = {
-    maxRecentExercises: 5,
-    maxRecentCourses: 3,
-    exerciseHistoryLimit: 50,
-    courseHistoryLimit: 30,
+    exerciseArchiveLimit: 1000,
+    courseArchiveLimit: 400,
 };
 
 // ── Utilities ─────────────────────────────────────────────────────
@@ -60,8 +56,8 @@ export class ContextStore {
         this._repository = new TrackedItemRepository(
             () => this.state,
             {
-                exerciseHistoryLimit: this.options.exerciseHistoryLimit,
-                courseHistoryLimit: this.options.courseHistoryLimit,
+                exerciseArchiveLimit: this.options.exerciseArchiveLimit,
+                courseArchiveLimit: this.options.courseArchiveLimit,
             },
         );
     }
@@ -71,7 +67,7 @@ export class ContextStore {
     }
 
     public snapshot(): ContextSnapshot {
-        return buildContextSnapshot(this.state, this.options);
+        return buildContextSnapshot(this.state);
     }
 
     public getActiveContext(): ActiveContext | null {
@@ -88,7 +84,6 @@ export class ContextStore {
 
     public registerExercise(input: ExerciseInput): ContextSnapshot {
         this._repository.upsertExercise(input);
-        this._repository.recalculateExercisePriorities();
         this._repository.trimExerciseHistory();
         this._persistence.save(this.state);
         return this.snapshot();
@@ -96,7 +91,6 @@ export class ContextStore {
 
     public registerCourse(input: CourseInput): ContextSnapshot {
         this._repository.upsertCourse(input);
-        this._repository.recalculateCoursePriorities();
         this._repository.trimCourseHistory();
         this._persistence.save(this.state);
         return this.snapshot();

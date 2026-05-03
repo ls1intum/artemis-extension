@@ -10,25 +10,15 @@ export class ChatViewStatePresenter {
         private readonly _postMessage: (msg: ExtensionToWebviewMessage) => void,
     ) {}
 
-    public postSnapshot(options: { showContextPicker?: boolean } = {}): void {
+    public postSnapshot(): void {
         const snapshot = this._contextStore.snapshot();
-        const payload = this._serializeSnapshot(snapshot);
-
         const config = vscode.workspace.getConfiguration('artemis');
         const showDiagnostics = config.get<boolean>('developerMode', false);
-
         this._postMessage({
             type: ExtensionMsg.UpdateIrisState,
-            state: payload,
+            state: this._serializeSnapshot(snapshot),
             showDiagnostics,
         });
-
-        if (options.showContextPicker) {
-            this._postMessage({
-                type: ExtensionMsg.ShowContextPicker,
-                state: payload,
-            });
-        }
     }
 
     private _serializeSnapshot(snapshot: ContextSnapshot): ExtMsg<'updateIrisState'>['state'] {
@@ -36,10 +26,8 @@ export class ChatViewStatePresenter {
             context: snapshot.activeContext,
             activeSessionId: snapshot.activeSession?.id ?? null,
             sessions: snapshot.sessions.map(session => this._serializeSession(session)),
-            recentExercises: snapshot.recentExercises,
-            recentCourses: snapshot.recentCourses,
-            allExercises: snapshot.allExercises,
-            allCourses: snapshot.allCourses,
+            exercises: snapshot.exercises,
+            courses: snapshot.courses,
         };
     }
 

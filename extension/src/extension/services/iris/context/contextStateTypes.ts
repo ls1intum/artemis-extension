@@ -4,9 +4,7 @@ export interface StoredState {
     version: number;
     activeContext: ActiveContext | null;
     activeSessionId: string | null;
-    recentExercises: TrackedExercise[];
-    recentCourses: TrackedCourse[];
-    allExercises: TrackedExercise[];
-    allCourses: TrackedCourse[];
+    exercises: TrackedExercise[];
+    courses: TrackedCourse[];
     sessions: Record<string, StoredSession[]>;
 }

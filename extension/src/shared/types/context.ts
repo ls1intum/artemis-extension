@@ -25,8 +25,6 @@ export interface TrackedExercise extends ExerciseRef {
     score?: number;
     repositoryUri?: string;
     isWorkspace?: boolean;
-    priority: number;
-    lastUpdated: number;
 }
 
 export interface TrackedCourse {
@@ -34,8 +32,6 @@ export interface TrackedCourse {
     title: string;
     shortName?: string;
     lastViewed?: number;
-    priority: number;
-    lastUpdated: number;
 }
 
 export interface StoredSession {
@@ -60,8 +56,6 @@ export interface ContextSnapshot {
     activeContext: ActiveContext | null;
     activeSession: StoredSession | null;
     sessions: StoredSession[];
-    recentExercises: TrackedExercise[];
-    recentCourses: TrackedCourse[];
-    allExercises: TrackedExercise[];
-    allCourses: TrackedCourse[];
+    exercises: TrackedExercise[];
+    courses: TrackedCourse[];
 }
