@@ -394,10 +394,8 @@ describe('Message contracts: type guards', () => {
                 context: null,
                 activeSessionId: null,
                 sessions: [],
-                recentExercises: [],
-                recentCourses: [],
-                allExercises: [],
-                allCourses: [],
+                exercises: [],
+                courses: [],
             },
         };
         expect(isExtensionMessage(msg)).toBe(true);

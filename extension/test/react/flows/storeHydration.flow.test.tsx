@@ -398,10 +398,8 @@ describe('updateIrisState hydrates useChatStore', () => {
                             lastActivity: 1700001000000,
                         },
                     ],
-                    recentExercises: [],
-                    recentCourses: [{ id: 1, title: 'Test Course', shortName: 'TC' }],
-                    allExercises: [],
-                    allCourses: [{ id: 1, title: 'Test Course', shortName: 'TC' }],
+                    exercises: [],
+                    courses: [{ id: 1, title: 'Test Course', shortName: 'TC' }],
                 }),
             );
         });

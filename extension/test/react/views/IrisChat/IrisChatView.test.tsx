@@ -52,10 +52,8 @@ describe('IrisChatView', () => {
 			context: null,
 			activeSessionId: null,
 			sessions: [],
-			recentExercises: [],
-			recentCourses: [],
-			allExercises: [],
-			allCourses: [],
+			exercises: [],
+			courses: [],
 			messages: [],
 			messageLoad: null,
 			streaming: { isStreaming: false, messageLocalId: null, visibleChunks: [] },
@@ -439,10 +437,8 @@ describe('IrisChatView', () => {
 					},
 					activeSessionId: null,
 					sessions: [],
-					recentExercises: [],
-					recentCourses: [],
-					allExercises: [],
-					allCourses: [],
+					exercises: [],
+					courses: [],
 				},
 			});
 
@@ -470,10 +466,8 @@ describe('IrisChatView', () => {
 					context: null,
 					activeSessionId: null,
 					sessions: [],
-					recentExercises: [],
-					recentCourses: [],
-					allExercises: [],
-					allCourses: [],
+					exercises: [],
+					courses: [],
 				},
 			});
 

@@ -175,6 +175,15 @@
     font-size: 13px;
 }
 
+.itemTag {
+    margin-left: auto;
+    font-size: 11px;
+    opacity: 0.6;
+    padding-left: 8px;
+    flex-shrink: 0;
+    color: var(--vscode-descriptionForeground);
+}
+
 .sessionItem {
     width: 100%;
     display: flex;
