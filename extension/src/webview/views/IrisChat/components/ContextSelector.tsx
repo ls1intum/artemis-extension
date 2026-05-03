@@ -3,6 +3,7 @@ import clsx from 'clsx';
 import { useClickOutside } from '../../../hooks/useClickOutside';
 import { formatRelativeTime } from '../../../utils/formatRelativeTime';
 import FolderGit2 from 'lucide-react/dist/esm/icons/folder-git-2';
+import Plus from 'lucide-react/dist/esm/icons/plus';
 import type { ChatContext, ChatSession, ContextItem } from '../types';
 import type { ChatContextType } from '../../../../shared/types/context';
 import styles from './ContextSelector.module.css';
@@ -77,9 +78,8 @@ export function ContextSelector({
     const activeSession = context ? sessions.find(s => s.id === activeSessionId) : undefined;
     const messageCount = activeSession?.messageCount || 0;
 
-    const showShortcuts = q.length === 0;
-    const showWorkspaceShortcuts = !!(showShortcuts && (workspaceExercise || workspaceCourse));
-    const showTopSection = q.length === 0 && (context !== null || showWorkspaceShortcuts);
+    const hasWorkspaceShortcut = !!(workspaceExercise || workspaceCourse);
+    const showTopSection = q.length === 0 && (context !== null || hasWorkspaceShortcut);
 
     const toggleDropdown = () => {
         setIsOpen(!isOpen);
@@ -194,10 +194,7 @@ export function ContextSelector({
                                             disabled={!canCreateNewSession}
                                         >
                                             <span className={styles.actionButtonContent}>
-                                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                                    <line x1="12" y1="5" x2="12" y2="19" />
-                                                    <line x1="5" y1="12" x2="19" y2="12" />
-                                                </svg>
+                                                <Plus size={14} />
                                                 New Conversation
                                             </span>
                                         </button>
@@ -250,7 +247,7 @@ export function ContextSelector({
                         {context !== null && sessions.length > 0 && q.length === 0 && (
                             <div className={clsx(styles.section, styles.scrollSection)}>
                                 <div className={styles.sectionHeader}>Conversations</div>
-                                <div className={styles.sessionsScroll}>
+                                <div className={styles.scrollList}>
                                     {sessions.map(session => (
                                         <button
                                             key={session.id}
@@ -309,7 +306,7 @@ export function ContextSelector({
                         {filteredExercises.length > 0 && (
                             <div className={clsx(styles.section, styles.scrollSection)}>
                                 <div className={styles.sectionHeader}>Exercises</div>
-                                <div className={styles.itemsScroll}>
+                                <div className={styles.scrollList}>
                                     {filteredExercises.map((exercise) => {
                                         const courseTag = exercise.courseId ? courseShortById.get(exercise.courseId) : undefined;
                                         return (
@@ -344,7 +341,7 @@ export function ContextSelector({
                         {filteredCourses.length > 0 && (
                             <div className={clsx(styles.section, styles.scrollSection)}>
                                 <div className={styles.sectionHeader}>Courses</div>
-                                <div className={styles.itemsScroll}>
+                                <div className={styles.scrollList}>
                                     {filteredCourses.map((course) => (
                                         <button
                                             key={course.id}
