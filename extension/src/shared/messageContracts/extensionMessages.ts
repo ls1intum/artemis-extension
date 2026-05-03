@@ -58,7 +58,6 @@ export const ExtensionMsg = {
 
     // Iris Chat
     UpdateIrisState: 'updateIrisState',
-    ShowContextPicker: 'showContextPicker',
     AddMessage: 'addMessage',
     LoadMessages: 'loadMessages',
     LoadMessagesError: 'loadMessagesError',
@@ -207,15 +206,10 @@ interface ExtensionMsgPayloads {
                 createdAt: number;
                 lastActivity: number;
             }>;
-            recentExercises: Array<{ id: number; title: string; shortName?: string; courseId?: number; repositoryUri?: string; isWorkspace?: boolean }>;
-            recentCourses: Array<{ id: number; title: string; shortName?: string }>;
-            allExercises: Array<{ id: number; title: string; shortName?: string; courseId?: number; repositoryUri?: string; isWorkspace?: boolean }>;
-            allCourses: Array<{ id: number; title: string; shortName?: string }>;
+            exercises: Array<{ id: number; title: string; shortName?: string; courseId?: number; repositoryUri?: string; isWorkspace?: boolean }>;
+            courses: Array<{ id: number; title: string; shortName?: string }>;
         };
         showDiagnostics?: boolean;
-    };
-    showContextPicker: {
-        state: ExtensionMsgPayloads['updateIrisState']['state'];
     };
     addMessage: {
         message: {

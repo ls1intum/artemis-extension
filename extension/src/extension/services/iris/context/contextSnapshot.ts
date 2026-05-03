@@ -1,6 +1,6 @@
 import type { StoredState } from './contextStateTypes';
-import type { ChatContextType, ContextSnapshot } from '../../../types';
-import { byPriorityThenRecency } from './contextPriorityScorer';
+import type { ChatContextType, ContextSnapshot, TrackedExercise } from '../../../types';
+import { compareExercisesForDisplay, compareCoursesForDisplay } from './contextSorting';
 
 const SESSION_KEY_SEPARATOR = ':';
 
@@ -8,42 +8,31 @@ function getContextKey(type: ChatContextType, id: number): string {
     return `${type}${SESSION_KEY_SEPARATOR}${id}`;
 }
 
-interface BuildSnapshotOptions {
-    maxRecentExercises: number;
-    maxRecentCourses: number;
+function isPastDeadline(ex: TrackedExercise, nowMs: number): boolean {
+    if (!ex.dueDate) { return false; }
+    const due = new Date(ex.dueDate).getTime();
+    return Number.isFinite(due) && due <= nowMs;
 }
 
-export function buildContextSnapshot(
-    state: StoredState,
-    options: BuildSnapshotOptions,
-): ContextSnapshot {
+export function buildContextSnapshot(state: StoredState): ContextSnapshot {
     const active = state.activeContext;
     const activeKey = active ? getContextKey(active.type, active.id) : null;
     const sessions = activeKey ? [...(state.sessions[activeKey] ?? [])] : [];
     const activeSession =
         sessions.find(session => session.id === state.activeSessionId) ?? sessions[0] ?? null;
 
-    const recentExercises = [...state.recentExercises]
-        .sort(byPriorityThenRecency)
-        .slice(0, options.maxRecentExercises);
-    const recentCourses = [...state.recentCourses]
-        .sort(byPriorityThenRecency)
-        .slice(0, options.maxRecentCourses);
-
-    const allExercises = [...state.allExercises].sort((a, b) =>
-        a.title.localeCompare(b.title, undefined, { sensitivity: 'base' })
-    );
-    const allCourses = [...state.allCourses].sort((a, b) =>
-        a.title.localeCompare(b.title, undefined, { sensitivity: 'base' })
+    const nowMs = Date.now();
+    const visibleExercises = state.exercises.filter(ex =>
+        ex.isWorkspace
+        || (active?.type === 'exercise' && ex.id === active.id)
+        || !isPastDeadline(ex, nowMs)
     );
 
     return {
         activeContext: active,
         activeSession,
         sessions,
-        recentExercises,
-        recentCourses,
-        allExercises,
-        allCourses,
+        exercises: [...visibleExercises].sort(compareExercisesForDisplay),
+        courses: [...state.courses].sort(compareCoursesForDisplay),
     };
 }

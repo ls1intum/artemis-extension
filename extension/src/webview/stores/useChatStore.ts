@@ -36,10 +36,8 @@ interface ChatState {
      * frame stays on the loader instead of flashing the welcome state.
      */
     hasReceivedInitialIrisState: boolean;
-    recentExercises: ContextItem[];
-    recentCourses: ContextItem[];
-    allExercises: ContextItem[];
-    allCourses: ContextItem[];
+    exercises: ContextItem[];
+    courses: ContextItem[];
 
     // Messages
     messages: ChatMessage[];
@@ -107,10 +105,8 @@ export const useChatStore = create<ChatState>()(
             activeSessionId: null,
             sessions: [],
             hasReceivedInitialIrisState: false,
-            recentExercises: [],
-            recentCourses: [],
-            allExercises: [],
-            allCourses: [],
+            exercises: [],
+            courses: [],
             messages: [],
             messageLoad: null,
             streaming: IDLE_STREAMING,
@@ -144,10 +140,8 @@ export const useChatStore = create<ChatState>()(
                         createdAt: s.createdAt,
                         lastActivity: s.lastActivity,
                     })),
-                    recentExercises: state.recentExercises,
-                    recentCourses: state.recentCourses,
-                    allExercises: state.allExercises,
-                    allCourses: state.allCourses,
+                    exercises: state.exercises,
+                    courses: state.courses,
                     hasReceivedInitialIrisState: true,
                 }, false, 'setIrisState');
             },

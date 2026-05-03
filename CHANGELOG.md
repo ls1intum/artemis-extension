@@ -8,6 +8,10 @@ All notable changes to the Artemis VS Code extension will be documented in this 
 
 - **Theia Environment Diagnostic Command**: New `Artemis: Show Theia Environment (Diagnostic)` command that surfaces detection signals (`uiKind`, `DATA_BRIDGE_ENABLED`, `THEIA`) and the snapshot of managed env vars (`ARTEMIS_URL`, `ARTEMIS_TOKEN`, `GIT_URI`, `GIT_USER`, `GIT_MAIL`). Token is masked, `GIT_URI` reduced to host+path so embedded credentials never leak. Used to diagnose Theia auto-clone failures.
 
+### Changed
+
+- **Iris Context Dropdown**: Redesigned the chat context picker as a full-height panel with equal-height lists for Conversations, Exercises, and Courses, top-level workspace shortcuts, and a bugfix that preserves the workspace flag against bulk context re-registration.
+
 ### Fixed
 
 - **Cold-start Welcome Flash**: Eliminated the brief "Hi! I'm Iris" welcome state that flashed before message hydration completed on chat cold-start. Replaced the skeleton placeholder with a centered Iris logo + spinner so the loading state is visible across the whole panel instead of just the input row.

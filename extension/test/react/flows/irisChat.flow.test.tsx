@@ -74,10 +74,8 @@ describe('Iris Chat Flow', () => {
 			context: null,
 			activeSessionId: null,
 			sessions: [],
-			recentExercises: [],
-			recentCourses: [],
-			allExercises: [],
-			allCourses: [],
+			exercises: [],
+			courses: [],
 			messages: [],
 			messageLoad: null,
 			streaming: { isStreaming: false, messageLocalId: null, visibleChunks: [] },
@@ -126,10 +124,8 @@ describe('Iris Chat Flow', () => {
 					},
 					activeSessionId: 'session-1',
 					sessions: [],
-					recentExercises: [],
-					recentCourses: [],
-					allExercises: [],
-					allCourses: [],
+					exercises: [],
+					courses: [],
 				},
 			});
 			// And the matching LoadMessages — the real extension always emits
@@ -151,13 +147,9 @@ describe('Iris Chat Flow', () => {
 		it('sends selectChatContext postMessage when context is selected via context selector', async () => {
 			const user = userEvent.setup();
 
-			// ContextSelector shows recentExercises (not allExercises) when no search query
 			useChatStore.setState({
 				context: null,
-				recentExercises: [
-					{ id: 1, title: 'Binary Search', courseId: 10, isWorkspace: false },
-				],
-				allExercises: [
+				exercises: [
 					{ id: 1, title: 'Binary Search', courseId: 10, isWorkspace: false },
 				],
 			});
@@ -603,10 +595,8 @@ describe('Iris Chat Flow', () => {
 							lastActivity: 0,
 						},
 					],
-					recentExercises: [],
-					recentCourses: [],
-					allExercises: [],
-					allCourses: [],
+					exercises: [],
+					courses: [],
 				},
 			});
 

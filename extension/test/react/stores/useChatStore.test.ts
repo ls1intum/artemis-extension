@@ -16,10 +16,8 @@ const makeIrisState = (overrides: Partial<ExtMsg<'updateIrisState'>['state']> = 
 	context: null,
 	activeSessionId: null,
 	sessions: [],
-	recentExercises: [],
-	recentCourses: [],
-	allExercises: [],
-	allCourses: [],
+	exercises: [],
+	courses: [],
 	...overrides,
 });
 
@@ -408,10 +406,8 @@ describe('useChatStore', () => {
 					lastActivity: 1000100,
 				},
 			],
-			recentExercises: [{ id: 42, title: 'Sorting Algorithms', courseId: 10 }],
-			recentCourses: [{ id: 10, title: 'Algorithms' }],
-			allExercises: [{ id: 42, title: 'Sorting Algorithms', courseId: 10 }],
-			allCourses: [{ id: 10, title: 'Algorithms' }],
+			exercises: [{ id: 42, title: 'Sorting Algorithms', courseId: 10 }],
+			courses: [{ id: 10, title: 'Algorithms' }],
 		});
 
 		act(() => {
@@ -422,8 +418,8 @@ describe('useChatStore', () => {
 		expect(result.current.sessions).toHaveLength(1);
 		expect(result.current.context?.type).toBe('exercise');
 		expect(result.current.context?.id).toBe(42);
-		expect(result.current.recentExercises).toHaveLength(1);
-		expect(result.current.recentCourses).toHaveLength(1);
+		expect(result.current.exercises).toHaveLength(1);
+		expect(result.current.courses).toHaveLength(1);
 	});
 
 	it('setIrisState passes courseId from context directly', () => {
@@ -437,8 +433,7 @@ describe('useChatStore', () => {
 				locked: false,
 				source: 'workspace-detected',
 			},
-			recentExercises: [{ id: 42, title: 'Exercise', courseId: 10 }],
-			allExercises: [],
+			exercises: [{ id: 42, title: 'Exercise', courseId: 10 }],
 		});
 
 		act(() => {

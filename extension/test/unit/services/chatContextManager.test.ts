@@ -1,7 +1,7 @@
 import * as assert from 'assert';
 import * as sinon from 'sinon';
 import * as vscode from 'vscode';
-import { ChatContextManager } from '../../../src/extension/services/iris/chat/chatContextManager';
+import { ChatContextManager, pickBestContextFromSnapshot } from '../../../src/extension/services/iris/chat/chatContextManager';
 import { ContextStore } from '../../../src/extension/services/iris/context/contextStore';
 import { IrisChatSessionService } from '../../../src/extension/services/iris/chat/chatSessionService';
 import { IrisWebSocketSessionClient } from '../../../src/extension/services/iris/transport/irisWebSocketSessionClient';
@@ -83,7 +83,7 @@ suite('ChatContextManager Test Suite', () => {
             chatContextManager.handleContextSelection('exercise', 123, 'Test Exercise');
 
             const snapshot = contextStore.snapshot();
-            const exercise = snapshot.allExercises.find(e => e.id === 123);
+            const exercise = snapshot.exercises.find(e => e.id === 123);
             assert.ok(exercise);
             assert.strictEqual(exercise.title, 'Test Exercise');
         });
@@ -92,7 +92,7 @@ suite('ChatContextManager Test Suite', () => {
             chatContextManager.handleContextSelection('course', 101, 'Test Course');
 
             const snapshot = contextStore.snapshot();
-            const course = snapshot.allCourses.find(c => c.id === 101);
+            const course = snapshot.courses.find(c => c.id === 101);
             assert.ok(course);
             assert.strictEqual(course.title, 'Test Course');
         });
@@ -457,6 +457,39 @@ suite('ChatContextManager Test Suite', () => {
 
             assert.ok(contextStore.getActiveContext());
             assert.strictEqual(contextStore.getActiveContext()?.id, 123);
+        });
+    });
+
+    suite('pickBestContextFromSnapshot', () => {
+        test('prefers exercises[0] over courses[0]', () => {
+            const snap = {
+                activeContext: null, activeSession: null, sessions: [],
+                exercises: [{ id: 5, title: 'E5' }],
+                courses: [{ id: 9, title: 'C9' }],
+            };
+            const picked = pickBestContextFromSnapshot(snap);
+            assert.strictEqual(picked?.type, 'exercise');
+            assert.strictEqual(picked?.id, 5);
+        });
+
+        test('falls through to course when exercises empty', () => {
+            const snap = {
+                activeContext: null, activeSession: null, sessions: [],
+                exercises: [],
+                courses: [{ id: 9, title: 'C9' }],
+            };
+            const picked = pickBestContextFromSnapshot(snap);
+            assert.strictEqual(picked?.type, 'course');
+            assert.strictEqual(picked?.id, 9);
+        });
+
+        test('returns null when both empty', () => {
+            const snap = {
+                activeContext: null, activeSession: null, sessions: [],
+                exercises: [],
+                courses: [],
+            };
+            assert.strictEqual(pickBestContextFromSnapshot(snap), null);
         });
     });
 });

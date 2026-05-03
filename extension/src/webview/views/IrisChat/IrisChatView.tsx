@@ -25,7 +25,6 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
         setDisabledMessage, setNoAiDetected, setIrisStages, resetTransientChatUi,
     } = store;
     const [sideMenuOpen, setSideMenuOpen] = useState(false);
-    const [forceContextPicker, setForceContextPicker] = useState(false);
     const [contextSwitching, setContextSwitching] = useState(false);
     const previousContextId = useRef<number | null>(null);
     const sideMenuRef = useRef<HTMLDivElement>(null);
@@ -60,12 +59,6 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
                 if (msg.showDiagnostics !== undefined) {
                     setShowDiagnostics(msg.showDiagnostics);
                 }
-                break;
-            }
-
-            case ExtensionMsg.ShowContextPicker: {
-                setIrisState(msg.state);
-                setForceContextPicker(true);
                 break;
             }
 
@@ -164,20 +157,6 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
         }
     }, [setIrisState, setShowDiagnostics, addMessage, applyLoadedMessages, setMessageLoadError, clearMessages, setReferencedFiles, setWebSocketStatus, setDisabledMessage, setNoAiDetected, setIrisStages, resetTransientChatUi]);
 
-    // State persistence (only forceContextPicker)
-    useEffect(() => {
-        const state = vscodeApi.getState() as { forceContextPicker?: boolean } | undefined;
-        if (state) {
-            setForceContextPicker(state.forceContextPicker || false);
-        }
-    }, [vscodeApi]);
-
-    useEffect(() => {
-        vscodeApi.setState({
-            forceContextPicker,
-        });
-    }, [forceContextPicker, vscodeApi]);
-
     const handleSendMessage = (text: string) => {
         const localId = crypto.randomUUID();
 
@@ -267,7 +246,7 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
     }
 
     // Check if workspace exercise exists
-    const hasWorkspaceExercise = store.allExercises.some(ex => ex.isWorkspace);
+    const hasWorkspaceExercise = store.exercises.some(ex => ex.isWorkspace);
 
     // Derive active stage: first stage that is not DONE or SKIPPED.
     // NOT_STARTED is intentionally included: it shows dots immediately while
@@ -382,14 +361,10 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
                     context={store.context}
                     sessions={store.sessions}
                     activeSessionId={store.activeSessionId}
-                    recentExercises={store.recentExercises}
-                    recentCourses={store.recentCourses}
-                    allExercises={store.allExercises}
-                    allCourses={store.allCourses}
-                    forceContextPicker={forceContextPicker}
+                    exercises={store.exercises}
+                    courses={store.courses}
                     onSelectContext={(type, id, title, shortName) => {
                         postCommand(vscodeApi, 'selectChatContext', { context: type, itemId: id, itemName: title, itemShortName: shortName });
-                        setForceContextPicker(false);
                     }}
                     onSelectSession={(sessionId) => {
                         postCommand(vscodeApi, 'switchSession', { sessionId });
@@ -399,10 +374,6 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
                     }}
                     onSwitchToWorkspace={() => {
                         postCommand(vscodeApi, 'switchToWorkspaceContext');
-                        setForceContextPicker(false);
-                    }}
-                    onSwitchContext={() => {
-                        setForceContextPicker(true);
                     }}
                 />
             </div>

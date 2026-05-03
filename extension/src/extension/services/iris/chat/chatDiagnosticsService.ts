@@ -60,12 +60,11 @@ export class ChatDiagnosticsService {
             report += '  No sessions recorded\n';
         }
 
-        report += `\n💻 RECENT EXERCISES (${snapshot.recentExercises.length}):\n`;
-        if (snapshot.recentExercises.length > 0) {
-            snapshot.recentExercises.forEach((exercise, idx) => {
+        report += `\n💻 EXERCISES (${snapshot.exercises.length}):\n`;
+        if (snapshot.exercises.length > 0) {
+            snapshot.exercises.forEach((exercise, idx) => {
                 report += `  ${idx + 1}. [${exercise.id}] ${exercise.title}${exercise.isWorkspace ? ' ⭐' : ''}\n`;
                 report += `     Short Name: ${exercise.shortName ?? '—'}\n`;
-                report += `     Priority: ${exercise.priority}\n`;
                 if (exercise.releaseDate) {
                     report += `     Release: ${exercise.releaseDate}\n`;
                 }
@@ -77,21 +76,20 @@ export class ChatDiagnosticsService {
                 }
             });
         } else {
-            report += '  No recent exercises tracked\n';
+            report += '  No exercises tracked\n';
         }
 
-        report += `\n📚 RECENT COURSES (${snapshot.recentCourses.length}):\n`;
-        if (snapshot.recentCourses.length > 0) {
-            snapshot.recentCourses.forEach((course, idx) => {
+        report += `\n📚 COURSES (${snapshot.courses.length}):\n`;
+        if (snapshot.courses.length > 0) {
+            snapshot.courses.forEach((course, idx) => {
                 report += `  ${idx + 1}. [${course.id}] ${course.title}\n`;
                 report += `     Short Name: ${course.shortName ?? '—'}\n`;
-                report += `     Priority: ${course.priority}\n`;
                 if (course.lastViewed) {
                     report += `     Last Viewed: ${new Date(course.lastViewed).toISOString()}\n`;
                 }
             });
         } else {
-            report += '  No recent courses tracked\n';
+            report += '  No courses tracked\n';
         }
 
         const registry = this._exerciseRegistry;
