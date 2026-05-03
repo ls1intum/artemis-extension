@@ -26,9 +26,10 @@ interface Props {
     fullXDomain?: [number, number];
     annotations: Annotation[];
     enabledTypes: Set<EventType>;
-    onAddAnnotation: (timestamp: number, text: string) => void;
-    onUpdateAnnotation: (id: string, text: string) => void;
-    onDeleteAnnotation: (id: string) => void;
+    onAddAnnotation?: (timestamp: number, text: string) => void;
+    onUpdateAnnotation?: (id: string, text: string) => void;
+    onDeleteAnnotation?: (id: string) => void;
+    readOnly?: boolean;
     onViewInList?: (timestamp: number) => void;
     videoTimeRef?: React.RefObject<number>;
     onSeekVideo?: (timestamp: number) => void;
@@ -128,6 +129,7 @@ export function TrackingTimeline({
     onAddAnnotation,
     onUpdateAnnotation,
     onDeleteAnnotation,
+    readOnly,
     onViewInList,
     videoTimeRef,
     onSeekVideo,
@@ -411,7 +413,9 @@ export function TrackingTimeline({
         const annotHit = !dotHit ? hitTestAnnotation(x, y, visibleLanes, annotationGroups) : null;
 
         if (dotHit) {
-            setAnnotateTimestamp(dotHit.bin.firstTimestamp);
+            if (!readOnly && onAddAnnotation) {
+                setAnnotateTimestamp(dotHit.bin.firstTimestamp);
+            }
         } else if (annotHit) {
             setAnnotPopover({ x, y, annotations: annotHit.group.annotations });
         }
@@ -422,7 +426,7 @@ export function TrackingTimeline({
             const ts = xToTime(x, sessionStartTime, xDomain, timelineWidth);
             if (ts != null) onSeekVideo(ts);
         }
-    }, [visibleLanes, laneBins, annotationGroups, onSeekVideo, sessionStartTime, xDomain, timelineWidth]);
+    }, [visibleLanes, laneBins, annotationGroups, readOnly, onAddAnnotation, onSeekVideo, sessionStartTime, xDomain, timelineWidth]);
 
     if (visibleLanes.length === 0) {
         return (
@@ -526,7 +530,7 @@ export function TrackingTimeline({
                         >
                             {annotPopover.annotations.map(a => (
                                 <div key={a.id} className="annotation-popover-item">
-                                    {editingAnnotId === a.id ? (
+                                    {editingAnnotId === a.id && !readOnly && onUpdateAnnotation ? (
                                         <div className="annotation-popover-edit">
                                             <input
                                                 autoFocus
@@ -535,7 +539,7 @@ export function TrackingTimeline({
                                                 onChange={e => setEditText(e.target.value)}
                                                 onKeyDown={e => {
                                                     if (e.key === 'Enter' && editText.trim()) {
-                                                        onUpdateAnnotation(a.id, editText.trim());
+                                                        onUpdateAnnotation?.(a.id, editText.trim());
                                                         setEditingAnnotId(null);
                                                         setAnnotPopover(null);
                                                     }
@@ -546,7 +550,7 @@ export function TrackingTimeline({
                                                 className="annotation-save-btn"
                                                 disabled={!editText.trim()}
                                                 onClick={() => {
-                                                    onUpdateAnnotation(a.id, editText.trim());
+                                                    onUpdateAnnotation?.(a.id, editText.trim());
                                                     setEditingAnnotId(null);
                                                     setAnnotPopover(null);
                                                 }}
@@ -560,27 +564,31 @@ export function TrackingTimeline({
                                                 {formatOffset(a.timestamp - sessionStartTime)}
                                             </span>
                                             <span className="annotation-popover-text">{a.text}</span>
-                                            <button
-                                                className="annotation-action-btn edit"
-                                                onClick={() => { setEditingAnnotId(a.id); setEditText(a.text); }}
-                                                title="Edit"
-                                            >
-                                                &#9998;
-                                            </button>
-                                            <button
-                                                className="annotation-action-btn delete"
-                                                onClick={() => {
-                                                    onDeleteAnnotation(a.id);
-                                                    setAnnotPopover(prev => {
-                                                        if (!prev) return null;
-                                                        const remaining = prev.annotations.filter(ann => ann.id !== a.id);
-                                                        return remaining.length > 0 ? { ...prev, annotations: remaining } : null;
-                                                    });
-                                                }}
-                                                title="Delete"
-                                            >
-                                                &times;
-                                            </button>
+                                            {!readOnly && onUpdateAnnotation && (
+                                                <button
+                                                    className="annotation-action-btn edit"
+                                                    onClick={() => { setEditingAnnotId(a.id); setEditText(a.text); }}
+                                                    title="Edit"
+                                                >
+                                                    &#9998;
+                                                </button>
+                                            )}
+                                            {!readOnly && onDeleteAnnotation && (
+                                                <button
+                                                    className="annotation-action-btn delete"
+                                                    onClick={() => {
+                                                        onDeleteAnnotation?.(a.id);
+                                                        setAnnotPopover(prev => {
+                                                            if (!prev) return null;
+                                                            const remaining = prev.annotations.filter(ann => ann.id !== a.id);
+                                                            return remaining.length > 0 ? { ...prev, annotations: remaining } : null;
+                                                        });
+                                                    }}
+                                                    title="Delete"
+                                                >
+                                                    &times;
+                                                </button>
+                                            )}
                                         </>
                                     )}
                                 </div>
@@ -601,7 +609,7 @@ export function TrackingTimeline({
             </p>
 
             {/* Annotate from dot click */}
-            {annotateTimestamp !== null && (
+            {annotateTimestamp !== null && !readOnly && onAddAnnotation && (
                 <div className="tracking-annotate-form">
                     <span className="mono" style={{ flexShrink: 0, color: 'var(--text-muted)', fontSize: 11 }}>
                         {formatOffset(annotateTimestamp - sessionStartTime)}
@@ -614,7 +622,7 @@ export function TrackingTimeline({
                         onChange={e => setAnnotateText(e.target.value)}
                         onKeyDown={e => {
                             if (e.key === 'Enter' && annotateText.trim()) {
-                                onAddAnnotation(annotateTimestamp, annotateText.trim());
+                                onAddAnnotation?.(annotateTimestamp, annotateText.trim());
                                 setAnnotateTimestamp(null);
                                 setAnnotateText('');
                             }

@@ -5,6 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:live": "node -e \"if(!process.env.RECORDING_VIEWER_TOKEN){console.error('RECORDING_VIEWER_TOKEN must be set');process.exit(1)}\" && vite",
+    "dev:live:token": "echo '\\n>>> Live token: dev-only-do-not-use-in-prod\\n' && RECORDING_VIEWER_TOKEN=dev-only-do-not-use-in-prod vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview",

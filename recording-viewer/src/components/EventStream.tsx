@@ -8,9 +8,10 @@ interface Props {
     sessionStartTime: number;
     annotations: Annotation[];
     enabledTypes: Set<EventType>;
-    onAddAnnotation: (timestamp: number, text: string) => void;
-    onUpdateAnnotation: (id: string, text: string) => void;
-    onDeleteAnnotation: (id: string) => void;
+    onAddAnnotation?: (timestamp: number, text: string) => void;
+    onUpdateAnnotation?: (id: string, text: string) => void;
+    onDeleteAnnotation?: (id: string) => void;
+    readOnly?: boolean;
     scrollToTimestamp?: number | null;
     onScrollComplete?: () => void;
     videoTimeRef?: React.RefObject<number>;
@@ -244,16 +245,17 @@ function InlineAnnotationInput({ onSubmit, onCancel }: {
     );
 }
 
-function AnnotationRow({ annotation, sessionStartTime, onUpdate, onDelete }: {
+function AnnotationRow({ annotation, sessionStartTime, onUpdate, onDelete, readOnly }: {
     annotation: Annotation;
     sessionStartTime: number;
-    onUpdate: (id: string, text: string) => void;
-    onDelete: (id: string) => void;
+    onUpdate?: (id: string, text: string) => void;
+    onDelete?: (id: string) => void;
+    readOnly?: boolean;
 }) {
     const [editing, setEditing] = useState(false);
     const [editText, setEditText] = useState(annotation.text);
 
-    if (editing) {
+    if (editing && !readOnly && onUpdate) {
         return (
             <div className="event-row annotation-row editing">
                 <span className="event-time mono">
@@ -267,7 +269,7 @@ function AnnotationRow({ annotation, sessionStartTime, onUpdate, onDelete }: {
                     onChange={e => setEditText(e.target.value)}
                     onKeyDown={e => {
                         if (e.key === 'Enter' && editText.trim()) {
-                            onUpdate(annotation.id, editText.trim());
+                            onUpdate?.(annotation.id, editText.trim());
                             setEditing(false);
                         }
                         if (e.key === 'Escape') {
@@ -279,7 +281,7 @@ function AnnotationRow({ annotation, sessionStartTime, onUpdate, onDelete }: {
                 <button
                     className="annotation-save-btn"
                     disabled={!editText.trim()}
-                    onClick={() => { onUpdate(annotation.id, editText.trim()); setEditing(false); }}
+                    onClick={() => { onUpdate?.(annotation.id, editText.trim()); setEditing(false); }}
                 >
                     Save
                 </button>
@@ -307,18 +309,28 @@ function AnnotationRow({ annotation, sessionStartTime, onUpdate, onDelete }: {
             ) : (
                 <span className="event-badge annotation">NOTE</span>
             )}
-            <span className="annotation-text" onClick={() => setEditing(true)} title="Click to edit">
+            <span
+                className="annotation-text"
+                onClick={!readOnly && onUpdate ? () => setEditing(true) : undefined}
+                title={!readOnly && onUpdate ? 'Click to edit' : undefined}
+            >
                 {annotation.text}
             </span>
-            <div className="annotation-actions">
-                <button className="annotation-action-btn edit" onClick={() => setEditing(true)} title="Edit">&#9998;</button>
-                <button className="annotation-action-btn delete" onClick={() => onDelete(annotation.id)} title="Delete">&times;</button>
-            </div>
+            {!readOnly && (
+                <div className="annotation-actions">
+                    {onUpdate && (
+                        <button className="annotation-action-btn edit" onClick={() => setEditing(true)} title="Edit">&#9998;</button>
+                    )}
+                    {onDelete && (
+                        <button className="annotation-action-btn delete" onClick={() => onDelete(annotation.id)} title="Delete">&times;</button>
+                    )}
+                </div>
+            )}
         </div>
     );
 }
 
-export function EventStream({ events, sessionStartTime, annotations, enabledTypes, onAddAnnotation, onUpdateAnnotation, onDeleteAnnotation, scrollToTimestamp, onScrollComplete, videoTimeRef, isVideoPlaying, onSeekVideo }: Props) {
+export function EventStream({ events, sessionStartTime, annotations, enabledTypes, onAddAnnotation, onUpdateAnnotation, onDeleteAnnotation, readOnly, scrollToTimestamp, onScrollComplete, videoTimeRef, isVideoPlaying, onSeekVideo }: Props) {
     const [showAnnotations, setShowAnnotations] = useState(true);
     const [annotatingTimestamp, setAnnotatingTimestamp] = useState<number | null>(null);
     const [expandedTerminals, setExpandedTerminals] = useState<Set<number>>(new Set());
@@ -491,6 +503,7 @@ export function EventStream({ events, sessionStartTime, annotations, enabledType
                                 sessionStartTime={sessionStartTime}
                                 onUpdate={onUpdateAnnotation}
                                 onDelete={onDeleteAnnotation}
+                                readOnly={readOnly}
                             />
                         );
                     }
@@ -526,23 +539,25 @@ export function EventStream({ events, sessionStartTime, annotations, enabledType
                                         &#9654;
                                     </button>
                                 )}
-                                <button
-                                    className="annotate-btn"
-                                    title="Add annotation at this timestamp"
-                                    onClick={e => {
-                                        e.stopPropagation();
-                                        setAnnotatingTimestamp(
-                                            annotatingTimestamp === event.timestamp ? null : event.timestamp
-                                        );
-                                    }}
-                                >
-                                    +
-                                </button>
+                                {!readOnly && onAddAnnotation && (
+                                    <button
+                                        className="annotate-btn"
+                                        title="Add annotation at this timestamp"
+                                        onClick={e => {
+                                            e.stopPropagation();
+                                            setAnnotatingTimestamp(
+                                                annotatingTimestamp === event.timestamp ? null : event.timestamp
+                                            );
+                                        }}
+                                    >
+                                        +
+                                    </button>
+                                )}
                             </div>
                             {isTermExpanded && event.type === 'terminalCommand' && (
                                 <pre className="terminal-output">{stripAnsi(event.output)}</pre>
                             )}
-                            {annotatingTimestamp === event.timestamp && (
+                            {annotatingTimestamp === event.timestamp && !readOnly && onAddAnnotation && (
                                 <InlineAnnotationInput
                                     onSubmit={text => {
                                         onAddAnnotation(event.timestamp, text);
