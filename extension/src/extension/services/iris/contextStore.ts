@@ -10,9 +10,10 @@ import type { StoredState } from './contextStateTypes';
 import { ContextPersistence } from './contextPersistence';
 import { buildContextSnapshot } from './contextSnapshot';
 import { TrackedItemRepository } from './trackedItemRepository';
+import type { ExerciseInput, CourseInput } from './trackedItemRepository';
 import type { TrackedExercise, TrackedCourse } from '../../types';
 
-export type { ExerciseInput, CourseInput } from './trackedItemRepository';
+export type { ExerciseInput, CourseInput };
 
 interface ContextStoreOptions {
     maxRecentExercises?: number;
@@ -87,7 +88,7 @@ export class ContextStore {
         return this._repository.getWorkspaceExercise();
     }
 
-    public registerExercise(input: Parameters<TrackedItemRepository['upsertExercise']>[0]): ContextSnapshot {
+    public registerExercise(input: ExerciseInput): ContextSnapshot {
         this._repository.upsertExercise(input);
         this._repository.recalculateExercisePriorities();
         this._repository.trimExerciseHistory();
@@ -95,7 +96,7 @@ export class ContextStore {
         return this.snapshot();
     }
 
-    public registerCourse(input: Parameters<TrackedItemRepository['upsertCourse']>[0]): ContextSnapshot {
+    public registerCourse(input: CourseInput): ContextSnapshot {
         this._repository.upsertCourse(input);
         this._repository.recalculateCoursePriorities();
         this._repository.trimCourseHistory();
