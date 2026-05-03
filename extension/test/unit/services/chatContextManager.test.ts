@@ -332,16 +332,56 @@ suite('ChatContextManager Test Suite', () => {
             assert.strictEqual(snapshot.activeContext?.id, 999);
         });
 
-        test('should override with workspace exercise when different exercise active', () => {
+        test('should NOT override an explicit user-selected exercise when workspace detection runs for a different id', () => {
+            // Reproduces the bug where clicking "Ask Iris about exercise B"
+            // was silently overwritten by background workspace re-detection of
+            // exercise A on the next chat-view-visible event.
             contextStore.setActiveContext({
                 type: 'exercise',
                 id: 999,
-                title: 'Other',
+                title: 'User-Picked Exercise',
                 source: 'user-selected',
                 locked: false,
                 selectedAt: Date.now(),
             });
 
+            chatContextManager.registerExerciseAndAutoSelect({
+                id: 123,
+                title: 'Workspace Exercise',
+                source: 'workspace-detected',
+                isWorkspace: true,
+            });
+
+            const snapshot = contextStore.snapshot();
+            assert.strictEqual(snapshot.activeContext?.id, 999, 'user-selected exercise must be preserved');
+            assert.strictEqual(snapshot.activeContext?.source, 'user-selected');
+        });
+
+        test('should override with workspace exercise when active is system-default and outdated', () => {
+            // Legitimate override case: no explicit user choice, just a stale
+            // auto-pick. Workspace detection is allowed to take over.
+            contextStore.setActiveContext({
+                type: 'exercise',
+                id: 999,
+                title: 'Auto-picked Exercise',
+                source: 'system-default',
+                locked: false,
+                selectedAt: Date.now(),
+            });
+
+            chatContextManager.registerExerciseAndAutoSelect({
+                id: 123,
+                title: 'Workspace Exercise',
+                source: 'workspace-detected',
+                isWorkspace: true,
+            });
+
+            const snapshot = contextStore.snapshot();
+            assert.strictEqual(snapshot.activeContext?.id, 123);
+            assert.strictEqual(snapshot.activeContext?.source, 'workspace-detected');
+        });
+
+        test('should override with workspace exercise when no active context exists', () => {
             chatContextManager.registerExerciseAndAutoSelect({
                 id: 123,
                 title: 'Workspace Exercise',

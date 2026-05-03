@@ -48,8 +48,16 @@ function shouldOverrideWithWorkspace(
     active: ActiveContext | null,
     detected: TrackedExercise,
 ): boolean {
-    const isDifferentExercise = !active || active.id !== detected.id;
-    return isDifferentExercise || active!.source !== 'user-selected';
+    if (!active) {
+        return true;
+    }
+    // An explicit user choice (e.g. "Ask Iris about this exercise") must never
+    // be silently overwritten by background workspace re-detection — that
+    // produces the "I clicked B but the chat shows A" bug.
+    if (active.source === 'user-selected') {
+        return false;
+    }
+    return active.id !== detected.id;
 }
 
 export type ChatContextReason =
