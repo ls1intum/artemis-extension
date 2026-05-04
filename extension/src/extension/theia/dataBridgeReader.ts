@@ -40,8 +40,9 @@ type KnownBridgeKey = (typeof KNOWN_BRIDGE_KEYS)[number];
  * data, which would cause a 10s blocking poll on every startup.
  *
  * Polls every 500ms until all requested keys are present, with a 10s timeout.
- * Returns `undefined` if data-bridge is unavailable or times out, signaling
- * the caller to fall back to process env reading.
+ * Returns `undefined` if data-bridge is unavailable or times out — the caller
+ * treats this as "not running in Theia/EduIDE" and falls back to the
+ * non-Theia default environment.
  *
  * Pattern adapted from Scorpio's DataBridgeStrategy (env-strategy.ts).
  */
@@ -95,7 +96,7 @@ export async function readEnvVarsViaDataBridge<T extends string>(
     }
 
     logger.warn(
-        'DataBridge: timeout waiting for environment variables, falling back to process env',
+        'DataBridge: timeout waiting for environment variables, treating session as non-Theia',
         LogCategory.GENERAL,
     );
     return undefined;
