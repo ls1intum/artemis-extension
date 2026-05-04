@@ -347,7 +347,7 @@ suite('SessionRecorder (Block AB+E)', () => {
             `metadata.eventCount=${metadata.eventCount} but JSONL has ${events.length} events`);
     });
 
-    // ── Test: _recordInternal phase gating (via public surface) ──────────
+    // ── Test: lifecycle.recordInternal phase gating (via public surface) ──────────
 
     test('record() after session ends but before new session starts is a no-op', async () => {
         recorder.enable();
