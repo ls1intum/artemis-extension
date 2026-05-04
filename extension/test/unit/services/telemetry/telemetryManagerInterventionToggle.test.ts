@@ -29,9 +29,9 @@ interface ConfigStubValues {
     developerMode?: boolean;
 }
 
-function stubGetConfiguration(values: ConfigStubValues): sinon.SinonStub {
+function stubGetConfiguration(sandbox: sinon.SinonSandbox, values: ConfigStubValues): sinon.SinonStub {
     const original = vscode.workspace.getConfiguration;
-    return sinon.stub(vscode.workspace, 'getConfiguration').callsFake((section?: string) => {
+    return sandbox.stub(vscode.workspace, 'getConfiguration').callsFake((section?: string) => {
         const cfg = original.call(vscode.workspace, section);
         return {
             ...cfg,
@@ -89,10 +89,8 @@ function driveEligibleDecision(
 
 suite('TelemetryManager — intervention UI toggle', () => {
     let sandbox: sinon.SinonSandbox;
-    let getConfigStub: sinon.SinonStub | undefined;
     let showInfoStub: sinon.SinonStub;
     let showWarnStub: sinon.SinonStub;
-    let createStatusBarStub: sinon.SinonStub;
     let statusBarItem: { show: sinon.SinonStub; hide: sinon.SinonStub; dispose: sinon.SinonStub; text: string; tooltip: string | undefined; backgroundColor: vscode.ThemeColor | undefined; command: string | undefined };
 
     setup(() => {
@@ -106,19 +104,32 @@ suite('TelemetryManager — intervention UI toggle', () => {
             backgroundColor: undefined,
             command: undefined,
         };
-        createStatusBarStub = sandbox.stub(vscode.window, 'createStatusBarItem').returns(statusBarItem as unknown as vscode.StatusBarItem);
+        sandbox.stub(vscode.window, 'createStatusBarItem').returns(statusBarItem as unknown as vscode.StatusBarItem);
         showInfoStub = sandbox.stub(vscode.window, 'showInformationMessage');
         showWarnStub = sandbox.stub(vscode.window, 'showWarningMessage');
     });
 
     teardown(() => {
-        getConfigStub?.restore();
-        getConfigStub = undefined;
         sandbox.restore();
     });
 
+    /**
+     * Re-stubbing `vscode.workspace.getConfiguration` requires restoring the
+     * existing stub first; sinon throws "already wrapped" otherwise. The
+     * sandbox itself doesn't allow targeted restore, so we walk its fakes to
+     * find the active getConfiguration wrap and restore just that one.
+     */
+    function reStubGetConfiguration(values: ConfigStubValues): void {
+        const desc = Object.getOwnPropertyDescriptor(vscode.workspace, 'getConfiguration');
+        const current = desc?.value as { restore?: () => void } | undefined;
+        if (current?.restore) {
+            current.restore();
+        }
+        stubGetConfiguration(sandbox, values);
+    }
+
     test('T1: toggle off → suppression event fires; no show/block events', () => {
-        getConfigStub = stubGetConfiguration({ showInterventions: false });
+        stubGetConfiguration(sandbox, { showInterventions: false });
         const tm = new TelemetryManager();
         const suppressed: SuppressedInterventionPayload[] = [];
         const shown: InterventionDecision[] = [];
@@ -139,7 +150,7 @@ suite('TelemetryManager — intervention UI toggle', () => {
     });
 
     test('T2: toggle off → no UI surface calls', () => {
-        getConfigStub = stubGetConfiguration({ showInterventions: false });
+        stubGetConfiguration(sandbox, { showInterventions: false });
         const tm = new TelemetryManager();
 
         driveEligibleDecision(tm, { level: 'subtle' });
@@ -153,7 +164,7 @@ suite('TelemetryManager — intervention UI toggle', () => {
     });
 
     test('T3: toggle off → UI-delivery state does not advance', () => {
-        getConfigStub = stubGetConfiguration({ showInterventions: false });
+        stubGetConfiguration(sandbox, { showInterventions: false });
         const tm = new TelemetryManager();
 
         for (let i = 0; i < 5; i++) {
@@ -170,7 +181,7 @@ suite('TelemetryManager — intervention UI toggle', () => {
     });
 
     test('T4: toggle off → suppression events are not rate-limited', () => {
-        getConfigStub = stubGetConfiguration({ showInterventions: false });
+        stubGetConfiguration(sandbox, { showInterventions: false });
         const tm = new TelemetryManager();
         const captured: SuppressedInterventionPayload[] = [];
         tm.onDidSuppressIntervention(payload => captured.push(payload));
@@ -184,7 +195,7 @@ suite('TelemetryManager — intervention UI toggle', () => {
     });
 
     test('T5: toggle off → onDidCalculateEQ still fires for the trigger', () => {
-        getConfigStub = stubGetConfiguration({ showInterventions: false });
+        stubGetConfiguration(sandbox, { showInterventions: false });
         const tm = new TelemetryManager();
         const eqEvents: unknown[] = [];
         tm.onDidCalculateEQ(e => eqEvents.push(e));
@@ -196,7 +207,7 @@ suite('TelemetryManager — intervention UI toggle', () => {
     });
 
     test('T6: toggle on (default) → no suppression event; show path runs', () => {
-        getConfigStub = stubGetConfiguration({ showInterventions: true });
+        stubGetConfiguration(sandbox, { showInterventions: true });
         const tm = new TelemetryManager();
         const captured: SuppressedInterventionPayload[] = [];
         tm.onDidSuppressIntervention(payload => captured.push(payload));
@@ -209,7 +220,7 @@ suite('TelemetryManager — intervention UI toggle', () => {
     });
 
     test('T7: live-toggle on→off with subtle visible → hideHint called; dismiss reason hidden', () => {
-        getConfigStub = stubGetConfiguration({ showInterventions: true });
+        stubGetConfiguration(sandbox, { showInterventions: true });
         const tm = new TelemetryManager();
 
         driveEligibleDecision(tm, { level: 'subtle' });
@@ -221,8 +232,7 @@ suite('TelemetryManager — intervention UI toggle', () => {
         // fake ConfigurationChangeEvent: TelemetryManager re-runs
         // _loadConfiguration unconditionally on a matching event, so calling
         // it directly is equivalent and avoids brittle event mocking.
-        getConfigStub.restore();
-        getConfigStub = stubGetConfiguration({ showInterventions: false });
+        reStubGetConfiguration({ showInterventions: false });
         (tm as unknown as { _loadConfiguration(): void })._loadConfiguration();
 
         assert.strictEqual(statusBarItem.hide.callCount >= 1, true, 'statusBarItem.hide expected on transition');
@@ -232,15 +242,14 @@ suite('TelemetryManager — intervention UI toggle', () => {
     });
 
     test('T8: live-toggle off→on → no spurious events', () => {
-        getConfigStub = stubGetConfiguration({ showInterventions: false });
+        stubGetConfiguration(sandbox, { showInterventions: false });
         const tm = new TelemetryManager();
         const suppressed: SuppressedInterventionPayload[] = [];
         const dismissals: unknown[] = [];
         tm.onDidSuppressIntervention(p => suppressed.push(p));
         tm.onDidDismissIntervention(p => dismissals.push(p));
 
-        getConfigStub.restore();
-        getConfigStub = stubGetConfiguration({ showInterventions: true });
+        reStubGetConfiguration({ showInterventions: true });
         (tm as unknown as { _loadConfiguration(): void })._loadConfiguration();
 
         assert.strictEqual(suppressed.length, 0);
@@ -249,7 +258,7 @@ suite('TelemetryManager — intervention UI toggle', () => {
     });
 
     test('T9: type guard — non-boolean setting falls back to true', () => {
-        getConfigStub = stubGetConfiguration({ showInterventions: 'not-a-boolean' });
+        stubGetConfiguration(sandbox, { showInterventions: 'not-a-boolean' });
         const tm = new TelemetryManager();
 
         const internal = tm as unknown as { _showInterventions: boolean };

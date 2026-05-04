@@ -32,9 +32,9 @@ interface MutableConfigState {
     developerMode: boolean;
 }
 
-function installConfigStub(state: MutableConfigState): sinon.SinonStub {
+function installConfigStub(sandbox: sinon.SinonSandbox, state: MutableConfigState): sinon.SinonStub {
     const original = vscode.workspace.getConfiguration;
-    return sinon.stub(vscode.workspace, 'getConfiguration').callsFake((section?: string) => {
+    return sandbox.stub(vscode.workspace, 'getConfiguration').callsFake((section?: string) => {
         const real = original.call(vscode.workspace, section);
         return {
             ...real,
@@ -65,10 +65,10 @@ function stubConsent(extended: boolean): ConsentService {
     } as unknown as ConsentService;
 }
 
-function stubWebsocket(): ArtemisWebsocketService {
+function stubWebsocket(sandbox: sinon.SinonSandbox): ArtemisWebsocketService {
     return {
-        registerMessageHandler: sinon.stub(),
-        unregisterMessageHandler: sinon.stub(),
+        registerMessageHandler: sandbox.stub(),
+        unregisterMessageHandler: sandbox.stub(),
     } as unknown as ArtemisWebsocketService;
 }
 
@@ -133,27 +133,45 @@ interface WiringHarness {
     dispose: () => Promise<void>;
 }
 
-async function makeWiringHarness(initial: MutableConfigState): Promise<WiringHarness> {
+/**
+ * Build a wiring harness against a per-suite sandbox. The sandbox owns every
+ * stub so a thrown error mid-construction (or a forgotten dispose call) cannot
+ * leak `getConfiguration` / `registerCommand` wraps into the next test —
+ * `sandbox.restore()` in teardown rolls them all back unconditionally.
+ */
+async function makeWiringHarness(
+    sandbox: sinon.SinonSandbox,
+    initial: MutableConfigState,
+): Promise<WiringHarness> {
     const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'wiring-test-'));
     const configState: MutableConfigState = { ...initial };
 
-    // STEP 1: Install config stub BEFORE wireSessionRecorder runs.
-    const configStub = installConfigStub(configState);
+    installConfigStub(sandbox, configState);
 
-    // STEP 2: Stub onDidChangeConfiguration to capture the listener.
     let captured: ((e: vscode.ConfigurationChangeEvent) => void) | undefined;
-    const onConfigStub = sinon.stub(vscode.workspace, 'onDidChangeConfiguration').callsFake((listener: (e: vscode.ConfigurationChangeEvent) => void) => {
+    sandbox.stub(vscode.workspace, 'onDidChangeConfiguration').callsFake((listener: (e: vscode.ConfigurationChangeEvent) => void) => {
         captured = listener;
         return new vscode.Disposable(() => { /* noop */ });
     });
 
-    // STEP 3: Construct manager and wiring.
+    // The extension under test is already activated by the test runner and has
+    // registered `artemis.toggleRecording`. Stub registerCommand so the wiring's
+    // RecordingStatusBarService does not collide with that pre-existing
+    // registration. Same story for createStatusBarItem (avoid duplicating the
+    // real status bar item).
+    sandbox.stub(vscode.commands, 'registerCommand').returns(new vscode.Disposable(() => { /* noop */ }));
+    sandbox.stub(vscode.window, 'createStatusBarItem').returns({
+        text: '', tooltip: undefined, backgroundColor: undefined, command: undefined,
+        show: sandbox.stub(), hide: sandbox.stub(), dispose: sandbox.stub(),
+        alignment: vscode.StatusBarAlignment.Right, priority: 99,
+    } as unknown as vscode.StatusBarItem);
+
     const telemetryManager = new TelemetryManager();
     const ctx = { globalStorageUri: vscode.Uri.file(tmpDir), subscriptions: [] } as unknown as vscode.ExtensionContext;
     const wiring = wireSessionRecorder({
         context: ctx,
         consentService: stubConsent(true),
-        artemisWebsocketService: stubWebsocket(),
+        artemisWebsocketService: stubWebsocket(sandbox),
         telemetryManager,
         artemisWebviewProvider: stubWebviewProvider(),
         chatWebviewProvider: stubChatProvider(),
@@ -171,16 +189,25 @@ async function makeWiringHarness(initial: MutableConfigState): Promise<WiringHar
             wiring.disposable.dispose();
             try { await wiring.sessionRecorder.dispose(); } catch { /* ignore */ }
             telemetryManager.dispose();
-            onConfigStub.restore();
-            configStub.restore();
             try { await fs.rm(tmpDir, { recursive: true, force: true }); } catch { /* ignore */ }
+            // Stubs are restored centrally via the suite-level sandbox in teardown.
         },
     };
 }
 
 suite('sessionRecorderWiring — suppression and configuration provenance', () => {
+    let sandbox: sinon.SinonSandbox;
+
+    setup(() => {
+        sandbox = sinon.createSandbox();
+    });
+
+    teardown(() => {
+        sandbox.restore();
+    });
+
     test('suppression event is recorded as action=suppressed', async () => {
-        const harness = await makeWiringHarness({ enabled: true, showInterventions: true, developerMode: false });
+        const harness = await makeWiringHarness(sandbox, { enabled: true, showInterventions: true, developerMode: false });
         try {
             await harness.recorder.startSession(42);
             const decision: InterventionDecision = {
@@ -207,7 +234,7 @@ suite('sessionRecorderWiring — suppression and configuration provenance', () =
     });
 
     test('configurationSnapshot is emitted at startup', async () => {
-        const harness = await makeWiringHarness({ enabled: true, showInterventions: false, developerMode: false });
+        const harness = await makeWiringHarness(sandbox, { enabled: true, showInterventions: false, developerMode: false });
         try {
             await harness.recorder.startSession(42);
             await harness.recorder.endSession();
@@ -224,7 +251,7 @@ suite('sessionRecorderWiring — suppression and configuration provenance', () =
 
     test('configurationChange is recorded when the listener fires', async () => {
         // Initial config: showInterventions=true. Listener caches that on construction.
-        const harness = await makeWiringHarness({ enabled: true, showInterventions: true, developerMode: false });
+        const harness = await makeWiringHarness(sandbox, { enabled: true, showInterventions: true, developerMode: false });
         try {
             await harness.recorder.startSession(42);
             const listener = harness.capturedConfigListener();
