@@ -5,6 +5,7 @@ import {
     EQConfidence,
     EQState,
     RecommendedAction,
+    SuppressedInterventionPayload,
 } from './types';
 import type { SessionResettable, SessionStartContext } from './types';
 import { DiagnosticPersistenceService } from './diagnosticPersistenceService';
@@ -55,6 +56,7 @@ export class TelemetryManager implements vscode.Disposable, WebSocketMessageHand
     // State
     private _websocketService: ArtemisWebsocketService | undefined;
     private _isEnabled: boolean = true;
+    private _showInterventions: boolean = true;
     private readonly _sessionServices: SessionResettable[];
     private _activeExerciseId: number | undefined;
     private _lastTriggerType: TriggerType | undefined;
@@ -88,6 +90,9 @@ export class TelemetryManager implements vscode.Disposable, WebSocketMessageHand
     public get onDidBlockIntervention() {
         return this._interventionService.onDidBlockIntervention;
     }
+
+    private readonly _onDidSuppressIntervention = new vscode.EventEmitter<SuppressedInterventionPayload>();
+    public readonly onDidSuppressIntervention = this._onDidSuppressIntervention.event;
 
     constructor(exerciseRegistry?: ExerciseRegistry) {
         this._exerciseRegistry = exerciseRegistry;
@@ -174,6 +179,7 @@ export class TelemetryManager implements vscode.Disposable, WebSocketMessageHand
         }
 
         this._onDidCalculateEQ.dispose();
+        this._onDidSuppressIntervention.dispose();
     }
 
     // ==================== WebSocket Message Handler ====================
@@ -387,7 +393,17 @@ export class TelemetryManager implements vscode.Disposable, WebSocketMessageHand
         const decision = this._decisionEngine.evaluate(eq, confidence, triggerType, state);
 
         if (decision.shouldIntervene) {
-            // Dispatch intervention
+            if (!this._showInterventions) {
+                // UI suppressed by user setting. Decision-engine UI-delivery state is
+                // intentionally NOT advanced (no _recordIntervention) because no UI was
+                // shown. The recording layer subscribes to onDidSuppressIntervention so
+                // every eligible opportunity is captured for evaluation.
+                this._onDidSuppressIntervention.fire({
+                    decision,
+                    reason: 'user-disabled',
+                });
+                return;
+            }
             switch (decision.level) {
                 case 'subtle':
                     this._interventionService.showSubtleHintEQ(decision);
@@ -443,6 +459,13 @@ export class TelemetryManager implements vscode.Disposable, WebSocketMessageHand
         const struggleConfig = vscode.workspace.getConfiguration(VSCODE_CONFIG.STRUGGLE_DETECTION.SECTION);
         this._isEnabled = struggleConfig.get<boolean>(VSCODE_CONFIG.STRUGGLE_DETECTION.ENABLED_KEY, true);
 
+        const previousShowInterventions = this._showInterventions;
+        const rawShow = struggleConfig.get<unknown>(
+            VSCODE_CONFIG.STRUGGLE_DETECTION.SHOW_INTERVENTIONS_KEY,
+            true,
+        );
+        this._showInterventions = typeof rawShow === 'boolean' ? rawShow : true;
+
         const wasDebugMode = this._debugMode;
         const artemisConfig = vscode.workspace.getConfiguration(VSCODE_CONFIG.ARTEMIS_SECTION);
         const developerMode = artemisConfig.get<boolean>(VSCODE_CONFIG.DEVELOPER_MODE_KEY, false);
@@ -454,6 +477,16 @@ export class TelemetryManager implements vscode.Disposable, WebSocketMessageHand
             this._log('Struggle detection disabled');
         } else {
             this._log('Struggle detection enabled');
+        }
+
+        // Live transition on->off for the UI toggle: clear any visible hint so a
+        // status-bar lightbulb / coloured remnant disappears immediately. We do
+        // NOT log on every load (only on transitions) to avoid noise.
+        if (previousShowInterventions && !this._showInterventions) {
+            this._interventionService.hideHint();
+            this._log('Intervention UI suppressed by user setting');
+        } else if (!previousShowInterventions && this._showInterventions) {
+            this._log('Intervention UI restored by user setting');
         }
 
         if (this._debugMode && !wasDebugMode) {

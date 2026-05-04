@@ -16,7 +16,12 @@
 import * as assert from 'assert';
 import * as vscode from 'vscode';
 import { SessionRecorder } from '../../../../../src/extension/services/telemetry/recording/sessionRecorder';
-import type { RecordedEvent } from '../../../../../src/extension/services/telemetry/recording/types';
+import type {
+    RecordedEvent,
+    InterventionEvent,
+    ConfigurationSnapshotEvent,
+    ConfigurationChangeEvent,
+} from '../../../../../src/extension/services/telemetry/recording/types';
 import { RecordingStorageWriter } from '../../../../../src/extension/services/telemetry/recording/storageWriter';
 import type { RecordingFs } from '../../../../../src/extension/services/telemetry/recording/storageWriter';
 
@@ -814,5 +819,55 @@ suite('SessionRecorder (Block AB+E)', () => {
         const vrEvents = events.filter(e => e.type === 'visibleRangeChange' && (e as { uri?: string }).uri === uri);
         assert.strictEqual(vrEvents.length, 0,
             'pending visibleRangeChange must be discarded (not flushed) when consent is revoked via disable()');
+    });
+});
+
+suite('SessionRecorder — intervention suppression and configuration provenance', () => {
+    test('recordIntervention with suppressed action persists suppressionReason', async () => {
+        const { recorder, fs } = makeRecorder();
+        recorder.enable();
+        await recorder.startSession(42);
+        recorder.recordIntervention(
+            'suppressed', 'notification', true, 0.55, 'sufficient', 'execution-error',
+            { suppressionReason: 'user-disabled', rawWanted: true },
+        );
+        await recorder.endSession();
+        const events = collectWrittenEvents(fs);
+        const intervention = events.find(e => e.type === 'intervention') as InterventionEvent | undefined;
+        assert.ok(intervention, 'intervention event missing');
+        assert.strictEqual(intervention!.action, 'suppressed');
+        assert.strictEqual(intervention!.shouldIntervene, true);
+        assert.strictEqual(intervention!.suppressionReason, 'user-disabled');
+        assert.strictEqual(intervention!.rawWanted, true);
+        assert.strictEqual(intervention!.level, 'notification');
+        assert.strictEqual(intervention!.triggerType, 'execution-error');
+        try { await recorder.dispose(); } catch { /* ignore */ }
+    });
+
+    test('recordConfigurationSnapshot persists both keys', async () => {
+        const { recorder, fs } = makeRecorder();
+        recorder.enable();
+        await recorder.startSession(42);
+        recorder.recordConfigurationSnapshot(true, false);
+        await recorder.endSession();
+        const events = collectWrittenEvents(fs);
+        const snap = events.find(e => e.type === 'configurationSnapshot') as ConfigurationSnapshotEvent | undefined;
+        assert.ok(snap, 'configurationSnapshot missing');
+        assert.strictEqual(snap!.struggleDetectionEnabled, true);
+        assert.strictEqual(snap!.showInterventions, false);
+        try { await recorder.dispose(); } catch { /* ignore */ }
+    });
+
+    test('recordConfigurationChange persists only the changed key', async () => {
+        const { recorder, fs } = makeRecorder();
+        recorder.enable();
+        await recorder.startSession(42);
+        recorder.recordConfigurationChange({ showInterventions: false });
+        await recorder.endSession();
+        const events = collectWrittenEvents(fs);
+        const change = events.find(e => e.type === 'configurationChange') as ConfigurationChangeEvent | undefined;
+        assert.ok(change, 'configurationChange missing');
+        assert.deepStrictEqual(change!.changes, { showInterventions: false });
+        try { await recorder.dispose(); } catch { /* ignore */ }
     });
 });

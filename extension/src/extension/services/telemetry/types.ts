@@ -277,6 +277,30 @@ export type InterventionBlockedReason = 'cooldown' | 'warmup' | 'session-limit' 
 export type InterventionDismissReason = 'user-action' | 'hidden' | 'replaced' | 'session-end';
 
 /**
+ * Reason a wanted intervention was suppressed without being delivered to the user.
+ * Currently only one reason exists; left as a union so future suppression sources
+ * (e.g. per-condition study mode) can extend it cleanly.
+ *
+ * Note: this is a SEPARATE concept from `InterventionBlockedReason`. Blocks come
+ * from engine-internal gates (cooldown, warmup, session-limit, low-confidence)
+ * and are rate-limited. Suppression comes from explicit user/config choice and
+ * is NOT rate-limited so the per-opportunity signal stays intact.
+ */
+export type InterventionSuppressionReason = 'user-disabled';
+
+/**
+ * Payload of `TelemetryManager.onDidSuppressIntervention`.
+ *
+ * `decision` is the original eligible decision with `shouldIntervene === true`.
+ * It must NOT be mutated to `false` — the recording must retain the per-opportunity
+ * eligibility signal for later analysis.
+ */
+export interface SuppressedInterventionPayload {
+    decision: InterventionDecision;
+    reason: InterventionSuppressionReason;
+}
+
+/**
  * Decision output from the intervention decision engine
  */
 export interface InterventionDecision {

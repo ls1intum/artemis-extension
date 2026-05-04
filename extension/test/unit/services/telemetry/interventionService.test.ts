@@ -21,6 +21,7 @@
 
 import * as assert from 'assert';
 import * as sinon from 'sinon';
+import * as vscode from 'vscode';
 import { InterventionService } from '../../../../src/extension/services/telemetry/interventionService';
 import { InterventionDecisionEngine } from '../../../../src/extension/services/telemetry/decision/interventionDecisionEngine';
 import { InterventionFilter } from '../../../../src/extension/services/telemetry/interventionFilter';
@@ -559,5 +560,50 @@ suite('Block C — TelemetryManager dispatch routing', () => {
 
         assert.strictEqual(blocks.length, 1);
         assert.strictEqual(blocks[0].blockedReason, 'low-confidence');
+    });
+});
+
+suite('InterventionService.hideHint() — full status-bar reset', () => {
+    let svc: InterventionService;
+    let statusBarItem: vscode.StatusBarItem;
+    let sandbox: sinon.SinonSandbox;
+
+    setup(() => {
+        sandbox = sinon.createSandbox();
+        statusBarItem = {
+            text: '',
+            tooltip: undefined,
+            backgroundColor: undefined,
+            command: undefined,
+            show: sandbox.stub(),
+            hide: sandbox.stub(),
+            dispose: sandbox.stub(),
+            alignment: vscode.StatusBarAlignment.Right,
+            priority: 100,
+            color: undefined,
+            name: undefined,
+            id: 'mock',
+            accessibilityInformation: undefined,
+        } as unknown as vscode.StatusBarItem;
+        sandbox.stub(vscode.window, 'createStatusBarItem').returns(statusBarItem);
+        svc = new InterventionService();
+    });
+
+    teardown(() => {
+        svc.dispose();
+        sandbox.restore();
+    });
+
+    test('hideHint clears text, tooltip, and backgroundColor', () => {
+        // Simulate state left behind by a notification/proactive flow.
+        statusBarItem.text = '$(warning) Help available!';
+        statusBarItem.tooltip = 'EQ: 80% — Iris detected struggle';
+        statusBarItem.backgroundColor = new vscode.ThemeColor('statusBarItem.errorBackground');
+
+        svc.hideHint();
+
+        assert.strictEqual(statusBarItem.text, '');
+        assert.strictEqual(statusBarItem.tooltip, undefined);
+        assert.strictEqual(statusBarItem.backgroundColor, undefined);
     });
 });

@@ -33,6 +33,7 @@ export const VSCODE_CONFIG = {
     STRUGGLE_DETECTION: {
         SECTION: 'artemis.struggleDetection',
         ENABLED_KEY: 'enabled',
+        SHOW_INTERVENTIONS_KEY: 'showInterventions',
     },
 } as const;
 

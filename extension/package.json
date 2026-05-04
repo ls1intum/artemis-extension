@@ -207,6 +207,11 @@
           "default": true,
           "description": "Enable struggle detection to receive helpful hints when you might be stuck on a problem"
         },
+        "artemis.struggleDetection.showInterventions": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Show help suggestions when struggle is detected (status bar hint and notification popups). When **disabled**, no UI prompts will appear during struggle, but data collection continues unchanged. Use this if you prefer to work without interruptions while still contributing to research data."
+        },
         "artemis.startPage": {
           "type": "string",
           "enum": [
