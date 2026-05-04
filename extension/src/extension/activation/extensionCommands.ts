@@ -595,9 +595,22 @@ function registerShowTheiaEnvironmentCommand(): vscode.Disposable {
         const theiaFlag = process.env.THEIA;
         const workspaceFolders = vscode.workspace.workspaceFolders ?? [];
 
-        // Render an env-var value safely: tokens reduced to length, git URIs
-        // reduced to host+path so embedded credentials never leak into the UI.
-        const formatEnvValue = (key: string, value: string | undefined): string => {
+        const mask = (v: string | undefined): string =>
+            v ? `present (${v.length} chars)` : 'missing';
+
+        const gitUriDisplay = ((): string => {
+            if (!env.gitUri) { return 'missing'; }
+            try {
+                const u = new URL(env.gitUri);
+                return `present (host: ${u.host}, path: ${u.pathname})`;
+            } catch {
+                return 'present (unparseable)';
+            }
+        })();
+
+        const probe = await probeDataBridge();
+
+        const formatBridgeValue = (key: string, value: string | undefined): string => {
             if (!value) { return 'missing'; }
             if (key === 'ARTEMIS_TOKEN') { return `present (${value.length} chars)`; }
             if (key === 'GIT_URI') {
@@ -610,8 +623,6 @@ function registerShowTheiaEnvironmentCommand(): vscode.Disposable {
             }
             return value;
         };
-
-        const probe = await probeDataBridge();
 
         const probeLines: string[] = ['', '## Live data-bridge probe'];
         if (!probe.commandAvailable) {
@@ -632,7 +643,7 @@ function registerShowTheiaEnvironmentCommand(): vscode.Disposable {
                 `- Keys present in bridge: ${presentCount}/${KNOWN_BRIDGE_KEYS.length}`,
             );
             for (const key of KNOWN_BRIDGE_KEYS) {
-                probeLines.push(`- \`${key}\`: ${formatEnvValue(key, probe.values[key])}`);
+                probeLines.push(`- \`${key}\`: ${formatBridgeValue(key, probe.values[key])}`);
             }
         }
 
@@ -648,11 +659,11 @@ function registerShowTheiaEnvironmentCommand(): vscode.Disposable {
             `- \`process.env.THEIA\`: ${theiaFlag ?? '(unset)'}`,
             ``,
             `## Environment variables (snapshot at activation)`,
-            `- \`ARTEMIS_URL\`: ${formatEnvValue('ARTEMIS_URL', env.artemisUrl)}`,
-            `- \`ARTEMIS_TOKEN\`: ${formatEnvValue('ARTEMIS_TOKEN', env.artemisToken)}`,
-            `- \`GIT_URI\`: ${formatEnvValue('GIT_URI', env.gitUri)}`,
-            `- \`GIT_USER\`: ${formatEnvValue('GIT_USER', env.gitUser)}`,
-            `- \`GIT_MAIL\`: ${formatEnvValue('GIT_MAIL', env.gitMail)}`,
+            `- \`ARTEMIS_URL\`: ${env.artemisUrl ?? 'missing'}`,
+            `- \`ARTEMIS_TOKEN\`: ${mask(env.artemisToken)}`,
+            `- \`GIT_URI\`: ${gitUriDisplay}`,
+            `- \`GIT_USER\`: ${env.gitUser ?? 'missing'}`,
+            `- \`GIT_MAIL\`: ${env.gitMail ?? 'missing'}`,
             ...probeLines,
             ``,
             `## Workspace`,
