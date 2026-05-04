@@ -90,27 +90,33 @@ suite('readEnvVarsViaDataBridge', () => {
         assert.ok(setTimeoutStub.callCount >= 1);
     });
 
-    test('returns failure with reason=timeout and details when bridge returns its error string', async () => {
+    test('returns failure with reason=invalid-response when bridge returns a string error', async () => {
         process.env.DATA_BRIDGE_ENABLED = '1';
         sandbox.stub(vscode.commands, 'getCommands').resolves(['dataBridge.getEnv']);
         sandbox.stub(vscode.commands, 'executeCommand').resolves('arktype validation error: expected string[]');
 
-        const startTime = 1_000_000_000;
-        let nowOffset = 0;
-        sandbox.stub(Date, 'now').callsFake(() => startTime + nowOffset);
-        sandbox.stub(global, 'setTimeout').callsFake((fn: TimerHandler) => {
-            nowOffset += 11_000;
-            if (typeof fn === 'function') { (fn as () => void)(); }
-            return 0 as unknown as NodeJS.Timeout;
-        });
+        // No setTimeout/Date stubs needed — the function should fail fast on
+        // the first non-record response without polling further.
+        const result = await readEnvVarsViaDataBridge(KEYS);
+
+        assert.strictEqual(result.kind, 'failure');
+        if (result.kind === 'failure') {
+            assert.strictEqual(result.reason, 'invalid-response');
+            assert.ok(result.details && result.details.includes('arktype'),
+                `expected details to include the bridge error string, got: ${result.details}`);
+        }
+    });
+
+    test('returns failure with reason=invalid-response when bridge returns an array', async () => {
+        process.env.DATA_BRIDGE_ENABLED = '1';
+        sandbox.stub(vscode.commands, 'getCommands').resolves(['dataBridge.getEnv']);
+        sandbox.stub(vscode.commands, 'executeCommand').resolves(['unexpected'] as unknown as Record<string, string>);
 
         const result = await readEnvVarsViaDataBridge(KEYS);
 
         assert.strictEqual(result.kind, 'failure');
         if (result.kind === 'failure') {
-            assert.strictEqual(result.reason, 'timeout');
-            assert.ok(result.details && result.details.includes('arktype'),
-                `expected details to include the bridge error string, got: ${result.details}`);
+            assert.strictEqual(result.reason, 'invalid-response');
         }
     });
 

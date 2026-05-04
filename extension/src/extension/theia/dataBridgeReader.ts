@@ -84,7 +84,7 @@ export async function readEnvVarsViaDataBridge<T extends string>(
 
     logger.info('DataBridge enabled, polling for environment variables...', LogCategory.GENERAL);
     const deadline = Date.now() + POLL_TIMEOUT_MS;
-    let lastInvalidResponse: string | undefined;
+    let lastError: string | undefined;
 
     while (Date.now() < deadline) {
         try {
@@ -97,7 +97,7 @@ export async function readEnvVarsViaDataBridge<T extends string>(
                 [...names],
             );
 
-            if (envMap && typeof envMap === 'object') {
+            if (envMap && typeof envMap === 'object' && !Array.isArray(envMap)) {
                 if (names.every((name) => !!(envMap as Record<string, string>)[name])) {
                     logger.info('DataBridge: all environment variables received', LogCategory.GENERAL);
                     const result = {} as Record<T, string | undefined>;
@@ -106,15 +106,23 @@ export async function readEnvVarsViaDataBridge<T extends string>(
                     }
                     return { kind: 'success', env: result };
                 }
-            } else if (typeof envMap === 'string') {
-                // Bridge returned its error summary string — keep the latest
-                // for diagnostics if the deadline runs out before recovery.
-                lastInvalidResponse = envMap;
+                // Record present but missing keys — keep polling; values may
+                // arrive in a later POST.
+            } else if (envMap !== undefined && envMap !== null) {
+                // Non-record response (string, array, primitive). The bridge is
+                // responding but rejecting the call, so polling will not help —
+                // the request shape is wrong and won't change. Fail fast with
+                // the actual response captured for diagnostics.
+                return {
+                    kind: 'failure',
+                    reason: 'invalid-response',
+                    details: typeof envMap === 'string' ? envMap : `unexpected response type: ${typeof envMap}`,
+                };
             }
         } catch (e) {
             // data-bridge may not be ready yet — keep polling. Capture the
             // most recent error to surface if the deadline elapses.
-            lastInvalidResponse = e instanceof Error ? e.message : String(e);
+            lastError = e instanceof Error ? e.message : String(e);
         }
 
         await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
@@ -124,7 +132,7 @@ export async function readEnvVarsViaDataBridge<T extends string>(
         'DataBridge: timeout waiting for environment variables',
         LogCategory.GENERAL,
     );
-    return { kind: 'failure', reason: 'timeout', details: lastInvalidResponse };
+    return { kind: 'failure', reason: 'timeout', details: lastError };
 }
 
 interface DataBridgeProbeResult {
