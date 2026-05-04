@@ -4,7 +4,7 @@
  * The VS Code extension-host test environment does not expose a way to fire
  * read-only `Event<T>` objects (e.g. `vscode.workspace.onDidCreateFiles`)
  * programmatically from test code.  We therefore use the same white-box
- * approach established in Block J: drive `_recordInternal` directly to
+ * approach established in Block J: drive `_lifecycle.recordInternal` directly to
  * verify the recorder correctly gates and writes events, and assert that the
  * event types land in the stream with the expected fields.
  *
@@ -93,8 +93,11 @@ function makeRecorder(): { recorder: SessionRecorder; fs: FakeFs } {
 
 /** Inject a Block K event directly through the recorder's internal recording path. */
 function injectEvent(recorder: SessionRecorder, event: RecordedEvent): void {
-    (recorder as unknown as { _recordInternal(e: RecordedEvent, opts: object, gen: number): void })
-        ._recordInternal(event, {}, (recorder as unknown as { _currentGeneration: number })._currentGeneration);
+    const internal = recorder as unknown as {
+        _lifecycle: { recordInternal(e: RecordedEvent, opts: object, gen: number): void };
+        _currentGeneration: number;
+    };
+    internal._lifecycle.recordInternal(event, {}, internal._currentGeneration);
 }
 
 const ROOT = vscode.Uri.file('/workspace/exercise1').toString();
@@ -206,7 +209,7 @@ suite('Block K — workspace file events (white-box)', () => {
 
     test('6. all five Block K event types are rejected when not in recording phase (idle)', () => {
         recorder.enable();
-        // Phase is 'idle' — no session started yet. Injecting through _recordInternal
+        // Phase is 'idle' — no session started yet. Injecting through _lifecycle.recordInternal
         // should drop events because `_phase !== 'recording'`.
         const uri = vscode.Uri.file('/workspace/exercise1/src/Test.java').toString();
         const oldUri = uri;
@@ -239,7 +242,7 @@ suite('Block K — workspace file events (white-box)', () => {
         // Disable synchronously — phase flips to 'disabling' immediately.
         recorder.disable();
 
-        // At this point phase is 'disabling', so _recordInternal must drop events.
+        // At this point phase is 'disabling', so _lifecycle.recordInternal must drop events.
         const uri = vscode.Uri.file('/workspace/exercise1/src/AfterDisable.java').toString();
         const newUri = vscode.Uri.file('/workspace/exercise1/src/AfterDisable2.java').toString();
 
@@ -278,10 +281,10 @@ suite('Block K — workspace file events (white-box)', () => {
 
         // Inject events with the stale generation directly (mimics a late-firing async callback).
         const recorder_ = recorder as unknown as {
-            _recordInternal(e: RecordedEvent, opts: object, gen: number): void;
+            _lifecycle: { recordInternal(e: RecordedEvent, opts: object, gen: number): void };
         };
         const uri = vscode.Uri.file('/workspace/exercise1/src/Stale.java').toString();
-        recorder_._recordInternal({ type: 'fileCreate', timestamp: 99, uri }, {}, staleGen);
+        recorder_._lifecycle.recordInternal({ type: 'fileCreate', timestamp: 99, uri }, {}, staleGen);
 
         await recorder.endSession();
 
