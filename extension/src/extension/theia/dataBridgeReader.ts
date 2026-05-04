@@ -27,6 +27,20 @@ export const KNOWN_BRIDGE_KEYS = [
 type KnownBridgeKey = (typeof KNOWN_BRIDGE_KEYS)[number];
 
 /**
+ * Outcome of a {@link readEnvVarsViaDataBridge} call.
+ *
+ * The discriminator distinguishes two situations that both used to be encoded
+ * as `undefined`: a genuine Desktop boot (`no-bridge`) and an EduIDE boot where
+ * the bridge was expected but unreachable (`failure`). Conflating them lets a
+ * broken EduIDE pod silently boot in Desktop-Cookie mode, which is the wrong
+ * failure mode (auth would attempt the wrong scheme; auto-clone would not run).
+ */
+export type ReadEnvResult<T extends string> =
+    | { kind: 'no-bridge' }
+    | { kind: 'success'; env: Record<T, string | undefined> }
+    | { kind: 'failure'; reason: 'command-missing' | 'timeout' | 'invalid-response'; details?: string };
+
+/**
  * Reads environment variables via the EduIDE data-bridge companion extension.
  *
  * In cloud deployments, the IDE container may start before credentials are
@@ -40,14 +54,19 @@ type KnownBridgeKey = (typeof KNOWN_BRIDGE_KEYS)[number];
  * data, which would cause a 10s blocking poll on every startup.
  *
  * Polls every 500ms until all requested keys are present, with a 10s timeout.
- * Returns `undefined` if data-bridge is unavailable or times out, signaling
- * the caller to fall back to process env reading.
+ *
+ * Return semantics:
+ *  - `no-bridge`: `DATA_BRIDGE_ENABLED` is not set → genuinely Desktop.
+ *  - `failure`: bridge was expected (`DATA_BRIDGE_ENABLED=1`) but the command
+ *    is missing or did not deliver values within the timeout → caller MUST
+ *    surface this loudly; silently degrading to Desktop produces broken auth.
+ *  - `success`: all requested keys delivered.
  *
  * Pattern adapted from Scorpio's DataBridgeStrategy (env-strategy.ts).
  */
 export async function readEnvVarsViaDataBridge<T extends string>(
     names: readonly T[],
-): Promise<Record<T, string | undefined> | undefined> {
+): Promise<ReadEnvResult<T>> {
     // DATA_BRIDGE_ENABLED is a container-boot config var, available in process.env
     // from container startup — unlike the credentials (ARTEMIS_TOKEN etc.) which are
     // injected later via the data-bridge HTTP server. This is why process.env is
@@ -55,16 +74,17 @@ export async function readEnvVarsViaDataBridge<T extends string>(
     // Without this guard, polling would block for 10s with no data arriving.
     const bridgeEnabled = process.env.DATA_BRIDGE_ENABLED;
     if (bridgeEnabled !== '1' && bridgeEnabled !== 'true') {
-        return undefined;
+        return { kind: 'no-bridge' };
     }
 
     const commands = await vscode.commands.getCommands(true);
     if (!commands.includes(DATA_BRIDGE_COMMAND)) {
-        return undefined;
+        return { kind: 'failure', reason: 'command-missing' };
     }
 
     logger.info('DataBridge enabled, polling for environment variables...', LogCategory.GENERAL);
     const deadline = Date.now() + POLL_TIMEOUT_MS;
+    let lastError: string | undefined;
 
     while (Date.now() < deadline) {
         try {
@@ -72,33 +92,47 @@ export async function readEnvVarsViaDataBridge<T extends string>(
             // (validated server-side via arktype). Calling without args makes
             // the command return its error summary as a plain string, not a
             // record — which silently masquerades as an empty result.
-            const envMap = await vscode.commands.executeCommand<Record<string, string>>(
+            const envMap = await vscode.commands.executeCommand<Record<string, string> | string>(
                 DATA_BRIDGE_COMMAND,
                 [...names],
             );
 
-            if (envMap && typeof envMap === 'object') {
-                if (names.every((name) => !!envMap[name])) {
+            if (envMap && typeof envMap === 'object' && !Array.isArray(envMap)) {
+                if (names.every((name) => !!(envMap as Record<string, string>)[name])) {
                     logger.info('DataBridge: all environment variables received', LogCategory.GENERAL);
                     const result = {} as Record<T, string | undefined>;
                     for (const name of names) {
-                        result[name] = envMap[name] || undefined;
+                        result[name] = (envMap as Record<string, string>)[name] || undefined;
                     }
-                    return result;
+                    return { kind: 'success', env: result };
                 }
+                // Record present but missing keys — keep polling; values may
+                // arrive in a later POST.
+            } else if (envMap !== undefined && envMap !== null) {
+                // Non-record response (string, array, primitive). The bridge is
+                // responding but rejecting the call, so polling will not help —
+                // the request shape is wrong and won't change. Fail fast with
+                // the actual response captured for diagnostics.
+                return {
+                    kind: 'failure',
+                    reason: 'invalid-response',
+                    details: typeof envMap === 'string' ? envMap : `unexpected response type: ${typeof envMap}`,
+                };
             }
-        } catch {
-            // data-bridge may not be ready yet — keep polling
+        } catch (e) {
+            // data-bridge may not be ready yet — keep polling. Capture the
+            // most recent error to surface if the deadline elapses.
+            lastError = e instanceof Error ? e.message : String(e);
         }
 
         await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
     }
 
     logger.warn(
-        'DataBridge: timeout waiting for environment variables, falling back to process env',
+        'DataBridge: timeout waiting for environment variables',
         LogCategory.GENERAL,
     );
-    return undefined;
+    return { kind: 'failure', reason: 'timeout', details: lastError };
 }
 
 interface DataBridgeProbeResult {
