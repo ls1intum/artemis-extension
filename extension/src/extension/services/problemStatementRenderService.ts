@@ -111,6 +111,7 @@ export class ProblemStatementRenderService {
             locale,
             darkMode,
             includeJs,
+            inlineImages: true,
         };
 
         // Cache check
@@ -277,6 +278,7 @@ function computeInputHash(request: ProblemStatementRenderRequest, serverUrl: str
         locale: request.locale,
         darkMode: request.darkMode,
         includeJs: request.includeJs,
+        inlineImages: request.inlineImages,
         serverUrl,
     });
     let hash = 0;

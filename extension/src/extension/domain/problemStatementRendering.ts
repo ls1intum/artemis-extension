@@ -26,6 +26,7 @@ export interface ProblemStatementRenderRequest {
     readonly darkMode: boolean;
     readonly includeJs: boolean;
     readonly includeCss?: boolean;
+    readonly inlineImages?: boolean;
 }
 
 /** Maps to Java RenderedProblemStatementDTO */
