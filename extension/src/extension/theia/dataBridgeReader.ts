@@ -35,7 +35,7 @@ type KnownBridgeKey = (typeof KNOWN_BRIDGE_KEYS)[number];
  * broken EduIDE pod silently boot in Desktop-Cookie mode, which is the wrong
  * failure mode (auth would attempt the wrong scheme; auto-clone would not run).
  */
-export type ReadEnvResult<T extends string> =
+type ReadEnvResult<T extends string> =
     | { kind: 'no-bridge' }
     | { kind: 'success'; env: Record<T, string | undefined> }
     | { kind: 'failure'; reason: 'command-missing' | 'timeout' | 'invalid-response'; details?: string };
