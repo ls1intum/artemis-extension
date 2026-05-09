@@ -5,7 +5,8 @@
     "src/webview/index.tsx",
     "test/**/*.{ts,tsx}",
     ".mocharc.ui.yml",
-    ".vscode-test.mjs"
+    ".vscode-test.mjs",
+    "esbuild.js"
   ],
   "project": [
     "src/**/*.{ts,tsx}",
