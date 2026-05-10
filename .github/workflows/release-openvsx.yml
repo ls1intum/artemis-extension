@@ -1,0 +1,316 @@
+name: Release to Open VSX
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to release (semver, e.g., 0.4.4). Must match extension/package.json version.'
+        required: true
+        type: string
+      ref:
+        description: 'Source branch to release from. Must be "dev" or "main".'
+        required: true
+        default: 'dev'
+        type: choice
+        options:
+          - dev
+          - main
+      dry_run:
+        description: 'Dry run: build + validate, skip publish/tag/release'
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-openvsx
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    name: Prepare and validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      checks: read
+    outputs:
+      sha: ${{ steps.sha.outputs.sha }}
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          ref: refs/heads/${{ inputs.ref }}
+          fetch-depth: 0
+
+      - name: Validate version is strict semver
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          if [[ ! "$INPUT_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::Version '$INPUT_VERSION' is not strict semver MAJOR.MINOR.PATCH (no prerelease/build metadata)."
+            exit 1
+          fi
+
+      - name: Verify extension/ directory exists on ref
+        run: |
+          set -euo pipefail
+          if [[ ! -d extension ]]; then
+            echo "::error::extension/ directory missing on ref '${{ inputs.ref }}'. Did you point to a pre-rename commit on main? Release blocked until dev->main merge brings the rename to main."
+            exit 1
+          fi
+
+      - name: Resolve full commit SHA
+        id: sha
+        run: |
+          set -euo pipefail
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Verify package.json version matches input
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          pkg_version=$(node -p "require('./extension/package.json').version")
+          if [[ "$pkg_version" != "$INPUT_VERSION" ]]; then
+            echo "::error::package.json version ($pkg_version) does not match input version ($INPUT_VERSION). Bump and commit first."
+            exit 1
+          fi
+
+      - name: Verify CHANGELOG entry exists
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          marker="## [$INPUT_VERSION]"
+          if ! grep -qF "$marker" CHANGELOG.md; then
+            echo "::error::CHANGELOG.md has no entry for version $INPUT_VERSION (expected line containing '$marker')."
+            exit 1
+          fi
+
+      - name: Verify tag does not already exist
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          if git rev-parse "refs/tags/$INPUT_VERSION" >/dev/null 2>&1; then
+            echo "::error::Tag $INPUT_VERSION already exists locally."
+            exit 1
+          fi
+          if gh api "repos/${{ github.repository }}/git/refs/tags/$INPUT_VERSION" >/dev/null 2>&1; then
+            echo "::error::Tag $INPUT_VERSION already exists on origin."
+            exit 1
+          fi
+
+      - name: Verify CI gate green on this commit (Actions-app-bound, with shape check)
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHA: ${{ steps.sha.outputs.sha }}
+        run: |
+          set -euo pipefail
+          run_json=$(gh api "repos/${{ github.repository }}/commits/$SHA/check-runs?app_id=15368&check_name=CI%20gate&filter=latest" \
+            --jq '.check_runs[0] // {}')
+          status=$(echo "$run_json" | jq -r '.status // "missing"')
+          conclusion=$(echo "$run_json" | jq -r '.conclusion // "none"')
+          name=$(echo "$run_json" | jq -r '.name // ""')
+          head_sha=$(echo "$run_json" | jq -r '.head_sha // ""')
+          app_id=$(echo "$run_json" | jq -r '.app.id // 0')
+          if [[ "$name" != "CI gate" || "$head_sha" != "$SHA" || "$app_id" != "15368" ]]; then
+            echo "::error::CI gate response shape unexpected. name='$name' head_sha='$head_sha' app_id='$app_id' (expected CI gate / $SHA / 15368)."
+            exit 1
+          fi
+          if [[ "$status" != "completed" || "$conclusion" != "success" ]]; then
+            echo "::error::CI gate on $SHA is status='$status' conclusion='$conclusion'. Required: completed/success."
+            exit 1
+          fi
+
+  build:
+    name: Build VSIX
+    needs: prepare
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+    defaults:
+      run:
+        working-directory: extension
+    outputs:
+      vsix-name: ${{ steps.vsix.outputs.name }}
+      vsix-sha256: ${{ steps.vsix.outputs.sha256 }}
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          ref: ${{ needs.prepare.outputs.sha }}
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: extension/package-lock.json
+
+      - run: npm ci
+
+      - run: npm run package
+
+      - name: Package VSIX
+        id: vsix
+        run: |
+          set -euo pipefail
+          npx @vscode/vsce package --no-dependencies
+          shopt -s nullglob
+          files=( *.vsix )
+          if [[ ${#files[@]} -ne 1 ]]; then
+            echo "::error::Expected exactly 1 VSIX in extension/, found ${#files[@]}: ${files[*]}"
+            exit 1
+          fi
+          name="${files[0]}"
+          sha256=$(sha256sum "$name" | cut -d' ' -f1)
+          echo "name=$name" >> "$GITHUB_OUTPUT"
+          echo "sha256=$sha256" >> "$GITHUB_OUTPUT"
+          echo "Built $name (sha256=$sha256)"
+
+      - name: Upload VSIX artifact
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
+        with:
+          name: vsix
+          path: extension/${{ steps.vsix.outputs.name }}
+          retention-days: 30
+          if-no-files-found: error
+
+      - name: Generate artifact attestation
+        if: ${{ !inputs.dry_run }}
+        uses: actions/attest-build-provenance@62fc1d596301d0ab9914e1fec14dc5c8d93f65cd # v3.2.0
+        with:
+          subject-path: extension/${{ steps.vsix.outputs.name }}
+
+  publish:
+    name: Publish to Open VSX
+    needs: [prepare, build]
+    if: ${{ !inputs.dry_run }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: production-openvsx
+    permissions:
+      actions: read
+    steps:
+      - uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5.0.0
+        with:
+          name: vsix
+          path: ./
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+
+      # Install ovsx WITHOUT exposing the token. --ignore-scripts blocks ovsx's
+      # own postinstall hooks. Install under RUNNER_TEMP to avoid global-prefix
+      # surprises and to keep the install isolated from any project state.
+      - name: Install ovsx (no token, no install scripts)
+        run: |
+          set -euo pipefail
+          npm install --prefix "$RUNNER_TEMP/ovsx-cli" --ignore-scripts ovsx@0.10.12
+          echo "$RUNNER_TEMP/ovsx-cli/node_modules/.bin" >> "$GITHUB_PATH"
+          "$RUNNER_TEMP/ovsx-cli/node_modules/.bin/ovsx" --version
+
+      - name: Check Open VSX for existing version (fail-closed on retries)
+        id: existing
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
+          LOCAL_SHA256: ${{ needs.build.outputs.vsix-sha256 }}
+          VSIX_FILE: ${{ needs.build.outputs.vsix-name }}
+        run: |
+          set -euo pipefail
+          status=$(curl -s -o /tmp/ovsx_resp.json -w "%{http_code}" \
+            "https://open-vsx.org/api/aet-tum/iris-thaumantias/$INPUT_VERSION") || true
+          case "$status" in
+            404)
+              echo "Version $INPUT_VERSION not on Open VSX yet -- will publish"
+              echo "skip_publish=false" >> "$GITHUB_OUTPUT"
+              ;;
+            200)
+              echo "Version $INPUT_VERSION already on Open VSX -- verifying it matches the CI-built VSIX"
+              remote_url=$(jq -r '.files.download // empty' /tmp/ovsx_resp.json)
+              if [[ -z "$remote_url" ]]; then
+                echo "::error::Open VSX returned 200 but no download URL in response."
+                exit 1
+              fi
+              curl -fsSL -o /tmp/remote.vsix "$remote_url"
+              remote_sha256=$(sha256sum /tmp/remote.vsix | cut -d' ' -f1)
+              if [[ "$LOCAL_SHA256" != "$remote_sha256" ]]; then
+                echo "::error::Open VSX has $INPUT_VERSION but with sha256=$remote_sha256, CI-built is $LOCAL_SHA256. Cannot rerun safely; investigate manually."
+                exit 1
+              fi
+              echo "::warning::Version already published with matching checksum. Skipping ovsx publish (treating as retry)."
+              echo "skip_publish=true" >> "$GITHUB_OUTPUT"
+              ;;
+            *)
+              echo "::error::Unexpected status from Open VSX API: $status."
+              cat /tmp/ovsx_resp.json || true
+              exit 1
+              ;;
+          esac
+
+      - name: Publish to Open VSX
+        if: ${{ steps.existing.outputs.skip_publish != 'true' }}
+        env:
+          OVSX_PAT: ${{ secrets.OPENVSX_TOKEN }}
+          VSIX_FILE: ${{ needs.build.outputs.vsix-name }}
+        run: |
+          set -euo pipefail
+          ovsx publish "$VSIX_FILE"
+
+  release:
+    name: Tag + GitHub Release
+    needs: [prepare, build, publish]
+    if: ${{ !inputs.dry_run }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+      actions: read
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          ref: ${{ needs.prepare.outputs.sha }}
+          fetch-depth: 0
+
+      - uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5.0.0
+        with:
+          name: vsix
+          path: ./
+
+      - name: Extract changelog section for this version (awk, literal match)
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          awk -v ver="$INPUT_VERSION" '
+            index($0, "## [" ver "]") == 1 { matching=1; next }
+            matching && /^## \[/ { exit }
+            matching { print }
+          ' CHANGELOG.md > /tmp/release-notes.md
+          if [[ ! -s /tmp/release-notes.md ]]; then
+            echo "::error::Empty changelog notes extracted for $INPUT_VERSION."
+            exit 1
+          fi
+          echo "Notes preview:"
+          head -20 /tmp/release-notes.md
+
+      - name: Create tag and GitHub Release with VSIX asset
+        env:
+          GH_TOKEN: ${{ github.token }}
+          INPUT_VERSION: ${{ inputs.version }}
+          SHA: ${{ needs.prepare.outputs.sha }}
+          VSIX_FILE: ${{ needs.build.outputs.vsix-name }}
+        run: |
+          set -euo pipefail
+          gh release create "$INPUT_VERSION" \
+            --target "$SHA" \
+            --title "$INPUT_VERSION" \
+            --notes-file /tmp/release-notes.md \
+            "$VSIX_FILE"
