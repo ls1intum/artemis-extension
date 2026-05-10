@@ -2,6 +2,12 @@
 
 All notable changes to the Artemis VS Code extension will be documented in this file.
 
+## [0.4.4] - 2026-05-10
+
+### Changed
+
+- Internal release pipeline: GitHub Actions workflow now publishes to both Open VSX Registry and VS Code Marketplace in parallel via a single `workflow_dispatch` run with manual approval gating. No user-facing changes.
+
 ## [0.4.3] - 2026-05-10
 
 ### Added
