@@ -1,4 +1,4 @@
-name: Release to Open VSX
+name: Release to Open VSX and VS Marketplace
 
 on:
   workflow_dispatch:
@@ -20,13 +20,21 @@ on:
         required: true
         default: false
         type: boolean
+      publish_openvsx:
+        description: 'Publish to Open VSX Registry'
+        required: true
+        default: true
+        type: boolean
+      publish_marketplace:
+        description: 'Publish to VS Marketplace'
+        required: true
+        default: true
+        type: boolean
 
 permissions:
   contents: read
 
 # Opt JS actions into Node 24 ahead of GitHub's June 2026 default flip.
-# Drop this once the default flip happens and all third-party actions ship
-# Node-24-native versions.
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
 
@@ -57,6 +65,18 @@ jobs:
           set -euo pipefail
           if [[ ! "$INPUT_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
             echo "::error::Version '$INPUT_VERSION' is not strict semver MAJOR.MINOR.PATCH (no prerelease/build metadata)."
+            exit 1
+          fi
+
+      - name: Validate publish targets
+        if: ${{ !inputs.dry_run }}
+        env:
+          PUB_OVSX: ${{ inputs.publish_openvsx }}
+          PUB_MKT: ${{ inputs.publish_marketplace }}
+        run: |
+          set -euo pipefail
+          if [[ "$PUB_OVSX" != "true" && "$PUB_MKT" != "true" ]]; then
+            echo "::error::At least one publish target must be selected (publish_openvsx or publish_marketplace)."
             exit 1
           fi
 
@@ -119,8 +139,8 @@ jobs:
           set -euo pipefail
           run_json=$(gh api "repos/${{ github.repository }}/commits/$SHA/check-runs?app_id=15368&check_name=CI%20gate&filter=latest" \
             --jq '.check_runs[0] // {}')
-          status=$(echo "$run_json" | jq -r '.status // "missing"')
-          conclusion=$(echo "$run_json" | jq -r '.conclusion // "none"')
+          st=$(echo "$run_json" | jq -r '.status // "missing"')
+          cc=$(echo "$run_json" | jq -r '.conclusion // "none"')
           name=$(echo "$run_json" | jq -r '.name // ""')
           head_sha=$(echo "$run_json" | jq -r '.head_sha // ""')
           app_id=$(echo "$run_json" | jq -r '.app.id // 0')
@@ -128,8 +148,8 @@ jobs:
             echo "::error::CI gate response shape unexpected. name='$name' head_sha='$head_sha' app_id='$app_id' (expected CI gate / $SHA / 15368)."
             exit 1
           fi
-          if [[ "$status" != "completed" || "$conclusion" != "success" ]]; then
-            echo "::error::CI gate on $SHA is status='$status' conclusion='$conclusion'. Required: completed/success."
+          if [[ "$st" != "completed" || "$cc" != "success" ]]; then
+            echo "::error::CI gate on $SHA is status='$st' conclusion='$cc'. Required: completed/success."
             exit 1
           fi
 
@@ -163,11 +183,21 @@ jobs:
 
       - run: npm run package
 
+      # Pin vsce explicitly (instead of npx resolving through transitive deps)
+      # for bit-for-bit reproducible packaging. Same install pattern as publish
+      # jobs (under RUNNER_TEMP, --ignore-scripts).
+      - name: Install vsce for packaging (no install scripts)
+        working-directory: .
+        run: |
+          set -euo pipefail
+          npm install --prefix "$RUNNER_TEMP/vsce-pkg" --ignore-scripts @vscode/vsce@3.9.1
+          echo "$RUNNER_TEMP/vsce-pkg/node_modules/.bin" >> "$GITHUB_PATH"
+
       - name: Package VSIX
         id: vsix
         run: |
           set -euo pipefail
-          npx @vscode/vsce package --no-dependencies
+          vsce package --no-dependencies
           shopt -s nullglob
           files=( *.vsix )
           if [[ ${#files[@]} -ne 1 ]]; then
@@ -194,13 +224,13 @@ jobs:
         with:
           subject-path: extension/${{ steps.vsix.outputs.name }}
 
-  publish:
+  publish_openvsx:
     name: Publish to Open VSX
     needs: [prepare, build]
-    if: ${{ !inputs.dry_run }}
+    if: ${{ !inputs.dry_run && inputs.publish_openvsx }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    environment: production-openvsx
+    environment: production
     permissions:
       actions: read
     steps:
@@ -214,8 +244,7 @@ jobs:
           node-version: 22
 
       # Install ovsx WITHOUT exposing the token. --ignore-scripts blocks ovsx's
-      # own postinstall hooks. Install under RUNNER_TEMP to avoid global-prefix
-      # surprises and to keep the install isolated from any project state.
+      # own postinstall hooks. Install under RUNNER_TEMP for isolation.
       - name: Install ovsx (no token, no install scripts)
         run: |
           set -euo pipefail
@@ -270,10 +299,58 @@ jobs:
           set -euo pipefail
           ovsx publish "$VSIX_FILE"
 
+  publish_marketplace:
+    name: Publish to VS Marketplace
+    needs: [prepare, build]
+    if: ${{ !inputs.dry_run && inputs.publish_marketplace }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: production  # same env as openvsx -> approval typically resolves both with one click
+    permissions:
+      actions: read
+    steps:
+      - uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5.0.0
+        with:
+          name: vsix
+          path: ./
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+
+      # Install vsce WITHOUT exposing the token. --ignore-scripts blocks vsce's
+      # own postinstall hooks. Install under RUNNER_TEMP for isolation.
+      - name: Install vsce (no token, no install scripts)
+        run: |
+          set -euo pipefail
+          npm install --prefix "$RUNNER_TEMP/vsce-cli" --ignore-scripts @vscode/vsce@3.9.1
+          echo "$RUNNER_TEMP/vsce-cli/node_modules/.bin" >> "$GITHUB_PATH"
+          "$RUNNER_TEMP/vsce-cli/node_modules/.bin/vsce" --version
+
+      # --skip-duplicate: vsce exits 0 if the version already exists on
+      # Marketplace, making retries idempotent without a separate pre-check.
+      # Drops the brittle 'vsce show' parsing (network/auth/schema errors
+      # could otherwise be misclassified as "version missing" -> publish).
+      - name: Publish to VS Marketplace (idempotent via --skip-duplicate)
+        env:
+          VSCE_PAT: ${{ secrets.VSCE_PAT }}
+          VSIX_FILE: ${{ needs.build.outputs.vsix-name }}
+        run: |
+          set -euo pipefail
+          vsce publish --skip-duplicate --no-dependencies --packagePath "$VSIX_FILE"
+
   release:
     name: Tag + GitHub Release
-    needs: [prepare, build, publish]
-    if: ${{ !inputs.dry_run }}
+    needs: [prepare, build, publish_openvsx, publish_marketplace]
+    # Run release if not cancelled, not dry_run, prepare+build succeeded, no
+    # publish failed, and at least one publish actually succeeded.
+    if: |
+      !cancelled() && !inputs.dry_run &&
+      needs.prepare.result == 'success' &&
+      needs.build.result == 'success' &&
+      (needs.publish_openvsx.result == 'success' || needs.publish_openvsx.result == 'skipped') &&
+      (needs.publish_marketplace.result == 'success' || needs.publish_marketplace.result == 'skipped') &&
+      (needs.publish_openvsx.result == 'success' || needs.publish_marketplace.result == 'success')
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
