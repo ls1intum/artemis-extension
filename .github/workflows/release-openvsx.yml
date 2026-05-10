@@ -24,6 +24,12 @@ on:
 permissions:
   contents: read
 
+# Opt JS actions into Node 24 ahead of GitHub's June 2026 default flip.
+# Drop this once the default flip happens and all third-party actions ship
+# Node-24-native versions.
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+
 concurrency:
   group: release-openvsx
   cancel-in-progress: false
