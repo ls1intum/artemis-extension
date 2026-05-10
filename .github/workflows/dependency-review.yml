@@ -6,6 +6,10 @@ on:
 permissions:
   contents: read
 
+# Opt JS actions into Node 24 ahead of GitHub's June 2026 default flip.
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+
 jobs:
   dependency-review:
     name: Review
