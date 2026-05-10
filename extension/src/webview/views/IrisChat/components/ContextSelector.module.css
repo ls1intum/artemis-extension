@@ -1,0 +1,300 @@
+.container {
+    position: relative;
+}
+
+.header {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 16px;
+    background: transparent;
+    border: none;
+    border-radius: 0;
+    color: var(--vscode-foreground);
+    cursor: pointer;
+    transition: all 150ms ease;
+}
+
+.header:hover {
+    background: var(--vscode-list-hoverBackground);
+}
+
+.headerContent {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex: 1;
+}
+
+.lockIcon {
+    color: var(--vscode-foreground);
+    opacity: 0.7;
+    flex-shrink: 0;
+}
+
+.contextIcon {
+    width: 18px;
+    height: 18px;
+    color: var(--vscode-foreground);
+    opacity: 0.8;
+    flex-shrink: 0;
+}
+
+.textContainer {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    flex: 1;
+    min-width: 0;
+}
+
+.title {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--vscode-foreground);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.subtitle {
+    font-size: 11px;
+    color: var(--vscode-descriptionForeground);
+}
+
+.chevron {
+    color: var(--vscode-foreground);
+    opacity: 0.6;
+    flex-shrink: 0;
+    transition: transform 150ms ease;
+}
+
+.chevronExpanded {
+    transform: rotate(180deg);
+}
+
+.dropdown {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    background: var(--theme-background);
+    border: none;
+    border-top: 1px solid var(--vscode-panel-border);
+    box-shadow: none;
+    height: calc(100vh - 250px);
+    display: flex;
+    flex-direction: column;
+    z-index: 1000;
+    overflow: hidden;
+}
+
+.scrollList {
+    flex: 1 1 0;
+    min-height: 0;
+    overflow-y: auto;
+}
+
+.searchContainer {
+    padding: 6px;
+    border-bottom: 1px solid var(--vscode-panel-border);
+    background: var(--theme-background);
+}
+
+.searchInputWrapper {
+    position: relative;
+}
+
+.searchIcon {
+    position: absolute;
+    left: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--vscode-descriptionForeground);
+    pointer-events: none;
+}
+
+.searchInput {
+    width: 100%;
+    padding: 8px 12px 8px 32px;
+    background: var(--vscode-input-background);
+    color: var(--vscode-input-foreground);
+    border: 1px solid var(--vscode-input-border);
+    border-radius: 4px;
+    font-size: 13px;
+    outline: none;
+    box-sizing: border-box;
+}
+
+.searchInput:focus {
+    border-color: var(--vscode-focusBorder);
+}
+
+.dropdownContent {
+    flex: 1 1 auto;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+.section {
+    border-bottom: 1px solid var(--vscode-panel-border);
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+}
+
+.section:last-child {
+    border-bottom: none;
+}
+
+/* Conversations / Exercises / Courses sections grow equally to share
+ * remaining space. Workspace shortcuts and empty-state stay natural-sized. */
+.scrollSection {
+    flex: 1 1 0;
+}
+
+.sectionHeader {
+    padding: 8px 12px;
+    font-size: 11px;
+    font-weight: 400;
+    color: var(--vscode-descriptionForeground);
+}
+
+.contextItem {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    box-sizing: border-box;
+    background: transparent;
+    border: none;
+    color: var(--vscode-foreground);
+    cursor: pointer;
+    text-align: left;
+    transition: background 150ms ease;
+}
+
+.contextItem:hover {
+    background: var(--vscode-list-hoverBackground);
+}
+
+.itemIcon {
+    flex-shrink: 0;
+    color: var(--vscode-foreground);
+    opacity: 0.7;
+}
+
+.itemText {
+    flex: 1;
+    font-size: 13px;
+}
+
+.itemTag {
+    margin-left: auto;
+    font-size: 11px;
+    opacity: 0.6;
+    padding-left: 8px;
+    flex-shrink: 0;
+    color: var(--vscode-descriptionForeground);
+}
+
+.sessionItem {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    box-sizing: border-box;
+    background: transparent;
+    border: none;
+    color: var(--vscode-foreground);
+    cursor: pointer;
+    text-align: left;
+    transition: background 150ms ease;
+}
+
+.sessionItem:hover {
+    background: var(--vscode-list-hoverBackground);
+}
+
+.sessionItemActive {
+    background: var(--vscode-list-activeSelectionBackground);
+    color: var(--vscode-list-activeSelectionForeground);
+}
+
+.sessionContent {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+}
+
+.sessionPreview {
+    font-size: 13px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.sessionMeta {
+    font-size: 11px;
+    color: var(--vscode-descriptionForeground);
+}
+
+.checkIcon {
+    flex-shrink: 0;
+    color: currentColor;
+}
+
+.actions {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 6px;
+    border-top: 1px solid var(--vscode-panel-border);
+}
+
+.actionButton {
+    width: 100%;
+    padding: 8px 12px;
+    background: transparent;
+    border: none;
+    border-radius: 4px;
+    color: var(--vscode-foreground);
+    box-sizing: border-box;
+    font-size: 13px;
+    cursor: pointer;
+    text-align: left;
+    transition: all 150ms ease;
+}
+
+.actionButton:hover:not(:disabled) {
+    background: var(--vscode-list-hoverBackground);
+}
+
+.actionButton:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.actionButtonContent {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.sessionIcon {
+    flex-shrink: 0;
+    color: var(--vscode-descriptionForeground);
+}
+
+.emptyState {
+    padding: 24px 12px;
+    text-align: center;
+    font-size: 13px;
+    color: var(--vscode-descriptionForeground);
+}

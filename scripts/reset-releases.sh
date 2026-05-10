@@ -13,7 +13,7 @@ BLUE='\033[0;34m'
 NC='\033[0m'
 
 # Configuration
-EXTENSION_DIR="iris-thaumantias"
+EXTENSION_DIR="extension"
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 CHANGELOG="${ROOT_DIR}/CHANGELOG.md"
 

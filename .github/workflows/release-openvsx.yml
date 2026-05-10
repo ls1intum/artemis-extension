@@ -8,13 +8,13 @@ on:
         required: true
         type: string
       ref:
-        description: 'Source branch to release from. Must be "dev" or "main".'
+        description: 'Source branch to release from. Default "main" (released code). Pick "dev" only for ad-hoc / hotfix releases of pre-merge work.'
         required: true
-        default: 'dev'
+        default: 'main'
         type: choice
         options:
-          - dev
           - main
+          - dev
       dry_run:
         description: 'Dry run: build + validate, skip publish/tag/release'
         required: true

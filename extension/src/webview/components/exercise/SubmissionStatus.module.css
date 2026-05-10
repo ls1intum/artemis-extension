@@ -1,0 +1,145 @@
+/* Build status section */
+.buildStatus {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--vscode-panel-border, #e0e0e0);
+  opacity: 0.9;
+  width: 100%;
+}
+
+.buildStatusTitle {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--vscode-foreground);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 6px;
+}
+
+.buildStatusInfo {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.buildStatusMessage {
+  font-size: 13px;
+  color: var(--vscode-foreground);
+}
+
+/* Empty state */
+.buildStatusEmpty .buildStatusInfo {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  opacity: 0.8;
+}
+
+.buildStatusPlaceholder {
+  font-size: 13px;
+  color: var(--vscode-foreground);
+}
+
+/* Build progress bar */
+.buildProgressTrack {
+  position: relative;
+  width: 100%;
+  height: 6px;
+  background-color: rgba(100, 100, 100, 0.25);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.buildProgressBar {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 0%;
+  background-color: var(--vscode-button-background, #007acc);
+  transition: width 0.3s ease-out;
+}
+
+.buildProgressBarIndeterminate {
+  animation: buildProgressIndeterminate 1.2s ease-in-out infinite;
+}
+
+@keyframes buildProgressIndeterminate {
+  0% {
+    left: -40%;
+    width: 30%;
+  }
+  50% {
+    left: 20%;
+    width: 60%;
+  }
+  100% {
+    left: 100%;
+    width: 30%;
+  }
+}
+
+/* Status badges for non-programming exercises */
+.statusBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.statusBadgeSuccess {
+  background: #28a745;
+  color: white;
+}
+
+.statusBadgePartial {
+  background: #ff9800;
+  color: white;
+}
+
+.statusBadgeFailed {
+  background: var(--vscode-errorForeground, #f48771);
+  color: white;
+}
+
+.statusBadgeBuilding {
+  background: var(--vscode-editorWarning-foreground, #cca700);
+  color: white;
+}
+
+/* Score display */
+.scoreInfo {
+  font-size: 13px;
+  color: var(--vscode-foreground);
+  font-weight: 500;
+}
+
+.scorePoints {
+  font-weight: 600;
+}
+
+.scoreSuccess {
+  color: var(--vscode-testing-iconPassed, #73c991);
+}
+
+.scoreWarning {
+  color: var(--vscode-editorWarning-foreground, #cca700);
+}
+
+.scoreError {
+  color: var(--vscode-errorForeground, #f48771);
+}
+
+/* Test results section */
+.testResultsToggleContainer {
+  margin-top: 12px;
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+

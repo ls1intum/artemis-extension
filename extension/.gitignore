@@ -1,0 +1,48 @@
+# macOS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+
+# Node
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Build output
+dist/
+out/
+coverage/
+*.vsix
+
+# Bundle analysis reports (generated, regenerate with npm run build:analyze)
+dist/meta-*.json
+dist/*.html
+
+# Test reports (generated per run)
+test/struggle-detection/reports/
+reports/
+
+# IDE
+.vscode-test/
+*.swp
+*.swo
+*~
+
+# Logs
+logs
+*.log
+
+# UI test artifacts
+test-resources/
+test/ui/screenshots/
+
+# Environment
+.env
+.env.local
+
+# Tool artifacts (RuVector agent memory, Claude Code session locks)
+ruvector.db
+.claude/scheduled_tasks.lock

@@ -1,0 +1,55 @@
+sequenceDiagram
+    participant Extension as Extension Host
+    participant ViewHtml as getViewHtml()
+    participant Webview as React Webview
+    participant Store as Zustand Store
+    participant Component as React Component
+
+    Note over Extension,Component: Initial Load Flow
+    Extension->>ViewHtml: render(viewName, data)
+    ViewHtml->>ViewHtml: getReactWebviewHtml()
+    ViewHtml-->>Extension: HTML with data-view attribute
+    Extension->>Webview: createWebviewPanel(HTML)
+    Webview->>Webview: React.render(<App />)
+    Webview->>Extension: { type: 'ready' }
+    Note over Extension,Webview: Ready-signal handshake complete
+
+    Note over Extension,Component: Data Initialization
+    Extension->>Webview: { type: 'dashboardInit', payload: {...} }
+    Webview->>Store: setCourses(payload.courses)
+    Store-->>Component: courses state updated
+    Component->>Component: re-render with data
+
+    Note over Extension,Component: User Action Flow
+    Component->>Component: onClick handler
+    Component->>Webview: vscodeApi.postMessage()
+    Webview->>Extension: { type: 'command', command: 'openExercise', payload: {...} }
+    Extension->>Extension: handle command
+    Extension->>ViewHtml: render('exerciseDetail', data)
+    ViewHtml-->>Extension: new HTML
+    Extension->>Webview: panel.webview.html = newHtml
+    Webview->>Webview: React.unmount + mount
+    Webview->>Extension: { type: 'ready' }
+    Extension->>Webview: { type: 'exerciseDetailInit', payload: {...} }
+
+    Note over Extension,Component: Reload Flow (no navigation)
+    Component->>Webview: vscodeApi.postMessage()
+    Webview->>Extension: { type: 'command', command: 'reloadDashboard' }
+    Extension->>Extension: fetch fresh data
+    Extension->>Webview: { type: 'dashboardInit', payload: {...} }
+    Webview->>Store: setCourses(newData)
+    Store-->>Component: courses state updated
+    Note over Extension,Component: No re-render, just state update
+
+    Note over Extension,Component: WebSocket Update Flow
+    Extension->>Extension: WebSocket message received
+    Extension->>Webview: { type: 'websocketUpdate', payload: {...} }
+    Webview->>Store: handle update
+    Store-->>Component: state updated
+    Component->>Component: re-render
+
+    Note over Extension,Component: Error Flow
+    Component->>Component: throw error
+    Component->>Webview: ErrorBoundary.componentDidCatch
+    Webview->>Extension: { type: 'error', payload: { message, stack, componentStack } }
+    Extension->>Extension: log error + telemetry

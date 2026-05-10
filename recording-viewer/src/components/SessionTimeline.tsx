@@ -1,0 +1,348 @@
+import { memo } from 'react';
+import {
+    LineChart,
+    Line,
+    XAxis,
+    YAxis,
+    CartesianGrid,
+    Tooltip,
+    ResponsiveContainer,
+    ReferenceLine,
+    Dot,
+} from 'recharts';
+import type { Annotation, RecordedEvent, EqSnapshotEvent, ReplayEqSnapshot } from '../types.ts';
+import { formatOffset } from '../utils/format.ts';
+import { SessionChartOverlay } from './SessionChartOverlay';
+
+interface Props {
+    events: RecordedEvent[];
+    sessionStartTime: number;
+    replayEq?: ReplayEqSnapshot[];
+    annotations?: Annotation[];
+    xDomain?: [number, number];
+    /** The currently zoomed range to highlight (from TrackingTimeline) */
+    zoomedRange?: [number, number];
+    videoTimeRef?: React.RefObject<number>;
+}
+
+interface ChartPoint {
+    timeOffset: number;
+    timeLabel: string;
+    eq?: number;
+    eqPercent?: number;
+    confidence?: string;
+    eqSource?: string;
+    triggerType?: string;
+    triggerEqPercent?: number;
+    replayEqPercent?: number;
+    replayConfidence?: string;
+}
+
+
+/**
+ * Dot for original EQ line — trigger points get a larger, highlighted ring.
+ * Continuous (save/build) points get a small dot.
+ */
+function EqDot(props: Record<string, unknown>) {
+    const { cx, cy, payload } = props as { cx: number; cy: number; payload: ChartPoint };
+    if (payload.eqPercent == null) return null;
+    const isTrigger = payload.eqSource === 'trigger' || payload.triggerEqPercent != null;
+    const fill = payload.confidence === 'sufficient' ? '#6366f1' : '#94a3b8';
+
+    if (isTrigger) {
+        return (
+            <>
+                <Dot cx={cx} cy={cy} r={7} fill="none" stroke="#f59e0b" strokeWidth={2} />
+                <Dot cx={cx} cy={cy} r={4} fill={fill} stroke="#1e1e2e" strokeWidth={1.5} />
+            </>
+        );
+    }
+    return <Dot cx={cx} cy={cy} r={3} fill={fill} stroke="#1e1e2e" strokeWidth={1} />;
+}
+
+/**
+ * Dot for original EQ line when replay data is present (dimmed).
+ * Trigger points still get the ring but in gray.
+ */
+function EqDotDimmed(props: Record<string, unknown>) {
+    const { cx, cy, payload } = props as { cx: number; cy: number; payload: ChartPoint };
+    if (payload.eqPercent == null) return null;
+    const isTrigger = payload.eqSource === 'trigger' || payload.triggerEqPercent != null;
+
+    if (isTrigger) {
+        return (
+            <>
+                <Dot cx={cx} cy={cy} r={6} fill="none" stroke="#f59e0b" strokeWidth={1.5} strokeOpacity={0.6} />
+                <Dot cx={cx} cy={cy} r={3} fill="#94a3b8" stroke="#1e1e2e" strokeWidth={1} />
+            </>
+        );
+    }
+    return <Dot cx={cx} cy={cy} r={2.5} fill="#94a3b8" stroke="#1e1e2e" strokeWidth={1} />;
+}
+
+// Dot for replay line
+function ReplayConfidenceDot(props: Record<string, unknown>) {
+    const { cx, cy, payload } = props as { cx: number; cy: number; payload: ChartPoint };
+    if (payload.replayEqPercent == null) return null;
+    const fill = payload.replayConfidence === 'sufficient' ? '#6366f1' : '#94a3b8';
+    return <Dot cx={cx} cy={cy} r={4} fill={fill} stroke="#1e1e2e" strokeWidth={1.5} />;
+}
+
+// Tooltip showing EQ value + source/trigger info
+function ChartTooltip({ active, payload }: { active?: boolean; payload?: Array<{ payload: ChartPoint }> }) {
+    if (!active || !payload?.[0]) return null;
+    const data = payload[0].payload;
+    const hasReplay = data.replayEqPercent != null;
+
+    return (
+        <div className="chart-tooltip">
+            <div className="tooltip-time">{data.timeLabel}</div>
+            {(data.eqPercent ?? data.triggerEqPercent) != null && (
+                <div className="tooltip-eq" style={hasReplay ? { color: '#94a3b8' } : undefined}>
+                    {hasReplay ? 'Original' : 'EQ'}: {data.eqPercent ?? data.triggerEqPercent}%
+                    {data.confidence && (
+                        <span className={`tooltip-confidence ${data.confidence}`}> ({data.confidence})</span>
+                    )}
+                </div>
+            )}
+            {data.eqSource && (
+                <div style={{ fontSize: 11, color: data.eqSource === 'trigger' ? '#f59e0b' : '#666' }}>
+                    {data.eqSource === 'trigger'
+                        ? `trigger: ${data.triggerType ?? 'unknown'}`
+                        : data.eqSource}
+                </div>
+            )}
+            {data.replayEqPercent != null && (
+                <div className="tooltip-eq" style={{ color: '#6366f1' }}>
+                    Replay: {data.replayEqPercent}%
+                    {data.replayConfidence && (
+                        <span className={`tooltip-confidence ${data.replayConfidence}`}> ({data.replayConfidence})</span>
+                    )}
+                </div>
+            )}
+        </div>
+    );
+}
+
+interface LineChartProps {
+    events: RecordedEvent[];
+    sessionStartTime: number;
+    replayEq?: ReplayEqSnapshot[];
+    annotations: Annotation[];
+    xDomain: [number, number];
+}
+
+/**
+ * Data-only chart. Wrapped in React.memo so it only rerenders when the
+ * underlying data changes — not on every pan/zoom frame. The live zoom
+ * rectangle and video playhead live in SessionChartOverlay as a DOM
+ * sibling instead, so they never touch recharts.
+ */
+const SessionLineChart = memo(function SessionLineChart({
+    events,
+    sessionStartTime,
+    replayEq,
+    annotations,
+    xDomain,
+}: LineChartProps) {
+    const eqEvents = events.filter((e): e is EqSnapshotEvent => e.type === 'eqSnapshot');
+    const hasReplay = replayEq && replayEq.length > 0;
+
+    // Build merged data points
+    const mergedMap = new Map<number, ChartPoint>();
+
+    for (const e of eqEvents) {
+        const timeOffset = e.timestamp - sessionStartTime;
+        const isTrigger = e.source === 'trigger';
+        const existing = mergedMap.get(timeOffset);
+
+        if (existing && isTrigger) {
+            // Don't overwrite real data — just tag as trigger
+            existing.triggerType = e.triggerType;
+            existing.triggerEqPercent = Math.round(e.eq * 100);
+        } else {
+            mergedMap.set(timeOffset, {
+                timeOffset,
+                timeLabel: formatOffset(timeOffset),
+                eq: e.eq,
+                eqPercent: Math.round(e.eq * 100),
+                confidence: e.confidence,
+                eqSource: e.source,
+                triggerType: e.triggerType,
+                triggerEqPercent: isTrigger ? Math.round(e.eq * 100) : undefined,
+            });
+        }
+    }
+
+    if (hasReplay) {
+        // Collect existing offsets sorted for fuzzy matching
+        const existingOffsets = [...mergedMap.keys()].sort((a, b) => a - b);
+
+        const claimed = new Set<number>();
+        for (const r of replayEq!) {
+            const timeOffset = r.timestamp - sessionStartTime;
+
+            // Fuzzy match: find nearest unclaimed existing point within 1s
+            let bestKey: number | undefined;
+            let bestDist = Infinity;
+            for (const key of existingOffsets) {
+                if (claimed.has(key)) continue;
+                const dist = Math.abs(key - timeOffset);
+                if (dist < bestDist) {
+                    bestDist = dist;
+                    bestKey = key;
+                }
+                if (key > timeOffset + 1000) break;
+            }
+
+            if (bestKey !== undefined && bestDist <= 1000) {
+                claimed.add(bestKey);
+                const existing = mergedMap.get(bestKey)!;
+                existing.replayEqPercent = Math.round(r.eq * 100);
+                existing.replayConfidence = r.confidence;
+            } else {
+                mergedMap.set(timeOffset, {
+                    timeOffset,
+                    timeLabel: formatOffset(timeOffset),
+                    replayEqPercent: Math.round(r.eq * 100),
+                    replayConfidence: r.confidence,
+                });
+            }
+        }
+    }
+
+    const data = [...mergedMap.values()].sort((a, b) => a.timeOffset - b.timeOffset);
+
+    return (
+        <ResponsiveContainer width="100%" height={200}>
+            <LineChart data={data} margin={{ top: 10, right: 0, left: 0, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#333" />
+                <XAxis
+                    dataKey="timeOffset"
+                    type="number"
+                    domain={xDomain}
+                    tick={false}
+                    axisLine={false}
+                    height={0}
+                />
+                <YAxis
+                    domain={[0, 100]}
+                    tickFormatter={v => `${v}%`}
+                    stroke="#888"
+                    fontSize={11}
+                    width={1}
+                    mirror
+                />
+                <Tooltip content={<ChartTooltip />} />
+
+                {annotations.map(a => (
+                    <ReferenceLine
+                        key={`annot-${a.id}`}
+                        x={a.timestamp - sessionStartTime}
+                        stroke="#38bdf8"
+                        strokeDasharray="2 2"
+                        strokeWidth={1.5}
+                        strokeOpacity={0.8}
+                        label={{ value: '\u270E', position: 'insideTopRight', fill: '#38bdf8', fontSize: 11, offset: 4 }}
+                    />
+                ))}
+
+                {/* Original EQ line */}
+                <Line
+                    type="monotone"
+                    dataKey="eqPercent"
+                    stroke={hasReplay ? '#94a3b8' : '#6366f1'}
+                    strokeWidth={hasReplay ? 1.5 : 2}
+                    strokeDasharray={hasReplay ? '6 4' : undefined}
+                    dot={hasReplay ? <EqDotDimmed /> : <EqDot />}
+                    activeDot={hasReplay ? { r: 4, fill: '#94a3b8' } : { r: 6, fill: '#818cf8' }}
+                    connectNulls
+                />
+
+                {/* Replay EQ line (only when replay data present) */}
+                {hasReplay && (
+                    <Line
+                        type="monotone"
+                        dataKey="replayEqPercent"
+                        stroke="#6366f1"
+                        strokeWidth={2}
+                        dot={<ReplayConfidenceDot />}
+                        activeDot={{ r: 6, fill: '#818cf8' }}
+                        connectNulls
+                    />
+                )}
+            </LineChart>
+        </ResponsiveContainer>
+    );
+});
+
+
+export function SessionTimeline({ events, sessionStartTime, replayEq, annotations = [], xDomain: externalXDomain, zoomedRange, videoTimeRef }: Props) {
+    const eqEvents = events.filter((e): e is EqSnapshotEvent => e.type === 'eqSnapshot');
+    const hasReplay = replayEq && replayEq.length > 0;
+
+    if (eqEvents.length === 0 && !hasReplay) {
+        return (
+            <div className="eq-chart empty">
+                <h2>Session Timeline</h2>
+                <p className="empty-message">No EQ snapshots in this session.</p>
+            </div>
+        );
+    }
+
+    // Use shared xDomain when provided, otherwise derive one from EQ events,
+    // replay EQ snapshots, and annotations. Replay data can extend past the
+    // live EQ stream (or exist on its own), so it must contribute to the
+    // fallback window for the public optional-xDomain contract.
+    let xDomain: [number, number];
+    if (externalXDomain) {
+        xDomain = externalXDomain;
+    } else {
+        let xMin = Infinity;
+        let xMax = -Infinity;
+        for (const e of eqEvents) {
+            const off = e.timestamp - sessionStartTime;
+            if (off < xMin) xMin = off;
+            if (off > xMax) xMax = off;
+        }
+        if (replayEq) {
+            for (const r of replayEq) {
+                const off = r.timestamp - sessionStartTime;
+                if (off < xMin) xMin = off;
+                if (off > xMax) xMax = off;
+            }
+        }
+        for (const a of annotations) {
+            const off = a.timestamp - sessionStartTime;
+            if (off < xMin) xMin = off;
+            if (off > xMax) xMax = off;
+        }
+        const xPadding = Math.max((xMax - xMin) * 0.03, 1000);
+        xDomain = [Math.max(0, xMin - xPadding), xMax + xPadding];
+    }
+
+    return (
+        <div className="eq-chart stacked">
+            <div className="eq-chart-grid">
+                <div className="eq-chart-label">
+                    <span className="event-badge eqSnapshot">EQ</span>
+                </div>
+                <div style={{ position: 'relative' }}>
+                    <SessionLineChart
+                        events={events}
+                        sessionStartTime={sessionStartTime}
+                        replayEq={replayEq}
+                        annotations={annotations}
+                        xDomain={xDomain}
+                    />
+                    <SessionChartOverlay
+                        xDomain={xDomain}
+                        zoomedRange={zoomedRange}
+                        videoTimeRef={videoTimeRef}
+                        sessionStartTime={sessionStartTime}
+                    />
+                </div>
+            </div>
+        </div>
+    );
+}

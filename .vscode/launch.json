@@ -6,22 +6,22 @@
       "type": "extensionHost",
       "request": "launch",
       "args": [
-        "--extensionDevelopmentPath=${workspaceFolder}/iris-thaumantias"
+        "--extensionDevelopmentPath=${workspaceFolder}/extension"
       ],
       "outFiles": [
-        "${workspaceFolder}/iris-thaumantias/dist/**/*.js"
+        "${workspaceFolder}/extension/dist/**/*.js"
       ],
-      "preLaunchTask": "npm: watch - iris-thaumantias"
+      "preLaunchTask": "npm: watch - extension"
     },
     {
       "name": "Run Extension (No Watch)",
       "type": "extensionHost",
       "request": "launch",
       "args": [
-        "--extensionDevelopmentPath=${workspaceFolder}/iris-thaumantias"
+        "--extensionDevelopmentPath=${workspaceFolder}/extension"
       ],
       "outFiles": [
-        "${workspaceFolder}/iris-thaumantias/dist/**/*.js"
+        "${workspaceFolder}/extension/dist/**/*.js"
       ]
     },
     {
@@ -29,13 +29,13 @@
       "type": "extensionHost",
       "request": "launch",
       "args": [
-        "--extensionDevelopmentPath=${workspaceFolder}/iris-thaumantias",
-        "--extensionTestsPath=${workspaceFolder}/iris-thaumantias/out/test/suite/index"
+        "--extensionDevelopmentPath=${workspaceFolder}/extension",
+        "--extensionTestsPath=${workspaceFolder}/extension/out/test/suite/index"
       ],
       "outFiles": [
-        "${workspaceFolder}/iris-thaumantias/out/test/**/*.js"
+        "${workspaceFolder}/extension/out/test/**/*.js"
       ],
-      "preLaunchTask": "npm: pretest - iris-thaumantias"
+      "preLaunchTask": "npm: pretest - extension"
     }
   ]
 }

@@ -1,0 +1,3 @@
+.streamingMessage {
+    composes: richContent from '../../../styles/richContent.module.css';
+}

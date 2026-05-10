@@ -1,0 +1,1 @@
+export { ExerciseDetailView } from './ExerciseDetailView';

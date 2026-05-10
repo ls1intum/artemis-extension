@@ -2,6 +2,51 @@
 
 All notable changes to the Artemis VS Code extension will be documented in this file.
 
+## [0.4.4] - 2026-05-10
+
+### Changed
+
+- Internal release pipeline: GitHub Actions workflow now publishes to both Open VSX Registry and VS Code Marketplace in parallel via a single `workflow_dispatch` run with manual approval gating. No user-facing changes.
+
+## [0.4.3] - 2026-05-10
+
+### Added
+
+- **Theia Environment Diagnostic Command**: New `Artemis: Show Theia Environment (Diagnostic)` command that surfaces detection signals (`uiKind`, `DATA_BRIDGE_ENABLED`, `THEIA`) and the snapshot of managed env vars (`ARTEMIS_URL`, `ARTEMIS_TOKEN`, `GIT_URI`, `GIT_USER`, `GIT_MAIL`). Token is masked, `GIT_URI` reduced to host+path so embedded credentials never leak. Used to diagnose Theia auto-clone failures.
+
+### Changed
+
+- **Iris Context Dropdown**: Redesigned the chat context picker as a full-height panel with equal-height lists for Conversations, Exercises, and Courses, top-level workspace shortcuts, and a bugfix that preserves the workspace flag against bulk context re-registration.
+
+### Fixed
+
+- **Cold-start Welcome Flash**: Eliminated the brief "Hi! I'm Iris" welcome state that flashed before message hydration completed on chat cold-start. Replaced the skeleton placeholder with a centered Iris logo + spinner so the loading state is visible across the whole panel instead of just the input row.
+
+## [0.4.1] - 2026-04-26
+### Added
+
+- **Session Titles**: Iris chat sessions display LLM-generated titles from Artemis in the session list and chat header.
+- **Theia/EduIDE Compatibility**: Full support for running the extension in browser-based Theia environments (e.g., Artemis EduIDE), including Bearer token authentication, environment-based auto-login, DataBridge for late-arriving credentials, and automatic repository cloning.
+- **Session Analyzer**: Session recording system that captures coding activity (text changes, cursor/scroll movements, build results) with continuous EQ score tracking, replay engine, and a standalone viewer app for analyzing recorded sessions.
+- **Configurable Start Page**: New `artemis.startPage` setting to choose which page opens after login: Dashboard (default), Course List, or automatically open the course/exercise detected in the current workspace.
+- **Workspace Exercise Detection Prompt**: When an exercise is detected in the workspace, a notification offers to set it as the default start page with a single click. The setting can be changed later in VS Code Settings.
+- **Server URL Dropdown**: Predefined Artemis server URLs in the login dropdown with collapsible exercise header.
+- **Iris Stage Display**: Shows the current Iris processing stage (e.g., thinking, fetching context) in the chat via WebSocket STATUS messages.
+
+### Changed
+
+- **Internal Architecture Refactoring**: Major restructuring of the extension codebase including runtime-oriented folder layout, domain consolidation, service extraction, and dependency injection cleanup.
+- **Dead Code Removal**: Removed ~2,300 lines of unused code, components, and legacy methods.
+
+### Fixed
+
+- **Dashboard "Recent Courses"**: Shows the 3 most recently accessed courses with exercises sorted by latest published. Exercises without dates are no longer hidden. Resolves #103.
+- **Back-to-Course Navigation**: Fixed "Course data is not available" error when returning from an exercise view to its course. The exercise payload now carries its parent course so back-navigation can restore it.
+- **API Endpoint Alignment**: Aligned API endpoints with the Artemis webapp, including correct feedback and exam endpoints.
+- **Build Error CodeLens**: Fixed duplicate CodeLens errors, missing testCase field in WebSocket feedback, and wired up build log viewing with go-to-source navigation.
+- **WebSocket Feedback Mapping**: Fixed missing testCase field, buildFailed propagation, and hasTestInfo derivation in WebSocket submission handling.
+- **Dashboard Reload**: Dashboard reload now re-runs archived course check for workspace exercise detection.
+
 ## [0.4.0] - 2026-03-13
 ### Added
 

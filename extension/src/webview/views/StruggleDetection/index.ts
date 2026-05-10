@@ -1,0 +1,1 @@
+export { StruggleDetectionView } from './StruggleDetectionView';

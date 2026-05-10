@@ -1,0 +1,78 @@
+graph TB
+    subgraph ExtensionHost["Extension Host (Node.js)"]
+        Extension[extension.ts<br/>Entry Point]
+        ArtemisProvider[ArtemisWebviewProvider<br/>Main Views]
+        ChatProvider[ChatWebviewProvider<br/>Iris Chat]
+
+        subgraph Services
+            AuthMgr[AuthManager<br/>Authentication]
+            ApiService[ArtemisApiService<br/>REST API]
+            WsService[ArtemisWebsocketService<br/>Real-time Updates]
+            TelemetryMgr[TelemetryManager<br/>Analytics]
+        end
+
+        subgraph AppState
+            StateManager[AppStateManager<br/>Navigation State]
+            ViewHtml[getViewHtml&#40;&#41;<br/>HTML Generation]
+        end
+    end
+
+    subgraph WebviewContext["Webview (Browser)"]
+        ReactApp[React App<br/>index.tsx]
+        ErrorBoundary[ErrorBoundary<br/>Error Handling]
+
+        subgraph ReactViews["Views (12)"]
+            Login[LoginView]
+            Dashboard[DashboardView]
+            CourseList[CourseListView]
+            CourseDetail[CourseDetailView]
+            ExerciseDetail[ExerciseDetailView]
+            IrisChat[IrisChatView]
+            ExamViews[Exam Views x3]
+            UtilityViews[Utility Views x3]
+        end
+
+        subgraph ZustandStores["Zustand Stores (9)"]
+            NavStore[useNavigationStore]
+            DashStore[useDashboardStore]
+            CourseStores[useCourseListStore<br/>useCourseDetailStore]
+            ExerciseStore[useExerciseDetailStore]
+            ExamStores[Exam Stores x3]
+            ChatStore[useChatStore]
+        end
+
+        subgraph SharedComponents["Shared Components"]
+            Button[Button]
+            Dropdown[Dropdown]
+            Container[Container]
+            Badge[Badge]
+            TextInput[TextInput]
+            ListItem[ListItem]
+            IconButton[IconButton]
+        end
+    end
+
+    Extension --> ArtemisProvider
+    Extension --> ChatProvider
+    ArtemisProvider --> ViewHtml
+    ChatProvider --> ViewHtml
+    ViewHtml --> ReactApp
+
+    ReactApp --> ErrorBoundary
+    ErrorBoundary --> ReactViews
+    ReactViews --> ZustandStores
+    ReactViews --> SharedComponents
+
+    Services --> ViewHtml
+    StateManager --> ViewHtml
+
+    ReactApp -.postMessage.-> Extension
+    Extension -.postMessage.-> ReactApp
+
+    WsService -.WebSocket Updates.-> ReactApp
+
+    style Extension fill:#e1f5ff
+    style ReactApp fill:#fff4e1
+    style Services fill:#e8f5e9
+    style ZustandStores fill:#f3e5f5
+    style SharedComponents fill:#fce4ec

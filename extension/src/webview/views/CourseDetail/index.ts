@@ -1,0 +1,1 @@
+export { CourseDetailView } from './CourseDetailView';
