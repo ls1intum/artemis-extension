@@ -1,3 +1,5 @@
+# Continuous Integration pipeline. Edits to this file require admin sign-off
+# via CODEOWNERS (see .github/CODEOWNERS).
 name: CI
 
 on:
