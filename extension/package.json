@@ -340,7 +340,7 @@
   "dependencies": {
     "@stomp/stompjs": "7.3.0",
     "clsx": "2.1.1",
-    "dompurify": "3.3.3",
+    "dompurify": "3.4.0",
     "katex": "0.16.44",
     "lucide-react": "0.575.0",
     "marked": "17.0.5",
