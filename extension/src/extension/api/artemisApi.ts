@@ -570,6 +570,19 @@ export class ArtemisApiService {
                 body: JSON.stringify(request),
             }
         );
-        return response.json() as Promise<RenderedProblemStatementDTO>;
+        const body = await response.json() as unknown;
+        if (!isRenderedProblemStatementDTO(body)) {
+            throw new Error('Invalid response from problem-statement render endpoint');
+        }
+        return body;
     }
+}
+
+// Body of this DTO is injected via dangerouslySetInnerHTML; validate shape before trusting it.
+function isRenderedProblemStatementDTO(value: unknown): value is RenderedProblemStatementDTO {
+    if (typeof value !== 'object' || value === null) { return false; }
+    const v = value as Record<string, unknown>;
+    return typeof v.html === 'string'
+        && typeof v.contentHash === 'string'
+        && typeof v.rendererVersion === 'string';
 }
