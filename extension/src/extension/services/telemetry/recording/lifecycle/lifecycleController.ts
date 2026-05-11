@@ -223,6 +223,19 @@ export class LifecycleController {
             schemaVersion: 2,
         });
 
+        // Initial metadata write — lets live viewers fetch sessionStartTime
+        // before the session ends. Overwritten at session end with final
+        // endTime + eventCount. Best-effort, not awaited.
+        const initialMetadata: SessionMetadata = {
+            sessionId,
+            exerciseId,
+            participantId,
+            startTime: sessionStartTs,
+            endTime: null,
+            eventCount: 0,
+        };
+        void this._deps.writer.writeMetadata(initialMetadata);
+
         // ── Phase 1: open-file snapshots (async) ──
         await this._deps.snapshots.captureOpenFileSnapshots(requestedGen, exerciseRootUri);
 
