@@ -2,6 +2,10 @@
 
 All notable changes to the Artemis VS Code extension will be documented in this file.
 
+## [Unreleased]
+
+- **Live Recording Viewer**: Faster live view (no more lag on long sessions), undo/redo for markers via Cmd/Ctrl+Z, and live sessions appear in the list immediately.
+
 ## [0.4.4] - 2026-05-10
 
 ### Changed
