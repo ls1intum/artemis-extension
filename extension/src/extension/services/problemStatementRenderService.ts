@@ -36,9 +36,9 @@ interface ParticipationLike {
     }>;
 }
 
-// ── Public types ──
+// ── Internal types ──
 
-export interface ServerRenderResult {
+interface ServerRenderResult {
     html: string;
     contentHash: string;
 }
@@ -173,9 +173,9 @@ export class ProblemStatementRenderService {
     }
 }
 
-// ── Mapping functions (exported for testing) ──
+// ── Mapping functions ──
 
-export function mapFeedbacksToTestInputs(feedbacks: FeedbackLike[]): TestFeedbackInput[] {
+function mapFeedbacksToTestInputs(feedbacks: FeedbackLike[]): TestFeedbackInput[] {
     return feedbacks
         .filter(f => f.testCase?.id !== undefined && f.testCase?.id !== null)
         .map(f => ({
@@ -187,7 +187,7 @@ export function mapFeedbacksToTestInputs(feedbacks: FeedbackLike[]): TestFeedbac
         }));
 }
 
-export function buildResultSummary(
+function buildResultSummary(
     participation: ParticipationLike,
     exercise: ExerciseLike,
 ): ResultSummaryInput | undefined {
