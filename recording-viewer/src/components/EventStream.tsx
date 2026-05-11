@@ -25,15 +25,26 @@ type StreamItem =
     | { kind: 'annotation'; annotation: Annotation };
 
 /**
- * Stable id derived from an event's content. Used so per-row UI state
- * (terminal expansion, etc.) survives the live ringbuffer trimming off
- * old events — index-based keys would shift and attach state to wrong
- * rows after a trim. terminalCommand events are unique by timestamp;
- * for non-terminal types same-timestamp collisions are theoretical and
- * harmless for keying purposes.
+ * Stable id assigned to each event the first time we see it. Survives
+ * ringbuffer trimming and is collision-free even when high-frequency
+ * telemetry produces same-timestamp same-type events (e.g. multiple
+ * textChange / diagnostics events at the same ms during a burst).
+ *
+ * A WeakMap keyed on the event object lets us assign once and reuse
+ * across renders without mutating the event itself. Once the event
+ * is dropped from the live buffer the entry is garbage-collected.
  */
-function eventKey(ev: RecordedEvent): string {
-    return `${ev.timestamp}-${ev.type}`;
+function makeEventKeyer(): (ev: RecordedEvent) => string {
+    const ids = new WeakMap<RecordedEvent, string>();
+    let next = 0;
+    return (ev) => {
+        let id = ids.get(ev);
+        if (id === undefined) {
+            id = `e${next++}`;
+            ids.set(ev, id);
+        }
+        return id;
+    };
 }
 
 // Strip ANSI escape sequences and common shell integration markers from terminal output
@@ -347,6 +358,11 @@ export function EventStream({ events, sessionStartTime, annotations, enabledType
     const [showAnnotations, setShowAnnotations] = useState(true);
     const [annotatingTimestamp, setAnnotatingTimestamp] = useState<number | null>(null);
     const [expandedTerminals, setExpandedTerminals] = useState<Set<string>>(new Set());
+    // One keyer per EventStream instance — stays in scope for the component
+    // lifetime so the WeakMap accumulates entries deterministically and
+    // older events fall out of the map naturally when GC'd from the live
+    // ringbuffer.
+    const eventKey = useMemo(() => makeEventKeyer(), []);
     const [followPlayback, setFollowPlayback] = useState(false);
     const virtuosoRef = useRef<VirtuosoHandle>(null);
     const [atBottom, setAtBottom] = useState(true);
@@ -395,7 +411,7 @@ export function EventStream({ events, sessionStartTime, annotations, enabledType
             return 0;
         });
         return items;
-    }, [events, enabledTypes, annotations, showAnnotations]);
+    }, [events, enabledTypes, annotations, showAnnotations, eventKey]);
 
     // ── Scroll to a target timestamp ────────────────────────────────────
     // Both scrollToTimestamp (from external triggers) and followPlayback

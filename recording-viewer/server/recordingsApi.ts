@@ -372,16 +372,22 @@ export function createRecordingsApi(config: AppConfig): ApiHandler {
 
             let closed = false;
             let directMode = false;
+            let sentMaxLineNo = 0;
             const liveBuffer: Array<{ line: string; lineNo: number }> = [];
             const handle = tailerRegistry.acquire(sessionId);
 
             // Subscribe BEFORE any async work so no live line is lost during
             // the catch-up phase. Until directMode flips, emissions are
-            // buffered for later dedupe + drain.
+            // buffered for later dedupe + drain. Direct-mode writes ALSO
+            // dedupe via sentMaxLineNo so a tailer poll that fires after
+            // catch-up sent the same line (because the seeded cursor was
+            // behind it at gap-read time) doesn't re-emit it.
             const unsubscribe = handle.tailer.subscribe((line, lineNo) => {
                 if (closed) return;
                 if (directMode) {
+                    if (lineNo <= sentMaxLineNo) return;
                     res.write?.(`id: ${lineNo}\ndata: ${line}\n\n`);
+                    sentMaxLineNo = lineNo;
                 } else {
                     liveBuffer.push({ line, lineNo });
                 }
@@ -425,7 +431,6 @@ export function createRecordingsApi(config: AppConfig): ApiHandler {
             void (async () => {
                 try {
                     if (closed) return;
-                    let sentMaxLineNo = 0;
 
                     // Catch-up from disk. Skip if the file doesn't exist yet
                     // (live session that hasn't written its first batch).
@@ -484,7 +489,9 @@ export function createRecordingsApi(config: AppConfig): ApiHandler {
                         // sees new events going forward.
                         res.write?.(`: catchup error: ${String(err).replace(/\n/g, ' ')}\n\n`);
                         for (const { lineNo, line } of liveBuffer) {
+                            if (lineNo <= sentMaxLineNo) continue;
                             res.write?.(`id: ${lineNo}\ndata: ${line}\n\n`);
+                            sentMaxLineNo = lineNo;
                         }
                         liveBuffer.length = 0;
                         directMode = true;
