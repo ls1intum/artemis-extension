@@ -310,12 +310,12 @@ export class UtilityCommandModule {
     };
 
     private handleFreshSsrPreview = async (message: WebviewToExtensionMessage): Promise<void> => {
-        try {
-            const { darkMode } = getPayload<WebCmd<'freshSsrPreview'>>(message);
-            const exerciseData = this.context.appStateManager.currentExerciseData as ExerciseDetailsResponse | undefined;
-            if (!exerciseData?.exercise) { return; }
+        const { darkMode } = getPayload<WebCmd<'freshSsrPreview'>>(message);
+        const exerciseData = this.context.appStateManager.currentExerciseData as ExerciseDetailsResponse | undefined;
+        if (!exerciseData?.exercise) { return; }
 
-            const renderService = new ProblemStatementRenderService(this.context.artemisApi);
+        const renderService = new ProblemStatementRenderService(this.context.artemisApi);
+        try {
             const exercise = exerciseData.exercise;
             const participation = exercise.studentParticipations?.[0];
             const latestSubmission = [...(participation?.submissions ?? [])]
@@ -341,6 +341,8 @@ export class UtilityCommandModule {
 <body style="padding:20px;background:${bg};color:${color};">${rendered.html}</body></html>`;
         } catch (error: unknown) {
             logger.error('Failed to fetch fresh SSR preview:', LogCategory.VIEW, error);
+        } finally {
+            renderService.dispose();
         }
     };
 

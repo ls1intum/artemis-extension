@@ -56,21 +56,26 @@ const MAX_CACHE_SIZE = 10;
 
 // ── Service ──
 
-export class ProblemStatementRenderService {
+export class ProblemStatementRenderService implements vscode.Disposable {
     private readonly api: ArtemisApiService;
     private cache = new Map<number, CacheEntry>();
     private serverSupportsRendering: boolean | null = null;
     private requestCounter = 0;
+    private readonly configListener: vscode.Disposable;
 
     constructor(api: ArtemisApiService) {
         this.api = api;
 
-        vscode.workspace.onDidChangeConfiguration(e => {
+        this.configListener = vscode.workspace.onDidChangeConfiguration(e => {
             if (e.affectsConfiguration(`${VSCODE_CONFIG.ARTEMIS_SECTION}.${VSCODE_CONFIG.SERVER_URL_KEY}`)) {
                 this.serverSupportsRendering = null;
                 this.cache.clear();
             }
         });
+    }
+
+    dispose(): void {
+        this.configListener.dispose();
     }
 
     /**

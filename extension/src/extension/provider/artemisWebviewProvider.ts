@@ -110,6 +110,7 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
             this._courseAccessStorage,
         );
         this._renderService = new ProblemStatementRenderService(this._artemisApi);
+        this._disposables.push(this._renderService);
         this._buildDiagnosticsService = new BuildDiagnosticsService(this._artemisApi);
         this._buildDiagnosticsService.setCodeLensProvider(buildErrorCodeLensProvider);
         this._exerciseOpeningService = new ExerciseOpeningService(
