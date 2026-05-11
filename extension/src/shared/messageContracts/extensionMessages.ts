@@ -85,6 +85,11 @@ export const ExtensionMsg = {
 /** Union of all Extension->Webview message type strings */
 export type ExtensionMsg = (typeof ExtensionMsg)[keyof typeof ExtensionMsg];
 
+/** Server-rendered problem statement fragment (body HTML returned by Artemis SSR endpoint). */
+interface RenderedProblemStatementPayload {
+    html: string;
+}
+
 /** Payload definitions for each Extension->Webview message */
 interface ExtensionMsgPayloads {
     // View initialization
@@ -108,7 +113,7 @@ interface ExtensionMsgPayloads {
         exerciseData: ExerciseDetailsResponse;
         hideDeveloperTools: boolean;
         repoStatus?: { isConnected: boolean; hasChanges: boolean; isPracticeRepo: boolean };
-        serverRenderedProblemStatement?: { html: string };
+        serverRenderedProblemStatement?: RenderedProblemStatementPayload;
     };
     examStartInit: {
         studentExam: StudentExam;
@@ -280,7 +285,7 @@ interface ExtensionMsgPayloads {
     };
 
     // Server-side problem statement rendering
-    problemStatementRendered: { html: string };
+    problemStatementRendered: RenderedProblemStatementPayload;
 }
 
 /** Auto-generated discriminated union of all Extension->Webview messages */
