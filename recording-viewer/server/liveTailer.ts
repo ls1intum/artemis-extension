@@ -113,10 +113,16 @@ export class LiveTailer {
         }
         this._lastMtimeNs = mtimeNs;
 
-        // Optional one-time seek-to-end: skip historical lines on first poll
-        // and start broadcasting only newly-appended content. _lineNo is set
-        // by counting existing newlines so subsequent SSE `id:` values stay
-        // aligned with file line numbers (critical for Last-Event-ID).
+        // One-time seek-to-end on the first poll, when enabled: skip historical
+        // content present at construction time and broadcast only newly-appended
+        // lines thereafter. _lineNo is set by counting existing `\n`s so future
+        // SSE `id:` values stay aligned with file line numbers (critical for
+        // Last-Event-ID resume).
+        //
+        // We mark `_seekedToEnd = true` even when size === 0, so a file that
+        // appears later is treated as fresh content (no historical content to
+        // skip) and emitted normally. Without this, content written after the
+        // tailer was constructed would be incorrectly skipped as "historical".
         if (this._startAtEnd && !this._seekedToEnd) {
             this._seekedToEnd = true;
             if (size > 0) {

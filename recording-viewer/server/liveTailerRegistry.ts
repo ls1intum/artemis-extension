@@ -1,3 +1,4 @@
+import * as fs from 'fs';
 import * as path from 'path';
 import { LiveTailer, type TailerOptions } from './liveTailer';
 
@@ -23,7 +24,19 @@ export class LiveTailerRegistry {
         let entry = this._entries.get(sessionId);
         if (!entry) {
             const eventsPath = path.join(this._recordingsDir, sessionId, 'events.jsonl');
-            const tailer = new LiveTailer(eventsPath, this._opts);
+            // Decide whether to skip historical content at construction time.
+            // If events.jsonl already has content, the per-connection catch-up
+            // will replay the relevant tail from disk; we don't want the shared
+            // tailer to also flood every subscriber with the full file. If
+            // events.jsonl is missing or empty (session hasn't written
+            // anything yet), keep startAtEnd off so new lines from a freshly-
+            // appearing file get emitted normally.
+            let hasHistory = false;
+            try {
+                const stat = fs.statSync(eventsPath);
+                hasHistory = stat.size > 0;
+            } catch { /* missing — treat as no history */ }
+            const tailer = new LiveTailer(eventsPath, { ...this._opts, startAtEnd: hasHistory });
             tailer.start();
             entry = { tailer, refCount: 0 };
             this._entries.set(sessionId, entry);

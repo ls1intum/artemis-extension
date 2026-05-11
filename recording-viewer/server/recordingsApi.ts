@@ -5,9 +5,10 @@ import type { AppConfig, IncomingRequest, ServerResponse } from './types';
 import { sendJson, parseCookies, readJsonBody } from './http';
 import { isValidToken, buildSessionCookie, isSessionCookieValid } from './auth';
 import { LiveTailerRegistry } from './liveTailerRegistry';
-import { readLastNLines } from './eventsReader';
+import { readLastNLines, readLinesAfter } from './eventsReader';
 
 const TAIL_LIMIT_MAX = 50_000;
+const SSE_DEFAULT_TAIL = 5_000;
 
 export type ApiHandler = (req: IncomingRequest, res: ServerResponse, next: () => void) => void;
 
@@ -311,6 +312,19 @@ export function createRecordingsApi(config: AppConfig): ApiHandler {
 
         // GET /api/recordings/:sessionId/events/stream — SSE live tail
         // MUST come before the /events route below so it doesn't get shadowed.
+        //
+        // Catch-up sequence on connect:
+        //   1. Subscribe to shared tailer immediately; live emissions are
+        //      buffered (not written to res) until handoff completes.
+        //   2. Read historical lines from disk according to Last-Event-ID
+        //      header (resume), ?tail=N param (override), or default tail.
+        //   3. Send the catch-up batch as SSE frames.
+        //   4. Read the "gap" — any lines that landed in the file between
+        //      catch-up read and tailer's current lineNo — and send those.
+        //   5. Drain the live buffer, deduping by lineNo (a line could have
+        //      been emitted both by the gap read and by the buffered tailer
+        //      callback if it landed during step 4).
+        //   6. Switch the subscriber to direct res.write mode.
         const streamMatch = urlPath.match(/^\/api\/recordings\/([^/]+)\/events\/stream$/);
         if (streamMatch && method === 'GET') {
             const sessionIdRaw = streamMatch[1];
@@ -320,6 +334,34 @@ export function createRecordingsApi(config: AppConfig): ApiHandler {
                 return;
             }
             const sessionId = decodeURIComponent(sessionIdRaw);
+            const eventsPath = path.join(sessionDir, 'events.jsonl');
+
+            // Parse catch-up directives from request before any I/O so we can
+            // 400 fast on bad input.
+            const lastEventIdHeader = req.headers?.['last-event-id'];
+            const lastEventIdStr = Array.isArray(lastEventIdHeader)
+                ? lastEventIdHeader[0]
+                : lastEventIdHeader;
+            let lastEventId: number | null = null;
+            if (typeof lastEventIdStr === 'string' && lastEventIdStr.length > 0) {
+                const parsed = Number.parseInt(lastEventIdStr, 10);
+                if (Number.isFinite(parsed) && parsed >= 0) {
+                    lastEventId = parsed;
+                }
+            }
+
+            const queryString = (req.url ?? '').split('?')[1] ?? '';
+            const params = new URLSearchParams(queryString);
+            const tailParamRaw = params.get('tail');
+            let tailLimit: number | null = null;
+            if (tailParamRaw !== null) {
+                const parsed = Number.parseInt(tailParamRaw, 10);
+                if (!Number.isFinite(parsed) || parsed < 0) {
+                    sendJson(res, 400, { error: 'tail must be a non-negative integer' });
+                    return;
+                }
+                tailLimit = Math.min(parsed, TAIL_LIMIT_MAX);
+            }
 
             res.setHeader('Content-Type', 'text/event-stream');
             res.setHeader('Cache-Control', 'no-cache, no-store');
@@ -329,11 +371,20 @@ export function createRecordingsApi(config: AppConfig): ApiHandler {
             res.write?.(': stream open\n\n');
 
             let closed = false;
+            let directMode = false;
+            const liveBuffer: Array<{ line: string; lineNo: number }> = [];
             const handle = tailerRegistry.acquire(sessionId);
+
+            // Subscribe BEFORE any async work so no live line is lost during
+            // the catch-up phase. Until directMode flips, emissions are
+            // buffered for later dedupe + drain.
             const unsubscribe = handle.tailer.subscribe((line, lineNo) => {
                 if (closed) return;
-                // SSE: id field becomes the EventSource.lastEventId on the client.
-                res.write?.(`id: ${lineNo}\ndata: ${line}\n\n`);
+                if (directMode) {
+                    res.write?.(`id: ${lineNo}\ndata: ${line}\n\n`);
+                } else {
+                    liveBuffer.push({ line, lineNo });
+                }
             });
 
             const heartbeat = setInterval(() => {
@@ -345,10 +396,10 @@ export function createRecordingsApi(config: AppConfig): ApiHandler {
             // Seen-then-gone semantics: don't fire session-gone if the file never appeared
             // (race window during initSession where the dir exists but events.jsonl hasn't
             // been written yet). Only fire if the file existed and then disappeared.
-            let seenFile = fs.existsSync(path.join(sessionDir, 'events.jsonl'));
+            let seenFile = fs.existsSync(eventsPath);
             const fileWatcher = setInterval(() => {
                 if (closed) return;
-                const exists = fs.existsSync(path.join(sessionDir, 'events.jsonl'));
+                const exists = fs.existsSync(eventsPath);
                 if (exists) {
                     seenFile = true;
                 } else if (seenFile) {
@@ -369,6 +420,77 @@ export function createRecordingsApi(config: AppConfig): ApiHandler {
 
             req.on('close', cleanup);
             req.on('error', cleanup);
+
+            // Async handoff: catch-up → gap → buffer drain → direct mode.
+            void (async () => {
+                try {
+                    if (closed) return;
+                    let sentMaxLineNo = 0;
+
+                    // Catch-up from disk. Skip if the file doesn't exist yet
+                    // (live session that hasn't written its first batch).
+                    if (fs.existsSync(eventsPath)) {
+                        let catchUp: { lines: Array<{ lineNo: number; line: string }>; endLineNo: number };
+                        if (lastEventId !== null) {
+                            // Resume: only lines strictly after the client's last id.
+                            const { lines, endLineNo } = await readLinesAfter(eventsPath, lastEventId);
+                            catchUp = { lines, endLineNo };
+                        } else {
+                            const limit = tailLimit ?? SSE_DEFAULT_TAIL;
+                            const { lines, endLineNo } = await readLastNLines(eventsPath, limit);
+                            catchUp = { lines, endLineNo };
+                        }
+
+                        if (closed) return;
+                        for (const { lineNo, line } of catchUp.lines) {
+                            res.write?.(`id: ${lineNo}\ndata: ${line}\n\n`);
+                            if (lineNo > sentMaxLineNo) sentMaxLineNo = lineNo;
+                        }
+
+                        // Gap read: between catch-up's endLineNo and whatever
+                        // the shared tailer has advanced past. Covers lines
+                        // that landed in the file while catch-up was running.
+                        const tailerLineNo = handle.tailer.currentLineNo();
+                        if (tailerLineNo > catchUp.endLineNo) {
+                            const { lines: gap } = await readLinesAfter(
+                                eventsPath,
+                                catchUp.endLineNo,
+                                tailerLineNo,
+                            );
+                            if (closed) return;
+                            for (const { lineNo, line } of gap) {
+                                if (lineNo <= sentMaxLineNo) continue;
+                                res.write?.(`id: ${lineNo}\ndata: ${line}\n\n`);
+                                sentMaxLineNo = lineNo;
+                            }
+                        }
+                    }
+
+                    // Drain whatever the subscriber buffered during catch-up,
+                    // skipping duplicates already sent via disk reads.
+                    if (closed) return;
+                    for (const { lineNo, line } of liveBuffer) {
+                        if (lineNo <= sentMaxLineNo) continue;
+                        res.write?.(`id: ${lineNo}\ndata: ${line}\n\n`);
+                        sentMaxLineNo = lineNo;
+                    }
+                    liveBuffer.length = 0;
+                    directMode = true;
+                } catch (err) {
+                    if (!closed) {
+                        // Catch-up failed; log via SSE comment and let the
+                        // live broadcast continue from where the tailer is.
+                        // Switching to direct mode means the client at least
+                        // sees new events going forward.
+                        res.write?.(`: catchup error: ${String(err).replace(/\n/g, ' ')}\n\n`);
+                        for (const { lineNo, line } of liveBuffer) {
+                            res.write?.(`id: ${lineNo}\ndata: ${line}\n\n`);
+                        }
+                        liveBuffer.length = 0;
+                        directMode = true;
+                    }
+                }
+            })();
             return;
         }
 
