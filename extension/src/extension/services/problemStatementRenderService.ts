@@ -145,7 +145,7 @@ export class ProblemStatementRenderService implements vscode.Disposable {
             const status = (error as { status?: number })?.status;
             if (status === 404 || status === 405 || status === 501) {
                 this.serverSupportsRendering = false;
-                logger.info(`[SSR] Server does not support rendering (HTTP ${status}), disabled permanently`, LogCategory.GENERAL);
+                logger.info(`[SSR] Server does not support rendering (HTTP ${status}), disabled until config change`, LogCategory.GENERAL);
             } else {
                 logger.info(`[SSR] Server render failed (${status || 'network error'}), skipping`, LogCategory.GENERAL);
             }
