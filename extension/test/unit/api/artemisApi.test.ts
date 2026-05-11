@@ -304,22 +304,6 @@ suite('Artemis API Service Test Suite', () => {
         assert.strictEqual(status.rateLimitInfo, undefined);
     });
 
-    test('should render PlantUML', async () => {
-        const mockSvg = '<svg>test</svg>';
-        global.fetch = async (url: any) => {
-            assert.ok(url.includes('/api/programming/plantuml/svg'));
-            assert.ok(url.includes('plantuml='));
-            return {
-                ok: true,
-                status: 200,
-                text: async () => mockSvg,
-            } as any;
-        };
-
-        const svg = await apiService.renderPlantUmlToSvg('@startuml\n@enduml');
-        assert.strictEqual(svg, mockSvg);
-    });
-
     test('should get Iris chat settings', async () => {
         const courseId = 1;
         global.fetch = async (url: any) => {

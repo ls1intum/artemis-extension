@@ -378,14 +378,6 @@ export class ArtemisApiService {
             || false;
     }
 
-    // Render PlantUML diagram to SVG
-    async renderPlantUmlToSvg(plantUml: string, useDarkTheme: boolean = false): Promise<string> {
-        const encodedPlantUml = encodeURIComponent(plantUml);
-        const endpoint = `/api/programming/plantuml/svg?plantuml=${encodedPlantUml}&useDarkTheme=${useDarkTheme}`;
-        const response = await this.makeRequest(endpoint);
-        return response.text();
-    }
-
     // ============ IRIS CHAT API ============
 
     // Get Iris settings for a course

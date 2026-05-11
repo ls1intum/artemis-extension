@@ -6,7 +6,7 @@ import type { IProviderRegistry } from '../services/ui';
 import type { TelemetryManager } from '../services/telemetry';
 import type { ArtemisWebviewProvider, ChatWebviewProvider } from '../provider';
 import { logger, LogCategory } from '../services/loggingService';
-import { processPlantUml, normalizeRelativePath, extractErrorMessage, VSCODE_CONFIG } from '../utils';
+import { normalizeRelativePath, extractErrorMessage, VSCODE_CONFIG } from '../utils';
 import { executeReplayCommand } from '../services/telemetry/replay';
 import { getTheiaEnvironment, probeDataBridge, KNOWN_BRIDGE_KEYS } from '../theia';
 
@@ -298,81 +298,6 @@ function registerConnectWebSocketCommand(
             vscode.window.showErrorMessage('Failed to execute connect command');
         }
     });
-}
-
-function registerPlantUmlRenderCommand(artemisApiService: ArtemisApiService): vscode.Disposable {
-    return vscode.commands.registerCommand(
-        'artemis.renderPlantUmlFromWebview',
-        async (plantUmlText: string, exerciseTitle?: string) => {
-            try {
-                logger.info('Rendering PlantUML from webview', LogCategory.PLANTUML);
-                logger.debug('PlantUML content: ' + plantUmlText, LogCategory.PLANTUML);
-
-                const processedPlantUml = processPlantUml(plantUmlText);
-                logger.debug('Processed PlantUML: ' + processedPlantUml, LogCategory.PLANTUML);
-                const isDarkTheme = vscode.window.activeColorTheme.kind === vscode.ColorThemeKind.Dark;
-
-                const svgContent = await artemisApiService.renderPlantUmlToSvg(processedPlantUml, isDarkTheme);
-
-                const htmlContent = `
-                    <!DOCTYPE html>
-                    <html lang="en">
-                    <head>
-                        <meta charset="UTF-8">
-                        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                        <title>PlantUML - ${exerciseTitle || 'Diagram'}</title>
-                        <style>
-                            body {
-                                margin: 0;
-                                padding: 20px;
-                                display: flex;
-                                justify-content: center;
-                                align-items: center;
-                                min-height: 100vh;
-                                background-color: var(--vscode-editor-background);
-                                overflow: auto;
-                            }
-                            .diagram-container {
-                                display: inline-block;
-                                max-width: 100%;
-                                max-height: 100%;
-                            }
-                            svg {
-                                display: block;
-                                max-width: 100%;
-                                max-height: 100%;
-                                width: auto !important;
-                                height: auto !important;
-                            }
-                        </style>
-                    </head>
-                    <body>
-                        <div class="diagram-container">
-                            ${svgContent}
-                        </div>
-                    </body>
-                    </html>
-                `;
-
-                const panel = vscode.window.createWebviewPanel(
-                    'plantUmlRenderer',
-                    `PlantUML - ${exerciseTitle || 'Diagram'}`,
-                    vscode.ViewColumn.One,
-                    {
-                        enableScripts: false,
-                        retainContextWhenHidden: true
-                    }
-                );
-
-                panel.webview.html = htmlContent;
-
-                vscode.window.showInformationMessage('✅ PlantUML diagram rendered successfully!');
-            } catch (error) {
-                vscode.window.showErrorMessage(`❌ Failed to render PlantUML: ${extractErrorMessage(error)}`);
-                logger.error('PlantUML rendering error', LogCategory.PLANTUML, error);
-            }
-        }
-    );
 }
 
 function registerGoToSourceErrorCommand(): vscode.Disposable {
@@ -707,7 +632,6 @@ export function registerAllCommands(deps: CommandDeps): vscode.Disposable {
         registerIrisHealthCheckCommand(deps.authManager, deps.artemisApiService, deps.providerRegistry),
         registerWebSocketStatusCommand(deps.artemisWebsocketService, deps.authManager),
         registerConnectWebSocketCommand(deps.authManager, deps.artemisWebsocketService),
-        registerPlantUmlRenderCommand(deps.artemisApiService),
         registerGoToSourceErrorCommand(),
         registerSetServerUrlCommand(),
         registerClearTrustedDomainsCommand(deps.context),
