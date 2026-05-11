@@ -100,7 +100,6 @@ export const WebviewCmd = {
     OpenHelpPopup: 'openHelpPopup',
 
     // Dev tools
-    PreviewSsrHtml: 'previewSsrHtml',
     FreshSsrPreview: 'freshSsrPreview',
 } as const;
 
@@ -194,7 +193,6 @@ interface WebviewCmdPayloads {
     openHelpPopup: undefined;
 
     // Dev tools
-    previewSsrHtml: { html: string };
     freshSsrPreview: { darkMode: boolean };
 }
 
@@ -231,7 +229,6 @@ export const COMMANDS_REQUIRING_PAYLOAD = new Set<string>([
     WebviewCmd.MessageFeedback,
     WebviewCmd.OpenFile,
     WebviewCmd.ViewArchivedCourse,
-    WebviewCmd.PreviewSsrHtml,
     WebviewCmd.FreshSsrPreview,
     WebviewCmd.ViewBuildLog,
     WebviewCmd.GoToSource,

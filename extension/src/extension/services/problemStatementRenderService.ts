@@ -39,9 +39,7 @@ interface ParticipationLike {
 // ── Public types ──
 
 export interface ServerRenderResult {
-    source: 'server';
     html: string;
-    interactiveScript?: string;
     contentHash: string;
 }
 
@@ -63,8 +61,6 @@ export class ProblemStatementRenderService {
     private cache = new Map<number, CacheEntry>();
     private serverSupportsRendering: boolean | null = null;
     private requestCounter = 0;
-    private debounceTimers = new Map<number, ReturnType<typeof setTimeout>>();
-    private pendingResolvers = new Map<number, (result: ServerRenderResult | undefined) => void>();
 
     constructor(api: ArtemisApiService) {
         this.api = api;
@@ -79,21 +75,17 @@ export class ProblemStatementRenderService {
 
     /**
      * Render a problem statement via the server endpoint.
-     * Returns undefined when server rendering is unavailable (client handles its own fallback).
+     * Returns undefined when server rendering is unavailable.
      */
     async render(
         exercise: ExerciseLike,
         participation?: ParticipationLike,
         feedbacks?: FeedbackLike[],
-        isExamExercise?: boolean,
         darkModeOverride?: boolean,
     ): Promise<ServerRenderResult | undefined> {
         const markdown = exercise.problemStatement || '';
         const exerciseId = exercise.id;
         if (!markdown || exerciseId === undefined) { return undefined; }
-
-        // Exam mode: always client-side
-        if (isExamExercise) { return undefined; }
 
         // Server feature flag: permanently disabled after 404/405/501
         if (this.serverSupportsRendering === false) { return undefined; }
@@ -102,7 +94,6 @@ export class ProblemStatementRenderService {
         const locale = 'en';
         const testInputs = feedbacks ? mapFeedbacksToTestInputs(feedbacks) : undefined;
         const resultSummary = participation ? buildResultSummary(participation, exercise) : undefined;
-        const includeJs = !isExamExercise && testInputs !== undefined && testInputs.length > 0;
 
         const request: ProblemStatementRenderRequest = {
             markdown,
@@ -110,7 +101,7 @@ export class ProblemStatementRenderService {
             resultSummary,
             locale,
             darkMode,
-            includeJs,
+            includeJs: false,
             inlineImages: true,
         };
 
@@ -138,9 +129,7 @@ export class ProblemStatementRenderService {
             this.serverSupportsRendering = true;
 
             const result: ServerRenderResult = {
-                source: 'server',
                 html: rewriteRelativeUrls(dto.html, serverUrl),
-                interactiveScript: dto.interactiveScript,
                 contentHash: dto.contentHash,
             };
 
@@ -159,36 +148,7 @@ export class ProblemStatementRenderService {
         }
     }
 
-    /**
-     * Debounced re-render for WebSocket result updates.
-     * Superseded promises resolve with undefined to prevent leaks.
-     */
-    debouncedRender(
-        exerciseId: number,
-        exercise: ExerciseLike,
-        participation?: ParticipationLike,
-        feedbacks?: FeedbackLike[],
-    ): Promise<ServerRenderResult | undefined> {
-        const previousResolver = this.pendingResolvers.get(exerciseId);
-        if (previousResolver) { previousResolver(undefined); }
-
-        const existing = this.debounceTimers.get(exerciseId);
-        if (existing) { clearTimeout(existing); }
-
-        return new Promise((resolve) => {
-            this.pendingResolvers.set(exerciseId, resolve);
-            this.debounceTimers.set(exerciseId, setTimeout(async () => {
-                this.debounceTimers.delete(exerciseId);
-                this.pendingResolvers.delete(exerciseId);
-                const result = await this.render(exercise, participation, feedbacks);
-                resolve(result);
-            }, 500));
-        });
-    }
-
-    invalidateExercise(exerciseId: number): void { this.cache.delete(exerciseId); }
     invalidateAll(): void { this.cache.clear(); }
-    get isServerAvailable(): boolean | null { return this.serverSupportsRendering; }
 
     // ── Private helpers ──
 

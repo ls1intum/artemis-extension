@@ -54,7 +54,6 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
     // Server-side rendered problem statement (progressive enhancement)
     const [serverRenderedPS, setServerRenderedPS] = useState<{
         html: string;
-        interactiveScript?: string;
     } | null>(null);
     // Listen for exerciseDetailInit messages
     useExtensionMessage((msg) => {
@@ -74,7 +73,7 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
         }
         // Progressive upgrade: server-rendered problem statement arrived
         if (msg.type === ExtensionMsg.ProblemStatementRendered) {
-            setServerRenderedPS({ html: msg.html, interactiveScript: msg.interactiveScript });
+            setServerRenderedPS({ html: msg.html });
         }
     }, [vscodeApi, setExerciseData, setError]);
 

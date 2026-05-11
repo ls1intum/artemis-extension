@@ -693,13 +693,11 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
                 // Store in app state so sendExerciseDetailInit includes it
                 this._appStateManager.serverRenderedProblemStatement = {
                     html: rendered.html,
-                    interactiveScript: rendered.interactiveScript,
                 };
                 // Also send as separate message for cases where init was already sent
                 this._postMessageSafe({
                     type: ExtensionMsg.ProblemStatementRendered,
                     html: rendered.html,
-                    interactiveScript: rendered.interactiveScript,
                 });
                 logger.info(`[SSR] Server render cached + sent (hash: ${rendered.contentHash.slice(0, 8)})`, LogCategory.GENERAL);
             }

@@ -74,7 +74,7 @@ export function ProblemStatement({
         [serverRenderedHtml]
     );
 
-    // After HTML injection, render KaTeX formulas and execute interactive script
+    // After HTML injection, render KaTeX formulas client-side from server placeholders
     useEffect(() => {
         if (!bodyHtml || !contentRef.current) { return; }
         renderKatexFormulas(contentRef.current);

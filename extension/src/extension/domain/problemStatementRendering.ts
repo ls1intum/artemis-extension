@@ -34,5 +34,4 @@ export interface RenderedProblemStatementDTO {
     readonly html: string;
     readonly contentHash: string;
     readonly rendererVersion: string;
-    readonly interactiveScript?: string;
 }

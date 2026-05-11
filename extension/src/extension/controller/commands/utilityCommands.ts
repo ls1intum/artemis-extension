@@ -63,7 +63,6 @@ export class UtilityCommandModule {
             [WebviewCmd.OpenExternalLink]: this.handleOpenExternalLink,
             [WebviewCmd.OpenImagePreview]: this.handleOpenImagePreview,
             [WebviewCmd.OpenFile]: this.handleOpenFile,
-            [WebviewCmd.PreviewSsrHtml]: this.handlePreviewSsrHtml,
             [WebviewCmd.FreshSsrPreview]: this.handleFreshSsrPreview,
             [WebviewCmd.OpenRecordingsFolder]: this.handleOpenRecordingsFolder,
             [WebviewCmd.ReplaySession]: this.handleReplaySession,
@@ -325,7 +324,7 @@ export class UtilityCommandModule {
                 .sort((a, b) => ((b as { id?: number }).id ?? 0) - ((a as { id?: number }).id ?? 0))[0];
             const feedbacks = latestResult?.feedbacks as Array<{ testCase?: { id?: number; testName?: string }; text?: string; detailText?: string; credits?: number; positive?: boolean }> | undefined;
 
-            const rendered = await renderService.render(exercise, participation, feedbacks, false, darkMode);
+            const rendered = await renderService.render(exercise, participation, feedbacks, darkMode);
             if (!rendered) { return; }
 
             const label = darkMode ? 'Dark' : 'Light';
@@ -342,23 +341,6 @@ export class UtilityCommandModule {
 <body style="padding:20px;background:${bg};color:${color};">${rendered.html}</body></html>`;
         } catch (error: unknown) {
             logger.error('Failed to fetch fresh SSR preview:', LogCategory.VIEW, error);
-        }
-    };
-
-    private handlePreviewSsrHtml = async (message: WebviewToExtensionMessage): Promise<void> => {
-        try {
-            const { html } = getPayload<WebCmd<'previewSsrHtml'>>(message);
-            const panel = vscode.window.createWebviewPanel(
-                'ssrPreview',
-                'SSR Preview',
-                vscode.ViewColumn.One,
-                { enableScripts: false },
-            );
-            panel.webview.html = `<!DOCTYPE html>
-<html><head><meta charset="UTF-8"></head>
-<body style="padding:20px;background:#fff;color:#212529;">${html}</body></html>`;
-        } catch (error: unknown) {
-            logger.error('Failed to preview SSR HTML:', LogCategory.VIEW, error);
         }
     };
 

@@ -63,7 +63,7 @@ export class AppStateManager {
     private _payload: NavigationPayload = { kind: 'none' };
     private _aiExtensions?: AiExtension[];
     private _recommendedExtensions?: RecommendedExtensionCategory[];
-    private _serverRenderedPS: { html: string; interactiveScript?: string } | null = null;
+    private _serverRenderedPS: { html: string } | null = null;
 
     private _onStateChange?: (from: AppState, to: AppState) => void;
 
@@ -122,11 +122,11 @@ export class AppStateManager {
         return undefined;
     }
 
-    get serverRenderedProblemStatement(): { html: string; interactiveScript?: string } | null {
+    get serverRenderedProblemStatement(): { html: string } | null {
         return this._serverRenderedPS;
     }
 
-    set serverRenderedProblemStatement(value: { html: string; interactiveScript?: string } | null) {
+    set serverRenderedProblemStatement(value: { html: string } | null) {
         this._serverRenderedPS = value;
     }
 

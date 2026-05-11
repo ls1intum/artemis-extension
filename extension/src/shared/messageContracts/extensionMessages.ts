@@ -108,7 +108,7 @@ interface ExtensionMsgPayloads {
         exerciseData: ExerciseDetailsResponse;
         hideDeveloperTools: boolean;
         repoStatus?: { isConnected: boolean; hasChanges: boolean; isPracticeRepo: boolean };
-        serverRenderedProblemStatement?: { html: string; interactiveScript?: string };
+        serverRenderedProblemStatement?: { html: string };
     };
     examStartInit: {
         studentExam: StudentExam;
@@ -280,7 +280,7 @@ interface ExtensionMsgPayloads {
     };
 
     // Server-side problem statement rendering
-    problemStatementRendered: { html: string; interactiveScript?: string };
+    problemStatementRendered: { html: string };
 }
 
 /** Auto-generated discriminated union of all Extension->Webview messages */
