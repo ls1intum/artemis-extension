@@ -2,7 +2,31 @@
 
 All notable changes to the Artemis VS Code extension will be documented in this file.
 
-## [Unreleased] - 0.4.1
+## [Unreleased]
+
+- **Live Recording Viewer**: Faster live view (no more lag on long sessions), undo/redo for markers via Cmd/Ctrl+Z, and live sessions appear in the list immediately.
+
+## [0.4.4] - 2026-05-10
+
+### Changed
+
+- Internal release pipeline: GitHub Actions workflow now publishes to both Open VSX Registry and VS Code Marketplace in parallel via a single `workflow_dispatch` run with manual approval gating. No user-facing changes.
+
+## [0.4.3] - 2026-05-10
+
+### Added
+
+- **Theia Environment Diagnostic Command**: New `Artemis: Show Theia Environment (Diagnostic)` command that surfaces detection signals (`uiKind`, `DATA_BRIDGE_ENABLED`, `THEIA`) and the snapshot of managed env vars (`ARTEMIS_URL`, `ARTEMIS_TOKEN`, `GIT_URI`, `GIT_USER`, `GIT_MAIL`). Token is masked, `GIT_URI` reduced to host+path so embedded credentials never leak. Used to diagnose Theia auto-clone failures.
+
+### Changed
+
+- **Iris Context Dropdown**: Redesigned the chat context picker as a full-height panel with equal-height lists for Conversations, Exercises, and Courses, top-level workspace shortcuts, and a bugfix that preserves the workspace flag against bulk context re-registration.
+
+### Fixed
+
+- **Cold-start Welcome Flash**: Eliminated the brief "Hi! I'm Iris" welcome state that flashed before message hydration completed on chat cold-start. Replaced the skeleton placeholder with a centered Iris logo + spinner so the loading state is visible across the whole panel instead of just the input row.
+
+## [0.4.1] - 2026-04-26
 ### Added
 
 - **Session Titles**: Iris chat sessions display LLM-generated titles from Artemis in the session list and chat header.

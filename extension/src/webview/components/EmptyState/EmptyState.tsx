@@ -1,7 +1,7 @@
 import { Button } from '../Button';
 import styles from './EmptyState.module.css';
 
-export interface EmptyStateProps {
+interface EmptyStateProps {
     title: string;
     message: string;
     actionLabel?: string;

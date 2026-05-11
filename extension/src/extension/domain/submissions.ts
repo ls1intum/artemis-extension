@@ -5,9 +5,6 @@ import { parseArtemisFeedback, parseArtemisParticipation, parseArtemisResult } f
 
 export enum ProgrammingSubmissionState {
     BUILDING = 'BUILDING',
-    QUEUED = 'QUEUED',
-    HAS_FAILED_SUBMISSION = 'HAS_FAILED_SUBMISSION',
-    ILLEGAL = 'ILLEGAL'
 }
 
 // --- WebSocket/STOMP Message Types ---
@@ -17,7 +14,7 @@ export interface BuildTimingInfo {
     readonly estimatedCompletionDate?: string;
 }
 
-export function parseBuildTimingInfo(data: unknown): BuildTimingInfo {
+function parseBuildTimingInfo(data: unknown): BuildTimingInfo {
     if (!data || typeof data !== 'object') {
         throw new Error('Invalid BuildTimingInfo data');
     }
@@ -28,7 +25,7 @@ export function parseBuildTimingInfo(data: unknown): BuildTimingInfo {
     };
 }
 
-export interface ArtemisSubmission {
+interface ArtemisSubmission {
     readonly id: number;
     readonly submissionDate?: string;
     readonly type?: string;

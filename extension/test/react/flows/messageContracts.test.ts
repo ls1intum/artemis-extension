@@ -62,20 +62,20 @@ describe('Message contracts: ExtensionToWebviewMessage types', () => {
         expect(msg.courses[0].course.id).toBe(1);
     });
 
-    it('UpdateWebSocketStatusMessage has correct type and isConnected field', () => {
+    it('UpdateWebSocketStatusMessage has correct type and status field', () => {
         const disconnected = {
             type: 'updateWebSocketStatus' as const,
-            isConnected: false,
+            status: 'disconnected',
         } satisfies ExtMsg<'updateWebSocketStatus'>;
 
         const connected = {
             type: 'updateWebSocketStatus' as const,
-            isConnected: true,
+            status: 'connected',
         } satisfies ExtMsg<'updateWebSocketStatus'>;
 
         expect(disconnected.type).toBe('updateWebSocketStatus');
-        expect(disconnected.isConnected).toBe(false);
-        expect(connected.isConnected).toBe(true);
+        expect(disconnected.status).toBe('disconnected');
+        expect(connected.status).toBe('connected');
     });
 
     it('HealthCheckResultsMessage has required payload.results record shape', () => {
@@ -383,7 +383,7 @@ describe('Message contracts: type guards', () => {
     });
 
     it('isExtensionMessage accepts updateWebSocketStatus message', () => {
-        const msg = { type: 'updateWebSocketStatus', isConnected: false };
+        const msg = { type: 'updateWebSocketStatus', status: 'disconnected' };
         expect(isExtensionMessage(msg)).toBe(true);
     });
 
@@ -394,10 +394,8 @@ describe('Message contracts: type guards', () => {
                 context: null,
                 activeSessionId: null,
                 sessions: [],
-                recentExercises: [],
-                recentCourses: [],
-                allExercises: [],
-                allCourses: [],
+                exercises: [],
+                courses: [],
             },
         };
         expect(isExtensionMessage(msg)).toBe(true);
@@ -472,7 +470,7 @@ describe('Message contracts: runtime shape validation', () => {
         };
         const wsStatus: ExtensionToWebviewMessage = {
             type: 'updateWebSocketStatus',
-            isConnected: false,
+            status: 'disconnected',
         };
         const dashboardInit: ExtensionToWebviewMessage = {
             type: 'dashboardInit',
@@ -571,8 +569,8 @@ describe('Message contracts: runtime shape validation', () => {
 
     it('dispatchExtensionMessage payloads match contract shapes for websocket status', () => {
         // Verify websocket status contracts are well-formed
-        const disconnectedMsg: ExtensionToWebviewMessage = { type: 'updateWebSocketStatus', isConnected: false };
-        const connectedMsg: ExtensionToWebviewMessage = { type: 'updateWebSocketStatus', isConnected: true };
+        const disconnectedMsg: ExtensionToWebviewMessage = { type: 'updateWebSocketStatus', status: 'disconnected' };
+        const connectedMsg: ExtensionToWebviewMessage = { type: 'updateWebSocketStatus', status: 'connected' };
 
         expect(isExtensionMessage(disconnectedMsg)).toBe(true);
         expect(isExtensionMessage(connectedMsg)).toBe(true);

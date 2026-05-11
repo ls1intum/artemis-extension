@@ -25,7 +25,7 @@ export class RepositoryCommandModule {
     private currentWorkspacePath?: string;
     private workspaceChangeDebounce?: NodeJS.Timeout;
     private workspaceListenersRegistered = false;
-    private clonedRepositories: Map<number, { path: string; title: string }> = new Map();
+    private clonedRepositoriesByParticipationId: Map<number, { path: string; title: string }> = new Map();
     private dirtyPagesCheckDebounce?: NodeJS.Timeout;
     private readonly listenerDisposables: vscode.Disposable[] = [];
     private readonly gitService: GitService;
@@ -119,25 +119,27 @@ export class RepositoryCommandModule {
         return {
             [WebviewCmd.CheckRepositoryStatus]: this.handleCheckRepositoryStatus,
             [WebviewCmd.CloneRepository]: this.handleCloneRepository,
+            [WebviewCmd.CopyAuthenticatedCloneUrl]: this.handleCopyAuthenticatedCloneUrl,
             [WebviewCmd.SubmitExercise]: this.handleSubmitExercise,
             [WebviewCmd.SaveGitIdentity]: this.handleSaveGitIdentity,
             [WebviewCmd.RequestGitIdentity]: this.handleRequestGitIdentity,
             [WebviewCmd.StartPractice]: this.handleStartPractice,
             [WebviewCmd.StartExercise]: this.handleStartExercise,
             [WebviewCmd.OpenRepository]: this.handleOpenRepository,
+            [WebviewCmd.OpenClonedRepository]: this.handleOpenClonedRepository,
             [WebviewCmd.ViewBuildLog]: this.handleViewBuildLog,
             [WebviewCmd.GoToSource]: this.handleGoToSource,
         };
     }
 
-    public hasRecentlyClonedRepo(exerciseId: number): boolean {
-        const repoInfo = this.clonedRepositories.get(exerciseId);
+    public hasRecentlyClonedRepo(participationId: number): boolean {
+        const repoInfo = this.clonedRepositoriesByParticipationId.get(participationId);
         if (!repoInfo) {
             return false;
         }
         // Validate that the cached path still exists
         if (!fs.existsSync(repoInfo.path)) {
-            this.clonedRepositories.delete(exerciseId);
+            this.clonedRepositoriesByParticipationId.delete(participationId);
             return false;
         }
         return true;
@@ -202,7 +204,6 @@ export class RepositoryCommandModule {
         try {
             const payload = getPayload<WebCmd<'cloneRepository'>>(message);
             const { participationId, repositoryUri, exerciseTitle } = payload;
-            const exerciseId = participationId; // Use participationId for tracking
             if (!participationId || !repositoryUri) {
                 vscode.window.showErrorMessage('Cannot clone: missing participation or repository URL.');
                 return;
@@ -319,56 +320,63 @@ export class RepositoryCommandModule {
             const repoName = path.basename(repositoryUri).replace(/\.git$/, '');
             const repoPath = path.join(selectedPath, repoName);
 
-            if (getTheiaEnvironment().isTheia) {
-                // Theia: programmatic clone with progress notification
-                await cloneRepositoryProgrammatic(cloneUrl, repoPath, exerciseTitle);
-            } else {
-                // VS Code: terminal-based clone for visual feedback
-                const terminal = vscode.window.createTerminal(`Exercise ${exerciseId}`);
-                terminal.show();
-                terminal.sendText(`cd "${selectedPath}"`);
-                terminal.sendText(`git clone ${cloneUrl}`);
-            }
+            // Run git clone as an awaitable child process (same for Theia and
+            // VS Code Desktop). A terminal-based fire-and-forget clone cannot
+            // reliably signal success or failure back to the extension, which
+            // caused the "Open Folder" prompt to appear even when the clone
+            // errored out. Using the programmatic clone, a thrown error lands
+            // in the outer catch and the prompt is only reached on success.
+            await cloneRepositoryProgrammatic(cloneUrl, repoPath, exerciseTitle);
 
-            vscode.window.showInformationMessage(`Cloning repository for "${exerciseTitle}" to ${selectedPath} using participation token...`);
-
-            if (this.clonedRepositories.size >= 10 && !this.clonedRepositories.has(exerciseId)) {
-                const firstKey = this.clonedRepositories.keys().next().value;
+            if (this.clonedRepositoriesByParticipationId.size >= 10 && !this.clonedRepositoriesByParticipationId.has(participationId)) {
+                const firstKey = this.clonedRepositoriesByParticipationId.keys().next().value;
                 if (firstKey !== undefined) {
-                    this.clonedRepositories.delete(firstKey);
+                    this.clonedRepositoriesByParticipationId.delete(firstKey);
                 }
             }
+            this.clonedRepositoriesByParticipationId.set(participationId, { path: repoPath, title: exerciseTitle });
 
-            this.clonedRepositories.set(exerciseId, { path: repoPath, title: exerciseTitle });
+            this.context.sendMessage({
+                type: ExtensionMsg.ShowClonedRepoNotice,
+                exerciseTitle: exerciseTitle,
+                participationId,
+            });
 
-            // Poll for the cloned directory to appear (up to 60s)
-            const pollInterval = 2000;
-            const maxAttempts = 30;
-            let attempts = 0;
-            const pollTimer = setInterval(() => {
-                attempts++;
-                if (fs.existsSync(repoPath)) {
-                    clearInterval(pollTimer);
-                    this.context.sendMessage({
-                        type: ExtensionMsg.ShowClonedRepoNotice,
-                        exerciseTitle: exerciseTitle
-                    });
-                } else if (attempts >= maxAttempts) {
-                    clearInterval(pollTimer);
-                    this.clonedRepositories.delete(exerciseId);
-                }
-            }, pollInterval);
-
-            const openAction = await vscode.window.showInformationMessage('Open the cloned repository when ready?', 'Open Folder', 'Skip');
+            const openAction = await vscode.window.showInformationMessage(
+                `Open cloned repository "${exerciseTitle}"?`,
+                'Open Folder',
+                'Skip'
+            );
             if (openAction === 'Open Folder') {
-                setTimeout(() => {
-                    const repoUri = vscode.Uri.file(repoPath);
-                    void vscode.commands.executeCommand('vscode.openFolder', repoUri, true);
-                }, 3000);
+                const repoUri = vscode.Uri.file(repoPath);
+                void vscode.commands.executeCommand('vscode.openFolder', repoUri, true);
             }
         } catch (error: unknown) {
             logger.error('Clone repository error:', LogCategory.SUBMISSION, error);
-            vscode.window.showErrorMessage('Failed to clone repository.');
+            vscode.window.showErrorMessage(`Failed to clone repository: ${extractErrorMessage(error)}`);
+        }
+    };
+
+    private handleCopyAuthenticatedCloneUrl = async (message: WebviewToExtensionMessage): Promise<void> => {
+        try {
+            const { participationId, repositoryUri } = getPayload<WebCmd<'copyAuthenticatedCloneUrl'>>(message);
+            if (!participationId || !repositoryUri) {
+                vscode.window.showErrorMessage('Cannot copy clone URL: missing participation or repository URL.');
+                return;
+            }
+
+            const authenticatedUrl = await this.buildAuthenticatedUrl(participationId, repositoryUri);
+            if (!authenticatedUrl) {
+                return;
+            }
+
+            await vscode.env.clipboard.writeText(authenticatedUrl);
+            vscode.window.showInformationMessage(
+                'Authenticated clone URL copied to clipboard. It contains a VCS access token, so do not share it.'
+            );
+        } catch (error: unknown) {
+            logger.error('Failed to copy authenticated clone URL:', LogCategory.SUBMISSION, error);
+            vscode.window.showErrorMessage(`Failed to copy clone URL: ${extractErrorMessage(error)}`);
         }
     };
 
@@ -742,6 +750,44 @@ export class RepositoryCommandModule {
         } catch (err: unknown) {
             logger.error('Failed to navigate to source error:', LogCategory.SUBMISSION, err);
             vscode.window.showErrorMessage('Failed to navigate to source error.');
+        }
+    };
+
+    private handleOpenClonedRepository = async (message: WebviewToExtensionMessage): Promise<void> => {
+        try {
+            const { participationId } = getPayload<WebCmd<'openClonedRepository'>>(message);
+            const repoInfo = this.clonedRepositoriesByParticipationId.get(participationId);
+
+            if (!repoInfo) {
+                vscode.window.showWarningMessage('Cloned repository not found. It may have been moved or deleted.');
+                return;
+            }
+
+            try {
+                const stats = fs.statSync(repoInfo.path);
+                if (!stats.isDirectory()) {
+                    this.clonedRepositoriesByParticipationId.delete(participationId);
+                    vscode.window.showWarningMessage('Cloned repository path is not a directory.');
+                    return;
+                }
+            } catch {
+                this.clonedRepositoriesByParticipationId.delete(participationId);
+                vscode.window.showWarningMessage('Cloned repository not found. It may have been moved or deleted.');
+                return;
+            }
+
+            const repoUri = vscode.Uri.file(repoInfo.path);
+
+            const currentFolder = vscode.workspace.workspaceFolders?.[0];
+            if (currentFolder && currentFolder.uri.fsPath === repoInfo.path) {
+                await vscode.commands.executeCommand('workbench.view.explorer');
+                return;
+            }
+
+            await vscode.commands.executeCommand('vscode.openFolder', repoUri, true);
+        } catch (error: unknown) {
+            logger.error('Open cloned repository error:', LogCategory.SUBMISSION, error);
+            vscode.window.showErrorMessage('Failed to open cloned repository.');
         }
     };
 

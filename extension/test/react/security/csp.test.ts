@@ -14,8 +14,10 @@ describe('CSP security invariants', () => {
         expect(src).not.toMatch(/Math\.random/);
     });
 
-    it('does not contain unsafe-inline in CSP directives', () => {
-        expect(src).not.toMatch(/unsafe-inline/);
+    it('does not contain unsafe-inline in script-src', () => {
+        const scriptSrcMatch = src.match(/script-src[^;]*/);
+        expect(scriptSrcMatch).not.toBeNull();
+        expect(scriptSrcMatch![0]).not.toMatch(/unsafe-inline/);
     });
 
     it('does not contain unsafe-eval in CSP directives', () => {

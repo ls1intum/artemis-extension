@@ -16,10 +16,8 @@ const makeIrisState = (overrides: Partial<ExtMsg<'updateIrisState'>['state']> = 
 	context: null,
 	activeSessionId: null,
 	sessions: [],
-	recentExercises: [],
-	recentCourses: [],
-	allExercises: [],
-	allCourses: [],
+	exercises: [],
+	courses: [],
 	...overrides,
 });
 
@@ -43,11 +41,33 @@ describe('useChatStore', () => {
 		expect(result.current.streaming.messageLocalId).toBeNull();
 		expect(result.current.streaming.visibleChunks).toEqual([]);
 		expect(result.current.isLoading).toBe(false);
-		expect(result.current.isWebSocketConnected).toBe(false);
+		expect(result.current.webSocketStatus).toBe('unknown');
 		expect(result.current.disabledMessage).toBeNull();
 		expect(result.current.isNoAiDetected).toBe(false);
 		expect(result.current.referencedFiles).toBeNull();
 		expect(result.current.showDiagnostics).toBe(false);
+		expect(result.current.hasReceivedInitialIrisState).toBe(false);
+	});
+
+	it('hasReceivedInitialIrisState flips to true on first setIrisState and stays true after clearMessages', () => {
+		const { result } = renderHook(() => useChatStore());
+
+		expect(result.current.hasReceivedInitialIrisState).toBe(false);
+
+		act(() => {
+			result.current.setIrisState(makeIrisState());
+		});
+
+		expect(result.current.hasReceivedInitialIrisState).toBe(true);
+
+		// clearMessages must not reset the flag — the webview is still
+		// considered initialized, just emptied. Resetting would re-trigger
+		// the cold-mount skeleton on every session switch.
+		act(() => {
+			result.current.clearMessages();
+		});
+
+		expect(result.current.hasReceivedInitialIrisState).toBe(true);
 	});
 
 	it('addMessage appends a message to the messages array', () => {
@@ -228,14 +248,61 @@ describe('useChatStore', () => {
 		expect(result.current.isLoading).toBe(false);
 	});
 
-	it('setWebSocketConnected updates isWebSocketConnected', () => {
+	it('setWebSocketStatus updates webSocketStatus', () => {
 		const { result } = renderHook(() => useChatStore());
 
 		act(() => {
-			result.current.setWebSocketConnected(true);
+			result.current.setWebSocketStatus('connected');
 		});
 
-		expect(result.current.isWebSocketConnected).toBe(true);
+		expect(result.current.webSocketStatus).toBe('connected');
+	});
+
+	it('messageLoad starts as null and applyLoadedMessages records success per session', () => {
+		const { result } = renderHook(() => useChatStore());
+
+		expect(result.current.messageLoad).toBeNull();
+
+		act(() => {
+			result.current.applyLoadedMessages('local-A', [
+				{ id: 1, localId: 'a', role: 'user', content: 'Hi', timestamp: 1, helpful: null, status: 'sent' },
+			]);
+		});
+
+		expect(result.current.messages).toHaveLength(1);
+		expect(result.current.messageLoad).toEqual({ localSessionId: 'local-A', status: 'success' });
+	});
+
+	it('setMessageLoadError records the failed sessionId without touching messages', () => {
+		const { result } = renderHook(() => useChatStore());
+
+		act(() => {
+			result.current.applyLoadedMessages('local-A', [
+				{ id: 1, localId: 'a', role: 'user', content: 'Old', timestamp: 1, helpful: null, status: 'sent' },
+			]);
+		});
+		act(() => {
+			result.current.setMessageLoadError('local-A');
+		});
+
+		expect(result.current.messages).toHaveLength(1);
+		expect(result.current.messageLoad).toEqual({ localSessionId: 'local-A', status: 'error' });
+	});
+
+	it('clearMessages also resets messageLoad so the next session shows the skeleton', () => {
+		const { result } = renderHook(() => useChatStore());
+
+		act(() => {
+			result.current.applyLoadedMessages('local-A', [
+				{ id: 1, localId: 'a', role: 'user', content: 'Hi', timestamp: 1, helpful: null, status: 'sent' },
+			]);
+		});
+		act(() => {
+			result.current.clearMessages();
+		});
+
+		expect(result.current.messages).toEqual([]);
+		expect(result.current.messageLoad).toBeNull();
 	});
 
 	it('setDisabledMessage sets disabled reason', () => {
@@ -339,10 +406,8 @@ describe('useChatStore', () => {
 					lastActivity: 1000100,
 				},
 			],
-			recentExercises: [{ id: 42, title: 'Sorting Algorithms', courseId: 10 }],
-			recentCourses: [{ id: 10, title: 'Algorithms' }],
-			allExercises: [{ id: 42, title: 'Sorting Algorithms', courseId: 10 }],
-			allCourses: [{ id: 10, title: 'Algorithms' }],
+			exercises: [{ id: 42, title: 'Sorting Algorithms', courseId: 10 }],
+			courses: [{ id: 10, title: 'Algorithms' }],
 		});
 
 		act(() => {
@@ -353,8 +418,8 @@ describe('useChatStore', () => {
 		expect(result.current.sessions).toHaveLength(1);
 		expect(result.current.context?.type).toBe('exercise');
 		expect(result.current.context?.id).toBe(42);
-		expect(result.current.recentExercises).toHaveLength(1);
-		expect(result.current.recentCourses).toHaveLength(1);
+		expect(result.current.exercises).toHaveLength(1);
+		expect(result.current.courses).toHaveLength(1);
 	});
 
 	it('setIrisState passes courseId from context directly', () => {
@@ -368,8 +433,7 @@ describe('useChatStore', () => {
 				locked: false,
 				source: 'workspace-detected',
 			},
-			recentExercises: [{ id: 42, title: 'Exercise', courseId: 10 }],
-			allExercises: [],
+			exercises: [{ id: 42, title: 'Exercise', courseId: 10 }],
 		});
 
 		act(() => {

@@ -1,37 +1,119 @@
+# Continuous Integration pipeline. Edits to this file require admin sign-off
+# via CODEOWNERS (see .github/CODEOWNERS).
 name: CI
 
 on:
   pull_request:
-    branches: [main, dev]
   push:
-    branches: [dev]
+    branches: [dev, main]
+
+permissions:
+  contents: read
+
+# Opt JS actions into Node 24 ahead of GitHub's June 2026 default flip.
+# Drop this once the default flip happens and all third-party actions ship
+# Node-24-native versions.
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 defaults:
   run:
     working-directory: extension
 
 jobs:
-  check:
-    name: TypeScript, Lint & Tests
+  typecheck:
+    name: Type check
     runs-on: ubuntu-latest
-
+    timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 22
           cache: npm
           cache-dependency-path: extension/package-lock.json
+      - run: npm ci
+      - run: npm run check-types
 
-      - name: Install dependencies
-        run: npm ci
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: extension/package-lock.json
+      - run: npm ci
+      - run: npm run lint
 
-      - name: Type check
-        run: npm run check-types
+  test:
+    name: Unit tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: extension/package-lock.json
+      - run: npm ci
+      - run: npx vitest run
 
-      - name: Lint
-        run: npm run lint
+  knip:
+    name: Dead code (knip)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: extension/package-lock.json
+      - run: npm ci
+      - run: npm run knip
 
-      - name: Tests
-        run: npx vitest run
+  build:
+    name: Build & VSIX package
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: extension/package-lock.json
+      - run: npm ci
+      - run: npm run package
+      - run: npx @vscode/vsce package --no-dependencies
+
+  ci-gate:
+    name: CI gate
+    needs: [typecheck, lint, test, knip, build]
+    runs-on: ubuntu-latest
+    timeout-minutes: 1
+    if: always()
+    defaults:
+      run:
+        working-directory: .
+    steps:
+      - name: Verify all required jobs succeeded
+        env:
+          NEEDS: ${{ toJSON(needs) }}
+        run: |
+          set -euo pipefail
+          echo "Job results: $NEEDS"
+          if echo "$NEEDS" | jq -e '[.[] | .result] | any(. != "success")' > /dev/null; then
+            echo "::error::One or more required CI jobs did not succeed"
+            exit 1
+          fi
+          echo "All CI jobs passed."

@@ -262,7 +262,7 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
             {/* Cloned repo notice */}
             {clonedNotice && (
                 <div className={styles.banner} data-variant="info">
-                    <span>Repository cloned for "{clonedNotice}"</span>
+                    <span>Repository cloned for "{clonedNotice.exerciseTitle}"</span>
                     <button className={styles.bannerDismiss} onClick={clearClonedNotice}>×</button>
                 </div>
             )}
@@ -381,7 +381,10 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
                         postCommand(vscodeApi, 'openRepository', { repositoryUri });
                     }}
                     onOpenClonedRepository={() => {
-                        postCommand(vscodeApi, 'openRepository', { repositoryUri });
+                        if (clonedNotice) {
+                            postCommand(vscodeApi, 'openClonedRepository', { participationId: clonedNotice.participationId });
+                            clearClonedNotice();
+                        }
                     }}
                     onCheckWorkspace={() => {
                         postCommand(vscodeApi, 'checkRepositoryStatus');
@@ -389,6 +392,14 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
                     onCopyCloneUrl={() => {
                         if (repositoryUri) {
                             postCommand(vscodeApi, 'copyToClipboard', { text: repositoryUri });
+                        }
+                    }}
+                    onCopyAuthenticatedCloneUrl={() => {
+                        if (participationId && repositoryUri) {
+                            postCommand(vscodeApi, 'copyAuthenticatedCloneUrl', {
+                                participationId,
+                                repositoryUri,
+                            });
                         }
                     }}
                     onStartPractice={() => {

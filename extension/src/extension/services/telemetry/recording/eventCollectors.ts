@@ -20,7 +20,7 @@ import type {
 
 // ── Serialization helpers ─────────────────────────────────────────────
 
-export function serializeRange(range: vscode.Range): SerializedRange {
+function serializeRange(range: vscode.Range): SerializedRange {
     return {
         startLine: range.start.line,
         startCharacter: range.start.character,
@@ -88,16 +88,22 @@ export function collectDiagnostics(uri: vscode.Uri): DiagnosticsEvent {
     };
 }
 
-export function collectBuildResult(result: ResultDTO): BuildResultEvent {
+export function collectBuildResult(result: ResultDTO, activeExerciseId?: number): BuildResultEvent {
     const failedTests: string[] = [];
+    const failedTestDetails: { testName: string; detail: string }[] = [];
     const buildErrorFamilies: string[] = [];
     if (result.feedbacks) {
         for (const fb of result.feedbacks) {
-            if (!fb.positive && fb.detailText) {
-                failedTests.push(fb.detailText);
-            }
-            if (fb.positive === false && fb.text) {
-                buildErrorFamilies.push(`build:${fb.text.substring(0, 50)}`);
+            // Unified predicate: explicit false only (undefined = not yet graded, positive = passing).
+            if (fb.positive === false) {
+                // Legacy flat list: keep detailText for backwards compat consumers.
+                failedTests.push(fb.detailText ?? '');
+                // Structured details: carry both test name and failure message.
+                failedTestDetails.push({ testName: fb.text ?? 'unknown', detail: fb.detailText ?? '' });
+                if (fb.text) {
+                    // 200 chars to differentiate similar errors; previously 50 caused family-merging.
+                    buildErrorFamilies.push(`build:${fb.text.substring(0, 200)}`);
+                }
             }
         }
     }
@@ -109,6 +115,10 @@ export function collectBuildResult(result: ResultDTO): BuildResultEvent {
         failedTests,
         buildFailed: result.submission?.buildFailed ?? false,
         buildErrorFamilies: buildErrorFamilies.length > 0 ? buildErrorFamilies : undefined,
+        exerciseId: activeExerciseId,
+        participationId: result.participation?.id,
+        submissionId: result.submission?.id,
+        failedTestDetails: failedTestDetails.length > 0 ? failedTestDetails : undefined,
     };
 }
 

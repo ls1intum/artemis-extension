@@ -2,7 +2,7 @@ import { ReactNode, CSSProperties } from 'react';
 import clsx from 'clsx';
 import styles from './Container.module.css';
 
-export interface ContainerProps {
+interface ContainerProps {
   children: ReactNode;
   header?: ReactNode;
   footer?: ReactNode;

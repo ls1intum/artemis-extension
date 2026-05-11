@@ -79,21 +79,27 @@
     top: 100%;
     left: 0;
     right: 0;
-    background: var(--vscode-notifications-background);
-    border: 1px solid var(--vscode-notifications-border);
-    border-radius: 0 0 6px 6px;
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
-    max-height: 480px;
+    background: var(--theme-background);
+    border: none;
+    border-top: 1px solid var(--vscode-panel-border);
+    box-shadow: none;
+    height: calc(100vh - 250px);
     display: flex;
     flex-direction: column;
     z-index: 1000;
     overflow: hidden;
 }
 
+.scrollList {
+    flex: 1 1 0;
+    min-height: 0;
+    overflow-y: auto;
+}
+
 .searchContainer {
     padding: 6px;
     border-bottom: 1px solid var(--vscode-panel-border);
-    background: var(--vscode-notifications-background);
+    background: var(--theme-background);
 }
 
 .searchInputWrapper {
@@ -126,16 +132,27 @@
 }
 
 .dropdownContent {
-    overflow-y: auto;
-    flex: 1;
+    flex: 1 1 auto;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
 }
 
 .section {
     border-bottom: 1px solid var(--vscode-panel-border);
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
 }
 
 .section:last-child {
     border-bottom: none;
+}
+
+/* Conversations / Exercises / Courses sections grow equally to share
+ * remaining space. Workspace shortcuts and empty-state stay natural-sized. */
+.scrollSection {
+    flex: 1 1 0;
 }
 
 .sectionHeader {
@@ -173,6 +190,15 @@
 .itemText {
     flex: 1;
     font-size: 13px;
+}
+
+.itemTag {
+    margin-left: auto;
+    font-size: 11px;
+    opacity: 0.6;
+    padding-left: 8px;
+    flex-shrink: 0;
+    color: var(--vscode-descriptionForeground);
 }
 
 .sessionItem {

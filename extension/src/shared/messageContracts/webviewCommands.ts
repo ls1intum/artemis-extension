@@ -42,7 +42,9 @@ export const WebviewCmd = {
     ReloadExerciseDetail: 'reloadExerciseDetail',
     ToggleFullscreen: 'toggleFullscreen',
     CloneRepository: 'cloneRepository',
+    CopyAuthenticatedCloneUrl: 'copyAuthenticatedCloneUrl',
     OpenRepository: 'openRepository',
+    OpenClonedRepository: 'openClonedRepository',
     SubmitExercise: 'submitExercise',
     StartExercise: 'startExercise',
     StartPractice: 'startPractice',
@@ -135,7 +137,9 @@ interface WebviewCmdPayloads {
     reloadExerciseDetail: { exerciseId: number };
     toggleFullscreen: undefined;
     cloneRepository: { participationId: number; repositoryUri: string; exerciseTitle: string };
+    copyAuthenticatedCloneUrl: { participationId: number; repositoryUri: string };
     openRepository: { repositoryUri?: string };
+    openClonedRepository: { participationId: number };
     submitExercise: { participationId: number; exerciseId?: number; exerciseTitle?: string; commitMessage?: string };
     startExercise: { exerciseId: number };
     startPractice: { exerciseId: number; exerciseTitle?: string };
@@ -205,6 +209,7 @@ export const COMMANDS_REQUIRING_PAYLOAD = new Set<string>([
     WebviewCmd.AskIrisAboutCourse,
     WebviewCmd.ReloadExerciseDetail,
     WebviewCmd.CloneRepository,
+    WebviewCmd.CopyAuthenticatedCloneUrl,
     WebviewCmd.SubmitExercise,
     WebviewCmd.StartExercise,
     WebviewCmd.StartPractice,
@@ -230,6 +235,7 @@ export const COMMANDS_REQUIRING_PAYLOAD = new Set<string>([
     WebviewCmd.FreshSsrPreview,
     WebviewCmd.ViewBuildLog,
     WebviewCmd.GoToSource,
+    WebviewCmd.OpenClonedRepository,
 ]);
 
 /** Auto-generated command messages */

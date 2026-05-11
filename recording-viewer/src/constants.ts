@@ -12,7 +12,11 @@ export const MARKER_COLORS: Record<EventType, string> = {
     fileSnapshot: '#4ade80',
     sessionStart: '#a5b4fc',
     sessionEnd: '#f87171',
+    consentChange: '#fb7185',
+    startupPhaseComplete: '#a5f3fc',
     irisChatMessage: '#f472b6',
+    irisChatSendAttempt: '#fb923c',
+    irisChatFeedback: '#a78bfa',
     intervention: '#f97316',
     viewNavigation: '#a78bfa',
     panelVisibility: '#fbbf24',
@@ -20,19 +24,28 @@ export const MARKER_COLORS: Record<EventType, string> = {
     visibleRangeChange: '#14b8a6',
     terminalCommand: '#22d3ee',
     terminalOpenClose: '#67e8f9',
+    fileSnapshotError: '#f87171',
+    fileCreate: '#86efac',
+    fileDelete: '#fca5a5',
+    fileRename: '#fdba74',
+    textDocumentOpen: '#7dd3fc',
+    textDocumentClose: '#93c5fd',
 };
 
 export const ALL_EVENT_TYPES = [
-    'sessionStart', 'sessionEnd',
+    'sessionStart', 'sessionEnd', 'consentChange', 'startupPhaseComplete',
     'eqSnapshot', 'eqEngineState', 'intervention', 'buildResult',
     'textChange', 'save',
     'diagnostics',
     'fileSwitch',
     'windowFocus', 'fileSnapshot',
-    'irisChatMessage',
+    'irisChatMessage', 'irisChatSendAttempt', 'irisChatFeedback',
     'viewNavigation', 'panelVisibility',
     'selectionChange', 'visibleRangeChange',
     'terminalCommand', 'terminalOpenClose',
+    'fileSnapshotError',
+    'fileCreate', 'fileDelete', 'fileRename',
+    'textDocumentOpen', 'textDocumentClose',
 ] as const satisfies readonly EventType[];
 
 // Compile error if a new event type is added but not listed above

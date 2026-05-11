@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import type { SessionMetadata } from '../types.ts';
 import { formatDuration, formatTime } from '../utils/format.ts';
+import { LiveSessionBadge } from './LiveSessionBadge.tsx';
 
 interface SessionEntry {
     id: string;
@@ -17,9 +18,11 @@ interface SessionListResponse {
 
 interface Props {
     onSelectSession: (sessionId: string) => void;
+    liveIds?: Set<string>;
+    readOnly?: boolean;
 }
 
-export function SessionList({ onSelectSession }: Props) {
+export function SessionList({ onSelectSession, liveIds, readOnly }: Props) {
     const [data, setData] = useState<SessionListResponse | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [loading, setLoading] = useState(true);
@@ -131,9 +134,11 @@ export function SessionList({ onSelectSession }: Props) {
                 <p className="path-hint">
                     Recordings: <code>{data.recordingsDir}</code>
                 </p>
-                <button className="toolbar-btn" onClick={openRecordingsFolder} title="Open in Finder">
-                    Open Folder
-                </button>
+                {!readOnly && (
+                    <button className="toolbar-btn" onClick={openRecordingsFolder} title="Open in Finder">
+                        Open Folder
+                    </button>
+                )}
             </div>
             <div className="session-table">
                 <div className="session-table-header">
@@ -169,6 +174,7 @@ export function SessionList({ onSelectSession }: Props) {
                         ) : (
                             <span className="mono session-id-cell" title={entry.id}>
                                 {entry.id.length > 30 ? entry.id.slice(0, 30) + '...' : entry.id}
+                                {liveIds?.has(entry.id) && <LiveSessionBadge />}
                             </span>
                         )}
                         <span>{entry.metadata?.exerciseId ?? '—'}</span>
@@ -189,28 +195,32 @@ export function SessionList({ onSelectSession }: Props) {
                             {entry.hasSubtitles ? 'Yes' : '—'}
                         </span>
                         <span className="session-actions">
-                            <button
-                                className="action-btn rename-btn"
-                                onClick={e => startRename(e, entry.id)}
-                                title="Rename session"
-                            >
-                                &#9998;
-                            </button>
-                            <button
-                                className="action-btn open-btn"
-                                onClick={e => openSessionFolder(e, entry.id)}
-                                title="Open in Finder"
-                            >
-                                &#x1F4C2;
-                            </button>
-                            <button
-                                className="action-btn delete-btn"
-                                onClick={e => deleteSession(e, entry.id)}
-                                title="Delete session"
-                                disabled={deleting === entry.id}
-                            >
-                                {deleting === entry.id ? '...' : '\u00D7'}
-                            </button>
+                            {!readOnly && (
+                                <>
+                                    <button
+                                        className="action-btn rename-btn"
+                                        onClick={e => startRename(e, entry.id)}
+                                        title="Rename session"
+                                    >
+                                        &#9998;
+                                    </button>
+                                    <button
+                                        className="action-btn open-btn"
+                                        onClick={e => openSessionFolder(e, entry.id)}
+                                        title="Open in Finder"
+                                    >
+                                        &#x1F4C2;
+                                    </button>
+                                    <button
+                                        className="action-btn delete-btn"
+                                        onClick={e => deleteSession(e, entry.id)}
+                                        title="Delete session"
+                                        disabled={deleting === entry.id}
+                                    >
+                                        {deleting === entry.id ? '...' : '\u00D7'}
+                                    </button>
+                                </>
+                            )}
                         </span>
                     </div>
                 ))}

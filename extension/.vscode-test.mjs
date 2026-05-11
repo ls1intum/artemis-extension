@@ -26,8 +26,19 @@ export default defineConfig([
 		// E2E tests (requires running Artemis + Iris)
 		label: 'e2e',
 		files: 'out/test/e2e/**/*.e2e.test.js',
+		// Recorder E2E is self-contained — run it via the 'recorder-e2e' label instead.
+		exclude: ['out/test/e2e/recording.e2e.test.js'],
 		mocha: {
-			timeout: 60000, // 60 seconds for E2E tests
+			timeout: 60000,
+		},
+	},
+	{
+		// Recorder E2E (no Artemis/Iris dependency — drives SessionRecorder
+		// directly through the VS Code API in a temp workspace).
+		label: 'recorder-e2e',
+		files: 'out/test/e2e/recording.e2e.test.js',
+		mocha: {
+			timeout: 180000,
 		},
 	},
 ]);

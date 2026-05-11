@@ -9,20 +9,44 @@ import type {
     StreamingState,
     IrisStageDTO,
 } from '../views/IrisChat/types';
-import type { ExtMsg } from '../../shared/messageContracts';
+import type { ExtMsg, WebSocketDisplayStatus } from '../../shared/messageContracts';
+
+/**
+ * Webview-side connection status. Mirrors the extension's
+ * {@link WebSocketDisplayStatus} plus a synthetic 'unknown' state used for
+ * the very first render before any extension push has arrived. 'unknown'
+ * intentionally renders nothing — it suppresses the cold-start banner flash.
+ */
+type ChatWebSocketStatus = WebSocketDisplayStatus | 'unknown';
+
+
+interface MessageLoadResult {
+    localSessionId: string;
+    status: 'success' | 'error';
+}
 
 interface ChatState {
     // Context
     context: ChatContext | null;
     activeSessionId: string | null;
     sessions: ChatSession[];
-    recentExercises: ContextItem[];
-    recentCourses: ContextItem[];
-    allExercises: ContextItem[];
-    allCourses: ContextItem[];
+    /**
+     * Flips to true on the first UpdateIrisState. Lets the renderer
+     * distinguish "no session" from "snapshot pending" so the cold-mount
+     * frame stays on the loader instead of flashing the welcome state.
+     */
+    hasReceivedInitialIrisState: boolean;
+    exercises: ContextItem[];
+    courses: ContextItem[];
 
     // Messages
     messages: ChatMessage[];
+    /**
+     * Outcome of the most recent message hydration. `null` means we have
+     * not yet received a load result for any session; the webview shows
+     * the loader until this matches the active session.
+     */
+    messageLoad: MessageLoadResult | null;
 
     // Streaming
     streaming: StreamingState;
@@ -32,7 +56,7 @@ interface ChatState {
 
     // UI state
     isLoading: boolean;
-    isWebSocketConnected: boolean;
+    webSocketStatus: ChatWebSocketStatus;
     disabledMessage: string | null;   // Non-null = Iris disabled (reason as string)
     isNoAiDetected: boolean;
     referencedFiles: ReferencedFilesData | null;
@@ -41,6 +65,10 @@ interface ChatState {
     // Actions
     setIrisState: (state: ExtMsg<'updateIrisState'>['state']) => void;
     setMessages: (messages: ChatMessage[]) => void;
+    /** Apply messages and record a successful hydration for the given session. */
+    applyLoadedMessages: (localSessionId: string, messages: ChatMessage[]) => void;
+    /** Record that hydration failed for the given session. */
+    setMessageLoadError: (localSessionId: string) => void;
     addMessage: (message: ChatMessage) => void;
     clearMessages: () => void;
     setMessageStatus: (localId: string, status: 'sending' | 'sent' | 'error', errorMessage?: string) => void;
@@ -56,7 +84,7 @@ interface ChatState {
 
     // UI actions
     setLoading: (loading: boolean) => void;
-    setWebSocketConnected: (connected: boolean) => void;
+    setWebSocketStatus: (status: ChatWebSocketStatus) => void;
     setDisabledMessage: (message: string | null) => void;
     setNoAiDetected: (detected: boolean) => void;
     setReferencedFiles: (data: ReferencedFilesData | null) => void;
@@ -76,15 +104,15 @@ export const useChatStore = create<ChatState>()(
             context: null,
             activeSessionId: null,
             sessions: [],
-            recentExercises: [],
-            recentCourses: [],
-            allExercises: [],
-            allCourses: [],
+            hasReceivedInitialIrisState: false,
+            exercises: [],
+            courses: [],
             messages: [],
+            messageLoad: null,
             streaming: IDLE_STREAMING,
             irisStages: [],
             isLoading: false,
-            isWebSocketConnected: false,
+            webSocketStatus: 'unknown',
             disabledMessage: null,
             isNoAiDetected: false,
             referencedFiles: null,
@@ -112,15 +140,27 @@ export const useChatStore = create<ChatState>()(
                         createdAt: s.createdAt,
                         lastActivity: s.lastActivity,
                     })),
-                    recentExercises: state.recentExercises,
-                    recentCourses: state.recentCourses,
-                    allExercises: state.allExercises,
-                    allCourses: state.allCourses,
+                    exercises: state.exercises,
+                    courses: state.courses,
+                    hasReceivedInitialIrisState: true,
                 }, false, 'setIrisState');
             },
 
             setMessages: (messages) => {
                 set({ messages }, false, 'setMessages');
+            },
+
+            applyLoadedMessages: (localSessionId, messages) => {
+                set({
+                    messages,
+                    messageLoad: { localSessionId, status: 'success' },
+                }, false, 'applyLoadedMessages');
+            },
+
+            setMessageLoadError: (localSessionId) => {
+                set({
+                    messageLoad: { localSessionId, status: 'error' },
+                }, false, 'setMessageLoadError');
             },
 
             addMessage: (message) => {
@@ -132,6 +172,7 @@ export const useChatStore = create<ChatState>()(
             clearMessages: () => {
                 set({
                     messages: [],
+                    messageLoad: null,
                     irisStages: [],
                     streaming: IDLE_STREAMING,
                 }, false, 'clearMessages');
@@ -195,8 +236,8 @@ export const useChatStore = create<ChatState>()(
                 set({ isLoading: loading }, false, 'setLoading');
             },
 
-            setWebSocketConnected: (connected) => {
-                set({ isWebSocketConnected: connected }, false, 'setWebSocketConnected');
+            setWebSocketStatus: (status) => {
+                set({ webSocketStatus: status }, false, 'setWebSocketStatus');
             },
 
             setDisabledMessage: (message) => {

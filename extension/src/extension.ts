@@ -11,7 +11,7 @@ import { ExerciseRegistry } from './extension/services/exerciseRegistry';
 import { CourseDataCache } from './extension/services/courseDataCache';
 import { createProviderRegistry } from './extension/services/ui';
 import { logger, LogCategory } from './extension/services/loggingService';
-import { VSCODE_CONFIG, resolveServerUrl } from './extension/utils';
+import { VSCODE_CONFIG } from './extension/utils';
 import { registerAllCommands } from './extension/activation/extensionCommands';
 import { wireSessionRecorder } from './extension/activation/sessionRecorderWiring';
 import { initializeTheiaContext, detectPlatformCapabilities, authenticateFromEnvironment, autoCloneIfNeeded } from './extension/theia';
@@ -24,33 +24,38 @@ export async function activate(context: vscode.ExtensionContext) {
 	logger.initialize();
 	logger.info('Congratulations, your extension "Artemis - TUM" is now active!', LogCategory.GENERAL);
 
-	// ── Theia/EduIDE detection (must complete before any service instantiation) ──
+	// ── Phase A1: environment detection (must precede provider registration) ──
+	// The webview provider's resolveWebviewView() reads getTheiaEnvironment()
+	// and resolveServerUrl() and calls authManager.hasAuthToken(). If we
+	// register the provider before Theia detection + authenticateFromEnvironment()
+	// have run, a Theia layout-restore can resolve the view with the wrong
+	// server URL and an empty token, leaving the user stuck on a login screen
+	// that should have been bypassed.
 	const theiaEnv = await initializeTheiaContext();
 	const capabilities = detectPlatformCapabilities();
 	logger.info(`Platform: ${theiaEnv.isTheia ? 'Theia/EduIDE' : 'VS Code Desktop'}`, LogCategory.GENERAL);
 
-	// Publish Theia state as context keys for declarative UI hiding (package.json `when` clauses)
 	await vscode.commands.executeCommand('setContext', 'iris:theia', theiaEnv.isTheia);
 	await vscode.commands.executeCommand('setContext', 'iris:managedEnvironment', theiaEnv.isManagedEnvironment);
 
-	// ── Service instantiation ────────────────────────────────────────
 	const authManager = new AuthManager(context);
 
-	// In Theia: authenticate from environment variables before creating API services
 	if (theiaEnv.isTheia) {
 		const { authenticated } = await authenticateFromEnvironment(authManager, theiaEnv);
 		logger.info(`Theia auto-auth: ${authenticated ? 'success' : 'no credentials in environment'}`, LogCategory.AUTH);
 	}
 
+	// ── Phase A2: synchronous service construction & provider registration ──
+	// All service constructors below are synchronous. Registering the webview
+	// providers before yielding back to the event loop ensures that any
+	// view-resolution attempt — including Theia's layout-restore — finds a
+	// registered provider with the correct environment already in place.
 	const artemisApiService = new ArtemisApiService(authManager);
 	const artemisWebsocketService = new ArtemisWebsocketService(authManager);
 	const buildErrorCodeLensProvider = new BuildErrorCodeLensProvider();
-	// Created early because TelemetryManager needs it for participationId → exerciseId
-	// resolution when filtering WebSocket build results (prevents cross-exercise contamination).
 	const exerciseRegistry = new ExerciseRegistry();
 	const telemetryManager = new TelemetryManager(exerciseRegistry);
 	activeTelemetryManager = telemetryManager;
-
 	telemetryManager.setWebsocketService(artemisWebsocketService);
 
 	const websocketStatusBarService = new WebSocketStatusBarService(artemisWebsocketService);
@@ -59,7 +64,6 @@ export async function activate(context: vscode.ExtensionContext) {
 		vscode.languages.registerCodeLensProvider({ scheme: 'file' }, buildErrorCodeLensProvider)
 	);
 
-	// ── Auth context ─────────────────────────────────────────────────
 	const updateAuthContext = async (isAuthenticated: boolean) => {
 		await vscode.commands.executeCommand('setContext', 'iris:authenticated', isAuthenticated);
 		if (isAuthenticated) {
@@ -72,28 +76,11 @@ export async function activate(context: vscode.ExtensionContext) {
 		}
 	};
 
-	// Check initial auth state and connect WebSocket if already authenticated
-	// Uses hasAuthToken() which checks both memory (Theia) and SecretStorage (VS Code)
-	try {
-		const isAuthenticated = await authManager.hasAuthToken();
-		await vscode.commands.executeCommand('setContext', 'iris:authenticated', isAuthenticated);
-		if (isAuthenticated) {
-			void artemisWebsocketService.connect().catch(error => {
-				logger.error('Failed to connect to Artemis WebSocket on startup', LogCategory.WEBSOCKET, error);
-			});
-		}
-	} catch (error) {
-		logger.error('Error checking initial auth state', LogCategory.AUTH, error);
-		await vscode.commands.executeCommand('setContext', 'iris:authenticated', false);
-	}
-
-	// ── Workspace services ───────────────────────────────────────────
 	const noAiDetectionService = new NoAiDetectionService();
 	context.subscriptions.push(noAiDetectionService);
 
 	const consentService = new ConsentService();
 	context.subscriptions.push(consentService);
-	consentService.promptIfPending();
 
 	noAiDetectionService.onNoAiStatusChanged(isNoAiDetected => {
 		if (isNoAiDetected) {
@@ -108,13 +95,10 @@ export async function activate(context: vscode.ExtensionContext) {
 		}
 	});
 
-	// ── Registries & providers ───────────────────────────────────────
-	// Note: exerciseRegistry is created earlier (above) so TelemetryManager can use it.
 	const courseDataCache = new CourseDataCache(artemisApiService);
 	context.subscriptions.push(courseDataCache);
 	const providerRegistry = createProviderRegistry();
 
-	// When course data arrives, propagate to ExerciseRegistry so all consumers stay aligned
 	context.subscriptions.push(courseDataCache.onCoursesLoaded(data => {
 		const courses = data.courses;
 		if (courses && Array.isArray(courses)) {
@@ -140,7 +124,10 @@ export async function activate(context: vscode.ExtensionContext) {
 		vscode.window.registerWebviewViewProvider(ArtemisWebviewProvider.viewType, artemisWebviewProvider)
 	);
 
-	const chatWebviewProvider = new ChatWebviewProvider(context.extensionUri, context, artemisApiService, artemisWebsocketService, noAiDetectionService, exerciseRegistry, courseDataCache, telemetryManager);
+	const chatWebviewProvider = new ChatWebviewProvider(
+		context.extensionUri, context, artemisApiService, artemisWebsocketService,
+		noAiDetectionService, exerciseRegistry, courseDataCache, telemetryManager,
+	);
 	chatWebviewProvider.onDidChangeExerciseContext(({ exerciseId, exerciseRoot }) => {
 		telemetryManager.startExerciseSession(exerciseId, exerciseRoot);
 	});
@@ -150,34 +137,33 @@ export async function activate(context: vscode.ExtensionContext) {
 
 	providerRegistry.setChatWebviewProvider(chatWebviewProvider);
 	context.subscriptions.push(telemetryManager);
+	context.subscriptions.push(artemisWebsocketService);
+	context.subscriptions.push(websocketStatusBarService);
 
-	// Signal that webview providers are registered.
-	// In Theia, views with a `when` clause are only resolved when the clause
-	// transitions false→true. This must fire AFTER provider registration
-	// so resolveWebviewView() has a handler to call.
-	await vscode.commands.executeCommand('setContext', 'iris:extensionReady', true);
+	context.subscriptions.push(registerAllCommands({
+		context, authManager, artemisApiService, artemisWebsocketService,
+		telemetryManager, providerRegistry, artemisWebviewProvider, chatWebviewProvider,
+		updateAuthContext,
+	}));
 
-	// Wire 401 handler: environment-aware auth teardown
+	// Kept as a defensive safety net for any future when-clause gating.
+	// The login view itself no longer depends on this context key.
+	void vscode.commands.executeCommand('setContext', 'iris:extensionReady', true);
+
+	// ── Phase B: async initialization (UI already responsive) ────────
+	consentService.promptIfPending();
+
+	// 401 handler: environment-aware auth teardown
 	if (theiaEnv.isTheia) {
-		// Theia: attempt to re-read token from environment (orchestrator may have refreshed it)
-		artemisApiService.onAuthExpired = async () => {
-			const { readEnvVar } = await import('./extension/theia/index.js');
-			const freshToken = await readEnvVar('ARTEMIS_TOKEN');
-			const currentToken = await authManager.getStoredTokenValue();
-			if (freshToken && freshToken !== currentToken) {
-				logger.info('Theia token refreshed from environment, re-authenticating', LogCategory.AUTH);
-				const freshUrl = await readEnvVar('ARTEMIS_URL');
-				await authManager.storeArtemisCredentials(freshToken, freshUrl || resolveServerUrl(), false);
-				artemisApiService.resetAuthExpiredGuard();
-				void artemisWebsocketService.connect().catch(error => {
-					logger.error('WebSocket reconnect after token refresh failed', LogCategory.WEBSOCKET, error);
-				});
-			} else {
-				void updateAuthContext(false);
-				vscode.window.showErrorMessage(
-					'Your session has expired. Please restart your workspace to re-authenticate.'
-				);
-			}
+		// Theia tool tokens have a fixed 1-day lifetime and the operator
+		// injects credentials only once at session boot, so a 401 means the
+		// session is unrecoverable from inside the extension. Direct the
+		// student back to "Open Online IDE" to start a fresh session.
+		artemisApiService.onAuthExpired = () => {
+			void updateAuthContext(false);
+			vscode.window.showErrorMessage(
+				'Your session has expired. Please restart your workspace to re-authenticate.'
+			);
 		};
 	} else {
 		// VS Code: interactive re-authentication via sidebar
@@ -195,23 +181,30 @@ export async function activate(context: vscode.ExtensionContext) {
 		};
 	}
 
-	// ── Session recorder wiring ──────────────────────────────────────
+	// Initial auth state — checks both memory (Theia) and SecretStorage (VS Code)
+	try {
+		const isAuthenticated = await authManager.hasAuthToken();
+		await vscode.commands.executeCommand('setContext', 'iris:authenticated', isAuthenticated);
+		if (isAuthenticated) {
+			void artemisWebsocketService.connect().catch(error => {
+				logger.error('Failed to connect to Artemis WebSocket on startup', LogCategory.WEBSOCKET, error);
+			});
+		}
+	} catch (error) {
+		logger.error('Error checking initial auth state', LogCategory.AUTH, error);
+		await vscode.commands.executeCommand('setContext', 'iris:authenticated', false);
+	}
+
+	// Session recorder wiring
 	const { sessionRecorder, disposable: recorderDisposable } = wireSessionRecorder({
 		context, consentService, artemisWebsocketService,
 		telemetryManager, artemisWebviewProvider, chatWebviewProvider,
-		capabilities,
+		capabilities, exerciseRegistry,
 	});
 	activeSessionRecorder = sessionRecorder;
 	context.subscriptions.push(recorderDisposable);
 
-	// ── VS Code commands ─────────────────────────────────────────────
-	context.subscriptions.push(registerAllCommands({
-		context, authManager, artemisApiService, artemisWebsocketService,
-		telemetryManager, providerRegistry, artemisWebviewProvider, chatWebviewProvider,
-		updateAuthContext,
-	}));
-
-	// ── Configuration listener ───────────────────────────────────────
+	// Configuration listener
 	if (theiaEnv.isManagedEnvironment) {
 		// In managed Theia environments, revert unauthorized changes to locked settings
 		context.subscriptions.push(vscode.workspace.onDidChangeConfiguration(event => {
@@ -246,21 +239,24 @@ export async function activate(context: vscode.ExtensionContext) {
 		}));
 	}
 
-	context.subscriptions.push(artemisWebsocketService);
-	context.subscriptions.push(websocketStatusBarService);
-
-	// ── Theia auto-clone ─────────────────────────────────────────────
+	// Theia auto-clone
 	if (theiaEnv.isTheia && theiaEnv.gitUri) {
 		void autoCloneIfNeeded(theiaEnv).catch(error => {
 			logger.error('Theia auto-clone failed', LogCategory.GENERAL, error);
 		});
 	}
-
 }
 
-export function deactivate() {
+export async function deactivate(): Promise<void> {
+	// Await the recorder dispose so all buffered events reach disk before
+	// the extension host tears us down. VS Code accepts a Promise return
+	// from deactivate and waits for it during graceful shutdown.
 	if (activeSessionRecorder) {
-		void activeSessionRecorder.endSession();
+		try {
+			await activeSessionRecorder.dispose();
+		} catch (err) {
+			logger.error('Failed to dispose SessionRecorder during deactivate', LogCategory.TELEMETRY, err);
+		}
 		activeSessionRecorder = undefined;
 	}
 	if (activeTelemetryManager) {

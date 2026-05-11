@@ -55,6 +55,8 @@ export interface LoadedSession {
     metadata: SessionMetadata | null;
     events: RecordedEvent[];
     fileName: string;
+    /** Resolved schema version: metadata.schemaVersion > sessionStart.schemaVersion > 1 */
+    schemaVersion: number;
     replayEq?: ReplayEqSnapshot[];
     annotations?: Annotation[];
 }

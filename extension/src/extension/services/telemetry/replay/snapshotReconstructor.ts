@@ -8,6 +8,7 @@
 import type { ErrorSnapshot } from '../types';
 import type { SerializedDiagnostic, BuildResultEvent } from '../recording/types';
 import { LINT_SOURCE_DENYLIST } from '../eventPipeline/lintDenylist';
+import { shouldRecordUriString } from '../recording/uriFilter';
 
 /**
  * Check if a serialized diagnostic is a compiler diagnostic (not lint).
@@ -41,7 +42,7 @@ export function createSnapshotFromDiagnosticState(
     let errorCount = 0;
 
     for (const [uri, diagnostics] of state.entries()) {
-        if (exerciseRoot && !uri.startsWith(exerciseRoot)) {
+        if (exerciseRoot && !shouldRecordUriString(uri, exerciseRoot)) {
             continue;
         }
         for (const d of diagnostics) {

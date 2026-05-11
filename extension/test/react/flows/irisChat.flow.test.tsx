@@ -50,24 +50,44 @@ const exerciseContext = {
 	source: 'user-selected' as const,
 };
 
+// Steady-state shape: tests that just want the chat input enabled
+// `useChatStore.setState({ context: exerciseContext, ...HYDRATED })`.
+// Mirrors the post-load state where a session is active and its
+// hydration has completed successfully.
+const HYDRATED = {
+	activeSessionId: 'local-test',
+	sessions: [{
+		id: 'local-test',
+		artemisSessionId: undefined,
+		preview: '',
+		title: '',
+		messageCount: 0,
+		createdAt: 0,
+		lastActivity: 0,
+	}],
+	messageLoad: { localSessionId: 'local-test', status: 'success' as const },
+};
+
 describe('Iris Chat Flow', () => {
 	beforeEach(() => {
 		useChatStore.setState({
 			context: null,
 			activeSessionId: null,
 			sessions: [],
-			recentExercises: [],
-			recentCourses: [],
-			allExercises: [],
-			allCourses: [],
+			exercises: [],
+			courses: [],
 			messages: [],
+			messageLoad: null,
 			streaming: { isStreaming: false, messageLocalId: null, visibleChunks: [] },
 			isLoading: false,
-			isWebSocketConnected: true,
+			webSocketStatus: 'connected',
 			disabledMessage: null,
 			isNoAiDetected: false,
 			referencedFiles: null,
 			showDiagnostics: false,
+			// Default flows assume init has happened. The cold-mount flow
+			// test below explicitly opts out to exercise pre-init behavior.
+			hasReceivedInitialIrisState: true,
 		});
 		vi.useRealTimers();
 	});
@@ -104,11 +124,18 @@ describe('Iris Chat Flow', () => {
 					},
 					activeSessionId: 'session-1',
 					sessions: [],
-					recentExercises: [],
-					recentCourses: [],
-					allExercises: [],
-					allCourses: [],
+					exercises: [],
+					courses: [],
 				},
+			});
+			// And the matching LoadMessages — the real extension always emits
+			// one once the session has finished initialising; the input stays
+			// disabled until then so the user does not race the hydration.
+			dispatchExtensionMessage({
+				type: 'loadMessages',
+				localSessionId: 'session-1',
+				artemisSessionId: 1,
+				messages: [],
 			});
 
 			await waitFor(() => {
@@ -120,13 +147,9 @@ describe('Iris Chat Flow', () => {
 		it('sends selectChatContext postMessage when context is selected via context selector', async () => {
 			const user = userEvent.setup();
 
-			// ContextSelector shows recentExercises (not allExercises) when no search query
 			useChatStore.setState({
 				context: null,
-				recentExercises: [
-					{ id: 1, title: 'Binary Search', courseId: 10, isWorkspace: false },
-				],
-				allExercises: [
+				exercises: [
 					{ id: 1, title: 'Binary Search', courseId: 10, isWorkspace: false },
 				],
 			});
@@ -162,7 +185,7 @@ describe('Iris Chat Flow', () => {
 
 	describe('Sending messages', () => {
 		it('sends sendMessage postMessage when user submits text', async () => {
-			useChatStore.setState({ context: exerciseContext });
+			useChatStore.setState({ context: exerciseContext, ...HYDRATED });
 			const user = userEvent.setup();
 			const mockApi = createMockVsCodeApi();
 			render(<IrisChatView vscodeApi={mockApi} />);
@@ -185,7 +208,7 @@ describe('Iris Chat Flow', () => {
 		});
 
 		it('adds optimistic user message to chat list immediately after send', async () => {
-			useChatStore.setState({ context: exerciseContext });
+			useChatStore.setState({ context: exerciseContext, ...HYDRATED });
 			const user = userEvent.setup();
 			const mockApi = createMockVsCodeApi();
 			render(<IrisChatView vscodeApi={mockApi} />);
@@ -200,7 +223,7 @@ describe('Iris Chat Flow', () => {
 		});
 
 		it('does not send message when input is empty', async () => {
-			useChatStore.setState({ context: exerciseContext });
+			useChatStore.setState({ context: exerciseContext, ...HYDRATED });
 			const user = userEvent.setup();
 			const mockApi = createMockVsCodeApi();
 			render(<IrisChatView vscodeApi={mockApi} />);
@@ -224,7 +247,7 @@ describe('Iris Chat Flow', () => {
 
 	describe('Streaming response simulation', () => {
 		it('shows streaming indicator when streaming is active', async () => {
-			useChatStore.setState({ context: exerciseContext });
+			useChatStore.setState({ context: exerciseContext, ...HYDRATED });
 			const mockApi = createMockVsCodeApi();
 			render(<IrisChatView vscodeApi={mockApi} />);
 
@@ -241,7 +264,7 @@ describe('Iris Chat Flow', () => {
 		});
 
 		it('completes full chat flow with streaming simulation', async () => {
-			useChatStore.setState({ context: exerciseContext });
+			useChatStore.setState({ context: exerciseContext, ...HYDRATED });
 			const mockApi = createMockVsCodeApi();
 			render(<IrisChatView vscodeApi={mockApi} />);
 
@@ -312,7 +335,7 @@ describe('Iris Chat Flow', () => {
 		});
 
 		it('accumulates stream chunks correctly in store', () => {
-			useChatStore.setState({ context: exerciseContext });
+			useChatStore.setState({ context: exerciseContext, ...HYDRATED });
 
 			const localId = 'stream-test-id';
 			act(() => {
@@ -350,12 +373,16 @@ describe('Iris Chat Flow', () => {
 
 	describe('Conversation history', () => {
 		it('preserves message history across multiple exchanges', async () => {
+			// LoadMessages is gated on activeSessionId — set it to match the dispatched payload.
+			useChatStore.setState({ activeSessionId: 'local-test' });
 			const mockApi = createMockVsCodeApi();
 			render(<IrisChatView vscodeApi={mockApi} />);
 
 			// Load multiple messages from extension
 			dispatchExtensionMessage({
 				type: 'loadMessages',
+				localSessionId: 'local-test',
+				artemisSessionId: 42,
 				messages: [
 					{ id: 1, role: 'user', content: 'First question', timestamp: Date.now() - 2000 },
 					{ id: 2, role: 'assistant', content: 'First answer', timestamp: Date.now() - 1500 },
@@ -376,6 +403,7 @@ describe('Iris Chat Flow', () => {
 			// Pre-populate with existing messages
 			useChatStore.setState({
 				context: exerciseContext,
+				...HYDRATED,
 				messages: [
 					{
 						localId: 'msg-1',
@@ -410,6 +438,7 @@ describe('Iris Chat Flow', () => {
 		it('clears messages on clearChatMessages event', async () => {
 			useChatStore.setState({
 				context: exerciseContext,
+				...HYDRATED,
 				messages: [
 					{
 						localId: 'msg-1',
@@ -439,7 +468,7 @@ describe('Iris Chat Flow', () => {
 
 	describe('Referenced files display', () => {
 		it('displays referenced files when updateReferencedFiles event received', async () => {
-			useChatStore.setState({ context: exerciseContext });
+			useChatStore.setState({ context: exerciseContext, ...HYDRATED });
 			const mockApi = createMockVsCodeApi();
 			render(<IrisChatView vscodeApi={mockApi} />);
 
@@ -506,15 +535,15 @@ describe('Iris Chat Flow', () => {
 	});
 
 	describe('WebSocket connectivity', () => {
-		it('shows WebSocket disconnected banner when not connected', () => {
-			useChatStore.setState({ isWebSocketConnected: false });
+		it('shows WebSocket disconnected banner when retries are exhausted', () => {
+			useChatStore.setState({ webSocketStatus: 'disconnected' });
 			const mockApi = createMockVsCodeApi();
 			render(<IrisChatView vscodeApi={mockApi} />);
 			expect(screen.getByText('WebSocket disconnected')).toBeInTheDocument();
 		});
 
 		it('hides WebSocket banner when connection is restored via updateWebSocketStatus', async () => {
-			useChatStore.setState({ isWebSocketConnected: false });
+			useChatStore.setState({ webSocketStatus: 'disconnected' });
 			const mockApi = createMockVsCodeApi();
 			render(<IrisChatView vscodeApi={mockApi} />);
 
@@ -522,12 +551,100 @@ describe('Iris Chat Flow', () => {
 
 			dispatchExtensionMessage({
 				type: 'updateWebSocketStatus',
-				isConnected: true,
+				status: 'connected',
 			});
 
 			await waitFor(() => {
 				expect(screen.queryByText('WebSocket disconnected')).not.toBeInTheDocument();
 			});
+		});
+	});
+
+	describe('Cold-mount hydration flow', () => {
+		it('cold mount → snapshot with imported session → LoadMessages: loader then messages, no welcome flash', async () => {
+			// Pre-init: nothing rendered yet. Simulate the real cold-start
+			// sequence the extension produces: a postSnapshot first (with
+			// the imported session UUID), then LoadMessages tagged with
+			// the same UUID.
+			useChatStore.setState({
+				activeSessionId: null,
+				messageLoad: null,
+				hasReceivedInitialIrisState: false,
+			});
+			const mockApi = createMockVsCodeApi();
+			const { container } = render(<IrisChatView vscodeApi={mockApi} />);
+
+			// Frame 1: loader, never welcome.
+			expect(screen.queryByText("Hi! I'm Iris, your AI tutor.")).not.toBeInTheDocument();
+			expect(screen.getByText(/Loading conversation/i)).toBeInTheDocument();
+
+			// Snapshot arrives with an imported session.
+			dispatchExtensionMessage({
+				type: 'updateIrisState',
+				state: {
+					context: exerciseContext,
+					activeSessionId: 'local-imported',
+					sessions: [
+						{
+							id: 'local-imported',
+							artemisSessionId: 42,
+							preview: 'Question',
+							title: '',
+							messageCount: 1,
+							createdAt: 0,
+							lastActivity: 0,
+						},
+					],
+					exercises: [],
+					courses: [],
+				},
+			});
+
+			// Still loader — load has not arrived yet.
+			expect(screen.queryByText("Hi! I'm Iris, your AI tutor.")).not.toBeInTheDocument();
+
+			// LoadMessages arrives tagged with the same local UUID.
+			dispatchExtensionMessage({
+				type: 'loadMessages',
+				localSessionId: 'local-imported',
+				artemisSessionId: 42,
+				messages: [
+					{ id: 1, role: 'user', content: 'Question', timestamp: 0, helpful: null },
+				],
+			});
+
+			await waitFor(() => {
+				expect(screen.getByText('Question')).toBeInTheDocument();
+			});
+			expect(screen.queryByText("Hi! I'm Iris, your AI tutor.")).not.toBeInTheDocument();
+		});
+
+		it('LoadMessages tagged with the wrong UUID before snapshot arrives is rejected', async () => {
+			// Reproduces the pre-fix bug: LoadMessages emit beats the snapshot
+			// to the webview. Without the extension-side fix, the webview's
+			// activeSessionId is null and the localSessionId guard rejects
+			// the payload, leaving the chat stuck on the loader.
+			useChatStore.setState({
+				activeSessionId: null,
+				messageLoad: null,
+				hasReceivedInitialIrisState: false,
+			});
+			const mockApi = createMockVsCodeApi();
+			const { container } = render(<IrisChatView vscodeApi={mockApi} />);
+
+			dispatchExtensionMessage({
+				type: 'loadMessages',
+				localSessionId: 'local-imported',
+				artemisSessionId: 42,
+				messages: [
+					{ id: 1, role: 'user', content: 'Question', timestamp: 0, helpful: null },
+				],
+			});
+
+			// Guard rejects: messageLoad still null, no messages, loader stays.
+			expect(useChatStore.getState().messageLoad).toBeNull();
+			expect(useChatStore.getState().messages).toEqual([]);
+			expect(screen.getByText(/Loading conversation/i)).toBeInTheDocument();
 		});
 	});
 });

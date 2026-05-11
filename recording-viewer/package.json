@@ -5,14 +5,19 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:live": "node -e \"if(!process.env.RECORDING_VIEWER_TOKEN){console.error('RECORDING_VIEWER_TOKEN must be set');process.exit(1)}\" && vite",
+    "dev:live:token": "echo '\\n>>> Live token: dev-only-do-not-use-in-prod\\n' && RECORDING_VIEWER_TOKEN=dev-only-do-not-use-in-prod vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "sync-types": "node scripts/sync-types.mjs"
+    "sync-types": "node scripts/sync-types.mjs",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
+    "react-virtuoso": "4.18.7",
     "recharts": "^3.8.0"
   },
   "devDependencies": {
@@ -27,6 +32,7 @@
     "globals": "^17.4.0",
     "typescript": "~5.9.3",
     "typescript-eslint": "^8.56.1",
-    "vite": "^8.0.0"
+    "vite": "^8.0.0",
+    "vitest": "4.1.5"
   }
 }

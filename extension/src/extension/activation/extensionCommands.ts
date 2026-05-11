@@ -8,6 +8,7 @@ import type { ArtemisWebviewProvider, ChatWebviewProvider } from '../provider';
 import { logger, LogCategory } from '../services/loggingService';
 import { processPlantUml, normalizeRelativePath, extractErrorMessage, VSCODE_CONFIG } from '../utils';
 import { executeReplayCommand } from '../services/telemetry/replay';
+import { getTheiaEnvironment, probeDataBridge, KNOWN_BRIDGE_KEYS } from '../theia';
 
 // ── Individual command registrations ─────────────────────────────────
 
@@ -58,8 +59,8 @@ function registerResetIrisChatCommand(chatWebviewProvider: ChatWebviewProvider):
                 title: "Resetting Iris Chat Sessions...",
                 cancellable: false
             }, async () => {
-                chatWebviewProvider.clearAllSessions();
-                vscode.window.showInformationMessage('✅ Iris chat sessions have been reset. Local session data cleared.');
+                await chatWebviewProvider.clearAllSessions();
+                vscode.window.showInformationMessage('✅ Iris chat sessions have been reset and reloaded from Artemis.');
             });
         } catch (error: unknown) {
             vscode.window.showErrorMessage(`Failed to reset Iris chat: ${extractErrorMessage(error)}`);
@@ -141,18 +142,37 @@ function registerIrisHealthCheckCommand(
     });
 }
 
-function registerWebSocketStatusCommand(artemisWebsocketService: ArtemisWebsocketService): vscode.Disposable {
+function registerWebSocketStatusCommand(
+    artemisWebsocketService: ArtemisWebsocketService,
+    authManager: AuthManager,
+): vscode.Disposable {
     return vscode.commands.registerCommand('artemis.checkWebSocketStatus', async () => {
         try {
-            const debugInfo = await artemisWebsocketService.getDebugInfoAsync();
+            const debugInfo = artemisWebsocketService.getDiagnostics();
             const isConnected = artemisWebsocketService.isConnected();
+            const connectionState = artemisWebsocketService.connectionState;
+
+            let hasCookie = false;
+            let hasJwtToken = false;
+            let cookiePreview: string | undefined;
+            try {
+                const headers = await authManager.getAuthHeaders();
+                hasCookie = Object.keys(headers).length > 0;
+                if (hasCookie) {
+                    const headerValue = headers['Cookie'] || headers['Authorization'] || '';
+                    hasJwtToken = headerValue.length > 0;
+                    cookiePreview = headerValue.substring(0, 20) + '...';
+                }
+            } catch { /* ignore auth errors in diagnostics */ }
+
             const icon = isConnected ? '🟢' : '🔴';
 
             const statusLines = [
                 `${icon} **WebSocket Status**`,
                 ``,
                 `**Connection:**`,
-                `• Connected: ${debugInfo.isConnected ? 'Yes ✅' : 'No ❌'}`,
+                `• Connected: ${isConnected ? 'Yes ✅' : 'No ❌'}`,
+                `• State: ${connectionState}`,
                 `• Client Active: ${debugInfo.clientActive ? 'Yes ✅' : 'No ❌'}`,
                 `• Client Connected: ${debugInfo.clientConnected ? 'Yes ✅' : 'No ❌'}`,
                 ``,
@@ -160,7 +180,7 @@ function registerWebSocketStatusCommand(artemisWebsocketService: ArtemisWebsocke
                 ...debugInfo.subscriptions.map(sub => `• ${sub}`),
             ];
 
-            if (!isConnected && !debugInfo.hasCookie) {
+            if (!isConnected && !hasCookie) {
                 statusLines.push(``, `⚠️ **Not connected - Please log in to Artemis first**`);
             }
 
@@ -171,30 +191,28 @@ function registerWebSocketStatusCommand(artemisWebsocketService: ArtemisWebsocke
                 `• WebSocket URL: ${debugInfo.websocketUrl}`,
                 ``,
                 `**Authentication:**`,
-                `• Has Cookie: ${debugInfo.hasCookie ? 'Yes ✅' : 'No ❌'}`,
-                `• Has JWT Token: ${debugInfo.hasJwtToken ? 'Yes ✅' : 'No ❌'}`,
+                `• Has Cookie: ${hasCookie ? 'Yes ✅' : 'No ❌'}`,
+                `• Has JWT Token: ${hasJwtToken ? 'Yes ✅' : 'No ❌'}`,
             );
 
-            if (debugInfo.cookiePreview) {
-                statusLines.push(`• Cookie Preview: ${debugInfo.cookiePreview}`);
+            if (cookiePreview) {
+                statusLines.push(`• Cookie Preview: ${cookiePreview}`);
             }
 
             statusLines.push(
                 ``,
                 `**Reconnection:**`,
                 `• Attempts: ${debugInfo.reconnectAttempts}/${debugInfo.maxReconnectAttempts}`,
-                `• Current Delay: ${debugInfo.currentReconnectDelay}ms`,
-                `• Gave Up: ${debugInfo.connectionGaveUp ? 'Yes ⛔' : 'No'}`,
+                `• Gave Up: ${connectionState === 'gave-up' ? 'Yes ⛔' : 'No'}`,
                 `• Session ID: ${debugInfo.sessionId}`,
-                `• Callbacks: ${debugInfo.callbackCount}`,
             );
 
             const message = statusLines.join('\n');
 
             let actions: string[];
-            if (!debugInfo.hasCookie) {
+            if (!hasCookie) {
                 actions = ['Login to Artemis', 'Show Details', 'Copy to Clipboard'];
-            } else if (debugInfo.connectionGaveUp) {
+            } else if (connectionState === 'gave-up') {
                 actions = ['Reset & Retry', 'Show Details', 'Copy to Clipboard'];
             } else if (!isConnected) {
                 actions = ['Retry Connection', 'Show Details', 'Copy to Clipboard'];
@@ -203,7 +221,7 @@ function registerWebSocketStatusCommand(artemisWebsocketService: ArtemisWebsocke
             }
 
             const action = await vscode.window.showInformationMessage(
-                `${icon} WebSocket: ${isConnected ? 'Connected' : 'Disconnected'}${debugInfo.connectionGaveUp ? ' (gave up)' : ''}${!debugInfo.hasCookie ? ' (Not logged in)' : ''}`,
+                `${icon} WebSocket: ${isConnected ? 'Connected' : 'Disconnected'}${connectionState === 'gave-up' ? ' (gave up)' : ''}${!hasCookie ? ' (Not logged in)' : ''}`,
                 { modal: false },
                 ...actions
             );
@@ -564,9 +582,112 @@ function registerShowJwtTokenCommand(authManager: AuthManager): vscode.Disposabl
     });
 }
 
+/**
+ * Diagnostic command: dumps the detected Theia environment so we can verify
+ * managed-deployment activation (esp. for #109). Token is masked, GIT_URI
+ * is reduced to its host so embedded credentials never leak into the UI.
+ */
+function registerShowTheiaEnvironmentCommand(): vscode.Disposable {
+    return vscode.commands.registerCommand('artemis.showTheiaEnvironment', async () => {
+        const env = getTheiaEnvironment();
+        const uiKind = vscode.env.uiKind === vscode.UIKind.Web ? 'Web' : 'Desktop';
+        const dataBridgeEnabled = process.env.DATA_BRIDGE_ENABLED;
+        const theiaFlag = process.env.THEIA;
+        const workspaceFolders = vscode.workspace.workspaceFolders ?? [];
+
+        // Render an env-var value safely: tokens reduced to length, git URIs
+        // reduced to host+path so embedded credentials never leak into the UI.
+        const formatEnvValue = (key: string, value: string | undefined): string => {
+            if (!value) { return 'missing'; }
+            if (key === 'ARTEMIS_TOKEN') { return `present (${value.length} chars)`; }
+            if (key === 'GIT_URI') {
+                try {
+                    const u = new URL(value);
+                    return `present (host: ${u.host}, path: ${u.pathname})`;
+                } catch {
+                    return 'present (unparseable)';
+                }
+            }
+            return value;
+        };
+
+        const probe = await probeDataBridge();
+
+        const probeLines: string[] = ['', '## Live data-bridge probe'];
+        if (!probe.commandAvailable) {
+            probeLines.push(
+                `- \`dataBridge.getEnv\` command: **not registered**`,
+                `- Bridge extension is not installed or not active.`,
+                `- \`process.env.DATA_BRIDGE_ENABLED\`: ${probe.bridgeEnabledFlag ?? '(unset)'}`,
+            );
+        } else if (!probe.responded) {
+            probeLines.push(
+                `- \`dataBridge.getEnv\` command: ✅ registered`,
+                `- Probe failed: ${probe.error ?? 'unknown error'}`,
+            );
+        } else {
+            const presentCount = Object.keys(probe.values).length;
+            probeLines.push(
+                `- \`dataBridge.getEnv\` command: ✅ registered, responded`,
+                `- Keys present in bridge: ${presentCount}/${KNOWN_BRIDGE_KEYS.length}`,
+            );
+            for (const key of KNOWN_BRIDGE_KEYS) {
+                probeLines.push(`- \`${key}\`: ${formatEnvValue(key, probe.values[key])}`);
+            }
+        }
+
+        const lines = [
+            `# Theia Environment Diagnostic`,
+            ``,
+            `**Result:** ${env.isTheia ? 'Theia detected ✅' : 'Theia NOT detected ❌'}`,
+            `**Managed environment:** ${env.isManagedEnvironment ? 'Yes' : 'No'}`,
+            ``,
+            `## Detection signals`,
+            `- \`vscode.env.uiKind\`: ${uiKind}`,
+            `- \`process.env.DATA_BRIDGE_ENABLED\`: ${dataBridgeEnabled ?? '(unset)'}`,
+            `- \`process.env.THEIA\`: ${theiaFlag ?? '(unset)'}`,
+            ``,
+            `## Environment variables (snapshot at activation)`,
+            `- \`ARTEMIS_URL\`: ${formatEnvValue('ARTEMIS_URL', env.artemisUrl)}`,
+            `- \`ARTEMIS_TOKEN\`: ${formatEnvValue('ARTEMIS_TOKEN', env.artemisToken)}`,
+            `- \`GIT_URI\`: ${formatEnvValue('GIT_URI', env.gitUri)}`,
+            `- \`GIT_USER\`: ${formatEnvValue('GIT_USER', env.gitUser)}`,
+            `- \`GIT_MAIL\`: ${formatEnvValue('GIT_MAIL', env.gitMail)}`,
+            ...probeLines,
+            ``,
+            `## Workspace`,
+            `- Folder count: ${workspaceFolders.length}`,
+            ...workspaceFolders.map((f, i) => `  ${i + 1}. \`${f.uri.fsPath}\``),
+        ];
+        const details = lines.join('\n');
+
+        const summary = env.isTheia
+            ? `✅ Theia detected (uiKind=${uiKind}, managed=${env.isManagedEnvironment})`
+            : `❌ Theia NOT detected (uiKind=${uiKind}, DATA_BRIDGE_ENABLED=${dataBridgeEnabled ?? 'unset'})`;
+
+        const action = await vscode.window.showInformationMessage(
+            summary,
+            { modal: false },
+            'Show Details',
+            'Copy to Clipboard',
+        );
+
+        if (action === 'Show Details') {
+            const doc = await vscode.workspace.openTextDocument({
+                content: details,
+                language: 'markdown',
+            });
+            await vscode.window.showTextDocument(doc, { preview: true });
+        } else if (action === 'Copy to Clipboard') {
+            await vscode.env.clipboard.writeText(details);
+            vscode.window.showInformationMessage('Theia environment copied to clipboard');
+        }
+    });
+}
+
 // ── Aggregate registration ───────────────────────────────────────────
 
-export interface CommandDeps {
+interface CommandDeps {
     context: vscode.ExtensionContext;
     authManager: AuthManager;
     artemisApiService: ArtemisApiService;
@@ -584,7 +705,7 @@ export function registerAllCommands(deps: CommandDeps): vscode.Disposable {
         registerLogoutCommand(deps.authManager, deps.artemisApiService, deps.updateAuthContext, deps.artemisWebviewProvider),
         registerResetIrisChatCommand(deps.chatWebviewProvider),
         registerIrisHealthCheckCommand(deps.authManager, deps.artemisApiService, deps.providerRegistry),
-        registerWebSocketStatusCommand(deps.artemisWebsocketService),
+        registerWebSocketStatusCommand(deps.artemisWebsocketService, deps.authManager),
         registerConnectWebSocketCommand(deps.authManager, deps.artemisWebsocketService),
         registerPlantUmlRenderCommand(deps.artemisApiService),
         registerGoToSourceErrorCommand(),
@@ -594,5 +715,6 @@ export function registerAllCommands(deps: CommandDeps): vscode.Disposable {
         registerReplaySessionCommand(deps.context.globalStorageUri),
         registerOpenRecordingsFolderCommand(deps.context.globalStorageUri),
         registerShowJwtTokenCommand(deps.authManager),
+        registerShowTheiaEnvironmentCommand(),
     );
 }

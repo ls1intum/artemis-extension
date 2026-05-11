@@ -2,7 +2,7 @@ import { ReactNode } from 'react';
 import clsx from 'clsx';
 import styles from './Button.module.css';
 
-export interface ButtonProps {
+interface ButtonProps {
   children?: ReactNode;
   onClick?: () => void;
   variant?: 'primary' | 'secondary' | 'icon' | 'link' | 'ghost';

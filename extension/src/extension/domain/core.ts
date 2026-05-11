@@ -60,7 +60,7 @@ export function parseArtemisUser(data: unknown): ArtemisUser {
     };
 }
 
-export interface ArtemisCourse {
+interface ArtemisCourse {
     readonly id: number;
     readonly title: string;
     readonly shortName: string;
@@ -74,7 +74,7 @@ export interface ArtemisCourse {
     readonly instructorGroupName?: string;
 }
 
-export function parseArtemisCourse(data: unknown): ArtemisCourse {
+function parseArtemisCourse(data: unknown): ArtemisCourse {
     if (!data || typeof data !== 'object') {
         throw new Error('Invalid ArtemisCourse data');
     }
@@ -107,7 +107,7 @@ export interface ArtemisExercise {
     readonly course?: ArtemisCourse;
 }
 
-export function parseArtemisExercise(data: unknown): ArtemisExercise {
+function parseArtemisExercise(data: unknown): ArtemisExercise {
     if (!data || typeof data !== 'object') {
         throw new Error('Invalid ArtemisExercise data');
     }

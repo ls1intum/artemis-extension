@@ -1,9 +1,2 @@
 export { SessionRecorder } from './sessionRecorder';
 export { RecordingStatusBarService } from './recordingStatusBar';
-export { RecordingStorageWriter } from './storageWriter';
-export type {
-    RecordedEvent,
-    SessionMetadata,
-    SerializedRange,
-    SerializedDiagnostic,
-} from './types';

@@ -1,11 +1,12 @@
 import * as vscode from 'vscode';
-import { readEnvVars } from './envVarReader';
 import { readEnvVarsViaDataBridge } from './dataBridgeReader';
+import { logger, LogCategory } from '../services/loggingService';
 import { VSCODE_ENVIRONMENT, type TheiaEnvironment } from './types';
 
 /**
  * Environment variable names used for Theia/EduIDE integration.
- * These are set by the EduIDE container orchestrator before extension activation.
+ * The EduIDE operator POSTs these to the data-bridge after pod boot;
+ * the bridge then exposes them via the `dataBridge.getEnv` command.
  */
 const THEIA_ENV_VARS = [
     'ARTEMIS_URL',
@@ -44,36 +45,58 @@ export function getTheiaEnvironment(): TheiaEnvironment {
  * Detects whether the extension is running inside a Theia-based IDE
  * and reads all relevant environment variables.
  *
- * Detection uses functional prerequisites (presence of specific env vars)
- * combined with a secondary UI-kind check to prevent false positives when
- * a developer accidentally has ARTEMIS_URL in their shell profile.
- *
- * This function is async because env var reading may require exec() in
- * Theia environments where process.env is unreliable.
+ * The data-bridge is the sole source of truth. The reader distinguishes three
+ * outcomes; each maps to a different boot path here:
+ *  - `no-bridge`: `DATA_BRIDGE_ENABLED` not set → genuinely Desktop. Return
+ *    the non-Theia default; Cookie auth and interactive login are correct.
+ *  - `failure`: bridge was expected but unreachable. Surface a hard error so
+ *    the operator and the student see why authentication will not work,
+ *    instead of silently booting in Desktop-Cookie mode against an EduIDE
+ *    Artemis (which would then attempt the wrong auth scheme and fail with
+ *    a confusing 401). The extension still loads so the diagnostic command
+ *    remains accessible.
+ *  - `success`: bridge delivered all keys → Theia-managed environment.
  */
 async function detectTheiaEnvironment(): Promise<TheiaEnvironment> {
-    // Try data-bridge first (EduIDE cloud deployments with late-arriving credentials).
-    // Returns undefined immediately if data-bridge extension is not installed (no overhead).
-    // Falls back to process env if data-bridge is unavailable or times out.
-    const env = await readEnvVarsViaDataBridge(THEIA_ENV_VARS)
-        ?? await readEnvVars(THEIA_ENV_VARS);
+    const result = await readEnvVarsViaDataBridge(THEIA_ENV_VARS);
 
-    const hasTheiaEnvVars = !!(env.ARTEMIS_TOKEN || env.ARTEMIS_URL);
-    const isWebUI = vscode.env.uiKind === vscode.UIKind.Web;
-    const dataBridgeEnabled = process.env.DATA_BRIDGE_ENABLED === '1'
-        || process.env.DATA_BRIDGE_ENABLED === 'true';
-
-    // Env vars alone in Desktop mode are likely accidental (e.g., shell profile).
-    // Require either a web UI host (Theia) or the DATA_BRIDGE_ENABLED flag
-    // (set by the EduIDE container orchestrator at boot).
-    const isTheia = hasTheiaEnvVars && (isWebUI || dataBridgeEnabled);
-
-    if (!isTheia) {
+    if (result.kind === 'no-bridge') {
         return VSCODE_ENVIRONMENT;
     }
 
-    // Managed environment requires both URL and token for full automation
-    const isManagedEnvironment = !!(env.ARTEMIS_URL && env.ARTEMIS_TOKEN);
+    if (result.kind === 'failure') {
+        const reasonText =
+            result.reason === 'command-missing'
+                ? 'data-bridge extension not registered'
+                : result.reason === 'timeout'
+                    ? 'timed out waiting for credentials'
+                    : 'invalid response';
+        const detailsSuffix = result.details ? ` (${result.details})` : '';
+        logger.error(
+            `EduIDE bridge unavailable: ${reasonText}${detailsSuffix}`,
+            LogCategory.GENERAL,
+        );
+        void vscode.window.showErrorMessage(
+            `Iris: EduIDE bridge unavailable (${reasonText}). Authentication and auto-clone will not work. ` +
+                'Restart your EduIDE pod or contact support.',
+        );
+        return VSCODE_ENVIRONMENT;
+    }
+
+    const env = result.env;
+    if (!env.ARTEMIS_TOKEN || !env.ARTEMIS_URL) {
+        // Bridge responded but did not deliver the auth pair — same hard
+        // failure as `failure` from the caller's perspective.
+        logger.error(
+            'EduIDE bridge response missing ARTEMIS_URL or ARTEMIS_TOKEN',
+            LogCategory.GENERAL,
+        );
+        void vscode.window.showErrorMessage(
+            'Iris: EduIDE bridge returned an incomplete credential set. Authentication will not work. ' +
+                'Restart your EduIDE pod or contact support.',
+        );
+        return VSCODE_ENVIRONMENT;
+    }
 
     return Object.freeze({
         isTheia: true,
@@ -82,6 +105,6 @@ async function detectTheiaEnvironment(): Promise<TheiaEnvironment> {
         gitUri: env.GIT_URI,
         gitUser: env.GIT_USER,
         gitMail: env.GIT_MAIL,
-        isManagedEnvironment,
+        isManagedEnvironment: !!(env.ARTEMIS_URL && env.ARTEMIS_TOKEN),
     });
 }

@@ -164,40 +164,46 @@
     opacity: 0.3;
 }
 
-.skeletonContainer {
-    padding: 20px;
+.loadingState {
     display: flex;
     flex-direction: column;
-    gap: 12px;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    height: 100%;
+    padding: 48px 24px;
+    text-align: center;
+    color: var(--vscode-descriptionForeground, var(--vscode-foreground));
+    font-size: 14px;
 }
 
-.skeleton {
-    height: 60px;
-    background: var(--vscode-input-background);
-    border-radius: 8px;
-    opacity: 0.6;
-    animation: pulse 1.5s ease-in-out infinite;
+.loadingLogo {
+    opacity: 0.8;
 }
 
-.skeleton1 {
-    height: 80px;
+.loadingSpinner {
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    border: 2px solid var(--vscode-descriptionForeground, var(--vscode-foreground));
+    border-top-color: transparent;
+    animation: spin 0.8s linear infinite;
 }
 
-.skeleton2 {
-    height: 50px;
-}
-
-.skeleton3 {
-    height: 70px;
-}
-
-@keyframes pulse {
-    0%, 100% {
-        opacity: 0.4;
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
     }
-    50% {
-        opacity: 0.6;
-    }
+}
+
+.loadError {
+    padding: 12px 14px;
+    border-radius: 6px;
+    background: var(--vscode-inputValidation-errorBackground, var(--vscode-input-background));
+    color: var(--vscode-inputValidation-errorForeground, var(--vscode-foreground));
+    border: 1px solid var(--vscode-inputValidation-errorBorder, transparent);
+    font-size: 13px;
+    line-height: 1.4;
 }
 
 /* Input Section */

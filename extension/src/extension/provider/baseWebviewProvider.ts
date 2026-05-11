@@ -13,6 +13,12 @@ import { logger, LogCategory } from '../services/loggingService';
 export abstract class BaseWebviewProvider {
     protected _view?: vscode.WebviewView;
     protected readonly _disposables: vscode.Disposable[] = [];
+    /**
+     * Disposables tied to the current webview view resolution. Cleared on
+     * every re-resolve so listeners registered in resolveWebviewView() do
+     * not accumulate across view destroy/recreate cycles.
+     */
+    protected _viewDisposables: vscode.Disposable[] = [];
 
     constructor(protected readonly _logCategory: LogCategory = LogCategory.VIEW) {}
 
@@ -25,6 +31,19 @@ export abstract class BaseWebviewProvider {
     /** Called for command-type messages after boilerplate handling. */
     protected abstract _handleCommand(message: Extract<WebviewToExtensionMessage, { type: 'command' }>): void;
 
+    /**
+     * Synchronously return the current panel visibility. Returns false when
+     * the view has not yet been resolved by VS Code.
+     *
+     * Used by session-recorder Startup-Contributors to seed a
+     * `panelVisibility` event reflecting the view's state at session start,
+     * even if the `onDidChangeVisibility` emitter has not fired yet this
+     * session.
+     */
+    public getCurrentVisibility(): boolean {
+        return this._view?.visible ?? false;
+    }
+
     /** Re-render the webview to pick up theme / config changes. */
     public refreshTheme(): void {
         Promise.resolve(this.render()).catch((err: unknown) => {
@@ -32,10 +51,19 @@ export abstract class BaseWebviewProvider {
         });
     }
 
-    /** Dispose every item in `_disposables` (LIFO order). */
+    /** Dispose every item in `_disposables` and `_viewDisposables` (LIFO order). */
     protected _drainDisposables(): void {
+        this._drainViewDisposables();
         while (this._disposables.length > 0) {
             const d = this._disposables.pop();
+            d?.dispose();
+        }
+    }
+
+    /** Dispose only the per-view-resolution disposables. */
+    protected _drainViewDisposables(): void {
+        while (this._viewDisposables.length > 0) {
+            const d = this._viewDisposables.pop();
             d?.dispose();
         }
     }

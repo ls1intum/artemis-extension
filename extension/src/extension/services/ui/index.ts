@@ -5,3 +5,4 @@ export { createProviderRegistry, type IProviderRegistry } from './providerRegist
 export { BuildDiagnosticsService } from './buildDiagnosticsService';
 export { ExerciseOpeningService } from './exerciseOpeningService';
 export { StartPageResolver, type StartPageResult } from './startPageResolver';
+export { SubmissionWebSocketHandler } from './submissionWebSocketHandler';

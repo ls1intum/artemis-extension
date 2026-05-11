@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { memo } from 'react';
 import {
     LineChart,
     Line,
@@ -8,11 +8,11 @@ import {
     Tooltip,
     ResponsiveContainer,
     ReferenceLine,
-    ReferenceArea,
     Dot,
 } from 'recharts';
 import type { Annotation, RecordedEvent, EqSnapshotEvent, ReplayEqSnapshot } from '../types.ts';
 import { formatOffset } from '../utils/format.ts';
+import { SessionChartOverlay } from './SessionChartOverlay';
 
 interface Props {
     events: RecordedEvent[];
@@ -124,32 +124,29 @@ function ChartTooltip({ active, payload }: { active?: boolean; payload?: Array<{
     );
 }
 
+interface LineChartProps {
+    events: RecordedEvent[];
+    sessionStartTime: number;
+    replayEq?: ReplayEqSnapshot[];
+    annotations: Annotation[];
+    xDomain: [number, number];
+}
 
-export function SessionTimeline({ events, sessionStartTime, replayEq, annotations = [], xDomain: externalXDomain, zoomedRange, videoTimeRef }: Props) {
-
-    // Throttled playhead position (updates every 250ms)
-    const [playheadOffset, setPlayheadOffset] = useState<number | null>(null);
-    useEffect(() => {
-        if (!videoTimeRef) return;
-        const interval = setInterval(() => {
-            const ts = videoTimeRef.current;
-            if (ts > 0) {
-                setPlayheadOffset(ts - sessionStartTime);
-            }
-        }, 250);
-        return () => clearInterval(interval);
-    }, [videoTimeRef, sessionStartTime]);
+/**
+ * Data-only chart. Wrapped in React.memo so it only rerenders when the
+ * underlying data changes — not on every pan/zoom frame. The live zoom
+ * rectangle and video playhead live in SessionChartOverlay as a DOM
+ * sibling instead, so they never touch recharts.
+ */
+const SessionLineChart = memo(function SessionLineChart({
+    events,
+    sessionStartTime,
+    replayEq,
+    annotations,
+    xDomain,
+}: LineChartProps) {
     const eqEvents = events.filter((e): e is EqSnapshotEvent => e.type === 'eqSnapshot');
     const hasReplay = replayEq && replayEq.length > 0;
-
-    if (eqEvents.length === 0 && !hasReplay) {
-        return (
-            <div className="eq-chart empty">
-                <h2>Session Timeline</h2>
-                <p className="empty-message">No EQ snapshots in this session.</p>
-            </div>
-        );
-    }
 
     // Build merged data points
     const mergedMap = new Map<number, ChartPoint>();
@@ -216,15 +213,110 @@ export function SessionTimeline({ events, sessionStartTime, replayEq, annotation
 
     const data = [...mergedMap.values()].sort((a, b) => a.timeOffset - b.timeOffset);
 
-    // Use shared xDomain when provided, otherwise compute from EQ data + annotations
+    return (
+        <ResponsiveContainer width="100%" height={200}>
+            <LineChart data={data} margin={{ top: 10, right: 0, left: 0, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#333" />
+                <XAxis
+                    dataKey="timeOffset"
+                    type="number"
+                    domain={xDomain}
+                    tick={false}
+                    axisLine={false}
+                    height={0}
+                />
+                <YAxis
+                    domain={[0, 100]}
+                    tickFormatter={v => `${v}%`}
+                    stroke="#888"
+                    fontSize={11}
+                    width={1}
+                    mirror
+                />
+                <Tooltip content={<ChartTooltip />} />
+
+                {annotations.map(a => (
+                    <ReferenceLine
+                        key={`annot-${a.id}`}
+                        x={a.timestamp - sessionStartTime}
+                        stroke="#38bdf8"
+                        strokeDasharray="2 2"
+                        strokeWidth={1.5}
+                        strokeOpacity={0.8}
+                        label={{ value: '\u270E', position: 'insideTopRight', fill: '#38bdf8', fontSize: 11, offset: 4 }}
+                    />
+                ))}
+
+                {/* Original EQ line */}
+                <Line
+                    type="monotone"
+                    dataKey="eqPercent"
+                    stroke={hasReplay ? '#94a3b8' : '#6366f1'}
+                    strokeWidth={hasReplay ? 1.5 : 2}
+                    strokeDasharray={hasReplay ? '6 4' : undefined}
+                    dot={hasReplay ? <EqDotDimmed /> : <EqDot />}
+                    activeDot={hasReplay ? { r: 4, fill: '#94a3b8' } : { r: 6, fill: '#818cf8' }}
+                    connectNulls
+                />
+
+                {/* Replay EQ line (only when replay data present) */}
+                {hasReplay && (
+                    <Line
+                        type="monotone"
+                        dataKey="replayEqPercent"
+                        stroke="#6366f1"
+                        strokeWidth={2}
+                        dot={<ReplayConfidenceDot />}
+                        activeDot={{ r: 6, fill: '#818cf8' }}
+                        connectNulls
+                    />
+                )}
+            </LineChart>
+        </ResponsiveContainer>
+    );
+});
+
+
+export function SessionTimeline({ events, sessionStartTime, replayEq, annotations = [], xDomain: externalXDomain, zoomedRange, videoTimeRef }: Props) {
+    const eqEvents = events.filter((e): e is EqSnapshotEvent => e.type === 'eqSnapshot');
+    const hasReplay = replayEq && replayEq.length > 0;
+
+    if (eqEvents.length === 0 && !hasReplay) {
+        return (
+            <div className="eq-chart empty">
+                <h2>Session Timeline</h2>
+                <p className="empty-message">No EQ snapshots in this session.</p>
+            </div>
+        );
+    }
+
+    // Use shared xDomain when provided, otherwise derive one from EQ events,
+    // replay EQ snapshots, and annotations. Replay data can extend past the
+    // live EQ stream (or exist on its own), so it must contribute to the
+    // fallback window for the public optional-xDomain contract.
     let xDomain: [number, number];
     if (externalXDomain) {
         xDomain = externalXDomain;
     } else {
-        const dataOffsets = data.map(d => d.timeOffset);
-        const annotOffsets = annotations.map(a => a.timestamp - sessionStartTime);
-        const xMin = Math.min(...dataOffsets, ...annotOffsets);
-        const xMax = Math.max(...dataOffsets, ...annotOffsets);
+        let xMin = Infinity;
+        let xMax = -Infinity;
+        for (const e of eqEvents) {
+            const off = e.timestamp - sessionStartTime;
+            if (off < xMin) xMin = off;
+            if (off > xMax) xMax = off;
+        }
+        if (replayEq) {
+            for (const r of replayEq) {
+                const off = r.timestamp - sessionStartTime;
+                if (off < xMin) xMin = off;
+                if (off > xMax) xMax = off;
+            }
+        }
+        for (const a of annotations) {
+            const off = a.timestamp - sessionStartTime;
+            if (off < xMin) xMin = off;
+            if (off > xMax) xMax = off;
+        }
         const xPadding = Math.max((xMax - xMin) * 0.03, 1000);
         xDomain = [Math.max(0, xMin - xPadding), xMax + xPadding];
     }
@@ -235,91 +327,22 @@ export function SessionTimeline({ events, sessionStartTime, replayEq, annotation
                 <div className="eq-chart-label">
                     <span className="event-badge eqSnapshot">EQ</span>
                 </div>
-                <div>
-                <ResponsiveContainer width="100%" height={200}>
-                    <LineChart data={data} margin={{ top: 10, right: 0, left: 0, bottom: 0 }}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="#333" />
-                        <XAxis
-                            dataKey="timeOffset"
-                            type="number"
-                            domain={xDomain}
-                            tick={false}
-                            axisLine={false}
-                            height={0}
-                        />
-                        <YAxis
-                            domain={[0, 100]}
-                            tickFormatter={v => `${v}%`}
-                            stroke="#888"
-                            fontSize={11}
-                            width={1}
-                            mirror
-                        />
-                    <Tooltip content={<ChartTooltip />} />
-
-                    {annotations.map(a => (
-                        <ReferenceLine
-                            key={`annot-${a.id}`}
-                            x={a.timestamp - sessionStartTime}
-                            stroke="#38bdf8"
-                            strokeDasharray="2 2"
-                            strokeWidth={1.5}
-                            strokeOpacity={0.8}
-                            label={{ value: '\u270E', position: 'insideTopRight', fill: '#38bdf8', fontSize: 11, offset: 4 }}
-                        />
-                    ))}
-
-                    {/* Zoomed range highlight */}
-                    {zoomedRange && (
-                        <ReferenceArea
-                            x1={zoomedRange[0]}
-                            x2={zoomedRange[1]}
-                            fill="#6366f1"
-                            fillOpacity={0.12}
-                            stroke="#6366f1"
-                            strokeOpacity={0.4}
-                            strokeWidth={1}
-                        />
-                    )}
-
-                    {/* Video playhead */}
-                    {playheadOffset != null && (
-                        <ReferenceLine
-                            x={playheadOffset}
-                            stroke="#ef4444"
-                            strokeWidth={1.5}
-                        />
-                    )}
-
-                    {/* Original EQ line */}
-                    <Line
-                        type="monotone"
-                        dataKey="eqPercent"
-                        stroke={hasReplay ? '#94a3b8' : '#6366f1'}
-                        strokeWidth={hasReplay ? 1.5 : 2}
-                        strokeDasharray={hasReplay ? '6 4' : undefined}
-                        dot={hasReplay ? <EqDotDimmed /> : <EqDot />}
-                        activeDot={hasReplay ? { r: 4, fill: '#94a3b8' } : { r: 6, fill: '#818cf8' }}
-                        connectNulls
+                <div style={{ position: 'relative' }}>
+                    <SessionLineChart
+                        events={events}
+                        sessionStartTime={sessionStartTime}
+                        replayEq={replayEq}
+                        annotations={annotations}
+                        xDomain={xDomain}
                     />
-
-                    {/* Replay EQ line (only when replay data present) */}
-                    {hasReplay && (
-                        <Line
-                            type="monotone"
-                            dataKey="replayEqPercent"
-                            stroke="#6366f1"
-                            strokeWidth={2}
-                            dot={<ReplayConfidenceDot />}
-                            activeDot={{ r: 6, fill: '#818cf8' }}
-                            connectNulls
-                        />
-                    )}
-                    </LineChart>
-                </ResponsiveContainer>
+                    <SessionChartOverlay
+                        xDomain={xDomain}
+                        zoomedRange={zoomedRange}
+                        videoTimeRef={videoTimeRef}
+                        sessionStartTime={sessionStartTime}
+                    />
                 </div>
             </div>
-
         </div>
     );
 }

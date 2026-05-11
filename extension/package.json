@@ -2,7 +2,7 @@
   "name": "iris-thaumantias",
   "displayName": "Artemis - TUM",
   "description": "Artemis brings interactive learning to life with instant, individual feedback on programming exercises, quizzes, modeling tasks, and more. This VS Code extension integrates Iris, an LLM-based virtual assistant that supports students with instant answers about exercises, lectures, and learning performance. Iris provides context-aware, personalized assistance for programming exercises, encouraging independent problem-solving through subtle hints and guiding questions instead of giving full solutions.",
-  "version": "0.4.1",
+  "version": "0.4.4",
   "publisher": "aet-tum",
   "license": "MIT",
   "icon": "media/artemis-blue.png",
@@ -42,42 +42,42 @@
     "commands": [
       {
         "command": "artemis.login",
-        "title": "Login to Artemis",
+        "title": "Artemis: Login",
         "icon": "$(sign-in)"
       },
       {
         "command": "artemis.logout",
-        "title": "Logout from Artemis",
+        "title": "Artemis: Logout",
         "icon": "$(sign-out)"
       },
       {
         "command": "artemis.checkIrisHealth",
-        "title": "Check Iris Health Status",
+        "title": "Artemis: Check Iris Health Status",
         "icon": "$(heart)"
       },
       {
         "command": "artemis.resetIrisChat",
-        "title": "Reset Iris Chat Sessions (Debug)",
+        "title": "Artemis: Reset Iris Chat Sessions (Debug)",
         "icon": "$(refresh)"
       },
       {
         "command": "artemis.checkWebSocketStatus",
-        "title": "Check WebSocket Connection Status",
+        "title": "Artemis: Check WebSocket Connection Status",
         "icon": "$(broadcast)"
       },
       {
         "command": "artemis.connectWebSocket",
-        "title": "Connect to Artemis WebSocket",
+        "title": "Artemis: Connect WebSocket",
         "icon": "$(plug)"
       },
       {
         "command": "artemis.showStruggleScore",
-        "title": "Show Struggle Detection Score (Debug)",
+        "title": "Artemis: Show Struggle Detection Score (Debug)",
         "icon": "$(graph)"
       },
       {
         "command": "artemis.replaySession",
-        "title": "Replay Session (EQ Tuning)",
+        "title": "Artemis: Replay Session (EQ Tuning)",
         "icon": "$(play)"
       },
       {
@@ -98,6 +98,11 @@
         "command": "artemis.showJwtToken",
         "title": "Artemis: Show JWT Token (Developer)",
         "icon": "$(key)"
+      },
+      {
+        "command": "artemis.showTheiaEnvironment",
+        "title": "Artemis: Show Theia Environment (Diagnostic)",
+        "icon": "$(info)"
       }
     ],
     "menus": {
@@ -140,8 +145,7 @@
           "type": "webview",
           "id": "artemis.loginView",
           "name": "Artemis",
-          "icon": "media/artemis-logo.png",
-          "when": "iris:extensionReady"
+          "icon": "media/artemis-logo.png"
         }
       ],
       "iris-chat": [
@@ -202,6 +206,11 @@
           "type": "boolean",
           "default": true,
           "description": "Enable struggle detection to receive helpful hints when you might be stuck on a problem"
+        },
+        "artemis.struggleDetection.showInterventions": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Show help suggestions when struggle is detected (status bar hint and notification popups). When **disabled**, no UI prompts will appear during struggle, but data collection continues unchanged. Use this if you prefer to work without interruptions while still contributing to research data."
         },
         "artemis.startPage": {
           "type": "string",
@@ -270,6 +279,7 @@
     "test:react:coverage": "vitest run --coverage",
     "test:struggle": "npm run compile-tests && vscode-test --label struggle",
     "test:e2e": "npm run compile-tests && vscode-test --label e2e",
+    "test:recorder-e2e": "npm run compile-tests && vscode-test --label recorder-e2e",
     "test:ui": "bash test/e2e/ui/run-tests.sh",
     "test:all": "npm run test:unit && npm run test:react",
     "coverage:all": "npm run test:unit:coverage && npm run test:react:coverage",
@@ -277,6 +287,9 @@
     "knip:exports": "knip --exports",
     "clean": "rm -rf dist out *.vsix",
     "compile:clean": "npm run clean && npm run compile",
+    "validate-recording": "tsx scripts/validate-recording.ts",
+    "roundtrip-recording": "tsx scripts/roundtrip-recording.ts",
+    "event-coverage": "tsx scripts/event-coverage.ts",
     "prepare": "husky",
     "vscode:prepublish": "npm run package"
   },
@@ -318,6 +331,7 @@
     "mocha-junit-reporter": "2.2.1",
     "npm-run-all2": "8.0.4",
     "sinon": "21.0.3",
+    "tsx": "4.19.2",
     "typescript": "5.9.3",
     "typescript-plugin-css-modules": "5.2.0",
     "vitest": "4.0.18",

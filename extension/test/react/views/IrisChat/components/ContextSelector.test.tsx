@@ -26,16 +26,12 @@ const defaultProps = {
 	context: null,
 	sessions: [],
 	activeSessionId: null,
-	recentExercises: [],
-	recentCourses: [],
-	allExercises: [],
-	allCourses: [],
-	forceContextPicker: false,
+	exercises: [],
+	courses: [],
 	onSelectContext: vi.fn(),
 	onSelectSession: vi.fn(),
 	onCreateNewSession: vi.fn(),
 	onSwitchToWorkspace: vi.fn(),
-	onSwitchContext: vi.fn(),
 };
 
 describe('ContextSelector', () => {
@@ -59,14 +55,13 @@ describe('ContextSelector', () => {
 			source: 'user-selected',
 		};
 		render(<ContextSelector {...defaultProps} context={context} />);
-		expect(screen.getByText('Sorting Algorithms')).toBeInTheDocument();
+		expect(screen.getByText(/Sorting Algorithms/)).toBeInTheDocument();
 	});
 
 	it('opens dropdown when header button clicked', async () => {
 		render(<ContextSelector {...defaultProps} />);
 		const headerButton = screen.getByRole('button');
 		await userEvent.click(headerButton);
-		// Search input appears when dropdown is open
 		expect(screen.getByPlaceholderText('Search exercises or courses...')).toBeInTheDocument();
 	});
 
@@ -81,12 +76,12 @@ describe('ContextSelector', () => {
 		expect(screen.queryByPlaceholderText('Search exercises or courses...')).not.toBeInTheDocument();
 	});
 
-	it('displays recent exercises in context picker mode (no context)', async () => {
+	it('displays exercises in dropdown', async () => {
 		const exercises = [
 			makeContextItem(1, 'Bubble Sort'),
 			makeContextItem(2, 'Binary Search'),
 		];
-		render(<ContextSelector {...defaultProps} recentExercises={exercises} allExercises={exercises} />);
+		render(<ContextSelector {...defaultProps} exercises={exercises} />);
 
 		await userEvent.click(screen.getByRole('button'));
 
@@ -94,12 +89,12 @@ describe('ContextSelector', () => {
 		expect(screen.getByText('Binary Search')).toBeInTheDocument();
 	});
 
-	it('displays recent courses in context picker mode (no context)', async () => {
+	it('displays courses in dropdown', async () => {
 		const courses = [
 			makeContextItem(10, 'Introduction to Programming'),
 			makeContextItem(11, 'Data Structures'),
 		];
-		render(<ContextSelector {...defaultProps} recentCourses={courses} allCourses={courses} />);
+		render(<ContextSelector {...defaultProps} courses={courses} />);
 
 		await userEvent.click(screen.getByRole('button'));
 
@@ -114,8 +109,7 @@ describe('ContextSelector', () => {
 			<ContextSelector
 				{...defaultProps}
 				onSelectContext={onSelectContext}
-				recentExercises={exercises}
-				allExercises={exercises}
+				exercises={exercises}
 			/>
 		);
 
@@ -127,13 +121,7 @@ describe('ContextSelector', () => {
 
 	it('closes dropdown after selecting an exercise', async () => {
 		const exercises = [makeContextItem(1, 'Merge Sort')];
-		render(
-			<ContextSelector
-				{...defaultProps}
-				recentExercises={exercises}
-				allExercises={exercises}
-			/>
-		);
+		render(<ContextSelector {...defaultProps} exercises={exercises} />);
 
 		await userEvent.click(screen.getByRole('button'));
 		await userEvent.click(screen.getByText('Merge Sort'));
@@ -147,13 +135,7 @@ describe('ContextSelector', () => {
 			makeContextItem(2, 'Merge Sort'),
 			makeContextItem(3, 'Binary Tree'),
 		];
-		render(
-			<ContextSelector
-				{...defaultProps}
-				allExercises={exercises}
-				recentExercises={exercises}
-			/>
-		);
+		render(<ContextSelector {...defaultProps} exercises={exercises} />);
 
 		await userEvent.click(screen.getByRole('button'));
 		const searchInput = screen.getByPlaceholderText('Search exercises or courses...');
@@ -164,7 +146,7 @@ describe('ContextSelector', () => {
 		expect(screen.queryByText('Binary Tree')).not.toBeInTheDocument();
 	});
 
-	it('shows sessions list when context is already set', async () => {
+	it('shows sessions list when context is set', async () => {
 		const context: ChatContext = {
 			type: 'exercise',
 			id: 1,
@@ -182,7 +164,7 @@ describe('ContextSelector', () => {
 			/>
 		);
 
-		await userEvent.click(screen.getByText('Sorting Algorithms'));
+		await userEvent.click(screen.getByRole('button', { name: /Sorting Algorithms/ }));
 
 		expect(screen.getByText('Preview of session session-1')).toBeInTheDocument();
 	});
@@ -205,7 +187,7 @@ describe('ContextSelector', () => {
 			/>
 		);
 
-		await userEvent.click(screen.getByText('Test Exercise'));
+		await userEvent.click(screen.getByRole('button', { name: /Test Exercise/ }));
 		expect(screen.getByText('New Conversation')).toBeInTheDocument();
 	});
 
@@ -229,7 +211,7 @@ describe('ContextSelector', () => {
 			/>
 		);
 
-		await userEvent.click(screen.getByText('Test Exercise'));
+		await userEvent.click(screen.getByRole('button', { name: /Test Exercise/ }));
 		await userEvent.click(screen.getByText('New Conversation'));
 
 		expect(onCreateNewSession).toHaveBeenCalledOnce();
@@ -239,8 +221,7 @@ describe('ContextSelector', () => {
 		render(
 			<ContextSelector
 				{...defaultProps}
-				allExercises={[makeContextItem(1, 'Bubble Sort')]}
-				recentExercises={[makeContextItem(1, 'Bubble Sort')]}
+				exercises={[makeContextItem(1, 'Bubble Sort')]}
 			/>
 		);
 
@@ -249,27 +230,6 @@ describe('ContextSelector', () => {
 		await userEvent.type(searchInput, 'zzznomatch');
 
 		expect(screen.getByText('No exercises or courses found')).toBeInTheDocument();
-	});
-
-	it('displays "Switch to Different Context" button in session list mode', async () => {
-		const context: ChatContext = {
-			type: 'exercise',
-			id: 1,
-			title: 'My Exercise',
-			locked: false,
-			source: 'user-selected',
-		};
-		render(
-			<ContextSelector
-				{...defaultProps}
-				context={context}
-				sessions={[makeSession('s1', 1)]}
-				activeSessionId="s1"
-			/>
-		);
-
-		await userEvent.click(screen.getByText('My Exercise'));
-		expect(screen.getByText('Switch to Different Context')).toBeInTheDocument();
 	});
 
 	it('calls onSelectSession when a session is clicked', async () => {
@@ -292,9 +252,48 @@ describe('ContextSelector', () => {
 			/>
 		);
 
-		await userEvent.click(screen.getByText('Exercise'));
+		await userEvent.click(screen.getByRole('button', { name: /Exercise/ }));
 		await userEvent.click(screen.getByText('Preview of session session-abc'));
 
 		expect(onSelectSession).toHaveBeenCalledWith('session-abc');
+	});
+
+	it('shows course shortName as tag next to exercises', async () => {
+		const exercises = [makeContextItem(1, 'Bubble Sort', { courseId: 99 })];
+		const courses = [makeContextItem(99, 'Algorithms', { shortName: 'ALG' })];
+		render(
+			<ContextSelector
+				{...defaultProps}
+				exercises={exercises}
+				courses={courses}
+			/>
+		);
+		await userEvent.click(screen.getByRole('button'));
+		expect(screen.getByText('Bubble Sort')).toBeInTheDocument();
+		expect(screen.getByText('ALG')).toBeInTheDocument();
+	});
+
+	it('hides sessions section when search is active', async () => {
+		const context: ChatContext = {
+			type: 'exercise',
+			id: 1,
+			title: 'Ex',
+			locked: false,
+			source: 'user-selected',
+		};
+		const sessions = [makeSession('s1', 3)];
+		render(
+			<ContextSelector
+				{...defaultProps}
+				context={context}
+				sessions={sessions}
+				activeSessionId="s1"
+				exercises={[makeContextItem(1, 'Ex')]}
+			/>
+		);
+		await userEvent.click(screen.getByRole('button', { name: /Ex/ }));
+		expect(screen.getByText('Preview of session s1')).toBeInTheDocument();
+		await userEvent.type(screen.getByPlaceholderText('Search exercises or courses...'), 'ex');
+		expect(screen.queryByText('Preview of session s1')).not.toBeInTheDocument();
 	});
 });

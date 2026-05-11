@@ -5,6 +5,7 @@ import {
     EQConfidence,
     EQState,
     RecommendedAction,
+    SuppressedInterventionPayload,
 } from './types';
 import type { SessionResettable, SessionStartContext } from './types';
 import { DiagnosticPersistenceService } from './diagnosticPersistenceService';
@@ -24,6 +25,7 @@ import { ResultDTO, WebSocketMessageHandler } from '../../types';
 import { VSCODE_CONFIG } from '../../utils/constants';
 import { logger, LogCategory } from '../loggingService';
 import type { ExerciseRegistry } from '../exerciseRegistry';
+import { shouldAcceptBuildResult } from './buildResultGuard';
 
 /**
  * Central orchestration service for EQ-based struggle detection.
@@ -54,6 +56,7 @@ export class TelemetryManager implements vscode.Disposable, WebSocketMessageHand
     // State
     private _websocketService: ArtemisWebsocketService | undefined;
     private _isEnabled: boolean = true;
+    private _showInterventions: boolean = true;
     private readonly _sessionServices: SessionResettable[];
     private _activeExerciseId: number | undefined;
     private _lastTriggerType: TriggerType | undefined;
@@ -83,6 +86,13 @@ export class TelemetryManager implements vscode.Disposable, WebSocketMessageHand
     public get onDidDismissIntervention() {
         return this._interventionService.onDidDismissIntervention;
     }
+
+    public get onDidBlockIntervention() {
+        return this._interventionService.onDidBlockIntervention;
+    }
+
+    private readonly _onDidSuppressIntervention = new vscode.EventEmitter<SuppressedInterventionPayload>();
+    public readonly onDidSuppressIntervention = this._onDidSuppressIntervention.event;
 
     constructor(exerciseRegistry?: ExerciseRegistry) {
         this._exerciseRegistry = exerciseRegistry;
@@ -169,6 +179,7 @@ export class TelemetryManager implements vscode.Disposable, WebSocketMessageHand
         }
 
         this._onDidCalculateEQ.dispose();
+        this._onDidSuppressIntervention.dispose();
     }
 
     // ==================== WebSocket Message Handler ====================
@@ -185,25 +196,8 @@ export class TelemetryManager implements vscode.Disposable, WebSocketMessageHand
             return;
         }
 
-        // Guard 1: Skip results when no exercise session is active (Edge Case 1b).
-        // The WebSocket subscription (personalResults) delivers results for any
-        // participation of the user, not just the active exercise's.
-        if (this._activeExerciseId === undefined) {
+        if (!shouldAcceptBuildResult(result, this._activeExerciseId, this._exerciseRegistry)) {
             return;
-        }
-
-        // Guard 2: Skip results that belong to a different exercise than the
-        // active session. ResultDTO only carries a participationId, so we
-        // resolve it through ExerciseRegistry. Policy: permissive on unknown
-        // mapping — if the registry has not yet learned this participationId
-        // (e.g. first course load not finished), we let the result through
-        // rather than dropping real data. Known mismatches are dropped.
-        const resultParticipationId = result.participation?.id;
-        if (resultParticipationId !== undefined && this._exerciseRegistry) {
-            const mappedExerciseId = this._exerciseRegistry.getExerciseIdByParticipation(resultParticipationId);
-            if (mappedExerciseId !== undefined && mappedExerciseId !== this._activeExerciseId) {
-                return;
-            }
         }
 
         // Step 1: EQ snapshot FIRST (synchronous)
@@ -398,26 +392,39 @@ export class TelemetryManager implements vscode.Disposable, WebSocketMessageHand
         const state = this._interventionService.getState();
         const decision = this._decisionEngine.evaluate(eq, confidence, triggerType, state);
 
-        if (!decision.shouldIntervene) {
-            return;
-        }
-
-        // Dispatch intervention
-        switch (decision.level) {
-            case 'subtle':
-                this._interventionService.showSubtleHintEQ(decision);
-                break;
-            case 'notification':
-                void this._interventionService.showNotificationEQ(decision).catch((err: unknown) => {
-                    logger.error('Failed to show notification intervention', LogCategory.TELEMETRY, err);
+        if (decision.shouldIntervene) {
+            if (!this._showInterventions) {
+                // UI suppressed by user setting. Decision-engine UI-delivery state is
+                // intentionally NOT advanced (no _recordIntervention) because no UI was
+                // shown. The recording layer subscribes to onDidSuppressIntervention so
+                // every eligible opportunity is captured for evaluation.
+                this._onDidSuppressIntervention.fire({
+                    decision,
+                    reason: 'user-disabled',
                 });
-                break;
-            case 'proactive':
-                void this._interventionService.showProactiveHelpEQ(decision).catch((err: unknown) => {
-                    logger.error('Failed to show proactive intervention', LogCategory.TELEMETRY, err);
-                });
-                break;
+                return;
+            }
+            switch (decision.level) {
+                case 'subtle':
+                    this._interventionService.showSubtleHintEQ(decision);
+                    break;
+                case 'notification':
+                    void this._interventionService.showNotificationEQ(decision).catch((err: unknown) => {
+                        logger.error('Failed to show notification intervention', LogCategory.TELEMETRY, err);
+                    });
+                    break;
+                case 'proactive':
+                    void this._interventionService.showProactiveHelpEQ(decision).catch((err: unknown) => {
+                        logger.error('Failed to show proactive intervention', LogCategory.TELEMETRY, err);
+                    });
+                    break;
+            }
+        } else if (decision.rawWanted) {
+            // EQ was above threshold but something blocked the intervention.
+            // Record it for telemetry (rate-limited internally).
+            this._interventionService.recordBlockedDecision(decision);
         }
+        // else: rawWanted=false → EQ below all thresholds, normal operation, no event.
     }
 
     // ==================== Public API ====================
@@ -452,6 +459,13 @@ export class TelemetryManager implements vscode.Disposable, WebSocketMessageHand
         const struggleConfig = vscode.workspace.getConfiguration(VSCODE_CONFIG.STRUGGLE_DETECTION.SECTION);
         this._isEnabled = struggleConfig.get<boolean>(VSCODE_CONFIG.STRUGGLE_DETECTION.ENABLED_KEY, true);
 
+        const previousShowInterventions = this._showInterventions;
+        const rawShow = struggleConfig.get<unknown>(
+            VSCODE_CONFIG.STRUGGLE_DETECTION.SHOW_INTERVENTIONS_KEY,
+            true,
+        );
+        this._showInterventions = typeof rawShow === 'boolean' ? rawShow : true;
+
         const wasDebugMode = this._debugMode;
         const artemisConfig = vscode.workspace.getConfiguration(VSCODE_CONFIG.ARTEMIS_SECTION);
         const developerMode = artemisConfig.get<boolean>(VSCODE_CONFIG.DEVELOPER_MODE_KEY, false);
@@ -463,6 +477,16 @@ export class TelemetryManager implements vscode.Disposable, WebSocketMessageHand
             this._log('Struggle detection disabled');
         } else {
             this._log('Struggle detection enabled');
+        }
+
+        // Live transition on->off for the UI toggle: clear any visible hint so a
+        // status-bar lightbulb / coloured remnant disappears immediately. We do
+        // NOT log on every load (only on transitions) to avoid noise.
+        if (previousShowInterventions && !this._showInterventions) {
+            this._interventionService.hideHint();
+            this._log('Intervention UI suppressed by user setting');
+        } else if (!previousShowInterventions && this._showInterventions) {
+            this._log('Intervention UI restored by user setting');
         }
 
         if (this._debugMode && !wasDebugMode) {

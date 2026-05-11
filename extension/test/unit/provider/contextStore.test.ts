@@ -1,6 +1,6 @@
 import * as assert from 'assert';
 import * as vscode from 'vscode';
-import { ContextStore } from '../../../src/extension/services/iris/contextStore';
+import { ContextStore } from '../../../src/extension/services/iris/context/contextStore';
 import { MockExtensionContext } from '../mocks/vscodeMocks';
 import { ActiveContext } from '../../../src/extension/types';
 
@@ -16,7 +16,7 @@ suite('ContextStore Test Suite', () => {
     test('should initialize with default state', () => {
         const snapshot = contextStore.snapshot();
         assert.strictEqual(snapshot.activeContext, null);
-        assert.strictEqual(snapshot.recentExercises.length, 0);
+        assert.strictEqual(snapshot.exercises.length, 0);
     });
 
     test('should register exercise', () => {
@@ -27,8 +27,8 @@ suite('ContextStore Test Suite', () => {
         });
 
         const snapshot = contextStore.snapshot();
-        assert.strictEqual(snapshot.allExercises.length, 1);
-        assert.strictEqual(snapshot.allExercises[0].id, 1);
+        assert.strictEqual(snapshot.exercises.length, 1);
+        assert.strictEqual(snapshot.exercises[0].id, 1);
     });
 
     test('should not change active context when registering workspace exercise (policy in ChatContextManager)', () => {
@@ -39,9 +39,8 @@ suite('ContextStore Test Suite', () => {
         });
 
         const snapshot = contextStore.snapshot();
-        // ContextStore no longer applies workspace override — that's ChatContextManager's job
         assert.strictEqual(snapshot.activeContext, null);
-        assert.strictEqual(snapshot.allExercises.length, 1);
+        assert.strictEqual(snapshot.exercises.length, 1);
     });
 
     test('should register course', () => {
@@ -52,8 +51,8 @@ suite('ContextStore Test Suite', () => {
         });
 
         const snapshot = contextStore.snapshot();
-        assert.strictEqual(snapshot.allCourses.length, 1);
-        assert.strictEqual(snapshot.allCourses[0].id, 101);
+        assert.strictEqual(snapshot.courses.length, 1);
+        assert.strictEqual(snapshot.courses[0].id, 101);
     });
 
     test('should remove exercise', () => {
@@ -63,8 +62,8 @@ suite('ContextStore Test Suite', () => {
         contextStore.removeExercise(1);
 
         const snapshot = contextStore.snapshot();
-        assert.strictEqual(snapshot.allExercises.length, 1);
-        assert.strictEqual(snapshot.allExercises[0].id, 2);
+        assert.strictEqual(snapshot.exercises.length, 1);
+        assert.strictEqual(snapshot.exercises[0].id, 2);
     });
 
     test('should clear active context if removed exercise was active', () => {
@@ -134,54 +133,69 @@ suite('ContextStore Test Suite', () => {
         assert.strictEqual(snapshot.activeContext, null);
     });
 
-    test('should sort recent exercises correctly', () => {
-        // Add exercises with different timestamps/priorities
-        // Note: registerExercise updates lastViewed implicitly via upsertExercise -> updateRecent
-        // But we can't easily control time without mocking Date.now() or sleeping.
-        // However, we can register them in order.
+    test('snapshot exercises sorted: most recently registered first', () => {
+        const originalNow = Date.now;
+        let t = 1000;
+        Date.now = () => t;
+        try {
+            t = 1000; contextStore.registerExercise({ id: 1, title: 'Ex 1' });
+            t = 2000; contextStore.registerExercise({ id: 2, title: 'Ex 2' });
+            t = 3000; contextStore.registerExercise({ id: 3, title: 'Ex 3' });
 
-        contextStore.registerExercise({ id: 1, title: 'Ex 1' });
-        contextStore.registerExercise({ id: 2, title: 'Ex 2' });
-        contextStore.registerExercise({ id: 3, title: 'Ex 3' });
+            const snapshot = contextStore.snapshot();
+            assert.strictEqual(snapshot.exercises[0].id, 3);
+            assert.strictEqual(snapshot.exercises[1].id, 2);
+            assert.strictEqual(snapshot.exercises[2].id, 1);
+        } finally {
+            Date.now = originalNow;
+        }
+    });
 
-        // Ex 3 should be most recent
+    test('snapshot exercises sorted: workspace first regardless of recency', () => {
+        contextStore.registerExercise({ id: 1, title: 'Charlie' });
+        contextStore.registerExercise({ id: 2, title: 'Alpha' });
+        contextStore.registerExercise({ id: 3, title: 'Bravo', isWorkspace: true });
+
         const snapshot = contextStore.snapshot();
-        assert.strictEqual(snapshot.recentExercises[0].id, 3);
-        assert.strictEqual(snapshot.recentExercises[1].id, 2);
-        assert.strictEqual(snapshot.recentExercises[2].id, 1);
+        assert.strictEqual(snapshot.exercises[0].id, 3, 'workspace exercise must come first');
+    });
+
+    test('snapshot hides past-deadline exercises but keeps workspace and active', () => {
+        const past = '2020-01-01T00:00:00.000Z';
+        const future = new Date(Date.now() + 86400000).toISOString();
+        contextStore.registerExercise({ id: 1, title: 'Active', dueDate: past });
+        contextStore.setActiveContext({
+            type: 'exercise', id: 1, title: 'Active',
+            source: 'user-selected', locked: false, selectedAt: Date.now(),
+        });
+        contextStore.registerExercise({ id: 2, title: 'Workspace', dueDate: past, isWorkspace: true });
+        contextStore.registerExercise({ id: 3, title: 'PastDeadline', dueDate: past });
+        contextStore.registerExercise({ id: 4, title: 'Future', dueDate: future });
+        contextStore.registerExercise({ id: 5, title: 'Undated' });
+
+        const snapshot = contextStore.snapshot();
+        const ids = snapshot.exercises.map(e => e.id).sort();
+        assert.deepStrictEqual(ids, [1, 2, 4, 5], 'past-deadline #3 hidden, others kept');
+    });
+
+    test('snapshot keeps exercise with malformed dueDate (treated as no deadline)', () => {
+        contextStore.registerExercise({ id: 9, title: 'Junk', dueDate: 'not-a-date' });
+        const snapshot = contextStore.snapshot();
+        assert.notStrictEqual(snapshot.exercises.find(e => e.id === 9), undefined);
     });
 
     test('should load default state if no stored state', () => {
-        // Mock globalState.get to return undefined
         mockContext.globalState.get = () => undefined;
         const store = new ContextStore(mockContext);
         const snapshot = store.snapshot();
         assert.strictEqual(snapshot.activeContext, null);
-        assert.strictEqual(snapshot.recentExercises.length, 0);
-    });
-
-    test('should migrate state from previous version', () => {
-        const oldState = {
-            version: 0,
-            activeContext: { type: 'exercise', id: 1, title: 'Old' },
-            recentExercises: [{ id: 1, title: 'Old' }]
-        };
-        mockContext.globalState.get = () => oldState;
-
-        const store = new ContextStore(mockContext);
-        const snapshot = store.snapshot();
-
-        assert.ok(snapshot.activeContext);
-        assert.strictEqual(snapshot.activeContext.id, 1);
-        // Should have reset sessions
-        assert.strictEqual(snapshot.sessions.length, 0);
+        assert.strictEqual(snapshot.exercises.length, 0);
     });
 
     test('should not auto-select context when registering exercise (policy in ChatContextManager)', () => {
         contextStore.registerExercise({ id: 1, title: 'Ex 1' });
 
         const snapshot = contextStore.snapshot();
-        // ContextStore no longer auto-selects — that's ChatContextManager's job
         assert.strictEqual(snapshot.activeContext, null);
     });
 
@@ -199,9 +213,8 @@ suite('ContextStore Test Suite', () => {
         contextStore.removeCourse(101);
 
         const snapshot = contextStore.snapshot();
-        assert.strictEqual(snapshot.allCourses.length, 1);
-        assert.strictEqual(snapshot.allCourses[0].id, 102);
-        // ContextStore no longer auto-selects after removal
+        assert.strictEqual(snapshot.courses.length, 1);
+        assert.strictEqual(snapshot.courses[0].id, 102);
         assert.strictEqual(snapshot.activeContext, null);
     });
 
@@ -222,9 +235,8 @@ suite('ContextStore Test Suite', () => {
         assert.strictEqual(snapshot.activeContext, null);
     });
 
-    test('should create session', () => {
+    test('should create session with active context', () => {
         contextStore.registerExercise({ id: 1, title: 'Ex 1' });
-        // Set active context so SessionManager can create sessions
         contextStore.setActiveContext({
             type: 'exercise',
             id: 1,
@@ -251,7 +263,6 @@ suite('ContextStore Test Suite', () => {
 
     test('should create session with details', () => {
         contextStore.registerExercise({ id: 1, title: 'Ex 1' });
-        // Set active context so SessionManager can create sessions
         contextStore.setActiveContext({
             type: 'exercise',
             id: 1,
@@ -273,7 +284,6 @@ suite('ContextStore Test Suite', () => {
 
     test('should switch session', () => {
         contextStore.registerExercise({ id: 1, title: 'Ex 1' });
-        // Set active context so SessionManager can create sessions
         contextStore.setActiveContext({
             type: 'exercise',
             id: 1,
@@ -283,14 +293,10 @@ suite('ContextStore Test Suite', () => {
             locked: false
         });
 
-        // Create Session 1
         contextStore.createSession('Session 1');
         const session1Id = contextStore.snapshot().activeSession?.id;
-        // Add a message so it's not empty and won't be cleaned up
         contextStore.incrementActiveSessionMessageCount();
 
-
-        // Create Session 2
         contextStore.createSession('Session 2');
         const session2Id = contextStore.snapshot().activeSession?.id;
 
@@ -300,11 +306,12 @@ suite('ContextStore Test Suite', () => {
             contextStore.switchSession(session1Id);
             assert.strictEqual(contextStore.snapshot().activeSession?.id, session1Id);
         }
-    }); test('should clear sessions for context', () => {
+    });
+
+    test('should clear sessions for context', () => {
         contextStore.registerExercise({ id: 1, title: 'Ex 1' });
         contextStore.createSession('Session 1');
 
-        // Get the key internally used (we know it's exercise:1)
         const key = 'exercise:1';
         contextStore.clearSessionsForContext(key);
 
@@ -347,9 +354,7 @@ suite('ContextStore Test Suite', () => {
         contextStore.createSession('Session 1');
         contextStore.createSession('Session 2');
 
-        // Manually clear active session to test switch
         contextStore.clearActiveContext();
-        // Restore context but no session selected yet (simulated)
         contextStore.setActiveContext({
             type: 'exercise',
             id: 1,
@@ -367,7 +372,6 @@ suite('ContextStore Test Suite', () => {
 
     test('should increment active session message count', () => {
         contextStore.registerExercise({ id: 1, title: 'Ex 1' });
-        // Set active context so SessionManager can create sessions
         contextStore.setActiveContext({
             type: 'exercise',
             id: 1,
@@ -386,7 +390,6 @@ suite('ContextStore Test Suite', () => {
 
     test('should cleanup empty sessions', () => {
         contextStore.registerExercise({ id: 1, title: 'Ex 1' });
-        // Set active context so SessionManager can create sessions
         contextStore.setActiveContext({
             type: 'exercise',
             id: 1,
@@ -397,20 +400,17 @@ suite('ContextStore Test Suite', () => {
         });
 
         contextStore.createSession('Empty Session');
-
-        // Create another one which will be active
         contextStore.createSession('Active Empty Session');
 
-        // Explicitly call cleanup to remove the previous empty session which is now inactive
         contextStore.cleanupEmptySessions();
 
         const snapshot = contextStore.snapshot();
-        // Should only have the active one, the previous empty one should be gone
         assert.strictEqual(snapshot.sessions.length, 1);
         assert.strictEqual(snapshot.sessions[0].preview, 'Active Empty Session');
-    }); test('should set Artemis session ID', () => {
+    });
+
+    test('should set Artemis session ID', () => {
         contextStore.registerExercise({ id: 1, title: 'Ex 1' });
-        // Set active context so SessionManager can create sessions
         contextStore.setActiveContext({
             type: 'exercise',
             id: 1,
@@ -438,105 +438,34 @@ suite('ContextStore Test Suite', () => {
         assert.strictEqual(snapshot.activeSession, null);
     });
 
-    test('should calculate exercise priority correctly', () => {
-        const now = Date.now();
-        const day = 24 * 60 * 60 * 1000;
-
-        // Workspace exercise
-        contextStore.registerExercise({ id: 1, title: 'Workspace', isWorkspace: true });
-        let snapshot = contextStore.snapshot();
-        assert.ok(snapshot.allExercises[0].priority >= 1000);
-
-        // Recent release
-        contextStore.registerExercise({
-            id: 2,
-            title: 'Recent Release',
-            releaseDate: new Date(now - day).toISOString()
-        });
-        snapshot = contextStore.snapshot();
-        const ex2 = snapshot.allExercises.find(e => e.id === 2);
-        assert.ok((ex2?.priority ?? 0) >= 100);
-
-        // Due soon
-        contextStore.registerExercise({
-            id: 3,
-            title: 'Due Soon',
-            dueDate: new Date(now + day).toISOString()
-        });
-        snapshot = contextStore.snapshot();
-        const ex3 = snapshot.allExercises.find(e => e.id === 3);
-        assert.ok((ex3?.priority ?? 0) >= 170);
-
-        // Completed (score 100)
-        contextStore.registerExercise({
-            id: 4,
-            title: 'Completed',
-            score: 100
-        });
-        snapshot = contextStore.snapshot();
-        const ex4 = snapshot.allExercises.find(e => e.id === 4);
-        assert.ok((ex4?.priority ?? 0) < 0);
-    });
-
-    test('should calculate course priority correctly', () => {
-        const now = Date.now();
-
-        // Recently viewed
-        contextStore.registerCourse({ id: 101, title: 'Recent Course' });
-        // Registering updates lastViewed
-
-        const snapshot = contextStore.snapshot();
-        const course = snapshot.allCourses[0];
-        assert.ok(course.priority >= 100);
-    });
-
-    test('should trim exercise history', () => {
-        // Default limit is 5 recent exercises
-        for (let i = 1; i <= 10; i++) {
-            contextStore.registerExercise({ id: i, title: `Ex ${i}` });
+    test('should trim exercises beyond archive cap', function () {
+        this.timeout(5000);
+        const originalNow = Date.now;
+        let t = 1000000;
+        Date.now = () => t++;
+        try {
+            const limit = 1000;
+            for (let i = 1; i <= limit + 5; i++) {
+                contextStore.registerExercise({ id: i, title: `Ex ${i}` });
+            }
+            const snapshot = contextStore.snapshot();
+            assert.strictEqual(snapshot.exercises.length, limit);
+            assert.ok(snapshot.exercises.some(e => e.id === limit + 5), 'most recent kept');
+            assert.ok(!snapshot.exercises.some(e => e.id === 1), 'oldest dropped');
+        } finally {
+            Date.now = originalNow;
         }
-
-        const snapshot = contextStore.snapshot();
-        assert.strictEqual(snapshot.recentExercises.length, 5);
-        // Should keep the most recent ones (higher IDs in this loop)
-        assert.ok(snapshot.recentExercises.some(e => e.id === 10));
-        assert.ok(!snapshot.recentExercises.some(e => e.id === 1));
     });
 
-    test('should trim course history', () => {
-        // Default limit is 3 recent courses
-        for (let i = 1; i <= 5; i++) {
-            contextStore.registerCourse({ id: i, title: `Course ${i}` });
-        }
-
-        const snapshot = contextStore.snapshot();
-        assert.strictEqual(snapshot.recentCourses.length, 3);
-        assert.ok(snapshot.recentCourses.some(c => c.id === 5));
-    });
-
-    test('should trim all exercises history', function () {
-        this.timeout(5000); // Increase timeout for this test
-        // Limit is 1000
-        const limit = 1000;
-        for (let i = 1; i <= limit + 5; i++) {
-            contextStore.registerExercise({ id: i, title: `Ex ${i}` });
-        }
-
-        const snapshot = contextStore.snapshot();
-        assert.strictEqual(snapshot.allExercises.length, limit);
-        // Should keep the most recent ones (higher IDs)
-        assert.ok(snapshot.allExercises.some(e => e.id === limit + 5));
-        assert.ok(!snapshot.allExercises.some(e => e.id === 1));
-    }); test('should trim all courses history', () => {
-        // Limit is 400
+    test('should trim courses beyond archive cap', () => {
         const limit = 400;
         for (let i = 1; i <= limit + 5; i++) {
             contextStore.registerCourse({ id: i, title: `Course ${i}` });
         }
 
         const snapshot = contextStore.snapshot();
-        assert.strictEqual(snapshot.allCourses.length, limit);
-        assert.ok(snapshot.allCourses.some(c => c.id === limit + 5));
+        assert.strictEqual(snapshot.courses.length, limit);
+        assert.ok(snapshot.courses.some(c => c.id === limit + 5));
     });
 
     test('should not auto-select session when setting active context (ensureSession removed)', () => {
@@ -549,12 +478,10 @@ suite('ContextStore Test Suite', () => {
             locked: false
         });
 
-        // Create two sessions with different timestamps
         const now = Date.now();
         contextStore.createSessionWithDetails('Old Session', 1, now - 10000);
         contextStore.createSessionWithDetails('New Session', 1, now);
 
-        // Clear and re-set — no auto session selection
         contextStore.clearActiveContext();
         contextStore.setActiveContext({
             type: 'exercise',
@@ -566,8 +493,6 @@ suite('ContextStore Test Suite', () => {
         });
 
         const snapshot = contextStore.snapshot();
-        // setActiveContext no longer calls ensureSessionForActive
-        // activeSession falls back to first in list (sorted by lastActivity in snapshot())
         assert.ok(snapshot.sessions.length >= 2);
     });
 
@@ -581,13 +506,12 @@ suite('ContextStore Test Suite', () => {
         store.registerExercise({ id: 500, title: 'Persisted Exercise' });
 
         assert.strictEqual(persisted.key, 'iris.contextStore');
-        assert.ok(persisted.value.allExercises.some((ex: any) => ex.id === 500));
+        assert.ok(persisted.value.exercises.some((ex: any) => ex.id === 500));
     });
 
     test('should handle session operations with no active context', () => {
         contextStore.clearActiveContext();
 
-        // Should not throw and return snapshot
         contextStore.switchSession('any');
         contextStore.switchToFirstSession();
         contextStore.incrementActiveSessionMessageCount();
@@ -600,10 +524,8 @@ suite('ContextStore Test Suite', () => {
 
     test('should handle session operations with no sessions', () => {
         contextStore.registerExercise({ id: 1, title: 'Ex 1' });
-        // registerExercise creates a session, let's clear it
         contextStore.clearAllSessions();
 
-        // Now we have active context but no sessions
         contextStore.incrementActiveSessionMessageCount();
         contextStore.cleanupEmptySessions();
         contextStore.setArtemisSessionId(123);
@@ -620,74 +542,70 @@ suite('ContextStore Test Suite', () => {
         contextStore.switchSession('non-existent-id');
 
         const snapshot = contextStore.snapshot();
-        // Should remain on initial session
         assert.strictEqual(snapshot.activeSession?.id, initialSessionId);
     });
 
-    test('should calculate exercise priority with time-based rules', () => {
-        // Mock Date.now
-        const originalNow = Date.now;
-        let currentTime = 1000000000000; // Fixed start time
-        Date.now = () => currentTime;
+    test('should clear active context on removeExercise even when id is absent from tracked lists', () => {
+        contextStore.setActiveContext({
+            type: 'exercise',
+            id: 999,
+            title: 'Phantom Exercise',
+            source: 'user-selected',
+            selectedAt: 0,
+            locked: false,
+        });
 
-        try {
-            // 1. Workspace exercise (+1000) + Recent View (+50) = 1050
-            contextStore.registerExercise({ id: 1, title: 'Workspace', isWorkspace: true });
-            let snapshot = contextStore.snapshot();
-            const ex1 = snapshot.allExercises.find(e => e.id === 1);
-            assert.strictEqual(ex1?.priority, 1050);
+        const before = contextStore.snapshot();
+        assert.strictEqual(before.exercises.find(e => e.id === 999), undefined);
 
-            // 2. Release date within 7 days (+100) + Recent View (+50) + Release Date Bonus (timestamp/...)
-            // Release date bonus is Math.floor(releaseTime / msPerDay / 1000) which is small but non-zero.
-            // Let's calculate expected bonus.
-            const msPerDay = 24 * 60 * 60 * 1000;
-            const releaseDate = new Date(currentTime - msPerDay).toISOString(); // 1 day ago
-            const releaseTime = new Date(releaseDate).getTime();
-            const releaseBonus = Math.floor(releaseTime / msPerDay / 1000);
+        let firedCount = 0;
+        let firedEvent: { current: ActiveContext | null; previous: ActiveContext | null } | undefined;
+        contextStore.onDidChangeActiveContext(event => {
+            firedCount++;
+            firedEvent = event;
+        });
 
-            contextStore.registerExercise({ id: 2, title: 'Released', releaseDate });
-            snapshot = contextStore.snapshot();
-            const ex2 = snapshot.allExercises.find(e => e.id === 2);
-            // 100 (recent release) + 50 (recent view) + releaseBonus
-            assert.strictEqual(ex2?.priority, 150 + releaseBonus);
+        contextStore.removeExercise(999);
 
-            // 3. Due date within 7 days
-            // Formula: Math.max(200 - Math.floor(daysUntilDue * 30 / 7), 170)
-            // Let's say due in 1 day.
-            const dueDate = new Date(currentTime + msPerDay).toISOString();
-            const daysUntilDue = 1;
-            const dueBonus = Math.max(200 - Math.floor(daysUntilDue * 30 / 7), 170); // 200 - 4 = 196
+        assert.strictEqual(contextStore.getActiveContext(), null);
+        assert.strictEqual(firedCount, 1);
+        assert.strictEqual(firedEvent?.current, null);
+        assert.strictEqual(firedEvent?.previous?.id, 999);
+        assert.strictEqual(firedEvent?.previous?.type, 'exercise');
 
-            contextStore.registerExercise({ id: 3, title: 'Due', dueDate });
-            snapshot = contextStore.snapshot();
-            const ex3 = snapshot.allExercises.find(e => e.id === 3);
-            // dueBonus + 50 (recent view)
-            assert.strictEqual(ex3?.priority, dueBonus + 50);
+        const after = contextStore.snapshot();
+        assert.strictEqual(after.exercises.length, 0);
+    });
 
-            // 4. Completed exercise (score 100) -> -100 penalty
-            contextStore.registerExercise({ id: 4, title: 'Done', score: 100 });
-            snapshot = contextStore.snapshot();
-            const ex4 = snapshot.allExercises.find(e => e.id === 4);
-            // 50 (recent view) - 100 = -50
-            assert.strictEqual(ex4?.priority, -50);
+    test('should clear active context on removeCourse even when id is absent from tracked lists', () => {
+        contextStore.setActiveContext({
+            type: 'course',
+            id: 999,
+            title: 'Phantom Course',
+            source: 'user-selected',
+            selectedAt: 0,
+            locked: false,
+        });
 
-            // 5. Old view (> 24 hours)
-            // Advance time by 25 hours
-            currentTime += 25 * 60 * 60 * 1000;
+        const before = contextStore.snapshot();
+        assert.strictEqual(before.courses.find(c => c.id === 999), undefined);
 
-            // Trigger recalculation by registering a new exercise
-            contextStore.registerExercise({ id: 5, title: 'New' });
+        let firedCount = 0;
+        let firedEvent: { current: ActiveContext | null; previous: ActiveContext | null } | undefined;
+        contextStore.onDidChangeActiveContext(event => {
+            firedCount++;
+            firedEvent = event;
+        });
 
-            snapshot = contextStore.snapshot();
-            // Ex 1 (Workspace) should lose recent view bonus: 1000
-            // Note: recalculateExercisePriorities only updates recentExercises
-            assert.strictEqual(snapshot.recentExercises.find(e => e.id === 1)?.priority, 1000);
+        contextStore.removeCourse(999);
 
-            // Ex 4 (Done) should lose recent view bonus: -100
-            assert.strictEqual(snapshot.recentExercises.find(e => e.id === 4)?.priority, -100);
+        assert.strictEqual(contextStore.getActiveContext(), null);
+        assert.strictEqual(firedCount, 1);
+        assert.strictEqual(firedEvent?.current, null);
+        assert.strictEqual(firedEvent?.previous?.id, 999);
+        assert.strictEqual(firedEvent?.previous?.type, 'course');
 
-        } finally {
-            Date.now = originalNow;
-        }
+        const after = contextStore.snapshot();
+        assert.strictEqual(after.courses.length, 0);
     });
 });

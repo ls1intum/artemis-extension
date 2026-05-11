@@ -1,5 +1,6 @@
-import { useState, useCallback, useRef, useMemo } from 'react';
-import type { Annotation, AnnotationLabel, LoadedSession, RecordedEvent, SessionMetadata, ReplayEqSnapshot, VideoSyncConfig } from './types';
+import { useState, useCallback, useRef, useMemo, useEffect, useDeferredValue } from 'react';
+import type { Annotation, AnnotationLabel, LoadedSession, RecordedEvent, SessionMetadata, SessionStartEvent, ReplayEqSnapshot, VideoSyncConfig } from './types';
+import { resolveSchemaVersion } from './parseSession';
 import { FileDropZone } from './components/FileDropZone';
 import { RecordingInfo } from './components/RecordingInfo';
 import { SessionList } from './components/SessionList';
@@ -13,11 +14,22 @@ import { VideoUpload } from './components/VideoUpload';
 import { SubtitleUpload } from './components/SubtitleUpload';
 import { OffsetConfig } from './components/OffsetConfig';
 import { FreeAnnotationForm } from './components/FreeAnnotationForm';
+import { LiveControlBar } from './components/LiveControlBar';
 import { ALL_EVENT_TYPES } from './constants';
+import type { AuthStatus } from './hooks/useAuth';
+import { useLiveSessions } from './hooks/useLiveSessions';
+import { useLiveSession } from './hooks/useLiveSession';
+import { useAnnotationMutations, type AnnotationToast } from './hooks/useAnnotationMutations';
+import { useLiveHotkeys } from './hooks/useLiveHotkeys';
 
 const ALL_ENABLED = new Set(ALL_EVENT_TYPES);
 
-function App() {
+interface RecordingViewerAppProps { authStatus: AuthStatus }
+
+export function RecordingViewerApp({ authStatus }: RecordingViewerAppProps) {
+    const apiFetch = useCallback((url: string, init?: RequestInit) => {
+        return fetch(url, { ...init, credentials: 'include' });
+    }, []);
     const [session, setSession] = useState<LoadedSession | null>(null);
     const [loading, setLoading] = useState(false);
     const [annotations, setAnnotations] = useState<Annotation[]>([]);
@@ -31,16 +43,48 @@ function App() {
     const videoTimeRef = useRef<number>(0);
     const videoPlayerRef = useRef<VideoPlayerHandle>(null);
 
+    // Live state
+    const [reactionDelayMs, setReactionDelayMs] = useState(300);
+    const [lastLabelToast, setLastLabelToast] = useState<AnnotationToast | null>(null);
+    const [stickyLive, setStickyLive] = useState(false);
+
+    // Track most recently ended live session so latch-on cannot flip back to live
+    // during the brief window between sessionEnd event arrival and metadata.json
+    // being written by the recorder (the live-sessions endpoint may still report
+    // the session as live for a moment).
+    const [endedLiveSessionId, setEndedLiveSessionId] = useState<string | null>(null);
+
+    const liveSessionIds = useLiveSessions(true);
+
+    const isLiveSession = stickyLive;
+    const isReadOnly = !authStatus.allowWrite;
+    const writesDisabled = isLiveSession || isReadOnly;
+
     const saveAnnotations = useCallback(async (updated: Annotation[]) => {
+        const previous = annotations;
+        const sessionIdAtRequest = activeSessionId.current;
         setAnnotations(updated);
-        if (activeSessionId.current) {
-            await fetch(`/api/recordings/${activeSessionId.current}/annotations`, {
+        if (!sessionIdAtRequest) return;
+        try {
+            const res = await apiFetch(`/api/recordings/${sessionIdAtRequest}/annotations`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(updated),
-            }).catch(() => {/* best-effort persist */});
+            });
+            if (!res.ok) {
+                throw new Error(`HTTP ${res.status}`);
+            }
+        } catch (err) {
+            console.warn('Failed to persist annotations:', err);
+            // Only revert if we're still on the same session AND the UI still
+            // reflects the failed optimistic write. Otherwise the user has
+            // either navigated away or made further edits, and rolling back
+            // would clobber unrelated state.
+            if (activeSessionId.current === sessionIdAtRequest) {
+                setAnnotations((current) => current === updated ? previous : current);
+            }
         }
-    }, []);
+    }, [annotations, apiFetch]);
 
     const handleAddAnnotation = useCallback((timestamp: number, text: string, label?: AnnotationLabel) => {
         const annotation: Annotation = {
@@ -61,19 +105,28 @@ function App() {
         saveAnnotations(annotations.filter(a => a.id !== id));
     }, [annotations, saveAnnotations]);
 
-    const loadFromApi = useCallback(async (sessionId: string) => {
+    const loadFromApi = useCallback(async (sessionId: string, isLive: boolean, tailLimit?: number) => {
+        activeSessionId.current = sessionId; // claim ownership before any await
         setLoading(true);
         setViewMode('timeline');
         setScrollToTimestamp(null);
+        setStickyLive(isLive); // immediate latch — bypasses polling cadence
         try {
-            const [eventsRes, metaRes, replayRes, annotRes, videoSyncRes, subsRes] = await Promise.all([
-                fetch(`/api/recordings/${sessionId}/events`),
-                fetch(`/api/recordings/${sessionId}/metadata`),
-                fetch(`/api/recordings/${sessionId}/replay-eq`),
-                fetch(`/api/recordings/${sessionId}/annotations`),
-                fetch(`/api/recordings/${sessionId}/video-sync`),
-                fetch(`/api/recordings/${sessionId}/subtitles`, { method: 'HEAD' }),
-            ]);
+            const eventsUrl = isLive
+                ? null
+                : tailLimit !== undefined
+                    ? `/api/recordings/${sessionId}/events?tail=${tailLimit}`
+                    : `/api/recordings/${sessionId}/events`;
+            const fetches: Promise<Response>[] = [
+                eventsUrl ? apiFetch(eventsUrl) : Promise.resolve(new Response('[]', { status: 200 })),
+                apiFetch(`/api/recordings/${sessionId}/metadata`),
+                apiFetch(`/api/recordings/${sessionId}/replay-eq`),
+                apiFetch(`/api/recordings/${sessionId}/annotations`),
+                apiFetch(`/api/recordings/${sessionId}/video-sync`),
+                apiFetch(`/api/recordings/${sessionId}/subtitles`, { method: 'HEAD' }),
+            ];
+            const [eventsRes, metaRes, replayRes, annotRes, videoSyncRes, subsRes] = await Promise.all(fetches);
+            if (activeSessionId.current !== sessionId) return; // user navigated away during fetch
 
             const events: RecordedEvent[] = await eventsRes.json();
             let metadata: SessionMetadata | null = null;
@@ -94,25 +147,105 @@ function App() {
                 syncConfig = await videoSyncRes.json();
             }
 
-            activeSessionId.current = sessionId;
-            setAnnotations(loadedAnnotations);
+            mutator.reset(loadedAnnotations);
             setVideoSyncConfig(syncConfig);
             setHasSubtitles(subsRes.ok);
             setVideoCacheBust(Date.now());
             setIsVideoPlaying(false);
             videoTimeRef.current = 0;
             setZoomedXDomain(null);
-            setSession({ metadata, events, fileName: sessionId, replayEq, annotations: loadedAnnotations });
+            setAutoFollowLive(true);
+            const firstSessionStart = events.find(e => e.type === 'sessionStart') as SessionStartEvent | undefined;
+            const schemaVersion = resolveSchemaVersion(metadata, firstSessionStart);
+            setSession({ metadata, events, fileName: sessionId, schemaVersion, replayEq, annotations: loadedAnnotations });
         } catch (err) {
             console.error('Failed to load session:', err);
         } finally {
             setLoading(false);
         }
+    // `mutator` is stable (memoized with [] deps in useAnnotationMutations) so
+    // including it here doesn't churn the callback identity.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [apiFetch]);
+
+    const live = useLiveSession(activeSessionId.current, isLiveSession);
+
+    const showAnnotationError = useCallback((message: string) => {
+        // Surface mutator failures via the existing toast slot. Keeps the UX
+        // single-channel; the live-mode hotkey path is the only caller.
+        console.warn('[annotations]', message);
+        setLastLabelToast({ kind: 'error', text: message, at: Date.now() });
     }, []);
+    const mutator = useAnnotationMutations({
+        sessionId: activeSessionId.current,
+        setAnnotations,
+        onToast: setLastLabelToast,
+        onError: showAnnotationError,
+    });
+
+    // Latch sticky-live ON the moment we observe the current session in the live set,
+    // UNLESS we already saw it end during this view.
+    // Note: `loadFromApi(id, isLive)` also sets sticky-live directly when the user clicks
+    // a live-badged session, so the initial latch is immediate (not poll-delayed).
+    useEffect(() => {
+        const id = activeSessionId.current;
+        if (id && liveSessionIds.has(id) && endedLiveSessionId !== id) {
+            setStickyLive(true);
+        }
+    }, [liveSessionIds, endedLiveSessionId]);
+
+    // Whenever sticky-live transitions ON, reseed the mutator from the latest
+    // annotations so any archive-mode edits made before the latch don't leave
+    // the controller's `annotationsRef` stale. Reset also clears the redo
+    // stack, which is the right semantic for entering a fresh live session.
+    useEffect(() => {
+        if (isLiveSession) {
+            mutator.reset(annotations);
+        }
+    // We INTENTIONALLY don't depend on `annotations` here — only on the latch
+    // edge. Mid-live edits flow through the controller already.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [isLiveSession, mutator]);
+
+    // Reset sticky-live + ended-id when leaving the session view.
+    useEffect(() => {
+        if (session === null) {
+            setStickyLive(false);
+            setEndedLiveSessionId(null);
+        }
+    }, [session]);
+
+    // When the live session ends (sessionEnd event OR file disappeared),
+    // remember it (suppresses re-latch), drop sticky-live, and after 500ms
+    // reload in archive mode.
+    useEffect(() => {
+        if (live.error === 'Session ended' && activeSessionId.current) {
+            const id = activeSessionId.current;
+            // Stash current live events into session so display doesn't blank out
+            // during the 500ms grace before archive reload.
+            setSession((prev) => prev ? { ...prev, events: live.events } : prev);
+            setEndedLiveSessionId(id);
+            setStickyLive(false);
+            setTimeout(() => {
+                // Tail-limit the archive reload so a long session can't
+                // crash the tab a second time after live mode capped at 5k.
+                if (activeSessionId.current === id) void loadFromApi(id, false, 5000);
+            }, 500);
+        }
+    }, [live.error, live.events, loadFromApi]);
+
+    useLiveHotkeys(
+        isLiveSession,
+        useCallback((label) => {
+            mutator.addLabel(label, live.latestEventTimestamp, reactionDelayMs);
+        }, [mutator, live.latestEventTimestamp, reactionDelayMs]),
+        mutator.undoLast,
+        mutator.redoLast,
+    );
 
     const handleFileSession = useCallback((loaded: LoadedSession) => {
         activeSessionId.current = null;
-        setAnnotations([]);
+        mutator.reset(loaded.annotations ?? []);
         setVideoSyncConfig(null);
         setHasSubtitles(false);
         setIsVideoPlaying(false);
@@ -120,12 +253,15 @@ function App() {
         setViewMode('timeline');
         setScrollToTimestamp(null);
         setZoomedXDomain(null);
+        setAutoFollowLive(true);
+        setStickyLive(false);
+        setEndedLiveSessionId(null);
         setSession(loaded);
-    }, []);
+    }, [mutator]);
 
     const handleBack = useCallback(() => {
         activeSessionId.current = null;
-        setAnnotations([]);
+        mutator.reset([]);
         setVideoSyncConfig(null);
         setHasSubtitles(false);
         setIsVideoPlaying(false);
@@ -133,8 +269,9 @@ function App() {
         setViewMode('timeline');
         setScrollToTimestamp(null);
         setZoomedXDomain(null);
+        setAutoFollowLive(true);
         setSession(null);
-    }, []);
+    }, [mutator]);
 
     // Video callbacks
     const handleVideoSeek = useCallback((timestamp: number) => {
@@ -158,39 +295,52 @@ function App() {
 
     const handleOpenSessionFolder = useCallback(() => {
         if (!activeSessionId.current) return;
-        fetch(`/api/recordings/${encodeURIComponent(activeSessionId.current)}/open`, { method: 'POST' })
+        apiFetch(`/api/recordings/${encodeURIComponent(activeSessionId.current)}/open`, { method: 'POST' })
             .catch(() => {/* best-effort */});
-    }, []);
+    }, [apiFetch]);
 
     const handleOffsetChange = useCallback(async (newOffset: number) => {
         if (!activeSessionId.current || !videoSyncConfig) return;
         const updated = { ...videoSyncConfig, videoTimeAtSessionStartSeconds: newOffset };
         setVideoSyncConfig(updated);
-        await fetch(`/api/recordings/${activeSessionId.current}/video-sync`, {
+        await apiFetch(`/api/recordings/${activeSessionId.current}/video-sync`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(updated),
         }).catch(() => {/* best-effort */});
-    }, [videoSyncConfig]);
+    }, [videoSyncConfig, apiFetch]);
 
     const handleVideoPlayStateChange = useCallback((playing: boolean) => {
         setIsVideoPlaying(playing);
     }, []);
 
+    // Defer live event updates so the expensive chart/timeline renders can
+    // be interrupted by newer SSE batches. Under sustained load the charts
+    // may visibly lag the most-recent event by a frame or two, which is
+    // acceptable. live.latestEventTimestamp (used by annotation anchoring)
+    // stays non-deferred so hotkey-driven annotations target the correct
+    // wall-clock position.
+    const liveEventsForDisplay = useDeferredValue(live.events);
+    const displayedEvents = useMemo(() => {
+        if (!session) return [];
+        return isLiveSession ? liveEventsForDisplay : session.events;
+    }, [session, isLiveSession, liveEventsForDisplay]);
+
     // Use metadata.startTime if available, otherwise the earliest event timestamp
     const sessionStartTime = useMemo(() => {
         if (!session) return 0;
         if (session.metadata?.startTime != null) return session.metadata.startTime;
-        if (session.events.length === 0) return 0;
-        let min = session.events[0].timestamp;
-        for (let i = 1; i < session.events.length; i++) {
-            if (session.events[i].timestamp < min) min = session.events[i].timestamp;
+        if (displayedEvents.length === 0) return 0;
+        let min = displayedEvents[0].timestamp;
+        for (let i = 1; i < displayedEvents.length; i++) {
+            if (displayedEvents[i].timestamp < min) min = displayedEvents[i].timestamp;
         }
         return min;
-    }, [session]);
+    }, [session, displayedEvents]);
     const [viewMode, setViewMode] = useState<'timeline' | 'list'>('timeline');
     const [scrollToTimestamp, setScrollToTimestamp] = useState<number | null>(null);
     const [zoomedXDomain, setZoomedXDomain] = useState<[number, number] | null>(null);
+    const [autoFollowLive, setAutoFollowLive] = useState(true);
 
     const handleViewInList = useCallback((timestamp: number) => {
         setScrollToTimestamp(timestamp);
@@ -203,10 +353,10 @@ function App() {
 
     // Shared xDomain: compute from all events + annotations + replayEq
     const xDomain = useMemo<[number, number] | undefined>(() => {
-        if (!session || session.events.length === 0) return undefined;
+        if (!session || displayedEvents.length === 0) return undefined;
         let min = Infinity;
         let max = -Infinity;
-        for (const e of session.events) {
+        for (const e of displayedEvents) {
             const offset = e.timestamp - sessionStartTime;
             if (offset < min) min = offset;
             if (offset > max) max = offset;
@@ -225,21 +375,40 @@ function App() {
         }
         const padding = Math.max((max - min) * 0.03, 1000);
         return [Math.max(0, min - padding), max + padding];
-    }, [session, annotations, sessionStartTime]);
+    }, [session, displayedEvents, annotations, sessionStartTime]);
 
     const sessionEndTime = useMemo(() => {
-        if (!session || session.events.length === 0) return sessionStartTime;
-        let max = session.events[0].timestamp;
-        for (let i = 1; i < session.events.length; i++) {
-            if (session.events[i].timestamp > max) max = session.events[i].timestamp;
+        if (!session || displayedEvents.length === 0) return sessionStartTime;
+        let max = displayedEvents[0].timestamp;
+        for (let i = 1; i < displayedEvents.length; i++) {
+            if (displayedEvents[i].timestamp > max) max = displayedEvents[i].timestamp;
         }
         return max;
-    }, [session, sessionStartTime]);
+    }, [session, displayedEvents, sessionStartTime]);
 
     const effectiveXDomain = zoomedXDomain ?? xDomain;
 
+    // Slide the zoomed window right when new live events arrive, preserving width.
+    // Only active when isLiveSession + autoFollowLive + currently zoomed in.
+    useEffect(() => {
+        if (!autoFollowLive || !isLiveSession || !zoomedXDomain || !xDomain) return;
+        if (xDomain[1] <= zoomedXDomain[1]) return;
+        const range = zoomedXDomain[1] - zoomedXDomain[0];
+        setZoomedXDomain([xDomain[1] - range, xDomain[1]]);
+    }, [autoFollowLive, isLiveSession, xDomain, zoomedXDomain]);
+
+    const handleToggleAutoFollow = useCallback(() => {
+        const next = !autoFollowLive;
+        setAutoFollowLive(next);
+        if (next && zoomedXDomain && xDomain) {
+            const range = zoomedXDomain[1] - zoomedXDomain[0];
+            setZoomedXDomain([xDomain[1] - range, xDomain[1]]);
+        }
+    }, [autoFollowLive, xDomain, zoomedXDomain]);
+
     const handleZoomChange = useCallback((domain: [number, number] | null) => {
         setZoomedXDomain(domain);
+        setAutoFollowLive(false);
     }, []);
 
     const handleZoomIn = useCallback(() => {
@@ -251,6 +420,7 @@ function App() {
         if (newRange < 2000) return;
         const center = (min + max) / 2;
         setZoomedXDomain([center - newRange / 2, center + newRange / 2]);
+        setAutoFollowLive(false);
     }, [xDomain, zoomedXDomain]);
 
     const handleZoomOut = useCallback(() => {
@@ -260,6 +430,7 @@ function App() {
         const range = max - min;
         const fullRange = xDomain[1] - xDomain[0];
         const newRange = range * 1.5;
+        setAutoFollowLive(false);
         if (newRange >= fullRange) {
             setZoomedXDomain(null);
             return;
@@ -285,7 +456,7 @@ function App() {
                 <h1>Artemis Extension Session Analyzer</h1>
                 {session && (
                     <div className="header-actions">
-                        {activeSessionId.current && (
+                        {activeSessionId.current && !writesDisabled && (
                             <button className="reset-btn" onClick={handleOpenSessionFolder} title="Open session folder in Finder">
                                 Open Folder
                             </button>
@@ -301,7 +472,11 @@ function App() {
 
             {!session && !loading && (
                 <>
-                    <SessionList onSelectSession={loadFromApi} />
+                    <SessionList
+                        onSelectSession={(id) => void loadFromApi(id, liveSessionIds.has(id))}
+                        liveIds={liveSessionIds}
+                        readOnly={isReadOnly}
+                    />
                     <div className="divider-or">
                         <span>or drop files manually</span>
                     </div>
@@ -314,7 +489,7 @@ function App() {
 
             {session && (
                 <div className="session-view">
-                    {activeSessionId.current && videoSyncConfig && videoUrl && (
+                    {activeSessionId.current && videoSyncConfig && videoUrl && !isLiveSession && (
                         <div className="video-section">
                             <VideoPlayer
                                 ref={videoPlayerRef}
@@ -326,29 +501,41 @@ function App() {
                                 videoTimeRef={videoTimeRef}
                                 onPlayStateChange={handleVideoPlayStateChange}
                             />
-                            <div className="video-config-row">
-                                <OffsetConfig
-                                    videoTimeAtSessionStartSeconds={videoSyncConfig.videoTimeAtSessionStartSeconds}
-                                    onOffsetChange={handleOffsetChange}
-                                />
-                                <VideoUpload
-                                    sessionId={activeSessionId.current}
-                                    hasVideo={true}
-                                    onUploadComplete={handleVideoUploadComplete}
-                                />
-                                <SubtitleUpload
-                                    sessionId={activeSessionId.current}
-                                    hasSubtitles={hasSubtitles}
-                                    onUploadComplete={handleSubtitleUploadComplete}
-                                />
-                            </div>
+                            {!writesDisabled && (
+                                <div className="video-config-row">
+                                    <OffsetConfig
+                                        videoTimeAtSessionStartSeconds={videoSyncConfig.videoTimeAtSessionStartSeconds}
+                                        onOffsetChange={handleOffsetChange}
+                                    />
+                                    <VideoUpload
+                                        sessionId={activeSessionId.current}
+                                        hasVideo={true}
+                                        onUploadComplete={handleVideoUploadComplete}
+                                    />
+                                    <SubtitleUpload
+                                        sessionId={activeSessionId.current}
+                                        hasSubtitles={hasSubtitles}
+                                        onUploadComplete={handleSubtitleUploadComplete}
+                                    />
+                                </div>
+                            )}
                         </div>
                     )}
-                    {activeSessionId.current && !videoSyncConfig && (
+                    {activeSessionId.current && !videoSyncConfig && !writesDisabled && (
                         <VideoUpload
                             sessionId={activeSessionId.current}
                             hasVideo={false}
                             onUploadComplete={handleVideoUploadComplete}
+                        />
+                    )}
+                    {isLiveSession && (
+                        <LiveControlBar
+                            connected={live.connected}
+                            eventsReceived={live.events.length}
+                            latestEventTimestamp={live.latestEventTimestamp}
+                            reactionDelayMs={reactionDelayMs}
+                            onReactionDelayChange={setReactionDelayMs}
+                            lastLabelToast={lastLabelToast}
                         />
                     )}
                     <SessionInfo session={session} />
@@ -374,19 +561,30 @@ function App() {
                                 {zoomedXDomain && (
                                     <button className="zoom-btn reset" onClick={() => setZoomedXDomain(null)} title="Reset zoom">Reset</button>
                                 )}
+                                {isLiveSession && zoomedXDomain && (
+                                    <button
+                                        className={`zoom-btn follow ${autoFollowLive ? 'active' : ''}`}
+                                        onClick={handleToggleAutoFollow}
+                                        title={autoFollowLive ? 'Auto-follow latest events (on)' : 'Auto-follow latest events (off)'}
+                                    >
+                                        Follow
+                                    </button>
+                                )}
                             </div>
                         )}
-                        <FreeAnnotationForm
-                            sessionStartTime={sessionStartTime}
-                            onAdd={handleAddAnnotation}
-                            videoTimeRef={videoSyncConfig ? videoTimeRef : undefined}
-                            annotationCount={annotations.length}
-                        />
+                        {!writesDisabled && (
+                            <FreeAnnotationForm
+                                sessionStartTime={sessionStartTime}
+                                onAdd={handleAddAnnotation}
+                                videoTimeRef={videoSyncConfig ? videoTimeRef : undefined}
+                                annotationCount={annotations.length}
+                            />
+                        )}
                     </div>
                     {viewMode === 'timeline' && effectiveXDomain && (
                         <div className="stacked-timelines">
                             <SessionTimeline
-                                events={session.events}
+                                events={displayedEvents}
                                 sessionStartTime={sessionStartTime}
                                 replayEq={session.replayEq}
                                 annotations={annotations}
@@ -395,15 +593,16 @@ function App() {
                                 videoTimeRef={videoTimeRef}
                             />
                             <TrackingTimeline
-                                events={session.events}
+                                events={displayedEvents}
                                 sessionStartTime={sessionStartTime}
                                 xDomain={effectiveXDomain}
                                 fullXDomain={xDomain}
                                 annotations={annotations}
                                 enabledTypes={ALL_ENABLED}
-                                onAddAnnotation={handleAddAnnotation}
-                                onUpdateAnnotation={handleUpdateAnnotation}
-                                onDeleteAnnotation={handleDeleteAnnotation}
+                                onAddAnnotation={writesDisabled ? undefined : handleAddAnnotation}
+                                onUpdateAnnotation={writesDisabled ? undefined : handleUpdateAnnotation}
+                                onDeleteAnnotation={writesDisabled ? undefined : handleDeleteAnnotation}
+                                readOnly={writesDisabled}
                                 onViewInList={handleViewInList}
                                 videoTimeRef={videoTimeRef}
                                 onSeekVideo={videoSyncConfig ? handleVideoSeek : undefined}
@@ -414,13 +613,14 @@ function App() {
                     )}
                     {viewMode === 'list' && (
                         <EventStream
-                            events={session.events}
+                            events={displayedEvents}
                             sessionStartTime={sessionStartTime}
                             annotations={annotations}
                             enabledTypes={ALL_ENABLED}
-                            onAddAnnotation={handleAddAnnotation}
-                            onUpdateAnnotation={handleUpdateAnnotation}
-                            onDeleteAnnotation={handleDeleteAnnotation}
+                            onAddAnnotation={writesDisabled ? undefined : handleAddAnnotation}
+                            onUpdateAnnotation={writesDisabled ? undefined : handleUpdateAnnotation}
+                            onDeleteAnnotation={writesDisabled ? undefined : handleDeleteAnnotation}
+                            readOnly={writesDisabled}
                             scrollToTimestamp={scrollToTimestamp}
                             onScrollComplete={handleScrollComplete}
                             videoTimeRef={videoTimeRef}
@@ -433,5 +633,3 @@ function App() {
         </div>
     );
 }
-
-export default App;

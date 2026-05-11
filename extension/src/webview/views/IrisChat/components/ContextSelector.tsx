@@ -1,8 +1,9 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useMemo } from 'react';
 import clsx from 'clsx';
 import { useClickOutside } from '../../../hooks/useClickOutside';
 import { formatRelativeTime } from '../../../utils/formatRelativeTime';
 import FolderGit2 from 'lucide-react/dist/esm/icons/folder-git-2';
+import Plus from 'lucide-react/dist/esm/icons/plus';
 import type { ChatContext, ChatSession, ContextItem } from '../types';
 import type { ChatContextType } from '../../../../shared/types/context';
 import styles from './ContextSelector.module.css';
@@ -11,48 +12,78 @@ interface ContextSelectorProps {
     context: ChatContext | null;
     sessions: ChatSession[];
     activeSessionId: string | null;
-    recentExercises: ContextItem[];
-    recentCourses: ContextItem[];
-    allExercises: ContextItem[];
-    allCourses: ContextItem[];
-    forceContextPicker: boolean;
+    exercises: ContextItem[];
+    courses: ContextItem[];
     onSelectContext: (type: ChatContextType, id: number, title: string, shortName?: string) => void;
     onSelectSession: (sessionId: string) => void;
     onCreateNewSession: () => void;
     onSwitchToWorkspace: () => void;
-    onSwitchContext: () => void;
 }
 
 export function ContextSelector({
     context,
     sessions,
     activeSessionId,
-    recentExercises,
-    recentCourses,
-    allExercises,
-    allCourses,
-    forceContextPicker,
+    exercises,
+    courses,
     onSelectContext,
     onSelectSession,
     onCreateNewSession,
     onSwitchToWorkspace,
-    onSwitchContext,
 }: ContextSelectorProps) {
     const [isOpen, setIsOpen] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
     const containerRef = useRef<HTMLDivElement>(null);
 
-    // Close dropdown when clicking outside
     useClickOutside(containerRef, isOpen, () => {
         setIsOpen(false);
         setSearchQuery('');
     });
 
+    const courseShortById = useMemo(() => {
+        const m = new Map<number, string>();
+        for (const c of courses) {
+            const tag = c.shortName ?? c.title;
+            if (tag) { m.set(c.id, tag); }
+        }
+        return m;
+    }, [courses]);
+
+    const q = searchQuery.trim().toLowerCase();
+    const filteredExercises = q
+        ? exercises.filter(ex => {
+            const courseTag = ex.courseId ? courseShortById.get(ex.courseId) ?? '' : '';
+            return ex.title.toLowerCase().includes(q)
+                || (ex.shortName ?? '').toLowerCase().includes(q)
+                || courseTag.toLowerCase().includes(q);
+        })
+        : exercises;
+    const filteredCourses = q
+        ? courses.filter(c =>
+            c.title.toLowerCase().includes(q)
+            || (c.shortName ?? '').toLowerCase().includes(q)
+        )
+        : courses;
+
+    const workspaceExercise = exercises.find(ex => ex.isWorkspace);
+    const workspaceCourse = workspaceExercise?.courseId
+        ? courses.find(c => c.id === workspaceExercise.courseId)
+        : undefined;
+
+    const isInWorkspaceContext = context?.source === 'workspace-detected';
+    const isInWorkspaceCourseContext = !!workspaceCourse
+        && context?.type === 'course'
+        && context.id === workspaceCourse.id;
+    const canCreateNewSession = sessions.length > 0 && sessions.some(s => s.messageCount > 0);
+    const activeSession = context ? sessions.find(s => s.id === activeSessionId) : undefined;
+    const messageCount = activeSession?.messageCount || 0;
+
+    const hasWorkspaceShortcut = !!(workspaceExercise || workspaceCourse);
+    const showTopSection = q.length === 0 && (context !== null || hasWorkspaceShortcut);
+
     const toggleDropdown = () => {
         setIsOpen(!isOpen);
-        if (isOpen) {
-            setSearchQuery('');
-        }
+        if (isOpen) { setSearchQuery(''); }
     };
 
     const handleSelectContext = (
@@ -70,38 +101,6 @@ export function ContextSelector({
         onSelectSession(sessionId);
         setIsOpen(false);
     };
-
-    const handleSwitchContext = () => {
-        onSwitchContext();
-    };
-
-    // Check if we should show context picker
-    const showContextPicker = !context || forceContextPicker || searchQuery.length > 0;
-
-    // Filter exercises and courses based on search
-    const filteredExercises = searchQuery
-        ? allExercises.filter((ex) =>
-              ex.title.toLowerCase().includes(searchQuery.toLowerCase())
-          )
-        : recentExercises.slice(0, 3);
-
-    const filteredCourses = searchQuery
-        ? allCourses.filter((c) =>
-              c.title.toLowerCase().includes(searchQuery.toLowerCase())
-          )
-        : recentCourses.slice(0, 3);
-
-    // Check if there's a workspace exercise
-    const hasWorkspaceExercise = allExercises.some((ex) => ex.isWorkspace);
-    const isInWorkspaceContext = context?.source === 'workspace-detected';
-
-    // Check if new session should be disabled (no messages in current session)
-    const canCreateNewSession = sessions.length > 0 && sessions.some(s => s.messageCount > 0);
-
-    const activeSession = context
-        ? sessions.find((s) => s.id === activeSessionId)
-        : undefined;
-    const messageCount = activeSession?.messageCount || 0;
 
     return (
         <div ref={containerRef} className={styles.container}>
@@ -158,7 +157,6 @@ export function ContextSelector({
 
             {isOpen && (
                 <div className={styles.dropdown}>
-                    {/* Search input - always shown */}
                     <div className={styles.searchContainer}>
                         <div className={styles.searchInputWrapper}>
                             <svg
@@ -183,15 +181,135 @@ export function ContextSelector({
                     </div>
 
                     <div className={styles.dropdownContent}>
-                        {showContextPicker ? (
-                            /* Context Picker Mode */
-                            <>
-                                {filteredExercises.length > 0 && (
-                                    <div className={styles.section}>
-                                        <div className={styles.sectionHeader}>
-                                            Recent Exercises
-                                        </div>
-                                        {filteredExercises.map((exercise) => (
+                        {showTopSection && (
+                            <div className={styles.section}>
+                                <div className={styles.actions}>
+                                    {context !== null && (
+                                        <button
+                                            className={styles.actionButton}
+                                            onClick={() => {
+                                                onCreateNewSession();
+                                                setIsOpen(false);
+                                            }}
+                                            disabled={!canCreateNewSession}
+                                        >
+                                            <span className={styles.actionButtonContent}>
+                                                <Plus size={14} />
+                                                New Conversation
+                                            </span>
+                                        </button>
+                                    )}
+                                    {workspaceExercise && (
+                                        <button
+                                            className={styles.actionButton}
+                                            disabled={isInWorkspaceContext}
+                                            onClick={() => {
+                                                onSwitchToWorkspace();
+                                                setIsOpen(false);
+                                            }}
+                                        >
+                                            <span className={styles.actionButtonContent}>
+                                                <FolderGit2 size={14} />
+                                                {isInWorkspaceContext
+                                                    ? `Workspace Exercise (Active): ${workspaceExercise.title}`
+                                                    : `Chat about Workspace Exercise: ${workspaceExercise.title}`}
+                                            </span>
+                                        </button>
+                                    )}
+                                    {workspaceCourse && (
+                                        <button
+                                            className={styles.actionButton}
+                                            disabled={isInWorkspaceCourseContext}
+                                            onClick={() => {
+                                                handleSelectContext(
+                                                    'course',
+                                                    workspaceCourse.id,
+                                                    workspaceCourse.title,
+                                                    workspaceCourse.shortName
+                                                );
+                                            }}
+                                        >
+                                            <span className={styles.actionButtonContent}>
+                                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                                    <path d="M22 10v6M2 10l10-5 10 5-10 5z" />
+                                                    <path d="M6 12v5c3 3 9 3 12 0v-5" />
+                                                </svg>
+                                                {isInWorkspaceCourseContext
+                                                    ? `Workspace Course (Active): ${workspaceCourse.title}`
+                                                    : `Chat about Workspace Course: ${workspaceCourse.title}`}
+                                            </span>
+                                        </button>
+                                    )}
+                                </div>
+                            </div>
+                        )}
+
+                        {context !== null && sessions.length > 0 && q.length === 0 && (
+                            <div className={clsx(styles.section, styles.scrollSection)}>
+                                <div className={styles.sectionHeader}>Conversations</div>
+                                <div className={styles.scrollList}>
+                                    {sessions.map(session => (
+                                        <button
+                                            key={session.id}
+                                            className={clsx(styles.sessionItem, {
+                                                [styles.sessionItemActive]:
+                                                    session.id === activeSessionId,
+                                            })}
+                                            onClick={() => handleSelectSession(session.id)}
+                                        >
+                                            <svg
+                                                width="14"
+                                                height="14"
+                                                viewBox="0 0 24 24"
+                                                fill="none"
+                                                className={styles.sessionIcon}
+                                            >
+                                                <path
+                                                    d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"
+                                                    stroke="currentColor"
+                                                    strokeWidth="2"
+                                                    strokeLinecap="round"
+                                                    strokeLinejoin="round"
+                                                />
+                                            </svg>
+                                            <div className={styles.sessionContent}>
+                                                <span className={styles.sessionPreview}>
+                                                    {session.title || session.preview}
+                                                </span>
+                                                <span className={styles.sessionMeta}>
+                                                    {session.messageCount} messages · {formatRelativeTime(session.lastActivity)}
+                                                </span>
+                                            </div>
+                                            {session.id === activeSessionId && (
+                                                <svg
+                                                    width="16"
+                                                    height="16"
+                                                    viewBox="0 0 24 24"
+                                                    fill="none"
+                                                    className={styles.checkIcon}
+                                                >
+                                                    <polyline
+                                                        points="20 6 9 17 4 12"
+                                                        stroke="currentColor"
+                                                        strokeWidth="2"
+                                                        strokeLinecap="round"
+                                                        strokeLinejoin="round"
+                                                    />
+                                                </svg>
+                                            )}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {filteredExercises.length > 0 && (
+                            <div className={clsx(styles.section, styles.scrollSection)}>
+                                <div className={styles.sectionHeader}>Exercises</div>
+                                <div className={styles.scrollList}>
+                                    {filteredExercises.map((exercise) => {
+                                        const courseTag = exercise.courseId ? courseShortById.get(exercise.courseId) : undefined;
+                                        return (
                                             <button
                                                 key={exercise.id}
                                                 className={styles.contextItem}
@@ -210,151 +328,46 @@ export function ContextSelector({
                                                 <span className={styles.itemText}>
                                                     {exercise.title}
                                                 </span>
-                                            </button>
-                                        ))}
-                                    </div>
-                                )}
-
-                                {filteredCourses.length > 0 && (
-                                    <div className={styles.section}>
-                                        <div className={styles.sectionHeader}>Recent Courses</div>
-                                        {filteredCourses.map((course) => (
-                                            <button
-                                                key={course.id}
-                                                className={styles.contextItem}
-                                                onClick={() =>
-                                                    handleSelectContext(
-                                                        'course',
-                                                        course.id,
-                                                        course.title,
-                                                        course.shortName
-                                                    )
-                                                }
-                                            >
-                                                <span className={styles.itemText}>
-                                                    {course.title}
-                                                </span>
-                                            </button>
-                                        ))}
-                                    </div>
-                                )}
-
-                                {filteredExercises.length === 0 &&
-                                    filteredCourses.length === 0 && (
-                                        <div className={styles.emptyState}>
-                                            No exercises or courses found
-                                        </div>
-                                    )}
-                            </>
-                        ) : (
-                            /* Session List Mode */
-                            <>
-                                {sessions.length > 0 && (
-                                    <div className={styles.section}>
-                                        <div className={styles.sectionHeader}>Sessions</div>
-                                        {sessions.map((session) => (
-                                            <button
-                                                key={session.id}
-                                                className={clsx(styles.sessionItem, {
-                                                    [styles.sessionItemActive]:
-                                                        session.id === activeSessionId,
-                                                })}
-                                                onClick={() => handleSelectSession(session.id)}
-                                            >
-                                                <svg
-                                                    width="14"
-                                                    height="14"
-                                                    viewBox="0 0 24 24"
-                                                    fill="none"
-                                                    className={styles.sessionIcon}
-                                                >
-                                                    <path
-                                                        d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"
-                                                        stroke="currentColor"
-                                                        strokeWidth="2"
-                                                        strokeLinecap="round"
-                                                        strokeLinejoin="round"
-                                                    />
-                                                </svg>
-                                                <div className={styles.sessionContent}>
-                                                    <span className={styles.sessionPreview}>
-                                                        {session.title || session.preview}
-                                                    </span>
-                                                    <span className={styles.sessionMeta}>
-                                                        {session.messageCount} messages •{' '}
-                                                        {formatRelativeTime(session.lastActivity)}
-                                                    </span>
-                                                </div>
-                                                {session.id === activeSessionId && (
-                                                    <svg
-                                                        width="16"
-                                                        height="16"
-                                                        viewBox="0 0 24 24"
-                                                        fill="none"
-                                                        className={styles.checkIcon}
-                                                    >
-                                                        <polyline
-                                                            points="20 6 9 17 4 12"
-                                                            stroke="currentColor"
-                                                            strokeWidth="2"
-                                                            strokeLinecap="round"
-                                                            strokeLinejoin="round"
-                                                        />
-                                                    </svg>
+                                                {courseTag && (
+                                                    <span className={styles.itemTag}>{courseTag}</span>
                                                 )}
                                             </button>
-                                        ))}
-                                    </div>
-                                )}
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        )}
 
-                                <div className={styles.actions}>
-                                    <button
-                                        className={styles.actionButton}
-                                        onClick={() => {
-                                            onCreateNewSession();
-                                            setIsOpen(false);
-                                        }}
-                                        disabled={!canCreateNewSession}
-                                    >
-                                        <span className={styles.actionButtonContent}>
-                                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                                <line x1="12" y1="5" x2="12" y2="19" />
-                                                <line x1="5" y1="12" x2="19" y2="12" />
-                                            </svg>
-                                            New Conversation
-                                        </span>
-                                    </button>
-                                    {hasWorkspaceExercise && (
+                        {filteredCourses.length > 0 && (
+                            <div className={clsx(styles.section, styles.scrollSection)}>
+                                <div className={styles.sectionHeader}>Courses</div>
+                                <div className={styles.scrollList}>
+                                    {filteredCourses.map((course) => (
                                         <button
-                                            className={styles.actionButton}
-                                            disabled={isInWorkspaceContext}
-                                            onClick={() => {
-                                                onSwitchToWorkspace();
-                                                setIsOpen(false);
-                                            }}
+                                            key={course.id}
+                                            className={styles.contextItem}
+                                            onClick={() =>
+                                                handleSelectContext(
+                                                    'course',
+                                                    course.id,
+                                                    course.title,
+                                                    course.shortName
+                                                )
+                                            }
                                         >
-                                            <span className={styles.actionButtonContent}>
-                                                <FolderGit2 size={14} />
-                                                {isInWorkspaceContext ? 'Workspace Exercise (Active)' : 'Chat about Workspace Exercise (Currently Open)'}
+                                            <span className={styles.itemText}>
+                                                {course.title}
                                             </span>
                                         </button>
-                                    )}
-                                    <button
-                                        className={styles.actionButton}
-                                        onClick={handleSwitchContext}
-                                    >
-                                        <span className={styles.actionButtonContent}>
-                                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                                <polyline points="17 1 21 5 17 9" />
-                                                <path d="M3 11V9a4 4 0 0 1 4-4h14" />
-                                                <polyline points="7 23 3 19 7 15" />
-                                                <path d="M21 13v2a4 4 0 0 1-4 4H3" />
-                                            </svg>
-                                            Switch to Different Context
-                                        </span>
-                                    </button>
+                                    ))}
                                 </div>
-                            </>
+                            </div>
+                        )}
+
+                        {filteredExercises.length === 0 && filteredCourses.length === 0 && (
+                            <div className={styles.emptyState}>
+                                No exercises or courses found
+                            </div>
                         )}
                     </div>
                 </div>

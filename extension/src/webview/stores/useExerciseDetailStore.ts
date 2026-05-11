@@ -8,7 +8,7 @@ import type {
     SubmissionSummary,
 } from '../../shared/types/apiResponses';
 
-export interface RepoStatus {
+interface RepoStatus {
     isConnected: boolean;
     hasChanges: boolean;
     isPracticeRepo: boolean;
@@ -40,7 +40,7 @@ interface ExerciseDetailState {
 
     // Extension→Webview response state
     repoStatus: RepoStatus | null;
-    clonedNotice: string | null;
+    clonedNotice: { exerciseTitle: string; participationId: number } | null;
     dirtyPagesStatus: DirtyPagesStatus | null;
 
     // Actions
@@ -52,7 +52,7 @@ interface ExerciseDetailState {
     updateSubmission: (payload: SubmissionSummary) => void;
     updateSubmissionProcessing: (payload: PendingSubmissionInfo) => void;
     setRepoStatus: (status: RepoStatus) => void;
-    setClonedNotice: (exerciseTitle: string) => void;
+    setClonedNotice: (exerciseTitle: string, participationId: number) => void;
     setDirtyPagesStatus: (status: DirtyPagesStatus) => void;
     clearClonedNotice: () => void;
     clearPendingSubmission: () => void;
@@ -224,8 +224,8 @@ export const useExerciseDetailStore = create<ExerciseDetailState>()(
                 set({ repoStatus: status }, false, 'setRepoStatus');
             },
 
-            setClonedNotice: (exerciseTitle) => {
-                set({ clonedNotice: exerciseTitle }, false, 'setClonedNotice');
+            setClonedNotice: (exerciseTitle, participationId) => {
+                set({ clonedNotice: { exerciseTitle, participationId } }, false, 'setClonedNotice');
             },
 
             setDirtyPagesStatus: (status) => {

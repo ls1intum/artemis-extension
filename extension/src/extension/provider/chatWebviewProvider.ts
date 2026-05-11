@@ -10,7 +10,8 @@ import { ExtensionMsg, WebviewCmd, getPayload } from '../../shared/messageContra
 import type { WebCmd, WebviewToExtensionMessage } from '../../shared/messageContracts';
 import { openSettings, openFileInWorkspace } from '../controller/commands/utilityCommands';
 import { ArtemisApiService } from '../api';
-import { ArtemisWebsocketService, IrisWebSocketMessageHandler } from '../services/websocket';
+import { ArtemisWebsocketService } from '../services/websocket';
+import { IrisWebSocketMessageHandler } from '../services/iris';
 import { FileMonitorService, NoAiDetectionService, detectAndRegisterWorkspaceExercise } from '../services/workspace';
 import { IrisWebSocketSessionClient, ChatDiagnosticsService, IrisChatSessionService, ChatMessageService, ChatContextManager, ContextStore, IRIS_CHAT_HELP_MARKDOWN } from '../services/iris';
 import type { IrisServiceDeps, ChatContextReason } from '../services/iris';
@@ -20,7 +21,7 @@ import type { CourseDataCache } from '../services/courseDataCache';
 import { getReactWebviewHtml } from '../services/ui';
 import { logger, LogCategory } from '../services/loggingService';
 
-export interface ExerciseContextChangeEvent {
+interface ExerciseContextChangeEvent {
     exerciseId: number;
     previousExerciseId?: number;
     exerciseRoot?: vscode.Uri;
@@ -48,6 +49,33 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
     private readonly _onDidSendIrisChatMessage = new vscode.EventEmitter<string>();
     public readonly onDidSendIrisChatMessage = this._onDidSendIrisChatMessage.event;
 
+    /**
+     * Fired at each stage of a send attempt:
+     *   - { status: 'pending' }   immediately before the API call
+     *   - { status: 'sent' }      after the API call succeeds
+     *   - { status: 'failed', errorMessage }  after the API call throws
+     *
+     * Consumers (e.g. sessionRecorderWiring) use this to record the full
+     * send lifecycle, including failed sends that never become irisChatMessage events.
+     */
+    private readonly _onDidAttemptIrisChatSend = new vscode.EventEmitter<{
+        content: string;
+        status: 'pending' | 'sent' | 'failed';
+        errorMessage?: string;
+    }>();
+    public readonly onDidAttemptIrisChatSend = this._onDidAttemptIrisChatSend.event;
+
+    /**
+     * Fired when the user submits helpful/unhelpful feedback for a message.
+     * The event is emitted AFTER the API call has been dispatched (fire-and-forget
+     * from the recording perspective — we don't wait for the server's ack).
+     */
+    private readonly _onDidProvideIrisChatFeedback = new vscode.EventEmitter<{
+        messageId: string;
+        helpful: boolean;
+    }>();
+    public readonly onDidProvideIrisChatFeedback = this._onDidProvideIrisChatFeedback.event;
+
     private readonly _onDidChangePanelVisibility = new vscode.EventEmitter<boolean>();
     public readonly onDidChangePanelVisibility = this._onDidChangePanelVisibility.event;
 
@@ -66,6 +94,8 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
         super(LogCategory.IRIS_CHAT);
         this._disposables.push(this._onDidChangeExerciseContext);
         this._disposables.push(this._onDidSendIrisChatMessage);
+        this._disposables.push(this._onDidAttemptIrisChatSend);
+        this._disposables.push(this._onDidProvideIrisChatFeedback);
         this._disposables.push(this._onDidChangePanelVisibility);
         this._contextStore = new ContextStore(this._extensionContext);
         this._disposables.push(this._contextStore);
@@ -127,7 +157,7 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
                 this._irisSessionManager.onDidReceiveMessage(data => this._websocketMessageHandler.handleIrisWebSocketMessage(data))
             );
             this._disposables.push(
-                this._irisSessionManager.onDidConnectionStateChange(isConnected => this._websocketMessageHandler.updateWebSocketStatus(isConnected))
+                this._irisSessionManager.onDidConnectionStateChange(() => this._websocketMessageHandler.publishCurrentStatus())
             );
         }
 
@@ -160,6 +190,7 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
         _token: vscode.CancellationToken,
     ) {
         logger.debug('Iris Chat webview being resolved/loaded', LogCategory.VIEW);
+        this._drainViewDisposables();
         this._view = webviewView;
         this._resetReadyState();
 
@@ -176,7 +207,7 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
         const messageListener = webviewView.webview.onDidReceiveMessage(message => {
             this._handleMessage(message);
         });
-        this._disposables.push(messageListener);
+        this._viewDisposables.push(messageListener);
 
         const visibilityListener = webviewView.onDidChangeVisibility(() => {
             this._onDidChangePanelVisibility.fire(webviewView.visible);
@@ -187,25 +218,24 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
                 logger.debug('Iris Chat view became hidden', LogCategory.VIEW);
             }
         });
-        this._disposables.push(visibilityListener);
+        this._viewDisposables.push(visibilityListener);
 
         const workspaceListener = vscode.workspace.onDidChangeWorkspaceFolders(() => {
             void this._detectWorkspaceExercise().catch((err: unknown) => {
                 logger.error('Failed to detect workspace exercise after folder change', LogCategory.IRIS_CHAT, err);
             });
         });
-        this._disposables.push(workspaceListener);
+        this._viewDisposables.push(workspaceListener);
 
         const configListener = vscode.workspace.onDidChangeConfiguration(event => {
             if (event.affectsConfiguration('artemis.developerMode')) {
                 this.refreshTheme();
             }
             if (event.affectsConfiguration('artemis.iris.sendUncommittedChanges')) {
-                // Update file display when setting changes
                 void this._fileMonitorService.triggerUpdate();
             }
         });
-        this._disposables.push(configListener);
+        this._viewDisposables.push(configListener);
 
         // Init data is sent when the webview signals ready (see _handleMessage / _sendInitData)
     }
@@ -233,7 +263,7 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
 
         // Send current WebSocket connection status so the banner reflects reality
         if (this._websocketService) {
-            this._websocketMessageHandler.updateWebSocketStatus(this._websocketService.isConnected());
+            this._websocketMessageHandler.publishCurrentStatus();
         }
     }
 
@@ -260,23 +290,12 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
         return this._noAiDetectionService.isNoAiEnabled;
     }
 
-    public clearAllSessions(): void {
-        logger.info('Clearing all local Iris sessions...', LogCategory.IRIS_CHAT);
-
-        if (this._irisSessionManager) {
-            this._irisSessionManager.resetSession();
-        }
-
-        // Clear all sessions in the context store
-        this._contextStore.clearAllSessions();
-
-        // Clear chat UI
-        this._postMessageSafe({ type: ExtensionMsg.ClearChatMessages });
-
-        // Post updated snapshot
-        this._viewStatePresenter.postSnapshot();
-
-        logger.info('All Iris sessions cleared', LogCategory.IRIS_CHAT);
+    public async clearAllSessions(): Promise<void> {
+        // Mirrors the in-webview "Reset & Sync Sessions" menu button so the
+        // command-palette and webview entry points behave identically.
+        logger.info('Resetting Iris sessions (clear + reload)...', LogCategory.IRIS_CHAT);
+        await this._chatSessionService.resetAndReloadSessions();
+        logger.info('Reset complete', LogCategory.IRIS_CHAT);
     }
 
     public updateDetectedExercise(
@@ -287,6 +306,7 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
         shortName?: string,
         courseId?: number,
     ): void {
+        // Do not set isWorkspace here; workspaceDetectionService owns that flag.
         this._chatContextManager.registerExerciseAndAutoSelect({
             id: exerciseId,
             title: exerciseTitle,
@@ -295,7 +315,6 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
             releaseDate,
             dueDate,
             source: 'system-default',
-            isWorkspace: /\\(Workspace\\)/i.test(exerciseTitle),
         });
     }
 
@@ -509,6 +528,7 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
                         studentParticipations?: Array<{ repositoryUri?: string }>;
                     };
                     if (ex.id && ex.title && ex.studentParticipations?.length) {
+                        // Do not set isWorkspace here; workspaceDetectionService owns that flag.
                         this._chatContextManager.registerExerciseAndAutoSelect({
                             id: ex.id,
                             title: ex.title,
@@ -517,7 +537,6 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
                             releaseDate: ex.releaseDate ?? ex.startDate,
                             dueDate: ex.dueDate,
                             source: 'system-default',
-                            isWorkspace: false,
                         });
                     }
                 }
@@ -587,16 +606,29 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
     private async _handleChatMessage(message: { text?: string }): Promise<void> {
         if (typeof message.text !== 'string') { return; }
 
+        const content = message.text;
+
+        // Emit pending before the API call so the recording captures send attempts
+        // even when the call never returns (e.g. network hang).
+        this._onDidAttemptIrisChatSend.fire({ content, status: 'pending' });
+
         try {
             const result = await this._chatMessageService.sendMessage({
-                text: message.text,
+                text: content,
                 isNoAiEnabled: this._noAiDetectionService.isNoAiEnabled,
                 struggleContext: this.getStruggleContext(),
             });
 
             if (result.sent) {
-                this._onDidSendIrisChatMessage.fire(message.text!);
+                this._onDidAttemptIrisChatSend.fire({ content, status: 'sent' });
+                this._onDidSendIrisChatMessage.fire(content);
             } else {
+                // Fire terminal 'failed' so the pending event is never orphaned.
+                this._onDidAttemptIrisChatSend.fire({
+                    content,
+                    status: 'failed',
+                    errorMessage: `send-rejected: ${result.reason ?? 'unknown'}`,
+                });
                 switch (result.reason) {
                     case 'no-ai':
                         this._postNoAiStatus(true);
@@ -614,6 +646,7 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
             }
         } catch (error: unknown) {
             const errorMessage = error instanceof Error ? error.message : String(error);
+            this._onDidAttemptIrisChatSend.fire({ content, status: 'failed', errorMessage });
             vscode.window.showErrorMessage(`Failed to send message: ${errorMessage}`);
             this._postMessageSafe({
                 type: ExtensionMsg.AddMessage,
@@ -643,8 +676,15 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
             return;
         }
 
+        const isHelpful = feedback === 'positive';
+
+        // Fire the recording event before the API call (fire-and-forget for recording).
+        this._onDidProvideIrisChatFeedback.fire({
+            messageId: String(messageId),
+            helpful: isHelpful,
+        });
+
         try {
-            const isHelpful = feedback === 'positive';
             await this._artemisApiService.markMessageHelpful(sessionId, messageId, isHelpful);
             logger.info(`Feedback submitted: ${feedback} for message ${messageId} in session ${sessionId}`, LogCategory.IRIS_CHAT);
         } catch (error) {
@@ -679,7 +719,7 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
         }
         if (this._websocketService.isConnected()) {
             vscode.window.showInformationMessage('WebSocket is already connected');
-            this._websocketMessageHandler.updateWebSocketStatus(true);
+            this._websocketMessageHandler.publishCurrentStatus();
             return;
         }
 

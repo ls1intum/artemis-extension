@@ -14,7 +14,7 @@ export interface ServiceInfo {
   response?: string;
 }
 
-export interface ServiceHealthProps {
+interface ServiceHealthProps {
   services: ServiceInfo[];
   onRefresh?: () => void;
   isRefreshing?: boolean;

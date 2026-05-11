@@ -537,11 +537,19 @@
 }
 
 .event-list {
-    max-height: 600px;
-    overflow-y: auto;
+    /* react-virtuoso needs an explicit, finite height on its parent.
+       Using a fixed height here so the virtualizer measures correctly;
+       max-height alone collapses to 0 because flex children pass through
+       an indefinite-height intrinsic size from the column layout. */
+    height: 600px;
     display: flex;
     flex-direction: column;
-    gap: 2px;
+}
+
+.event-list > * {
+    /* The Virtuoso scroller fills the .event-list container. */
+    flex: 1 1 auto;
+    min-height: 0;
 }
 
 .event-row {
@@ -594,6 +602,8 @@
 .event-badge.sessionStart { background: rgba(99, 102, 241, 0.15); color: #a5b4fc; }
 .event-badge.sessionEnd { background: rgba(239, 68, 68, 0.15); color: #f87171; }
 .event-badge.irisChatMessage { background: rgba(236, 72, 153, 0.15); color: #f472b6; }
+.event-badge.irisChatSendAttempt { background: rgba(251, 146, 60, 0.15); color: #fb923c; }
+.event-badge.irisChatFeedback { background: rgba(167, 139, 250, 0.15); color: #a78bfa; }
 .event-badge.intervention { background: rgba(249, 115, 22, 0.15); color: #f97316; }
 .event-badge.eqEngineState { background: rgba(99, 102, 241, 0.15); color: #818cf8; }
 .event-badge.viewNavigation { background: rgba(167, 139, 250, 0.15); color: #a78bfa; }
@@ -602,6 +612,12 @@
 .event-badge.visibleRangeChange { background: rgba(20, 184, 166, 0.15); color: #14b8a6; }
 .event-badge.terminalCommand { background: rgba(34, 211, 238, 0.15); color: #22d3ee; }
 .event-badge.terminalOpenClose { background: rgba(103, 232, 249, 0.12); color: #67e8f9; }
+.event-badge.fileSnapshotError { background: rgba(239, 68, 68, 0.15); color: #f87171; }
+.event-badge.fileCreate { background: rgba(134, 239, 172, 0.15); color: #86efac; }
+.event-badge.fileDelete { background: rgba(252, 165, 165, 0.15); color: #fca5a5; }
+.event-badge.fileRename { background: rgba(253, 186, 116, 0.15); color: #fdba74; }
+.event-badge.textDocumentOpen { background: rgba(125, 211, 252, 0.15); color: #7dd3fc; }
+.event-badge.textDocumentClose { background: rgba(147, 197, 253, 0.15); color: #93c5fd; }
 
 /* ── Event details ───────────────────────────────────────────────────── */
 
@@ -1188,16 +1204,6 @@
     position: relative;
 }
 
-.event-dot {
-    transition: r 0.1s;
-}
-.event-dot:hover {
-    filter: brightness(1.3);
-}
-.event-dot-dense {
-    filter: brightness(1.1);
-}
-
 /* ── Timeline tooltip ───────────────────────────────────────────────── */
 
 .timeline-tooltip {
@@ -1659,6 +1665,27 @@
     z-index: 5;
 }
 
+/* Session chart overlay (zoom rect + playhead for the recharts EQ chart).
+   Matches the former recharts ReferenceArea/ReferenceLine visuals. */
+.session-zoom-rect {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    background: rgba(99, 102, 241, 0.12);
+    border: 1px solid rgba(99, 102, 241, 0.4);
+    pointer-events: none;
+}
+.session-playhead-line {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 1.5px;
+    background: #ef4444;
+    transform: translateX(0);
+    will-change: transform;
+    pointer-events: none;
+}
+
 /* ── Timeline seek hint ─────────────────────────────────────────────── */
 
 .timeline-seek-hint {
@@ -1703,6 +1730,17 @@
     font-size: 12px;
     font-weight: 400;
 }
+.zoom-btn.follow {
+    width: auto;
+    padding: 0 10px;
+    font-size: 12px;
+    font-weight: 500;
+}
+.zoom-btn.follow.active {
+    background: rgba(239, 68, 68, 0.15);
+    color: #ef4444;
+    border-color: rgba(239, 68, 68, 0.3);
+}
 
 /* ── Follow playback button ─────────────────────────────────────────── */
 
@@ -1739,4 +1777,43 @@
 .seek-video-btn:hover {
     color: #ef4444;
     background: rgba(239, 68, 68, 0.1);
+}
+
+.login-screen { display: flex; align-items: center; justify-content: center; min-height: 100vh; background: #0f172a; }
+.login-form { background: #1e293b; padding: 2rem; border-radius: 8px; width: 360px; color: #f1f5f9; }
+.login-form h1 { margin-top: 0; }
+.login-form input { width: 100%; padding: 0.6rem; margin: 0.5rem 0; border: 1px solid #334155; background: #0f172a; color: inherit; border-radius: 4px; }
+.login-form button { width: 100%; padding: 0.6rem; background: #3b82f6; color: white; border: none; border-radius: 4px; cursor: pointer; }
+.login-form button:disabled { opacity: 0.5; cursor: not-allowed; }
+.login-error { color: #f87171; margin-top: 0.75rem; font-size: 0.9rem; }
+.loading-screen { display: flex; align-items: center; justify-content: center; min-height: 100vh; background: #0f172a; color: #94a3b8; }
+
+.live-control-bar {
+    display: flex; gap: 1.5rem; align-items: center;
+    padding: 0.5rem 1rem; background: #1e293b; color: #f1f5f9;
+    border-bottom: 1px solid #334155; font-size: 0.85rem;
+    flex-wrap: wrap; position: relative;
+}
+.live-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 0.5rem; }
+.live-dot.on { background: #ef4444; box-shadow: 0 0 8px #ef4444; animation: pulse 1.5s infinite; }
+.live-dot.off { background: #64748b; }
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+.live-status { display: flex; align-items: center; gap: 0.75rem; }
+.live-counter, .live-age { color: #94a3b8; font-variant-numeric: tabular-nums; }
+.live-reaction label { display: flex; gap: 0.5rem; align-items: center; }
+.live-reaction input[type="range"] { width: 120px; }
+.live-legend { display: flex; gap: 0.4rem; flex-wrap: wrap; }
+.live-legend span { font-family: monospace; }
+.live-toast {
+    position: absolute; top: 100%; right: 1rem;
+    background: #3b82f6; color: white;
+    padding: 0.4rem 0.8rem; border-radius: 4px; margin-top: 0.5rem;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.3); pointer-events: none;
+}
+.live-toast-undo, .live-toast-redo { background: #6b7280; }
+.live-toast-error { background: #ef4444; }
+.live-session-badge {
+    display: inline-block; background: #ef4444; color: white;
+    font-size: 0.7rem; padding: 0.1rem 0.4rem; border-radius: 3px;
+    margin-left: 0.5rem; font-weight: bold; animation: pulse 1.5s infinite;
 }

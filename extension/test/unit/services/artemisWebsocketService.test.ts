@@ -148,16 +148,16 @@ suite('Artemis WebSocket Service Test Suite', () => {
         // Mock auth
         await authManager.storeArtemisCredentials('jwt=token', 'https://artemis.example.com', true);
 
-        // Track state changes
+        // Track state changes via EventEmitter (no immediate replay on subscribe)
         const states: boolean[] = [];
-        wsService.onConnectionStateChange((isConnected) => {
+        wsService.onDidChangeConnectionState(({ connected: isConnected }) => {
             states.push(isConnected);
         });
 
-        // Initial state
-        assert.strictEqual(states[0], false);
+        // No immediate replay: states should be empty before any event fires
+        assert.strictEqual(states.length, 0, 'EventEmitter should not replay on subscribe');
 
-        // Connect — flush microtasks so connect() reaches _createClient() past async operations
+        // Connect - flush microtasks so connect() reaches _createClient() past async operations
         const connectPromise = wsService.connect();
         await flushMicrotasks();
 
@@ -260,15 +260,15 @@ suite('Artemis WebSocket Service Test Suite', () => {
         }
     });
 
-    test('should ensure connection reconnects if disconnected', async () => {
+    test('should connect when disconnected', async () => {
         wsService = new TestableArtemisWebsocketService(authManager);
         await authManager.storeArtemisCredentials('jwt=token', 'https://artemis.example.com', true);
 
         // Not connected yet
         assert.strictEqual(wsService.isConnected(), false);
 
-        // Ensure connection — flush microtasks so connect() reaches _createClient()
-        const ensurePromise = wsService.ensureConnection();
+        // Connect — flush microtasks so connect() reaches _createClient()
+        const connectPromise = wsService.connect();
         await flushMicrotasks();
 
         // Should have tried to connect
@@ -277,9 +277,9 @@ suite('Artemis WebSocket Service Test Suite', () => {
 
         // Simulate successful connection so the promise resolves
         wsService.mockClient!.simulateConnect();
-        const result = await ensurePromise;
+        await connectPromise;
 
-        assert.strictEqual(result, true);
+        assert.strictEqual(wsService.isConnected(), true);
     });
 
     test('should subscribe to Iris session and receive messages', async () => {

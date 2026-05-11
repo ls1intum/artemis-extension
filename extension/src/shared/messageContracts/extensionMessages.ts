@@ -12,6 +12,18 @@ import type {
 import type { CourseData, ArchivedCourse, CourseDetailData, RecentCourseNode } from './domainTypes';
 import type { ChatContextType } from '../types/context';
 
+/**
+ * Display-facing projection of the websocket connection state. Both the chat
+ * webview and the status bar render off this. The webview store also has an
+ * additional 'unknown' state for its first render, before any extension push
+ * has arrived; the extension itself never emits 'unknown'.
+ */
+export type WebSocketDisplayStatus =
+    | 'connecting'
+    | 'connected'
+    | 'reconnecting'
+    | 'disconnected';
+
 /** All Extension->Webview message types (const object for string-literal compatibility) */
 export const ExtensionMsg = {
     // View initialization
@@ -46,9 +58,9 @@ export const ExtensionMsg = {
 
     // Iris Chat
     UpdateIrisState: 'updateIrisState',
-    ShowContextPicker: 'showContextPicker',
     AddMessage: 'addMessage',
     LoadMessages: 'loadMessages',
+    LoadMessagesError: 'loadMessagesError',
     ClearChatMessages: 'clearChatMessages',
     UpdateReferencedFiles: 'updateReferencedFiles',
     UpdateWebSocketStatus: 'updateWebSocketStatus',
@@ -194,15 +206,10 @@ interface ExtensionMsgPayloads {
                 createdAt: number;
                 lastActivity: number;
             }>;
-            recentExercises: Array<{ id: number; title: string; shortName?: string; courseId?: number; repositoryUri?: string; isWorkspace?: boolean }>;
-            recentCourses: Array<{ id: number; title: string; shortName?: string }>;
-            allExercises: Array<{ id: number; title: string; shortName?: string; courseId?: number; repositoryUri?: string; isWorkspace?: boolean }>;
-            allCourses: Array<{ id: number; title: string; shortName?: string }>;
+            exercises: Array<{ id: number; title: string; shortName?: string; courseId?: number; repositoryUri?: string; isWorkspace?: boolean }>;
+            courses: Array<{ id: number; title: string; shortName?: string }>;
         };
         showDiagnostics?: boolean;
-    };
-    showContextPicker: {
-        state: ExtensionMsgPayloads['updateIrisState']['state'];
     };
     addMessage: {
         message: {
@@ -214,6 +221,11 @@ interface ExtensionMsgPayloads {
         };
     };
     loadMessages: {
+        /** Local session UUID this load belongs to. The webview ignores
+         *  loads whose id no longer matches the currently active session,
+         *  so a slow response cannot pollute a freshly switched view. */
+        localSessionId: string;
+        artemisSessionId: number;
         messages: Array<{
             id?: number;
             role: 'user' | 'assistant';
@@ -222,13 +234,14 @@ interface ExtensionMsgPayloads {
             helpful?: boolean | null;
         }>;
     };
+    loadMessagesError: { localSessionId: string };
     clearChatMessages: undefined;
     updateReferencedFiles: {
         includedFiles: string[];
         excludedFiles: Array<{ path: string; reason?: string }>;
         totalCount: number;
     };
-    updateWebSocketStatus: { isConnected: boolean };
+    updateWebSocketStatus: { status: WebSocketDisplayStatus };
     showDisabledState: { message: string };
     hideDisabledState: undefined;
     updateNoAiStatus: {
@@ -250,7 +263,7 @@ interface ExtensionMsgPayloads {
         dirtyFileCount: number;
         autoSaveEnabled: boolean;
     };
-    showClonedRepoNotice: { exerciseTitle: string };
+    showClonedRepoNotice: { exerciseTitle: string; participationId: number };
     gitCredentialsResult: {
         status: 'success' | 'error' | 'warning' | 'info';
         message: string;

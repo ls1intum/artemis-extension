@@ -1,0 +1,9 @@
+# Code owners for paths that form the CI / release trust boundary.
+# PRs touching these paths require approval from one of the listed admins.
+# Other PRs do not require a code-owner review.
+
+/.github/                       @krusche @FelixTJDietrich @Predixx
+/scripts/                       @krusche @FelixTJDietrich @Predixx
+/extension/package.json         @krusche @FelixTJDietrich @Predixx
+/extension/package-lock.json    @krusche @FelixTJDietrich @Predixx
+/CHANGELOG.md                   @krusche @FelixTJDietrich @Predixx

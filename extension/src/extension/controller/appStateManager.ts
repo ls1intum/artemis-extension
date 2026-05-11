@@ -12,13 +12,13 @@ export interface UserInfo {
     user?: ArtemisUser;
 }
 
-export interface ExamData {
+interface ExamData {
     studentExam: StudentExam;
     courseId: number;
     examId: number;
 }
 
-export interface ExamExerciseData {
+interface ExamExerciseData {
     exercise: ExerciseDetail;
     exerciseIndex: number;
     courseId: number;
@@ -27,7 +27,7 @@ export interface ExamExerciseData {
     studentExam?: StudentExam;
 }
 
-export interface AiExtension {
+interface AiExtension {
     id: string;
     name: string;
     publisher: string;

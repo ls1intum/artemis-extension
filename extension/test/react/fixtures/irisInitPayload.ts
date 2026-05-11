@@ -25,16 +25,10 @@ export function createIrisInitPayload(
                     lastActivity: 1700001000000,
                 },
             ],
-            recentExercises: [
+            exercises: [
                 { id: 10, title: 'Recent Exercise', shortName: 'RE', courseId: 1, isWorkspace: false },
             ],
-            recentCourses: [
-                { id: 1, title: 'Test Course', shortName: 'TC' },
-            ],
-            allExercises: [
-                { id: 10, title: 'Recent Exercise', shortName: 'RE', courseId: 1, isWorkspace: false },
-            ],
-            allCourses: [
+            courses: [
                 { id: 1, title: 'Test Course', shortName: 'TC' },
             ],
             ...overrides,
