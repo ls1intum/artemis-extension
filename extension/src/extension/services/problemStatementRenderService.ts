@@ -92,7 +92,7 @@ export class ProblemStatementRenderService implements vscode.Disposable {
         const exerciseId = exercise.id;
         if (!markdown || exerciseId === undefined) { return undefined; }
 
-        // Server feature flag: permanently disabled after 404/405/501
+        // Server feature flag: disabled after 404/405/501 until config change
         if (this.serverSupportsRendering === false) { return undefined; }
 
         const darkMode = darkModeOverride ?? isDarkMode();
