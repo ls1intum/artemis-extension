@@ -32,25 +32,7 @@ const esbuildProblemMatcherPlugin = {
 	},
 };
 
-/** Copy KaTeX static assets (JS, CSS, fonts) to dist/katex/ for webview use */
-function copyKatexAssets() {
-	const src = path.join(__dirname, 'node_modules/katex/dist');
-	const dest = path.join(__dirname, 'dist/katex');
-	fs.mkdirSync(dest, { recursive: true });
-	fs.mkdirSync(path.join(dest, 'fonts'), { recursive: true });
-	fs.copyFileSync(path.join(src, 'katex.min.js'), path.join(dest, 'katex.min.js'));
-	fs.copyFileSync(path.join(src, 'katex.min.css'), path.join(dest, 'katex.min.css'));
-	for (const font of fs.readdirSync(path.join(src, 'fonts'))) {
-		if (font.endsWith('.woff2')) {
-			fs.copyFileSync(path.join(src, 'fonts', font), path.join(dest, 'fonts', font));
-		}
-	}
-}
-
 async function main() {
-	// Copy KaTeX assets before build
-	copyKatexAssets();
-
 	// Dynamic import for ESM-only package
 	const { default: inlineWorkerPlugin } = await import('esbuild-plugin-inline-worker');
 
