@@ -1,7 +1,7 @@
 /**
  * Handles all file I/O for session recordings.
  *
- * Uses a 20-event / 5-second buffer to batch writes.
+ * Uses a 10-event / 1-second buffer to batch writes.
  * Never throws — recording must not impact IDE stability.
  *
  * ## Durability Policy
@@ -9,7 +9,7 @@
  * On graceful shutdown (dispose() is awaited), data integrity is guaranteed:
  * all buffered events are written before the method returns. On extension-host
  * crash, process-kill, or any fatal failure that bypasses `finally` execution,
- * up to `BUFFER_THRESHOLD` (20) events may be lost. Lifecycle events
+ * up to `BUFFER_THRESHOLD` (10) events may be lost. Lifecycle events
  * (`sessionStart`, `sessionEnd`, `consentChange`) are recorded like any other
  * event and share the same crash-durability boundary.
  *
@@ -40,8 +40,8 @@ import type { RecordedEvent, SessionMetadata } from './types';
 import { logger, LogCategory } from '../../loggingService';
 import pkg from '../../../../../package.json';
 
-const BUFFER_THRESHOLD = 20;
-const FLUSH_INTERVAL_MS = 5_000;
+const BUFFER_THRESHOLD = 10;
+const FLUSH_INTERVAL_MS = 1_000;
 const MAX_SNAPSHOT_BYTES = 1_024 * 1_024; // 1 MB
 const MAX_CONSECUTIVE_ERRORS = 5;
 const LANE_DRAIN_TIMEOUT_MS = 5_000;
@@ -153,15 +153,28 @@ export class RecordingStorageWriter {
         }
         this._buffer.push(event);
         if (this._buffer.length >= BUFFER_THRESHOLD) {
-            void this._enqueueFlush();
+            void this._enqueueThresholdFlush();
         }
     }
 
     /**
-     * Enqueues a flush onto the write lane and returns a Promise that resolves
-     * when that specific flush has finished (successfully or not).
+     * Returns a Promise that resolves once all events buffered at call-time
+     * have been written to disk.
+     *
+     * Unlike the threshold-debounced flush triggered by appendEvent, this
+     * public method always enqueues a real flush operation and waits for it,
+     * so callers can rely on "await writer.flush()" meaning "buffered events
+     * are now on disk". Multiple concurrent callers each get their own
+     * flush — earlier flushes drain the buffer; subsequent flushes find it
+     * empty and return quickly.
      */
     async flush(): Promise<void> {
+        if (this._disabled || !this._eventsPath) {
+            return;
+        }
+        if (this._buffer.length === 0 && this._laneIdle) {
+            return;
+        }
         return this._enqueueFlush();
     }
 
@@ -327,23 +340,29 @@ export class RecordingStorageWriter {
     }
 
     /**
-     * Enqueues a flush operation on the write lane.
-     * Returns a Promise that resolves when that flush completes.
+     * Threshold-driven flush from appendEvent. Debounced: if a flush is already
+     * in-flight or queued, sets `_flushRequested` instead of enqueuing a second
+     * one. After any lane work completes, the finally block checks the flag and
+     * enqueues a follow-up flush if set.
      *
-     * Debounce: if a flush is already in-flight or queued, sets `_flushRequested`
-     * instead of enqueuing a second one. After each flush completes, the lane
-     * completion logic checks the flag and enqueues one more if set. This
-     * applies to both threshold-triggered flushes (via appendEvent) and
-     * timer-triggered flushes (via public flush()), ensuring at most one
-     * pending flush is ever queued behind the active one.
+     * The returned promise resolves when the lane drains; this is intentional
+     * for fire-and-forget threshold triggers (callers don't await it). For
+     * "await my events to disk" semantics, use the public flush() method.
      */
-    private _enqueueFlush(): Promise<void> {
+    private _enqueueThresholdFlush(): Promise<void> {
         if (this._activeWrites > 0 || this._queuedWrites > 0) {
-            // A flush is already in flight or queued; mark that we need
-            // another flush once it finishes instead of enqueuing a second.
             this._flushRequested = true;
             return this._drainLane();
         }
+        return this._enqueueFlush();
+    }
+
+    /**
+     * Enqueues a fresh flush operation on the write lane. Always enqueues —
+     * does not debounce. Returns a Promise that resolves when this specific
+     * flush completes.
+     */
+    private _enqueueFlush(): Promise<void> {
         return this._enqueueLaneWork(async () => {
             if (this._disabled || !this._eventsPath) {
                 return;
@@ -366,7 +385,7 @@ export class RecordingStorageWriter {
             // next flush, preserving order.
             this._buffer.splice(0, batchSize);
             this._consecutiveErrors = 0;
-        }, 'Failed to flush recording events', /* isFlush */ true);
+        }, 'Failed to flush recording events');
     }
 
     /**
@@ -384,7 +403,6 @@ export class RecordingStorageWriter {
     private _enqueueLaneWork(
         work: () => Promise<void>,
         errorMessage: string,
-        isFlush = false,
     ): Promise<void> {
         this._queuedWrites++;
 
@@ -401,8 +419,12 @@ export class RecordingStorageWriter {
                     } finally {
                         this._activeWrites--;
                         try {
-                            // After a flush completes, honour deferred threshold requests.
-                            if (isFlush && this._flushRequested) {
+                            // Honour deferred threshold flush requests after any
+                            // lane work completes, not just flushes — otherwise
+                            // a threshold trigger fired during a writeSnapshot or
+                            // writeMetadata sits unprocessed until the next
+                            // appendEvent-triggered threshold hit or timer tick.
+                            if (this._flushRequested) {
                                 this._flushRequested = false;
                                 void this._enqueueFlush();
                             }
@@ -432,7 +454,10 @@ export class RecordingStorageWriter {
     private _startFlushTimer(): void {
         this._stopFlushTimer();
         this._flushTimer = setInterval(() => {
-            void this.flush();
+            // Timer ticks use the debounced threshold path so they coalesce
+            // with appendEvent-triggered flushes instead of piling up behind
+            // them under heavy load.
+            void this._enqueueThresholdFlush();
         }, FLUSH_INTERVAL_MS);
     }
 

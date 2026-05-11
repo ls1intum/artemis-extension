@@ -373,7 +373,7 @@ export interface SessionMetadata {
     exerciseId: number;
     participantId: string | undefined;
     startTime: number;
-    endTime: number | undefined;
+    endTime: number | null | undefined;
     eventCount: number;
     /** Schema version for forward-compat parsing. Block D introduces version 2. */
     schemaVersion?: number;

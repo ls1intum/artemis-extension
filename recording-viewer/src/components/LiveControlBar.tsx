@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { STRUGGLE_LABELS, CONTEXT_LABELS } from '../types';
+import { STRUGGLE_LABELS, CONTEXT_LABELS, ALL_LABELS } from '../types';
+import type { AnnotationToast } from '../hooks/useAnnotationMutations';
 
 interface Props {
     connected: boolean;
@@ -7,7 +8,20 @@ interface Props {
     latestEventTimestamp: number | null;
     reactionDelayMs: number;
     onReactionDelayChange: (ms: number) => void;
-    lastLabelToast: { label: string; at: number } | null;
+    lastLabelToast: AnnotationToast | null;
+}
+
+function renderToast(toast: AnnotationToast): string {
+    const labelName = toast.label
+        ? (ALL_LABELS.find(l => l.value === toast.label)?.label ?? toast.label)
+        : null;
+    const body = labelName ?? toast.text ?? 'annotation';
+    switch (toast.kind) {
+        case 'add': return `+ ${body}`;
+        case 'undo': return `↶ ${body}`;
+        case 'redo': return `↷ ${body}`;
+        case 'error': return `⚠ ${body}`;
+    }
 }
 
 export function LiveControlBar({
@@ -57,7 +71,7 @@ export function LiveControlBar({
                 ))}
             </div>
             {toastVisible && (
-                <div className="live-toast">Tagged: {lastLabelToast!.label}</div>
+                <div className={`live-toast live-toast-${lastLabelToast!.kind}`}>{renderToast(lastLabelToast!)}</div>
             )}
         </div>
     );

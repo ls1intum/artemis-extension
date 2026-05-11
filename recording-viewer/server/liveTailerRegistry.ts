@@ -1,3 +1,4 @@
+import * as fs from 'fs';
 import * as path from 'path';
 import { LiveTailer, type TailerOptions } from './liveTailer';
 
@@ -23,7 +24,39 @@ export class LiveTailerRegistry {
         let entry = this._entries.get(sessionId);
         if (!entry) {
             const eventsPath = path.join(this._recordingsDir, sessionId, 'events.jsonl');
-            const tailer = new LiveTailer(eventsPath, this._opts);
+            // Seek the tailer past historical content synchronously at
+            // acquire time. Per-connection catch-up replays the relevant
+            // tail from disk; the shared tailer only broadcasts lines that
+            // arrive AFTER this construction-time cursor.
+            //
+            // Doing this synchronously (statSync + sync newline count)
+            // closes the race between construction and the first poll: any
+            // line written in that window would otherwise be skipped (if it
+            // landed before the first poll's first-time seek) or
+            // double-broadcast (if it landed after the seek but before
+            // subscribers attached).
+            let initialOffset = 0;
+            let initialLineNo = 0;
+            let initialMtimeNs: bigint = 0n;
+            try {
+                const stat = fs.statSync(eventsPath, { bigint: true });
+                initialMtimeNs = stat.mtimeNs;
+                if (stat.size > 0n) {
+                    const buf = fs.readFileSync(eventsPath);
+                    let count = 0;
+                    for (let i = 0; i < buf.length; i++) {
+                        if (buf[i] === 0x0A) count++;
+                    }
+                    initialOffset = Number(stat.size);
+                    initialLineNo = count;
+                }
+            } catch { /* file missing — leave cursor at 0/0 */ }
+            const tailer = new LiveTailer(eventsPath, {
+                ...this._opts,
+                initialOffset,
+                initialLineNo,
+                initialMtimeNs,
+            });
             tailer.start();
             entry = { tailer, refCount: 0 };
             this._entries.set(sessionId, entry);

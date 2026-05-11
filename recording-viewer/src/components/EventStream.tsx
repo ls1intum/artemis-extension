@@ -1,4 +1,5 @@
 import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
+import { Virtuoso, type VirtuosoHandle } from 'react-virtuoso';
 import type { Annotation, RecordedEvent, EventType } from '../types.ts';
 import { ALL_LABELS } from '../types.ts';
 import { formatOffset, shortenUri } from '../utils/format.ts';
@@ -20,8 +21,31 @@ interface Props {
 }
 
 type StreamItem =
-    | { kind: 'event'; event: RecordedEvent; index: number }
+    | { kind: 'event'; event: RecordedEvent; key: string }
     | { kind: 'annotation'; annotation: Annotation };
+
+/**
+ * Stable id assigned to each event the first time we see it. Survives
+ * ringbuffer trimming and is collision-free even when high-frequency
+ * telemetry produces same-timestamp same-type events (e.g. multiple
+ * textChange / diagnostics events at the same ms during a burst).
+ *
+ * A WeakMap keyed on the event object lets us assign once and reuse
+ * across renders without mutating the event itself. Once the event
+ * is dropped from the live buffer the entry is garbage-collected.
+ */
+function makeEventKeyer(): (ev: RecordedEvent) => string {
+    const ids = new WeakMap<RecordedEvent, string>();
+    let next = 0;
+    return (ev) => {
+        let id = ids.get(ev);
+        if (id === undefined) {
+            id = `e${next++}`;
+            ids.set(ev, id);
+        }
+        return id;
+    };
+}
 
 // Strip ANSI escape sequences and common shell integration markers from terminal output
 function stripAnsi(text: string): string {
@@ -333,112 +357,34 @@ function AnnotationRow({ annotation, sessionStartTime, onUpdate, onDelete, readO
 export function EventStream({ events, sessionStartTime, annotations, enabledTypes, onAddAnnotation, onUpdateAnnotation, onDeleteAnnotation, readOnly, scrollToTimestamp, onScrollComplete, videoTimeRef, isVideoPlaying, onSeekVideo }: Props) {
     const [showAnnotations, setShowAnnotations] = useState(true);
     const [annotatingTimestamp, setAnnotatingTimestamp] = useState<number | null>(null);
-    const [expandedTerminals, setExpandedTerminals] = useState<Set<number>>(new Set());
+    const [expandedTerminals, setExpandedTerminals] = useState<Set<string>>(new Set());
+    // One keyer per EventStream instance — stays in scope for the component
+    // lifetime so the WeakMap accumulates entries deterministically and
+    // older events fall out of the map naturally when GC'd from the live
+    // ringbuffer.
+    const eventKey = useMemo(() => makeEventKeyer(), []);
     const [followPlayback, setFollowPlayback] = useState(false);
-    const programmaticScroll = useRef(false);
-    const listRef = useRef<HTMLDivElement>(null);
+    const virtuosoRef = useRef<VirtuosoHandle>(null);
+    const [atBottom, setAtBottom] = useState(true);
 
-    // Scroll to timestamp when requested; clear after 2s animation
-    useEffect(() => {
-        if (scrollToTimestamp == null || !listRef.current) return;
-
-        // Find the closest event row by timestamp
-        const rows = listRef.current.querySelectorAll<HTMLElement>('[data-timestamp]');
-        let closest: HTMLElement | null = null;
-        let closestDist = Infinity;
-        rows.forEach(row => {
-            const ts = Number(row.dataset.timestamp);
-            const dist = Math.abs(ts - scrollToTimestamp);
-            if (dist < closestDist) {
-                closestDist = dist;
-                closest = row;
-            }
-        });
-
-        if (closest) {
-            (closest as HTMLElement).scrollIntoView({ behavior: 'smooth', block: 'center' });
+    // Closest stream-item index to a given timestamp (binary-search over
+    // pre-sorted stream timestamps). Returns -1 if stream is empty.
+    const findIndexForTimestamp = useCallback((stream: readonly StreamItem[], ts: number): number => {
+        if (stream.length === 0) return -1;
+        // Linear pass: stream is already sorted by timestamp (built below).
+        // For ~5k items this is fast enough and avoids extra structure.
+        let bestIdx = 0;
+        let bestDist = Infinity;
+        for (let i = 0; i < stream.length; i++) {
+            const item = stream[i];
+            const itemTs = item.kind === 'event' ? item.event.timestamp : item.annotation.timestamp;
+            const d = Math.abs(itemTs - ts);
+            if (d < bestDist) { bestDist = d; bestIdx = i; }
+            // Optimisation: once we start moving away from target, stop.
+            else if (itemTs > ts) break;
         }
-
-        const timer = setTimeout(() => onScrollComplete?.(), 2000);
-        return () => clearTimeout(timer);
-    }, [scrollToTimestamp, onScrollComplete]);
-
-    // Pre-sorted timestamps for binary search in follow mode
-    const sortedTimestamps = useMemo(() => {
-        return events
-            .filter(e => enabledTypes.has(e.type))
-            .map(e => e.timestamp)
-            .sort((a, b) => a - b);
-    }, [events, enabledTypes]);
-
-    // Manual scroll detection: disable follow mode.
-    // programmaticScroll flag is set before scrollIntoView and cleared by
-    // 'scrollend' (fires after scroll settles) with rAF fallback.
-    useEffect(() => {
-        const el = listRef.current;
-        if (!el) return;
-        const onScroll = () => {
-            if (programmaticScroll.current) return;
-            setFollowPlayback(false);
-        };
-        const onScrollEnd = () => {
-            programmaticScroll.current = false;
-        };
-        el.addEventListener('scroll', onScroll, { passive: true });
-        el.addEventListener('scrollend', onScrollEnd, { passive: true });
-        return () => {
-            el.removeEventListener('scroll', onScroll);
-            el.removeEventListener('scrollend', onScrollEnd);
-        };
+        return bestIdx;
     }, []);
-
-    // Follow playback mode
-    useEffect(() => {
-        if (!followPlayback || !isVideoPlaying || !videoTimeRef || !listRef.current) return;
-
-        const interval = setInterval(() => {
-            const ts = videoTimeRef.current;
-            if (ts <= 0) return;
-
-            // Binary search for nearest timestamp
-            let lo = 0, hi = sortedTimestamps.length - 1;
-            while (lo < hi) {
-                const mid = (lo + hi) >> 1;
-                if (sortedTimestamps[mid] < ts) lo = mid + 1;
-                else hi = mid;
-            }
-            // Check if lo-1 is closer
-            if (lo > 0 && Math.abs(sortedTimestamps[lo - 1] - ts) < Math.abs(sortedTimestamps[lo] - ts)) {
-                lo = lo - 1;
-            }
-            const nearestTs = sortedTimestamps[lo];
-            if (nearestTs == null) return;
-
-            const rows = listRef.current?.querySelectorAll<HTMLElement>('[data-timestamp]');
-            if (!rows) return;
-            let closest: HTMLElement | null = null;
-            let closestDist = Infinity;
-            rows.forEach(row => {
-                const rowTs = Number(row.dataset.timestamp);
-                const dist = Math.abs(rowTs - nearestTs);
-                if (dist < closestDist) {
-                    closestDist = dist;
-                    closest = row;
-                }
-            });
-
-            if (closest) {
-                programmaticScroll.current = true;
-                (closest as HTMLElement).scrollIntoView({ behavior: 'instant', block: 'nearest' });
-                // Fallback for browsers without scrollend: clear after next frame
-                requestAnimationFrame(() => {
-                    programmaticScroll.current = false;
-                });
-            }
-        }, 1000);
-
-        return () => clearInterval(interval);
-    }, [followPlayback, isVideoPlaying, videoTimeRef, sortedTimestamps]);
 
     const handleSeekToEvent = useCallback((timestamp: number) => {
         onSeekVideo?.(timestamp);
@@ -446,9 +392,9 @@ export function EventStream({ events, sessionStartTime, annotations, enabledType
 
     const stream = useMemo<StreamItem[]>(() => {
         const items: StreamItem[] = [];
-        events.forEach((event, index) => {
+        events.forEach((event) => {
             if (enabledTypes.has(event.type)) {
-                items.push({ kind: 'event', event, index });
+                items.push({ kind: 'event', event, key: eventKey(event) });
             }
         });
         if (showAnnotations) {
@@ -465,9 +411,113 @@ export function EventStream({ events, sessionStartTime, annotations, enabledType
             return 0;
         });
         return items;
-    }, [events, enabledTypes, annotations, showAnnotations]);
+    }, [events, enabledTypes, annotations, showAnnotations, eventKey]);
+
+    // ── Scroll to a target timestamp ────────────────────────────────────
+    // Both scrollToTimestamp (from external triggers) and followPlayback
+    // (video sync) resolve to a stream index and call Virtuoso's
+    // scrollToIndex. No more DOM querySelectorAll on potentially thousands
+    // of rows. Stream is a useMemo dependency so the effects rebuild when
+    // it changes; useDeferredValue at the parent throttles that cadence.
+    useEffect(() => {
+        if (scrollToTimestamp == null) return;
+        const idx = findIndexForTimestamp(stream, scrollToTimestamp);
+        if (idx >= 0) {
+            virtuosoRef.current?.scrollToIndex({ index: idx, behavior: 'smooth', align: 'center' });
+        }
+        const timer = setTimeout(() => onScrollComplete?.(), 2000);
+        return () => clearTimeout(timer);
+    }, [scrollToTimestamp, onScrollComplete, findIndexForTimestamp, stream]);
+
+    useEffect(() => {
+        if (!followPlayback || !isVideoPlaying || !videoTimeRef) return;
+        const interval = setInterval(() => {
+            const ts = videoTimeRef.current;
+            if (ts <= 0) return;
+            const idx = findIndexForTimestamp(stream, ts);
+            if (idx >= 0) {
+                virtuosoRef.current?.scrollToIndex({ index: idx, behavior: 'auto', align: 'center' });
+            }
+        }, 1000);
+        return () => clearInterval(interval);
+    }, [followPlayback, isVideoPlaying, videoTimeRef, findIndexForTimestamp, stream]);
 
     const eventCount = stream.filter(s => s.kind === 'event').length;
+
+    const renderItem = useCallback((_index: number, item: StreamItem) => {
+        if (item.kind === 'annotation') {
+            return (
+                <AnnotationRow
+                    annotation={item.annotation}
+                    sessionStartTime={sessionStartTime}
+                    onUpdate={onUpdateAnnotation}
+                    onDelete={onDeleteAnnotation}
+                    readOnly={readOnly}
+                />
+            );
+        }
+
+        const { event, key } = item;
+        const isHighlighted = scrollToTimestamp != null && Math.abs(event.timestamp - scrollToTimestamp) < 500;
+        const isTermCmd = event.type === 'terminalCommand';
+        const isTermExpanded = isTermCmd && expandedTerminals.has(key);
+        return (
+            <div data-timestamp={event.timestamp}>
+                <div
+                    className={`event-row ${event.type}${isHighlighted ? ' flash-highlight' : ''}${isTermCmd ? ' clickable' : ''}`}
+                    onClick={isTermCmd ? () => setExpandedTerminals(prev => {
+                        const next = new Set(prev);
+                        if (next.has(key)) next.delete(key); else next.add(key);
+                        return next;
+                    }) : undefined}
+                >
+                    <span className="event-time mono">
+                        {formatOffset(event.timestamp - sessionStartTime)}
+                    </span>
+                    <span className={`event-badge ${event.type}`}>{event.type}</span>
+                    <EventDetail event={event} />
+                    {isTermCmd && (
+                        <span className="expand-hint">{isTermExpanded ? '▾' : '▸'}</span>
+                    )}
+                    {onSeekVideo && (
+                        <button
+                            className="seek-video-btn"
+                            title="Jump video to this event"
+                            onClick={e => { e.stopPropagation(); handleSeekToEvent(event.timestamp); }}
+                        >
+                            &#9654;
+                        </button>
+                    )}
+                    {!readOnly && onAddAnnotation && (
+                        <button
+                            className="annotate-btn"
+                            title="Add annotation at this timestamp"
+                            onClick={e => {
+                                e.stopPropagation();
+                                setAnnotatingTimestamp(
+                                    annotatingTimestamp === event.timestamp ? null : event.timestamp
+                                );
+                            }}
+                        >
+                            +
+                        </button>
+                    )}
+                </div>
+                {isTermExpanded && event.type === 'terminalCommand' && (
+                    <pre className="terminal-output">{stripAnsi(event.output)}</pre>
+                )}
+                {annotatingTimestamp === event.timestamp && !readOnly && onAddAnnotation && (
+                    <InlineAnnotationInput
+                        onSubmit={text => {
+                            onAddAnnotation(event.timestamp, text);
+                            setAnnotatingTimestamp(null);
+                        }}
+                        onCancel={() => setAnnotatingTimestamp(null)}
+                    />
+                )}
+            </div>
+        );
+    }, [sessionStartTime, scrollToTimestamp, expandedTerminals, onSeekVideo, readOnly, onAddAnnotation, onUpdateAnnotation, onDeleteAnnotation, handleSeekToEvent, annotatingTimestamp]);
 
     return (
         <div className="event-stream">
@@ -493,82 +543,29 @@ export function EventStream({ events, sessionStartTime, annotations, enabledType
                 </div>
             </div>
 
-            <div className="event-list" ref={listRef}>
-                {stream.map((item) => {
-                    if (item.kind === 'annotation') {
-                        return (
-                            <AnnotationRow
-                                key={`annot-${item.annotation.id}`}
-                                annotation={item.annotation}
-                                sessionStartTime={sessionStartTime}
-                                onUpdate={onUpdateAnnotation}
-                                onDelete={onDeleteAnnotation}
-                                readOnly={readOnly}
-                            />
-                        );
+            <div className="event-list">
+                <Virtuoso
+                    ref={virtuosoRef}
+                    style={{ height: '100%' }}
+                    data={stream}
+                    itemContent={renderItem}
+                    // followOutput: smooth auto-scroll when new items append,
+                    // unless the user has scrolled away from the bottom.
+                    followOutput={atBottom ? 'smooth' : false}
+                    atBottomStateChange={setAtBottom}
+                    // Disable follow-playback when the user actively scrolls
+                    // away from the bottom of the stream.
+                    isScrolling={(scrolling) => {
+                        if (scrolling && followPlayback && !atBottom) {
+                            setFollowPlayback(false);
+                        }
+                    }}
+                    computeItemKey={(_index, item) =>
+                        item.kind === 'annotation'
+                            ? `annot-${item.annotation.id}`
+                            : `evt-${item.key}`
                     }
-
-                    const { event, index } = item;
-                    const isHighlighted = scrollToTimestamp != null && Math.abs(event.timestamp - scrollToTimestamp) < 500;
-                    const isTermCmd = event.type === 'terminalCommand';
-                    const isTermExpanded = isTermCmd && expandedTerminals.has(index);
-                    return (
-                        <div key={`${event.timestamp}-${event.type}-${index}`} data-timestamp={event.timestamp}>
-                            <div
-                                className={`event-row ${event.type}${isHighlighted ? ' flash-highlight' : ''}${isTermCmd ? ' clickable' : ''}`}
-                                onClick={isTermCmd ? () => setExpandedTerminals(prev => {
-                                    const next = new Set(prev);
-                                    if (next.has(index)) next.delete(index); else next.add(index);
-                                    return next;
-                                }) : undefined}
-                            >
-                                <span className="event-time mono">
-                                    {formatOffset(event.timestamp - sessionStartTime)}
-                                </span>
-                                <span className={`event-badge ${event.type}`}>{event.type}</span>
-                                <EventDetail event={event} />
-                                {isTermCmd && (
-                                    <span className="expand-hint">{isTermExpanded ? '▾' : '▸'}</span>
-                                )}
-                                {onSeekVideo && (
-                                    <button
-                                        className="seek-video-btn"
-                                        title="Jump video to this event"
-                                        onClick={e => { e.stopPropagation(); handleSeekToEvent(event.timestamp); }}
-                                    >
-                                        &#9654;
-                                    </button>
-                                )}
-                                {!readOnly && onAddAnnotation && (
-                                    <button
-                                        className="annotate-btn"
-                                        title="Add annotation at this timestamp"
-                                        onClick={e => {
-                                            e.stopPropagation();
-                                            setAnnotatingTimestamp(
-                                                annotatingTimestamp === event.timestamp ? null : event.timestamp
-                                            );
-                                        }}
-                                    >
-                                        +
-                                    </button>
-                                )}
-                            </div>
-                            {isTermExpanded && event.type === 'terminalCommand' && (
-                                <pre className="terminal-output">{stripAnsi(event.output)}</pre>
-                            )}
-                            {annotatingTimestamp === event.timestamp && !readOnly && onAddAnnotation && (
-                                <InlineAnnotationInput
-                                    onSubmit={text => {
-                                        onAddAnnotation(event.timestamp, text);
-                                        setAnnotatingTimestamp(null);
-                                    }}
-                                    onCancel={() => setAnnotatingTimestamp(null)}
-                                />
-                            )}
-                        </div>
-                    );
-                })}
+                />
             </div>
         </div>
     );
