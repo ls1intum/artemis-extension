@@ -5,6 +5,7 @@ import { ExerciseDetailView } from '../../../../src/webview/views/ExerciseDetail
 import { useExerciseDetailStore } from '../../../../src/webview/stores/useExerciseDetailStore';
 import type { ExerciseDetailsResponse } from '../../../../src/shared/types/apiResponses';
 import { createMockVsCodeApi, dispatchExtensionMessage } from '../../__helpers__/vscodeApi';
+import { ExtensionMsg } from '../../../../src/shared/messageContracts';
 
 // Mock useWebSocketUpdates — not under test here
 vi.mock('../../../../src/webview/hooks/useWebSocketUpdates', () => ({
@@ -123,7 +124,7 @@ describe('ExerciseDetailView', () => {
 		render(<ExerciseDetailView vscodeApi={mockApi} />);
 
 		dispatchExtensionMessage({
-			type: 'problemStatementRendered',
+			type: ExtensionMsg.ProblemStatementRendered,
 			html: '<html><body><p>Solve the problem.</p></body></html>',
 		});
 
