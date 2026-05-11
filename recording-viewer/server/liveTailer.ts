@@ -8,13 +8,22 @@ export interface TailerOptions {
     pollIntervalMs?: number;
     maxChunkBytes?: number;
     /**
-     * If true, the first poll positions `_offset` at end-of-file and counts
-     * existing `\n`s to set `_lineNo` accordingly. Use this when a client
-     * connects to a long-running session and the per-connection catch-up has
-     * already replayed historical lines; the shared tailer should only
-     * broadcast newly appended lines from this point forward.
+     * Byte offset and matching line number to start polling from. Allows the
+     * registry to seek the tailer past historical content at construction
+     * time (before any polls run) so lines that arrive between construction
+     * and the first poll are still emitted to subscribers. The values must
+     * be consistent: `initialLineNo` is the number of newlines in the file
+     * up to `initialOffset`. Defaults to 0/0 (read from beginning).
      */
-    startAtEnd?: boolean;
+    initialOffset?: number;
+    initialLineNo?: number;
+    /**
+     * mtime in nanoseconds at the moment the cursor was seeded. Lets the
+     * tailer distinguish "file has grown since I was constructed" (normal)
+     * from "file has been replaced" (rotation) on the first poll, which
+     * would otherwise reset the seeded cursor to 0/0 unnecessarily.
+     */
+    initialMtimeNs?: bigint;
 }
 
 /**
@@ -40,15 +49,15 @@ export class LiveTailer {
     private readonly _pollIntervalMs: number;
     private readonly _maxChunkBytes: number;
     private readonly _filePath: string;
-    private readonly _startAtEnd: boolean;
-    private _seekedToEnd = false;
     private _inFlight: Promise<void> | undefined;
 
     constructor(filePath: string, opts: TailerOptions = {}) {
         this._filePath = filePath;
         this._pollIntervalMs = opts.pollIntervalMs ?? 250;
         this._maxChunkBytes = opts.maxChunkBytes ?? 4 * 1024 * 1024;
-        this._startAtEnd = opts.startAtEnd ?? false;
+        this._offset = opts.initialOffset ?? 0;
+        this._lineNo = opts.initialLineNo ?? 0;
+        this._lastMtimeNs = opts.initialMtimeNs ?? 0n;
     }
 
     /**
@@ -105,50 +114,16 @@ export class LiveTailer {
         // rewritten since we last saw it (mtime advanced past our marker).
         const rewritten = mtimeNs > this._lastMtimeNs && size <= this._offset;
         if (size < this._offset || rewritten) {
+            // Truncation/rotation forces a re-read from the start. Pre-seeded
+            // initialOffset/initialLineNo are intentionally discarded here:
+            // the file has been replaced, so the construction-time cursor
+            // no longer corresponds to any real file content.
             this._offset = 0;
             this._lineNo = 0;
             this._partial = '';
             this._decoder = new StringDecoder('utf8');
-            this._seekedToEnd = false;
         }
         this._lastMtimeNs = mtimeNs;
-
-        // One-time seek-to-end on the first poll, when enabled: skip historical
-        // content present at construction time and broadcast only newly-appended
-        // lines thereafter. _lineNo is set by counting existing `\n`s so future
-        // SSE `id:` values stay aligned with file line numbers (critical for
-        // Last-Event-ID resume).
-        //
-        // We mark `_seekedToEnd = true` even when size === 0, so a file that
-        // appears later is treated as fresh content (no historical content to
-        // skip) and emitted normally. Without this, content written after the
-        // tailer was constructed would be incorrectly skipped as "historical".
-        if (this._startAtEnd && !this._seekedToEnd) {
-            this._seekedToEnd = true;
-            if (size > 0) {
-                const fd = await fsPromises.open(this._filePath, 'r');
-                try {
-                    let pos = 0;
-                    let lineCount = 0;
-                    const scratch = Buffer.alloc(Math.min(size, this._maxChunkBytes));
-                    while (pos < size) {
-                        const remaining = size - pos;
-                        const chunkLen = Math.min(remaining, scratch.length);
-                        const r = await fd.read(scratch, 0, chunkLen, pos);
-                        if (r.bytesRead === 0) break;
-                        for (let i = 0; i < r.bytesRead; i++) {
-                            if (scratch[i] === 0x0A) lineCount++;
-                        }
-                        pos += r.bytesRead;
-                    }
-                    this._offset = size;
-                    this._lineNo = lineCount;
-                } finally {
-                    await fd.close();
-                }
-            }
-            return;
-        }
 
         if (size === this._offset) return;
 

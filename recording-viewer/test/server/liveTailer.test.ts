@@ -127,31 +127,43 @@ describe('LiveTailer (deterministic)', () => {
         expect(t.currentLineNo()).toBe(3);
     });
 
-    describe('startAtEnd', () => {
-        it('skips historical content when file is non-empty at construction time', async () => {
+    describe('initialOffset / initialLineNo', () => {
+        it('skips lines below the seeded cursor and emits new ones with continuing line numbers', async () => {
             fs.writeFileSync(filePath, '{"old":1}\n{"old":2}\n');
+            const stat = fs.statSync(filePath, { bigint: true });
             const got: Array<{ line: string; lineNo: number }> = [];
-            const t = new LiveTailer(filePath, { startAtEnd: true });
+            const t = new LiveTailer(filePath, {
+                initialOffset: Number(stat.size),
+                initialLineNo: 2,
+                initialMtimeNs: stat.mtimeNs,
+            });
             t.subscribe((line, lineNo) => got.push({ line, lineNo }));
             await t.pollOnce();
             expect(got).toEqual([]);
-            // currentLineNo should reflect the existing lines we skipped.
             expect(t.currentLineNo()).toBe(2);
-            // Newly-appended lines emit with the next line numbers.
             fs.appendFileSync(filePath, '{"new":1}\n');
             await t.pollOnce();
             expect(got).toEqual([{ line: '{"new":1}', lineNo: 3 }]);
         });
 
-        it('still emits content that appears after construction when file was empty initially', async () => {
-            // File starts empty; startAtEnd has nothing to skip.
-            const got: string[] = [];
-            const t = new LiveTailer(filePath, { startAtEnd: true });
-            t.subscribe((line) => got.push(line));
-            await t.pollOnce(); // observes size=0, marks seeked done
-            fs.writeFileSync(filePath, '{"first":1}\n');
+        it('lines appended between seeding and first poll are still emitted', async () => {
+            // Simulate the race: seed cursor at "current EOF", then append
+            // a line before the first poll fires. The new line must emit.
+            fs.writeFileSync(filePath, '{"old":1}\n');
+            const stat = fs.statSync(filePath, { bigint: true });
+            // Append BEFORE constructing the tailer is the analogue of the
+            // registry → first-poll race: cursor seeded at old size, but
+            // file has grown by the time we poll.
+            fs.appendFileSync(filePath, '{"between":1}\n');
+            const got: Array<{ line: string; lineNo: number }> = [];
+            const t = new LiveTailer(filePath, {
+                initialOffset: Number(stat.size),
+                initialLineNo: 1,
+                initialMtimeNs: stat.mtimeNs,
+            });
+            t.subscribe((line, lineNo) => got.push({ line, lineNo }));
             await t.pollOnce();
-            expect(got).toEqual(['{"first":1}']);
+            expect(got).toEqual([{ line: '{"between":1}', lineNo: 2 }]);
         });
     });
 });

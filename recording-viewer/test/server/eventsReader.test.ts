@@ -29,10 +29,12 @@ describe('readLastNLines', () => {
         expect(lines).toHaveLength(10);
     });
 
-    it('returns empty when limit=0', async () => {
+    it('limit=0 returns empty lines but accurate endLineNo (no short-circuit)', async () => {
         const { lines, endLineNo, endByteOffset } = await readLastNLines(filePath, 0);
         expect(lines).toEqual([]);
-        expect(endLineNo).toBe(0);
+        // Cursor must reflect the actual file end so SSE gap-read doesn't
+        // mistakenly treat "no tail requested" as "no lines exist yet".
+        expect(endLineNo).toBe(10);
         expect(endByteOffset).toBeGreaterThan(0);
     });
 

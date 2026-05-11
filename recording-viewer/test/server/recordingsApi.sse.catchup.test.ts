@@ -141,6 +141,24 @@ describe('SSE catch-up + Last-Event-ID', () => {
         expect(captured.status).toBe(400);
     });
 
+    it('tail=0 sends no historical lines (does not flood via gap re-read)', async () => {
+        const api = createRecordingsApi(cfg());
+        const { req, res, captured, triggerClose } = makeStreamReqRes(
+            '/api/recordings/sess-1/events/stream?tail=0',
+        );
+        api(req, res, () => {});
+        try {
+            // Give the catch-up async work time to run.
+            await new Promise(r => setTimeout(r, 250));
+            const ids = extractLineNos(captured.written);
+            expect(ids).toEqual([]);
+            // Stream itself is open.
+            expect(captured.status).toBe(200);
+        } finally {
+            triggerClose();
+        }
+    });
+
     it('catch-up does not duplicate when both Last-Event-ID and live lines overlap', async () => {
         // Simulate: client has Last-Event-ID=47, tailer is constructed when
         // first acquire happens. Catch-up sends 48-50. Tailer is already at

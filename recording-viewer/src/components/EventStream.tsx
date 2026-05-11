@@ -21,8 +21,20 @@ interface Props {
 }
 
 type StreamItem =
-    | { kind: 'event'; event: RecordedEvent; index: number }
+    | { kind: 'event'; event: RecordedEvent; key: string }
     | { kind: 'annotation'; annotation: Annotation };
+
+/**
+ * Stable id derived from an event's content. Used so per-row UI state
+ * (terminal expansion, etc.) survives the live ringbuffer trimming off
+ * old events — index-based keys would shift and attach state to wrong
+ * rows after a trim. terminalCommand events are unique by timestamp;
+ * for non-terminal types same-timestamp collisions are theoretical and
+ * harmless for keying purposes.
+ */
+function eventKey(ev: RecordedEvent): string {
+    return `${ev.timestamp}-${ev.type}`;
+}
 
 // Strip ANSI escape sequences and common shell integration markers from terminal output
 function stripAnsi(text: string): string {
@@ -334,7 +346,7 @@ function AnnotationRow({ annotation, sessionStartTime, onUpdate, onDelete, readO
 export function EventStream({ events, sessionStartTime, annotations, enabledTypes, onAddAnnotation, onUpdateAnnotation, onDeleteAnnotation, readOnly, scrollToTimestamp, onScrollComplete, videoTimeRef, isVideoPlaying, onSeekVideo }: Props) {
     const [showAnnotations, setShowAnnotations] = useState(true);
     const [annotatingTimestamp, setAnnotatingTimestamp] = useState<number | null>(null);
-    const [expandedTerminals, setExpandedTerminals] = useState<Set<number>>(new Set());
+    const [expandedTerminals, setExpandedTerminals] = useState<Set<string>>(new Set());
     const [followPlayback, setFollowPlayback] = useState(false);
     const virtuosoRef = useRef<VirtuosoHandle>(null);
     const [atBottom, setAtBottom] = useState(true);
@@ -364,9 +376,9 @@ export function EventStream({ events, sessionStartTime, annotations, enabledType
 
     const stream = useMemo<StreamItem[]>(() => {
         const items: StreamItem[] = [];
-        events.forEach((event, index) => {
+        events.forEach((event) => {
             if (enabledTypes.has(event.type)) {
-                items.push({ kind: 'event', event, index });
+                items.push({ kind: 'event', event, key: eventKey(event) });
             }
         });
         if (showAnnotations) {
@@ -429,17 +441,17 @@ export function EventStream({ events, sessionStartTime, annotations, enabledType
             );
         }
 
-        const { event, index } = item;
+        const { event, key } = item;
         const isHighlighted = scrollToTimestamp != null && Math.abs(event.timestamp - scrollToTimestamp) < 500;
         const isTermCmd = event.type === 'terminalCommand';
-        const isTermExpanded = isTermCmd && expandedTerminals.has(index);
+        const isTermExpanded = isTermCmd && expandedTerminals.has(key);
         return (
             <div data-timestamp={event.timestamp}>
                 <div
                     className={`event-row ${event.type}${isHighlighted ? ' flash-highlight' : ''}${isTermCmd ? ' clickable' : ''}`}
                     onClick={isTermCmd ? () => setExpandedTerminals(prev => {
                         const next = new Set(prev);
-                        if (next.has(index)) next.delete(index); else next.add(index);
+                        if (next.has(key)) next.delete(key); else next.add(key);
                         return next;
                     }) : undefined}
                 >
@@ -518,6 +530,7 @@ export function EventStream({ events, sessionStartTime, annotations, enabledType
             <div className="event-list">
                 <Virtuoso
                     ref={virtuosoRef}
+                    style={{ height: '100%' }}
                     data={stream}
                     itemContent={renderItem}
                     // followOutput: smooth auto-scroll when new items append,
@@ -534,7 +547,7 @@ export function EventStream({ events, sessionStartTime, annotations, enabledType
                     computeItemKey={(_index, item) =>
                         item.kind === 'annotation'
                             ? `annot-${item.annotation.id}`
-                            : `${item.event.timestamp}-${item.event.type}-${item.index}`
+                            : `evt-${item.key}`
                     }
                 />
             </div>

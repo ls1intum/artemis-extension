@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { RecordedEvent } from '../types';
 
 export interface LiveSessionState {
@@ -29,62 +29,54 @@ function scheduleAnimationFrame(cb: () => void): ScheduleHandle {
 
 export function useLiveSession(sessionId: string | null, enabled: boolean): LiveSessionState {
     const [state, setState] = useState<LiveSessionState>(INITIAL);
-    const eventsRef = useRef<RecordedEvent[]>([]);
-    const maxLineNoRef = useRef<number>(0);
-    const pendingRef = useRef<RecordedEvent[]>([]);
-    const sessionEndPendingRef = useRef(false);
-    const scheduledRef = useRef<ScheduleHandle | null>(null);
-    const closedRef = useRef(false);
 
     useEffect(() => {
-        // Reset all per-session refs before opening the connection. Critical
-        // when switching sessions while a flush was scheduled — otherwise
-        // pending events from the old session can leak into the new one.
-        eventsRef.current = [];
-        maxLineNoRef.current = 0;
-        pendingRef.current = [];
-        sessionEndPendingRef.current = false;
-        closedRef.current = false;
-        if (scheduledRef.current) {
-            scheduledRef.current.cancel();
-            scheduledRef.current = null;
-        }
+        // All mutable state lives in this effect's closure so a stale
+        // callback from a previous session-id cannot write into the next
+        // session's buffers. The closed flag is per-effect-run too.
+        let closed = false;
+        const eventsBuf: RecordedEvent[] = [];
+        const pendingBuf: RecordedEvent[] = [];
+        let maxLineNo = 0;
+        let sessionEndPending = false;
+        let scheduled: ScheduleHandle | null = null;
 
         if (!enabled || !sessionId) {
-            queueMicrotask(() => setState(INITIAL));
-            return;
+            queueMicrotask(() => { if (!closed) setState(INITIAL); });
+            return () => { closed = true; };
         }
-        queueMicrotask(() => setState({ ...INITIAL }));
+        queueMicrotask(() => { if (!closed) setState({ ...INITIAL }); });
 
         const flush = () => {
-            scheduledRef.current = null;
-            if (closedRef.current) return;
-            if (pendingRef.current.length === 0 && !sessionEndPendingRef.current) return;
-
-            const incoming = pendingRef.current;
-            pendingRef.current = [];
+            scheduled = null;
+            if (closed) return;
+            if (pendingBuf.length === 0 && !sessionEndPending) return;
 
             // Pre-cap: if a pathological burst dumps >MAX events into pending
             // (e.g. initial SSE catch-up of a long session), keep only the
             // last MAX so the subsequent concat doesn't transiently allocate
             // hundreds of megabytes.
-            const tailIncoming = incoming.length > MAX_LIVE_EVENTS
-                ? incoming.slice(incoming.length - MAX_LIVE_EVENTS)
-                : incoming;
+            const tailIncoming = pendingBuf.length > MAX_LIVE_EVENTS
+                ? pendingBuf.slice(pendingBuf.length - MAX_LIVE_EVENTS)
+                : pendingBuf.slice();
+            pendingBuf.length = 0;
 
-            let combined = eventsRef.current.concat(tailIncoming);
-            if (combined.length > MAX_LIVE_EVENTS) {
-                combined = combined.slice(combined.length - MAX_LIVE_EVENTS);
+            // In-place append + trim to keep within MAX_LIVE_EVENTS.
+            for (const ev of tailIncoming) eventsBuf.push(ev);
+            if (eventsBuf.length > MAX_LIVE_EVENTS) {
+                eventsBuf.splice(0, eventsBuf.length - MAX_LIVE_EVENTS);
             }
-            eventsRef.current = combined;
 
-            const last = combined[combined.length - 1];
-            const ended = sessionEndPendingRef.current;
-            sessionEndPendingRef.current = false;
+            const last = eventsBuf[eventsBuf.length - 1];
+            const ended = sessionEndPending;
+            sessionEndPending = false;
 
+            // Snapshot for React — fresh array so identity-based memos see
+            // the change and don't reuse stale results.
+            const snapshot = eventsBuf.slice();
             setState((s) => ({
                 ...s,
-                events: combined,
+                events: snapshot,
                 latestEventTimestamp: last?.timestamp ?? s.latestEventTimestamp,
                 connected: ended ? false : s.connected,
                 // Clear any stale "Disconnected, retrying..." error: if we're
@@ -94,37 +86,37 @@ export function useLiveSession(sessionId: string | null, enabled: boolean): Live
         };
 
         const scheduleFlush = () => {
-            if (scheduledRef.current != null) return;
-            scheduledRef.current = scheduleAnimationFrame(flush);
+            if (scheduled != null) return;
+            scheduled = scheduleAnimationFrame(flush);
         };
 
         const url = `/api/recordings/${encodeURIComponent(sessionId)}/events/stream`;
         const es = new EventSource(url, { withCredentials: true });
 
         es.onopen = () => {
-            if (closedRef.current) return;
+            if (closed) return;
             setState((s) => ({ ...s, connected: true, error: null }));
         };
         es.onerror = () => {
-            if (closedRef.current) return;
+            if (closed) return;
             setState((s) => ({ ...s, connected: false, error: 'Disconnected, retrying...' }));
         };
         es.onmessage = (evt) => {
-            if (closedRef.current) return;
+            if (closed) return;
             const lineNo = Number(evt.lastEventId);
-            if (Number.isFinite(lineNo) && lineNo <= maxLineNoRef.current) return;
-            if (Number.isFinite(lineNo)) maxLineNoRef.current = lineNo;
+            if (Number.isFinite(lineNo) && lineNo <= maxLineNo) return;
+            if (Number.isFinite(lineNo)) maxLineNo = lineNo;
             try {
                 const parsed = JSON.parse(evt.data) as RecordedEvent;
-                pendingRef.current.push(parsed);
+                pendingBuf.push(parsed);
                 const isSessionEnd = (parsed as { type?: string }).type === 'sessionEnd';
                 if (isSessionEnd) {
-                    sessionEndPendingRef.current = true;
+                    sessionEndPending = true;
                     // Flush sync so the final state lands before the
                     // EventSource closes.
-                    if (scheduledRef.current) {
-                        scheduledRef.current.cancel();
-                        scheduledRef.current = null;
+                    if (scheduled) {
+                        scheduled.cancel();
+                        scheduled = null;
                     }
                     flush();
                     es.close();
@@ -134,19 +126,17 @@ export function useLiveSession(sessionId: string | null, enabled: boolean): Live
             } catch { /* malformed line */ }
         };
         es.addEventListener('session-gone', () => {
-            if (closedRef.current) return;
+            if (closed) return;
             es.close();
             setState((s) => ({ ...s, connected: false, error: 'Session ended' }));
         });
 
         return () => {
-            closedRef.current = true;
-            if (scheduledRef.current) {
-                scheduledRef.current.cancel();
-                scheduledRef.current = null;
+            closed = true;
+            if (scheduled) {
+                scheduled.cancel();
+                scheduled = null;
             }
-            pendingRef.current = [];
-            sessionEndPendingRef.current = false;
             es.close();
         };
     }, [sessionId, enabled]);

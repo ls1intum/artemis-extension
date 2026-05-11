@@ -25,10 +25,10 @@ export async function readLastNLines(
     filePath: string,
     limit: number,
 ): Promise<{ lines: NumberedLine[]; endLineNo: number; endByteOffset: number }> {
-    if (limit <= 0) {
-        const stat = await fsPromises.stat(filePath);
-        return { lines: [], endLineNo: 0, endByteOffset: Number(stat.size) };
-    }
+    // Always stream the file to compute endLineNo correctly. A short-circuit
+    // that returns endLineNo: 0 for limit=0 would mislead callers that rely
+    // on this cursor (e.g. SSE gap-read interpreting "no catch-up requested"
+    // as "no lines exist yet" and replaying the entire file).
     const stream = fs.createReadStream(filePath, { encoding: 'utf8' });
     const rl = readline.createInterface({ input: stream, crlfDelay: Infinity });
 
@@ -37,8 +37,10 @@ export async function readLastNLines(
     for await (const line of rl) {
         lineNo++;
         if (line.length === 0) continue;
-        ring.push({ lineNo, line });
-        if (ring.length > limit) ring.shift();
+        if (limit > 0) {
+            ring.push({ lineNo, line });
+            if (ring.length > limit) ring.shift();
+        }
     }
     const stat = await fsPromises.stat(filePath);
     return { lines: ring, endLineNo: lineNo, endByteOffset: Number(stat.size) };

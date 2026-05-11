@@ -49,6 +49,23 @@ describe('LiveTailerRegistry', () => {
         b.release();
     });
 
+    it('seeds tailer cursor at construction time so lines appended before first poll still emit', async () => {
+        // Prepare a session file with 2 lines BEFORE registry.acquire.
+        fs.writeFileSync(path.join(tmpDir, 'sess-1/events.jsonl'), '{"a":1}\n{"a":2}\n');
+        const reg = new LiveTailerRegistry(tmpDir);
+        const handle = reg.acquire('sess-1');
+        // currentLineNo must reflect the seed (2 lines counted at acquire).
+        expect(handle.tailer.currentLineNo()).toBe(2);
+        // Append a 3rd line before the tailer's first poll runs. The line
+        // must still emit, with lineNo=3 — not be skipped as "historical".
+        fs.appendFileSync(path.join(tmpDir, 'sess-1/events.jsonl'), '{"a":3}\n');
+        const got: Array<{ line: string; lineNo: number }> = [];
+        handle.tailer.subscribe((line, lineNo) => got.push({ line, lineNo }));
+        await handle.tailer.pollOnce();
+        expect(got).toEqual([{ line: '{"a":3}', lineNo: 3 }]);
+        handle.release();
+    });
+
     it('disposeAll() stops all tailers and clears the registry', () => {
         fs.mkdirSync(path.join(tmpDir, 'sess-2'));
         fs.writeFileSync(path.join(tmpDir, 'sess-2/events.jsonl'), '');

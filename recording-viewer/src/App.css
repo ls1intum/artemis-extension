@@ -537,11 +537,19 @@
 }
 
 .event-list {
-    max-height: 600px;
-    overflow-y: auto;
+    /* react-virtuoso needs an explicit, finite height on its parent.
+       Using a fixed height here so the virtualizer measures correctly;
+       max-height alone collapses to 0 because flex children pass through
+       an indefinite-height intrinsic size from the column layout. */
+    height: 600px;
     display: flex;
     flex-direction: column;
-    gap: 2px;
+}
+
+.event-list > * {
+    /* The Virtuoso scroller fills the .event-list container. */
+    flex: 1 1 auto;
+    min-height: 0;
 }
 
 .event-row {
