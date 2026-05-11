@@ -568,18 +568,6 @@ export class ArtemisApiService {
         return response.json() as Promise<StudentExam>;
     }
 
-    // Submit the exam
-    async submitStudentExam(courseId: number, examId: number, studentExam: StudentExam): Promise<StudentExam> {
-        const response = await this.makeRequest(
-            `/api/exam/courses/${courseId}/exams/${examId}/student-exams/submit`,
-            {
-                method: 'POST',
-                body: JSON.stringify(studentExam)
-            }
-        );
-        return response.json() as Promise<StudentExam>;
-    }
-
     // ── Problem Statement Rendering ──
 
     async renderProblemStatement(request: ProblemStatementRenderRequest): Promise<RenderedProblemStatementDTO> {
