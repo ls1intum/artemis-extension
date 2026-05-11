@@ -352,6 +352,50 @@ suite('SessionRecorder (Block AB+E)', () => {
             `metadata.eventCount=${metadata.eventCount} but JSONL has ${events.length} events`);
     });
 
+    // ── Test: initial metadata.json is written at session start ──────────
+
+    test('initial metadata.json is written at session start with endTime: null', async () => {
+        recorder.enable();
+        await recorder.startSession(77);
+
+        // The first metadata write should happen during startSession, before
+        // endSession is called. Find it without ending the session.
+        // Allow the lane work to drain so the write actually hits the fake fs.
+        await new Promise(resolve => setTimeout(resolve, 20));
+
+        const firstMetadataWrite = fs.writtenFiles.find(f => f.path.endsWith('metadata.json'));
+        assert.ok(firstMetadataWrite, 'initial metadata.json was not written at session start');
+        const metadata = JSON.parse(firstMetadataWrite.data) as {
+            startTime: number;
+            endTime: number | null;
+            eventCount: number;
+        };
+        assert.ok(typeof metadata.startTime === 'number' && metadata.startTime > 0);
+        assert.strictEqual(metadata.endTime, null, 'initial endTime should be null while session is live');
+        assert.strictEqual(metadata.eventCount, 0);
+
+        await recorder.endSession();
+    });
+
+    test('final metadata.json overwrites initial with endTime + eventCount', async () => {
+        recorder.enable();
+        await recorder.startSession(77);
+        recorder.recordIrisChatSent('one');
+        recorder.recordIrisChatSent('two');
+        await recorder.endSession();
+
+        // The final metadata write is the latest one.
+        const finalMetadata = [...fs.writtenFiles].reverse().find(f => f.path.endsWith('metadata.json'));
+        assert.ok(finalMetadata, 'final metadata.json was not written');
+        const metadata = JSON.parse(finalMetadata.data) as {
+            startTime: number;
+            endTime: number | null;
+            eventCount: number;
+        };
+        assert.ok(typeof metadata.endTime === 'number', `endTime should be a number after end, got ${metadata.endTime}`);
+        assert.ok(metadata.eventCount > 0, 'final eventCount should reflect recorded events');
+    });
+
     // ── Test: lifecycle.recordInternal phase gating (via public surface) ──────────
 
     test('record() after session ends but before new session starts is a no-op', async () => {
