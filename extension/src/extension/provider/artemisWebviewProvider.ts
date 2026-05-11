@@ -658,6 +658,10 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
     // ── Server-side problem statement rendering ─────────────────────
 
     private async _backgroundRenderProblemStatement(): Promise<void> {
+        // SSR is for regular exercise detail only. Exam exercises use a plaintext fallback
+        // and must never have their markdown POSTed to the render endpoint.
+        if (this._appStateManager.currentState !== 'exercise-detail') { return; }
+
         const exerciseData = this._appStateManager.currentExerciseData as ExerciseDetailsResponse | undefined;
         if (!exerciseData?.exercise?.problemStatement) {
             logger.info('[SSR] No exercise data or problemStatement, skipping', LogCategory.GENERAL);
