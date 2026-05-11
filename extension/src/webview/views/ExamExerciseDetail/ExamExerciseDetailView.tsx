@@ -18,7 +18,7 @@ import {
     ParticipationActions,
     BuildProgress,
 } from '../../components/exercise';
-import { ProblemStatement, ScoreInfo, TestResults } from '../ExerciseDetail/components';
+import { ScoreInfo, TestResults } from '../ExerciseDetail/components';
 import type { ExamExerciseDetailViewProps } from './types';
 import type { ExerciseType } from '../../components/exercise/ParticipationActions';
 import type { BuildState } from '../../components/exercise/BuildProgress';
@@ -157,7 +157,6 @@ export function ExamExerciseDetailView({ vscodeApi }: ExamExerciseDetailViewProp
     }
 
     const maxPoints = exercise.maxPoints ?? 0;
-    const downloadLinks: Array<{ name: string; url: string }> = [];
 
     return (
         <div className={styles.examExerciseDetailView}>
@@ -239,11 +238,15 @@ export function ExamExerciseDetailView({ vscodeApi }: ExamExerciseDetailViewProp
                 )}
             </Container>
 
-            {/* Problem Statement */}
-            <ProblemStatement
-                serverRenderedHtml={exercise.problemStatement || 'No description available.'}
-                downloadLinks={downloadLinks}
-            />
+            {/* Problem Statement (plaintext: exam mode does not use SSR) */}
+            <Container header={<h3>Exercise Description</h3>}>
+                <p className={styles.problemStatementNotice}>
+                    Use the Artemis web client for the formatted exercise description.
+                </p>
+                {exercise.problemStatement && (
+                    <pre className={styles.problemStatementPlaintext}>{exercise.problemStatement}</pre>
+                )}
+            </Container>
 
             {/* Score Info (if available) */}
             {latestResult && (
