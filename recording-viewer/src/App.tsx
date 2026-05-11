@@ -19,7 +19,7 @@ import { ALL_EVENT_TYPES } from './constants';
 import type { AuthStatus } from './hooks/useAuth';
 import { useLiveSessions } from './hooks/useLiveSessions';
 import { useLiveSession } from './hooks/useLiveSession';
-import { useLiveAnnotations } from './hooks/useLiveAnnotations';
+import { useAnnotationMutations, type AnnotationToast } from './hooks/useAnnotationMutations';
 import { useLiveHotkeys } from './hooks/useLiveHotkeys';
 
 const ALL_ENABLED = new Set(ALL_EVENT_TYPES);
@@ -45,7 +45,7 @@ export function RecordingViewerApp({ authStatus }: RecordingViewerAppProps) {
 
     // Live state
     const [reactionDelayMs, setReactionDelayMs] = useState(300);
-    const [lastLabelToast, setLastLabelToast] = useState<{ label: string; at: number } | null>(null);
+    const [lastLabelToast, setLastLabelToast] = useState<AnnotationToast | null>(null);
     const [stickyLive, setStickyLive] = useState(false);
 
     // Track most recently ended live session so latch-on cannot flip back to live
@@ -61,17 +61,30 @@ export function RecordingViewerApp({ authStatus }: RecordingViewerAppProps) {
     const writesDisabled = isLiveSession || isReadOnly;
 
     const saveAnnotations = useCallback(async (updated: Annotation[]) => {
+        const previous = annotations;
+        const sessionIdAtRequest = activeSessionId.current;
         setAnnotations(updated);
-        if (activeSessionId.current) {
-            await apiFetch(`/api/recordings/${activeSessionId.current}/annotations`, {
+        if (!sessionIdAtRequest) return;
+        try {
+            const res = await apiFetch(`/api/recordings/${sessionIdAtRequest}/annotations`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(updated),
-            }).catch((err) => {
-                console.warn('Failed to persist annotations:', err);
             });
+            if (!res.ok) {
+                throw new Error(`HTTP ${res.status}`);
+            }
+        } catch (err) {
+            console.warn('Failed to persist annotations:', err);
+            // Only revert if we're still on the same session AND the UI still
+            // reflects the failed optimistic write. Otherwise the user has
+            // either navigated away or made further edits, and rolling back
+            // would clobber unrelated state.
+            if (activeSessionId.current === sessionIdAtRequest) {
+                setAnnotations((current) => current === updated ? previous : current);
+            }
         }
-    }, [apiFetch]);
+    }, [annotations, apiFetch]);
 
     const handleAddAnnotation = useCallback((timestamp: number, text: string, label?: AnnotationLabel) => {
         const annotation: Annotation = {
@@ -134,7 +147,7 @@ export function RecordingViewerApp({ authStatus }: RecordingViewerAppProps) {
                 syncConfig = await videoSyncRes.json();
             }
 
-            setAnnotations(loadedAnnotations);
+            mutator.reset(loadedAnnotations);
             setVideoSyncConfig(syncConfig);
             setHasSubtitles(subsRes.ok);
             setVideoCacheBust(Date.now());
@@ -150,10 +163,25 @@ export function RecordingViewerApp({ authStatus }: RecordingViewerAppProps) {
         } finally {
             setLoading(false);
         }
+    // `mutator` is stable (memoized with [] deps in useAnnotationMutations) so
+    // including it here doesn't churn the callback identity.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [apiFetch]);
 
     const live = useLiveSession(activeSessionId.current, isLiveSession);
-    const liveAnnot = useLiveAnnotations(activeSessionId.current);
+
+    const showAnnotationError = useCallback((message: string) => {
+        // Surface mutator failures via the existing toast slot. Keeps the UX
+        // single-channel; the live-mode hotkey path is the only caller.
+        console.warn('[annotations]', message);
+        setLastLabelToast({ kind: 'error', text: message, at: Date.now() });
+    }, []);
+    const mutator = useAnnotationMutations({
+        sessionId: activeSessionId.current,
+        setAnnotations,
+        onToast: setLastLabelToast,
+        onError: showAnnotationError,
+    });
 
     // Latch sticky-live ON the moment we observe the current session in the live set,
     // UNLESS we already saw it end during this view.
@@ -165,6 +193,19 @@ export function RecordingViewerApp({ authStatus }: RecordingViewerAppProps) {
             setStickyLive(true);
         }
     }, [liveSessionIds, endedLiveSessionId]);
+
+    // Whenever sticky-live transitions ON, reseed the mutator from the latest
+    // annotations so any archive-mode edits made before the latch don't leave
+    // the controller's `annotationsRef` stale. Reset also clears the redo
+    // stack, which is the right semantic for entering a fresh live session.
+    useEffect(() => {
+        if (isLiveSession) {
+            mutator.reset(annotations);
+        }
+    // We INTENTIONALLY don't depend on `annotations` here — only on the latch
+    // edge. Mid-live edits flow through the controller already.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [isLiveSession, mutator]);
 
     // Reset sticky-live + ended-id when leaving the session view.
     useEffect(() => {
@@ -193,17 +234,18 @@ export function RecordingViewerApp({ authStatus }: RecordingViewerAppProps) {
         }
     }, [live.error, live.events, loadFromApi]);
 
-    useLiveHotkeys(isLiveSession, useCallback(async (label) => {
-        const ann = await liveAnnot.post(label, live.latestEventTimestamp, reactionDelayMs);
-        if (ann) {
-            setLastLabelToast({ label, at: Date.now() });
-            setAnnotations((prev) => [...prev, ann]);
-        }
-    }, [liveAnnot, live.latestEventTimestamp, reactionDelayMs]));
+    useLiveHotkeys(
+        isLiveSession,
+        useCallback((label) => {
+            mutator.addLabel(label, live.latestEventTimestamp, reactionDelayMs);
+        }, [mutator, live.latestEventTimestamp, reactionDelayMs]),
+        mutator.undoLast,
+        mutator.redoLast,
+    );
 
     const handleFileSession = useCallback((loaded: LoadedSession) => {
         activeSessionId.current = null;
-        setAnnotations([]);
+        mutator.reset(loaded.annotations ?? []);
         setVideoSyncConfig(null);
         setHasSubtitles(false);
         setIsVideoPlaying(false);
@@ -215,11 +257,11 @@ export function RecordingViewerApp({ authStatus }: RecordingViewerAppProps) {
         setStickyLive(false);
         setEndedLiveSessionId(null);
         setSession(loaded);
-    }, []);
+    }, [mutator]);
 
     const handleBack = useCallback(() => {
         activeSessionId.current = null;
-        setAnnotations([]);
+        mutator.reset([]);
         setVideoSyncConfig(null);
         setHasSubtitles(false);
         setIsVideoPlaying(false);
@@ -229,7 +271,7 @@ export function RecordingViewerApp({ authStatus }: RecordingViewerAppProps) {
         setZoomedXDomain(null);
         setAutoFollowLive(true);
         setSession(null);
-    }, []);
+    }, [mutator]);
 
     // Video callbacks
     const handleVideoSeek = useCallback((timestamp: number) => {

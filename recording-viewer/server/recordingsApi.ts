@@ -139,16 +139,17 @@ export function createRecordingsApi(config: AppConfig): ApiHandler {
                 }
             }
             // Mutating-endpoint gate.
-            // Live mode (allowWrite=false) blocks all writes EXCEPT POST /annotations
-            // (the live struggle-tagging endpoint).
-            const isAnnotationPost =
-                method === 'POST' &&
-                /^\/api\/recordings\/[^/]+\/annotations$/.test(urlPath);
+            // Live mode (allowWrite=false) blocks all writes EXCEPT the two live
+            // annotation shapes: POST /annotations (add) and DELETE
+            // /annotations/:id (undo).
+            const isLiveAnnotationMutation =
+                (method === 'POST' && /^\/api\/recordings\/[^/]+\/annotations$/.test(urlPath)) ||
+                (method === 'DELETE' && /^\/api\/recordings\/[^/]+\/annotations\/[^/]+$/.test(urlPath));
             const isMutating =
                 method === 'PUT' ||
                 method === 'DELETE' ||
                 method === 'POST';
-            if (isMutating && !config.allowWrite && !isAnnotationPost) {
+            if (isMutating && !config.allowWrite && !isLiveAnnotationMutation) {
                 sendJson(res, 403, {
                     error: 'Write operation disabled in live mode (set RECORDING_VIEWER_ALLOW_WRITE=1 to enable)',
                 });
@@ -661,6 +662,60 @@ export function createRecordingsApi(config: AppConfig): ApiHandler {
                     sendJson(res, 500, { error: String(err) });
                 }
             })();
+            return;
+        }
+
+        // DELETE /api/recordings/:sessionId/annotations/:id — remove a single
+        // annotation by id. Live-mode carve-out (alongside POST) lets the
+        // viewer undo struggle-tagging hotkeys without enabling full write
+        // access. Sync read-modify-write keeps it atomic against concurrent
+        // POSTs on the same file (Node's single-threaded event loop guarantees
+        // no other handler runs between the readFileSync and the renameSync).
+        //
+        // Annotation ids look like `${ms-timestamp}-${random-base36}`. We
+        // restrict to that shape to prevent path traversal via the id segment.
+        const annotDeleteMatch = urlPath.match(/^\/api\/recordings\/([^/]+)\/annotations\/([^/]+)$/);
+        if (annotDeleteMatch && method === 'DELETE') {
+            const sessionDir = resolveSessionDir(annotDeleteMatch[1]);
+            if (!sessionDir) { sendJson(res, 400, { error: 'Invalid session ID' }); return; }
+            let annotId: string;
+            try {
+                annotId = decodeURIComponent(annotDeleteMatch[2]);
+            } catch {
+                sendJson(res, 400, { error: 'Invalid annotation ID' });
+                return;
+            }
+            if (!/^[A-Za-z0-9_-]+$/.test(annotId)) {
+                sendJson(res, 400, { error: 'Invalid annotation ID' });
+                return;
+            }
+            const annotPath = path.join(sessionDir, 'annotations.json');
+            try {
+                if (!fs.existsSync(annotPath)) { sendJson(res, 404, { error: 'No annotations to delete' }); return; }
+                const raw = fs.readFileSync(annotPath, 'utf-8');
+                let arr: unknown;
+                try {
+                    arr = JSON.parse(raw);
+                } catch {
+                    sendJson(res, 409, { error: 'Existing annotations.json is corrupt JSON; refusing to overwrite' });
+                    return;
+                }
+                if (!Array.isArray(arr)) {
+                    sendJson(res, 409, { error: 'Existing annotations.json is not an array' });
+                    return;
+                }
+                const filtered = arr.filter(a => !(a && typeof a === 'object' && (a as { id?: unknown }).id === annotId));
+                if (filtered.length === arr.length) {
+                    sendJson(res, 404, { error: 'Annotation not found' });
+                    return;
+                }
+                const tmp = annotPath + '.tmp';
+                fs.writeFileSync(tmp, JSON.stringify(filtered, null, 2), 'utf-8');
+                fs.renameSync(tmp, annotPath);
+                sendJson(res, 200, { ok: true, deletedId: annotId });
+            } catch (err) {
+                sendJson(res, 500, { error: String(err) });
+            }
             return;
         }
 

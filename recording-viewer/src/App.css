@@ -1810,6 +1810,8 @@
     padding: 0.4rem 0.8rem; border-radius: 4px; margin-top: 0.5rem;
     box-shadow: 0 4px 12px rgba(0,0,0,0.3); pointer-events: none;
 }
+.live-toast-undo, .live-toast-redo { background: #6b7280; }
+.live-toast-error { background: #ef4444; }
 .live-session-badge {
     display: inline-block; background: #ef4444; color: white;
     font-size: 0.7rem; padding: 0.1rem 0.4rem; border-radius: 3px;
