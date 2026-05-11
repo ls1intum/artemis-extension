@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useMemo, useEffect } from 'react';
+import { useState, useCallback, useRef, useMemo, useEffect, useDeferredValue } from 'react';
 import type { Annotation, AnnotationLabel, LoadedSession, RecordedEvent, SessionMetadata, SessionStartEvent, ReplayEqSnapshot, VideoSyncConfig } from './types';
 import { resolveSchemaVersion } from './parseSession';
 import { FileDropZone } from './components/FileDropZone';
@@ -272,10 +272,17 @@ export function RecordingViewerApp({ authStatus }: RecordingViewerAppProps) {
         setIsVideoPlaying(playing);
     }, []);
 
+    // Defer live event updates so the expensive chart/timeline renders can
+    // be interrupted by newer SSE batches. Under sustained load the charts
+    // may visibly lag the most-recent event by a frame or two, which is
+    // acceptable. live.latestEventTimestamp (used by annotation anchoring)
+    // stays non-deferred so hotkey-driven annotations target the correct
+    // wall-clock position.
+    const liveEventsForDisplay = useDeferredValue(live.events);
     const displayedEvents = useMemo(() => {
         if (!session) return [];
-        return isLiveSession ? live.events : session.events;
-    }, [session, isLiveSession, live.events]);
+        return isLiveSession ? liveEventsForDisplay : session.events;
+    }, [session, isLiveSession, liveEventsForDisplay]);
 
     // Use metadata.startTime if available, otherwise the earliest event timestamp
     const sessionStartTime = useMemo(() => {
