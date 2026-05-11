@@ -92,15 +92,20 @@ export function RecordingViewerApp({ authStatus }: RecordingViewerAppProps) {
         saveAnnotations(annotations.filter(a => a.id !== id));
     }, [annotations, saveAnnotations]);
 
-    const loadFromApi = useCallback(async (sessionId: string, isLive: boolean) => {
+    const loadFromApi = useCallback(async (sessionId: string, isLive: boolean, tailLimit?: number) => {
         activeSessionId.current = sessionId; // claim ownership before any await
         setLoading(true);
         setViewMode('timeline');
         setScrollToTimestamp(null);
         setStickyLive(isLive); // immediate latch — bypasses polling cadence
         try {
+            const eventsUrl = isLive
+                ? null
+                : tailLimit !== undefined
+                    ? `/api/recordings/${sessionId}/events?tail=${tailLimit}`
+                    : `/api/recordings/${sessionId}/events`;
             const fetches: Promise<Response>[] = [
-                isLive ? Promise.resolve(new Response('[]', { status: 200 })) : apiFetch(`/api/recordings/${sessionId}/events`),
+                eventsUrl ? apiFetch(eventsUrl) : Promise.resolve(new Response('[]', { status: 200 })),
                 apiFetch(`/api/recordings/${sessionId}/metadata`),
                 apiFetch(`/api/recordings/${sessionId}/replay-eq`),
                 apiFetch(`/api/recordings/${sessionId}/annotations`),
@@ -181,7 +186,9 @@ export function RecordingViewerApp({ authStatus }: RecordingViewerAppProps) {
             setEndedLiveSessionId(id);
             setStickyLive(false);
             setTimeout(() => {
-                if (activeSessionId.current === id) void loadFromApi(id, false);
+                // Tail-limit the archive reload so a long session can't
+                // crash the tab a second time after live mode capped at 5k.
+                if (activeSessionId.current === id) void loadFromApi(id, false, 5000);
             }, 500);
         }
     }, [live.error, live.events, loadFromApi]);

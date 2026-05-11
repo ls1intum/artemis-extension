@@ -5,6 +5,9 @@ import type { AppConfig, IncomingRequest, ServerResponse } from './types';
 import { sendJson, parseCookies, readJsonBody } from './http';
 import { isValidToken, buildSessionCookie, isSessionCookieValid } from './auth';
 import { LiveTailerRegistry } from './liveTailerRegistry';
+import { readLastNLines } from './eventsReader';
+
+const TAIL_LIMIT_MAX = 50_000;
 
 export type ApiHandler = (req: IncomingRequest, res: ServerResponse, next: () => void) => void;
 
@@ -370,22 +373,47 @@ export function createRecordingsApi(config: AppConfig): ApiHandler {
         }
 
         // GET /api/recordings/:sessionId/events
+        // Optional ?tail=N query: stream-read the file and return only the
+        // last N events (memory O(N) regardless of file size). Without the
+        // param, returns the full archive — same as before, contract intact.
         const eventsMatch = urlPath.match(/^\/api\/recordings\/([^/]+)\/events$/);
         if (eventsMatch) {
             const sessionDir = resolveSessionDir(eventsMatch[1]);
             if (!sessionDir) { sendJson(res, 400, { error: 'Invalid session ID' }); return; }
             const eventsPath = path.join(sessionDir, 'events.jsonl');
-            try {
-                if (!fs.existsSync(eventsPath)) { sendJson(res, 404, { error: 'events.jsonl not found' }); return; }
-                res.setHeader('Content-Type', 'application/json');
-                const lines = fs.readFileSync(eventsPath, 'utf-8')
-                    .split('\n')
-                    .filter(l => l.trim().length > 0);
-                const events = lines.map(l => JSON.parse(l));
-                res.end(JSON.stringify(events));
-            } catch (err) {
-                sendJson(res, 500, { error: String(err) });
+
+            const queryString = (req.url ?? '').split('?')[1] ?? '';
+            const params = new URLSearchParams(queryString);
+            const tailParamRaw = params.get('tail');
+            let tailLimit: number | null = null;
+            if (tailParamRaw !== null) {
+                const parsed = Number.parseInt(tailParamRaw, 10);
+                if (!Number.isFinite(parsed) || parsed < 0) {
+                    sendJson(res, 400, { error: 'tail must be a non-negative integer' });
+                    return;
+                }
+                tailLimit = Math.min(parsed, TAIL_LIMIT_MAX);
             }
+
+            void (async () => {
+                try {
+                    if (!fs.existsSync(eventsPath)) { sendJson(res, 404, { error: 'events.jsonl not found' }); return; }
+                    res.setHeader('Content-Type', 'application/json');
+                    if (tailLimit !== null) {
+                        const { lines } = await readLastNLines(eventsPath, tailLimit);
+                        const events = lines.map(({ line }) => JSON.parse(line));
+                        res.end(JSON.stringify(events));
+                    } else {
+                        const lines = fs.readFileSync(eventsPath, 'utf-8')
+                            .split('\n')
+                            .filter(l => l.trim().length > 0);
+                        const events = lines.map(l => JSON.parse(l));
+                        res.end(JSON.stringify(events));
+                    }
+                } catch (err) {
+                    sendJson(res, 500, { error: String(err) });
+                }
+            })();
             return;
         }
 
