@@ -21,8 +21,6 @@ export interface TestCase {
  */
 export interface ProblemStatementProps {
     serverRenderedHtml?: string;
-    downloadLinks?: Array<{ name: string; url: string }>;
-    onDownload?: (url: string, name: string) => void;
 }
 
 /**

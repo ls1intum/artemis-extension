@@ -253,9 +253,6 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
         : !repoStatus.isConnected ? 'disconnected'
         : repoStatus.hasChanges ? 'dirty' : 'clean';
 
-    // Download links extraction (simplified - in real implementation would parse from markdown)
-    const downloadLinks: Array<{ name: string; url: string }> = [];
-
     return (
         <div className={styles.exerciseDetailView}>
             {/* Cloned repo notice */}
@@ -457,10 +454,7 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
             />
 
             {/* Problem Statement */}
-            <ProblemStatement
-                serverRenderedHtml={serverRenderedPS?.html}
-                downloadLinks={downloadLinks}
-            />
+            <ProblemStatement serverRenderedHtml={serverRenderedPS?.html} />
 
             {/* Developer Tools */}
             {!hideDeveloperTools && (

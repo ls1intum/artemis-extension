@@ -1,11 +1,14 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, act } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
 import { ProblemStatement } from '../../../../../src/webview/views/ExerciseDetail/components/ProblemStatement';
 
 describe('ProblemStatement', () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
+	});
+
+	afterEach(() => {
+		vi.useRealTimers();
 	});
 
 	it('renders the problem statement container', () => {
@@ -16,7 +19,6 @@ describe('ProblemStatement', () => {
 	it('shows skeleton loading state when serverRenderedHtml is not provided', () => {
 		const { container } = render(<ProblemStatement />);
 		expect(screen.getByText('Exercise Description')).toBeInTheDocument();
-		// Skeleton elements should be present (aria-busy="true")
 		const skeletons = container.querySelectorAll('[aria-busy="true"]');
 		expect(skeletons.length).toBeGreaterThan(0);
 	});
@@ -27,7 +29,6 @@ describe('ProblemStatement', () => {
 		expect(screen.queryByText(/Failed to load/)).not.toBeInTheDocument();
 		act(() => { vi.advanceTimersByTime(10_000); });
 		expect(screen.getByText(/Failed to load the exercise description/)).toBeInTheDocument();
-		vi.useRealTimers();
 	});
 
 	it('clears timeout when serverRenderedHtml arrives', () => {
@@ -38,7 +39,6 @@ describe('ProblemStatement', () => {
 		act(() => { vi.advanceTimersByTime(10_000); });
 		expect(screen.getByText('Loaded')).toBeInTheDocument();
 		expect(screen.queryByText(/Failed to load/)).not.toBeInTheDocument();
-		vi.useRealTimers();
 	});
 
 	it('renders server-rendered HTML content', () => {
@@ -51,59 +51,17 @@ describe('ProblemStatement', () => {
 		expect(screen.getByText('Task Description')).toBeInTheDocument();
 	});
 
-	it('renders download links when provided', () => {
-		const downloadLinks = [
-			{ name: 'Assignment.pdf', url: 'https://example.com/file.pdf' },
-			{ name: 'Starter.zip', url: 'https://example.com/starter.zip' },
-		];
-		render(<ProblemStatement serverRenderedHtml="<p>Problem</p>" downloadLinks={downloadLinks} />);
-		expect(screen.getByText('Assignment.pdf')).toBeInTheDocument();
-		expect(screen.getByText('Starter.zip')).toBeInTheDocument();
-	});
-
-	it('shows Downloads header when download links are present', () => {
-		const downloadLinks = [{ name: 'File.pdf', url: 'https://example.com/file.pdf' }];
-		render(<ProblemStatement serverRenderedHtml="<p>Problem</p>" downloadLinks={downloadLinks} />);
-		expect(screen.getByText('Downloads')).toBeInTheDocument();
-	});
-
-	it('does not show Downloads section when no download links', () => {
-		render(<ProblemStatement serverRenderedHtml="<p>Problem</p>" downloadLinks={[]} />);
-		expect(screen.queryByText('Downloads')).not.toBeInTheDocument();
-	});
-
-	it('calls onDownload with url and name when download button is clicked', async () => {
-		const onDownload = vi.fn();
-		const downloadLinks = [
-			{ name: 'Assignment.pdf', url: 'https://example.com/file.pdf' },
-		];
-		render(
-			<ProblemStatement
-				serverRenderedHtml="<p>Problem</p>"
-				downloadLinks={downloadLinks}
-				onDownload={onDownload}
-			/>
-		);
-		await userEvent.click(screen.getByText('Assignment.pdf'));
-		expect(onDownload).toHaveBeenCalledWith('https://example.com/file.pdf', 'Assignment.pdf');
-	});
-
-	it('renders without optional props without crashing', () => {
-		render(<ProblemStatement serverRenderedHtml="<p>Problem</p>" />);
-		expect(screen.getByText('Exercise Description')).toBeInTheDocument();
-	});
-
 	it('renders code block elements in HTML content', () => {
 		const html = '<pre><code>public class Solution { }</code></pre>';
 		render(<ProblemStatement serverRenderedHtml={html} />);
 		expect(screen.getByText('public class Solution { }')).toBeInTheDocument();
 	});
 
-	it('renders link elements with href in HTML content', () => {
+	it('renders link elements with their href attribute', () => {
 		const html = '<a href="https://example.com">Example Link</a>';
 		render(<ProblemStatement serverRenderedHtml={html} />);
-		const link = screen.getByText('Example Link');
-		expect(link).toBeInTheDocument();
+		const link = screen.getByRole('link', { name: 'Example Link' });
+		expect(link).toHaveAttribute('href', 'https://example.com');
 	});
 
 	it('renders image elements in HTML content', () => {
@@ -112,5 +70,18 @@ describe('ProblemStatement', () => {
 		const img = screen.getByAltText('diagram');
 		expect(img).toBeInTheDocument();
 		expect(img).toHaveAttribute('src', 'https://example.com/image.png');
+	});
+
+	it('strips server-injected KaTeX <script> and <link> tags before rendering', () => {
+		const html = `
+			<body>
+				<script src="https://cdn/katex.min.js"></script>
+				<link rel="stylesheet" href="https://cdn/katex.min.css">
+				<p>Body content</p>
+			</body>`;
+		const { container } = render(<ProblemStatement serverRenderedHtml={html} />);
+		expect(screen.getByText('Body content')).toBeInTheDocument();
+		expect(container.querySelectorAll('script')).toHaveLength(0);
+		expect(container.querySelectorAll('link[href*="katex"]')).toHaveLength(0);
 	});
 });

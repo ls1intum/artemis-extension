@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import katex from 'katex';
 import { Container } from '../../../components/Container';
-import { Button } from '../../../components/Button';
 import { Skeleton } from '../../../components/Skeleton/Skeleton';
 import type { ProblemStatementProps } from '../types';
 import styles from './ProblemStatement.module.css';
@@ -63,8 +62,6 @@ function renderKatexFormulas(container: HTMLElement): void {
  */
 export function ProblemStatement({
     serverRenderedHtml,
-    downloadLinks = [],
-    onDownload,
 }: ProblemStatementProps) {
     const contentRef = useRef<HTMLDivElement>(null);
     const [timedOut, setTimedOut] = useState(false);
@@ -112,22 +109,6 @@ export function ProblemStatement({
                     <Skeleton width="100%" height="14px" />
                     <Skeleton width="100%" height="14px" />
                     <Skeleton width="60%" height="14px" />
-                </div>
-            )}
-            {downloadLinks && downloadLinks.length > 0 && (
-                <div className={styles.downloadSection}>
-                    <h4 className={styles.downloadHeader}>Downloads</h4>
-                    <div className={styles.downloadLinks}>
-                        {downloadLinks.map((link, index) => (
-                            <Button
-                                key={index}
-                                variant="secondary"
-                                onClick={() => onDownload?.(link.url, link.name)}
-                            >
-                                {link.name}
-                            </Button>
-                        ))}
-                    </div>
                 </div>
             )}
         </Container>
