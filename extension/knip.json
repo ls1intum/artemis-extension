@@ -16,7 +16,6 @@
     "@types/vscode",
     "@types/dompurify",
     "@types/katex",
-    "@types/marked",
     "@vscode/test-electron",
     "axe-core",
     "mocha-junit-reporter"
