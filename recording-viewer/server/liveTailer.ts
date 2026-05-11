@@ -7,6 +7,14 @@ export type LineListener = (line: string, lineNo: number) => void;
 export interface TailerOptions {
     pollIntervalMs?: number;
     maxChunkBytes?: number;
+    /**
+     * If true, the first poll positions `_offset` at end-of-file and counts
+     * existing `\n`s to set `_lineNo` accordingly. Use this when a client
+     * connects to a long-running session and the per-connection catch-up has
+     * already replayed historical lines; the shared tailer should only
+     * broadcast newly appended lines from this point forward.
+     */
+    startAtEnd?: boolean;
 }
 
 /**
@@ -32,12 +40,24 @@ export class LiveTailer {
     private readonly _pollIntervalMs: number;
     private readonly _maxChunkBytes: number;
     private readonly _filePath: string;
+    private readonly _startAtEnd: boolean;
+    private _seekedToEnd = false;
     private _inFlight: Promise<void> | undefined;
 
     constructor(filePath: string, opts: TailerOptions = {}) {
         this._filePath = filePath;
-        this._pollIntervalMs = opts.pollIntervalMs ?? 1000;
+        this._pollIntervalMs = opts.pollIntervalMs ?? 250;
         this._maxChunkBytes = opts.maxChunkBytes ?? 4 * 1024 * 1024;
+        this._startAtEnd = opts.startAtEnd ?? false;
+    }
+
+    /**
+     * Current line number the tailer has advanced past. Used by the SSE
+     * handler to coordinate per-connection catch-up with the shared tailer's
+     * live broadcast position. Read-only — no per-subscriber seek is exposed.
+     */
+    currentLineNo(): number {
+        return this._lineNo;
     }
 
     subscribe(listener: LineListener): () => void {
@@ -89,8 +109,41 @@ export class LiveTailer {
             this._lineNo = 0;
             this._partial = '';
             this._decoder = new StringDecoder('utf8');
+            this._seekedToEnd = false;
         }
         this._lastMtimeNs = mtimeNs;
+
+        // Optional one-time seek-to-end: skip historical lines on first poll
+        // and start broadcasting only newly-appended content. _lineNo is set
+        // by counting existing newlines so subsequent SSE `id:` values stay
+        // aligned with file line numbers (critical for Last-Event-ID).
+        if (this._startAtEnd && !this._seekedToEnd) {
+            this._seekedToEnd = true;
+            if (size > 0) {
+                const fd = await fsPromises.open(this._filePath, 'r');
+                try {
+                    let pos = 0;
+                    let lineCount = 0;
+                    const scratch = Buffer.alloc(Math.min(size, this._maxChunkBytes));
+                    while (pos < size) {
+                        const remaining = size - pos;
+                        const chunkLen = Math.min(remaining, scratch.length);
+                        const r = await fd.read(scratch, 0, chunkLen, pos);
+                        if (r.bytesRead === 0) break;
+                        for (let i = 0; i < r.bytesRead; i++) {
+                            if (scratch[i] === 0x0A) lineCount++;
+                        }
+                        pos += r.bytesRead;
+                    }
+                    this._offset = size;
+                    this._lineNo = lineCount;
+                } finally {
+                    await fd.close();
+                }
+            }
+            return;
+        }
+
         if (size === this._offset) return;
 
         const start = this._offset;
