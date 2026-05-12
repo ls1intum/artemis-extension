@@ -42,7 +42,7 @@ export type TestResultsOverviewViewEvent =
         participationId?: number;
         resultId?: number;
         durationMs: number;
-        closeReason: 'button' | 'escape' | 'replaced';
+        closeReason: 'button' | 'escape';
     };
 
 export type TaskFeedbackViewEvent =
@@ -70,7 +70,7 @@ export type TaskFeedbackViewEvent =
         resultId?: number;
         taskName: string;
         durationMs: number;
-        closeReason: 'button' | 'escape' | 'replaced';
+        closeReason: 'button' | 'escape';
     };
 ```
 
@@ -216,19 +216,6 @@ suite('SessionRecorder — view events', () => {
         assert.deepStrictEqual(task[0].action === 'opened' ? task[0].testIds : undefined, [101, 102, 103]);
     });
 
-    test('recordTaskFeedbackClosed emits with closeReason "replaced"', async () => {
-        recorder.recordTaskFeedbackClosed({
-            viewId: 'v2', exerciseId: 42, taskName: 'doOverlap',
-            durationMs: 500, closeReason: 'replaced',
-        });
-        await recorder.endSession();
-        const closed = collectWrittenEvents(fs).filter(
-            (e): e is TaskFeedbackViewEvent => e.type === 'taskFeedbackView' && e.action === 'closed',
-        );
-        assert.strictEqual(closed.length, 1);
-        assert.strictEqual(closed[0].action === 'closed' && closed[0].closeReason, 'replaced');
-    });
-
     test('all four methods are no-ops outside recording phase', async () => {
         const { recorder: idleRecorder, fs: idleFs } = makeRecorder();
         // No enable() / startSession() — phase stays 'idle'
@@ -280,7 +267,7 @@ recordTestResultsOverviewClosed(payload: {
     participationId?: number;
     resultId?: number;
     durationMs: number;
-    closeReason: 'button' | 'escape' | 'replaced';
+    closeReason: 'button' | 'escape';
 }): void {
     if (this._phase !== 'recording') { return; }
     this._lifecycle.recordInternal({
@@ -318,7 +305,7 @@ recordTaskFeedbackClosed(payload: {
     resultId?: number;
     taskName: string;
     durationMs: number;
-    closeReason: 'button' | 'escape' | 'replaced';
+    closeReason: 'button' | 'escape';
 }): void {
     if (this._phase !== 'recording') { return; }
     this._lifecycle.recordInternal({
@@ -381,7 +368,7 @@ testResultsOverviewClosed: {
     participationId?: number;
     resultId?: number;
     durationMs: number;
-    closeReason: 'button' | 'escape' | 'replaced';
+    closeReason: 'button' | 'escape';
 };
 taskFeedbackOpened: {
     viewId: string;
@@ -401,7 +388,7 @@ taskFeedbackClosed: {
     resultId?: number;
     taskName: string;
     durationMs: number;
-    closeReason: 'button' | 'escape' | 'replaced';
+    closeReason: 'button' | 'escape';
 };
 ```
 
@@ -696,43 +683,125 @@ git commit -m "feat(activation): register ArtemisWebviewProvider in provider reg
 
 - [ ] **Step 1: Extend the existing wiring test FIRST.**
 
-Open `extension/test/unit/activation/sessionRecorderWiring.test.ts`. Read its existing structure (it already builds a fake `artemisWebviewProvider`). Add four new test cases that fire each of the new provider events and assert the corresponding recorder method is called with the payload as-is:
+Open `extension/test/unit/activation/sessionRecorderWiring.test.ts`. The existing test code uses `makeWiringHarness()` and a `stubWebviewProvider()` factory. You need to:
+
+(a) Extend `stubWebviewProvider()` to expose the four new emitters and their corresponding `fireXxx` methods that the wiring will subscribe to.
+(b) Extend the `WiringHarness` interface and `makeWiringHarness` return value with `artemisWebviewProvider` so the tests can call its `fireXxx`.
+(c) Add the four forwarding tests.
+
+Edits to `stubWebviewProvider()` (around line 75):
 
 ```ts
-test('forwards onDidOpenTestResultsOverview to recorder', () => {
-    const recordStub = sinon.stub(sessionRecorder, 'recordTestResultsOverviewOpened');
-    const payload = { viewId: 'v', exerciseId: 1, totalTests: 2, passedTests: 1, failedTests: 1 };
-    (artemisWebviewProvider as unknown as { fireTestResultsOverviewOpened: (p: typeof payload) => void })
-        .fireTestResultsOverviewOpened(payload);
-    sinon.assert.calledOnceWithExactly(recordStub, payload);
-});
-
-test('forwards onDidCloseTestResultsOverview to recorder', () => {
-    const recordStub = sinon.stub(sessionRecorder, 'recordTestResultsOverviewClosed');
-    const payload = { viewId: 'v', exerciseId: 1, durationMs: 100, closeReason: 'button' as const };
-    (artemisWebviewProvider as unknown as { fireTestResultsOverviewClosed: (p: typeof payload) => void })
-        .fireTestResultsOverviewClosed(payload);
-    sinon.assert.calledOnceWithExactly(recordStub, payload);
-});
-
-test('forwards onDidOpenTaskFeedback to recorder', () => {
-    const recordStub = sinon.stub(sessionRecorder, 'recordTaskFeedbackOpened');
-    const payload = { viewId: 'v', exerciseId: 1, taskName: 't', testIds: [1, 2], totalTests: 2, passedTests: 1, failedTests: 1 };
-    (artemisWebviewProvider as unknown as { fireTaskFeedbackOpened: (p: typeof payload) => void })
-        .fireTaskFeedbackOpened(payload);
-    sinon.assert.calledOnceWithExactly(recordStub, payload);
-});
-
-test('forwards onDidCloseTaskFeedback to recorder', () => {
-    const recordStub = sinon.stub(sessionRecorder, 'recordTaskFeedbackClosed');
-    const payload = { viewId: 'v', exerciseId: 1, taskName: 't', durationMs: 100, closeReason: 'replaced' as const };
-    (artemisWebviewProvider as unknown as { fireTaskFeedbackClosed: (p: typeof payload) => void })
-        .fireTaskFeedbackClosed(payload);
-    sinon.assert.calledOnceWithExactly(recordStub, payload);
-});
+function stubWebviewProvider(): ArtemisWebviewProvider {
+    const onDidChangeViewNavigation = new vscode.EventEmitter<{ from: string; to: string }>();
+    const onDidChangePanelVisibility = new vscode.EventEmitter<boolean>();
+    // NEW: emitters + fire methods for view-tracking events.
+    const onDidOpenOverview = new vscode.EventEmitter<TestResultsOverviewOpenedPayload>();
+    const onDidCloseOverview = new vscode.EventEmitter<TestResultsOverviewClosedPayload>();
+    const onDidOpenTask = new vscode.EventEmitter<TaskFeedbackOpenedPayload>();
+    const onDidCloseTask = new vscode.EventEmitter<TaskFeedbackClosedPayload>();
+    return {
+        getCurrentVisibility: () => false,
+        onDidChangeViewNavigation: onDidChangeViewNavigation.event,
+        onDidChangePanelVisibility: onDidChangePanelVisibility.event,
+        onDidOpenTestResultsOverview: onDidOpenOverview.event,
+        onDidCloseTestResultsOverview: onDidCloseOverview.event,
+        onDidOpenTaskFeedback: onDidOpenTask.event,
+        onDidCloseTaskFeedback: onDidCloseTask.event,
+        fireTestResultsOverviewOpened: (p: TestResultsOverviewOpenedPayload) => onDidOpenOverview.fire(p),
+        fireTestResultsOverviewClosed: (p: TestResultsOverviewClosedPayload) => onDidCloseOverview.fire(p),
+        fireTaskFeedbackOpened: (p: TaskFeedbackOpenedPayload) => onDidOpenTask.fire(p),
+        fireTaskFeedbackClosed: (p: TaskFeedbackClosedPayload) => onDidCloseTask.fire(p),
+    } as unknown as ArtemisWebviewProvider;
+}
 ```
 
-The fake `artemisWebviewProvider` used by the existing wiring test needs the four `fireXxx` methods + corresponding `EventEmitter`s. Extend its construction in the existing `setup()` block accordingly — mirror how the chat-provider fake is already built in that file.
+(Don't forget to import the four payload types from `../../../src/shared/messageContracts/webviewCommands` at the top of the file.)
+
+Then expose the stubbed provider from the harness. In the `WiringHarness` interface (around line 127) add:
+
+```ts
+artemisWebviewProvider: ArtemisWebviewProvider;
+```
+
+And in `makeWiringHarness`'s `return { ... }` block, capture the stub into a local first so the same instance can be both passed into `wireSessionRecorder` AND exposed back:
+
+```ts
+const artemisProvider = stubWebviewProvider();
+const wiring = wireSessionRecorder({
+    context: ctx,
+    consentService: stubConsent(true),
+    artemisWebsocketService: stubWebsocket(sandbox),
+    telemetryManager,
+    artemisWebviewProvider: artemisProvider,
+    chatWebviewProvider: stubChatProvider(),
+    capabilities: undefined,
+    exerciseRegistry: undefined,
+});
+
+return {
+    telemetryManager,
+    recorder: wiring.sessionRecorder,
+    artemisWebviewProvider: artemisProvider,
+    // ...rest unchanged
+};
+```
+
+Now add four forwarding tests inside the existing `suite('sessionRecorderWiring — …')` block, using `harness.recorder` and `harness.artemisWebviewProvider`:
+
+```ts
+test('forwards onDidOpenTestResultsOverview to the recorder', async () => {
+    const harness = await makeWiringHarness(sandbox, { enabled: true, showInterventions: true, developerMode: false });
+    try {
+        const recordStub = sandbox.stub(harness.recorder, 'recordTestResultsOverviewOpened');
+        const payload = { viewId: 'v', exerciseId: 1, totalTests: 2, passedTests: 1, failedTests: 1 };
+        (harness.artemisWebviewProvider as unknown as { fireTestResultsOverviewOpened: (p: typeof payload) => void })
+            .fireTestResultsOverviewOpened(payload);
+        sinon.assert.calledOnceWithExactly(recordStub, payload);
+    } finally {
+        await harness.dispose();
+    }
+});
+
+test('forwards onDidCloseTestResultsOverview to the recorder', async () => {
+    const harness = await makeWiringHarness(sandbox, { enabled: true, showInterventions: true, developerMode: false });
+    try {
+        const recordStub = sandbox.stub(harness.recorder, 'recordTestResultsOverviewClosed');
+        const payload = { viewId: 'v', exerciseId: 1, durationMs: 100, closeReason: 'button' as const };
+        (harness.artemisWebviewProvider as unknown as { fireTestResultsOverviewClosed: (p: typeof payload) => void })
+            .fireTestResultsOverviewClosed(payload);
+        sinon.assert.calledOnceWithExactly(recordStub, payload);
+    } finally {
+        await harness.dispose();
+    }
+});
+
+test('forwards onDidOpenTaskFeedback to the recorder', async () => {
+    const harness = await makeWiringHarness(sandbox, { enabled: true, showInterventions: true, developerMode: false });
+    try {
+        const recordStub = sandbox.stub(harness.recorder, 'recordTaskFeedbackOpened');
+        const payload = { viewId: 'v', exerciseId: 1, taskName: 't', testIds: [1, 2], totalTests: 2, passedTests: 1, failedTests: 1 };
+        (harness.artemisWebviewProvider as unknown as { fireTaskFeedbackOpened: (p: typeof payload) => void })
+            .fireTaskFeedbackOpened(payload);
+        sinon.assert.calledOnceWithExactly(recordStub, payload);
+    } finally {
+        await harness.dispose();
+    }
+});
+
+test('forwards onDidCloseTaskFeedback to the recorder', async () => {
+    const harness = await makeWiringHarness(sandbox, { enabled: true, showInterventions: true, developerMode: false });
+    try {
+        const recordStub = sandbox.stub(harness.recorder, 'recordTaskFeedbackClosed');
+        const payload = { viewId: 'v', exerciseId: 1, taskName: 't', durationMs: 100, closeReason: 'button' as const };
+        (harness.artemisWebviewProvider as unknown as { fireTaskFeedbackClosed: (p: typeof payload) => void })
+            .fireTaskFeedbackClosed(payload);
+        sinon.assert.calledOnceWithExactly(recordStub, payload);
+    } finally {
+        await harness.dispose();
+    }
+});
+```
 
 - [ ] **Step 2: Run tests to verify they fail.**
 
@@ -831,14 +900,6 @@ suite('TestResultsTrackingCommandModule', () => {
             type: 'command', command: WebviewCmd.TestResultsOverviewOpened, payload,
         } as never);
         sinon.assert.calledOnceWithExactly(fireOverviewOpenedStub, payload);
-    });
-
-    test('handles taskFeedbackClosed with replaced reason', async () => {
-        const payload = { viewId: 'v', exerciseId: 1, taskName: 't', durationMs: 50, closeReason: 'replaced' as const };
-        await module.getHandlers()[WebviewCmd.TaskFeedbackClosed]({
-            type: 'command', command: WebviewCmd.TaskFeedbackClosed, payload,
-        } as never);
-        sinon.assert.calledOnceWithExactly(fireTaskClosedStub, payload);
     });
 
     test('drops events silently when provider is not registered', async () => {
@@ -1437,14 +1498,15 @@ export interface ProblemStatementProps {
 
 - [ ] **Step 2: Write failing tests for the click behavior.**
 
-Append to `extension/test/react/views/ExerciseDetail/components/ProblemStatement.test.tsx`:
+First, check the existing imports at the top of `extension/test/react/views/ExerciseDetail/components/ProblemStatement.test.tsx`. The file already imports `describe`, `it`, `expect`, `vi` from `vitest` and `render` from `@testing-library/react`. You only need to ADD `userEvent`:
 
 ```tsx
-import { describe, it, expect, vi } from 'vitest';
-import { render } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { ProblemStatement } from '../../../../../src/webview/views/ExerciseDetail/components/ProblemStatement';
+```
 
+Then APPEND the new `describe` block at the bottom of the file (do NOT duplicate any imports):
+
+```tsx
 describe('ProblemStatement — task click handler', () => {
     const sampleHtml = `<html><body>
         <span class="artemis-task" data-task-name="doOverlap" data-test-ids="101,102,103">doOverlap</span>
@@ -1710,7 +1772,7 @@ Note: `testIds` (not `filtered`) is stored — the filtered list is derived from
 The variables `participation`, `participationId`, `latestResult`, `testCases` already exist in render scope of `ExerciseDetailView` (verify around line 173 of the current file). Place these handlers BELOW those declarations:
 
 ```tsx
-const handleOverviewClose = (reason: 'button' | 'escape' | 'replaced') => {
+const handleOverviewClose = (reason: 'button' | 'escape') => {
     if (!openOverviewView) { return; }
     postCommand(vscodeApi, WebviewCmd.TestResultsOverviewClosed, {
         viewId: openOverviewView.closeIdentity.viewId,
@@ -1723,7 +1785,7 @@ const handleOverviewClose = (reason: 'button' | 'escape' | 'replaced') => {
     setOpenOverviewView(null);
 };
 
-const handleTaskClose = (reason: 'button' | 'escape' | 'replaced') => {
+const handleTaskClose = (reason: 'button' | 'escape') => {
     if (!openTaskView) { return; }
     postCommand(vscodeApi, WebviewCmd.TaskFeedbackClosed, {
         viewId: openTaskView.closeIdentity.viewId,
@@ -1739,7 +1801,6 @@ const handleTaskClose = (reason: 'button' | 'escape' | 'replaced') => {
 
 const handleOverviewOpen = () => {
     if (!exerciseData?.exercise?.id) { return; }
-    if (openTaskView) { handleTaskClose('replaced'); }
     const viewId = makeViewId();
     const openedAt = Date.now();
     const exerciseId = exerciseData.exercise.id;
@@ -1760,7 +1821,6 @@ const handleOverviewOpen = () => {
 
 const handleTaskOpen = ({ taskName, testIds }: { taskName: string; testIds: number[] }) => {
     if (!exerciseData?.exercise?.id) { return; }
-    if (openOverviewView) { handleOverviewClose('replaced'); }
     const filtered = filterTestCasesByIds(testCases, testIds);
     const viewId = makeViewId();
     const openedAt = Date.now();
@@ -1903,49 +1963,16 @@ it('posts testResultsOverviewOpened + Closed pair with matching viewId on open a
     expect(closedCall![0].payload.durationMs).toBeGreaterThanOrEqual(0);
 });
 
-it('emits taskFeedbackClosed with closeReason "replaced" when overview is opened with task modal already open', async () => {
-    useExerciseDetailStore.setState({
-        exerciseData: makeExerciseDataWithParticipation({ hasResult: true }),
-        isLoading: false,
-    });
-    const mockApi = createMockVsCodeApi();
-    const { container } = render(<ExerciseDetailView vscodeApi={mockApi} />);
-
-    // Simulate a server-rendered problem statement arriving with a task span.
-    dispatchExtensionMessage({
-        type: ExtensionMsg.ProblemStatementRendered,
-        html: '<html><body><span class="artemis-task" data-task-name="taskA" data-test-ids="1,2">taskA</span></body></html>',
-    });
-
-    // Click the task span — opens the task modal.
-    // waitFor the SSR HTML to inject before querying.
-    await waitFor(() => {
-        expect(container.querySelector('.artemis-task[data-test-ids]')).not.toBeNull();
-    });
-    await userEvent.click(container.querySelector('.artemis-task[data-test-ids]')!);
-
-    expect(mockApi.postMessage).toHaveBeenCalledWith(
-        expect.objectContaining({ command: 'taskFeedbackOpened' })
-    );
-
-    // Now open overview while task modal is still open → expect 'replaced' close for task first.
-    await userEvent.click(screen.getByRole('button', { name: /see test results/i }));
-
-    const closedTaskCall = mockApi.postMessage.mock.calls.find(c => c[0].command === 'taskFeedbackClosed');
-    expect(closedTaskCall).toBeDefined();
-    expect(closedTaskCall![0].payload.closeReason).toBe('replaced');
-    expect(closedTaskCall![0].payload.taskName).toBe('taskA');
-});
 ```
 
-Verify the test imports — `fireEvent` and `waitFor` must be imported from `@testing-library/react`. If the file currently only imports `render, screen`, extend the existing import line.
+Add an import for `fireEvent` from `@testing-library/react` if it is not already there.
 
 - [ ] **Step 10: Run React tests.**
 
 ```bash
 cd extension && npm run test:react -- ExerciseDetailView 2>&1 | tail -10
 ```
-Expected: existing tests still pass; the two new tests pass.
+Expected: existing tests still pass; the new test passes.
 
 - [ ] **Step 11: Run the full unit + react suite to confirm no regressions across all changes in this task.**
 
@@ -2000,14 +2027,22 @@ Expected: PASS.
 ```bash
 cd extension && npm run compile-tests && npm run test:unit 2>&1 | tail -3 && grep -E "tests=|failures=" extension/reports/mocha-results.xml | head -1
 ```
-Expected: `failures="0"`, tests count increased over the baseline by at least 9 (5 sessionRecorder + 4 testResultsTrackingCommands).
+Expected: `failures="0"`. New tests added across this plan (approximate, not exact):
+- ~5 in `sessionRecorderViewEvents.test.ts` (Task 2)
+- ~1 in the new `testResultsTrackingContracts.test.ts` (Task 3)
+- ~4 in `testResultsTrackingCommands.test.ts` (Task 9)
+- ~4 in the extension of `sessionRecorderWiring.test.ts` (Task 8)
+- The pre-existing wiring suite tests should still pass unchanged.
 
 - [ ] **Step 4: React tests.**
 
 ```bash
 cd extension && npm run test:react 2>&1 | grep -E "Test Files|Tests" | tail -3
 ```
-Expected: all green; tests count increased over baseline by at least 11 (7 TestResultsOverlay + 4 ProblemStatement task-click).
+Expected: all green. New React tests added across this plan (approximate):
+- ~6 in `TestResultsOverlay.test.tsx` (Task 14): default/task title, two empty-state messages, button-close, escape-close, no-fire on modal-content click.
+- ~4 in `ProblemStatement.test.tsx` (Task 15): fires on `.artemis-task[data-test-ids]`, no fire without `data-test-ids`, no fire outside any task, whitespace/trailing-comma tolerance.
+- 1 added in `ExerciseDetailView.test.tsx` (Task 17): overview open/close pair with matching viewId and durationMs.
 
 - [ ] **Step 5: Knip dead-code check.**
 
@@ -2023,8 +2058,7 @@ Expected: clean (only pre-existing config hints).
 3. Click a task. Modal opens titled "Feedback for task: <taskName>" with only that task's tests.
 4. Close via X button. Inspect `~/.../recordings/<session>/events.jsonl` for the open/close pair with matching `viewId` and `closeReason: 'button'`.
 5. Reopen via Escape close → confirm `closeReason: 'escape'`.
-6. Open a task modal, then click "See test results" button → confirm a `taskFeedbackClosed` with `closeReason: 'replaced'` is emitted, immediately followed by `testResultsOverviewOpened`.
-7. Open modal, close VS Code window → confirm no synthetic close event in the recording (last event for that view is `opened`).
+6. Open modal, close VS Code window → confirm no synthetic close event in the recording (last event for that view is `opened`).
 
 - [ ] **Step 7: Push.**
 
@@ -2050,7 +2084,6 @@ gh pr create --base dev --head feat/test-results-tracking \
 ## Test plan
 - [ ] Click task → modal shows only that task's tests
 - [ ] Close via X or Escape → recorder event with correct closeReason
-- [ ] Open one modal while the other is open → 'replaced' closeReason fires for the displaced view
 - [ ] Recording shows unmatched opened when VS Code is closed mid-view
 EOF
 )"

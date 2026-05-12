@@ -93,7 +93,7 @@ Key architectural decisions:
 - **Webview measures `durationMs` locally.** On open, the React state stores `openedAt = Date.now()`. On close, the diff is computed and sent with the close command. Extension is a pass-through; it does not maintain open-view state.
 - **`viewId` is generated webview-side** via `crypto.randomUUID()` with a `Date.now() + Math.random()` fallback. Same UUID rides both `opened` and `closed` events.
 - **Captured-payload pattern.** When the modal opens, a full snapshot of the close-event identity fields (`viewId`, `exerciseId`, `participationId`, `resultId`, `taskName`) is frozen into the view state. The close event references this snapshot — never the live DOM or store. This survives SSR re-renders or exercise-data mutations between open and close.
-- **Two kinds of "close" with distinct reasons.** Real user-triggered closes (`'button' | 'escape'`) are always emitted. A user opening one modal while another is open emits a `closeReason: 'replaced'` close for the previously-open one before the new `opened`. No close events are synthesised in any other situation: if the user navigates away or VS Code is restarted while a modal is open, no `closed` event is emitted, and analysis treats this as a censored interval bounded by `sessionEnd.timestamp`.
+- **Close has only two user-triggered reasons.** `closeReason: 'button' | 'escape'`. No synthetic closes from the system. The current `TestResultsOverlay` layout is full-screen (covers the entire view), so a user cannot reach the "See test results" button or click a `[task]` span while a modal is open — there is no in-UI "switch modal" affordance and consequently no need for a `'replaced'` reason. If the user navigates away or VS Code is restarted while a modal is open, no `closed` event is emitted at all, and analysis treats that as a censored interval bounded by `sessionEnd.timestamp`.
 
 ## Recorder Event Schema
 
@@ -122,7 +122,7 @@ export type TestResultsOverviewViewEvent =
         participationId?: number;
         resultId?: number;
         durationMs: number;
-        closeReason: 'button' | 'escape' | 'replaced';
+        closeReason: 'button' | 'escape';
     };
 
 export type TaskFeedbackViewEvent =
@@ -150,7 +150,7 @@ export type TaskFeedbackViewEvent =
         resultId?: number;
         taskName: string;
         durationMs: number;
-        closeReason: 'button' | 'escape' | 'replaced';
+        closeReason: 'button' | 'escape';
     };
 ```
 
@@ -173,7 +173,7 @@ recordTestResultsOverviewClosed(payload: {
     participationId?: number;
     resultId?: number;
     durationMs: number;
-    closeReason: 'button' | 'escape' | 'replaced';
+    closeReason: 'button' | 'escape';
 }): void;
 
 recordTaskFeedbackOpened(payload: {
@@ -195,7 +195,7 @@ recordTaskFeedbackClosed(payload: {
     resultId?: number;
     taskName: string;
     durationMs: number;
-    closeReason: 'button' | 'escape' | 'replaced';
+    closeReason: 'button' | 'escape';
 }): void;
 ```
 
@@ -231,7 +231,6 @@ interface TestResultsOverlayProps {
 }
 ```
 
-Note: `'replaced'` is NOT a value the overlay itself can produce — it's the caller's responsibility to emit it before opening another overlay. The overlay union is the three user-driven reasons only.
 
 Header rendering:
 
@@ -245,13 +244,12 @@ Empty state:
 const emptyMessage = taskName ? 'No tests in this task.' : 'No test results available.';
 ```
 
-Four close triggers, all calling `onClose(reason)`. Three are user actions; `'replaced'` is emitted from `ExerciseDetailView` (not the overlay) when the user opens a different modal:
+Two close triggers, both calling `onClose(reason)`:
 
 | Source | Code change | Where |
 |---|---|---|
 | `<IconButton.Close>` | `onClick={() => onClose('button')}` | inside overlay |
 | Escape `keydown` | call `onClose('escape')` (currently calls `onClose()`) | inside overlay |
-| Modal replaced by opening the other one | `ExerciseDetailView` calls its own close handler with `'replaced'` | in parent before opening new modal |
 
 `onClose` signature is widened to require the `reason` (no more optional). Both callers of the overlay (the two instances in `ExerciseDetailView`) are migrated in this same change.
 
@@ -334,22 +332,10 @@ interface OpenViewState {
 }
 
 const [openOverviewView, setOpenOverviewView] = useState<OpenViewState | null>(null);
-const [openTaskView, setOpenTaskView] = useState<(OpenViewState & { taskName: string; filtered: TestCase[] }) | null>(null);
+const [openTaskView, setOpenTaskView] = useState<(OpenViewState & { taskName: string; testIds: number[] }) | null>(null);
 ```
 
-Single-modal invariant: opening either modal first closes any other open view with `closeReason: 'replaced'`.
-
-```ts
-const handleOverviewOpen = () => {
-    if (openTaskView) { handleTaskClose('replaced'); }
-    // …generate viewId, open
-};
-
-const handleTaskOpen = ({ taskName, testIds }) => {
-    if (openOverviewView) { handleOverviewClose('replaced'); }
-    // …generate viewId, open
-};
-```
+The full-screen modal layout makes the single-modal case the natural one: the user cannot trigger the open of one modal while the other is on screen, because the modal covers everything (problem statement, "See test results" button). The handlers therefore do NOT include defensive "close the other view first" branches — they are unreachable code paths.
 
 Two `<TestResultsOverlay>` instances mounted in JSX; both use `createPortal` so they live at `document.body`. Only one is open at any time per invariant.
 
@@ -404,7 +390,7 @@ export function makeViewId(): string {
 
 ### Close
 
-1. Close is triggered by one of two user sources (X button, Escape key) — or synthetically via `'replaced'` from the parent when opening another modal. The current full-screen modal layout has no clickable backdrop area, so backdrop is intentionally NOT a close source for this implementation.
+1. Close is triggered by one of two user sources: X button, Escape key. The current full-screen modal layout has no clickable backdrop area, and the full-screen modal covers any in-UI affordance that could open the other modal, so neither `'backdrop'` nor a `'replaced'` reason exists for this implementation.
 2. Webview computes `durationMs = Date.now() - openedAt`.
 3. Webview posts the `…Closed` command with the snapshotted `viewId`, `exerciseId`, optional `participationId`/`resultId`/`taskName`, `durationMs`, and `closeReason`.
 4. Same command-handler → provider-event → wiring → recorder path as on open. The recorder method called is `recordTestResultsOverviewClosed(...)` or `recordTaskFeedbackClosed(...)`.
@@ -421,7 +407,7 @@ Each open generates a new `viewId`. Two consecutive opens of "doOverlap" become 
 | `exerciseData` re-fetched mid-view | Same as above. The `participationId`/`resultId` in the close event are from the open snapshot, not the new data. |
 | Click on a child element inside `.artemis-task` (icon, stats span) | `event.target.closest('.artemis-task[data-test-ids]')` walks up the tree. Works on any descendant click. |
 | Webview never closes the modal (exercise switch, IDE shutdown) | No `closed` event. Recorder file shows an unmatched `opened`. Analysis treats as censored — `durationMs ≤ sessionEnd.timestamp - opened.timestamp`. |
-| Modal A open, user clicks button for modal B | `closed` for A is emitted with `closeReason: 'replaced'` **before** the `opened` for B. Single-modal invariant preserved. |
+| Modal A open, user tries to open modal B | Cannot happen with the current full-screen overlay — the overlay covers the in-UI triggers for the other modal. Single-modal invariant holds passively. |
 | Feedback record has no `testCase.id` | `transformFeedbacksToTestCases` writes `id: undefined`. `filterTestCasesByIds` excludes it. Modal shows only the subset with matching IDs — possibly fewer than the task's full `testIds.length` or empty. The `opened`-event `totalTests` reflects the **filtered** length (what the user actually sees), not the SSR `testIds.length`. |
 | All `testCase.id`s missing across feedbacks | Filtered list is empty. Modal still opens (so the click is recorded), shows the empty-state copy. The `opened` event carries `totalTests: 0`. This degenerate case is visible in analysis. |
 | Result re-fetched after open: testIds gone | Live `testCases` prop changes; modal may end up empty if no IDs match anymore. The captured snapshot in close-identity is unchanged. |
@@ -451,7 +437,7 @@ testResultsOverviewClosed: {
     participationId?: number;
     resultId?: number;
     durationMs: number;
-    closeReason: 'button' | 'escape' | 'replaced';
+    closeReason: 'button' | 'escape';
 };
 taskFeedbackOpened: {
     viewId: string;
@@ -471,7 +457,7 @@ taskFeedbackClosed: {
     resultId?: number;
     taskName: string;
     durationMs: number;
-    closeReason: 'button' | 'escape' | 'replaced';
+    closeReason: 'button' | 'escape';
 };
 ```
 
@@ -622,7 +608,6 @@ Contract layer (TypeScript compile-time):
 - Clicking "See test results" posts `testResultsOverviewOpened` with computed counts.
 - Closing the overlay posts `testResultsOverviewClosed` with a positive `durationMs` and the same `viewId`.
 - Clicking a task in the problem statement posts `taskFeedbackOpened` with filtered `testIds` and counts.
-- Opening overview while task modal is open posts `taskFeedbackClosed` (with `closeReason: 'replaced'`) first, then `testResultsOverviewOpened`.
 - The close event uses the `viewId` from the open event (snapshot pattern).
 
 ### Manual test plan
