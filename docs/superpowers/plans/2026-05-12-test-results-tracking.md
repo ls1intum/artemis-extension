@@ -2111,7 +2111,7 @@ cd extension && npm run test:react 2>&1 | grep -E "Test Files|Tests" | tail -3
 Expected: all green. New React tests added across this plan (approximate):
 - ~6 in `TestResultsOverlay.test.tsx` (Task 14): default/task title, two empty-state messages, button-close, escape-close, no-fire on modal-content click.
 - ~4 in `ProblemStatement.test.tsx` (Task 15): fires on `.artemis-task[data-test-ids]`, no fire without `data-test-ids`, no fire outside any task, whitespace/trailing-comma tolerance.
-- 1 added in `ExerciseDetailView.test.tsx` (Task 17): overview open/close pair with matching viewId and durationMs.
+- 2 added in `ExerciseDetailView.test.tsx` (Task 17): overview open/close pair with matching viewId + durationMs, and task-click → `taskFeedbackOpened` with filtered counts.
 
 - [ ] **Step 5: Knip dead-code check.**
 
