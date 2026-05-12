@@ -7,7 +7,7 @@ import { IconButton } from '../Button';
 import type { TestCase } from './SubmissionStatus';
 import styles from './TestResultsOverlay.module.css';
 
-export type TestResultsOverlayCloseReason = 'button' | 'escape';
+type TestResultsOverlayCloseReason = 'button' | 'escape';
 
 interface TestResultsOverlayProps {
     open: boolean;

@@ -32,6 +32,23 @@ import { determineSubmissionStatus, determineParticipationStatus, getLatestById,
 import { formatDate } from '../../utils/formatDate';
 import styles from './ExerciseDetailView.module.css';
 
+interface OpenViewState {
+    viewId: string;
+    openedAt: number;
+    closeIdentity: {
+        viewId: string;
+        exerciseId: number;
+        participationId?: number;
+        resultId?: number;
+        taskName?: string;
+    };
+}
+
+interface OpenTaskViewState extends OpenViewState {
+    taskName: string;
+    testIds: number[];
+}
+
 export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
     const {
         exerciseData,
@@ -50,23 +67,6 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
 
     const [showCommitMessage, setShowCommitMessage] = useState(false);
     const [commitMessage, setCommitMessage] = useState('');
-
-    interface OpenViewState {
-        viewId: string;
-        openedAt: number;
-        closeIdentity: {
-            viewId: string;
-            exerciseId: number;
-            participationId?: number;
-            resultId?: number;
-            taskName?: string;
-        };
-    }
-
-    interface OpenTaskViewState extends OpenViewState {
-        taskName: string;
-        testIds: number[];
-    }
 
     const [openOverviewView, setOpenOverviewView] = useState<OpenViewState | null>(null);
     const [openTaskView, setOpenTaskView] = useState<OpenTaskViewState | null>(null);
