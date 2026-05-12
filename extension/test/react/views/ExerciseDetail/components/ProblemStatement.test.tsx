@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, act } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { ProblemStatement } from '../../../../../src/webview/views/ExerciseDetail/components/ProblemStatement';
 
 describe('ProblemStatement', () => {
@@ -84,4 +85,57 @@ describe('ProblemStatement', () => {
 		expect(container.querySelectorAll('script')).toHaveLength(0);
 		expect(container.querySelectorAll('link[href*="katex"]')).toHaveLength(0);
 	});
+});
+
+describe('ProblemStatement — task click handler', () => {
+    const sampleHtml = `<html><body>
+        <span class="artemis-task" data-task-name="doOverlap" data-test-ids="101,102,103">doOverlap</span>
+        <span class="artemis-task" data-task-name="noIds">noIds</span>
+        <p>some prose</p>
+    </body></html>`;
+
+    it('fires onTaskClick with parsed name and ids when a .artemis-task[data-test-ids] is clicked', async () => {
+        const onTaskClick = vi.fn();
+        const { container } = render(
+            <ProblemStatement serverRenderedHtml={sampleHtml} onTaskClick={onTaskClick} />
+        );
+        const target = container.querySelector<HTMLElement>('.artemis-task[data-test-ids]');
+        expect(target).not.toBeNull();
+        await userEvent.click(target!);
+        expect(onTaskClick).toHaveBeenCalledTimes(1);
+        expect(onTaskClick).toHaveBeenCalledWith({
+            taskName: 'doOverlap',
+            testIds: [101, 102, 103],
+        });
+    });
+
+    it('does NOT fire onTaskClick when clicking a .artemis-task without data-test-ids', async () => {
+        const onTaskClick = vi.fn();
+        const { container } = render(
+            <ProblemStatement serverRenderedHtml={sampleHtml} onTaskClick={onTaskClick} />
+        );
+        const targets = container.querySelectorAll<HTMLElement>('.artemis-task');
+        const noIdsTarget = Array.from(targets).find(el => !el.hasAttribute('data-test-ids'));
+        expect(noIdsTarget).not.toBeUndefined();
+        await userEvent.click(noIdsTarget!);
+        expect(onTaskClick).not.toHaveBeenCalled();
+    });
+
+    it('does NOT fire onTaskClick when clicking outside any task span', async () => {
+        const onTaskClick = vi.fn();
+        const { container } = render(
+            <ProblemStatement serverRenderedHtml={sampleHtml} onTaskClick={onTaskClick} />
+        );
+        const prose = container.querySelector<HTMLElement>('p');
+        await userEvent.click(prose!);
+        expect(onTaskClick).not.toHaveBeenCalled();
+    });
+
+    it('parses test-id list tolerating whitespace and trailing comma', async () => {
+        const html = '<html><body><span class="artemis-task" data-task-name="t" data-test-ids=" 1 , 2 , 3 , ">t</span></body></html>';
+        const onTaskClick = vi.fn();
+        const { container } = render(<ProblemStatement serverRenderedHtml={html} onTaskClick={onTaskClick} />);
+        await userEvent.click(container.querySelector<HTMLElement>('.artemis-task[data-test-ids]')!);
+        expect(onTaskClick).toHaveBeenCalledWith({ taskName: 't', testIds: [1, 2, 3] });
+    });
 });
