@@ -42,7 +42,7 @@ export type TestResultsOverviewViewEvent =
         participationId?: number;
         resultId?: number;
         durationMs: number;
-        closeReason: 'button' | 'escape' | 'backdrop' | 'replaced';
+        closeReason: 'button' | 'escape' | 'replaced';
     };
 
 export type TaskFeedbackViewEvent =
@@ -70,7 +70,7 @@ export type TaskFeedbackViewEvent =
         resultId?: number;
         taskName: string;
         durationMs: number;
-        closeReason: 'button' | 'escape' | 'backdrop' | 'replaced';
+        closeReason: 'button' | 'escape' | 'replaced';
     };
 ```
 
@@ -280,7 +280,7 @@ recordTestResultsOverviewClosed(payload: {
     participationId?: number;
     resultId?: number;
     durationMs: number;
-    closeReason: 'button' | 'escape' | 'backdrop' | 'replaced';
+    closeReason: 'button' | 'escape' | 'replaced';
 }): void {
     if (this._phase !== 'recording') { return; }
     this._lifecycle.recordInternal({
@@ -318,7 +318,7 @@ recordTaskFeedbackClosed(payload: {
     resultId?: number;
     taskName: string;
     durationMs: number;
-    closeReason: 'button' | 'escape' | 'backdrop' | 'replaced';
+    closeReason: 'button' | 'escape' | 'replaced';
 }): void {
     if (this._phase !== 'recording') { return; }
     this._lifecycle.recordInternal({
@@ -381,7 +381,7 @@ testResultsOverviewClosed: {
     participationId?: number;
     resultId?: number;
     durationMs: number;
-    closeReason: 'button' | 'escape' | 'backdrop' | 'replaced';
+    closeReason: 'button' | 'escape' | 'replaced';
 };
 taskFeedbackOpened: {
     viewId: string;
@@ -401,7 +401,7 @@ taskFeedbackClosed: {
     resultId?: number;
     taskName: string;
     durationMs: number;
-    closeReason: 'button' | 'escape' | 'backdrop' | 'replaced';
+    closeReason: 'button' | 'escape' | 'replaced';
 };
 ```
 
@@ -425,17 +425,39 @@ export type TaskFeedbackOpenedPayload = WebviewCmdPayloads['taskFeedbackOpened']
 export type TaskFeedbackClosedPayload = WebviewCmdPayloads['taskFeedbackClosed'];
 ```
 
-- [ ] **Step 5: Run typecheck.**
+- [ ] **Step 5: Add a contract test for COMMANDS_REQUIRING_PAYLOAD membership.**
 
-```bash
-cd extension && npm run check-types
+Create `extension/test/unit/shared/messageContracts/testResultsTrackingContracts.test.ts`:
+
+```ts
+import * as assert from 'assert';
+import { COMMANDS_REQUIRING_PAYLOAD, WebviewCmd } from '../../../../src/shared/messageContracts/webviewCommands';
+
+suite('Test-results tracking command contracts', () => {
+    test('all four new commands require a payload', () => {
+        assert.ok(COMMANDS_REQUIRING_PAYLOAD.has(WebviewCmd.TestResultsOverviewOpened),
+            'testResultsOverviewOpened missing from COMMANDS_REQUIRING_PAYLOAD');
+        assert.ok(COMMANDS_REQUIRING_PAYLOAD.has(WebviewCmd.TestResultsOverviewClosed),
+            'testResultsOverviewClosed missing from COMMANDS_REQUIRING_PAYLOAD');
+        assert.ok(COMMANDS_REQUIRING_PAYLOAD.has(WebviewCmd.TaskFeedbackOpened),
+            'taskFeedbackOpened missing from COMMANDS_REQUIRING_PAYLOAD');
+        assert.ok(COMMANDS_REQUIRING_PAYLOAD.has(WebviewCmd.TaskFeedbackClosed),
+            'taskFeedbackClosed missing from COMMANDS_REQUIRING_PAYLOAD');
+    });
+});
 ```
-Expected: PASS.
 
-- [ ] **Step 6: Commit.**
+- [ ] **Step 6: Run typecheck + the new test.**
 
 ```bash
-git add extension/src/shared/messageContracts/webviewCommands.ts
+cd extension && npm run check-types && npm run compile-tests && npm run test:unit 2>&1 | tail -3 && grep -E "tests=|failures=" extension/reports/mocha-results.xml | head -1
+```
+Expected: typecheck PASS; new test passes; `failures="0"`.
+
+- [ ] **Step 7: Commit.**
+
+```bash
+git add extension/src/shared/messageContracts/webviewCommands.ts extension/test/unit/shared/messageContracts/testResultsTrackingContracts.test.ts
 git commit -m "feat(messages): add webview commands for test-results view tracking"
 ```
 
@@ -668,53 +690,91 @@ git commit -m "feat(activation): register ArtemisWebviewProvider in provider reg
 
 **Files:**
 - Modify: `extension/src/extension/activation/sessionRecorderWiring.ts`
+- Modify: `extension/test/unit/activation/sessionRecorderWiring.test.ts`
 
-- [ ] **Step 1: Locate `wireSessionRecorder` and find a sensible insertion point.**
+`wireSessionRecorder` already takes `artemisWebviewProvider: ArtemisWebviewProvider` directly via `RecorderWiringDeps`. Subscribe to the new events on that provider — do NOT route through `providerRegistry`.
 
-Right after the existing Iris/intervention subscriptions, add:
+- [ ] **Step 1: Extend the existing wiring test FIRST.**
+
+Open `extension/test/unit/activation/sessionRecorderWiring.test.ts`. Read its existing structure (it already builds a fake `artemisWebviewProvider`). Add four new test cases that fire each of the new provider events and assert the corresponding recorder method is called with the payload as-is:
 
 ```ts
-// Test-results view tracking — only wires up if the Artemis provider was
-// registered in the registry. Webview commands flow into provider events;
-// here we subscribe and forward to the recorder. Phase guard inside the
-// recorder methods drops events when recording is inactive.
-const artemisProvider = providerRegistry.getArtemisWebviewProvider();
-if (artemisProvider) {
-    disposables.push(artemisProvider.onDidOpenTestResultsOverview(payload => {
-        sessionRecorder.recordTestResultsOverviewOpened(payload);
-    }));
-    disposables.push(artemisProvider.onDidCloseTestResultsOverview(payload => {
-        sessionRecorder.recordTestResultsOverviewClosed(payload);
-    }));
-    disposables.push(artemisProvider.onDidOpenTaskFeedback(payload => {
-        sessionRecorder.recordTaskFeedbackOpened(payload);
-    }));
-    disposables.push(artemisProvider.onDidCloseTaskFeedback(payload => {
-        sessionRecorder.recordTaskFeedbackClosed(payload);
-    }));
-}
+test('forwards onDidOpenTestResultsOverview to recorder', () => {
+    const recordStub = sinon.stub(sessionRecorder, 'recordTestResultsOverviewOpened');
+    const payload = { viewId: 'v', exerciseId: 1, totalTests: 2, passedTests: 1, failedTests: 1 };
+    (artemisWebviewProvider as unknown as { fireTestResultsOverviewOpened: (p: typeof payload) => void })
+        .fireTestResultsOverviewOpened(payload);
+    sinon.assert.calledOnceWithExactly(recordStub, payload);
+});
+
+test('forwards onDidCloseTestResultsOverview to recorder', () => {
+    const recordStub = sinon.stub(sessionRecorder, 'recordTestResultsOverviewClosed');
+    const payload = { viewId: 'v', exerciseId: 1, durationMs: 100, closeReason: 'button' as const };
+    (artemisWebviewProvider as unknown as { fireTestResultsOverviewClosed: (p: typeof payload) => void })
+        .fireTestResultsOverviewClosed(payload);
+    sinon.assert.calledOnceWithExactly(recordStub, payload);
+});
+
+test('forwards onDidOpenTaskFeedback to recorder', () => {
+    const recordStub = sinon.stub(sessionRecorder, 'recordTaskFeedbackOpened');
+    const payload = { viewId: 'v', exerciseId: 1, taskName: 't', testIds: [1, 2], totalTests: 2, passedTests: 1, failedTests: 1 };
+    (artemisWebviewProvider as unknown as { fireTaskFeedbackOpened: (p: typeof payload) => void })
+        .fireTaskFeedbackOpened(payload);
+    sinon.assert.calledOnceWithExactly(recordStub, payload);
+});
+
+test('forwards onDidCloseTaskFeedback to recorder', () => {
+    const recordStub = sinon.stub(sessionRecorder, 'recordTaskFeedbackClosed');
+    const payload = { viewId: 'v', exerciseId: 1, taskName: 't', durationMs: 100, closeReason: 'replaced' as const };
+    (artemisWebviewProvider as unknown as { fireTaskFeedbackClosed: (p: typeof payload) => void })
+        .fireTaskFeedbackClosed(payload);
+    sinon.assert.calledOnceWithExactly(recordStub, payload);
+});
 ```
 
-Note: the function already takes a `providerRegistry: IProviderRegistry` (or accesses one). If not, you need to pass it in via the `RecorderWiringDeps` object — search for that interface in the same file. If missing, add `providerRegistry: IProviderRegistry` to `RecorderWiringDeps` and update the call site in `extension.ts` to pass it.
+The fake `artemisWebviewProvider` used by the existing wiring test needs the four `fireXxx` methods + corresponding `EventEmitter`s. Extend its construction in the existing `setup()` block accordingly — mirror how the chat-provider fake is already built in that file.
 
-- [ ] **Step 2: Run typecheck.**
+- [ ] **Step 2: Run tests to verify they fail.**
 
 ```bash
-cd extension && npm run check-types
+cd extension && npm run compile-tests && npm run test:unit 2>&1 | tail -5 && grep -E "tests=|failures=" extension/reports/mocha-results.xml | head -1
 ```
-Expected: PASS.
+Expected: 4 failures — methods not yet wired.
 
-- [ ] **Step 3: Run existing wiring tests.**
+- [ ] **Step 3: Add the four subscriptions to `wireSessionRecorder`.**
+
+After the existing Iris/intervention subscriptions in `wireSessionRecorder`, add:
+
+```ts
+// Test-results view tracking. Provider events flow from the webview commands
+// via testResultsTrackingCommands → ArtemisWebviewProvider.fireXxx → here.
+disposables.push(artemisWebviewProvider.onDidOpenTestResultsOverview(payload => {
+    sessionRecorder.recordTestResultsOverviewOpened(payload);
+}));
+disposables.push(artemisWebviewProvider.onDidCloseTestResultsOverview(payload => {
+    sessionRecorder.recordTestResultsOverviewClosed(payload);
+}));
+disposables.push(artemisWebviewProvider.onDidOpenTaskFeedback(payload => {
+    sessionRecorder.recordTaskFeedbackOpened(payload);
+}));
+disposables.push(artemisWebviewProvider.onDidCloseTaskFeedback(payload => {
+    sessionRecorder.recordTaskFeedbackClosed(payload);
+}));
+```
+
+No new `RecorderWiringDeps` field is needed — `artemisWebviewProvider` is already in the deps object.
+
+- [ ] **Step 4: Run tests to verify they pass.**
 
 ```bash
 cd extension && npm run compile-tests && npm run test:unit 2>&1 | tail -3 && grep -E "tests=|failures=" extension/reports/mocha-results.xml | head -1
 ```
-Expected: `failures="0"` — no regression in the existing `sessionRecorderWiring.test.ts`.
+Expected: 4 new tests pass, `failures="0"`.
 
-- [ ] **Step 4: Commit.**
+- [ ] **Step 5: Commit.**
 
 ```bash
-git add extension/src/extension/activation/sessionRecorderWiring.ts
+git add extension/src/extension/activation/sessionRecorderWiring.ts extension/test/unit/activation/sessionRecorderWiring.test.ts
 git commit -m "feat(wiring): subscribe to view-tracking events and forward to recorder"
 ```
 
@@ -1113,7 +1173,7 @@ ls extension/test/react/components/exercise/TestResultsOverlay.test.tsx 2>&1
 
 If missing, create with the test cases below. If existing, extend it.
 
-- [ ] **Step 2: Write/extend test cases for taskName, onClose(reason), backdrop click.**
+- [ ] **Step 2: Write/extend test cases for taskName and onClose(reason).**
 
 Add to the test file (replace `existing test` placeholder with whatever is currently in the file, if any):
 
@@ -1165,16 +1225,6 @@ describe('TestResultsOverlay', () => {
         expect(onClose).toHaveBeenCalledWith('escape');
     });
 
-    it('calls onClose with "backdrop" when the backdrop is clicked', async () => {
-        const onClose = vi.fn();
-        const { container } = render(<TestResultsOverlay open onClose={onClose} testCases={testCases} />);
-        // backdrop is the outermost div with class .backdrop (in CSS module)
-        const backdrop = container.ownerDocument.body.querySelector('[data-testid="overlay-backdrop"]');
-        expect(backdrop).not.toBeNull();
-        await userEvent.click(backdrop!);
-        expect(onClose).toHaveBeenCalledWith('backdrop');
-    });
-
     it('does not fire onClose when clicking inside the modal content', async () => {
         const onClose = vi.fn();
         render(<TestResultsOverlay open onClose={onClose} testCases={testCases} />);
@@ -1189,7 +1239,7 @@ describe('TestResultsOverlay', () => {
 ```bash
 cd extension && npm run test:react -- TestResultsOverlay 2>&1 | tail -20
 ```
-Expected: multiple failures (title text, onClose signature, missing data-testid backdrop).
+Expected: multiple failures (title text, onClose signature).
 
 - [ ] **Step 4: Update `TestResultsOverlay.tsx`.**
 
@@ -1205,7 +1255,7 @@ import { IconButton } from '../Button';
 import type { TestCase } from './SubmissionStatus';
 import styles from './TestResultsOverlay.module.css';
 
-export type TestResultsOverlayCloseReason = 'button' | 'escape' | 'backdrop';
+export type TestResultsOverlayCloseReason = 'button' | 'escape';
 
 interface TestResultsOverlayProps {
     open: boolean;
@@ -1255,16 +1305,9 @@ export function TestResultsOverlay({ open, onClose, testCases, loading = false, 
     const title = taskName ? `Feedback for task: ${taskName}` : 'Test Results';
     const emptyMessage = taskName ? 'No tests in this task.' : 'No test results available.';
 
-    const handleBackdropClick = () => onClose('backdrop');
-    const handleModalClick = (e: MouseEvent<HTMLDivElement>) => e.stopPropagation();
-
     return createPortal(
-        <div
-            className={styles.backdrop}
-            data-testid="overlay-backdrop"
-            onClick={handleBackdropClick}
-        >
-            <div className={styles.modal} onClick={handleModalClick}>
+        <div className={styles.backdrop}>
+            <div className={styles.modal}>
                 <div className={styles.header}>
                     <div className={styles.title}>{title}</div>
                     <IconButton.Close onClick={() => onClose('button')} />
@@ -1368,168 +1411,13 @@ Expected: all new tests pass.
 
 ```bash
 git add extension/src/webview/components/exercise/TestResultsOverlay.tsx extension/test/react/components/exercise/TestResultsOverlay.test.tsx
-git commit -m "feat(overlay): add taskName, onClose(reason), and backdrop click to TestResultsOverlay"
+git commit -m "feat(overlay): add taskName prop and typed onClose(reason) to TestResultsOverlay"
 ```
 
 ---
-
-## Task 15: Simplify SubmissionStatus
-
-**Files:**
-- Modify: `extension/src/webview/components/exercise/SubmissionStatus.tsx`
-
-- [ ] **Step 1: Remove the `TestResultsOverlay` import.**
-
-Delete:
-
-```ts
-import { TestResultsOverlay } from './TestResultsOverlay';
-```
-
-- [ ] **Step 2: Update `SubmissionStatusProps` — replace `onToggleTestResults` and `showTestResults` with `onOpenTestResults`. Keep `loadingTestResults` available since `testCases` props remain on the public API.**
-
-Change from:
-
-```ts
-onToggleTestResults?: () => void;
-showTestResults?: boolean;
-loadingTestResults?: boolean;
-```
-
-to:
-
-```ts
-onOpenTestResults?: () => void;
-```
-
-(Delete `loadingTestResults` and `showTestResults` from the props interface; the overlay isn't mounted here anymore so neither is needed.)
-
-- [ ] **Step 3: Update the destructure and the button.**
-
-Remove from destructure:
-
-```ts
-onToggleTestResults,
-showTestResults = false,
-loadingTestResults = false,
-```
-
-Add:
-
-```ts
-onOpenTestResults,
-```
-
-Change the button:
-
-```tsx
-{hasTestInfo && (
-    <Button variant="link" onClick={onOpenTestResults}>
-        See test results
-    </Button>
-)}
-```
-
-- [ ] **Step 4: Delete the `<TestResultsOverlay>` JSX block at the bottom of the programming-exercise branch (the block starting with `{hasTestInfo && (` and containing the overlay).**
-
-Remove the entire block:
-
-```tsx
-{hasTestInfo && (
-    <TestResultsOverlay
-        open={showTestResults}
-        onClose={() => onToggleTestResults?.()}
-        testCases={testCases}
-        loading={loadingTestResults}
-    />
-)}
-```
-
-- [ ] **Step 5: Run typecheck.**
-
-```bash
-cd extension && npm run check-types 2>&1 | tail -10
-```
-
-Expected: errors in `ExerciseDetailView.tsx` and `ExamExerciseDetailView.tsx` complaining about removed props. Those are handled in Tasks 16 (ExerciseDetailView is later, but exam mode is breaking now). Continue to Task 16 to fix exam, then Task 20 to fix ExerciseDetailView, then come back to verify here.
-
-- [ ] **Step 6: Commit.**
-
-The commit is incomplete (downstream views broken) but the SubmissionStatus change is atomic. Commit it; the immediately-following tasks restore the views.
-
-```bash
-git add extension/src/webview/components/exercise/SubmissionStatus.tsx
-git commit -m "refactor(submission-status): remove overlay mount, expose onOpenTestResults callback"
-```
-
 ---
 
-## Task 16: Update ExamExerciseDetailView to own its overlay
-
-**Files:**
-- Modify: `extension/src/webview/views/ExamExerciseDetail/ExamExerciseDetailView.tsx`
-
-- [ ] **Step 1: Find the SubmissionStatus invocation (around line 224).**
-
-Currently:
-
-```tsx
-<SubmissionStatus
-    // …
-    onToggleTestResults={() => setShowTestResults(prev => !prev)}
-    showTestResults={showTestResults}
-/>
-```
-
-- [ ] **Step 2: Replace the toggle props with `onOpenTestResults` and mount the overlay locally.**
-
-Find the existing `showTestResults` useState declaration earlier in the file. Keep it.
-
-Change the SubmissionStatus props to:
-
-```tsx
-<SubmissionStatus
-    // …keep all other props…
-    onOpenTestResults={() => setShowTestResults(true)}
-/>
-```
-
-(Delete `onToggleTestResults` and `showTestResults` lines from the JSX.)
-
-Then at the end of the JSX (e.g., before the closing `</div>` or `</>` of the component), add:
-
-```tsx
-<TestResultsOverlay
-    open={showTestResults}
-    onClose={() => setShowTestResults(false)}
-    testCases={testCases}
-/>
-```
-
-- [ ] **Step 3: Add the `TestResultsOverlay` import at the top.**
-
-```tsx
-import { TestResultsOverlay } from '../../components/exercise/TestResultsOverlay';
-```
-
-- [ ] **Step 4: Run typecheck — exam side should be clean now.**
-
-```bash
-cd extension && npm run check-types 2>&1 | tail -10
-```
-
-Expected: errors remaining only in `ExerciseDetailView.tsx`. Those are fixed in Task 20.
-
-- [ ] **Step 5: Commit.**
-
-```bash
-git add extension/src/webview/views/ExamExerciseDetail/ExamExerciseDetailView.tsx
-git commit -m "refactor(exam-view): mount own (untracked) TestResultsOverlay after SubmissionStatus split"
-```
-
----
-
-## Task 17: Add click handler and types to ProblemStatement
+## Task 15: Add click handler and types to ProblemStatement
 
 **Files:**
 - Modify: `extension/src/webview/views/ExerciseDetail/types.ts`
@@ -1684,7 +1572,7 @@ git commit -m "feat(problem-statement): emit onTaskClick when a [task] span is c
 
 ---
 
-## Task 18: Add CSS affordance to ProblemStatement
+## Task 16: Add CSS affordance to ProblemStatement
 
 **Files:**
 - Modify: `extension/src/webview/views/ExerciseDetail/components/ProblemStatement.module.css`
@@ -1693,12 +1581,14 @@ git commit -m "feat(problem-statement): emit onTaskClick when a [task] span is c
 
 Add at the bottom of the file:
 
+The CSS module system hashes local class names. `.problemStatement` is local (matches the React `styles.problemStatement`), but `.artemis-task` is a literal class on the SSR'd HTML and must be marked global via `:global()`. Without `:global()` the selector becomes `.problemStatement_<hash> .artemis-task_<hash>` and never matches.
+
 ```css
-.problemStatement .artemis-task[data-test-ids] {
+.problemStatement :global(.artemis-task[data-test-ids]) {
     cursor: pointer;
     text-decoration: underline;
 }
-.problemStatement .artemis-task[data-test-ids]:hover {
+.problemStatement :global(.artemis-task[data-test-ids]:hover) {
     filter: brightness(1.2);
 }
 ```
@@ -1712,22 +1602,76 @@ git commit -m "style(problem-statement): pointer cursor and underline on clickab
 
 ---
 
-## Task 19: Wire ExerciseDetailView with tracking and dual overlay
+## Task 17: Migrate overlay ownership and wire ExerciseDetailView tracking
+
+This task **bundles** the `SubmissionStatus` prop change, the `ExamExerciseDetailView` migration, and the `ExerciseDetailView` wiring into a single atomic commit. Splitting them across separate commits would produce intermediate broken-typecheck states (the three files are mutually dependent through the SubmissionStatus prop contract), which is unsafe for agentic execution.
 
 **Files:**
+- Modify: `extension/src/webview/components/exercise/SubmissionStatus.tsx`
+- Modify: `extension/src/webview/views/ExamExerciseDetail/ExamExerciseDetailView.tsx`
 - Modify: `extension/src/webview/views/ExerciseDetail/ExerciseDetailView.tsx`
+- Modify: `extension/test/react/views/ExerciseDetail/ExerciseDetailView.test.tsx`
 
-- [ ] **Step 1: Add new imports.**
+- [ ] **Step 1: Simplify `SubmissionStatus.tsx` — remove overlay mount, swap toggle for open callback.**
+
+Edits:
+
+- Delete the `import { TestResultsOverlay } from './TestResultsOverlay';` line.
+- In `SubmissionStatusProps`, replace:
+  ```ts
+  onToggleTestResults?: () => void;
+  showTestResults?: boolean;
+  loadingTestResults?: boolean;
+  ```
+  with:
+  ```ts
+  onOpenTestResults?: () => void;
+  ```
+  (Remove `loadingTestResults` since the overlay isn't mounted here anymore.)
+- In the destructure (the function-arg pattern), remove `onToggleTestResults`, `showTestResults`, `loadingTestResults` and add `onOpenTestResults`.
+- Replace the "See test results" button:
+  ```tsx
+  {hasTestInfo && (
+      <Button variant="link" onClick={onOpenTestResults}>
+          See test results
+      </Button>
+  )}
+  ```
+- Delete the trailing `<TestResultsOverlay …/>` block (the whole `{hasTestInfo && (<TestResultsOverlay …/>)}` block).
+
+- [ ] **Step 2: Update `ExamExerciseDetailView.tsx` to own its own untracked overlay.**
+
+Edits:
+
+- Add `import { TestResultsOverlay } from '../../components/exercise/TestResultsOverlay';` at the top.
+- Keep the existing `useState<boolean>(false)` for `showTestResults`.
+- In the `<SubmissionStatus …/>` JSX, replace the two old lines (`onToggleTestResults={…}` and `showTestResults={…}`) with a single new line:
+  ```tsx
+  onOpenTestResults={() => setShowTestResults(true)}
+  ```
+- After `</Container>` and the problem-statement Container, before the component's outermost closing tag, add:
+  ```tsx
+  <TestResultsOverlay
+      open={showTestResults}
+      onClose={() => setShowTestResults(false)}
+      testCases={testCases}
+  />
+  ```
+
+- [ ] **Step 3: Update `ExerciseDetailView.tsx` imports.**
+
+Add to the existing imports:
 
 ```tsx
 import { TestResultsOverlay } from '../../components/exercise/TestResultsOverlay';
 import { makeViewId } from '../../utils/viewId';
 import { filterTestCasesByIds } from '../../utils/exerciseStatus';
-import type { TestCase } from '../../components/exercise/SubmissionStatus';
 import { WebviewCmd } from '../../../shared/messageContracts';
 ```
 
-- [ ] **Step 2: Replace the existing `showTestResults` state with two new view states.**
+(Note: `TestCase` is already in scope indirectly via `transformFeedbacksToTestCases` typing — no extra import needed unless the type-check complains.)
+
+- [ ] **Step 4: Replace the `showTestResults` state with two view states.**
 
 Find:
 
@@ -1750,19 +1694,23 @@ interface OpenViewState {
     };
 }
 
-const [openOverviewView, setOpenOverviewView] = useState<OpenViewState | null>(null);
-const [openTaskView, setOpenTaskView] = useState<(OpenViewState & {
+interface OpenTaskViewState extends OpenViewState {
     taskName: string;
-    filtered: TestCase[];
-}) | null>(null);
+    testIds: number[];   // store IDs, derive filtered list from live testCases at render time
+}
+
+const [openOverviewView, setOpenOverviewView] = useState<OpenViewState | null>(null);
+const [openTaskView, setOpenTaskView] = useState<OpenTaskViewState | null>(null);
 ```
 
-- [ ] **Step 3: Add open/close handlers.**
+Note: `testIds` (not `filtered`) is stored — the filtered list is derived from live `testCases` on every render, so the modal updates when new build results arrive (per spec race-condition table).
 
-Add near other handlers (e.g., near `handleBackToCourse`):
+- [ ] **Step 5: Add open/close handlers.**
+
+The variables `participation`, `participationId`, `latestResult`, `testCases` already exist in render scope of `ExerciseDetailView` (verify around line 173 of the current file). Place these handlers BELOW those declarations:
 
 ```tsx
-const handleOverviewClose = (reason: 'button' | 'escape' | 'backdrop' | 'replaced') => {
+const handleOverviewClose = (reason: 'button' | 'escape' | 'replaced') => {
     if (!openOverviewView) { return; }
     postCommand(vscodeApi, WebviewCmd.TestResultsOverviewClosed, {
         viewId: openOverviewView.closeIdentity.viewId,
@@ -1775,7 +1723,7 @@ const handleOverviewClose = (reason: 'button' | 'escape' | 'backdrop' | 'replace
     setOpenOverviewView(null);
 };
 
-const handleTaskClose = (reason: 'button' | 'escape' | 'backdrop' | 'replaced') => {
+const handleTaskClose = (reason: 'button' | 'escape' | 'replaced') => {
     if (!openTaskView) { return; }
     postCommand(vscodeApi, WebviewCmd.TaskFeedbackClosed, {
         viewId: openTaskView.closeIdentity.viewId,
@@ -1795,7 +1743,6 @@ const handleOverviewOpen = () => {
     const viewId = makeViewId();
     const openedAt = Date.now();
     const exerciseId = exerciseData.exercise.id;
-    const participationId = latestParticipation?.id;
     const resultId = latestResult?.id;
     const totalTests = testCases.length;
     const passedTests = testCases.filter(t => t.passed).length;
@@ -1818,7 +1765,6 @@ const handleTaskOpen = ({ taskName, testIds }: { taskName: string; testIds: numb
     const viewId = makeViewId();
     const openedAt = Date.now();
     const exerciseId = exerciseData.exercise.id;
-    const participationId = latestParticipation?.id;
     const resultId = latestResult?.id;
     const totalTests = filtered.length;
     const passedTests = filtered.filter(t => t.passed).length;
@@ -1831,27 +1777,25 @@ const handleTaskOpen = ({ taskName, testIds }: { taskName: string; testIds: numb
         viewId,
         openedAt,
         taskName,
-        filtered,
+        testIds,
         closeIdentity: { viewId, exerciseId, participationId, resultId, taskName },
     });
 };
 ```
 
-Note: `latestParticipation`, `latestResult`, `testCases` are existing variables in the file's render scope. Verify they're available at the point you add these handlers; if not, lift them out of conditional branches.
+Important: uses `participation`/`participationId` (real variable names) and reads counts from current `testCases`. The task-view state stores `testIds`, not the snapshot — see Step 7 for live derivation.
 
-- [ ] **Step 4: Update the `<SubmissionStatus>` invocation.**
+- [ ] **Step 6: Update the `<SubmissionStatus>` invocation.**
 
-Replace the existing `onToggleTestResults`/`showTestResults` props with:
+Replace `onToggleTestResults={…}` and `showTestResults={showTestResults}` with:
 
 ```tsx
 onOpenTestResults={handleOverviewOpen}
 ```
 
-(Delete both old lines.)
+- [ ] **Step 7: Pass `onTaskClick` to `<ProblemStatement>` and mount both overlays.**
 
-- [ ] **Step 5: Pass `onTaskClick` to `<ProblemStatement>`.**
-
-Find where ProblemStatement is rendered and add:
+Find the `<ProblemStatement>` render site and add the `onTaskClick` prop:
 
 ```tsx
 <ProblemStatement
@@ -1860,7 +1804,7 @@ Find where ProblemStatement is rendered and add:
 />
 ```
 
-- [ ] **Step 6: Mount both overlay instances at the end of the JSX, before the closing wrapper.**
+At the end of the JSX (before the outermost closing tag), mount both overlay instances. The task-view filtered list is derived live so the modal updates with new build results:
 
 ```tsx
 <TestResultsOverlay
@@ -1872,21 +1816,67 @@ Find where ProblemStatement is rendered and add:
 <TestResultsOverlay
     open={openTaskView != null}
     onClose={handleTaskClose}
-    testCases={openTaskView?.filtered ?? []}
+    testCases={openTaskView ? filterTestCasesByIds(testCases, openTaskView.testIds) : []}
     taskName={openTaskView?.taskName}
 />
 ```
 
-- [ ] **Step 7: Run typecheck — should now be clean across the project.**
+- [ ] **Step 8: Run typecheck — should be clean across the whole project.**
 
 ```bash
 cd extension && npm run check-types
 ```
 Expected: PASS.
 
-- [ ] **Step 8: Extend the existing ExerciseDetailView test file with overall pairing checks.**
+- [ ] **Step 9: Extend the ExerciseDetailView test file.**
 
-Append to `extension/test/react/views/ExerciseDetail/ExerciseDetailView.test.tsx`:
+Open `extension/test/react/views/ExerciseDetail/ExerciseDetailView.test.tsx`. First update the existing fixture helper `makeExerciseDataWithParticipation` so results live on the submission (the real component reads `latestSubmission?.results`, not `participation.results`):
+
+```ts
+function makeExerciseDataWithParticipation(opts: { hasResult?: boolean; hasSubmission?: boolean } = {}): ExerciseDetailsResponse {
+    const submission: Record<string, unknown> = {
+        id: 1,
+        submissionDate: '2025-01-01T00:00:00Z',
+        results: [],
+    };
+    const participation: Record<string, unknown> = {
+        id: 99,
+        repositoryUri: 'https://git.example.com/repo',
+        submissions: [submission],
+    };
+
+    if (opts.hasResult) {
+        submission.results = [
+            {
+                id: 10,
+                score: 70,
+                successful: false,
+                completionDate: '2025-01-01T00:00:00Z',
+                testCaseCount: 3,
+                passedTestCaseCount: 2,
+                feedbacks: [
+                    { testCase: { id: 1, testName: 'taskA_test1' }, positive: true },
+                    { testCase: { id: 2, testName: 'taskA_test2' }, positive: true },
+                    { testCase: { id: 3, testName: 'taskB_test1' }, positive: false, detailText: 'fail' },
+                ],
+            },
+        ];
+    }
+
+    return makeExerciseData({
+        exercise: {
+            id: 42, title: 'My Exercise', type: 'programming',
+            maxPoints: 10, bonusPoints: 0, problemStatement: 'Solve.',
+            course: { id: 1, title: 'Test Course', shortName: 'TC' },
+            studentParticipations: [participation],
+        },
+    });
+}
+```
+
+(Add `fireEvent` to the imports from `@testing-library/react` if not already imported.)
+
+Then add two new tests:
 
 ```tsx
 it('posts testResultsOverviewOpened + Closed pair with matching viewId on open and close', async () => {
@@ -1898,56 +1888,96 @@ it('posts testResultsOverviewOpened + Closed pair with matching viewId on open a
     render(<ExerciseDetailView vscodeApi={mockApi} />);
 
     await userEvent.click(screen.getByRole('button', { name: /see test results/i }));
-    expect(mockApi.postMessage).toHaveBeenCalledWith(
-        expect.objectContaining({ command: 'testResultsOverviewOpened' })
-    );
-    const openedCall = mockApi.postMessage.mock.calls.find(c => c[0].command === 'testResultsOverviewOpened')!;
-    const openedViewId = openedCall[0].payload.viewId;
+
+    const openedCall = mockApi.postMessage.mock.calls.find(c => c[0].command === 'testResultsOverviewOpened');
+    expect(openedCall).toBeDefined();
+    const openedViewId = openedCall![0].payload.viewId;
     expect(typeof openedViewId).toBe('string');
 
-    // Close via Escape key → expect a closed message with the same viewId
     fireEvent.keyDown(document, { key: 'Escape' });
-    const closedCall = mockApi.postMessage.mock.calls.find(c => c[0].command === 'testResultsOverviewClosed')!;
-    expect(closedCall[0].payload.viewId).toBe(openedViewId);
-    expect(closedCall[0].payload.closeReason).toBe('escape');
-    expect(closedCall[0].payload.durationMs).toBeGreaterThanOrEqual(0);
+
+    const closedCall = mockApi.postMessage.mock.calls.find(c => c[0].command === 'testResultsOverviewClosed');
+    expect(closedCall).toBeDefined();
+    expect(closedCall![0].payload.viewId).toBe(openedViewId);
+    expect(closedCall![0].payload.closeReason).toBe('escape');
+    expect(closedCall![0].payload.durationMs).toBeGreaterThanOrEqual(0);
 });
 
-it('posts taskFeedbackClosed with closeReason "replaced" when opening overview while task modal is open', async () => {
+it('emits taskFeedbackClosed with closeReason "replaced" when overview is opened with task modal already open', async () => {
     useExerciseDetailStore.setState({
         exerciseData: makeExerciseDataWithParticipation({ hasResult: true }),
         isLoading: false,
     });
     const mockApi = createMockVsCodeApi();
-    render(<ExerciseDetailView vscodeApi={mockApi} />);
+    const { container } = render(<ExerciseDetailView vscodeApi={mockApi} />);
 
-    // Synthesise a task click by directly invoking the click handler — we
-    // verify the message contract, not the SSR-DOM-click path (which is
-    // covered in ProblemStatement.test.tsx).
-    // ...assume a helper or test-only escape hatch exists; otherwise this
-    // test belongs as a manual smoke check (see task 21).
+    // Simulate a server-rendered problem statement arriving with a task span.
+    dispatchExtensionMessage({
+        type: ExtensionMsg.ProblemStatementRendered,
+        html: '<html><body><span class="artemis-task" data-task-name="taskA" data-test-ids="1,2">taskA</span></body></html>',
+    });
+
+    // Click the task span — opens the task modal.
+    // waitFor the SSR HTML to inject before querying.
+    await waitFor(() => {
+        expect(container.querySelector('.artemis-task[data-test-ids]')).not.toBeNull();
+    });
+    await userEvent.click(container.querySelector('.artemis-task[data-test-ids]')!);
+
+    expect(mockApi.postMessage).toHaveBeenCalledWith(
+        expect.objectContaining({ command: 'taskFeedbackOpened' })
+    );
+
+    // Now open overview while task modal is still open → expect 'replaced' close for task first.
+    await userEvent.click(screen.getByRole('button', { name: /see test results/i }));
+
+    const closedTaskCall = mockApi.postMessage.mock.calls.find(c => c[0].command === 'taskFeedbackClosed');
+    expect(closedTaskCall).toBeDefined();
+    expect(closedTaskCall![0].payload.closeReason).toBe('replaced');
+    expect(closedTaskCall![0].payload.taskName).toBe('taskA');
 });
 ```
 
-If injecting a task click directly is not feasible without a test-only escape hatch, mark the second test `.skip` with a comment pointing to the manual check in Task 21. The replaced-flow is also covered by manual smoke testing.
+Verify the test imports — `fireEvent` and `waitFor` must be imported from `@testing-library/react`. If the file currently only imports `render, screen`, extend the existing import line.
 
-- [ ] **Step 9: Run React tests.**
+- [ ] **Step 10: Run React tests.**
 
 ```bash
 cd extension && npm run test:react -- ExerciseDetailView 2>&1 | tail -10
 ```
-Expected: existing tests still pass; new test(s) added pass.
+Expected: existing tests still pass; the two new tests pass.
 
-- [ ] **Step 10: Commit.**
+- [ ] **Step 11: Run the full unit + react suite to confirm no regressions across all changes in this task.**
 
 ```bash
-git add extension/src/webview/views/ExerciseDetail/ExerciseDetailView.tsx extension/test/react/views/ExerciseDetail/ExerciseDetailView.test.tsx
-git commit -m "feat(exercise-detail): wire overview + task feedback tracking with dual overlays"
+cd extension && npm run check-types && npm run lint && npm run compile-tests && npm run test:unit 2>&1 | tail -3 && grep -E "tests=|failures=" extension/reports/mocha-results.xml | head -1 && npm run test:react 2>&1 | grep -E "Test Files|Tests" | tail -3
+```
+Expected: typecheck/lint clean; unit `failures="0"`; react all passing.
+
+- [ ] **Step 12: Single bundled commit for all four files.**
+
+```bash
+git add \
+    extension/src/webview/components/exercise/SubmissionStatus.tsx \
+    extension/src/webview/views/ExamExerciseDetail/ExamExerciseDetailView.tsx \
+    extension/src/webview/views/ExerciseDetail/ExerciseDetailView.tsx \
+    extension/test/react/views/ExerciseDetail/ExerciseDetailView.test.tsx
+git commit -m "feat(exercise-detail): migrate overlay ownership and wire test-results view tracking
+
+- Remove TestResultsOverlay mount from SubmissionStatus; replace toggle prop
+  with onOpenTestResults callback.
+- Exam view (ExamExerciseDetailView) now mounts its own untracked overlay.
+- ExerciseDetailView owns both overlay instances (overview + per-task),
+  generates viewId per open, computes durationMs at close, and forwards
+  the four new tracking commands. Live re-derivation of filtered tests
+  from current testCases lets the modal update across build-result events.
+- Update test fixture so result feedbacks live on the submission (matching
+  the real component's lookup path)."
 ```
 
 ---
 
-## Task 20: Final verification
+## Task 18: Final verification
 
 **Files:** none modified — verification only.
 
@@ -1993,9 +2023,8 @@ Expected: clean (only pre-existing config hints).
 3. Click a task. Modal opens titled "Feedback for task: <taskName>" with only that task's tests.
 4. Close via X button. Inspect `~/.../recordings/<session>/events.jsonl` for the open/close pair with matching `viewId` and `closeReason: 'button'`.
 5. Reopen via Escape close → confirm `closeReason: 'escape'`.
-6. Reopen via backdrop click → confirm `closeReason: 'backdrop'`.
-7. Open a task modal, then click "See test results" button → confirm a `taskFeedbackClosed` with `closeReason: 'replaced'` is emitted, immediately followed by `testResultsOverviewOpened`.
-8. Open modal, close VS Code window → confirm no synthetic close event in the recording (last event for that view is `opened`).
+6. Open a task modal, then click "See test results" button → confirm a `taskFeedbackClosed` with `closeReason: 'replaced'` is emitted, immediately followed by `testResultsOverviewOpened`.
+7. Open modal, close VS Code window → confirm no synthetic close event in the recording (last event for that view is `opened`).
 
 - [ ] **Step 7: Push.**
 
@@ -2020,7 +2049,7 @@ gh pr create --base dev --head feat/test-results-tracking \
 
 ## Test plan
 - [ ] Click task → modal shows only that task's tests
-- [ ] Close via X / Escape / backdrop → recorder event with correct closeReason
+- [ ] Close via X or Escape → recorder event with correct closeReason
 - [ ] Open one modal while the other is open → 'replaced' closeReason fires for the displaced view
 - [ ] Recording shows unmatched opened when VS Code is closed mid-view
 EOF

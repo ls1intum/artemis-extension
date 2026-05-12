@@ -30,7 +30,7 @@ The extension currently shows all test feedbacks via a single "all-tests" modal 
 
 1. Student is on an exercise-detail view that has a server-rendered problem statement. Tasks are visible inline as `[task]` markdown entries already rendered by Artemis (Bild 1).
 2. Student clicks "doOverlap" task. A modal appears titled **"Feedback for task: doOverlap"** showing only the 4 tests linked to that task, grouped by failed/passed.
-3. Student closes the modal (X button, Escape key, or backdrop click).
+3. Student closes the modal (X button or Escape key).
 4. Student clicks the existing "See test results" button below the submission status. The same modal type appears titled **"Test Results"** with all tests.
 5. Throughout, both opens and closes are recorded to the JSONL session recording with `durationMs` on each close event.
 
@@ -60,7 +60,7 @@ Three layers, communicating through `postCommand`:
 │                                                                   │
 │  TestResultsOverlay.tsx (existing, parameterised)                 │
 │    - new prop: taskName?: string  → switches header text         │
-│    - onClose: (reason: 'button'|'escape'|'backdrop')             │
+│    - onClose: (reason: 'button'|'escape')             │
 └────────────────────────────────────────────────────────────────────┘
                             │ postMessage (4 new commands)
                             ▼
@@ -93,7 +93,7 @@ Key architectural decisions:
 - **Webview measures `durationMs` locally.** On open, the React state stores `openedAt = Date.now()`. On close, the diff is computed and sent with the close command. Extension is a pass-through; it does not maintain open-view state.
 - **`viewId` is generated webview-side** via `crypto.randomUUID()` with a `Date.now() + Math.random()` fallback. Same UUID rides both `opened` and `closed` events.
 - **Captured-payload pattern.** When the modal opens, a full snapshot of the close-event identity fields (`viewId`, `exerciseId`, `participationId`, `resultId`, `taskName`) is frozen into the view state. The close event references this snapshot — never the live DOM or store. This survives SSR re-renders or exercise-data mutations between open and close.
-- **Two kinds of "close" with distinct reasons.** Real user-triggered closes (`'button' | 'escape' | 'backdrop'`) are always emitted. A user opening one modal while another is open emits a `closeReason: 'replaced'` close for the previously-open one before the new `opened`. No close events are synthesised in any other situation: if the user navigates away or VS Code is restarted while a modal is open, no `closed` event is emitted, and analysis treats this as a censored interval bounded by `sessionEnd.timestamp`.
+- **Two kinds of "close" with distinct reasons.** Real user-triggered closes (`'button' | 'escape'`) are always emitted. A user opening one modal while another is open emits a `closeReason: 'replaced'` close for the previously-open one before the new `opened`. No close events are synthesised in any other situation: if the user navigates away or VS Code is restarted while a modal is open, no `closed` event is emitted, and analysis treats this as a censored interval bounded by `sessionEnd.timestamp`.
 
 ## Recorder Event Schema
 
@@ -122,7 +122,7 @@ export type TestResultsOverviewViewEvent =
         participationId?: number;
         resultId?: number;
         durationMs: number;
-        closeReason: 'button' | 'escape' | 'backdrop' | 'replaced';
+        closeReason: 'button' | 'escape' | 'replaced';
     };
 
 export type TaskFeedbackViewEvent =
@@ -150,7 +150,7 @@ export type TaskFeedbackViewEvent =
         resultId?: number;
         taskName: string;
         durationMs: number;
-        closeReason: 'button' | 'escape' | 'backdrop' | 'replaced';
+        closeReason: 'button' | 'escape' | 'replaced';
     };
 ```
 
@@ -173,7 +173,7 @@ recordTestResultsOverviewClosed(payload: {
     participationId?: number;
     resultId?: number;
     durationMs: number;
-    closeReason: 'button' | 'escape' | 'backdrop' | 'replaced';
+    closeReason: 'button' | 'escape' | 'replaced';
 }): void;
 
 recordTaskFeedbackOpened(payload: {
@@ -195,7 +195,7 @@ recordTaskFeedbackClosed(payload: {
     resultId?: number;
     taskName: string;
     durationMs: number;
-    closeReason: 'button' | 'escape' | 'backdrop' | 'replaced';
+    closeReason: 'button' | 'escape' | 'replaced';
 }): void;
 ```
 
@@ -224,7 +224,7 @@ New optional prop:
 ```ts
 interface TestResultsOverlayProps {
     open: boolean;
-    onClose: (reason: 'button' | 'escape' | 'backdrop') => void;  // signature widened, reason required
+    onClose: (reason: 'button' | 'escape') => void;  // signature widened, reason required
     testCases: TestCase[];
     loading?: boolean;
     taskName?: string;  // NEW
@@ -251,7 +251,6 @@ Four close triggers, all calling `onClose(reason)`. Three are user actions; `'re
 |---|---|---|
 | `<IconButton.Close>` | `onClick={() => onClose('button')}` | inside overlay |
 | Escape `keydown` | call `onClose('escape')` (currently calls `onClose()`) | inside overlay |
-| Backdrop `<div>` click | NEW: `onClick={() => onClose('backdrop')}`, with `e.stopPropagation()` on `.modal` | inside overlay |
 | Modal replaced by opening the other one | `ExerciseDetailView` calls its own close handler with `'replaced'` | in parent before opening new modal |
 
 `onClose` signature is widened to require the `reason` (no more optional). Both callers of the overlay (the two instances in `ExerciseDetailView`) are migrated in this same change.
@@ -405,7 +404,7 @@ export function makeViewId(): string {
 
 ### Close
 
-1. Close is triggered by one of three sources (button, escape, backdrop).
+1. Close is triggered by one of two user sources (X button, Escape key) — or synthetically via `'replaced'` from the parent when opening another modal. The current full-screen modal layout has no clickable backdrop area, so backdrop is intentionally NOT a close source for this implementation.
 2. Webview computes `durationMs = Date.now() - openedAt`.
 3. Webview posts the `…Closed` command with the snapshotted `viewId`, `exerciseId`, optional `participationId`/`resultId`/`taskName`, `durationMs`, and `closeReason`.
 4. Same command-handler → provider-event → wiring → recorder path as on open. The recorder method called is `recordTestResultsOverviewClosed(...)` or `recordTaskFeedbackClosed(...)`.
@@ -452,7 +451,7 @@ testResultsOverviewClosed: {
     participationId?: number;
     resultId?: number;
     durationMs: number;
-    closeReason: 'button' | 'escape' | 'backdrop' | 'replaced';
+    closeReason: 'button' | 'escape' | 'replaced';
 };
 taskFeedbackOpened: {
     viewId: string;
@@ -472,7 +471,7 @@ taskFeedbackClosed: {
     resultId?: number;
     taskName: string;
     durationMs: number;
-    closeReason: 'button' | 'escape' | 'backdrop' | 'replaced';
+    closeReason: 'button' | 'escape' | 'replaced';
 };
 ```
 
@@ -610,7 +609,6 @@ Contract layer (TypeScript compile-time):
 - Empty-state message switches based on `taskName`.
 - `onClose('button')` fires on X-button click.
 - `onClose('escape')` fires on Escape keydown.
-- `onClose('backdrop')` fires on backdrop click but not on modal-content click (`stopPropagation`).
 
 `extension/test/react/views/ExerciseDetail/ProblemStatement.test.tsx` — extend:
 
@@ -631,7 +629,7 @@ Contract layer (TypeScript compile-time):
 
 - Open an exercise with a known multi-task problem statement. Verify task spans have visible affordance (underline + pointer cursor).
 - Click a task → modal opens with only that task's tests.
-- Close via each of: X-button, Escape, backdrop click. Inspect the recording JSONL to confirm `closeReason` is set correctly.
+- Close via each of: X-button, Escape. Inspect the recording JSONL to confirm `closeReason` is set correctly.
 - Reproduce the SSR re-render case: change theme while modal is open. Verify the modal stays open and the close event references the original snapshot.
 - Open task modal, then click "See test results" (single-modal invariant). Verify exactly two events fire: `taskFeedbackClosed` then `testResultsOverviewOpened`.
 - Open modal, close VS Code window. Verify the recording shows an unmatched `opened` and no close event of any kind.
@@ -648,8 +646,7 @@ Modified:
   extension/src/extension/services/ui/providerRegistry.ts                   (add getArtemisWebviewProvider/setArtemisWebviewProvider)
   extension/src/extension.ts (around line 100, where setChatWebviewProvider is wired today; call setArtemisWebviewProvider on startup)
   extension/src/shared/messageContracts/webviewCommands.ts                  (4 new WebCmd + COMMANDS_REQUIRING_PAYLOAD entries; export payload types)
-  extension/src/webview/components/exercise/TestResultsOverlay.tsx          (taskName prop, onClose(reason), backdrop click)
-  extension/src/webview/components/exercise/TestResultsOverlay.module.css   (backdrop click affordance)
+  extension/src/webview/components/exercise/TestResultsOverlay.tsx          (taskName prop, onClose(reason))
   extension/src/webview/components/exercise/SubmissionStatus.tsx            (remove overlay mount + showTestResults prop; replace onToggleTestResults with onOpenTestResults callback)
   extension/src/webview/views/ExerciseDetail/types.ts                       (ProblemStatementProps gets onTaskClick)
   extension/src/webview/views/ExerciseDetail/components/ProblemStatement.tsx (click handler via event delegation)
