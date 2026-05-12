@@ -54,6 +54,10 @@ interface CacheEntry {
 
 const MAX_CACHE_SIZE = 10;
 
+// Match Artemis ProblemStatementRenderRequestDTO validation on `markdown`:
+// @Size(max = 100_000) and a null-byte pattern reject.
+const MAX_MARKDOWN_LENGTH = 100_000;
+
 // ── Service ──
 
 export class ProblemStatementRenderService implements vscode.Disposable {
@@ -86,6 +90,13 @@ export class ProblemStatementRenderService implements vscode.Disposable {
         const markdown = exercise.problemStatement || '';
         const exerciseId = exercise.id;
         if (!markdown || exerciseId === undefined) { return undefined; }
+
+        // Backend rejects markdown >100k chars or containing null bytes.
+        // Short-circuit to avoid a wasted round-trip with no recovery on next attempt.
+        if (markdown.length > MAX_MARKDOWN_LENGTH || containsNullByte(markdown)) {
+            logger.info(`[SSR] Markdown fails backend validation for exercise ${exerciseId} (length=${markdown.length}), skipping`, LogCategory.GENERAL);
+            return undefined;
+        }
 
         // Server feature flag: disabled after 404/405/501 until config change
         if (this.serverSupportsRendering === false) { return undefined; }
@@ -202,6 +213,10 @@ function mapFeedbacksToTestInputs(feedbacks: FeedbackLike[]): TestFeedbackInput[
 }
 
 // ── Utility functions ──
+
+function containsNullByte(s: string): boolean {
+    return s.indexOf(String.fromCharCode(0)) !== -1;
+}
 
 function isDarkMode(): boolean {
     const kind = vscode.window.activeColorTheme.kind;

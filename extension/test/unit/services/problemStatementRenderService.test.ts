@@ -223,6 +223,20 @@ suite('ProblemStatementRenderService', () => {
         ]);
     });
 
+    test('short-circuits when markdown exceeds 100k chars', async () => {
+        const huge = 'a'.repeat(100_001);
+        const result = await service.render(mockExercise({ problemStatement: huge }));
+        assert.strictEqual(result, undefined);
+        assert.strictEqual(renderStub.callCount, 0);
+    });
+
+    test('short-circuits when markdown contains a null byte', async () => {
+        const withNull = 'hello' + String.fromCharCode(0) + 'world';
+        const result = await service.render(mockExercise({ problemStatement: withNull }));
+        assert.strictEqual(result, undefined);
+        assert.strictEqual(renderStub.callCount, 0);
+    });
+
     test('mapper enforces backend validation constraints (max length, dedupe, cap)', async () => {
         renderStub.resolves(mockDto());
         const longName = 'x'.repeat(600);
