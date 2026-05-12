@@ -62,6 +62,7 @@ interface TestCaseResult {
     name: string;
     passed: boolean;
     message?: string;
+    id?: number;
 }
 
 interface FeedbackInput {
@@ -69,7 +70,7 @@ interface FeedbackInput {
     text?: string;
     positive?: boolean;
     detailText?: string;
-    testCase?: { testName?: string };
+    testCase?: { id?: number; testName?: string };
 }
 
 /**
@@ -84,5 +85,6 @@ export function transformFeedbacksToTestCases(feedbacks: FeedbackInput[]): TestC
         name: f.testCase?.testName ?? f.text ?? 'Test',
         passed: f.positive ?? false,
         message: f.detailText,
+        id: f.testCase?.id,
     }));
 }

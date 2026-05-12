@@ -19,6 +19,7 @@ export interface TestCase {
   passed: boolean;
   message?: string;
   type?: 'structural' | 'behavioral';
+  id?: number;
 }
 
 interface Feedback {
