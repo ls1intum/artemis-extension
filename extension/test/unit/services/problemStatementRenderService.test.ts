@@ -195,4 +195,51 @@ suite('ProblemStatementRenderService', () => {
         service.dispose();
         assert.strictEqual(configListenerDisposed, true);
     });
+
+    test('maps participation feedbacks into testResults (extractLatestFeedbacks integration)', async () => {
+        renderStub.resolves(mockDto());
+        const exercise = mockExercise();
+        const participation = {
+            submissions: [
+                {
+                    id: 1,
+                    results: [
+                        { id: 10, feedbacks: [{ testCase: { id: 99, testName: 'old' }, positive: true }] },
+                    ],
+                },
+                {
+                    id: 2,
+                    results: [
+                        { id: 20, feedbacks: [{ testCase: { id: 100, testName: 'newest' }, positive: false, detailText: 'fail msg' }] },
+                        { id: 21, feedbacks: [{ testCase: { id: 101, testName: 'newer' }, positive: true }] },
+                    ],
+                },
+            ],
+        };
+        await service.render(exercise, { participation });
+        const sent = renderStub.firstCall.args[0];
+        assert.deepStrictEqual(sent.testResults, [
+            { testId: 101, testName: 'newer', passed: true, message: undefined, credits: undefined },
+        ]);
+    });
+
+    test('mapper enforces backend validation constraints (max length, dedupe, cap)', async () => {
+        renderStub.resolves(mockDto());
+        const longName = 'x'.repeat(600);
+        const longMsg = 'y'.repeat(6000);
+        const feedbacks = [
+            { testCase: { id: 1, testName: longName }, positive: true, detailText: longMsg },
+            { testCase: { id: 1, testName: 'dup' }, positive: false },
+            ...Array.from({ length: 150 }, (_, i) => ({ testCase: { id: i + 2 }, positive: true })),
+        ];
+        const participation = { submissions: [{ id: 1, results: [{ id: 10, feedbacks }] }] };
+        await service.render(mockExercise(), { participation });
+        const sent = renderStub.firstCall.args[0];
+        const testResults = sent.testResults!;
+        assert.strictEqual(testResults.length, 100, 'cap at MAX_TEST_RESULTS');
+        assert.strictEqual(testResults[0].testName.length, 500, 'testName clamped');
+        assert.strictEqual(testResults[0].message!.length, 5000, 'message clamped');
+        const ids = testResults.map((t: { testId: number }) => t.testId);
+        assert.strictEqual(new Set(ids).size, ids.length, 'no duplicate testIds');
+    });
 });

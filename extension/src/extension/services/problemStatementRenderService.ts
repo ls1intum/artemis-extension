@@ -173,16 +173,32 @@ export class ProblemStatementRenderService implements vscode.Disposable {
 
 // ── Mapping functions ──
 
+// Match Artemis ProblemStatementRenderRequestDTO + TestFeedbackInputDTO validation:
+// testResults @Size(max=100), testName @Size(max=500), message @Size(max=5000),
+// duplicate testIds are rejected by the resource layer (422).
+const MAX_TEST_RESULTS = 100;
+const MAX_TEST_NAME_LENGTH = 500;
+const MAX_MESSAGE_LENGTH = 5000;
+
 function mapFeedbacksToTestInputs(feedbacks: FeedbackLike[]): TestFeedbackInput[] {
-    return feedbacks
-        .filter(f => f.testCase?.id !== undefined && f.testCase?.id !== null)
-        .map(f => ({
-            testId: f.testCase!.id!,
-            testName: f.testCase?.testName || f.text || 'Unknown',
+    const seen = new Set<number>();
+    const result: TestFeedbackInput[] = [];
+    for (const f of feedbacks) {
+        const id = f.testCase?.id;
+        if (id === undefined || id === null || seen.has(id)) { continue; }
+        seen.add(id);
+        const rawName = f.testCase?.testName || f.text || 'Unknown';
+        const rawMessage = f.detailText || undefined;
+        result.push({
+            testId: id,
+            testName: rawName.slice(0, MAX_TEST_NAME_LENGTH),
             passed: f.positive === true,
-            message: f.detailText || undefined,
+            message: rawMessage ? rawMessage.slice(0, MAX_MESSAGE_LENGTH) : undefined,
             credits: f.credits ?? undefined,
-        }));
+        });
+        if (result.length >= MAX_TEST_RESULTS) { break; }
+    }
+    return result;
 }
 
 // ── Utility functions ──
