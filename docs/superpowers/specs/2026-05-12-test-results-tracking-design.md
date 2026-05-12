@@ -616,7 +616,6 @@ Contract layer (TypeScript compile-time):
 - Click a task → modal opens with only that task's tests.
 - Close via each of: X-button, Escape. Inspect the recording JSONL to confirm `closeReason` is set correctly.
 - Reproduce the SSR re-render case: change theme while modal is open. Verify the modal stays open and the close event references the original snapshot.
-- Open task modal, then click "See test results" (single-modal invariant). Verify exactly two events fire: `taskFeedbackClosed` then `testResultsOverviewOpened`.
 - Open modal, close VS Code window. Verify the recording shows an unmatched `opened` and no close event of any kind.
 
 ## Files Touched

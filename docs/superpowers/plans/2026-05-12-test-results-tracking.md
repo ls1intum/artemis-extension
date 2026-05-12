@@ -216,6 +216,21 @@ suite('SessionRecorder — view events', () => {
         assert.deepStrictEqual(task[0].action === 'opened' ? task[0].testIds : undefined, [101, 102, 103]);
     });
 
+    test('recordTaskFeedbackClosed emits with durationMs and closeReason', async () => {
+        recorder.recordTaskFeedbackClosed({
+            viewId: 'v2', exerciseId: 42, taskName: 'doOverlap',
+            durationMs: 750, closeReason: 'escape',
+        });
+        await recorder.endSession();
+        const closed = collectWrittenEvents(fs).filter(
+            (e): e is TaskFeedbackViewEvent => e.type === 'taskFeedbackView' && e.action === 'closed',
+        );
+        assert.strictEqual(closed.length, 1);
+        assert.strictEqual(closed[0].action === 'closed' && closed[0].durationMs, 750);
+        assert.strictEqual(closed[0].action === 'closed' && closed[0].closeReason, 'escape');
+        assert.strictEqual(closed[0].taskName, 'doOverlap');
+    });
+
     test('all four methods are no-ops outside recording phase', async () => {
         const { recorder: idleRecorder, fs: idleFs } = makeRecorder();
         // No enable() / startSession() — phase stays 'idle'
@@ -900,6 +915,30 @@ suite('TestResultsTrackingCommandModule', () => {
             type: 'command', command: WebviewCmd.TestResultsOverviewOpened, payload,
         } as never);
         sinon.assert.calledOnceWithExactly(fireOverviewOpenedStub, payload);
+    });
+
+    test('handles testResultsOverviewClosed by firing provider event', async () => {
+        const payload = { viewId: 'v', exerciseId: 1, durationMs: 250, closeReason: 'button' as const };
+        await module.getHandlers()[WebviewCmd.TestResultsOverviewClosed]({
+            type: 'command', command: WebviewCmd.TestResultsOverviewClosed, payload,
+        } as never);
+        sinon.assert.calledOnceWithExactly(fireOverviewClosedStub, payload);
+    });
+
+    test('handles taskFeedbackOpened by firing provider event', async () => {
+        const payload = { viewId: 'v', exerciseId: 1, taskName: 't', testIds: [1, 2], totalTests: 2, passedTests: 1, failedTests: 1 };
+        await module.getHandlers()[WebviewCmd.TaskFeedbackOpened]({
+            type: 'command', command: WebviewCmd.TaskFeedbackOpened, payload,
+        } as never);
+        sinon.assert.calledOnceWithExactly(fireTaskOpenedStub, payload);
+    });
+
+    test('handles taskFeedbackClosed by firing provider event', async () => {
+        const payload = { viewId: 'v', exerciseId: 1, taskName: 't', durationMs: 50, closeReason: 'escape' as const };
+        await module.getHandlers()[WebviewCmd.TaskFeedbackClosed]({
+            type: 'command', command: WebviewCmd.TaskFeedbackClosed, payload,
+        } as never);
+        sinon.assert.calledOnceWithExactly(fireTaskClosedStub, payload);
     });
 
     test('drops events silently when provider is not registered', async () => {
@@ -1963,9 +2002,39 @@ it('posts testResultsOverviewOpened + Closed pair with matching viewId on open a
     expect(closedCall![0].payload.durationMs).toBeGreaterThanOrEqual(0);
 });
 
+it('posts taskFeedbackOpened with filtered testIds and counts when a [task] span is clicked', async () => {
+    useExerciseDetailStore.setState({
+        exerciseData: makeExerciseDataWithParticipation({ hasResult: true }),
+        isLoading: false,
+    });
+    const mockApi = createMockVsCodeApi();
+    const { container } = render(<ExerciseDetailView vscodeApi={mockApi} />);
+
+    // The SSR HTML carries .artemis-task spans with data-test-ids and data-task-name.
+    dispatchExtensionMessage({
+        type: ExtensionMsg.ProblemStatementRendered,
+        html: '<html><body><span class="artemis-task" data-task-name="taskA" data-test-ids="1,2">taskA</span></body></html>',
+    });
+
+    await waitFor(() => {
+        expect(container.querySelector('.artemis-task[data-test-ids]')).not.toBeNull();
+    });
+    await userEvent.click(container.querySelector('.artemis-task[data-test-ids]')!);
+
+    const openedCall = mockApi.postMessage.mock.calls.find(c => c[0].command === 'taskFeedbackOpened');
+    expect(openedCall).toBeDefined();
+    const payload = openedCall![0].payload;
+    expect(payload.taskName).toBe('taskA');
+    expect(payload.testIds).toEqual([1, 2]);
+    // The fixture has feedbacks for testCase.id 1 (passed) and 2 (passed) but not 3.
+    expect(payload.totalTests).toBe(2);
+    expect(payload.passedTests).toBe(2);
+    expect(payload.failedTests).toBe(0);
+    expect(typeof payload.viewId).toBe('string');
+});
 ```
 
-Add an import for `fireEvent` from `@testing-library/react` if it is not already there.
+Add imports as needed: `fireEvent` and `waitFor` from `@testing-library/react`, plus `ExtensionMsg` and `dispatchExtensionMessage` from wherever they are already used in this test file (look at the existing imports — the file already uses both).
 
 - [ ] **Step 10: Run React tests.**
 
