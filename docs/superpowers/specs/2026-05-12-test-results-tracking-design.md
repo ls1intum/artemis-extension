@@ -60,7 +60,7 @@ Three layers, communicating through `postCommand`:
 │                                                                   │
 │  TestResultsOverlay.tsx (existing, parameterised)                 │
 │    - new prop: taskName?: string  → switches header text         │
-│    - onClose: (reason: 'button'|'escape'|'backdrop'|'replaced')  │
+│    - onClose: (reason: 'button'|'escape'|'backdrop')             │
 └────────────────────────────────────────────────────────────────────┘
                             │ postMessage (4 new commands)
                             ▼
@@ -527,7 +527,7 @@ export interface IArtemisWebviewProvider {
 }
 ```
 
-`ArtemisWebviewProvider` implements it. The activation site (`activation/index.ts` or wherever `setChatWebviewProvider` is called today) also calls `setArtemisWebviewProvider`.
+`ArtemisWebviewProvider` implements it. The four EventEmitters are added alongside the existing navigation/panel emitters in `artemisWebviewProvider.ts` and pushed onto `_disposables` so they are disposed together with the provider. The activation site (`extension.ts`, where `setChatWebviewProvider` is called today around line 100) also calls `setArtemisWebviewProvider`.
 
 **New file** `extension/src/extension/controller/commands/testResultsTrackingCommands.ts` — four handlers, each a thin pass-through:
 
@@ -589,7 +589,7 @@ This way the phase-guard inside the recorder remains the single gate. The provid
 
 - Each of the four command handlers reads `getPayload` and fires the matching provider EventEmitter.
 - Handlers do NOT call the recorder directly (the wiring layer does).
-- Malformed payloads are logged but do not throw uncaught.
+- A missing payload (the `getPayload` failure case) is logged but does not throw uncaught. Note: `getPayload` only catches the missing-payload case — it does NOT runtime-validate field shapes, so this test does not assert anything about a malformed-but-present payload (TypeScript types guard that path).
 
 `extension/test/unit/activation/sessionRecorderWiring.test.ts` — extend:
 
@@ -646,7 +646,7 @@ Modified:
   extension/src/extension/controller/webViewMessageHandler.ts               (register the 4 new commands)
   extension/src/extension/activation/sessionRecorderWiring.ts               (subscribe to the 4 new provider events)
   extension/src/extension/services/ui/providerRegistry.ts                   (add getArtemisWebviewProvider/setArtemisWebviewProvider)
-  extension/src/extension/activation/index.ts (or wherever setChatWebviewProvider is wired) (call setArtemisWebviewProvider on startup)
+  extension/src/extension.ts (around line 100, where setChatWebviewProvider is wired today; call setArtemisWebviewProvider on startup)
   extension/src/shared/messageContracts/webviewCommands.ts                  (4 new WebCmd + COMMANDS_REQUIRING_PAYLOAD entries; export payload types)
   extension/src/webview/components/exercise/TestResultsOverlay.tsx          (taskName prop, onClose(reason), backdrop click)
   extension/src/webview/components/exercise/TestResultsOverlay.module.css   (backdrop click affordance)
