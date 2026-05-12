@@ -24,7 +24,7 @@ The extension currently shows all test feedbacks via a single "all-tests" modal 
 - No JUnit-message parsing (no Method/Scenario/Input/Expected/Actual split). The raw `message` continues to render as-is.
 - No synthetic close-on-deactivate or close-on-unmount events. Analysis treats unclosed views as censored intervals.
 - No tracking of scroll position, hover, or per-test "viewed" signals inside the modal.
-- No change to the exam-mode exercise view (`ExamExerciseDetailView`). Per-task click handling only lives where the SSR'd problem statement is rendered (regular exercise detail). The "See test results" button itself is not used in exam mode.
+- No per-task click handling in exam mode. `ExamExerciseDetailView` uses a plaintext fallback rather than the SSR'd HTML, so there are no `[task]` spans to click. **However**, exam mode already mounts `SubmissionStatus` with the existing "See test results" overlay; since this change removes the overlay-mount from `SubmissionStatus`, the exam view must also be updated. Exam mode mounts its own untracked `TestResultsOverlay` instance (no `viewId`, no command posted, no recorder event). Test-results viewing in exam mode is deliberately not tracked for this iteration — could be added later by passing tracking callbacks to the same plumbing.
 
 ## User-Facing Behaviour
 
@@ -328,6 +328,8 @@ interface OpenViewState {
     closeIdentity: {
         viewId: string;
         exerciseId: number;
+        participationId?: number;
+        resultId?: number;
         taskName?: string;
     };
 }
@@ -397,15 +399,16 @@ export function makeViewId(): string {
 1. User clicks a `.artemis-task[data-test-ids]` span inside the rendered problem statement, **or** clicks "See test results" button.
 2. The webview generates a `viewId`, snapshots `openedAt = Date.now()` and the full close-payload into state.
 3. Webview posts the appropriate `…Opened` command with all open-event fields.
-4. Extension's command handler maps to `sessionRecorder.recordTestResultsOverviewOpened(...)` or `recordTaskFeedbackOpened(...)`.
-5. Recorder phase-guards and appends the JSONL line.
+4. The extension's command handler reads the payload and calls `providerRegistry.getArtemisWebviewProvider()?.fireXxxOpened(payload)`.
+5. The provider's EventEmitter fires. `sessionRecorderWiring.ts` (subscribed) calls `sessionRecorder.recordTestResultsOverviewOpened(...)` or `recordTaskFeedbackOpened(...)`.
+6. Recorder phase-guards and appends the JSONL line.
 
 ### Close
 
 1. Close is triggered by one of three sources (button, escape, backdrop).
 2. Webview computes `durationMs = Date.now() - openedAt`.
-3. Webview posts the `…Closed` command with the snapshotted `viewId`, `exerciseId`, optional `taskName`, `durationMs`, and `closeReason`.
-4. Extension maps to `recordTestResultsOverviewClosed(...)` or `recordTaskFeedbackClosed(...)`.
+3. Webview posts the `…Closed` command with the snapshotted `viewId`, `exerciseId`, optional `participationId`/`resultId`/`taskName`, `durationMs`, and `closeReason`.
+4. Same command-handler → provider-event → wiring → recorder path as on open. The recorder method called is `recordTestResultsOverviewClosed(...)` or `recordTaskFeedbackClosed(...)`.
 
 ### Re-open of the same task
 
@@ -446,8 +449,10 @@ testResultsOverviewOpened: {
 testResultsOverviewClosed: {
     viewId: string;
     exerciseId: number;
+    participationId?: number;
+    resultId?: number;
     durationMs: number;
-    closeReason?: 'button' | 'escape' | 'backdrop';
+    closeReason: 'button' | 'escape' | 'backdrop' | 'replaced';
 };
 taskFeedbackOpened: {
     viewId: string;
@@ -463,11 +468,15 @@ taskFeedbackOpened: {
 taskFeedbackClosed: {
     viewId: string;
     exerciseId: number;
+    participationId?: number;
+    resultId?: number;
     taskName: string;
     durationMs: number;
-    closeReason?: 'button' | 'escape' | 'backdrop';
+    closeReason: 'button' | 'escape' | 'backdrop' | 'replaced';
 };
 ```
+
+These payload types are also re-exported as named types (`TestResultsOverviewOpenedPayload`, etc.) so the provider's EventEmitters and `sessionRecorderWiring.ts` can reference the same shape without duplication.
 
 All four are added to `COMMANDS_REQUIRING_PAYLOAD`.
 
@@ -491,22 +500,52 @@ readonly onDidCloseTaskFeedback = this._onDidCloseTaskFeedback.event;
 
 The payload types live alongside the command definitions in `shared/messageContracts/webviewCommands.ts` so the same shapes describe both the wire format and the provider event.
 
-**New file** `extension/src/extension/controller/commands/testResultsTrackingCommands.ts` — four handlers that read the webview payload and fire the provider event. Each handler is a thin pass-through; no recorder dependency:
+**Provider-registry extension** (`extension/src/extension/services/ui/providerRegistry.ts`) — add `ArtemisWebviewProvider` to the registry, symmetric with the existing chat-provider accessor:
+
+```ts
+export interface IProviderRegistry {
+    getChatWebviewProvider(): IChatWebviewProvider | undefined;
+    setChatWebviewProvider(provider: IChatWebviewProvider): void;
+    // NEW
+    getArtemisWebviewProvider(): IArtemisWebviewProvider | undefined;
+    setArtemisWebviewProvider(provider: IArtemisWebviewProvider): void;
+}
+```
+
+A new minimal interface `IArtemisWebviewProvider` (in a new `extension/src/extension/types/IArtemisWebviewProvider.ts`) declares only what the command handlers and wiring need:
+
+```ts
+export interface IArtemisWebviewProvider {
+    fireTestResultsOverviewOpened(payload: TestResultsOverviewOpenedPayload): void;
+    fireTestResultsOverviewClosed(payload: TestResultsOverviewClosedPayload): void;
+    fireTaskFeedbackOpened(payload: TaskFeedbackOpenedPayload): void;
+    fireTaskFeedbackClosed(payload: TaskFeedbackClosedPayload): void;
+    readonly onDidOpenTestResultsOverview: vscode.Event<TestResultsOverviewOpenedPayload>;
+    readonly onDidCloseTestResultsOverview: vscode.Event<TestResultsOverviewClosedPayload>;
+    readonly onDidOpenTaskFeedback: vscode.Event<TaskFeedbackOpenedPayload>;
+    readonly onDidCloseTaskFeedback: vscode.Event<TaskFeedbackClosedPayload>;
+}
+```
+
+`ArtemisWebviewProvider` implements it. The activation site (`activation/index.ts` or wherever `setChatWebviewProvider` is called today) also calls `setArtemisWebviewProvider`.
+
+**New file** `extension/src/extension/controller/commands/testResultsTrackingCommands.ts` — four handlers, each a thin pass-through:
 
 ```ts
 private handleTaskFeedbackOpened = async (message: WebviewToExtensionMessage): Promise<void> => {
     try {
         const payload = getPayload<WebCmd<'taskFeedbackOpened'>>(message);
-        this.context.artemisWebviewProvider.fireTaskFeedbackOpened(payload);
+        const provider = this.context.providerRegistry.getArtemisWebviewProvider();
+        provider?.fireTaskFeedbackOpened(payload);
     } catch (error: unknown) {
         logger.warn('Failed to handle taskFeedbackOpened command', LogCategory.VIEW, error);
     }
 };
 ```
 
-A `fireXxx(...)` method on the provider invokes the corresponding EventEmitter (the emitters stay private). This pattern is consistent with how `chatWebviewProvider` exposes `onDidSendIrisChatMessage` — the command handler fires an emitter the provider owns.
+If the provider is not registered (theoretical race during shutdown), the event is silently dropped. No exception leaks.
 
-**`CommandContext`** stays as-is; the only added field is `artemisWebviewProvider`, which the context already has access to.
+**`CommandContext` is NOT modified.** All access goes through the existing `providerRegistry` field.
 
 **`sessionRecorderWiring.ts`** — extend the existing `wireSessionRecorder` function to subscribe to the four new events:
 
@@ -603,20 +642,24 @@ Contract layer (TypeScript compile-time):
 Modified:
   extension/src/extension/services/telemetry/recording/types.ts
   extension/src/extension/services/telemetry/recording/sessionRecorder.ts
-  extension/src/extension/provider/artemisWebviewProvider.ts                (4 new EventEmitters + fireXxx methods)
+  extension/src/extension/provider/artemisWebviewProvider.ts                (4 new EventEmitters + fireXxx methods, implements IArtemisWebviewProvider)
   extension/src/extension/controller/webViewMessageHandler.ts               (register the 4 new commands)
   extension/src/extension/activation/sessionRecorderWiring.ts               (subscribe to the 4 new provider events)
-  extension/src/shared/messageContracts/webviewCommands.ts                  (4 new WebCmd + COMMANDS_REQUIRING_PAYLOAD entries)
+  extension/src/extension/services/ui/providerRegistry.ts                   (add getArtemisWebviewProvider/setArtemisWebviewProvider)
+  extension/src/extension/activation/index.ts (or wherever setChatWebviewProvider is wired) (call setArtemisWebviewProvider on startup)
+  extension/src/shared/messageContracts/webviewCommands.ts                  (4 new WebCmd + COMMANDS_REQUIRING_PAYLOAD entries; export payload types)
   extension/src/webview/components/exercise/TestResultsOverlay.tsx          (taskName prop, onClose(reason), backdrop click)
   extension/src/webview/components/exercise/TestResultsOverlay.module.css   (backdrop click affordance)
-  extension/src/webview/components/exercise/SubmissionStatus.tsx            (remove overlay mount; replace toggle with onOpenTestResults callback)
+  extension/src/webview/components/exercise/SubmissionStatus.tsx            (remove overlay mount + showTestResults prop; replace onToggleTestResults with onOpenTestResults callback)
   extension/src/webview/views/ExerciseDetail/types.ts                       (ProblemStatementProps gets onTaskClick)
   extension/src/webview/views/ExerciseDetail/components/ProblemStatement.tsx (click handler via event delegation)
   extension/src/webview/views/ExerciseDetail/components/ProblemStatement.module.css (cursor + underline on .artemis-task)
-  extension/src/webview/views/ExerciseDetail/ExerciseDetailView.tsx         (own both overlay instances and viewId lifecycle)
+  extension/src/webview/views/ExerciseDetail/ExerciseDetailView.tsx         (own both overlay instances + viewId lifecycle + tracking)
+  extension/src/webview/views/ExamExerciseDetail/ExamExerciseDetailView.tsx (mount own untracked overlay after the prop rename on SubmissionStatus)
   extension/src/webview/utils/exerciseStatus.ts                             (populate TestCase.id, add filterTestCasesByIds helper)
 
 Created:
+  extension/src/extension/types/IArtemisWebviewProvider.ts
   extension/src/extension/controller/commands/testResultsTrackingCommands.ts
   extension/src/webview/utils/viewId.ts
   extension/test/unit/services/telemetry/recording/sessionRecorderViewEvents.test.ts
