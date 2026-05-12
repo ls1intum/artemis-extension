@@ -85,11 +85,11 @@ suite('ProblemStatementRenderService', () => {
 
     test('passes darkModeOverride to request', async () => {
         renderStub.resolves(mockDto());
-        await service.render(mockExercise(), undefined, undefined, true);
+        await service.render(mockExercise(), { darkModeOverride: true });
         assert.strictEqual(renderStub.firstCall.args[0].darkMode, true);
 
         renderStub.resetHistory();
-        await service.render(mockExercise(), undefined, undefined, false);
+        await service.render(mockExercise(), { darkModeOverride: false });
         assert.strictEqual(renderStub.firstCall.args[0].darkMode, false);
     });
 
@@ -111,8 +111,8 @@ suite('ProblemStatementRenderService', () => {
 
     test('re-renders when darkMode changes', async () => {
         renderStub.resolves(mockDto());
-        await service.render(mockExercise(), undefined, undefined, false);
-        await service.render(mockExercise(), undefined, undefined, true);
+        await service.render(mockExercise(), { darkModeOverride: false });
+        await service.render(mockExercise(), { darkModeOverride: true });
         assert.strictEqual(renderStub.callCount, 2);
     });
 

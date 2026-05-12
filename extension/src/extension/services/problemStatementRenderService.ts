@@ -1,7 +1,8 @@
 import * as vscode from 'vscode';
 import type { ArtemisApiService } from '../api/artemisApi';
-import type { ProblemStatementRenderRequest, TestFeedbackInput, ResultSummaryInput } from '../domain/problemStatementRendering';
+import type { ProblemStatementRenderRequest, TestFeedbackInput } from '../domain/problemStatementRendering';
 import { VSCODE_CONFIG, CONFIG } from '../utils/constants';
+import { extractLatestFeedbacks } from '../utils/participationHelpers';
 import { logger, LogCategory } from './loggingService';
 
 /** Minimal feedback shape needed for test input mapping */
@@ -17,23 +18,22 @@ interface FeedbackLike {
 interface ExerciseLike {
     readonly id?: number;
     readonly problemStatement?: string;
-    readonly maxPoints?: number;
-    readonly bonusPoints?: number;
 }
 
-/** Minimal participation shape (has submissions with results) */
+/** Minimal participation shape (has submissions with results with feedbacks) */
 interface ParticipationLike {
     readonly submissions?: ReadonlyArray<{
         readonly id?: number;
-        readonly commitHash?: string;
-        readonly submissionDate?: string;
         readonly results?: ReadonlyArray<{
             readonly id?: number;
-            readonly completionDate?: string;
-            readonly score?: number;
-            readonly assessmentType?: string;
+            readonly feedbacks?: unknown[];
         }>;
     }>;
+}
+
+interface RenderOptions {
+    readonly participation?: ParticipationLike;
+    readonly darkModeOverride?: boolean;
 }
 
 // ── Internal types ──
@@ -82,12 +82,7 @@ export class ProblemStatementRenderService implements vscode.Disposable {
      * Render a problem statement via the server endpoint.
      * Returns undefined when server rendering is unavailable.
      */
-    async render(
-        exercise: ExerciseLike,
-        participation?: ParticipationLike,
-        feedbacks?: FeedbackLike[],
-        darkModeOverride?: boolean,
-    ): Promise<ServerRenderResult | undefined> {
+    async render(exercise: ExerciseLike, options: RenderOptions = {}): Promise<ServerRenderResult | undefined> {
         const markdown = exercise.problemStatement || '';
         const exerciseId = exercise.id;
         if (!markdown || exerciseId === undefined) { return undefined; }
@@ -95,16 +90,14 @@ export class ProblemStatementRenderService implements vscode.Disposable {
         // Server feature flag: disabled after 404/405/501 until config change
         if (this.serverSupportsRendering === false) { return undefined; }
 
-        const darkMode = darkModeOverride ?? isDarkMode();
-        const locale = 'en';
-        const testInputs = feedbacks ? mapFeedbacksToTestInputs(feedbacks) : undefined;
-        const resultSummary = participation ? buildResultSummary(participation, exercise) : undefined;
+        const darkMode = options.darkModeOverride ?? isDarkMode();
+        const rawFeedbacks = extractLatestFeedbacks(options.participation);
+        const testInputs = rawFeedbacks ? mapFeedbacksToTestInputs(rawFeedbacks as FeedbackLike[]) : undefined;
 
         const request: ProblemStatementRenderRequest = {
             markdown,
             testResults: testInputs,
-            resultSummary,
-            locale,
+            locale: 'en',
             darkMode,
             includeJs: false,
             inlineImages: true,
@@ -192,41 +185,6 @@ function mapFeedbacksToTestInputs(feedbacks: FeedbackLike[]): TestFeedbackInput[
         }));
 }
 
-function buildResultSummary(
-    participation: ParticipationLike,
-    exercise: ExerciseLike,
-): ResultSummaryInput | undefined {
-    const submissions = participation.submissions;
-    if (!submissions || submissions.length === 0) { return undefined; }
-
-    const latestSubmission = submissions.reduce((latest, current) => {
-        const latestId = typeof latest.id === 'number' ? latest.id : -Infinity;
-        const currentId = typeof current.id === 'number' ? current.id : -Infinity;
-        return currentId > latestId ? current : latest;
-    });
-
-    const results = latestSubmission.results;
-    if (!results || results.length === 0) { return undefined; }
-
-    const latestResult = results.reduce((latest, current) => {
-        const latestDate = latest.completionDate ? new Date(latest.completionDate).getTime() : -Infinity;
-        const currentDate = current.completionDate ? new Date(current.completionDate).getTime() : -Infinity;
-        if (latestDate === currentDate) {
-            return (current.id ?? 0) > (latest.id ?? 0) ? current : latest;
-        }
-        return currentDate > latestDate ? current : latest;
-    });
-
-    return {
-        score: latestResult.score,
-        maxPoints: exercise.maxPoints,
-        bonusPoints: exercise.bonusPoints,
-        commitHash: latestSubmission.commitHash,
-        submissionDate: latestSubmission.submissionDate,
-        assessmentType: latestResult.assessmentType,
-    };
-}
-
 // ── Utility functions ──
 
 function isDarkMode(): boolean {
@@ -239,7 +197,6 @@ function computeInputHash(request: ProblemStatementRenderRequest, serverUrl: str
     const input = JSON.stringify({
         markdown: request.markdown,
         testResults: request.testResults || [],
-        resultSummary: request.resultSummary,
         locale: request.locale,
         darkMode: request.darkMode,
         includeJs: request.includeJs,

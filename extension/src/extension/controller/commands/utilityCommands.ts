@@ -318,13 +318,7 @@ export class UtilityCommandModule {
         try {
             const exercise = exerciseData.exercise;
             const participation = exercise.studentParticipations?.[0];
-            const latestSubmission = [...(participation?.submissions ?? [])]
-                .sort((a, b) => ((b as { id?: number }).id ?? 0) - ((a as { id?: number }).id ?? 0))[0] as { results?: Array<{ id?: number; feedbacks?: unknown[] }> } | undefined;
-            const latestResult = [...(latestSubmission?.results ?? [])]
-                .sort((a, b) => ((b as { id?: number }).id ?? 0) - ((a as { id?: number }).id ?? 0))[0];
-            const feedbacks = latestResult?.feedbacks as Array<{ testCase?: { id?: number; testName?: string }; text?: string; detailText?: string; credits?: number; positive?: boolean }> | undefined;
-
-            const rendered = await renderService.render(exercise, participation, feedbacks, darkMode);
+            const rendered = await renderService.render(exercise, { participation, darkModeOverride: darkMode });
             if (!rendered) { return; }
 
             const label = darkMode ? 'Dark' : 'Light';
