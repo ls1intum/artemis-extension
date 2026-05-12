@@ -76,8 +76,8 @@ describe('SubmissionStatus', () => {
 		expect(screen.getByText('See test results')).toBeInTheDocument();
 	});
 
-	it('toggles test results visibility when toggle button is clicked', async () => {
-		const onToggle = vi.fn();
+	it('calls onOpenTestResults when See test results button is clicked', async () => {
+		const onOpen = vi.fn();
 		render(
 			<SubmissionStatus
 				status="success"
@@ -87,51 +87,11 @@ describe('SubmissionStatus', () => {
 				score={80}
 				maxScore={100}
 				scorePercentage={80}
-				onToggleTestResults={onToggle}
+				onOpenTestResults={onOpen}
 			/>
 		);
 		await userEvent.click(screen.getByText('See test results'));
-		expect(onToggle).toHaveBeenCalledOnce();
-	});
-
-	it('shows test cases inside modal when showTestResults is true', () => {
-		const testCases = [
-			{ name: 'testOne', passed: true },
-			{ name: 'testTwo', passed: false, message: 'Assertion failed' },
-		];
-		render(
-			<SubmissionStatus
-				status="success"
-				hasTestInfo={true}
-				totalTests={2}
-				passedTests={1}
-				score={50}
-				maxScore={100}
-				scorePercentage={50}
-				testCases={testCases}
-				showTestResults={true}
-			/>
-		);
-		expect(screen.getByText('testOne')).toBeInTheDocument();
-		expect(screen.getByText('testTwo')).toBeInTheDocument();
-		expect(screen.getByText('Assertion failed')).toBeInTheDocument();
-	});
-
-	it('shows loading state inside test results modal when loadingTestResults is true', () => {
-		render(
-			<SubmissionStatus
-				status="success"
-				hasTestInfo={true}
-				totalTests={5}
-				passedTests={0}
-				score={0}
-				maxScore={100}
-				scorePercentage={0}
-				showTestResults={true}
-				loadingTestResults={true}
-			/>
-		);
-		expect(screen.getByText('Loading test results...')).toBeInTheDocument();
+		expect(onOpen).toHaveBeenCalledOnce();
 	});
 
 	it('shows Submitted badge for non-programming success state', () => {

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ExerciseDetailView } from '../../../../src/webview/views/ExerciseDetail/ExerciseDetailView';
 import { useExerciseDetailStore } from '../../../../src/webview/stores/useExerciseDetailStore';
@@ -41,31 +41,39 @@ function makeExerciseData(overrides: Partial<ExerciseDetailsResponse> = {}): Exe
 }
 
 function makeExerciseDataWithParticipation(opts: { hasResult?: boolean; hasSubmission?: boolean } = {}): ExerciseDetailsResponse {
+	const submission: Record<string, unknown> = {
+		id: 1,
+		submissionDate: '2025-01-01T00:00:00Z',
+		results: [],
+	};
 	const participation: Record<string, unknown> = {
 		id: 99,
 		repositoryUri: 'https://git.example.com/repo',
-		results: [],
-		submissions: [],
+		submissions: [submission],
 	};
 
-	if (opts.hasSubmission) {
-		participation.submissions = [{ id: 1, submissionDate: '2025-01-01T00:00:00Z' }];
-	}
-
 	if (opts.hasResult) {
-		participation.results = [
-			{ id: 10, score: 7, maxScore: 10, successful: false, completionDate: '2025-01-01T00:00:00Z' },
+		submission.results = [
+			{
+				id: 10,
+				score: 70,
+				successful: false,
+				completionDate: '2025-01-01T00:00:00Z',
+				testCaseCount: 3,
+				passedTestCaseCount: 2,
+				feedbacks: [
+					{ testCase: { id: 1, testName: 'taskA_test1' }, positive: true },
+					{ testCase: { id: 2, testName: 'taskA_test2' }, positive: true },
+					{ testCase: { id: 3, testName: 'taskB_test1' }, positive: false, detailText: 'fail' },
+				],
+			},
 		];
 	}
 
 	return makeExerciseData({
 		exercise: {
-			id: 42,
-			title: 'My Exercise',
-			type: 'programming',
-			maxPoints: 10,
-			bonusPoints: 0,
-			problemStatement: 'Solve the problem.',
+			id: 42, title: 'My Exercise', type: 'programming',
+			maxPoints: 10, bonusPoints: 0, problemStatement: 'Solve.',
 			course: { id: 1, title: 'Test Course', shortName: 'TC' },
 			studentParticipations: [participation],
 		},
@@ -291,5 +299,62 @@ describe('ExerciseDetailView', () => {
 		expect(mockApi.postMessage).toHaveBeenCalledWith(
 			expect.objectContaining({ type: 'requestInit' })
 		);
+	});
+
+	it('posts testResultsOverviewOpened + Closed pair with matching viewId on open and close', async () => {
+		useExerciseDetailStore.setState({
+			exerciseData: makeExerciseDataWithParticipation({ hasResult: true }),
+			isLoading: false,
+		});
+		const mockApi = createMockVsCodeApi();
+		const postMessageMock = vi.mocked(mockApi.postMessage);
+		render(<ExerciseDetailView vscodeApi={mockApi} />);
+
+		await userEvent.click(screen.getByRole('button', { name: /see test results/i }));
+
+		const openedCall = postMessageMock.mock.calls.find(c => (c[0] as Record<string, unknown>).command === 'testResultsOverviewOpened');
+		expect(openedCall).toBeDefined();
+		const openedPayload = (openedCall![0] as Record<string, unknown>).payload as Record<string, unknown>;
+		const openedViewId = openedPayload.viewId;
+		expect(typeof openedViewId).toBe('string');
+
+		fireEvent.keyDown(document, { key: 'Escape' });
+
+		const closedCall = postMessageMock.mock.calls.find(c => (c[0] as Record<string, unknown>).command === 'testResultsOverviewClosed');
+		expect(closedCall).toBeDefined();
+		const closedPayload = (closedCall![0] as Record<string, unknown>).payload as Record<string, unknown>;
+		expect(closedPayload.viewId).toBe(openedViewId);
+		expect(closedPayload.closeReason).toBe('escape');
+		expect(closedPayload.durationMs).toBeGreaterThanOrEqual(0);
+	});
+
+	it('posts taskFeedbackOpened with filtered testIds and counts when a [task] span is clicked', async () => {
+		useExerciseDetailStore.setState({
+			exerciseData: makeExerciseDataWithParticipation({ hasResult: true }),
+			isLoading: false,
+		});
+		const mockApi = createMockVsCodeApi();
+		const postMessageMock = vi.mocked(mockApi.postMessage);
+		const { container } = render(<ExerciseDetailView vscodeApi={mockApi} />);
+
+		dispatchExtensionMessage({
+			type: ExtensionMsg.ProblemStatementRendered,
+			html: '<html><body><span class="artemis-task" data-task-name="taskA" data-test-ids="1,2">taskA</span></body></html>',
+		});
+
+		await waitFor(() => {
+			expect(container.querySelector('.artemis-task[data-test-ids]')).not.toBeNull();
+		});
+		await userEvent.click(container.querySelector('.artemis-task[data-test-ids]')!);
+
+		const openedCall = postMessageMock.mock.calls.find(c => (c[0] as Record<string, unknown>).command === 'taskFeedbackOpened');
+		expect(openedCall).toBeDefined();
+		const payload = (openedCall![0] as Record<string, unknown>).payload as Record<string, unknown>;
+		expect(payload.taskName).toBe('taskA');
+		expect(payload.testIds).toEqual([1, 2]);
+		expect(payload.totalTests).toBe(2);
+		expect(payload.passedTests).toBe(2);
+		expect(payload.failedTests).toBe(0);
+		expect(typeof payload.viewId).toBe('string');
 	});
 });
