@@ -42,28 +42,42 @@ Three layers, communicating through `postCommand`:
 ┌─ Webview (React) ─────────────────────────────────────────────────┐
 │  ProblemStatement.tsx                                             │
 │    └─ <div onClick={handleSsrClick}>                              │
-│         {dangerouslySetInnerHTML: SSR-HTML}                       │
+│         {dangerouslySetInnerHTML: serverRenderedHtml}             │
 │       handleSsrClick: detect .artemis-task[data-test-ids]        │
 │         → derive viewId, taskName, testIds, counts               │
 │         → emit onTaskClick                                        │
 │                                                                   │
 │  ExerciseDetailView.tsx                                           │
 │    - holds openOverviewView | null, openTaskView | null           │
-│    - mounts two TestResultsOverlay instances                      │
+│    - mounts BOTH TestResultsOverlay instances (moved out of      │
+│      SubmissionStatus)                                            │
 │    - posts taskFeedbackOpened/Closed + overview equivalents      │
+│                                                                   │
+│  SubmissionStatus.tsx (existing, simplified)                      │
+│    - "See test results" button stays here                         │
+│    - overlay rendering REMOVED — moved to ExerciseDetailView      │
+│    - new callback prop: onOpenTestResults(): void                 │
 │                                                                   │
 │  TestResultsOverlay.tsx (existing, parameterised)                 │
 │    - new prop: taskName?: string  → switches header text         │
-│    - onClose: (reason?: 'button'|'escape'|'backdrop') => void    │
+│    - onClose: (reason: 'button'|'escape'|'backdrop'|'replaced')  │
 └────────────────────────────────────────────────────────────────────┘
-                            │ postMessage
+                            │ postMessage (4 new commands)
                             ▼
-┌─ Extension command handlers ───────────────────────────────────────┐
-│  webViewMessageHandler.ts (or new ssrTrackingCommands.ts)         │
-│    case 'testResultsOverviewOpened' → recorder.recordTRO.opened()│
-│    case 'testResultsOverviewClosed' → recorder.recordTRO.closed()│
-│    case 'taskFeedbackOpened'        → recorder.recordTF.opened() │
-│    case 'taskFeedbackClosed'        → recorder.recordTF.closed() │
+┌─ Extension provider ───────────────────────────────────────────────┐
+│  ArtemisWebviewProvider                                           │
+│    - new EventEmitters:                                           │
+│        onDidOpenTestResultsOverview: Event<{viewId, …counts}>     │
+│        onDidCloseTestResultsOverview: Event<{viewId, durationMs}> │
+│        onDidOpenTaskFeedback: Event<{viewId, taskName, testIds…}> │
+│        onDidCloseTaskFeedback: Event<{viewId, taskName, dur…}>    │
+│    - WebviewMessageHandler dispatches commands → fires events     │
+└────────────────────────────────────────────────────────────────────┘
+                            │
+                            ▼
+┌─ Activation wiring (sessionRecorderWiring.ts) ─────────────────────┐
+│  Subscribes to the 4 new provider events, calls recorder methods. │
+│  Matches the existing pattern used for chat/intervention events.  │
 └────────────────────────────────────────────────────────────────────┘
                             │
                             ▼
@@ -75,10 +89,11 @@ Three layers, communicating through `postCommand`:
 
 Key architectural decisions:
 
-- **Webview measures `durationMs` locally.** On open, the React state stores `openedAt = Date.now()`. On close, the diff is computed and sent with the close command. Extension is a pass-through.
+- **Provider-events + wiring-subscription pattern.** Following the existing recorder integration style (`onDidSendIrisChatMessage`, `onDidProvideIrisChatFeedback`, the EQ/intervention emitters), `ArtemisWebviewProvider` exposes four typed `vscode.Event`s. `sessionRecorderWiring.ts` subscribes and calls the recorder methods. The command-handler layer (`webViewMessageHandler.ts`) only translates webview messages into provider-event payloads. The recorder is NOT injected into `CommandContext`.
+- **Webview measures `durationMs` locally.** On open, the React state stores `openedAt = Date.now()`. On close, the diff is computed and sent with the close command. Extension is a pass-through; it does not maintain open-view state.
 - **`viewId` is generated webview-side** via `crypto.randomUUID()` with a `Date.now() + Math.random()` fallback. Same UUID rides both `opened` and `closed` events.
-- **Captured-payload pattern.** When the modal opens, a full snapshot of the close-event payload (`viewId`, `exerciseId`, `taskName`) is frozen into the view state. The close event references this snapshot — never the live DOM or store. This survives SSR re-renders or exercise-data mutations between open and close.
-- **No synthetic close events.** If the user navigates away or VS Code is restarted while the modal is open, no `closed` event is emitted. Analysis treats this as a censored interval bounded by `sessionEnd.timestamp`.
+- **Captured-payload pattern.** When the modal opens, a full snapshot of the close-event identity fields (`viewId`, `exerciseId`, `participationId`, `resultId`, `taskName`) is frozen into the view state. The close event references this snapshot — never the live DOM or store. This survives SSR re-renders or exercise-data mutations between open and close.
+- **Two kinds of "close" with distinct reasons.** Real user-triggered closes (`'button' | 'escape' | 'backdrop'`) are always emitted. A user opening one modal while another is open emits a `closeReason: 'replaced'` close for the previously-open one before the new `opened`. No close events are synthesised in any other situation: if the user navigates away or VS Code is restarted while a modal is open, no `closed` event is emitted, and analysis treats this as a censored interval bounded by `sessionEnd.timestamp`.
 
 ## Recorder Event Schema
 
@@ -104,8 +119,10 @@ export type TestResultsOverviewViewEvent =
         timestamp: number;
         viewId: string;
         exerciseId: number;
+        participationId?: number;
+        resultId?: number;
         durationMs: number;
-        closeReason?: 'button' | 'escape' | 'backdrop';
+        closeReason: 'button' | 'escape' | 'backdrop' | 'replaced';
     };
 
 export type TaskFeedbackViewEvent =
@@ -129,9 +146,11 @@ export type TaskFeedbackViewEvent =
         timestamp: number;
         viewId: string;
         exerciseId: number;
+        participationId?: number;
+        resultId?: number;
         taskName: string;
         durationMs: number;
-        closeReason?: 'button' | 'escape' | 'backdrop';
+        closeReason: 'button' | 'escape' | 'backdrop' | 'replaced';
     };
 ```
 
@@ -151,8 +170,10 @@ recordTestResultsOverviewOpened(payload: {
 recordTestResultsOverviewClosed(payload: {
     viewId: string;
     exerciseId: number;
+    participationId?: number;
+    resultId?: number;
     durationMs: number;
-    closeReason?: 'button' | 'escape' | 'backdrop';
+    closeReason: 'button' | 'escape' | 'backdrop' | 'replaced';
 }): void;
 
 recordTaskFeedbackOpened(payload: {
@@ -170,9 +191,11 @@ recordTaskFeedbackOpened(payload: {
 recordTaskFeedbackClosed(payload: {
     viewId: string;
     exerciseId: number;
+    participationId?: number;
+    resultId?: number;
     taskName: string;
     durationMs: number;
-    closeReason?: 'button' | 'escape' | 'backdrop';
+    closeReason: 'button' | 'escape' | 'backdrop' | 'replaced';
 }): void;
 ```
 
@@ -201,12 +224,14 @@ New optional prop:
 ```ts
 interface TestResultsOverlayProps {
     open: boolean;
-    onClose: (reason?: 'button' | 'escape' | 'backdrop') => void;  // signature widened
+    onClose: (reason: 'button' | 'escape' | 'backdrop') => void;  // signature widened, reason required
     testCases: TestCase[];
     loading?: boolean;
     taskName?: string;  // NEW
 }
 ```
+
+Note: `'replaced'` is NOT a value the overlay itself can produce — it's the caller's responsibility to emit it before opening another overlay. The overlay union is the three user-driven reasons only.
 
 Header rendering:
 
@@ -220,24 +245,26 @@ Empty state:
 const emptyMessage = taskName ? 'No tests in this task.' : 'No test results available.';
 ```
 
-Three close triggers, all calling `onClose(reason)`:
+Four close triggers, all calling `onClose(reason)`. Three are user actions; `'replaced'` is emitted from `ExerciseDetailView` (not the overlay) when the user opens a different modal:
 
-| Source | Code change |
-|---|---|
-| `<IconButton.Close>` | `onClick={() => onClose('button')}` |
-| Escape `keydown` | call `onClose('escape')` (currently calls `onClose()`) |
-| Backdrop `<div>` click | NEW: `onClick={() => onClose('backdrop')}`, with `e.stopPropagation()` on `.modal` |
+| Source | Code change | Where |
+|---|---|---|
+| `<IconButton.Close>` | `onClick={() => onClose('button')}` | inside overlay |
+| Escape `keydown` | call `onClose('escape')` (currently calls `onClose()`) | inside overlay |
+| Backdrop `<div>` click | NEW: `onClick={() => onClose('backdrop')}`, with `e.stopPropagation()` on `.modal` | inside overlay |
+| Modal replaced by opening the other one | `ExerciseDetailView` calls its own close handler with `'replaced'` | in parent before opening new modal |
 
-Backward compatibility: `reason` is optional. Existing callers that pass `() => void` keep compiling — the widened signature accepts that.
+`onClose` signature is widened to require the `reason` (no more optional). Both callers of the overlay (the two instances in `ExerciseDetailView`) are migrated in this same change.
 
 ### 2. `ProblemStatement.tsx` (existing, modified)
 
-New optional prop:
+The component is already typed as `ProblemStatementProps` in `extension/src/webview/views/ExerciseDetail/types.ts` and currently takes `serverRenderedHtml?: string`. We add one new optional prop without renaming anything else:
 
 ```ts
-interface ProblemStatementProps {
-    html: string;
-    onTaskClick?: (task: { taskName: string; testIds: number[] }) => void;
+// types.ts
+export interface ProblemStatementProps {
+    serverRenderedHtml?: string;                                              // existing
+    onTaskClick?: (task: { taskName: string; testIds: number[] }) => void;    // NEW
 }
 ```
 
@@ -268,7 +295,26 @@ Affordance — one CSS rule:
 }
 ```
 
-### 3. `ExerciseDetailView.tsx` (existing, expanded)
+### 3. `SubmissionStatus.tsx` (existing, simplified — required change)
+
+Currently `SubmissionStatus` both renders the "See test results" button AND mounts the `<TestResultsOverlay>`. The overlay rendering is moved out so that `ExerciseDetailView` can own the open/close lifecycle, generate `viewId`s, and enforce the single-modal invariant.
+
+Concrete diff:
+
+```ts
+// SubmissionStatusProps
+interface SubmissionStatusProps {
+    // …existing fields…
+    onOpenTestResults?: () => void;   // NEW — replaces the toggle callback
+    // REMOVED: onToggleTestResults, showTestResults (overlay state lives in parent now)
+}
+```
+
+The button click handler just calls `onOpenTestResults?.()`. The `<TestResultsOverlay>` mount and the `useState` for `showTestResults` are deleted from this file.
+
+The parent (`ExerciseDetailView`) keeps the boolean visibility via its own state and mounts the overlay there.
+
+### 4. `ExerciseDetailView.tsx` (existing, expanded)
 
 Two view states plus their handlers:
 
@@ -290,23 +336,23 @@ const [openOverviewView, setOpenOverviewView] = useState<OpenViewState | null>(n
 const [openTaskView, setOpenTaskView] = useState<(OpenViewState & { taskName: string; filtered: TestCase[] }) | null>(null);
 ```
 
-Single-modal invariant: opening either modal first closes any other open view synthetically (as `closeReason: 'button'` since the user actively clicked something else).
+Single-modal invariant: opening either modal first closes any other open view with `closeReason: 'replaced'`.
 
 ```ts
 const handleOverviewOpen = () => {
-    if (openTaskView) { handleTaskClose('button'); }
+    if (openTaskView) { handleTaskClose('replaced'); }
     // …generate viewId, open
 };
 
 const handleTaskOpen = ({ taskName, testIds }) => {
-    if (openOverviewView) { handleOverviewClose('button'); }
+    if (openOverviewView) { handleOverviewClose('replaced'); }
     // …generate viewId, open
 };
 ```
 
 Two `<TestResultsOverlay>` instances mounted in JSX; both use `createPortal` so they live at `document.body`. Only one is open at any time per invariant.
 
-### 4. `TestCase` shape (existing, expanded)
+### 5. `TestCase` shape (existing, expanded)
 
 Defined in `extension/src/webview/components/exercise/SubmissionStatus.tsx`:
 
@@ -331,7 +377,7 @@ export function filterTestCasesByIds(all: TestCase[], ids: number[]): TestCase[]
 }
 ```
 
-### 5. `viewId` helper
+### 6. `viewId` helper
 
 New file `extension/src/webview/utils/viewId.ts`:
 
@@ -369,11 +415,15 @@ Each open generates a new `viewId`. Two consecutive opens of "doOverlap" become 
 
 | Scenario | Behaviour |
 |---|---|
-| SSR re-render while modal open | Modal state is independent of DOM. `closePayload` is frozen at open. Close still emits the original payload. |
+| SSR re-render while modal open | Modal state is independent of DOM. `closeIdentity` is frozen at open. Close still emits the original payload. |
 | `exerciseData` re-fetched mid-view | Same as above. The `participationId`/`resultId` in the close event are from the open snapshot, not the new data. |
 | Click on a child element inside `.artemis-task` (icon, stats span) | `event.target.closest('.artemis-task[data-test-ids]')` walks up the tree. Works on any descendant click. |
 | Webview never closes the modal (exercise switch, IDE shutdown) | No `closed` event. Recorder file shows an unmatched `opened`. Analysis treats as censored — `durationMs ≤ sessionEnd.timestamp - opened.timestamp`. |
-| Modal A open, user clicks button for modal B | Synthetic `closed` (reason: `'button'`) for A is emitted **before** the `opened` for B. Single-modal invariant preserved. |
+| Modal A open, user clicks button for modal B | `closed` for A is emitted with `closeReason: 'replaced'` **before** the `opened` for B. Single-modal invariant preserved. |
+| Feedback record has no `testCase.id` | `transformFeedbacksToTestCases` writes `id: undefined`. `filterTestCasesByIds` excludes it. Modal shows only the subset with matching IDs — possibly fewer than the task's full `testIds.length` or empty. The `opened`-event `totalTests` reflects the **filtered** length (what the user actually sees), not the SSR `testIds.length`. |
+| All `testCase.id`s missing across feedbacks | Filtered list is empty. Modal still opens (so the click is recorded), shows the empty-state copy. The `opened` event carries `totalTests: 0`. This degenerate case is visible in analysis. |
+| Result re-fetched after open: testIds gone | Live `testCases` prop changes; modal may end up empty if no IDs match anymore. The captured snapshot in close-identity is unchanged. |
+| SSR rendered against `studentParticipations[0]` but view shows practice-mode participation | `feedback.testCase.id` is exercise-level, identical across participations, so IDs still match. **Caveat:** if the two participations have run different subsets of tests, only the tests with feedback records in the currently-displayed participation are visible. The `opened` event uses the visible counts. |
 | Build result arrives during open task modal | `testCases` prop updates live. The visible test list reflects the latest data. The `opened`-event payload retains the original counts; the `closed` event does not re-report new counts. |
 | Two `[task]` markdown entries with the same `data-task-name` | Each open gets its own `viewId`. Analysis groups by `viewId` for unambiguous pairing; secondary grouping by `taskName` is approximate. |
 
@@ -421,24 +471,61 @@ taskFeedbackClosed: {
 
 All four are added to `COMMANDS_REQUIRING_PAYLOAD`.
 
-### Command handlers
+### Command handlers and provider events
 
-A new file `extension/src/extension/controller/commands/testResultsTrackingCommands.ts` (parallel to `utilityCommands.ts`) holds the four handlers. Each handler reads `getPayload<WebCmd<…>>(message)` and forwards to the recorder.
+The wiring follows the existing pattern used for Iris-chat and intervention telemetry: the webview provider exposes typed `vscode.Event`s, and `sessionRecorderWiring.ts` subscribes. The command-handler layer does NOT call the recorder directly, and `CommandContext` is NOT modified.
 
-Sample handler:
+**On `ArtemisWebviewProvider`** — four new EventEmitters and their public `Event` getters:
+
+```ts
+private readonly _onDidOpenTestResultsOverview = new vscode.EventEmitter<TestResultsOverviewOpenedPayload>();
+private readonly _onDidCloseTestResultsOverview = new vscode.EventEmitter<TestResultsOverviewClosedPayload>();
+private readonly _onDidOpenTaskFeedback = new vscode.EventEmitter<TaskFeedbackOpenedPayload>();
+private readonly _onDidCloseTaskFeedback = new vscode.EventEmitter<TaskFeedbackClosedPayload>();
+
+readonly onDidOpenTestResultsOverview = this._onDidOpenTestResultsOverview.event;
+readonly onDidCloseTestResultsOverview = this._onDidCloseTestResultsOverview.event;
+readonly onDidOpenTaskFeedback = this._onDidOpenTaskFeedback.event;
+readonly onDidCloseTaskFeedback = this._onDidCloseTaskFeedback.event;
+```
+
+The payload types live alongside the command definitions in `shared/messageContracts/webviewCommands.ts` so the same shapes describe both the wire format and the provider event.
+
+**New file** `extension/src/extension/controller/commands/testResultsTrackingCommands.ts` — four handlers that read the webview payload and fire the provider event. Each handler is a thin pass-through; no recorder dependency:
 
 ```ts
 private handleTaskFeedbackOpened = async (message: WebviewToExtensionMessage): Promise<void> => {
     try {
         const payload = getPayload<WebCmd<'taskFeedbackOpened'>>(message);
-        this.context.sessionRecorder.recordTaskFeedbackOpened(payload);
+        this.context.artemisWebviewProvider.fireTaskFeedbackOpened(payload);
     } catch (error: unknown) {
-        logger.warn('Failed to record task-feedback open event', LogCategory.TELEMETRY, error);
+        logger.warn('Failed to handle taskFeedbackOpened command', LogCategory.VIEW, error);
     }
 };
 ```
 
-Registration follows the existing pattern in `webViewMessageHandler.ts`.
+A `fireXxx(...)` method on the provider invokes the corresponding EventEmitter (the emitters stay private). This pattern is consistent with how `chatWebviewProvider` exposes `onDidSendIrisChatMessage` — the command handler fires an emitter the provider owns.
+
+**`CommandContext`** stays as-is; the only added field is `artemisWebviewProvider`, which the context already has access to.
+
+**`sessionRecorderWiring.ts`** — extend the existing `wireSessionRecorder` function to subscribe to the four new events:
+
+```ts
+disposables.push(artemisWebviewProvider.onDidOpenTestResultsOverview(payload => {
+    sessionRecorder.recordTestResultsOverviewOpened(payload);
+}));
+disposables.push(artemisWebviewProvider.onDidCloseTestResultsOverview(payload => {
+    sessionRecorder.recordTestResultsOverviewClosed(payload);
+}));
+disposables.push(artemisWebviewProvider.onDidOpenTaskFeedback(payload => {
+    sessionRecorder.recordTaskFeedbackOpened(payload);
+}));
+disposables.push(artemisWebviewProvider.onDidCloseTaskFeedback(payload => {
+    sessionRecorder.recordTaskFeedbackClosed(payload);
+}));
+```
+
+This way the phase-guard inside the recorder remains the single gate. The provider events fire unconditionally; the wiring forwards; the recorder decides whether to actually write.
 
 ## Error Handling & Edge Cases
 
@@ -458,6 +545,23 @@ Registration follows the existing pattern in `webViewMessageHandler.ts`.
 - Recorder methods emit the correct event shape with all four `(type, action)` combinations.
 - Recorder methods are no-ops outside the `recording` phase.
 - `recordInternal` is called with the current generation.
+
+`extension/test/unit/controller/testResultsTrackingCommands.test.ts` — new file:
+
+- Each of the four command handlers reads `getPayload` and fires the matching provider EventEmitter.
+- Handlers do NOT call the recorder directly (the wiring layer does).
+- Malformed payloads are logged but do not throw uncaught.
+
+`extension/test/unit/activation/sessionRecorderWiring.test.ts` — extend:
+
+- `wireSessionRecorder` subscribes to the four new provider events.
+- Firing each event invokes the corresponding recorder method exactly once with the payload as-is.
+- Disposing the wiring removes the subscriptions (no leak).
+
+Contract layer (TypeScript compile-time):
+
+- The four new `WebCmd` payload types exist and shape-match what the recorder method accepts (this is checked by the type system via shared payload types between `webviewCommands.ts` and the provider event emitters).
+- All four command names appear in `COMMANDS_REQUIRING_PAYLOAD`. (Asserted by a small unit test that imports the constant and the `WebviewCmd` keys.)
 
 ### React tests (Vitest, webview-side)
 
@@ -481,7 +585,7 @@ Registration follows the existing pattern in `webViewMessageHandler.ts`.
 - Clicking "See test results" posts `testResultsOverviewOpened` with computed counts.
 - Closing the overlay posts `testResultsOverviewClosed` with a positive `durationMs` and the same `viewId`.
 - Clicking a task in the problem statement posts `taskFeedbackOpened` with filtered `testIds` and counts.
-- Opening overview while task modal is open posts `taskFeedbackClosed` first (synthetic), then `testResultsOverviewOpened`.
+- Opening overview while task modal is open posts `taskFeedbackClosed` (with `closeReason: 'replaced'`) first, then `testResultsOverviewOpened`.
 - The close event uses the `viewId` from the open event (snapshot pattern).
 
 ### Manual test plan
@@ -491,7 +595,7 @@ Registration follows the existing pattern in `webViewMessageHandler.ts`.
 - Close via each of: X-button, Escape, backdrop click. Inspect the recording JSONL to confirm `closeReason` is set correctly.
 - Reproduce the SSR re-render case: change theme while modal is open. Verify the modal stays open and the close event references the original snapshot.
 - Open task modal, then click "See test results" (single-modal invariant). Verify exactly two events fire: `taskFeedbackClosed` then `testResultsOverviewOpened`.
-- Open modal, close VS Code window. Verify the recording shows an unmatched `opened` and no synthetic close.
+- Open modal, close VS Code window. Verify the recording shows an unmatched `opened` and no close event of any kind.
 
 ## Files Touched
 
@@ -499,20 +603,24 @@ Registration follows the existing pattern in `webViewMessageHandler.ts`.
 Modified:
   extension/src/extension/services/telemetry/recording/types.ts
   extension/src/extension/services/telemetry/recording/sessionRecorder.ts
-  extension/src/extension/controller/webViewMessageHandler.ts
-  extension/src/shared/messageContracts/webviewCommands.ts
-  extension/src/webview/components/exercise/TestResultsOverlay.tsx
+  extension/src/extension/provider/artemisWebviewProvider.ts                (4 new EventEmitters + fireXxx methods)
+  extension/src/extension/controller/webViewMessageHandler.ts               (register the 4 new commands)
+  extension/src/extension/activation/sessionRecorderWiring.ts               (subscribe to the 4 new provider events)
+  extension/src/shared/messageContracts/webviewCommands.ts                  (4 new WebCmd + COMMANDS_REQUIRING_PAYLOAD entries)
+  extension/src/webview/components/exercise/TestResultsOverlay.tsx          (taskName prop, onClose(reason), backdrop click)
   extension/src/webview/components/exercise/TestResultsOverlay.module.css   (backdrop click affordance)
-  extension/src/webview/components/exercise/SubmissionStatus.tsx           (optional — propagate onClose(reason?))
-  extension/src/webview/views/ExerciseDetail/components/ProblemStatement.tsx
-  extension/src/webview/views/ExerciseDetail/components/ProblemStatement.module.css
-  extension/src/webview/views/ExerciseDetail/ExerciseDetailView.tsx
-  extension/src/webview/utils/exerciseStatus.ts                            (populate TestCase.id)
+  extension/src/webview/components/exercise/SubmissionStatus.tsx            (remove overlay mount; replace toggle with onOpenTestResults callback)
+  extension/src/webview/views/ExerciseDetail/types.ts                       (ProblemStatementProps gets onTaskClick)
+  extension/src/webview/views/ExerciseDetail/components/ProblemStatement.tsx (click handler via event delegation)
+  extension/src/webview/views/ExerciseDetail/components/ProblemStatement.module.css (cursor + underline on .artemis-task)
+  extension/src/webview/views/ExerciseDetail/ExerciseDetailView.tsx         (own both overlay instances and viewId lifecycle)
+  extension/src/webview/utils/exerciseStatus.ts                             (populate TestCase.id, add filterTestCasesByIds helper)
 
 Created:
   extension/src/extension/controller/commands/testResultsTrackingCommands.ts
   extension/src/webview/utils/viewId.ts
   extension/test/unit/services/telemetry/recording/sessionRecorderViewEvents.test.ts
+  extension/test/unit/controller/testResultsTrackingCommands.test.ts
 ```
 
 ## Out of Scope / Future Work
