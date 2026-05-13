@@ -423,7 +423,7 @@ export class IrisChatSessionService {
         targetContext: ActiveContext,
         loadToken: number,
     ): Promise<number> {
-        const sessions = await fetchSessionsWithMessages(this.deps.artemisApiService!, targetContext);
+        const sessions = await fetchSessionsWithMessages(this.deps.artemisApiService!, this.deps.contextStore, targetContext);
 
         logger.info(`Fetched ${sessions.length} session(s) with messages from Artemis`, LogCategory.IRIS_CHAT);
 
