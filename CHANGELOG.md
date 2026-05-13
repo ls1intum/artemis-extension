@@ -5,6 +5,7 @@ All notable changes to the Artemis VS Code extension will be documented in this 
 ## [Unreleased]
 
 - **Live Recording Viewer**: Faster live view (no more lag on long sessions), undo/redo for markers via Cmd/Ctrl+Z, and live sessions appear in the list immediately.
+- **WebSocket Status Bar**: No longer shows a misleading red "WS Disconnected" indicator while logged out (unless `artemis.showWebSocketStatusBar` is explicitly enabled).
 
 ## [0.4.4] - 2026-05-10
 

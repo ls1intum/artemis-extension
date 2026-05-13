@@ -111,9 +111,13 @@ suite('WebSocketStatusBarService', () => {
         capturedCommandHandler = undefined;
     });
 
-    // Helper to create the service and flush pending async operations
-    function createService(): WebSocketStatusBarService {
-        return new WebSocketStatusBarService(mockWsService as unknown as ArtemisWebsocketService);
+    // Helper to create the service. Defaults to authenticated=true so the
+    // existing logged-in visibility scenarios behave as before; pass false
+    // explicitly to exercise the logged-out gate.
+    function createService(authenticated = true): WebSocketStatusBarService {
+        const service = new WebSocketStatusBarService(mockWsService as unknown as ArtemisWebsocketService);
+        service.setAuthenticated(authenticated);
+        return service;
     }
 
     suite('visibility', () => {
@@ -345,6 +349,95 @@ suite('WebSocketStatusBarService', () => {
             } finally {
                 clock.restore();
             }
+        });
+    });
+
+    suite('authentication gate', () => {
+        test('logged out + setting off + state disconnected → hidden', () => {
+            configValues.showWebSocketStatusBar = false;
+
+            createService(false);
+            mockStatusBarItem.show.resetHistory();
+            mockStatusBarItem.hide.resetHistory();
+
+            driveState('disconnected');
+
+            assert.ok(
+                mockStatusBarItem.hide.called,
+                'Status bar must be hidden when logged out and setting is off, even with disconnected state'
+            );
+            assert.ok(
+                !mockStatusBarItem.show.called,
+                'Status bar must NOT be shown when logged out and setting is off'
+            );
+        });
+
+        test('logged out + setting on + state disconnected → shown', () => {
+            configValues.showWebSocketStatusBar = true;
+
+            createService(false);
+            mockStatusBarItem.show.resetHistory();
+            mockStatusBarItem.hide.resetHistory();
+
+            driveState('disconnected');
+
+            assert.ok(
+                mockStatusBarItem.show.called,
+                'Status bar must be shown when logged out but setting is explicitly on'
+            );
+        });
+
+        test('logged out → logged in transition re-applies visibility (logged-in rules return)', () => {
+            configValues.showWebSocketStatusBar = false;
+
+            const service = createService(false);
+            driveState('disconnected');
+            mockStatusBarItem.show.resetHistory();
+            mockStatusBarItem.hide.resetHistory();
+
+            // Transition: user logs in
+            service.setAuthenticated(true);
+
+            // With setting off + logged in + state disconnected → needs attention → show
+            assert.ok(
+                mockStatusBarItem.show.called,
+                'After login, logged-in visibility rules must take over (disconnected → show)'
+            );
+        });
+
+        test('logged in → logged out transition re-applies visibility (statusbar hides)', () => {
+            configValues.showWebSocketStatusBar = false;
+
+            const service = createService(true);
+            driveState('disconnected');
+            assert.ok(mockStatusBarItem.show.called, 'precondition: bar visible while logged-in disconnected');
+            mockStatusBarItem.show.resetHistory();
+            mockStatusBarItem.hide.resetHistory();
+
+            // Transition: user logs out
+            service.setAuthenticated(false);
+
+            assert.ok(
+                mockStatusBarItem.hide.called,
+                'After logout, status bar must hide (no WebSocket exists)'
+            );
+        });
+
+        test('setAuthenticated is idempotent (same value is a no-op)', () => {
+            configValues.showWebSocketStatusBar = false;
+
+            const service = createService(true);
+            driveState('disconnected');
+            mockStatusBarItem.show.resetHistory();
+            mockStatusBarItem.hide.resetHistory();
+
+            // Same value as current → no visibility re-apply
+            service.setAuthenticated(true);
+
+            assert.ok(
+                !mockStatusBarItem.show.called && !mockStatusBarItem.hide.called,
+                'setAuthenticated with unchanged value must not trigger show/hide'
+            );
         });
     });
 
