@@ -28,6 +28,28 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
     const [contextSwitching, setContextSwitching] = useState(false);
     const previousContextId = useRef<number | null>(null);
     const sideMenuRef = useRef<HTMLDivElement>(null);
+    const containerRef = useRef<HTMLDivElement>(null);
+    const inputSectionRef = useRef<HTMLDivElement>(null);
+
+    // Publish the input section's measured height as a CSS variable so the
+    // ContextSelector dropdown can anchor its bottom edge to the actual layout
+    // (instead of a viewport-relative magic number). Without this the dropdown
+    // either falls short of the input or overshoots it depending on banner /
+    // referenced-file visibility.
+    useEffect(() => {
+        const inputEl = inputSectionRef.current;
+        const rootEl = containerRef.current;
+        if (!inputEl || !rootEl) {
+            return;
+        }
+        const update = () => {
+            rootEl.style.setProperty('--iris-input-height', `${inputEl.offsetHeight}px`);
+        };
+        update();
+        const ro = new ResizeObserver(update);
+        ro.observe(inputEl);
+        return () => ro.disconnect();
+    }, []);
 
     // Close side menu when clicking outside
     useClickOutside(sideMenuRef, sideMenuOpen, () => setSideMenuOpen(false));
@@ -280,7 +302,7 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
     const irisLogoUri = document.getElementById('root')?.dataset.irisLogoUri;
 
     return (
-        <div className={styles.container}>
+        <div className={styles.container} ref={containerRef}>
             {/* Header */}
             <div className={styles.header}>
                 <div className={styles.headerLeft}>
@@ -448,7 +470,7 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
             </div>
 
             {/* Input section */}
-            <div className={styles.inputSection}>
+            <div className={styles.inputSection} ref={inputSectionRef}>
                 {/* Referenced files */}
                 <ReferencedFiles
                     files={store.referencedFiles}

@@ -17,7 +17,9 @@ function isPastDeadline(ex: TrackedExercise, nowMs: number): boolean {
 export function buildContextSnapshot(state: StoredState): ContextSnapshot {
     const active = state.activeContext;
     const activeKey = active ? getContextKey(active.type, active.id) : null;
-    const sessions = activeKey ? [...(state.sessions[activeKey] ?? [])] : [];
+    const sessions = activeKey
+        ? [...(state.sessions[activeKey] ?? [])].sort((a, b) => b.lastActivity - a.lastActivity)
+        : [];
     const activeSession =
         sessions.find(session => session.id === state.activeSessionId) ?? sessions[0] ?? null;
 
