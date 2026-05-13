@@ -83,7 +83,12 @@
     border: none;
     border-top: 1px solid var(--vscode-panel-border);
     box-shadow: none;
-    height: calc(100vh - 250px);
+    /*
+     * Height = viewport - chat header (~42px) - selector header (~48px) - actual input height.
+     * --iris-input-height is published by IrisChatView via a ResizeObserver on the
+     * input section; the 130px fallback matches the input's typical resting height.
+     */
+    height: calc(100vh - 90px - var(--iris-input-height, 130px));
     display: flex;
     flex-direction: column;
     z-index: 1000;
@@ -94,6 +99,17 @@
     flex: 1 1 0;
     min-height: 0;
     overflow-y: auto;
+    /*
+     * Pure-CSS scroll shadows (Lea Verou pattern): the two "local" gradients
+     * are anchored to the content and mask the corresponding "scroll" shadows
+     * (anchored to the viewport) when the user is at that edge. Result:
+     * shadows appear only when there is more content in that direction.
+     */
+    background:
+        linear-gradient(var(--theme-background) 30%, transparent) 0 0 / 100% 24px no-repeat local,
+        linear-gradient(transparent, var(--theme-background) 70%) 0 100% / 100% 24px no-repeat local,
+        radial-gradient(farthest-side at 50% 0, rgba(0, 0, 0, 0.25), transparent) 0 0 / 100% 10px no-repeat,
+        radial-gradient(farthest-side at 50% 100%, rgba(0, 0, 0, 0.25), transparent) 0 100% / 100% 10px no-repeat;
 }
 
 .searchContainer {
@@ -199,6 +215,13 @@
     padding-left: 8px;
     flex-shrink: 0;
     color: var(--vscode-descriptionForeground);
+    /*
+     * Reserve a consistent slot so rows without a course tag align the same
+     * way as rows with one. Rows that would otherwise have no right-side
+     * content render an invisible tag with this minimum width.
+     */
+    min-width: 4em;
+    text-align: right;
 }
 
 .sessionItem {

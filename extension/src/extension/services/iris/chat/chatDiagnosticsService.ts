@@ -65,6 +65,7 @@ export class ChatDiagnosticsService {
             snapshot.exercises.forEach((exercise, idx) => {
                 report += `  ${idx + 1}. [${exercise.id}] ${exercise.title}${exercise.isWorkspace ? ' ⭐' : ''}\n`;
                 report += `     Short Name: ${exercise.shortName ?? '—'}\n`;
+                report += `     Course ID: ${exercise.courseId ?? '—'}\n`;
                 if (exercise.releaseDate) {
                     report += `     Release: ${exercise.releaseDate}\n`;
                 }
