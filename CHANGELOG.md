@@ -7,6 +7,7 @@ All notable changes to the Artemis VS Code extension will be documented in this 
 - **Live Recording Viewer**: Faster live view (no more lag on long sessions), undo/redo for markers via Cmd/Ctrl+Z, and live sessions appear in the list immediately.
 - **WebSocket Status Bar**: No longer shows a misleading red "WS Disconnected" indicator while logged out (unless `artemis.showWebSocketStatusBar` is explicitly enabled).
 - **Iris Context Dropdown**: Conversations sort newest-first, the dropdown panel now spans exactly down to the chat input (no input controls peek through), scroll shadows appear when lists overflow, and exercise rows align consistently whether or not a course tag is shown.
+- **Iris API**: Adapted to Artemis PR #12504 (unified chat session endpoints). The extension now uses `/api/iris/chat/sessions{,/current}?mode=…&entityId=…` and `/api/iris/chat/{courseId}/sessions/overview` instead of the legacy per-context routes. Course resolution for exercise contexts is extracted into a shared helper.
 
 ## [0.4.4] - 2026-05-10
 
