@@ -393,65 +393,6 @@ export class ArtemisApiService {
         return response.json() as Promise<IrisSettingsResponse>;
     }
 
-    // Get or create current chat session for a course
-    async getCurrentCourseChat(courseId: number): Promise<IrisChatSession> {
-        const response = await this.makeRequest(
-            `/api/iris/course-chat/${courseId}/sessions/current`,
-            { method: 'POST' }
-        );
-        return response.json() as Promise<IrisChatSession>;
-    }
-
-    // Get or create current chat session for an exercise
-    async getCurrentExerciseChat(exerciseId: number): Promise<IrisChatSession> {
-        const response = await this.makeRequest(
-            `/api/iris/programming-exercise-chat/${exerciseId}/sessions/current`,
-            { method: 'POST' }
-        );
-        return response.json() as Promise<IrisChatSession>;
-    }
-
-    // Get all chat sessions for an exercise (metadata only, lightweight)
-    async getExerciseChatSessions(exerciseId: number): Promise<IrisChatSession[]> {
-        const response = await this.makeRequest(`/api/iris/programming-exercise-chat/${exerciseId}/sessions`);
-        return response.json() as Promise<IrisChatSession[]>;
-    }
-
-    // Get all chat sessions for a course WITH messages (heavy operation)
-    // Uses the chat-history endpoint which returns full session data
-    async getCourseChatSessionsWithMessages(courseId: number): Promise<IrisChatSession[]> {
-        const response = await this.makeRequest(`/api/iris/chat-history/${courseId}/sessions`);
-        return response.json() as Promise<IrisChatSession[]>;
-    }
-
-    // Get all chat sessions for an exercise WITH messages (heavy operation)
-    // This fetches session list first, then fetches messages for each session
-    async getExerciseChatSessionsWithMessages(exerciseId: number): Promise<IrisChatSession[]> {
-        // First get the session list (metadata only)
-        const sessions = await this.getExerciseChatSessions(exerciseId);
-
-        // Then fetch messages for each session
-        const sessionsWithMessages = await Promise.all(
-            sessions.map(async (session) => {
-                try {
-                    const messages = await this.getChatMessages(session.id);
-                    return {
-                        ...session,
-                        messages: messages
-                    };
-                } catch (error) {
-                    logger.warn(`Failed to fetch messages for session ${session.id}: ${error}`, LogCategory.API);
-                    return {
-                        ...session,
-                        messages: []
-                    };
-                }
-            })
-        );
-
-        return sessionsWithMessages;
-    }
-
     // Get messages for a chat session
     async getChatMessages(sessionId: number): Promise<IrisChatMessage[]> {
         const response = await this.makeRequest(`/api/iris/sessions/${sessionId}/messages`);
@@ -516,24 +457,6 @@ export class ArtemisApiService {
             }
             throw error;
         }
-    }
-
-    // Create a new chat session for a course
-    async createCourseChatSession(courseId: number): Promise<IrisChatSession> {
-        const response = await this.makeRequest(
-            `/api/iris/course-chat/${courseId}/sessions`,
-            { method: 'POST' }
-        );
-        return response.json() as Promise<IrisChatSession>;
-    }
-
-    // Create a new chat session for an exercise
-    async createExerciseChatSession(exerciseId: number): Promise<IrisChatSession> {
-        const response = await this.makeRequest(
-            `/api/iris/programming-exercise-chat/${exerciseId}/sessions`,
-            { method: 'POST' }
-        );
-        return response.json() as Promise<IrisChatSession>;
     }
 
     // Mark a message as helpful
