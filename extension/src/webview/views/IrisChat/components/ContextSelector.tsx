@@ -328,9 +328,13 @@ export function ContextSelector({
                                                 <span className={styles.itemText}>
                                                     {exercise.title}
                                                 </span>
-                                                {courseTag && (
-                                                    <span className={styles.itemTag}>{courseTag}</span>
-                                                )}
+                                                <span
+                                                    className={styles.itemTag}
+                                                    aria-hidden={courseTag ? undefined : true}
+                                                    style={courseTag ? undefined : { visibility: 'hidden' }}
+                                                >
+                                                    {courseTag ?? ' '}
+                                                </span>
                                             </button>
                                         );
                                     })}
