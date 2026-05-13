@@ -653,6 +653,48 @@ suite('Artemis API Service Test Suite', () => {
         await apiService.sendChatMessage(sessionId, content);
     });
 
+    test('should get current chat session via unified endpoint', async () => {
+        const entityId = 42;
+        global.fetch = async (url: any, options: any) => {
+            assert.ok(url.includes('/api/iris/chat/sessions/current'));
+            assert.ok(url.includes('mode=COURSE_CHAT'));
+            assert.ok(url.includes(`entityId=${entityId}`));
+            assert.strictEqual(options.method, 'POST');
+            return { ok: true, status: 200, json: async () => ({ id: 123 }) } as any;
+        };
+        const session = await apiService.getCurrentChat('COURSE_CHAT', entityId);
+        assert.strictEqual(session.id, 123);
+    });
+
+    test('should create chat session via unified endpoint', async () => {
+        const entityId = 99;
+        global.fetch = async (url: any, options: any) => {
+            assert.ok(url.includes('/api/iris/chat/sessions'));
+            assert.ok(!url.includes('/sessions/current'));
+            assert.ok(url.includes('mode=PROGRAMMING_EXERCISE_CHAT'));
+            assert.ok(url.includes(`entityId=${entityId}`));
+            assert.strictEqual(options.method, 'POST');
+            return { ok: true, status: 200, json: async () => ({ id: 7 }) } as any;
+        };
+        const session = await apiService.createChatSession('PROGRAMMING_EXERCISE_CHAT', entityId);
+        assert.strictEqual(session.id, 7);
+    });
+
+    test('should list chat sessions for course via overview endpoint', async () => {
+        const courseId = 5;
+        const mockSummaries = [
+            { id: 1, entityId: 5, mode: 'COURSE_CHAT', creationDate: '2026-05-13T00:00:00Z' },
+            { id: 2, entityId: 123, mode: 'PROGRAMMING_EXERCISE_CHAT', creationDate: '2026-05-13T01:00:00Z' },
+        ];
+        global.fetch = async (url: any, options: any) => {
+            assert.ok(url.includes(`/api/iris/chat/${courseId}/sessions/overview`));
+            assert.ok(!options?.method || options.method === 'GET');
+            return { ok: true, status: 200, json: async () => mockSummaries } as any;
+        };
+        const summaries = await apiService.listChatSessionsForCourse(courseId);
+        assert.deepStrictEqual(summaries, mockSummaries);
+    });
+
     test('should throw when authentication succeeds without cookie', async () => {
         let storeCalled = false;
         (authManager as any).storeArtemisCredentials = async () => {

@@ -12,7 +12,7 @@ import type {
 import type {
     CourseDashboardResponse, CourseDashboardEntry, CourseDashboardCourse,
     ExerciseDetailsResponse, ResultSummary, IrisChatSession, IrisChatMessage, IrisSettingsResponse,
-    ExamSummary, StudentExam,
+    ExamSummary, StudentExam, IrisChatMode, IrisChatSessionSummary,
 } from '../types';
 import { logger, LogCategory } from '../services/loggingService';
 
@@ -545,6 +545,30 @@ export class ArtemisApiService {
                 body: JSON.stringify(helpful)
             }
         );
+    }
+
+    // Unified Iris chat session endpoints (Artemis develop, PR #12504).
+    async getCurrentChat(mode: IrisChatMode, entityId: number): Promise<IrisChatSession> {
+        const params = new URLSearchParams({ mode, entityId: String(entityId) });
+        const response = await this.makeRequest(
+            `/api/iris/chat/sessions/current?${params.toString()}`,
+            { method: 'POST' },
+        );
+        return response.json() as Promise<IrisChatSession>;
+    }
+
+    async createChatSession(mode: IrisChatMode, entityId: number): Promise<IrisChatSession> {
+        const params = new URLSearchParams({ mode, entityId: String(entityId) });
+        const response = await this.makeRequest(
+            `/api/iris/chat/sessions?${params.toString()}`,
+            { method: 'POST' },
+        );
+        return response.json() as Promise<IrisChatSession>;
+    }
+
+    async listChatSessionsForCourse(courseId: number): Promise<IrisChatSessionSummary[]> {
+        const response = await this.makeRequest(`/api/iris/chat/${courseId}/sessions/overview`);
+        return response.json() as Promise<IrisChatSessionSummary[]>;
     }
 
     // Get exam sidebar data for a specific course (student-accessible).
