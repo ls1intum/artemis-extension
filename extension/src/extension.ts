@@ -66,6 +66,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
 	const updateAuthContext = async (isAuthenticated: boolean) => {
 		await vscode.commands.executeCommand('setContext', 'iris:authenticated', isAuthenticated);
+		websocketStatusBarService.setAuthenticated(isAuthenticated);
 		if (isAuthenticated) {
 			artemisApiService.resetAuthExpiredGuard();
 			void artemisWebsocketService.connect().catch(error => {
@@ -185,6 +186,7 @@ export async function activate(context: vscode.ExtensionContext) {
 	try {
 		const isAuthenticated = await authManager.hasAuthToken();
 		await vscode.commands.executeCommand('setContext', 'iris:authenticated', isAuthenticated);
+		websocketStatusBarService.setAuthenticated(isAuthenticated);
 		if (isAuthenticated) {
 			void artemisWebsocketService.connect().catch(error => {
 				logger.error('Failed to connect to Artemis WebSocket on startup', LogCategory.WEBSOCKET, error);
@@ -193,6 +195,7 @@ export async function activate(context: vscode.ExtensionContext) {
 	} catch (error) {
 		logger.error('Error checking initial auth state', LogCategory.AUTH, error);
 		await vscode.commands.executeCommand('setContext', 'iris:authenticated', false);
+		websocketStatusBarService.setAuthenticated(false);
 	}
 
 	// Session recorder wiring
