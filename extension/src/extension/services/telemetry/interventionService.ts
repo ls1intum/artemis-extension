@@ -97,22 +97,15 @@ export class InterventionService implements vscode.Disposable, SessionResettable
         // during an active subtle hint, this fires onDidAcceptIntervention and
         // opens Iris Chat.
         //
-        // Defensive try-catch: in test environments multiple InterventionService
-        // instances may be created (e.g. via TelemetryManager) without the
-        // previous instance being disposed. VS Code throws on duplicate command
-        // registration; we swallow the error so tests and any edge-case
-        // re-activation paths don't hard-crash. In production there is only
-        // ever one InterventionService instance.
-        try {
-            const subtleAcceptCmd = vscode.commands.registerCommand(
-                'iris.intervention.acceptSubtle',
-                () => this.handleAcceptSubtle(),
-            );
-            this._disposables.push(subtleAcceptCmd);
-        } catch {
-            // Command already registered — another InterventionService instance
-            // is active. Status bar clicks will route to that instance's handler.
-        }
+        // Tests must dispose previous instances before creating a new one;
+        // VS Code throws on duplicate command registration and that exception
+        // is intentionally surfaced now so test pollution can't silently route
+        // status-bar clicks to a stale handler.
+        const subtleAcceptCmd = vscode.commands.registerCommand(
+            'iris.intervention.acceptSubtle',
+            () => this.handleAcceptSubtle(),
+        );
+        this._disposables.push(subtleAcceptCmd);
     }
 
     public dispose(): void {

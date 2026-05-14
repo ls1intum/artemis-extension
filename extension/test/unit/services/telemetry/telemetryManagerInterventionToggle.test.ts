@@ -105,6 +105,10 @@ suite('TelemetryManager — intervention UI toggle', () => {
             command: undefined,
         };
         sandbox.stub(vscode.window, 'createStatusBarItem').returns(statusBarItem as unknown as vscode.StatusBarItem);
+        // Stub command registration so InterventionService construction in
+        // multiple tests does not collide on the global command registry.
+        // sandbox.restore() in teardown guarantees cleanup even on throw.
+        sandbox.stub(vscode.commands, 'registerCommand').returns(new vscode.Disposable(() => { /* noop */ }));
         showInfoStub = sandbox.stub(vscode.window, 'showInformationMessage');
         showWarnStub = sandbox.stub(vscode.window, 'showWarningMessage');
     });

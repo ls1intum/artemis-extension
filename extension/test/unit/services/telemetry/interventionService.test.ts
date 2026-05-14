@@ -72,6 +72,10 @@ suite('Block C — InterventionService: subtle accept/dismiss', () => {
 
     setup(() => {
         sandbox = sinon.createSandbox();
+        // The extension under test has already registered the subtle-accept
+        // command during activate(). Stub registerCommand so test-scoped
+        // InterventionService instances don't collide on the global registry.
+        sandbox.stub(vscode.commands, 'registerCommand').returns(new vscode.Disposable(() => { /* noop */ }));
         service = new InterventionService();
     });
 
@@ -163,6 +167,7 @@ suite('Block C — InterventionService: blocked decisions and rate-limiting', ()
 
     setup(() => {
         sandbox = sinon.createSandbox();
+        sandbox.stub(vscode.commands, 'registerCommand').returns(new vscode.Disposable(() => { /* noop */ }));
         service = new InterventionService();
     });
 
@@ -507,6 +512,17 @@ suite('Block C — InterventionDecisionEngine: rawWanted and blockedReason', () 
 });
 
 suite('Block C — TelemetryManager dispatch routing', () => {
+    let sandbox: sinon.SinonSandbox;
+
+    setup(() => {
+        sandbox = sinon.createSandbox();
+        sandbox.stub(vscode.commands, 'registerCommand').returns(new vscode.Disposable(() => { /* noop */ }));
+    });
+
+    teardown(() => {
+        sandbox.restore();
+    });
+
     // Test 9: shouldIntervene=false && rawWanted=false → no block event
     // We test this via InterventionDecisionEngine + InterventionService integration
     // since TelemetryManager._evaluateAndIntervene is private.
@@ -586,6 +602,7 @@ suite('InterventionService.hideHint() — full status-bar reset', () => {
             accessibilityInformation: undefined,
         } as unknown as vscode.StatusBarItem;
         sandbox.stub(vscode.window, 'createStatusBarItem').returns(statusBarItem);
+        sandbox.stub(vscode.commands, 'registerCommand').returns(new vscode.Disposable(() => { /* noop */ }));
         svc = new InterventionService();
     });
 
@@ -607,3 +624,4 @@ suite('InterventionService.hideHint() — full status-bar reset', () => {
         assert.strictEqual(statusBarItem.backgroundColor, undefined);
     });
 });
+

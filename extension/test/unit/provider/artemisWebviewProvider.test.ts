@@ -117,8 +117,14 @@ suite('ArtemisWebviewProvider Test Suite', () => {
     let mockContext: MockExtensionContext;
     let mockAuthManager: MockAuthManager;
     let mockApiService: MockArtemisApiService;
+    let suiteSandbox: sinon.SinonSandbox;
 
     setup(() => {
+        // Stub command registration so concurrent TelemetryManager
+        // instances in this suite do not collide on the global registry.
+        suiteSandbox = sinon.createSandbox();
+        suiteSandbox.stub(vscode.commands, 'registerCommand').returns(new vscode.Disposable(() => { /* noop */ }));
+
         mockContext = new MockExtensionContext();
         mockAuthManager = new MockAuthManager(mockContext);
         mockApiService = new MockArtemisApiService(mockAuthManager);
@@ -140,6 +146,10 @@ suite('ArtemisWebviewProvider Test Suite', () => {
             mockTelemetry,
             mockUpdateAuth,
         );
+    });
+
+    teardown(() => {
+        suiteSandbox.restore();
     });
 
     test('should be instantiated', () => {
@@ -228,6 +238,7 @@ suite('Panel hide/show state persistence', () => {
 
     setup(async () => {
         sandbox = sinon.createSandbox();
+        sandbox.stub(vscode.commands, 'registerCommand').returns(new vscode.Disposable(() => { /* noop */ }));
 
         mockContext = new MockExtensionContext();
         mockAuthManager = new MockAuthManager(mockContext);
