@@ -350,8 +350,7 @@ suite('IrisChatSessionService Test Suite', () => {
         test('should not load sessions when no active context', async () => {
             await chatSessionService.loadAllSessionsForContext();
 
-            assert.ok(mockApiService.getCourseChatSessionsWithMessages.notCalled);
-            assert.ok(mockApiService.getExerciseChatSessions.notCalled);
+            assert.ok(mockApiService.listChatSessionsForCourse.notCalled);
         });
 
         test('should not load sessions when API service is not available', async () => {
@@ -423,18 +422,27 @@ suite('IrisChatSessionService Test Suite', () => {
                 settings: { enabled: true }
             });
 
-            mockApiService.getCourseChatSessionsWithMessages.resolves([
-                { id: 1, creationDate: '2024-01-01T10:00:00Z', messages: [{ sender: 'USER', content: [{ textContent: 'Hello' }] }] },
-                { id: 2, creationDate: '2024-01-02T10:00:00Z', messages: [{ sender: 'USER', content: [{ textContent: 'Hi there' }] }] }
+            mockApiService.listChatSessionsForCourse.resolves([
+                { id: 1, entityId: 101, mode: 'COURSE_CHAT', creationDate: '2024-01-01T10:00:00Z' },
+                { id: 2, entityId: 101, mode: 'COURSE_CHAT', creationDate: '2024-01-02T10:00:00Z' },
+            ]);
+            mockApiService.getChatMessages.withArgs(1).resolves([
+                { id: 100, sender: 'USER', content: [{ textContent: 'Hello' }] },
+            ]);
+            mockApiService.getChatMessages.withArgs(2).resolves([
+                { id: 200, sender: 'USER', content: [{ textContent: 'Hi there' }] },
             ]);
 
             // Stub initializeSession for the _loadIrisMessages call
-            mockIrisWebSocketSessionClient.initializeSession.resolves(1);
-            mockApiService.getChatMessages.resolves([]);
+            mockIrisWebSocketSessionClient.initializeSession.resolves(2);
+            // Second call for hydration of the active session
+            mockApiService.getChatMessages.withArgs(2).resolves([
+                { id: 200, sender: 'USER', content: [{ textContent: 'Hi there' }] },
+            ]);
 
             await chatSessionService.loadAllSessionsForContext();
 
-            assert.ok(mockApiService.getCourseChatSessionsWithMessages.calledOnceWith(101));
+            assert.ok(mockApiService.listChatSessionsForCourse.calledOnceWith(101));
             assert.ok(onPostSnapshotSpy.called);
 
             const snapshot = contextStore.snapshot();
@@ -458,16 +466,18 @@ suite('IrisChatSessionService Test Suite', () => {
                 settings: { enabled: true }
             });
 
-            mockApiService.getExerciseChatSessionsWithMessages.resolves([
-                { id: 1, creationDate: '2024-01-01T10:00:00Z', messages: [{ sender: 'USER', content: [{ textContent: 'Question' }] }] }
+            mockApiService.listChatSessionsForCourse.resolves([
+                { id: 1, entityId: 123, mode: 'PROGRAMMING_EXERCISE_CHAT', creationDate: '2024-01-01T10:00:00Z' },
+            ]);
+            mockApiService.getChatMessages.withArgs(1).resolves([
+                { id: 100, sender: 'USER', content: [{ textContent: 'Question' }] },
             ]);
 
             mockIrisWebSocketSessionClient.initializeSession.resolves(1);
-            mockApiService.getChatMessages.resolves([]);
 
             await chatSessionService.loadAllSessionsForContext();
 
-            assert.ok(mockApiService.getExerciseChatSessionsWithMessages.calledOnceWith(123));
+            assert.ok(mockApiService.listChatSessionsForCourse.calledOnceWith(101));
         });
 
         test('should create new session when no sessions exist', async () => {
@@ -486,7 +496,7 @@ suite('IrisChatSessionService Test Suite', () => {
                 settings: { enabled: true }
             });
 
-            mockApiService.getCourseChatSessionsWithMessages.resolves([]);
+            mockApiService.listChatSessionsForCourse.resolves([]);
 
             // Stub createNewSession for the fallback
             mockIrisWebSocketSessionClient.createNewSession.resolves(42);
@@ -520,18 +530,27 @@ suite('IrisChatSessionService Test Suite', () => {
             // Use non-empty sessions — empty ones are intentionally skipped
             // by importSessionsToStore (they would not contribute to the
             // session list, breaking the assertion below).
-            mockApiService.getCourseChatSessionsWithMessages.resolves([
-                { id: 1, creationDate: '2024-01-01T10:00:00Z', messages: [{ sender: 'USER', content: [{ textContent: 'Q1' }] }] },
-                { id: 2, creationDate: '2024-01-03T10:00:00Z', messages: [{ sender: 'USER', content: [{ textContent: 'Q2' }] }] }, // Newest
-                { id: 3, creationDate: '2024-01-02T10:00:00Z', messages: [{ sender: 'USER', content: [{ textContent: 'Q3' }] }] }
+            mockApiService.listChatSessionsForCourse.resolves([
+                { id: 1, entityId: 101, mode: 'COURSE_CHAT', creationDate: '2024-01-01T10:00:00Z' },
+                { id: 2, entityId: 101, mode: 'COURSE_CHAT', creationDate: '2024-01-03T10:00:00Z' }, // Newest
+                { id: 3, entityId: 101, mode: 'COURSE_CHAT', creationDate: '2024-01-02T10:00:00Z' },
+            ]);
+            mockApiService.getChatMessages.withArgs(1).resolves([
+                { id: 10, sender: 'USER', content: [{ textContent: 'Q1' }] },
+            ]);
+            mockApiService.getChatMessages.withArgs(2).resolves([
+                { id: 20, sender: 'USER', content: [{ textContent: 'Q2' }] },
+            ]);
+            mockApiService.getChatMessages.withArgs(3).resolves([
+                { id: 30, sender: 'USER', content: [{ textContent: 'Q3' }] },
             ]);
 
             mockIrisWebSocketSessionClient.initializeSession.resolves(2);
             // Match the imported session's messageCount=1 so the stale
             // session-id cleanup branch in initializeIrisSessionAndLoadMessages
             // does not strip the active session's artemisSessionId.
-            mockApiService.getChatMessages.resolves([
-                { id: 1, sender: 'USER', content: [{ textContent: 'Q2' }], sentAt: '2024-01-03T10:00:00Z' } as never
+            mockApiService.getChatMessages.withArgs(2).resolves([
+                { id: 20, sender: 'USER', content: [{ textContent: 'Q2' }], sentAt: '2024-01-03T10:00:00Z' } as never
             ]);
 
             await chatSessionService.loadAllSessionsForContext();
@@ -560,7 +579,7 @@ suite('IrisChatSessionService Test Suite', () => {
                 settings: { enabled: true }
             });
 
-            mockApiService.getCourseChatSessionsWithMessages.callsFake(async () => {
+            mockApiService.listChatSessionsForCourse.callsFake(async () => {
                 // Change context during loading
                 const context2: ActiveContext = {
                     type: 'exercise',
@@ -597,7 +616,7 @@ suite('IrisChatSessionService Test Suite', () => {
                 settings: { enabled: true }
             });
 
-            mockApiService.getCourseChatSessionsWithMessages.rejects(new Error('API Error'));
+            mockApiService.listChatSessionsForCourse.rejects(new Error('API Error'));
 
             mockIrisWebSocketSessionClient.createNewSession.resolves(42);
 
@@ -635,15 +654,18 @@ suite('IrisChatSessionService Test Suite', () => {
             // Non-empty server session — empty ones are skipped by
             // importSessionsToStore, which would defeat the assertion that
             // the API session ends up in the store.
-            mockApiService.getCourseChatSessionsWithMessages.resolves([
-                { id: 1, creationDate: '2024-01-01T10:00:00Z', messages: [{ sender: 'USER', content: [{ textContent: 'Hi' }] }] }
+            mockApiService.listChatSessionsForCourse.resolves([
+                { id: 1, entityId: 101, mode: 'COURSE_CHAT', creationDate: '2024-01-01T10:00:00Z' },
+            ]);
+            mockApiService.getChatMessages.withArgs(1).resolves([
+                { id: 100, sender: 'USER', content: [{ textContent: 'Hi' }] },
             ]);
 
             mockIrisWebSocketSessionClient.initializeSession.resolves(1);
             // Return a message matching the imported session so the stale
             // cleanup branch does not strip the artemisSessionId.
-            mockApiService.getChatMessages.resolves([
-                { id: 1, sender: 'USER', content: [{ textContent: 'Hi' }], sentAt: '2024-01-01T10:00:00Z' } as never
+            mockApiService.getChatMessages.withArgs(1).resolves([
+                { id: 100, sender: 'USER', content: [{ textContent: 'Hi' }], sentAt: '2024-01-01T10:00:00Z' } as never
             ]);
 
             await chatSessionService.loadAllSessionsForContext();
@@ -672,7 +694,7 @@ suite('IrisChatSessionService Test Suite', () => {
                 settings: { enabled: true }
             });
 
-            mockApiService.getCourseChatSessionsWithMessages.resolves([]);
+            mockApiService.listChatSessionsForCourse.resolves([]);
             mockIrisWebSocketSessionClient.createNewSession.resolves(42);
 
             await chatSessionService.loadAllSessionsForContext();
@@ -698,11 +720,15 @@ suite('IrisChatSessionService Test Suite', () => {
             contextStore.setActiveContext(context);
 
             mockApiService.getIrisCourseChatSettings.resolves({ settings: { enabled: true } });
-            mockApiService.getCourseChatSessionsWithMessages.resolves([
-                { id: 7, creationDate: '2024-02-01T10:00:00Z', messages: [{ sender: 'USER', content: [{ textContent: 'Hello' }] }] }
+            mockApiService.listChatSessionsForCourse.resolves([
+                { id: 7, entityId: 101, mode: 'COURSE_CHAT', creationDate: '2024-02-01T10:00:00Z' },
+            ]);
+            // First call: import phase (in fetchSessionsWithMessages)
+            // Second call: hydration phase (in initializeIrisSessionAndLoadMessages)
+            mockApiService.getChatMessages.withArgs(7).resolves([
+                { id: 70, sender: 'USER', content: [{ textContent: 'Hello' }] },
             ]);
             mockIrisWebSocketSessionClient.initializeSession.resolves(7);
-            mockApiService.getChatMessages.resolves([]);
 
             await chatSessionService.loadAllSessionsForContext();
 
@@ -749,10 +775,13 @@ suite('IrisChatSessionService Test Suite', () => {
             contextStore.setActiveContext(context);
 
             mockApiService.getIrisCourseChatSettings.resolves({ settings: { enabled: true } });
-            mockApiService.getCourseChatSessionsWithMessages.resolves([
-                { id: 1, creationDate: '2024-01-01T10:00:00Z', messages: [] },
-                { id: 2, creationDate: '2024-01-02T10:00:00Z', messages: [] }
+            mockApiService.listChatSessionsForCourse.resolves([
+                { id: 1, entityId: 101, mode: 'COURSE_CHAT', creationDate: '2024-01-01T10:00:00Z' },
+                { id: 2, entityId: 101, mode: 'COURSE_CHAT', creationDate: '2024-01-02T10:00:00Z' },
             ]);
+            // Both sessions return empty messages — import phase yields [], skipped by importSessionsToStore
+            mockApiService.getChatMessages.withArgs(1).resolves([]);
+            mockApiService.getChatMessages.withArgs(2).resolves([]);
             mockIrisWebSocketSessionClient.createNewSession.resolves(99);
 
             await chatSessionService.loadAllSessionsForContext();
@@ -782,16 +811,23 @@ suite('IrisChatSessionService Test Suite', () => {
             contextStore.setActiveContext(context);
 
             mockApiService.getIrisCourseChatSettings.resolves({ settings: { enabled: true } });
-            mockApiService.getCourseChatSessionsWithMessages.resolves([
-                { id: 1, creationDate: '2024-01-01T10:00:00Z', messages: [{ sender: 'USER', content: [{ textContent: 'A' }] }] },
-                { id: 2, creationDate: '2024-01-02T10:00:00Z', messages: [] },
-                { id: 3, creationDate: '2024-01-03T10:00:00Z', messages: [{ sender: 'USER', content: [{ textContent: 'B' }] }] }
+            mockApiService.listChatSessionsForCourse.resolves([
+                { id: 1, entityId: 101, mode: 'COURSE_CHAT', creationDate: '2024-01-01T10:00:00Z' },
+                { id: 2, entityId: 101, mode: 'COURSE_CHAT', creationDate: '2024-01-02T10:00:00Z' },
+                { id: 3, entityId: 101, mode: 'COURSE_CHAT', creationDate: '2024-01-03T10:00:00Z' },
+            ]);
+            mockApiService.getChatMessages.withArgs(1).resolves([
+                { id: 10, sender: 'USER', content: [{ textContent: 'A' }] },
+            ]);
+            mockApiService.getChatMessages.withArgs(2).resolves([]);
+            mockApiService.getChatMessages.withArgs(3).resolves([
+                { id: 30, sender: 'USER', content: [{ textContent: 'B' }] },
             ]);
             mockIrisWebSocketSessionClient.initializeSession.resolves(3);
             // Match the active (newest, id=3) session's content to keep its
             // artemisSessionId mapping after hydration.
-            mockApiService.getChatMessages.resolves([
-                { id: 1, sender: 'USER', content: [{ textContent: 'B' }], sentAt: '2024-01-03T10:00:00Z' } as never
+            mockApiService.getChatMessages.withArgs(3).resolves([
+                { id: 30, sender: 'USER', content: [{ textContent: 'B' }], sentAt: '2024-01-03T10:00:00Z' } as never
             ]);
 
             await chatSessionService.loadAllSessionsForContext();
@@ -823,12 +859,18 @@ suite('IrisChatSessionService Test Suite', () => {
             contextStore.setActiveContext(context);
 
             mockApiService.getIrisCourseChatSettings.resolves({ settings: { enabled: true } });
-            mockApiService.getCourseChatSessionsWithMessages.resolves([
-                { id: 5, creationDate: '2024-01-05T10:00:00Z', messages: [{ sender: 'USER', content: [{ textContent: 'X' }] }] }
+            mockApiService.listChatSessionsForCourse.resolves([
+                { id: 5, entityId: 101, mode: 'COURSE_CHAT', creationDate: '2024-01-05T10:00:00Z' },
             ]);
-            // Simulate server failure during message hydration.
+            // Pattern D: first call satisfies import phase so session gets imported;
+            // second call is the active-session hydration in initializeIrisSessionAndLoadMessages,
+            // which is what this test is asserting against.
+            const failingSessionFetch = mockApiService.getChatMessages.withArgs(5);
+            failingSessionFetch.onFirstCall().resolves([
+                { id: 50, sender: 'USER', content: [{ textContent: 'X' }] },
+            ]);
+            failingSessionFetch.onSecondCall().rejects(new Error('Server error during hydration'));
             mockIrisWebSocketSessionClient.initializeSession.resolves(5);
-            mockApiService.getChatMessages.rejects(new Error('boom'));
 
             await chatSessionService.loadAllSessionsForContext();
 
@@ -983,12 +1025,14 @@ suite('IrisChatSessionService Test Suite', () => {
             };
             contextStore.setActiveContext(context);
 
-            mockApiService.getCourseChatSessionsWithMessages.resolves([
-                { id: 1, creationDate: '2024-01-01T10:00:00Z', messages: [{ sender: 'USER', content: [{ textContent: 'Hi' }] }] }
+            mockApiService.listChatSessionsForCourse.resolves([
+                { id: 1, entityId: 101, mode: 'COURSE_CHAT', creationDate: '2024-01-01T10:00:00Z' },
+            ]);
+            mockApiService.getChatMessages.withArgs(1).resolves([
+                { id: 100, sender: 'USER', content: [{ textContent: 'Hi' }] },
             ]);
 
             mockIrisWebSocketSessionClient.initializeSession.resolves(1);
-            mockApiService.getChatMessages.resolves([]);
 
             const count = await chatSessionService.resetAndReloadSessions();
 
@@ -1015,7 +1059,7 @@ suite('IrisChatSessionService Test Suite', () => {
             };
             contextStore.setActiveContext(context);
 
-            mockApiService.getCourseChatSessionsWithMessages.resolves([]);
+            mockApiService.listChatSessionsForCourse.resolves([]);
             mockIrisWebSocketSessionClient.createNewSession.resolves(99);
 
             await chatSessionService.resetAndReloadSessions();
@@ -1037,7 +1081,7 @@ suite('IrisChatSessionService Test Suite', () => {
             };
             contextStore.setActiveContext(context);
 
-            mockApiService.getCourseChatSessionsWithMessages.resolves([]);
+            mockApiService.listChatSessionsForCourse.resolves([]);
             mockIrisWebSocketSessionClient.createNewSession.resolves(99);
 
             const count = await chatSessionService.resetAndReloadSessions();
@@ -1060,7 +1104,7 @@ suite('IrisChatSessionService Test Suite', () => {
             };
             contextStore.setActiveContext(context);
 
-            mockApiService.getCourseChatSessionsWithMessages.resolves([]);
+            mockApiService.listChatSessionsForCourse.resolves([]);
             mockIrisWebSocketSessionClient.createNewSession.resolves(99);
 
             await chatSessionService.resetAndReloadSessions();
@@ -1083,7 +1127,7 @@ suite('IrisChatSessionService Test Suite', () => {
             };
             contextStore.setActiveContext(context);
 
-            mockApiService.getCourseChatSessionsWithMessages.rejects(new Error('Server down'));
+            mockApiService.listChatSessionsForCourse.rejects(new Error('Server down'));
 
             await assert.rejects(
                 () => chatSessionService.resetAndReloadSessions(),

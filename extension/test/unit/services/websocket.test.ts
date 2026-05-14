@@ -536,8 +536,10 @@ suite('IrisWebSocketSessionClient Safety Features', () => {
 
         // Mock API service
         apiService = sinon.createStubInstance(ArtemisApiService);
-        apiService.getCurrentExerciseChat.resolves({ id: 123 });
-        apiService.getCurrentCourseChat.resolves({ id: 456 });
+        apiService.getCurrentChat
+            .withArgs('PROGRAMMING_EXERCISE_CHAT', sinon.match.any).resolves({ id: 123 } as any);
+        apiService.getCurrentChat
+            .withArgs('COURSE_CHAT', sinon.match.any).resolves({ id: 456 } as any);
 
         // Connect WebSocket first
         const p = wsService.connect();
@@ -660,9 +662,12 @@ suite('IrisWebSocketSessionClient Subscription Management', () => {
         wsService = new TestableArtemisWebsocketService(authManager);
 
         apiService = sinon.createStubInstance(ArtemisApiService);
-        apiService.getCurrentExerciseChat.resolves({ id: 123 });
-        apiService.getCurrentCourseChat.resolves({ id: 456 });
-        apiService.createExerciseChatSession.resolves({ id: 789 });
+        apiService.getCurrentChat
+            .withArgs('PROGRAMMING_EXERCISE_CHAT', sinon.match.any).resolves({ id: 123 } as any);
+        apiService.getCurrentChat
+            .withArgs('COURSE_CHAT', sinon.match.any).resolves({ id: 456 } as any);
+        apiService.createChatSession
+            .withArgs('PROGRAMMING_EXERCISE_CHAT', sinon.match.any).resolves({ id: 789 } as any);
     });
 
     teardown(async () => {
@@ -831,7 +836,8 @@ suite('WebSocket Integration Tests', () => {
         wsService = new TestableArtemisWebsocketService(authManager);
 
         apiService = sinon.createStubInstance(ArtemisApiService);
-        apiService.getCurrentExerciseChat.resolves({ id: 123 });
+        apiService.getCurrentChat
+            .withArgs('PROGRAMMING_EXERCISE_CHAT', sinon.match.any).resolves({ id: 123 } as any);
     });
 
     teardown(async () => {

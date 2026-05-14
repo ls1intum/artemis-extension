@@ -131,7 +131,7 @@ export class ChatDiagnosticsService {
 
         report += '🌐 FETCHING SESSIONS FROM ARTEMIS...\n\n';
 
-        const artemisSessionsListFromServer = await fetchSessionsWithMessages(this._artemisApiService, activeContext);
+        const artemisSessionsListFromServer = await fetchSessionsWithMessages(this._artemisApiService, this._contextStore, activeContext);
 
         report += `📊 TOTAL SESSIONS FOUND: ${artemisSessionsListFromServer.length}\n`;
         report += `   (All sessions are for ${activeContext.type} ${activeContext.id}: ${activeContext.title})\n`;

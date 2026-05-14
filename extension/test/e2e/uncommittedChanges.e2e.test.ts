@@ -133,10 +133,15 @@ class ArtemisTestClient extends ArtemisTestClientBase {
     async getOrCreateSession(exerciseId: number): Promise<number | null> {
         logger.info(`[E2E] Getting/creating Iris session for exercise ${exerciseId}...`, LogCategory.TEST);
 
+        const params = new URLSearchParams({
+            mode: 'PROGRAMMING_EXERCISE_CHAT',
+            entityId: String(exerciseId),
+        });
+
         // Try to get current session
         let response = await fetch(
-            `${this.baseUrl}/api/iris/programming-exercise-chat/${exerciseId}/sessions/current`,
-            { headers: this.getHeaders() }
+            `${this.baseUrl}/api/iris/chat/sessions/current?${params.toString()}`,
+            { method: 'POST', headers: this.getHeaders() },
         );
 
         if (response.ok) {
@@ -147,11 +152,8 @@ class ArtemisTestClient extends ArtemisTestClientBase {
 
         // Create new session
         response = await fetch(
-            `${this.baseUrl}/api/iris/programming-exercise-chat/${exerciseId}/sessions`,
-            {
-                method: 'POST',
-                headers: this.getHeaders(),
-            }
+            `${this.baseUrl}/api/iris/chat/sessions?${params.toString()}`,
+            { method: 'POST', headers: this.getHeaders() },
         );
 
         if (response.ok) {
