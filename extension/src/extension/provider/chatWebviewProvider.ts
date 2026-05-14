@@ -328,13 +328,6 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
     }
 
     public createNewSession(): void {
-        // If workspace exercise exists and we're not in workspace context, switch back
-        const workspaceExercise = this._contextStore.getWorkspaceExercise();
-        const currentContext = this._contextStore.getActiveContext();
-        if (workspaceExercise && currentContext?.source !== 'workspace-detected') {
-            this._handleSwitchToWorkspaceContext();
-            return;
-        }
         this._chatSessionService.createNewSession();
     }
 
