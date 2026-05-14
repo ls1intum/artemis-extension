@@ -15,6 +15,14 @@ import { cloneRepositoryProgrammatic, getTheiaEnvironment } from '../../theia';
 
 const GIT_IDENTITY_NOT_CONFIGURED = 'GIT_IDENTITY_NOT_CONFIGURED';
 
+/**
+ * Soft cap on the in-memory map of recently cloned repositories per
+ * participation. Bounded to keep the map from growing unboundedly during a
+ * long session; FIFO eviction is acceptable because the map is only used to
+ * surface "open cloned repo" notices.
+ */
+const MAX_CLONED_REPO_CACHE_SIZE = 10;
+
 interface RepoContext {
     expectedRepoUrl: string;
     exerciseId: number;
@@ -209,113 +217,16 @@ export class RepositoryCommandModule {
                 return;
             }
 
-            const isGitAvailable = await this.gitService.isGitAvailable();
-            if (!isGitAvailable) {
+            if (!(await this.gitService.isGitAvailable())) {
                 vscode.window.showErrorMessage('Git not found in PATH. Please install Git to clone repositories.');
                 return;
             }
 
-            // Check if default clone path is configured
-            const config = vscode.workspace.getConfiguration(VSCODE_CONFIG.ARTEMIS_SECTION);
-            const defaultClonePath = config.get<string>(VSCODE_CONFIG.DEFAULT_CLONE_PATH_KEY, '').trim();
-            const showPrompt = config.get<boolean>(VSCODE_CONFIG.SHOW_SET_DEFAULT_CLONE_PATH_PROMPT_KEY, true);
-
-            let selectedPath: string;
-
-            if (defaultClonePath) {
-                // Verify the default path exists
-                try {
-                    const fs = await import('fs');
-                    const stats = await fs.promises.stat(defaultClonePath);
-                    if (stats.isDirectory()) {
-                        selectedPath = defaultClonePath;
-                    } else {
-                        vscode.window.showWarningMessage(`Default clone path "${defaultClonePath}" is not a directory. Please select a folder.`);
-                        const fallbackPath = await this._selectFolder('Select Clone Destination', `Choose where to clone ${exerciseTitle}`);
-                        if (!fallbackPath) {
-                            vscode.window.showInformationMessage('Clone cancelled - no destination selected.');
-                            return;
-                        }
-                        selectedPath = fallbackPath;
-                    }
-                } catch (error: unknown) {
-                    vscode.window.showWarningMessage(`Default clone path "${defaultClonePath}" does not exist. Please select a folder.`);
-                    const errorFallbackPath = await this._selectFolder('Select Clone Destination', `Choose where to clone ${exerciseTitle}`);
-                    if (!errorFallbackPath) {
-                        vscode.window.showInformationMessage('Clone cancelled - no destination selected.');
-                        return;
-                    }
-                    selectedPath = errorFallbackPath;
-                }
-            } else {
-                // No default path configured - show prompt if enabled
-                if (showPrompt) {
-                    const choice = await vscode.window.showInformationMessage(
-                        'Where should exercise repositories be cloned?\n\nYou can set a default folder now (e.g., ~/artemis-exercises) so all future exercises are automatically saved there, or choose a location each time.',
-                        { modal: true },
-                        'Set Default Folder',
-                        'Choose Each Time',
-                        "Don't Ask Again"
-                    );
-
-                    if (choice === 'Set Default Folder') {
-                        const defaultFolderPath = await this._selectFolder('Set as Default', 'Select default folder for all exercise repositories');
-                        if (defaultFolderPath) {
-                            selectedPath = defaultFolderPath;
-                            // Save as default
-                            await config.update(
-                                VSCODE_CONFIG.DEFAULT_CLONE_PATH_KEY,
-                                selectedPath,
-                                vscode.ConfigurationTarget.Global
-                            );
-                            vscode.window.showInformationMessage(`✓ All exercises will now be cloned to: ${selectedPath}`);
-                        } else {
-                            vscode.window.showInformationMessage('Clone cancelled - no folder selected.');
-                            return;
-                        }
-                    } else if (choice === "Don't Ask Again") {
-                        // Disable the prompt permanently
-                        await config.update(
-                            VSCODE_CONFIG.SHOW_SET_DEFAULT_CLONE_PATH_PROMPT_KEY,
-                            false,
-                            vscode.ConfigurationTarget.Global
-                        );
-
-                        // Still need to get a folder for this clone
-                        const dontAskPath = await this._selectFolder('Select Folder', `Where should "${exerciseTitle}" be cloned?`);
-                        if (!dontAskPath) {
-                            vscode.window.showInformationMessage('Clone cancelled - no folder selected.');
-                            return;
-                        }
-                        selectedPath = dontAskPath;
-                    } else if (choice === 'Choose Each Time') {
-                        const chosenPath = await this._selectFolder('Select Folder', `Where should "${exerciseTitle}" be cloned?`);
-                        if (!chosenPath) {
-                            vscode.window.showInformationMessage('Clone cancelled - no folder selected.');
-                            return;
-                        }
-                        selectedPath = chosenPath;
-                    } else {
-                        // User cancelled the modal (pressed ESC) - abort clone
-                        vscode.window.showInformationMessage('Clone cancelled.');
-                        return;
-                    }
-                } else {
-                    // Prompt disabled, just show folder picker
-                    const promptDisabledPath = await this._selectFolder('Select Clone Destination', `Choose where to clone ${exerciseTitle}`);
-                    if (!promptDisabledPath) {
-                        vscode.window.showInformationMessage('Clone cancelled - no destination selected.');
-                        return;
-                    }
-                    selectedPath = promptDisabledPath;
-                }
-
-            }
+            const selectedPath = await this._resolveCloneDestination(exerciseTitle);
+            if (!selectedPath) { return; }
 
             const cloneUrl = await this.buildAuthenticatedUrl(participationId, repositoryUri);
-            if (!cloneUrl) {
-                return;
-            }
+            if (!cloneUrl) { return; }
 
             const repoName = path.basename(repositoryUri).replace(/\.git$/, '');
             const repoPath = path.join(selectedPath, repoName);
@@ -328,13 +239,7 @@ export class RepositoryCommandModule {
             // in the outer catch and the prompt is only reached on success.
             await cloneRepositoryProgrammatic(cloneUrl, repoPath, exerciseTitle);
 
-            if (this.clonedRepositoriesByParticipationId.size >= 10 && !this.clonedRepositoriesByParticipationId.has(participationId)) {
-                const firstKey = this.clonedRepositoriesByParticipationId.keys().next().value;
-                if (firstKey !== undefined) {
-                    this.clonedRepositoriesByParticipationId.delete(firstKey);
-                }
-            }
-            this.clonedRepositoriesByParticipationId.set(participationId, { path: repoPath, title: exerciseTitle });
+            this._rememberClonedRepo(participationId, repoPath, exerciseTitle);
 
             this.context.sendMessage({
                 type: ExtensionMsg.ShowClonedRepoNotice,
@@ -345,17 +250,115 @@ export class RepositoryCommandModule {
             const openAction = await vscode.window.showInformationMessage(
                 `Open cloned repository "${exerciseTitle}"?`,
                 'Open Folder',
-                'Skip'
+                'Skip',
             );
             if (openAction === 'Open Folder') {
-                const repoUri = vscode.Uri.file(repoPath);
-                void vscode.commands.executeCommand('vscode.openFolder', repoUri, true);
+                void vscode.commands.executeCommand('vscode.openFolder', vscode.Uri.file(repoPath), true);
             }
         } catch (error: unknown) {
             logger.error('Clone repository error:', LogCategory.SUBMISSION, error);
             vscode.window.showErrorMessage(`Failed to clone repository: ${extractErrorMessage(error)}`);
         }
     };
+
+    /**
+     * Resolve the destination folder for a clone in one of three ways:
+     *   1. The configured default-clone-path, if it points to an existing dir.
+     *   2. The full "set default / choose / don't ask again" modal (when the
+     *      prompt is enabled and no default is configured).
+     *   3. A bare folder picker when the prompt has been silenced.
+     *
+     * Returns `undefined` when the user cancels at any branch; an information
+     * notice is shown with the cancellation reason as a side effect.
+     */
+    private async _resolveCloneDestination(exerciseTitle: string): Promise<string | undefined> {
+        const config = vscode.workspace.getConfiguration(VSCODE_CONFIG.ARTEMIS_SECTION);
+        const defaultClonePath = config.get<string>(VSCODE_CONFIG.DEFAULT_CLONE_PATH_KEY, '').trim();
+        const showPrompt = config.get<boolean>(VSCODE_CONFIG.SHOW_SET_DEFAULT_CLONE_PATH_PROMPT_KEY, true);
+
+        if (defaultClonePath) {
+            const reasonInvalid = await this._validateDefaultClonePath(defaultClonePath);
+            if (!reasonInvalid) {
+                return defaultClonePath;
+            }
+            vscode.window.showWarningMessage(`Default clone path "${defaultClonePath}" ${reasonInvalid}. Please select a folder.`);
+            return this._pickFolderOrCancelClone('Select Clone Destination', `Choose where to clone ${exerciseTitle}`);
+        }
+
+        if (!showPrompt) {
+            return this._pickFolderOrCancelClone('Select Clone Destination', `Choose where to clone ${exerciseTitle}`);
+        }
+
+        const choice = await vscode.window.showInformationMessage(
+            'Where should exercise repositories be cloned?\n\nYou can set a default folder now (e.g., ~/artemis-exercises) so all future exercises are automatically saved there, or choose a location each time.',
+            { modal: true },
+            'Set Default Folder',
+            'Choose Each Time',
+            "Don't Ask Again",
+        );
+
+        if (choice === 'Set Default Folder') {
+            const defaultFolderPath = await this._selectFolder('Set as Default', 'Select default folder for all exercise repositories');
+            if (!defaultFolderPath) {
+                vscode.window.showInformationMessage('Clone cancelled - no folder selected.');
+                return undefined;
+            }
+            await config.update(VSCODE_CONFIG.DEFAULT_CLONE_PATH_KEY, defaultFolderPath, vscode.ConfigurationTarget.Global);
+            vscode.window.showInformationMessage(`✓ All exercises will now be cloned to: ${defaultFolderPath}`);
+            return defaultFolderPath;
+        }
+        if (choice === "Don't Ask Again") {
+            await config.update(VSCODE_CONFIG.SHOW_SET_DEFAULT_CLONE_PATH_PROMPT_KEY, false, vscode.ConfigurationTarget.Global);
+            return this._pickFolderOrCancelClone('Select Folder', `Where should "${exerciseTitle}" be cloned?`);
+        }
+        if (choice === 'Choose Each Time') {
+            return this._pickFolderOrCancelClone('Select Folder', `Where should "${exerciseTitle}" be cloned?`);
+        }
+
+        // ESC / dismissed modal — abort.
+        vscode.window.showInformationMessage('Clone cancelled.');
+        return undefined;
+    }
+
+    /**
+     * Returns `undefined` if the configured default-clone-path is usable; a
+     * short reason string ('does not exist' / 'is not a directory') otherwise.
+     */
+    private async _validateDefaultClonePath(p: string): Promise<string | undefined> {
+        try {
+            const stats = await fs.promises.stat(p);
+            return stats.isDirectory() ? undefined : 'is not a directory';
+        } catch {
+            return 'does not exist';
+        }
+    }
+
+    /** Folder picker + the standard "Clone cancelled" notice on dismissal. */
+    private async _pickFolderOrCancelClone(label: string, title: string): Promise<string | undefined> {
+        const folderPath = await this._selectFolder(label, title);
+        if (!folderPath) {
+            vscode.window.showInformationMessage('Clone cancelled - no folder selected.');
+            return undefined;
+        }
+        return folderPath;
+    }
+
+    /**
+     * Insert a freshly cloned repository into the per-participation cache,
+     * evicting the oldest entry by insertion order when the cap is reached.
+     * (FIFO, not LRU — sufficient for the current "open cloned repo" notice
+     * usage, which doesn't depend on recency-of-access semantics.)
+     */
+    private _rememberClonedRepo(participationId: number, repoPath: string, title: string): void {
+        if (this.clonedRepositoriesByParticipationId.size >= MAX_CLONED_REPO_CACHE_SIZE
+            && !this.clonedRepositoriesByParticipationId.has(participationId)) {
+            const firstKey = this.clonedRepositoriesByParticipationId.keys().next().value;
+            if (firstKey !== undefined) {
+                this.clonedRepositoriesByParticipationId.delete(firstKey);
+            }
+        }
+        this.clonedRepositoriesByParticipationId.set(participationId, { path: repoPath, title });
+    }
 
     private handleCopyAuthenticatedCloneUrl = async (message: WebviewToExtensionMessage): Promise<void> => {
         try {
