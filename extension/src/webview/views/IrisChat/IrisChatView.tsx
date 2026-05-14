@@ -1,4 +1,6 @@
 import { useEffect, useState, useRef, useMemo } from 'react';
+import Menu from 'lucide-react/dist/esm/icons/menu';
+import Info from 'lucide-react/dist/esm/icons/info';
 import { ExtensionMsg, postCommand } from '../../../shared/messageContracts';
 import type { VsCodeApi } from '../../../shared/messageContracts';
 import type { IrisStageDTO } from './types';
@@ -324,14 +326,7 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
                         onClick={() => setSideMenuOpen(!sideMenuOpen)}
                         aria-label="Menu"
                     >
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-                            <path
-                                d="M3 12h18M3 6h18M3 18h18"
-                                stroke="currentColor"
-                                strokeWidth="2"
-                                strokeLinecap="round"
-                            />
-                        </svg>
+                        <Menu size={18} />
                     </button>
 
                     {sideMenuOpen && (
@@ -403,10 +398,7 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
             {/* Disabled banner (Iris not available or .noai detected) */}
             {disabledBannerText && (
                 <div className={styles.disabledBanner}>
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-                        <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" />
-                        <path d="M12 8v4M12 16h.01" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-                    </svg>
+                    <Info size={16} />
                     <span>{disabledBannerText}</span>
                 </div>
             )}

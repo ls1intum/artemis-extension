@@ -1,5 +1,7 @@
 import { useState, KeyboardEvent, FocusEvent } from 'react';
 import clsx from 'clsx';
+import Eye from 'lucide-react/dist/esm/icons/eye';
+import EyeOff from 'lucide-react/dist/esm/icons/eye-off';
 import styles from './TextInput.module.css';
 
 interface TextInputProps {
@@ -130,16 +132,7 @@ export function TextInput({
             aria-label="Toggle password visibility"
             tabIndex={-1}
           >
-            {showPassword ? (
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M2 2L22 22M9.88 9.88C9.33 10.43 9 11.18 9 12C9 13.66 10.34 15 12 15C12.82 15 13.57 14.67 14.12 14.12M19.73 16.27C17.94 17.5 15.97 18 12 18C8 18 5 16 2 12C3.29 10.21 4.78 8.81 6.47 7.73M9.9 4.24C10.6 4.07 11.3 4 12 4C16 4 19 6 22 10C21.27 11.11 20.42 12.11 19.49 13" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-              </svg>
-            ) : (
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M2 12C2 12 5 5 12 5C19 5 22 12 22 12C22 12 19 19 12 19C5 19 2 12 2 12Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                <circle cx="12" cy="12" r="3" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-              </svg>
-            )}
+            {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
           </button>
         </div>
       );
@@ -176,16 +169,7 @@ export function TextInput({
         aria-label="Toggle password visibility"
         tabIndex={-1}
       >
-        {showPassword ? (
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <path d="M2 2L22 22M9.88 9.88C9.33 10.43 9 11.18 9 12C9 13.66 10.34 15 12 15C12.82 15 13.57 14.67 14.12 14.12M19.73 16.27C17.94 17.5 15.97 18 12 18C8 18 5 16 2 12C3.29 10.21 4.78 8.81 6.47 7.73M9.9 4.24C10.6 4.07 11.3 4 12 4C16 4 19 6 22 10C21.27 11.11 20.42 12.11 19.49 13" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-          </svg>
-        ) : (
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <path d="M2 12C2 12 5 5 12 5C19 5 22 12 22 12C22 12 19 19 12 19C5 19 2 12 2 12Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-            <circle cx="12" cy="12" r="3" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-          </svg>
-        )}
+        {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
       </button>
     </div>
   ) : (

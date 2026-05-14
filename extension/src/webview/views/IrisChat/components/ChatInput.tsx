@@ -1,6 +1,7 @@
 import { useState, KeyboardEvent } from 'react';
 import TextareaAutosize from 'react-textarea-autosize';
 import clsx from 'clsx';
+import Send from 'lucide-react/dist/esm/icons/send';
 import styles from './ChatInput.module.css';
 
 interface ChatInputProps {
@@ -65,15 +66,7 @@ export function ChatInput({
                 disabled={!canSend}
                 aria-label="Send message"
             >
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-                    <path
-                        d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                    />
-                </svg>
+                <Send size={20} />
             </button>
         </div>
     );
