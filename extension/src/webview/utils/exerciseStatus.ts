@@ -1,4 +1,4 @@
-import type { SubmissionStatusType } from '../components/exercise/SubmissionStatus';
+import type { SubmissionStatusType, TestCase } from '../components/exercise/SubmissionStatus';
 import type { ParticipationStatusType } from '../components/exercise/ParticipationActions';
 import type { PendingSubmissionInfo } from '../stores/useExerciseDetailStore';
 
@@ -62,6 +62,7 @@ interface TestCaseResult {
     name: string;
     passed: boolean;
     message?: string;
+    id?: number;
 }
 
 interface FeedbackInput {
@@ -69,7 +70,7 @@ interface FeedbackInput {
     text?: string;
     positive?: boolean;
     detailText?: string;
-    testCase?: { testName?: string };
+    testCase?: { id?: number; testName?: string };
 }
 
 /**
@@ -84,5 +85,19 @@ export function transformFeedbacksToTestCases(feedbacks: FeedbackInput[]): TestC
         name: f.testCase?.testName ?? f.text ?? 'Test',
         passed: f.positive ?? false,
         message: f.detailText,
+        id: f.testCase?.id,
     }));
+}
+
+/**
+ * Filter a TestCase array to only the entries whose id is in the given set.
+ * Used by the per-task feedback modal to show only the tests linked to the
+ * clicked [task] entry in the SSR'd problem statement.
+ *
+ * Tests without an id are excluded (cannot be matched). Returns a new array
+ * preserving the input order.
+ */
+export function filterTestCasesByIds(all: TestCase[], ids: number[]): TestCase[] {
+    const idSet = new Set(ids);
+    return all.filter(tc => tc.id !== undefined && idSet.has(tc.id));
 }

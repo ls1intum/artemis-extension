@@ -21,12 +21,33 @@ import {
     SubmissionStatus,
     ParticipationActions,
 } from '../../components/exercise';
+import { TestResultsOverlay } from '../../components/exercise/TestResultsOverlay';
 import { ProblemStatement, ScoreInfo } from './components';
+import { makeViewId } from '../../utils/viewId';
+import { filterTestCasesByIds } from '../../utils/exerciseStatus';
+import { WebviewCmd } from '../../../shared/messageContracts';
 import type { ExerciseType } from '../../components/exercise/ParticipationActions';
 import { ExtensionMsg, postCommand, requestInit } from '../../../shared/messageContracts';
 import { determineSubmissionStatus, determineParticipationStatus, getLatestById, transformFeedbacksToTestCases } from '../../utils/exerciseStatus';
 import { formatDate } from '../../utils/formatDate';
 import styles from './ExerciseDetailView.module.css';
+
+interface OpenViewState {
+    viewId: string;
+    openedAt: number;
+    closeIdentity: {
+        viewId: string;
+        exerciseId: number;
+        participationId?: number;
+        resultId?: number;
+        taskName?: string;
+    };
+}
+
+interface OpenTaskViewState extends OpenViewState {
+    taskName: string;
+    testIds: number[];
+}
 
 export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
     const {
@@ -46,7 +67,9 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
 
     const [showCommitMessage, setShowCommitMessage] = useState(false);
     const [commitMessage, setCommitMessage] = useState('');
-    const [showTestResults, setShowTestResults] = useState(false);
+
+    const [openOverviewView, setOpenOverviewView] = useState<OpenViewState | null>(null);
+    const [openTaskView, setOpenTaskView] = useState<OpenTaskViewState | null>(null);
 
     // Initialize WebSocket updates hook
     useWebSocketUpdates();
@@ -195,6 +218,76 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
     const totalTests = latestResult?.testCaseCount || testFeedbacks.length;
     const passedTests = latestResult?.passedTestCaseCount ?? testFeedbacks.filter(f => f.positive).length;
     const hasTestInfo = totalTests > 0;
+
+    const handleOverviewClose = (reason: 'button' | 'escape') => {
+        if (!openOverviewView) { return; }
+        postCommand(vscodeApi, WebviewCmd.TestResultsOverviewClosed, {
+            viewId: openOverviewView.closeIdentity.viewId,
+            exerciseId: openOverviewView.closeIdentity.exerciseId,
+            participationId: openOverviewView.closeIdentity.participationId,
+            resultId: openOverviewView.closeIdentity.resultId,
+            durationMs: Date.now() - openOverviewView.openedAt,
+            closeReason: reason,
+        });
+        setOpenOverviewView(null);
+    };
+
+    const handleTaskClose = (reason: 'button' | 'escape') => {
+        if (!openTaskView) { return; }
+        postCommand(vscodeApi, WebviewCmd.TaskFeedbackClosed, {
+            viewId: openTaskView.closeIdentity.viewId,
+            exerciseId: openTaskView.closeIdentity.exerciseId,
+            participationId: openTaskView.closeIdentity.participationId,
+            resultId: openTaskView.closeIdentity.resultId,
+            taskName: openTaskView.taskName,
+            durationMs: Date.now() - openTaskView.openedAt,
+            closeReason: reason,
+        });
+        setOpenTaskView(null);
+    };
+
+    const handleOverviewOpen = () => {
+        if (!exerciseData?.exercise?.id) { return; }
+        const viewId = makeViewId();
+        const openedAt = Date.now();
+        const exerciseId = exerciseData.exercise.id;
+        const resultId = latestResult?.id;
+        const totalTestCount = testCases.length;
+        const passedTestCount = testCases.filter(t => t.passed).length;
+        const failedTests = totalTestCount - passedTestCount;
+        postCommand(vscodeApi, WebviewCmd.TestResultsOverviewOpened, {
+            viewId, exerciseId, participationId, resultId,
+            totalTests: totalTestCount, passedTests: passedTestCount, failedTests,
+        });
+        setOpenOverviewView({
+            viewId,
+            openedAt,
+            closeIdentity: { viewId, exerciseId, participationId, resultId },
+        });
+    };
+
+    const handleTaskOpen = ({ taskName, testIds }: { taskName: string; testIds: number[] }) => {
+        if (!exerciseData?.exercise?.id) { return; }
+        const filtered = filterTestCasesByIds(testCases, testIds);
+        const viewId = makeViewId();
+        const openedAt = Date.now();
+        const exerciseId = exerciseData.exercise.id;
+        const resultId = latestResult?.id;
+        const totalTestCount = filtered.length;
+        const passedTestCount = filtered.filter(t => t.passed).length;
+        const failedTests = totalTestCount - passedTestCount;
+        postCommand(vscodeApi, WebviewCmd.TaskFeedbackOpened, {
+            viewId, exerciseId, participationId, resultId,
+            taskName, testIds, totalTests: totalTestCount, passedTests: passedTestCount, failedTests,
+        });
+        setOpenTaskView({
+            viewId,
+            openedAt,
+            taskName,
+            testIds,
+            closeIdentity: { viewId, exerciseId, participationId, resultId, taskName },
+        });
+    };
 
     // result.score is already a percentage (0-100) in Artemis
     const scorePercentage = latestResult?.score ?? 0;
@@ -424,8 +517,7 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
                         testCases={testCases}
                         estimatedCompletionDate={pendingSubmission?.buildTimingInfo?.estimatedCompletionDate}
                         buildStartDate={pendingSubmission?.buildTimingInfo?.buildStartDate}
-                        onToggleTestResults={() => setShowTestResults(prev => !prev)}
-                        showTestResults={showTestResults}
+                        onOpenTestResults={handleOverviewOpen}
                         onViewBuildLog={() => {
                             if (participationId) {
                                 postCommand(vscodeApi, 'viewBuildLog', {
@@ -454,7 +546,10 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
             />
 
             {/* Problem Statement */}
-            <ProblemStatement serverRenderedHtml={serverRenderedPS?.html} />
+            <ProblemStatement
+                serverRenderedHtml={serverRenderedPS?.html}
+                onTaskClick={handleTaskOpen}
+            />
 
             {/* Developer Tools */}
             {!hideDeveloperTools && (
@@ -494,6 +589,19 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
                     </div>
                 </Container>
             )}
+
+            <TestResultsOverlay
+                open={openOverviewView !== null}
+                onClose={handleOverviewClose}
+                testCases={testCases}
+            />
+
+            <TestResultsOverlay
+                open={openTaskView !== null}
+                onClose={handleTaskClose}
+                testCases={openTaskView !== null ? filterTestCasesByIds(testCases, openTaskView.testIds) : []}
+                taskName={openTaskView?.taskName}
+            />
         </div>
     );
 }

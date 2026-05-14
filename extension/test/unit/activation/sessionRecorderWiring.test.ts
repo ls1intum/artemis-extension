@@ -25,6 +25,12 @@ import type { ConsentService } from '../../../src/extension/services/auth';
 import type { ArtemisWebsocketService } from '../../../src/extension/services/websocket';
 import type { ArtemisWebviewProvider, ChatWebviewProvider } from '../../../src/extension/provider';
 import type { InterventionDecision } from '../../../src/extension/services/telemetry/types';
+import type {
+    TestResultsOverviewOpenedPayload,
+    TestResultsOverviewClosedPayload,
+    TaskFeedbackOpenedPayload,
+    TaskFeedbackClosedPayload,
+} from '../../../src/shared/messageContracts/webviewCommands';
 
 interface MutableConfigState {
     enabled: boolean;
@@ -75,10 +81,23 @@ function stubWebsocket(sandbox: sinon.SinonSandbox): ArtemisWebsocketService {
 function stubWebviewProvider(): ArtemisWebviewProvider {
     const onDidChangeViewNavigation = new vscode.EventEmitter<{ from: string; to: string }>();
     const onDidChangePanelVisibility = new vscode.EventEmitter<boolean>();
+    // NEW: emitters + fire methods for view-tracking events.
+    const onDidOpenOverview = new vscode.EventEmitter<TestResultsOverviewOpenedPayload>();
+    const onDidCloseOverview = new vscode.EventEmitter<TestResultsOverviewClosedPayload>();
+    const onDidOpenTask = new vscode.EventEmitter<TaskFeedbackOpenedPayload>();
+    const onDidCloseTask = new vscode.EventEmitter<TaskFeedbackClosedPayload>();
     return {
         getCurrentVisibility: () => false,
         onDidChangeViewNavigation: onDidChangeViewNavigation.event,
         onDidChangePanelVisibility: onDidChangePanelVisibility.event,
+        onDidOpenTestResultsOverview: onDidOpenOverview.event,
+        onDidCloseTestResultsOverview: onDidCloseOverview.event,
+        onDidOpenTaskFeedback: onDidOpenTask.event,
+        onDidCloseTaskFeedback: onDidCloseTask.event,
+        fireTestResultsOverviewOpened: (p: TestResultsOverviewOpenedPayload) => onDidOpenOverview.fire(p),
+        fireTestResultsOverviewClosed: (p: TestResultsOverviewClosedPayload) => onDidCloseOverview.fire(p),
+        fireTaskFeedbackOpened: (p: TaskFeedbackOpenedPayload) => onDidOpenTask.fire(p),
+        fireTaskFeedbackClosed: (p: TaskFeedbackClosedPayload) => onDidCloseTask.fire(p),
     } as unknown as ArtemisWebviewProvider;
 }
 
@@ -127,6 +146,7 @@ async function readAllRecordedEvents(tmpDir: string): Promise<RecordedEvent[]> {
 interface WiringHarness {
     telemetryManager: TelemetryManager;
     recorder: SessionRecorder;
+    artemisWebviewProvider: ArtemisWebviewProvider;
     tmpDir: string;
     configState: MutableConfigState;
     capturedConfigListener: () => ((e: vscode.ConfigurationChangeEvent) => void) | undefined;
@@ -168,12 +188,13 @@ async function makeWiringHarness(
 
     const telemetryManager = new TelemetryManager();
     const ctx = { globalStorageUri: vscode.Uri.file(tmpDir), subscriptions: [] } as unknown as vscode.ExtensionContext;
+    const artemisProvider = stubWebviewProvider();
     const wiring = wireSessionRecorder({
         context: ctx,
         consentService: stubConsent(true),
         artemisWebsocketService: stubWebsocket(sandbox),
         telemetryManager,
-        artemisWebviewProvider: stubWebviewProvider(),
+        artemisWebviewProvider: artemisProvider,
         chatWebviewProvider: stubChatProvider(),
         capabilities: undefined,
         exerciseRegistry: undefined,
@@ -182,6 +203,7 @@ async function makeWiringHarness(
     return {
         telemetryManager,
         recorder: wiring.sessionRecorder,
+        artemisWebviewProvider: artemisProvider,
         tmpDir,
         configState,
         capturedConfigListener: () => captured,
@@ -244,6 +266,58 @@ suite('sessionRecorderWiring — suppression and configuration provenance', () =
             assert.ok(snap, 'configurationSnapshot missing — startup contributor not registered?');
             assert.strictEqual(snap!.struggleDetectionEnabled, true);
             assert.strictEqual(snap!.showInterventions, false);
+        } finally {
+            await harness.dispose();
+        }
+    });
+
+    test('forwards onDidOpenTestResultsOverview to the recorder', async () => {
+        const harness = await makeWiringHarness(sandbox, { enabled: true, showInterventions: true, developerMode: false });
+        try {
+            const recordStub = sandbox.stub(harness.recorder, 'recordTestResultsOverviewOpened');
+            const payload: TestResultsOverviewOpenedPayload = { viewId: 'v', exerciseId: 1, totalTests: 2, passedTests: 1, failedTests: 1 };
+            (harness.artemisWebviewProvider as unknown as { fireTestResultsOverviewOpened: (p: TestResultsOverviewOpenedPayload) => void })
+                .fireTestResultsOverviewOpened(payload);
+            sinon.assert.calledOnceWithExactly(recordStub, payload);
+        } finally {
+            await harness.dispose();
+        }
+    });
+
+    test('forwards onDidCloseTestResultsOverview to the recorder', async () => {
+        const harness = await makeWiringHarness(sandbox, { enabled: true, showInterventions: true, developerMode: false });
+        try {
+            const recordStub = sandbox.stub(harness.recorder, 'recordTestResultsOverviewClosed');
+            const payload: TestResultsOverviewClosedPayload = { viewId: 'v', exerciseId: 1, durationMs: 100, closeReason: 'button' };
+            (harness.artemisWebviewProvider as unknown as { fireTestResultsOverviewClosed: (p: TestResultsOverviewClosedPayload) => void })
+                .fireTestResultsOverviewClosed(payload);
+            sinon.assert.calledOnceWithExactly(recordStub, payload);
+        } finally {
+            await harness.dispose();
+        }
+    });
+
+    test('forwards onDidOpenTaskFeedback to the recorder', async () => {
+        const harness = await makeWiringHarness(sandbox, { enabled: true, showInterventions: true, developerMode: false });
+        try {
+            const recordStub = sandbox.stub(harness.recorder, 'recordTaskFeedbackOpened');
+            const payload: TaskFeedbackOpenedPayload = { viewId: 'v', exerciseId: 1, taskName: 't', testIds: [1, 2], totalTests: 2, passedTests: 1, failedTests: 1 };
+            (harness.artemisWebviewProvider as unknown as { fireTaskFeedbackOpened: (p: TaskFeedbackOpenedPayload) => void })
+                .fireTaskFeedbackOpened(payload);
+            sinon.assert.calledOnceWithExactly(recordStub, payload);
+        } finally {
+            await harness.dispose();
+        }
+    });
+
+    test('forwards onDidCloseTaskFeedback to the recorder', async () => {
+        const harness = await makeWiringHarness(sandbox, { enabled: true, showInterventions: true, developerMode: false });
+        try {
+            const recordStub = sandbox.stub(harness.recorder, 'recordTaskFeedbackClosed');
+            const payload: TaskFeedbackClosedPayload = { viewId: 'v', exerciseId: 1, taskName: 't', durationMs: 100, closeReason: 'button' };
+            (harness.artemisWebviewProvider as unknown as { fireTaskFeedbackClosed: (p: TaskFeedbackClosedPayload) => void })
+                .fireTaskFeedbackClosed(payload);
+            sinon.assert.calledOnceWithExactly(recordStub, payload);
         } finally {
             await harness.dispose();
         }

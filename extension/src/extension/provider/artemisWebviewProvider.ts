@@ -25,6 +25,13 @@ import type { CourseDataCache } from '../services/courseDataCache';
 import { ExtensionMsg, toCourseDetailData } from '../../shared/messageContracts';
 import type { ExtensionToWebviewMessage, WebviewToExtensionMessage, CourseDetailData } from '../../shared/messageContracts';
 import type { ExerciseDetail, ExerciseDetailsResponse } from '../types';
+import type {
+    TestResultsOverviewOpenedPayload,
+    TestResultsOverviewClosedPayload,
+    TaskFeedbackOpenedPayload,
+    TaskFeedbackClosedPayload,
+} from '../../shared/messageContracts/webviewCommands';
+import type { IArtemisWebviewProvider } from '../types/IArtemisWebviewProvider';
 
 /**
  * Main webview provider for the Artemis sidebar panel.
@@ -33,7 +40,7 @@ import type { ExerciseDetail, ExerciseDetailsResponse } from '../types';
  * state sync, and service integration. A future refactor could extract
  * render-data preparation into a dedicated ViewDataService.
  */
-export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscode.WebviewViewProvider, WebViewActionHandler, vscode.Disposable {
+export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscode.WebviewViewProvider, WebViewActionHandler, vscode.Disposable, IArtemisWebviewProvider {
     // ── Static properties ──────────────────────────────────────────────
     public static readonly viewType = CONFIG.WEBVIEW.VIEW_TYPE;
 
@@ -60,6 +67,16 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
 
     private readonly _onDidChangePanelVisibility = new vscode.EventEmitter<boolean>();
     public readonly onDidChangePanelVisibility = this._onDidChangePanelVisibility.event;
+
+    private readonly _onDidOpenTestResultsOverview = new vscode.EventEmitter<TestResultsOverviewOpenedPayload>();
+    private readonly _onDidCloseTestResultsOverview = new vscode.EventEmitter<TestResultsOverviewClosedPayload>();
+    private readonly _onDidOpenTaskFeedback = new vscode.EventEmitter<TaskFeedbackOpenedPayload>();
+    private readonly _onDidCloseTaskFeedback = new vscode.EventEmitter<TaskFeedbackClosedPayload>();
+
+    public readonly onDidOpenTestResultsOverview = this._onDidOpenTestResultsOverview.event;
+    public readonly onDidCloseTestResultsOverview = this._onDidCloseTestResultsOverview.event;
+    public readonly onDidOpenTaskFeedback = this._onDidOpenTaskFeedback.event;
+    public readonly onDidCloseTaskFeedback = this._onDidCloseTaskFeedback.event;
 
     // ── Constructor ────────────────────────────────────────────────────
     constructor(
@@ -151,6 +168,12 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
 
         this._disposables.push(this._onDidChangeViewNavigation);
         this._disposables.push(this._onDidChangePanelVisibility);
+        this._disposables.push(
+            this._onDidOpenTestResultsOverview,
+            this._onDidCloseTestResultsOverview,
+            this._onDidOpenTaskFeedback,
+            this._onDidCloseTaskFeedback,
+        );
 
         // Re-render SSR when VS Code theme changes (darkMode parameter differs)
         this._disposables.push(
@@ -286,6 +309,24 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
 
     public backgroundRenderProblemStatement(): void {
         this._backgroundRenderProblemStatement();
+    }
+
+    // ── IArtemisWebviewProvider: fire methods ──────────────────────────
+
+    public fireTestResultsOverviewOpened(payload: TestResultsOverviewOpenedPayload): void {
+        this._onDidOpenTestResultsOverview.fire(payload);
+    }
+
+    public fireTestResultsOverviewClosed(payload: TestResultsOverviewClosedPayload): void {
+        this._onDidCloseTestResultsOverview.fire(payload);
+    }
+
+    public fireTaskFeedbackOpened(payload: TaskFeedbackOpenedPayload): void {
+        this._onDidOpenTaskFeedback.fire(payload);
+    }
+
+    public fireTaskFeedbackClosed(payload: TaskFeedbackClosedPayload): void {
+        this._onDidCloseTaskFeedback.fire(payload);
     }
 
     // ── Public API ─────────────────────────────────────────────────────

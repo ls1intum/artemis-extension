@@ -101,6 +101,12 @@ export const WebviewCmd = {
 
     // Dev tools
     FreshSsrPreview: 'freshSsrPreview',
+
+    // Test-results tracking
+    TestResultsOverviewOpened: 'testResultsOverviewOpened',
+    TestResultsOverviewClosed: 'testResultsOverviewClosed',
+    TaskFeedbackOpened: 'taskFeedbackOpened',
+    TaskFeedbackClosed: 'taskFeedbackClosed',
 } as const;
 
 /** Union of all Webview->Extension command strings */
@@ -194,6 +200,45 @@ interface WebviewCmdPayloads {
 
     // Dev tools
     freshSsrPreview: { darkMode: boolean };
+
+    // Test-results tracking
+    testResultsOverviewOpened: {
+        viewId: string;
+        exerciseId: number;
+        participationId?: number;
+        resultId?: number;
+        totalTests: number;
+        passedTests: number;
+        failedTests: number;
+    };
+    testResultsOverviewClosed: {
+        viewId: string;
+        exerciseId: number;
+        participationId?: number;
+        resultId?: number;
+        durationMs: number;
+        closeReason: 'button' | 'escape';
+    };
+    taskFeedbackOpened: {
+        viewId: string;
+        exerciseId: number;
+        participationId?: number;
+        resultId?: number;
+        taskName: string;
+        testIds: number[];
+        totalTests: number;
+        passedTests: number;
+        failedTests: number;
+    };
+    taskFeedbackClosed: {
+        viewId: string;
+        exerciseId: number;
+        participationId?: number;
+        resultId?: number;
+        taskName: string;
+        durationMs: number;
+        closeReason: 'button' | 'escape';
+    };
 }
 
 /** Commands that require a non-undefined payload object. */
@@ -233,6 +278,10 @@ export const COMMANDS_REQUIRING_PAYLOAD = new Set<string>([
     WebviewCmd.ViewBuildLog,
     WebviewCmd.GoToSource,
     WebviewCmd.OpenClonedRepository,
+    WebviewCmd.TestResultsOverviewOpened,
+    WebviewCmd.TestResultsOverviewClosed,
+    WebviewCmd.TaskFeedbackOpened,
+    WebviewCmd.TaskFeedbackClosed,
 ]);
 
 /** Auto-generated command messages */
@@ -314,3 +363,9 @@ export function getOptionalPayload<T extends WebviewToExtensionMessage & { paylo
     }
     return (message as { payload: unknown }).payload as T extends { payload?: infer P } ? P : never;
 }
+
+/** Named payload type aliases for test-results tracking commands */
+export type TestResultsOverviewOpenedPayload = WebviewCmdPayloads['testResultsOverviewOpened'];
+export type TestResultsOverviewClosedPayload = WebviewCmdPayloads['testResultsOverviewClosed'];
+export type TaskFeedbackOpenedPayload = WebviewCmdPayloads['taskFeedbackOpened'];
+export type TaskFeedbackClosedPayload = WebviewCmdPayloads['taskFeedbackClosed'];

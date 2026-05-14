@@ -18,6 +18,7 @@ import { RepositoryCommandModule } from './commands/repositoryCommands';
 import { IrisCommandModule } from './commands/irisCommands';
 import { HealthCommandModule } from './commands/healthCommands';
 import { UtilityCommandModule } from './commands/utilityCommands';
+import { TestResultsTrackingCommandModule } from './commands/testResultsTrackingCommands';
 
 /**
  * Coordinates processing of messages received from the webview by delegating to command modules.
@@ -66,7 +67,8 @@ export class WebViewMessageHandler {
             (this.repositoryModule = new RepositoryCommandModule(context)),
             new IrisCommandModule(context),
             new HealthCommandModule(context),
-            new UtilityCommandModule(context)
+            new UtilityCommandModule(context),
+            new TestResultsTrackingCommandModule(context),
         ];
 
         modules.forEach(module => {

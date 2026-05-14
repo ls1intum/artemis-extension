@@ -122,6 +122,21 @@ export function wireSessionRecorder(deps: RecorderWiringDeps): RecorderWiringRes
         sessionRecorder.recordPanelVisibility('chat', visible);
     }));
 
+    // Test-results view tracking. Provider events flow from the webview commands
+    // via testResultsTrackingCommands -> ArtemisWebviewProvider.fireXxx -> here.
+    disposables.push(artemisWebviewProvider.onDidOpenTestResultsOverview(payload => {
+        sessionRecorder.recordTestResultsOverviewOpened(payload);
+    }));
+    disposables.push(artemisWebviewProvider.onDidCloseTestResultsOverview(payload => {
+        sessionRecorder.recordTestResultsOverviewClosed(payload);
+    }));
+    disposables.push(artemisWebviewProvider.onDidOpenTaskFeedback(payload => {
+        sessionRecorder.recordTaskFeedbackOpened(payload);
+    }));
+    disposables.push(artemisWebviewProvider.onDidCloseTaskFeedback(payload => {
+        sessionRecorder.recordTaskFeedbackClosed(payload);
+    }));
+
     // ── Startup contributors ─────────────────────────────────────────
     // These run synchronously inside SessionRecorder._doStart, between the
     // initial-state events and the `startupPhaseComplete` marker. They

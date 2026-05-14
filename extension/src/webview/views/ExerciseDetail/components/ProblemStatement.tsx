@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type MouseEvent } from 'react';
 import katex from 'katex';
 import { Container } from '../../../components/Container';
 import { Skeleton } from '../../../components/Skeleton/Skeleton';
@@ -62,6 +62,7 @@ function renderKatexFormulas(container: HTMLElement): void {
  */
 export function ProblemStatement({
     serverRenderedHtml,
+    onTaskClick,
 }: ProblemStatementProps) {
     const contentRef = useRef<HTMLDivElement>(null);
     const [timedOut, setTimedOut] = useState(false);
@@ -87,6 +88,20 @@ export function ProblemStatement({
         return () => clearTimeout(timer);
     }, [serverRenderedHtml]);
 
+    const handleClick = (event: MouseEvent<HTMLDivElement>) => {
+        if (!onTaskClick) { return; }
+        const target = event.target as HTMLElement;
+        const taskEl = target.closest<HTMLElement>('.artemis-task[data-test-ids]');
+        if (!taskEl) { return; }
+        const taskName = taskEl.getAttribute('data-task-name') ?? '';
+        const rawIds = taskEl.getAttribute('data-test-ids') ?? '';
+        const testIds = rawIds.split(',')
+            .map(s => parseInt(s.trim(), 10))
+            .filter(n => Number.isFinite(n));
+        if (!taskName || testIds.length === 0) { return; }
+        onTaskClick({ taskName, testIds });
+    };
+
     return (
         <Container header={<h3>Exercise Description</h3>}>
             {bodyHtml ? (
@@ -94,6 +109,7 @@ export function ProblemStatement({
                     ref={contentRef}
                     className={styles.problemStatement}
                     dangerouslySetInnerHTML={{ __html: bodyHtml }}
+                    onClick={handleClick}
                 />
             ) : timedOut ? (
                 <div className={styles.errorContainer}>

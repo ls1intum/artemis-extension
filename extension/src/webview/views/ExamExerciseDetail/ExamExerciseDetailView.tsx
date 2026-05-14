@@ -6,6 +6,7 @@ import { useExtensionMessage } from '../../hooks/useExtensionMessage';
 import { useExerciseStatusMessages } from '../../hooks/useExerciseStatusMessages';
 import { ExamTimer } from '../../components/ExamTimer/ExamTimer';
 import { TimerExpiredOverlay } from '../../components/TimerExpiredOverlay/TimerExpiredOverlay';
+import { TestResultsOverlay } from '../../components/exercise/TestResultsOverlay';
 import {
     BackLink,
     Container,
@@ -232,8 +233,7 @@ export function ExamExerciseDetailView({ vscodeApi }: ExamExerciseDetailViewProp
                         totalTests={totalTests}
                         passedTests={passedTests}
                         testCases={testCases}
-                        onToggleTestResults={() => setShowTestResults(prev => !prev)}
-                        showTestResults={showTestResults}
+                        onOpenTestResults={() => setShowTestResults(true)}
                     />
                 )}
             </Container>
@@ -261,6 +261,12 @@ export function ExamExerciseDetailView({ vscodeApi }: ExamExerciseDetailViewProp
             {testCases.length > 0 && (
                 <TestResults testCases={testCases} />
             )}
+
+            <TestResultsOverlay
+                open={showTestResults}
+                onClose={() => setShowTestResults(false)}
+                testCases={testCases}
+            />
         </div>
     );
 }

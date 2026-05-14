@@ -278,6 +278,99 @@ export class SessionRecorder implements vscode.Disposable, WebSocketMessageHandl
         }, {}, this._currentGeneration);
     }
 
+    /**
+     * Record a test-results-overview view opened event.
+     */
+    recordTestResultsOverviewOpened(payload: {
+        viewId: string;
+        exerciseId: number;
+        participationId?: number;
+        resultId?: number;
+        totalTests: number;
+        passedTests: number;
+        failedTests: number;
+    }): void {
+        if (this._phase !== 'recording') {
+            return;
+        }
+        this._lifecycle.recordInternal({
+            type: 'testResultsOverviewView',
+            action: 'opened',
+            timestamp: Date.now(),
+            ...payload,
+        }, {}, this._currentGeneration);
+    }
+
+    /**
+     * Record a test-results-overview view closed event.
+     */
+    recordTestResultsOverviewClosed(payload: {
+        viewId: string;
+        exerciseId: number;
+        participationId?: number;
+        resultId?: number;
+        durationMs: number;
+        closeReason: 'button' | 'escape';
+    }): void {
+        if (this._phase !== 'recording') {
+            return;
+        }
+        this._lifecycle.recordInternal({
+            type: 'testResultsOverviewView',
+            action: 'closed',
+            timestamp: Date.now(),
+            ...payload,
+        }, {}, this._currentGeneration);
+    }
+
+    /**
+     * Record a task-feedback view opened event.
+     */
+    recordTaskFeedbackOpened(payload: {
+        viewId: string;
+        exerciseId: number;
+        participationId?: number;
+        resultId?: number;
+        taskName: string;
+        testIds: number[];
+        totalTests: number;
+        passedTests: number;
+        failedTests: number;
+    }): void {
+        if (this._phase !== 'recording') {
+            return;
+        }
+        this._lifecycle.recordInternal({
+            type: 'taskFeedbackView',
+            action: 'opened',
+            timestamp: Date.now(),
+            ...payload,
+        }, {}, this._currentGeneration);
+    }
+
+    /**
+     * Record a task-feedback view closed event.
+     */
+    recordTaskFeedbackClosed(payload: {
+        viewId: string;
+        exerciseId: number;
+        participationId?: number;
+        resultId?: number;
+        taskName: string;
+        durationMs: number;
+        closeReason: 'button' | 'escape';
+    }): void {
+        if (this._phase !== 'recording') {
+            return;
+        }
+        this._lifecycle.recordInternal({
+            type: 'taskFeedbackView',
+            action: 'closed',
+            timestamp: Date.now(),
+            ...payload,
+        }, {}, this._currentGeneration);
+    }
+
     recordEqSnapshot(
         eq: number,
         confidence: 'sufficient' | 'insufficient',

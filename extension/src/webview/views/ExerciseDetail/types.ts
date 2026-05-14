@@ -21,6 +21,7 @@ export interface TestCase {
  */
 export interface ProblemStatementProps {
     serverRenderedHtml?: string;
+    onTaskClick?: (task: { taskName: string; testIds: number[] }) => void;
 }
 
 /**

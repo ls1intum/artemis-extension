@@ -16,3 +16,11 @@
 .errorContainer {
     color: var(--vscode-errorForeground);
 }
+
+.problemStatement :global(.artemis-task[data-test-ids]) {
+    cursor: pointer;
+}
+
+.problemStatement :global(.artemis-task[data-test-ids]:hover) {
+    color: var(--vscode-textLink-activeForeground);
+}

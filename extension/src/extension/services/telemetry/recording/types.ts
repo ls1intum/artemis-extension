@@ -331,6 +331,59 @@ export interface TextDocumentCloseEvent {
     uri: string;
 }
 
+export type TestResultsOverviewViewEvent =
+    | {
+        type: 'testResultsOverviewView';
+        action: 'opened';
+        timestamp: number;
+        viewId: string;
+        exerciseId: number;
+        participationId?: number;
+        resultId?: number;
+        totalTests: number;
+        passedTests: number;
+        failedTests: number;
+    }
+    | {
+        type: 'testResultsOverviewView';
+        action: 'closed';
+        timestamp: number;
+        viewId: string;
+        exerciseId: number;
+        participationId?: number;
+        resultId?: number;
+        durationMs: number;
+        closeReason: 'button' | 'escape';
+    };
+
+export type TaskFeedbackViewEvent =
+    | {
+        type: 'taskFeedbackView';
+        action: 'opened';
+        timestamp: number;
+        viewId: string;
+        exerciseId: number;
+        participationId?: number;
+        resultId?: number;
+        taskName: string;
+        testIds: number[];
+        totalTests: number;
+        passedTests: number;
+        failedTests: number;
+    }
+    | {
+        type: 'taskFeedbackView';
+        action: 'closed';
+        timestamp: number;
+        viewId: string;
+        exerciseId: number;
+        participationId?: number;
+        resultId?: number;
+        taskName: string;
+        durationMs: number;
+        closeReason: 'button' | 'escape';
+    };
+
 // ── Discriminated union ───────────────────────────────────────────────
 
 export type RecordedEvent =
@@ -364,7 +417,9 @@ export type RecordedEvent =
     | FileDeleteEvent
     | FileRenameEvent
     | TextDocumentOpenEvent
-    | TextDocumentCloseEvent;
+    | TextDocumentCloseEvent
+    | TestResultsOverviewViewEvent
+    | TaskFeedbackViewEvent;
 
 // ── Session metadata ──────────────────────────────────────────────────
 
