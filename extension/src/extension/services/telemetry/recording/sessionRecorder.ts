@@ -41,6 +41,16 @@
 import * as vscode from 'vscode';
 import type { WebSocketMessageHandler, ResultDTO } from '../../../types';
 import type { RecordedEvent, SerializedErrorSnapshot } from './types';
+
+/**
+ * Distributive `Omit` over `RecordedEvent` — keeps each union variant intact
+ * after stripping the `timestamp` discriminator-adjacent field.
+ */
+type RecordedEventWithoutTimestamp = RecordedEvent extends infer E
+    ? E extends RecordedEvent
+        ? Omit<E, 'timestamp'>
+        : never
+    : never;
 import type { PlatformCapabilities } from '../../../theia';
 import type { ExerciseRegistry } from '../../exerciseRegistry';
 import { RecordingStorageWriter } from './storageWriter';
@@ -196,7 +206,40 @@ export class SessionRecorder implements vscode.Disposable, WebSocketMessageHandl
         );
     }
 
-    // ── Public recording methods for chat events ──────────────────────
+    // ── Public recording methods for chat / view / EQ / lifecycle events ──
+    //
+    // The public `record*` wrappers below are thin shells around `_record`,
+    // which centralises the phase check, the timestamp, the generation capture,
+    // and the empty-opts call to `LifecycleController.recordInternal`. Keep
+    // these methods this shape — anything that needs custom `opts`, a
+    // pre-existing timestamp (e.g. from a collector), or a different
+    // generation snapshot must go through `_lifecycle.recordInternal` directly
+    // and is NOT a candidate for this helper.
+
+    /**
+     * Centralised recording helper for the public `record*` methods.
+     * Captures the phase guard, the synchronous `Date.now()` timestamp, and
+     * the current generation in one place so the wrapper methods stay
+     * declarative payloads.
+     *
+     * `timestamp` is spread first so the field stays near the head of the
+     * serialised JSON line (preserves byte-level layout of existing
+     * recordings against the pre-refactor structure).
+     *
+     * `RecordedEventWithoutTimestamp` is a *distributive* omit — the built-in
+     * `Omit<RecordedEvent, 'timestamp'>` collapses the discriminated union and
+     * drops per-variant fields like `action`, `eq`, `panel`, etc.
+     */
+    private _record(event: RecordedEventWithoutTimestamp): void {
+        if (this._phase !== 'recording') {
+            return;
+        }
+        this._lifecycle.recordInternal(
+            { timestamp: Date.now(), ...event } as RecordedEvent,
+            {},
+            this._currentGeneration,
+        );
+    }
 
     recordIrisChatSent(
         text: string,
@@ -204,18 +247,14 @@ export class SessionRecorder implements vscode.Disposable, WebSocketMessageHandl
         sessionId?: string,
         sentAt?: number,
     ): void {
-        if (this._phase !== 'recording') {
-            return;
-        }
-        this._lifecycle.recordInternal({
+        this._record({
             type: 'irisChatMessage',
-            timestamp: Date.now(),
             direction: 'sent',
             content: text,
             messageId,
             sessionId,
             sentAt,
-        }, {}, this._currentGeneration);
+        });
     }
 
     recordIrisChatReceived(
@@ -224,18 +263,14 @@ export class SessionRecorder implements vscode.Disposable, WebSocketMessageHandl
         sessionId?: string,
         sentAt?: number,
     ): void {
-        if (this._phase !== 'recording') {
-            return;
-        }
-        this._lifecycle.recordInternal({
+        this._record({
             type: 'irisChatMessage',
-            timestamp: Date.now(),
             direction: 'received',
             content,
             messageId,
             sessionId,
             sentAt,
-        }, {}, this._currentGeneration);
+        });
     }
 
     /**
@@ -251,31 +286,23 @@ export class SessionRecorder implements vscode.Disposable, WebSocketMessageHandl
         status: 'pending' | 'sent' | 'failed',
         errorMessage?: string,
     ): void {
-        if (this._phase !== 'recording') {
-            return;
-        }
-        this._lifecycle.recordInternal({
+        this._record({
             type: 'irisChatSendAttempt',
-            timestamp: Date.now(),
             content,
             status,
             errorMessage,
-        }, {}, this._currentGeneration);
+        });
     }
 
     /**
      * Record a helpful/unhelpful feedback submission for an Iris message.
      */
     recordIrisChatFeedback(messageId: string, helpful: boolean): void {
-        if (this._phase !== 'recording') {
-            return;
-        }
-        this._lifecycle.recordInternal({
+        this._record({
             type: 'irisChatFeedback',
-            timestamp: Date.now(),
             messageId,
             helpful,
-        }, {}, this._currentGeneration);
+        });
     }
 
     /**
@@ -290,15 +317,11 @@ export class SessionRecorder implements vscode.Disposable, WebSocketMessageHandl
         passedTests: number;
         failedTests: number;
     }): void {
-        if (this._phase !== 'recording') {
-            return;
-        }
-        this._lifecycle.recordInternal({
+        this._record({
             type: 'testResultsOverviewView',
             action: 'opened',
-            timestamp: Date.now(),
             ...payload,
-        }, {}, this._currentGeneration);
+        });
     }
 
     /**
@@ -312,15 +335,11 @@ export class SessionRecorder implements vscode.Disposable, WebSocketMessageHandl
         durationMs: number;
         closeReason: 'button' | 'escape';
     }): void {
-        if (this._phase !== 'recording') {
-            return;
-        }
-        this._lifecycle.recordInternal({
+        this._record({
             type: 'testResultsOverviewView',
             action: 'closed',
-            timestamp: Date.now(),
             ...payload,
-        }, {}, this._currentGeneration);
+        });
     }
 
     /**
@@ -337,15 +356,11 @@ export class SessionRecorder implements vscode.Disposable, WebSocketMessageHandl
         passedTests: number;
         failedTests: number;
     }): void {
-        if (this._phase !== 'recording') {
-            return;
-        }
-        this._lifecycle.recordInternal({
+        this._record({
             type: 'taskFeedbackView',
             action: 'opened',
-            timestamp: Date.now(),
             ...payload,
-        }, {}, this._currentGeneration);
+        });
     }
 
     /**
@@ -360,15 +375,11 @@ export class SessionRecorder implements vscode.Disposable, WebSocketMessageHandl
         durationMs: number;
         closeReason: 'button' | 'escape';
     }): void {
-        if (this._phase !== 'recording') {
-            return;
-        }
-        this._lifecycle.recordInternal({
+        this._record({
             type: 'taskFeedbackView',
             action: 'closed',
-            timestamp: Date.now(),
             ...payload,
-        }, {}, this._currentGeneration);
+        });
     }
 
     recordEqSnapshot(
@@ -377,17 +388,13 @@ export class SessionRecorder implements vscode.Disposable, WebSocketMessageHandl
         source: 'save' | 'build' | 'trigger',
         triggerType?: string,
     ): void {
-        if (this._phase !== 'recording') {
-            return;
-        }
-        this._lifecycle.recordInternal({
+        this._record({
             type: 'eqSnapshot',
-            timestamp: Date.now(),
             eq,
             confidence,
             source,
             triggerType,
-        }, {}, this._currentGeneration);
+        });
     }
 
     recordIntervention(
@@ -404,12 +411,8 @@ export class SessionRecorder implements vscode.Disposable, WebSocketMessageHandl
             rawWanted?: boolean;
         },
     ): void {
-        if (this._phase !== 'recording') {
-            return;
-        }
-        this._lifecycle.recordInternal({
+        this._record({
             type: 'intervention',
-            timestamp: Date.now(),
             action,
             level,
             shouldIntervene,
@@ -420,57 +423,41 @@ export class SessionRecorder implements vscode.Disposable, WebSocketMessageHandl
             suppressionReason: opts?.suppressionReason,
             dismissReason: opts?.dismissReason,
             rawWanted: opts?.rawWanted,
-        }, {}, this._currentGeneration);
+        });
     }
 
     recordViewNavigation(from: string, to: string): void {
-        if (this._phase !== 'recording') {
-            return;
-        }
-        this._lifecycle.recordInternal({
+        this._record({
             type: 'viewNavigation',
-            timestamp: Date.now(),
             from,
             to,
-        }, {}, this._currentGeneration);
+        });
     }
 
     recordPanelVisibility(panel: 'artemis' | 'chat', visible: boolean): void {
-        if (this._phase !== 'recording') {
-            return;
-        }
-        this._lifecycle.recordInternal({
+        this._record({
             type: 'panelVisibility',
-            timestamp: Date.now(),
             panel,
             visible,
-        }, {}, this._currentGeneration);
+        });
     }
 
     recordConfigurationSnapshot(struggleDetectionEnabled: boolean, showInterventions: boolean): void {
-        if (this._phase !== 'recording') {
-            return;
-        }
-        this._lifecycle.recordInternal({
+        this._record({
             type: 'configurationSnapshot',
-            timestamp: Date.now(),
             struggleDetectionEnabled,
             showInterventions,
-        }, {}, this._currentGeneration);
+        });
     }
 
     recordConfigurationChange(changes: {
         struggleDetectionEnabled?: boolean;
         showInterventions?: boolean;
     }): void {
-        if (this._phase !== 'recording') {
-            return;
-        }
-        this._lifecycle.recordInternal({
+        this._record({
             type: 'configurationChange',
-            timestamp: Date.now(),
             changes,
-        }, {}, this._currentGeneration);
+        });
     }
 
     recordEqEngineState(
@@ -479,17 +466,13 @@ export class SessionRecorder implements vscode.Disposable, WebSocketMessageHandl
         pairCount: number,
         confidence: 'sufficient' | 'insufficient',
     ): void {
-        if (this._phase !== 'recording') {
-            return;
-        }
-        this._lifecycle.recordInternal({
+        this._record({
             type: 'eqEngineState',
-            timestamp: Date.now(),
             snapshots,
             currentEQ,
             pairCount,
             confidence,
-        }, {}, this._currentGeneration);
+        });
     }
 
     // ── Disposable ────────────────────────────────────────────────────
