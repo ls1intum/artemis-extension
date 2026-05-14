@@ -348,10 +348,14 @@ export class InterventionService implements vscode.Disposable, SessionResettable
 
     /**
      * Emit a dismiss event with an explicit reason.
+     *
+     * Does NOT mutate `_state.lastDismissed` — callers that represent an
+     * explicit user dismissal ('Not now' / 'Later') set that flag themselves
+     * before calling. Implicit lifecycle dismissals ('replaced', 'hidden',
+     * 'session-end') must not flip the flag, because `InterventionFilter`
+     * uses `lastDismissed` to block subsequent subtle/notification deliveries.
      */
     private _emitDismiss(decision: InterventionDecision, reason: InterventionDismissReason): void {
-        this._state.lastDismissed = true;
-        this._state.lastAccepted = false;
         this._onDidDismissIntervention.fire({ ...decision, dismissReason: reason });
     }
 

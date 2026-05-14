@@ -200,15 +200,11 @@ export class TelemetryManager implements vscode.Disposable, WebSocketMessageHand
             return;
         }
 
-        // Step 1: EQ snapshot FIRST (synchronous)
-        const event = this._compileEmitter.handleBuildResult(result);
-        if (event) {
-            const accepted = this._eqEngine.addSnapshot(event.snapshot);
-            if (accepted) {
-                const { eq, confidence } = this._eqEngine.getCurrentEQ();
-                this._onDidCalculateEQ.fire({ eq, confidence, source: 'build' });
-            }
-        }
+        // Step 1: EQ snapshot FIRST (synchronous).
+        // handleBuildResult fires onDidEmitCompileEquivalent — the listener
+        // registered in _setupEventHandlers adds the snapshot to the EQ engine.
+        // Single-path-snapshot: both save and build flow through the listener.
+        this._compileEmitter.handleBuildResult(result);
 
         // Step 2: Existing build tracker processing
         this._buildTracker.onNewResult(result);
@@ -320,15 +316,13 @@ export class TelemetryManager implements vscode.Disposable, WebSocketMessageHand
         });
         this._disposables.push(selectionListener);
 
-        // CompileEquivalentEmitter → EQEngine
+        // CompileEquivalentEmitter → EQEngine.
+        // Single source of truth for snapshot intake: handles both save and build events.
         this._compileEmitter.onDidEmitCompileEquivalent(event => {
-            // Only add from save events; build events are handled in onNewResult
-            if (event.source === 'save') {
-                const accepted = this._eqEngine.addSnapshot(event.snapshot);
-                if (accepted) {
-                    const { eq, confidence } = this._eqEngine.getCurrentEQ();
-                    this._onDidCalculateEQ.fire({ eq, confidence, source: 'save' });
-                }
+            const accepted = this._eqEngine.addSnapshot(event.snapshot);
+            if (accepted) {
+                const { eq, confidence } = this._eqEngine.getCurrentEQ();
+                this._onDidCalculateEQ.fire({ eq, confidence, source: event.source });
             }
         });
 
@@ -353,10 +347,21 @@ export class TelemetryManager implements vscode.Disposable, WebSocketMessageHand
             }
         });
 
-        // Intervention dismissed → increment adaptive cadence for the trigger that caused it
+        // Intervention dismissed → increment adaptive cadence for the trigger that caused it.
+        // Only count explicit user dismissals: 'replaced', 'hidden', 'session-end' are
+        // implicit lifecycle dismissals and must NOT skew the cadence statistics.
         this._interventionService.onDidDismissIntervention(decision => {
-            const triggerType = decision.triggerType ?? 'idle';
-            this._adaptiveCadence.incrementIgnoreCount(triggerType);
+            if (decision.dismissReason !== 'user-action') {
+                return;
+            }
+            if (decision.triggerType === undefined) {
+                logger.warn(
+                    'Dismiss event has no triggerType — skipping cadence increment',
+                    LogCategory.TELEMETRY,
+                );
+                return;
+            }
+            this._adaptiveCadence.incrementIgnoreCount(decision.triggerType);
         });
 
         // Intervention accepted → reset adaptive cadence
