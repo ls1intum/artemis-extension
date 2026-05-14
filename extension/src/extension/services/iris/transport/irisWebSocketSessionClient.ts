@@ -3,6 +3,7 @@ import { ArtemisApiService } from '../../../api';
 import { ArtemisWebsocketService } from '../../websocket/artemisWebsocketService';
 import { ActiveContext, type IrisChatMessage } from '../../../types';
 import { logger, LogLevel } from '../../loggingService';
+import { contextToIrisMode } from '../context/contextChatMode';
 
 /** WebSocket message structure for Iris chat */
 interface IrisWebSocketMessage {
@@ -98,14 +99,8 @@ export class IrisWebSocketSessionClient implements vscode.Disposable {
             sessionId = storedSessionId;
         } else {
             logger.session('Fetching current session from Artemis');
-            let session;
-            if (context.type === 'course') {
-                session = await this._artemisApiService.getCurrentCourseChat(context.id);
-            } else if (context.type === 'exercise') {
-                session = await this._artemisApiService.getCurrentExerciseChat(context.id);
-            } else {
-                throw new Error(`Unsupported context type: ${context.type}`);
-            }
+            const mode = contextToIrisMode(context.type);
+            const session = await this._artemisApiService.getCurrentChat(mode, context.id);
             sessionId = session.id;
         }
 
@@ -117,14 +112,8 @@ export class IrisWebSocketSessionClient implements vscode.Disposable {
     public async createNewSession(context: ActiveContext): Promise<number> {
         logger.session(`Creating NEW Iris session for ${context.type} ${context.id}`);
 
-        let newSession;
-        if (context.type === 'course') {
-            newSession = await this._artemisApiService.createCourseChatSession(context.id);
-        } else if (context.type === 'exercise') {
-            newSession = await this._artemisApiService.createExerciseChatSession(context.id);
-        } else {
-            throw new Error(`Unsupported context type: ${context.type}`);
-        }
+        const mode = contextToIrisMode(context.type);
+        const newSession = await this._artemisApiService.createChatSession(mode, context.id);
 
         this._currentArtemisSessionId = newSession.id;
         await this._subscribeIfConnected(newSession.id);
