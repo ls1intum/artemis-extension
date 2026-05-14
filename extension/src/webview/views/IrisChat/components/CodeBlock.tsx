@@ -3,6 +3,8 @@ import { useState, useEffect } from 'react';
 import { createHighlighterCore } from 'shiki/core';
 // @ts-expect-error - shiki ESM imports resolved by esbuild at bundle time (TS1479: Node16 module resolution vs ESM)
 import { createJavaScriptRegexEngine } from 'shiki/engine/javascript';
+import Check from 'lucide-react/dist/esm/icons/check';
+import Copy from 'lucide-react/dist/esm/icons/copy';
 import styles from './CodeBlock.module.css';
 
 interface CodeBlockProps {
@@ -110,35 +112,7 @@ export function CodeBlock({ language, children, code }: CodeBlockProps) {
                     onClick={handleCopy}
                     aria-label="Copy code"
                 >
-                    {copyText === 'Copied!' ? (
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
-                            <path
-                                d="M20 6L9 17l-5-5"
-                                stroke="currentColor"
-                                strokeWidth="2"
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                            />
-                        </svg>
-                    ) : (
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
-                            <rect
-                                x="9" y="9" width="13" height="13"
-                                rx="2" ry="2"
-                                stroke="currentColor"
-                                strokeWidth="2"
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                            />
-                            <path
-                                d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"
-                                stroke="currentColor"
-                                strokeWidth="2"
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                            />
-                        </svg>
-                    )}
+                    {copyText === 'Copied!' ? <Check size={14} /> : <Copy size={14} />}
                     <span className={styles.copyText}>{copyText}</span>
                 </button>
             </div>

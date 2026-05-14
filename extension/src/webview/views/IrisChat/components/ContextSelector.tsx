@@ -4,6 +4,13 @@ import { useClickOutside } from '../../../hooks/useClickOutside';
 import { formatRelativeTime } from '../../../utils/formatRelativeTime';
 import FolderGit2 from 'lucide-react/dist/esm/icons/folder-git-2';
 import Plus from 'lucide-react/dist/esm/icons/plus';
+import File from 'lucide-react/dist/esm/icons/file';
+import BookOpen from 'lucide-react/dist/esm/icons/book-open';
+import Circle from 'lucide-react/dist/esm/icons/circle';
+import ChevronDown from 'lucide-react/dist/esm/icons/chevron-down';
+import Search from 'lucide-react/dist/esm/icons/search';
+import MessageSquare from 'lucide-react/dist/esm/icons/message-square';
+import Check from 'lucide-react/dist/esm/icons/check';
 import type { ChatContext, ChatSession, ContextItem } from '../types';
 import type { ChatContextType } from '../../../../shared/types/context';
 import styles from './ContextSelector.module.css';
@@ -111,19 +118,11 @@ export function ContextSelector({
                     ) : (
                     <div className={styles.contextIcon}>
                         {context?.type === 'exercise' ? (
-                            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
-                                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6z" />
-                                <path d="M14 2v6h6" />
-                            </svg>
+                            <File size={18} />
                         ) : context?.type === 'course' ? (
-                            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
-                                <path d="M22 10v6M2 10l10-5 10 5-10 5z" />
-                                <path d="M6 12v5c3 3 9 3 12 0v-5" />
-                            </svg>
+                            <BookOpen size={18} />
                         ) : (
-                            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
-                                <circle cx="12" cy="12" r="10" />
-                            </svg>
+                            <Circle size={18} />
                         )}
                     </div>
                     )}
@@ -136,39 +135,19 @@ export function ContextSelector({
                         </span>
                     </div>
                 </div>
-                <svg
-                    width="16"
-                    height="16"
-                    viewBox="0 0 24 24"
-                    fill="none"
+                <ChevronDown
+                    size={16}
                     className={clsx(styles.chevron, {
                         [styles.chevronExpanded]: isOpen,
                     })}
-                >
-                    <polyline
-                        points="6 9 12 15 18 9"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                    />
-                </svg>
+                />
             </button>
 
             {isOpen && (
                 <div className={styles.dropdown}>
                     <div className={styles.searchContainer}>
                         <div className={styles.searchInputWrapper}>
-                            <svg
-                                width="14"
-                                height="14"
-                                viewBox="0 0 24 24"
-                                fill="none"
-                                className={styles.searchIcon}
-                            >
-                                <circle cx="11" cy="11" r="8" stroke="currentColor" strokeWidth="2" />
-                                <line x1="21" y1="21" x2="16.65" y2="16.65" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-                            </svg>
+                            <Search size={14} className={styles.searchIcon} />
                             <input
                                 type="text"
                                 className={styles.searchInput}
@@ -230,10 +209,7 @@ export function ContextSelector({
                                             }}
                                         >
                                             <span className={styles.actionButtonContent}>
-                                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                                    <path d="M22 10v6M2 10l10-5 10 5-10 5z" />
-                                                    <path d="M6 12v5c3 3 9 3 12 0v-5" />
-                                                </svg>
+                                                <BookOpen size={14} />
                                                 {isInWorkspaceCourseContext
                                                     ? `Workspace Course (Active): ${workspaceCourse.title}`
                                                     : `Chat about Workspace Course: ${workspaceCourse.title}`}
@@ -257,21 +233,7 @@ export function ContextSelector({
                                             })}
                                             onClick={() => handleSelectSession(session.id)}
                                         >
-                                            <svg
-                                                width="14"
-                                                height="14"
-                                                viewBox="0 0 24 24"
-                                                fill="none"
-                                                className={styles.sessionIcon}
-                                            >
-                                                <path
-                                                    d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"
-                                                    stroke="currentColor"
-                                                    strokeWidth="2"
-                                                    strokeLinecap="round"
-                                                    strokeLinejoin="round"
-                                                />
-                                            </svg>
+                                            <MessageSquare size={14} className={styles.sessionIcon} />
                                             <div className={styles.sessionContent}>
                                                 <span className={styles.sessionPreview}>
                                                     {session.title || session.preview}
@@ -281,21 +243,7 @@ export function ContextSelector({
                                                 </span>
                                             </div>
                                             {session.id === activeSessionId && (
-                                                <svg
-                                                    width="16"
-                                                    height="16"
-                                                    viewBox="0 0 24 24"
-                                                    fill="none"
-                                                    className={styles.checkIcon}
-                                                >
-                                                    <polyline
-                                                        points="20 6 9 17 4 12"
-                                                        stroke="currentColor"
-                                                        strokeWidth="2"
-                                                        strokeLinecap="round"
-                                                        strokeLinejoin="round"
-                                                    />
-                                                </svg>
+                                                <Check size={16} className={styles.checkIcon} />
                                             )}
                                         </button>
                                     ))}
