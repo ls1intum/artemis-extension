@@ -264,7 +264,14 @@ export async function deactivate(): Promise<void> {
 		activeSessionRecorder = undefined;
 	}
 	if (activeTelemetryManager) {
-		activeTelemetryManager.endCurrentSession();
+		try {
+			// Explicit dispose so session-end + command/status-bar teardown
+			// run before VS Code disposes context.subscriptions. dispose() is
+			// idempotent, so the subscription teardown is a safe no-op.
+			activeTelemetryManager.dispose();
+		} catch (err) {
+			logger.error('Failed to dispose TelemetryManager during deactivate', LogCategory.TELEMETRY, err);
+		}
 		activeTelemetryManager = undefined;
 	}
 }

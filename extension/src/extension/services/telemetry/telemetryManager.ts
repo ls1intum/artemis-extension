@@ -37,6 +37,7 @@ import { shouldAcceptBuildResult } from './buildResultGuard';
  */
 export class TelemetryManager implements vscode.Disposable, WebSocketMessageHandler {
     private readonly _disposables: vscode.Disposable[] = [];
+    private _disposed = false;
 
     // Sub-services (kept from old system)
     private readonly _diagnosticService: DiagnosticPersistenceService;
@@ -165,6 +166,14 @@ export class TelemetryManager implements vscode.Disposable, WebSocketMessageHand
     }
 
     public dispose(): void {
+        // Idempotent: VS Code disposes context.subscriptions during deactivate,
+        // and extension.ts also calls this explicitly so session-end telemetry
+        // flushes before teardown. Both paths must be safe to run.
+        if (this._disposed) {
+            return;
+        }
+        this._disposed = true;
+
         if (this._websocketService) {
             this._websocketService.unregisterMessageHandler(this);
         }

@@ -95,6 +95,7 @@ suite('TelemetryManager — Adaptive-Cadence dismiss filter (#1, #2)', () => {
             command: undefined,
         };
         sandbox.stub(vscode.window, 'createStatusBarItem').returns(statusBarItem as unknown as vscode.StatusBarItem);
+        sandbox.stub(vscode.commands, 'registerCommand').returns(new vscode.Disposable(() => { /* noop */ }));
         tm = new TelemetryManager();
     });
 
@@ -163,6 +164,7 @@ suite('InterventionService — lifecycle dismissals do not flip lastDismissed (#
             command: undefined,
         };
         sandbox.stub(vscode.window, 'createStatusBarItem').returns(statusBarItem as unknown as vscode.StatusBarItem);
+        sandbox.stub(vscode.commands, 'registerCommand').returns(new vscode.Disposable(() => { /* noop */ }));
     });
 
     teardown(() => {
@@ -221,6 +223,7 @@ suite('TelemetryManager — single-path EQ snapshot intake (#5)', () => {
             command: undefined,
         };
         sandbox.stub(vscode.window, 'createStatusBarItem').returns(statusBarItem as unknown as vscode.StatusBarItem);
+        sandbox.stub(vscode.commands, 'registerCommand').returns(new vscode.Disposable(() => { /* noop */ }));
         tm = new TelemetryManager();
     });
 
@@ -303,5 +306,30 @@ suite('TelemetryManager — single-path EQ snapshot intake (#5)', () => {
             0,
             'with the emitter silenced, no snapshot path should exist — proves the listener is the only path',
         );
+    });
+});
+
+suite('TelemetryManager.dispose() — idempotent', () => {
+    let sandbox: sinon.SinonSandbox;
+
+    setup(() => {
+        sandbox = sinon.createSandbox();
+        sandbox.stub(vscode.window, 'createStatusBarItem').returns({
+            show: sandbox.stub(), hide: sandbox.stub(), dispose: sandbox.stub(),
+            text: '', tooltip: undefined, backgroundColor: undefined, command: undefined,
+        } as unknown as vscode.StatusBarItem);
+        sandbox.stub(vscode.commands, 'registerCommand').returns(new vscode.Disposable(() => { /* noop */ }));
+    });
+
+    teardown(() => {
+        sandbox.restore();
+    });
+
+    test('calling dispose twice does not throw and does not re-run teardown', () => {
+        const tm = new TelemetryManager();
+        tm.dispose();
+        // No throw on the second call — VS Code disposes context.subscriptions
+        // after extension.ts:deactivate has already disposed explicitly.
+        assert.doesNotThrow(() => tm.dispose());
     });
 });
