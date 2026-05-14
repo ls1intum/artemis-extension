@@ -576,6 +576,22 @@ suite('Artemis API Service Test Suite', () => {
         );
     });
 
+    test('getLatestResultWithFeedbacks: non-object body (array/primitive) throws MalformedResponseError', async () => {
+        const participationId = 19;
+        for (const bogus of ['[]', '42', '"ok"']) {
+            global.fetch = async () => ({
+                ok: true,
+                status: 200,
+                text: async () => bogus,
+            } as any);
+            await assert.rejects(
+                () => apiService.getLatestResultWithFeedbacks(participationId),
+                (err: unknown) => err instanceof MalformedResponseError,
+                `body ${bogus} must reject`,
+            );
+        }
+    });
+
     test('should mark message helpful', async () => {
         const sessionId = 1;
         const messageId = 1;
@@ -739,6 +755,54 @@ suite('Artemis API Service Test Suite', () => {
         };
         const summaries = await apiService.listChatSessionsForCourse(courseId);
         assert.deepStrictEqual(summaries, mockSummaries);
+    });
+
+    test('getCoursesForDashboard: rejects when body is an array (not an object)', async () => {
+        global.fetch = async () => ({
+            ok: true,
+            status: 200,
+            json: async () => [{ courses: [] }],
+        } as any);
+        await assert.rejects(
+            () => apiService.getCoursesForDashboard(),
+            (err: unknown) => err instanceof MalformedResponseError && /expected object, got array/.test(err.message),
+        );
+    });
+
+    test('getArchivedCourses: rejects when body is not an array', async () => {
+        global.fetch = async () => ({
+            ok: true,
+            status: 200,
+            json: async () => ({ items: [] }),
+        } as any);
+        await assert.rejects(
+            () => apiService.getArchivedCourses(),
+            (err: unknown) => err instanceof MalformedResponseError && /expected array, got object/.test(err.message),
+        );
+    });
+
+    test('getCurrentChat: rejects when session id is missing or non-numeric', async () => {
+        global.fetch = async () => ({
+            ok: true,
+            status: 200,
+            json: async () => ({ mode: 'COURSE_CHAT' }),
+        } as any);
+        await assert.rejects(
+            () => apiService.getCurrentChat('COURSE_CHAT', 1),
+            (err: unknown) => err instanceof MalformedResponseError && /missing or non-number field "id"/.test(err.message),
+        );
+    });
+
+    test('listChatSessionsForCourse: rejects element with missing required field', async () => {
+        global.fetch = async () => ({
+            ok: true,
+            status: 200,
+            json: async () => [{ id: 1, entityId: 2, creationDate: '2026-01-01', mode: 'COURSE_CHAT' }, { id: 3 }],
+        } as any);
+        await assert.rejects(
+            () => apiService.listChatSessionsForCourse(1),
+            (err: unknown) => err instanceof MalformedResponseError && /IrisChatSessionSummary\[1\]/.test(err.message),
+        );
     });
 
     test('should throw when authentication succeeds without cookie', async () => {

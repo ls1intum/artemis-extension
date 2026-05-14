@@ -4,6 +4,7 @@ import {
     ApiError, MalformedResponseError, PROFILE_IRIS,
     parseArtemisUser, parseArtemisParticipation,
     parseIrisHealthStatus, parseProfileInfo, parseProgrammingSubmission, parseBuildLogEntry,
+    expectArray, expectObject, parseApiObject,
 } from '../types';
 import type {
     ArtemisUser, ArtemisParticipation, AuthenticationResult,
@@ -114,19 +115,23 @@ export class ArtemisApiService {
     // Get archived courses (inactive courses from previous semesters)
     async getArchivedCourses(): Promise<CourseDashboardCourse[]> {
         const response = await this.makeRequest('/api/core/courses/for-archive');
-        return response.json() as Promise<CourseDashboardCourse[]>;
+        return expectArray<CourseDashboardCourse>(
+            'archived courses',
+            await response.json(),
+            (item, i) => expectObject(`archived courses[${i}]`, item) as CourseDashboardCourse,
+        );
     }
 
     // Get courses with comprehensive dashboard data (exercises, participations, scores)
     async getCoursesForDashboard(): Promise<CourseDashboardResponse> {
         const response = await this.makeRequest('/api/core/courses/for-dashboard');
-        return response.json() as Promise<CourseDashboardResponse>;
+        return parseApiObject<CourseDashboardResponse>('CourseDashboardResponse', await response.json());
     }
 
     // Get a single course with exercises and participations for dashboard
     async getCourseForDashboard(courseId: number): Promise<CourseDashboardEntry> {
         const response = await this.makeRequest(`/api/core/courses/${courseId}/for-dashboard`);
-        return response.json() as Promise<CourseDashboardEntry>;
+        return parseApiObject<CourseDashboardEntry>('CourseDashboardEntry', await response.json());
     }
 
     // Get exercise details for a specific exercise.
@@ -136,7 +141,7 @@ export class ArtemisApiService {
         const response = await this.makeRequest(
             `/api/exercise/exercises/${exerciseId}/details`
         );
-        return response.json() as Promise<ExerciseDetailsResponse>;
+        return parseApiObject<ExerciseDetailsResponse>('ExerciseDetailsResponse', await response.json());
     }
 
     // Get latest pending submission for a participation.
@@ -188,8 +193,9 @@ export class ArtemisApiService {
         if (!text || text.trim() === '' || text.trim() === 'null') {
             return null;
         }
+        let parsed: unknown;
         try {
-            return JSON.parse(text) as ResultSummary;
+            parsed = JSON.parse(text);
         } catch (parseError) {
             const detail = parseError instanceof Error ? parseError.message : String(parseError);
             throw new MalformedResponseError(
@@ -198,6 +204,10 @@ export class ArtemisApiService {
                 detail,
             );
         }
+        return parseApiObject<ResultSummary>(
+            `latest-result for participation ${participationId}`,
+            parsed,
+        );
     }
 
     // Get build logs for a participation (optionally for a specific result)
@@ -207,8 +217,7 @@ export class ArtemisApiService {
             endpoint += `?resultId=${resultId}`;
         }
         const response = await this.makeRequest(endpoint);
-        const data: unknown = await response.json();
-        return (data as unknown[]).map(e => parseBuildLogEntry(e));
+        return expectArray('build logs', await response.json(), parseBuildLogEntry);
     }
 
     // Get VCS access token for a specific participation (per-exercise token)
@@ -409,13 +418,17 @@ export class ArtemisApiService {
     // Get Iris settings for a course
     async getIrisCourseChatSettings(courseId: number): Promise<IrisSettingsResponse> {
         const response = await this.makeRequest(`/api/iris/courses/${courseId}/iris-settings`);
-        return response.json() as Promise<IrisSettingsResponse>;
+        return parseApiObject<IrisSettingsResponse>('IrisSettingsResponse', await response.json());
     }
 
     // Get messages for a chat session
     async getChatMessages(sessionId: number): Promise<IrisChatMessage[]> {
         const response = await this.makeRequest(`/api/iris/sessions/${sessionId}/messages`);
-        return response.json() as Promise<IrisChatMessage[]>;
+        return expectArray<IrisChatMessage>(
+            'IrisChatMessage list',
+            await response.json(),
+            (item, i) => expectObject(`IrisChatMessage[${i}]`, item) as IrisChatMessage,
+        );
     }
 
     // Send a message to Iris
@@ -450,7 +463,7 @@ export class ArtemisApiService {
                     body: JSON.stringify(messagePayload)
                 }
             );
-            return response.json() as Promise<IrisChatMessage>;
+            return parseApiObject<IrisChatMessage>('IrisChatMessage', await response.json());
         } catch (error: unknown) {
             // If sending with uncommittedFiles fails, retry without them
             // This handles the case where the server doesn't support the feature yet
@@ -472,7 +485,7 @@ export class ArtemisApiService {
                         body: JSON.stringify(fallbackPayload)
                     }
                 );
-                return fallbackResponse.json() as Promise<IrisChatMessage>;
+                return parseApiObject<IrisChatMessage>('IrisChatMessage', await fallbackResponse.json());
             }
             throw error;
         }
@@ -496,7 +509,9 @@ export class ArtemisApiService {
             `/api/iris/chat/sessions/current?${params.toString()}`,
             { method: 'POST' },
         );
-        return response.json() as Promise<IrisChatSession>;
+        return parseApiObject<IrisChatSession>('IrisChatSession', await response.json(), [
+            { key: 'id', type: 'number' },
+        ]);
     }
 
     async createChatSession(mode: IrisChatMode, entityId: number): Promise<IrisChatSession> {
@@ -505,12 +520,23 @@ export class ArtemisApiService {
             `/api/iris/chat/sessions?${params.toString()}`,
             { method: 'POST' },
         );
-        return response.json() as Promise<IrisChatSession>;
+        return parseApiObject<IrisChatSession>('IrisChatSession', await response.json(), [
+            { key: 'id', type: 'number' },
+        ]);
     }
 
     async listChatSessionsForCourse(courseId: number): Promise<IrisChatSessionSummary[]> {
         const response = await this.makeRequest(`/api/iris/chat/${courseId}/sessions/overview`);
-        return response.json() as Promise<IrisChatSessionSummary[]>;
+        return expectArray<IrisChatSessionSummary>(
+            'IrisChatSessionSummary list',
+            await response.json(),
+            (item, i) => parseApiObject<IrisChatSessionSummary>(`IrisChatSessionSummary[${i}]`, item, [
+                { key: 'id', type: 'number' },
+                { key: 'entityId', type: 'number' },
+                { key: 'creationDate', type: 'string' },
+                { key: 'mode', type: 'string' },
+            ]),
+        );
     }
 
     // Get exam sidebar data for a specific course (student-accessible).
@@ -518,19 +544,23 @@ export class ArtemisApiService {
     // Note: does NOT include endDate — use course.exams from getCourseForDashboard for full data.
     async getExamSidebarData(courseId: number): Promise<ExamSummary[]> {
         const response = await this.makeRequest(`/api/exam/courses/${courseId}/real-exams-sidebar-data`);
-        return response.json() as Promise<ExamSummary[]>;
+        return expectArray<ExamSummary>(
+            'ExamSummary list',
+            await response.json(),
+            (item, i) => expectObject(`ExamSummary[${i}]`, item) as ExamSummary,
+        );
     }
 
     // Get the student's own exam for a specific exam (to check status)
     async getOwnStudentExam(courseId: number, examId: number): Promise<StudentExam> {
         const response = await this.makeRequest(`/api/exam/courses/${courseId}/exams/${examId}/own-student-exam`);
-        return response.json() as Promise<StudentExam>;
+        return parseApiObject<StudentExam>('StudentExam', await response.json());
     }
 
     // Start the exam and get conduction details
     async startStudentExam(courseId: number, examId: number, studentExamId: number): Promise<StudentExam> {
         const response = await this.makeRequest(`/api/exam/courses/${courseId}/exams/${examId}/student-exams/${studentExamId}/conduction`);
-        return response.json() as Promise<StudentExam>;
+        return parseApiObject<StudentExam>('StudentExam', await response.json());
     }
 
     // ── Problem Statement Rendering ──

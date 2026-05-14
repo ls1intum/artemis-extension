@@ -1,4 +1,5 @@
 export { ApiError, MalformedResponseError } from './errors';
+export { expectObject, expectArray, parseApiObject } from './responseValidation';
 export type {
     ArtemisUser,
     ArtemisParticipation,
