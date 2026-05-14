@@ -235,10 +235,12 @@ export class ArtemisWebsocketService {
             logger.error(`Failed to connect to WebSocket: ${errorMessage}`, LogCategory.WEBSOCKET);
             this._clearSubscriptions();
             this._transitionTo('disconnected');
-            // Clear safety timeout; don't settle the deferred (throw handles the caller).
-            // No concurrent awaiters can exist since the deferred was just created above.
-            if (this._safetyTimeout) { clearTimeout(this._safetyTimeout); this._safetyTimeout = undefined; }
-            this._connectDeferred = undefined;
+            // Reject the deferred so any concurrent `connect()` callers that
+            // received this same deferred (via the `connecting` branch at the
+            // top while we were awaiting `_client.deactivate()`) unblock with
+            // the same error instead of hanging forever.
+            const settleError = error instanceof Error ? error : new Error(String(error));
+            this._settleDeferred(settleError);
             throw error;
         }
 
@@ -273,10 +275,17 @@ export class ArtemisWebsocketService {
         }
         const deferred = this._connectDeferred;
         this._connectDeferred = undefined;
+        if (!deferred) { return; }
         if (outcome === 'resolve') {
-            deferred?.resolve();
+            deferred.resolve();
         } else {
-            deferred?.reject(outcome);
+            // Attach a fallback catch BEFORE rejecting so the rejection is
+            // considered handled even when no external caller is awaiting
+            // this deferred (e.g. the catch path of `connect()` throws
+            // directly and no parallel `connect()` ever attached an awaiter).
+            // External awaiters still observe the rejection via their own await.
+            deferred.promise.catch(() => { /* defensive no-op */ });
+            deferred.reject(outcome);
         }
     }
 

@@ -1147,6 +1147,82 @@ suite('WebSocket Race Condition Fixes', () => {
     });
 
     // ========================================================================
+    // Concurrent connect() awaiters are not orphaned when the catch path fires
+    // ========================================================================
+    //
+    // While the first connect() awaits `_client.deactivate()`, a parallel
+    // `connect()` call observes the 'connecting' state at the top of the
+    // method and returns the existing `_connectDeferred.promise`. If the
+    // catch path then throws (deactivate failed, auth headers empty, etc.)
+    // without settling the deferred, every concurrent awaiter hangs forever.
+    // The fix routes the catch through `_settleDeferred(error)`.
+    test('concurrent connect() awaiters reject when catch path fires', async () => {
+        // Hold deactivate open so a second connect() can attach as an awaiter
+        // before the first call's catch block runs.
+        const p1 = wsService.connect();
+        await flushMicrotasks();
+        wsService.mockClient!.simulateConnect();
+        await p1;
+
+        let releaseDeactivate!: () => void;
+        const deactivateGate = new Promise<void>(resolve => { releaseDeactivate = resolve; });
+        wsService.mockClient!.deactivate = async () => {
+            await deactivateGate;
+            throw new Error('deactivate failed');
+        };
+
+        // First reconnect: enters connecting, blocks inside `await deactivate()`.
+        const reconnect1 = wsService.connect();
+        await flushMicrotasks();
+        assert.strictEqual(wsService.isConnectingState, true, 'first reconnect should be in connecting state');
+
+        // Second reconnect arrives during the await: returns the same deferred.
+        const reconnect2 = wsService.connect();
+
+        // Let the catch path fire.
+        releaseDeactivate();
+
+        // Both awaiters must reject with the same root cause — neither hangs.
+        await assert.rejects(reconnect1, /deactivate failed/);
+        await assert.rejects(reconnect2, /deactivate failed/);
+        assert.strictEqual(wsService.isConnectingState, false, 'state machine must exit connecting');
+    });
+
+    // ========================================================================
+    // Catch path with NO concurrent awaiter must not orphan the deferred
+    // ========================================================================
+    //
+    // Companion to the concurrent-awaiter test: when only a single caller
+    // hits the catch path, the deferred is never observed by anyone else.
+    // It still has to settle cleanly without producing an unhandled
+    // promise rejection.
+    test('catch path with single caller does not emit unhandled rejection', async () => {
+        const rejections: unknown[] = [];
+        const onUnhandled = (reason: unknown): void => { rejections.push(reason); };
+        process.on('unhandledRejection', onUnhandled);
+        try {
+            const p1 = wsService.connect();
+            await flushMicrotasks();
+            wsService.mockClient!.simulateConnect();
+            await p1;
+
+            wsService.mockClient!.deactivate = async () => {
+                throw new Error('deactivate failed');
+            };
+
+            await assert.rejects(wsService.connect(), /deactivate failed/);
+
+            // Drain microtasks so any pending unhandled rejection would fire.
+            await flushMicrotasks();
+            await new Promise(resolve => setImmediate(resolve));
+
+            assert.deepStrictEqual(rejections, [], 'no unhandled rejection allowed');
+        } finally {
+            process.off('unhandledRejection', onUnhandled);
+        }
+    });
+
+    // ========================================================================
     // Bug 5: _isDisconnecting resets if deactivate() throws
     // ========================================================================
     test('_isDisconnecting resets if deactivate() throws', async () => {
