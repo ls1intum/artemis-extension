@@ -1,7 +1,7 @@
 import { AuthManager } from '../services/auth/authManager';
 import { CONFIG, resolveServerUrl, getUserAgent } from '../utils';
 import {
-    ApiError, PROFILE_IRIS,
+    ApiError, MalformedResponseError, PROFILE_IRIS,
     parseArtemisUser, parseArtemisParticipation,
     parseIrisHealthStatus, parseProfileInfo, parseProgrammingSubmission, parseBuildLogEntry,
 } from '../types';
@@ -139,28 +139,40 @@ export class ArtemisApiService {
         return response.json() as Promise<ExerciseDetailsResponse>;
     }
 
-    // Get latest pending submission for a participation
-    // A pending submission is one that has NO result yet (build in progress)
-    // Returns null if no pending submission exists
+    // Get latest pending submission for a participation.
+    // A pending submission is one that has NO result yet (build in progress).
+    //
+    // Artemis returns 200+null body when no submission is pending and 404 when
+    // the participation does not exist. Both map to `null`. All other error
+    // statuses (401/403/5xx) and malformed JSON propagate so the caller can
+    // decide between retry, log-and-continue, or surface-to-user.
     async getLatestPendingSubmission(participationId: number): Promise<ProgrammingSubmission | null> {
+        let response: Response;
         try {
-            const response = await this.makeRequest(
+            response = await this.makeRequest(
                 `/api/programming/programming-exercise-participations/${participationId}/latest-pending-submission`
             );
-
-            // Check if response has content
-            const text = await response.text();
-            if (!text || text.trim() === '') {
-                logger.info(`No pending submission for participation ${participationId}`, LogCategory.API);
+        } catch (error) {
+            if (error instanceof ApiError && error.status === 404) {
                 return null;
             }
+            throw error;
+        }
 
-            // Parse JSON
-            return parseProgrammingSubmission(JSON.parse(text));
-        } catch (error) {
-            // If no pending submission exists, API may return 404 or empty response
-            logger.info(`No pending submission for participation ${participationId}: ${error}`, LogCategory.API);
+        const text = await response.text();
+        if (!text || text.trim() === '' || text.trim() === 'null') {
             return null;
+        }
+
+        try {
+            return parseProgrammingSubmission(JSON.parse(text));
+        } catch (parseError) {
+            const detail = parseError instanceof Error ? parseError.message : String(parseError);
+            throw new MalformedResponseError(
+                `Malformed pending-submission response for participation ${participationId}: ${detail}`,
+                response.status,
+                detail,
+            );
         }
     }
 
@@ -176,7 +188,16 @@ export class ArtemisApiService {
         if (!text || text.trim() === '' || text.trim() === 'null') {
             return null;
         }
-        return JSON.parse(text) as ResultSummary;
+        try {
+            return JSON.parse(text) as ResultSummary;
+        } catch (parseError) {
+            const detail = parseError instanceof Error ? parseError.message : String(parseError);
+            throw new MalformedResponseError(
+                `Malformed latest-result response for participation ${participationId}: ${detail}`,
+                response.status,
+                detail,
+            );
+        }
     }
 
     // Get build logs for a participation (optionally for a specific result)
@@ -208,13 +229,18 @@ export class ArtemisApiService {
         return response.text();
     }
 
-    // Get or create VCS access token helper
+    // Get or create VCS access token helper.
+    // Falls back to creation only when the server explicitly signals "no token
+    // exists yet" (404). Other errors (401/403/5xx, network) propagate so the
+    // caller does not retry on top of an already-failed auth state.
     async getOrCreateVcsAccessToken(participationId: number): Promise<string> {
         try {
             return await this.getVcsAccessToken(participationId);
         } catch (err) {
-            // Attempt to create if GET failed (e.g., no token yet)
-            return await this.createVcsAccessToken(participationId);
+            if (err instanceof ApiError && err.status === 404) {
+                return await this.createVcsAccessToken(participationId);
+            }
+            throw err;
         }
     }
 

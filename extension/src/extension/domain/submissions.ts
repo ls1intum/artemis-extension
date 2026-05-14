@@ -40,12 +40,18 @@ export interface ProgrammingSubmission extends ArtemisSubmission {
 }
 
 export function parseProgrammingSubmission(data: unknown): ProgrammingSubmission {
-    if (!data || typeof data !== 'object') {
+    if (!data || typeof data !== 'object' || Array.isArray(data)) {
         throw new Error('Invalid ProgrammingSubmission data');
     }
     const d = data as Record<string, unknown>;
+    // Strict typeof check on the raw value: `Number(null)`, `Number(false)`,
+    // and `Number('')` all coerce to 0, which would silently pass a downstream
+    // `Number.isFinite` guard. Require the server to send a real number.
+    if (typeof d.id !== 'number' || !Number.isFinite(d.id)) {
+        throw new Error('Invalid ProgrammingSubmission: missing or non-numeric id');
+    }
     return {
-        id: Number(d.id),
+        id: d.id,
         commitHash: typeof d.commitHash === 'string' ? d.commitHash : undefined,
         buildArtifact: typeof d.buildArtifact === 'boolean' ? d.buildArtifact : undefined,
         submissionDate: typeof d.submissionDate === 'string' ? d.submissionDate : undefined,

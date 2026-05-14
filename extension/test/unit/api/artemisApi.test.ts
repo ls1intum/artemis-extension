@@ -2,7 +2,7 @@ import * as assert from 'assert';
 import { ArtemisApiService } from '../../../src/extension/api/artemisApi';
 import { AuthManager } from '../../../src/extension/services/auth/authManager';
 import { MockExtensionContext } from '../mocks/vscodeMocks';
-import { ApiError } from '../../../src/extension/types';
+import { ApiError, MalformedResponseError } from '../../../src/extension/types';
 
 // Mock fetch
 const originalFetch = global.fetch;
@@ -435,6 +435,147 @@ suite('Artemis API Service Test Suite', () => {
         assert.strictEqual(submission, null);
     });
 
+    test('getLatestPendingSubmission: empty body maps to null', async () => {
+        const participationId = 7;
+        global.fetch = async () => ({
+            ok: true,
+            status: 200,
+            text: async () => '',
+        } as any);
+
+        const submission = await apiService.getLatestPendingSubmission(participationId);
+        assert.strictEqual(submission, null);
+    });
+
+    test('getLatestPendingSubmission: literal "null" body maps to null', async () => {
+        const participationId = 8;
+        global.fetch = async () => ({
+            ok: true,
+            status: 200,
+            text: async () => 'null',
+        } as any);
+
+        const submission = await apiService.getLatestPendingSubmission(participationId);
+        assert.strictEqual(submission, null);
+    });
+
+    test('getLatestPendingSubmission: 500 propagates (no silent null)', async () => {
+        const participationId = 9;
+        global.fetch = async () => ({
+            ok: false,
+            status: 500,
+            text: async () => '',
+        } as any);
+
+        await assert.rejects(
+            () => apiService.getLatestPendingSubmission(participationId),
+            (err: unknown) => err instanceof ApiError && err.status === 500,
+        );
+    });
+
+    test('getLatestPendingSubmission: 401 propagates', async () => {
+        const participationId = 10;
+        global.fetch = async () => ({
+            ok: false,
+            status: 401,
+            statusText: 'Unauthorized',
+        } as any);
+
+        await assert.rejects(
+            () => apiService.getLatestPendingSubmission(participationId),
+            (err: unknown) => err instanceof ApiError && err.status === 401,
+        );
+    });
+
+    test('getLatestPendingSubmission: malformed non-empty JSON throws MalformedResponseError', async () => {
+        const participationId = 11;
+        global.fetch = async () => ({
+            ok: true,
+            status: 200,
+            text: async () => '{ this is not json',
+        } as any);
+
+        await assert.rejects(
+            () => apiService.getLatestPendingSubmission(participationId),
+            (err: unknown) => err instanceof MalformedResponseError
+                && err.message.startsWith('Malformed pending-submission response'),
+        );
+    });
+
+    test('getLatestPendingSubmission: valid JSON without numeric id throws MalformedResponseError', async () => {
+        const participationId = 14;
+        global.fetch = async () => ({
+            ok: true,
+            status: 200,
+            text: async () => '{}',
+        } as any);
+
+        await assert.rejects(
+            () => apiService.getLatestPendingSubmission(participationId),
+            (err: unknown) => err instanceof MalformedResponseError
+                && err.message.includes('non-numeric id'),
+        );
+    });
+
+    test('getLatestPendingSubmission: valid JSON with non-numeric id throws MalformedResponseError', async () => {
+        const participationId = 15;
+        global.fetch = async () => ({
+            ok: true,
+            status: 200,
+            text: async () => '{"id":"abc"}',
+        } as any);
+
+        await assert.rejects(
+            () => apiService.getLatestPendingSubmission(participationId),
+            (err: unknown) => err instanceof MalformedResponseError,
+        );
+    });
+
+    test('getLatestPendingSubmission: array body throws MalformedResponseError', async () => {
+        const participationId = 16;
+        global.fetch = async () => ({
+            ok: true,
+            status: 200,
+            text: async () => '[]',
+        } as any);
+
+        await assert.rejects(
+            () => apiService.getLatestPendingSubmission(participationId),
+            (err: unknown) => err instanceof MalformedResponseError,
+        );
+    });
+
+    test('getLatestPendingSubmission: id=null/false/empty-string all rejected (no Number() coercion)', async () => {
+        const participationId = 19;
+        for (const bogusId of ['null', 'false', '""']) {
+            global.fetch = async () => ({
+                ok: true,
+                status: 200,
+                text: async () => `{"id":${bogusId}}`,
+            } as any);
+            await assert.rejects(
+                () => apiService.getLatestPendingSubmission(participationId),
+                (err: unknown) => err instanceof MalformedResponseError,
+                `id=${bogusId} must reject`,
+            );
+        }
+    });
+
+    test('getLatestResultWithFeedbacks: malformed JSON throws MalformedResponseError', async () => {
+        const participationId = 17;
+        global.fetch = async () => ({
+            ok: true,
+            status: 200,
+            text: async () => '{ broken',
+        } as any);
+
+        await assert.rejects(
+            () => apiService.getLatestResultWithFeedbacks(participationId),
+            (err: unknown) => err instanceof MalformedResponseError
+                && err.message.startsWith('Malformed latest-result response'),
+        );
+    });
+
     test('should mark message helpful', async () => {
         const sessionId = 1;
         const messageId = 1;
@@ -478,6 +619,60 @@ suite('Artemis API Service Test Suite', () => {
         const token = await apiService.getOrCreateVcsAccessToken(participationId);
         assert.strictEqual(attempt, 2);
         assert.strictEqual(token, createdToken);
+    });
+
+    test('getOrCreateVcsAccessToken: 401 propagates without PUT fallback', async () => {
+        const participationId = 12;
+        let attempt = 0;
+        global.fetch = async () => {
+            attempt++;
+            return {
+                ok: false,
+                status: 401,
+                statusText: 'Unauthorized',
+            } as any;
+        };
+
+        await assert.rejects(
+            () => apiService.getOrCreateVcsAccessToken(participationId),
+            (err: unknown) => err instanceof ApiError && err.status === 401,
+        );
+        assert.strictEqual(attempt, 1, 'no PUT fallback should be attempted on auth failure');
+    });
+
+    test('getOrCreateVcsAccessToken: 500 propagates without PUT fallback', async () => {
+        const participationId = 13;
+        let attempt = 0;
+        global.fetch = async () => {
+            attempt++;
+            return {
+                ok: false,
+                status: 500,
+                statusText: 'Server Error',
+                text: async () => '',
+            } as any;
+        };
+
+        await assert.rejects(
+            () => apiService.getOrCreateVcsAccessToken(participationId),
+            (err: unknown) => err instanceof ApiError && err.status === 500,
+        );
+        assert.strictEqual(attempt, 1, 'no PUT fallback should be attempted on server error');
+    });
+
+    test('getOrCreateVcsAccessToken: network error propagates without PUT fallback', async () => {
+        const participationId = 18;
+        let attempt = 0;
+        global.fetch = async () => {
+            attempt++;
+            throw new TypeError('fetch failed (network)');
+        };
+
+        await assert.rejects(
+            () => apiService.getOrCreateVcsAccessToken(participationId),
+            (err: unknown) => err instanceof TypeError,
+        );
+        assert.strictEqual(attempt, 1, 'no PUT fallback should be attempted on network failure');
     });
 
     test('should include auth headers and payload when sending chat message', async () => {
