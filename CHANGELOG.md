@@ -4,6 +4,7 @@ All notable changes to the Artemis VS Code extension will be documented in this 
 
 ## [Unreleased]
 
+- **Iris Chat Feedback Icons**: Fixed the broken thumbs-down icon on assistant messages (previously rendered as a filled blob when selected).
 - **Live Recording Viewer**: Faster live view (no more lag on long sessions), undo/redo for markers via Cmd/Ctrl+Z, and live sessions appear in the list immediately.
 - **WebSocket Status Bar**: No longer shows a misleading red "WS Disconnected" indicator while logged out (unless `artemis.showWebSocketStatusBar` is explicitly enabled).
 - **Iris Context Dropdown**: Conversations sort newest-first, the dropdown panel now spans exactly down to the chat input (no input controls peek through), scroll shadows appear when lists overflow, and exercise rows align consistently whether or not a course tag is shown.
