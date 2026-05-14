@@ -5,6 +5,7 @@ import { logger, LogCategory } from '../../loggingService';
 import { ExtensionMsg } from '../../../../shared/messageContracts';
 import { fetchSessionsWithMessages, importSessionsToStore } from '../context/sessionSyncUtils';
 import type { IrisServiceDeps } from '../context/sessionSyncUtils';
+import { resolveCourseIdFromContext } from '../context/courseIdResolver';
 
 /**
  * Orchestrates Iris chat session lifecycle (create, load, switch).
@@ -101,31 +102,7 @@ export class IrisChatSessionService {
     }
 
     private async resolveCourseIdForExercise(context: ActiveContext): Promise<number | undefined> {
-        if (context.courseId) {
-            return context.courseId;
-        }
-
-        const tracked = this.deps.contextStore.getExerciseById(context.id);
-        if (tracked?.courseId) {
-            return tracked.courseId;
-        }
-
-        try {
-            const exerciseDetails = await this.deps.artemisApiService?.getExerciseDetails(context.id);
-            const resolvedCourseId = exerciseDetails?.exercise?.course?.id;
-            if (resolvedCourseId) {
-                this.deps.contextStore.registerExercise({
-                    id: context.id,
-                    title: context.title,
-                    shortName: context.shortName,
-                    courseId: resolvedCourseId,
-                });
-            }
-            return resolvedCourseId;
-        } catch (error) {
-            logger.warn('Failed to resolve course from exercise details:', LogCategory.IRIS_CHAT, error);
-            return undefined;
-        }
+        return resolveCourseIdFromContext(context, this.deps.contextStore, this.deps.artemisApiService);
     }
 
     // ── System-driven: load sessions on context switch ─────────────────
@@ -446,7 +423,7 @@ export class IrisChatSessionService {
         targetContext: ActiveContext,
         loadToken: number,
     ): Promise<number> {
-        const sessions = await fetchSessionsWithMessages(this.deps.artemisApiService!, targetContext);
+        const sessions = await fetchSessionsWithMessages(this.deps.artemisApiService!, this.deps.contextStore, targetContext);
 
         logger.info(`Fetched ${sessions.length} session(s) with messages from Artemis`, LogCategory.IRIS_CHAT);
 

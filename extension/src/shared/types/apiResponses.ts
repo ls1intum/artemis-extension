@@ -110,11 +110,33 @@ export interface FeedbackSummary {
     [key: string]: unknown;
 }
 
+export type IrisChatMode =
+    | 'PROGRAMMING_EXERCISE_CHAT'
+    | 'TEXT_EXERCISE_CHAT'
+    | 'COURSE_CHAT'
+    | 'LECTURE_CHAT';
+
+/** Detail DTO returned by /api/iris/chat/sessions/current, /sessions, and /{courseId}/session/{sessionId}. */
 export interface IrisChatSession {
     id: number;
+    mode?: IrisChatMode;
+    entityId?: number;
+    userId?: number;
     title?: string;
     creationDate?: string;
     messages?: IrisChatMessage[];
+    [key: string]: unknown;
+}
+
+/** Listing DTO returned by /api/iris/chat/{courseId}/sessions/overview. No messages. */
+export interface IrisChatSessionSummary {
+    id: number;
+    entityId: number;
+    entityName?: string;
+    title?: string;
+    creationDate: string;
+    lastActivityDate?: string;
+    mode: IrisChatMode;
     [key: string]: unknown;
 }
 
