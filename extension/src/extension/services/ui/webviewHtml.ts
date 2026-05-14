@@ -48,7 +48,6 @@ export function getReactWebviewHtml(webview: vscode.Webview, extensionUri: vscod
     const irisLogoUri = webview.asWebviewUri(
         vscode.Uri.joinPath(extensionUri, 'media', 'iris-logo-big-left.png')
     );
-
     const dataViewAttr = viewName ? ` data-view="${viewName}"` : '';
 
     return `<!DOCTYPE html>
@@ -56,15 +55,8 @@ export function getReactWebviewHtml(webview: vscode.Webview, extensionUri: vscod
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <!-- CSP directives:
-         default-src 'none'           — deny everything not explicitly allowed
-         script-src 'nonce-${nonce}'  — only scripts with matching nonce attribute
-         style-src cspSource 'nonce'  — webview-origin CSS files + nonce for inline styles
-         img-src cspSource https:     — webview-origin images + HTTPS (Artemis problem statement images)
-         font-src cspSource           — webview-origin fonts (KaTeX fonts in dist/)
-         connect-src omitted          — no XHR/fetch from webview; all comms via postMessage
-    -->
-    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src ${webview.cspSource} https:; font-src ${webview.cspSource}; style-src ${webview.cspSource} 'unsafe-inline'; script-src 'nonce-${nonce}';">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src ${webview.cspSource} https: data:; font-src ${webview.cspSource}; style-src ${webview.cspSource} 'unsafe-inline'; script-src 'nonce-${nonce}';">
+
     <title>Artemis</title>
     <link rel="stylesheet" type="text/css" href="${reactStyleUri}">
 </head>

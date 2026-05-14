@@ -9,6 +9,8 @@ import type {
 import { extractErrorMessage, CONFIG, VSCODE_CONFIG } from '../../utils';
 import { executeReplayCommand } from '../../services/telemetry/replay';
 import { logger, LogCategory } from '../../services/loggingService';
+import type { ExerciseDetailsResponse } from '../../types';
+import { ProblemStatementRenderService } from '../../services/problemStatementRenderService';
 
 /**
  * Open VS Code settings filtered by the given setting ID.
@@ -61,6 +63,7 @@ export class UtilityCommandModule {
             [WebviewCmd.OpenExternalLink]: this.handleOpenExternalLink,
             [WebviewCmd.OpenImagePreview]: this.handleOpenImagePreview,
             [WebviewCmd.OpenFile]: this.handleOpenFile,
+            [WebviewCmd.FreshSsrPreview]: this.handleFreshSsrPreview,
             [WebviewCmd.OpenRecordingsFolder]: this.handleOpenRecordingsFolder,
             [WebviewCmd.ReplaySession]: this.handleReplaySession,
         };
@@ -101,7 +104,14 @@ export class UtilityCommandModule {
     private handleOpenInEditor = async (message: WebviewToExtensionMessage): Promise<void> => {
         try {
             const payload = getPayload<WebCmd<'openInEditor'>>(message);
-            await this.context.actionHandler.openJsonInEditor(payload.data);
+            // Support opening raw strings (e.g., SSR HTML) with a language hint
+            if (typeof payload.data === 'string') {
+                const language = ('language' in payload && typeof payload.language === 'string') ? payload.language : 'plaintext';
+                const document = await vscode.workspace.openTextDocument({ content: payload.data, language });
+                await vscode.window.showTextDocument(document, { preview: false, viewColumn: vscode.ViewColumn.One });
+            } else {
+                await this.context.actionHandler.openJsonInEditor(payload.data);
+            }
         } catch (error: unknown) {
             logger.error('Failed to open in editor:', LogCategory.VIEW, error);
             vscode.window.showErrorMessage(`Failed to open in editor: ${extractErrorMessage(error)}`);
@@ -296,6 +306,37 @@ export class UtilityCommandModule {
         } catch (error: unknown) {
             logger.error('Failed to open file:', LogCategory.VIEW, error);
             vscode.window.showErrorMessage(`Failed to open file: ${extractErrorMessage(error)}`);
+        }
+    };
+
+    private handleFreshSsrPreview = async (message: WebviewToExtensionMessage): Promise<void> => {
+        const { darkMode } = getPayload<WebCmd<'freshSsrPreview'>>(message);
+        const exerciseData = this.context.appStateManager.currentExerciseData as ExerciseDetailsResponse | undefined;
+        if (!exerciseData?.exercise) { return; }
+
+        const renderService = new ProblemStatementRenderService(this.context.artemisApi);
+        try {
+            const exercise = exerciseData.exercise;
+            const participation = exercise.studentParticipations?.[0];
+            const rendered = await renderService.render(exercise, { participation, darkModeOverride: darkMode });
+            if (!rendered) { return; }
+
+            const label = darkMode ? 'Dark' : 'Light';
+            const bg = darkMode ? '#1e1e1e' : '#fff';
+            const color = darkMode ? '#e0e0e0' : '#212529';
+            const panel = vscode.window.createWebviewPanel(
+                'ssrPreview',
+                `SSR Preview (${label})`,
+                vscode.ViewColumn.One,
+                { enableScripts: false },
+            );
+            panel.webview.html = `<!DOCTYPE html>
+<html><head><meta charset="UTF-8"></head>
+<body style="padding:20px;background:${bg};color:${color};">${rendered.html}</body></html>`;
+        } catch (error: unknown) {
+            logger.error('Failed to fetch fresh SSR preview:', LogCategory.VIEW, error);
+        } finally {
+            renderService.dispose();
         }
     };
 

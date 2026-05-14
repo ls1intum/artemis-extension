@@ -77,14 +77,18 @@ export const ExtensionMsg = {
     GitIdentityInfo: 'gitIdentityInfo',
     HealthCheckResults: 'healthCheckResults',
 
-    // PlantUML
-    PlantUmlRendered: 'plantUmlRendered',
-    PlantUmlError: 'plantUmlError',
+    // Server-side problem statement rendering
+    ProblemStatementRendered: 'problemStatementRendered',
 
 } as const;
 
 /** Union of all Extension->Webview message type strings */
 export type ExtensionMsg = (typeof ExtensionMsg)[keyof typeof ExtensionMsg];
+
+/** Server-rendered problem statement fragment (body HTML returned by Artemis SSR endpoint). */
+interface RenderedProblemStatementPayload {
+    html: string;
+}
 
 /** Payload definitions for each Extension->Webview message */
 interface ExtensionMsgPayloads {
@@ -109,6 +113,7 @@ interface ExtensionMsgPayloads {
         exerciseData: ExerciseDetailsResponse;
         hideDeveloperTools: boolean;
         repoStatus?: { isConnected: boolean; hasChanges: boolean; isPracticeRepo: boolean };
+        serverRenderedProblemStatement?: RenderedProblemStatementPayload;
     };
     examStartInit: {
         studentExam: StudentExam;
@@ -279,9 +284,8 @@ interface ExtensionMsgPayloads {
         }>;
     };
 
-    // PlantUML
-    plantUmlRendered: { index: number; svg: string; nonce: number };
-    plantUmlError: { index: number; error: string; nonce: number };
+    // Server-side problem statement rendering
+    problemStatementRendered: RenderedProblemStatementPayload;
 }
 
 /** Auto-generated discriminated union of all Extension->Webview messages */

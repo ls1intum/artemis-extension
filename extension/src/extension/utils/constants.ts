@@ -14,6 +14,7 @@ export const CONFIG = {
         ENDPOINTS: {
             AUTHENTICATE: '/api/core/public/authenticate',
             LOGOUT: '/api/core/public/logout',
+            RENDER_PROBLEM_STATEMENT: '/api/exercise/problem-statement/render',
         },
     },
 } as const;

@@ -99,8 +99,8 @@ export const WebviewCmd = {
     DebugSessions: 'debugSessions',
     OpenHelpPopup: 'openHelpPopup',
 
-    // PlantUML inline rendering
-    RenderPlantUmlInline: 'renderPlantUmlInline',
+    // Dev tools
+    FreshSsrPreview: 'freshSsrPreview',
 } as const;
 
 /** Union of all Webview->Extension command strings */
@@ -157,7 +157,7 @@ interface WebviewCmdPayloads {
     openWebsite: { path?: string };
     openSettings: { setting: string };
     openBugReport: undefined;
-    openInEditor: { data: Record<string, unknown> };
+    openInEditor: { data: Record<string, unknown> | string; language?: string };
     copyToClipboard: { text: string };
     openExternalLink: { url: string };
     openImagePreview: { uri: string };
@@ -192,8 +192,8 @@ interface WebviewCmdPayloads {
     debugSessions: undefined;
     openHelpPopup: undefined;
 
-    // PlantUML inline rendering
-    renderPlantUmlInline: { plantUml: string; index: number; nonce: number };
+    // Dev tools
+    freshSsrPreview: { darkMode: boolean };
 }
 
 /** Commands that require a non-undefined payload object. */
@@ -229,7 +229,7 @@ export const COMMANDS_REQUIRING_PAYLOAD = new Set<string>([
     WebviewCmd.MessageFeedback,
     WebviewCmd.OpenFile,
     WebviewCmd.ViewArchivedCourse,
-    WebviewCmd.RenderPlantUmlInline,
+    WebviewCmd.FreshSsrPreview,
     WebviewCmd.ViewBuildLog,
     WebviewCmd.GoToSource,
     WebviewCmd.OpenClonedRepository,

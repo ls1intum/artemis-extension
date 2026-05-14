@@ -16,7 +16,6 @@ import { AuthCommandModule } from './commands/authCommands';
 import { NavigationCommandModule } from './commands/navigationCommands';
 import { RepositoryCommandModule } from './commands/repositoryCommands';
 import { IrisCommandModule } from './commands/irisCommands';
-import { PlantUmlCommandModule } from './commands/plantUmlCommands';
 import { HealthCommandModule } from './commands/healthCommands';
 import { UtilityCommandModule } from './commands/utilityCommands';
 
@@ -66,7 +65,6 @@ export class WebViewMessageHandler {
             new NavigationCommandModule(context),
             (this.repositoryModule = new RepositoryCommandModule(context)),
             new IrisCommandModule(context),
-            new PlantUmlCommandModule(context),
             new HealthCommandModule(context),
             new UtilityCommandModule(context)
         ];

@@ -45,6 +45,7 @@ suite('WebViewMessageHandler - handleMessageWithSender', () => {
         openCourseFullscreen: sinon.SinonStub;
         openCourseListFullscreen: sinon.SinonStub;
         sendInitData: sinon.SinonStub;
+        backgroundRenderProblemStatement: sinon.SinonStub;
         navigateBack: sinon.SinonStub;
         navigateToStartPage: sinon.SinonStub;
     };
@@ -84,6 +85,7 @@ suite('WebViewMessageHandler - handleMessageWithSender', () => {
             openCourseFullscreen: sandbox.stub().resolves(),
             openCourseListFullscreen: sandbox.stub().resolves(),
             sendInitData: sandbox.stub(),
+            backgroundRenderProblemStatement: sandbox.stub(),
             navigateBack: sandbox.stub().resolves(),
             navigateToStartPage: sandbox.stub().resolves(),
         };

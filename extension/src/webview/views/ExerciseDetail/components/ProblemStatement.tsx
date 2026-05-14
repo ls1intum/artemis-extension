@@ -1,136 +1,114 @@
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import katex from 'katex';
 import { Container } from '../../../components/Container';
-import { Button } from '../../../components/Button';
-import { useExtensionMessage } from '../../../hooks/useExtensionMessage';
-import { processProblemStatement } from '../../../utils/problemStatementProcessor';
-import { ExtensionMsg, postCommand } from '../../../../shared/messageContracts';
+import { Skeleton } from '../../../components/Skeleton/Skeleton';
 import type { ProblemStatementProps } from '../types';
 import styles from './ProblemStatement.module.css';
 
+const SSR_TIMEOUT_MS = 10_000;
+
 /**
- * Enhanced ProblemStatement component with KaTeX math, PlantUML diagrams,
- * clickable links/images, and comprehensive VS Code-native styling.
+ * Strip KaTeX <script> and <link> tags from server HTML since we handle
+ * KaTeX rendering client-side via the bundled npm package.
+ */
+function stripKatexTags(html: string): string {
+    return html
+        .replace(/<script[^>]*katex[^>]*><\/script>/gi, '')
+        .replace(/<script>[\s\S]*?katex[\s\S]*?<\/script>/gi, '')
+        .replace(/<link[^>]*katex[^>]*>/gi, '');
+}
+
+/**
+ * Extract the inner body content from a full HTML document.
+ * The server wraps in <!DOCTYPE><html><body>...</body></html> but we
+ * inject via dangerouslySetInnerHTML which needs just the body content.
+ */
+function extractBodyContent(html: string): string {
+    const bodyMatch = html.match(/<body[^>]*>([\s\S]*)<\/body>/i);
+    return bodyMatch ? bodyMatch[1] : html;
+}
+
+/**
+ * Find all KaTeX formula placeholders and render them using the bundled
+ * KaTeX library. The server provides <span class="katex-formula"
+ * data-formula="..." data-display-mode="true|false"></span> placeholders.
+ */
+function renderKatexFormulas(container: HTMLElement): void {
+    const formulas = container.querySelectorAll<HTMLElement>('.katex-formula');
+    formulas.forEach((el) => {
+        const formula = el.getAttribute('data-formula');
+        if (!formula) { return; }
+        const displayMode = el.getAttribute('data-display-mode') === 'true';
+        try {
+            katex.render(formula, el, {
+                displayMode,
+                throwOnError: false,
+                output: 'html',
+            });
+        } catch {
+            el.textContent = formula;
+        }
+    });
+}
+
+/**
+ * ProblemStatement component — displays server-rendered HTML from the Artemis
+ * SSR endpoint. The server handles Markdown→HTML, PlantUML SVG inlining,
+ * task markers with test status, and embedded CSS.
+ *
+ * KaTeX math rendering is handled client-side: the server provides formula
+ * placeholders which are rendered using the bundled KaTeX npm package after
+ * DOM injection.
  */
 export function ProblemStatement({
-    markdown,
-    downloadLinks = [],
-    onDownload,
-    vscodeApi,
+    serverRenderedHtml,
 }: ProblemStatementProps) {
     const contentRef = useRef<HTMLDivElement>(null);
-    const renderNonce = useRef(0);
+    const [timedOut, setTimedOut] = useState(false);
 
-    // Process HTML through KaTeX, sanitizer, and marker pipeline
-    const processedHtml = useMemo(() => processProblemStatement(markdown), [markdown]);
+    const bodyHtml = useMemo(
+        () => serverRenderedHtml ? stripKatexTags(extractBodyContent(serverRenderedHtml)) : undefined,
+        [serverRenderedHtml]
+    );
 
-    // Event delegation for links and images
+    // After HTML injection, render KaTeX formulas client-side from server placeholders
     useEffect(() => {
-        const container = contentRef.current;
-        if (!container) {return;}
+        if (!bodyHtml || !contentRef.current) { return; }
+        renderKatexFormulas(contentRef.current);
+    }, [bodyHtml]);
 
-        const handleClick = (event: MouseEvent) => {
-            const target = event.target as HTMLElement;
-
-            // Handle external links
-            const link = target.closest('a[data-external-link]') as HTMLAnchorElement;
-            if (link) {
-                event.preventDefault();
-                const href = link.getAttribute('href');
-                if (href && vscodeApi) {
-                    postCommand(vscodeApi, 'openExternalLink', { url: href });
-                }
-                return;
-            }
-
-            // Handle clickable images
-            const img = target.closest('img[data-clickable-image]') as HTMLImageElement;
-            if (img) {
-                const src = img.getAttribute('src');
-                if (src && vscodeApi) {
-                    postCommand(vscodeApi, 'openImagePreview', { uri: src });
-                }
-                return;
-            }
-        };
-
-        container.addEventListener('click', handleClick);
-        return () => container.removeEventListener('click', handleClick);
-    }, [processedHtml, vscodeApi]);
-
-    // PlantUML async rendering: request rendering from extension
+    // Timeout: if SSR hasn't arrived after 10s, show error
     useEffect(() => {
-        const container = contentRef.current;
-        if (!container || !vscodeApi) {return;}
-
-        const plantUmlElements = container.querySelectorAll('.plantuml-placeholder[data-plantuml]');
-        if (plantUmlElements.length === 0) {return;}
-
-        renderNonce.current++;
-        const nonce = renderNonce.current;
-
-        plantUmlElements.forEach((element, index) => {
-            const encoded = element.getAttribute('data-plantuml');
-            if (!encoded) {return;}
-
-            const plantUml = decodeURIComponent(encoded);
-            element.setAttribute('data-plantuml-index', String(index));
-            element.setAttribute('data-plantuml-nonce', String(nonce));
-
-            postCommand(vscodeApi, 'renderPlantUmlInline', { plantUml, index, nonce });
-        });
-    }, [processedHtml, vscodeApi]);
-
-    // PlantUML async rendering: handle rendered SVG responses
-    useExtensionMessage((msg) => {
-        const container = contentRef.current;
-        if (!container) {return;}
-
-        if (msg.type === ExtensionMsg.PlantUmlRendered) {
-            const placeholder = container.querySelector(
-                `[data-plantuml-index="${msg.index ?? ''}"]`
-            );
-            if (!placeholder || !placeholder.parentNode || typeof msg.svg !== 'string') {return;}
-            if (placeholder.getAttribute('data-plantuml-nonce') !== String(msg.nonce)) {return;}
-            const rendered = document.createElement('div');
-            rendered.className = 'plantuml-rendered';
-            rendered.innerHTML = msg.svg;
-            placeholder.parentNode.replaceChild(rendered, placeholder);
+        if (serverRenderedHtml) {
+            setTimedOut(false);
+            return;
         }
-
-        if (msg.type === ExtensionMsg.PlantUmlError) {
-            const placeholder = container.querySelector(
-                `[data-plantuml-index="${msg.index ?? ''}"]`
-            );
-            if (!placeholder || !placeholder.parentNode) {return;}
-            if (placeholder.getAttribute('data-plantuml-nonce') !== String(msg.nonce)) {return;}
-            const errorDiv = document.createElement('div');
-            errorDiv.className = 'plantuml-error';
-            errorDiv.textContent = `Error rendering PlantUML: ${msg.error ?? 'Unknown error'}`;
-            placeholder.parentNode.replaceChild(errorDiv, placeholder);
-        }
-    }, [processedHtml, vscodeApi]);
+        const timer = setTimeout(() => setTimedOut(true), SSR_TIMEOUT_MS);
+        return () => clearTimeout(timer);
+    }, [serverRenderedHtml]);
 
     return (
         <Container header={<h3>Exercise Description</h3>}>
-            <div
-                ref={contentRef}
-                className={styles.problemStatement}
-                dangerouslySetInnerHTML={{ __html: processedHtml }}
-            />
-            {downloadLinks && downloadLinks.length > 0 && (
-                <div className={styles.downloadSection}>
-                    <h4 className={styles.downloadHeader}>Downloads</h4>
-                    <div className={styles.downloadLinks}>
-                        {downloadLinks.map((link, index) => (
-                            <Button
-                                key={index}
-                                variant="secondary"
-                                onClick={() => onDownload?.(link.url, link.name)}
-                            >
-                                {link.name}
-                            </Button>
-                        ))}
-                    </div>
+            {bodyHtml ? (
+                <div
+                    ref={contentRef}
+                    className={styles.problemStatement}
+                    dangerouslySetInnerHTML={{ __html: bodyHtml }}
+                />
+            ) : timedOut ? (
+                <div className={styles.errorContainer}>
+                    <p>Failed to load the exercise description. The server may be unavailable.</p>
+                </div>
+            ) : (
+                <div className={styles.skeletonContainer}>
+                    <Skeleton width="75%" height="24px" />
+                    <Skeleton width="100%" height="14px" />
+                    <Skeleton width="100%" height="14px" />
+                    <Skeleton width="85%" height="14px" />
+                    <Skeleton width="50%" height="20px" />
+                    <Skeleton width="100%" height="14px" />
+                    <Skeleton width="100%" height="14px" />
+                    <Skeleton width="60%" height="14px" />
                 </div>
             )}
         </Container>

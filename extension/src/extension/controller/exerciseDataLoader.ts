@@ -3,6 +3,7 @@ import type { CourseDashboardResponse, CourseDashboardCourse, ExerciseDetailsRes
 import type { CourseDetailData } from '../../shared/messageContracts';
 import { toCourseDetailData } from '../../shared/messageContracts';
 import { logger, LogCategory } from '../services/loggingService';
+import { pickHighestId } from '../utils/participationHelpers';
 
 /**
  * Fetch exercise details and enrich all participations with pending submissions
@@ -32,10 +33,8 @@ export async function fetchAndEnrichExerciseDetails(
         try {
             const resultWithFeedbacks = await api.getLatestResultWithFeedbacks(participation.id);
             if (resultWithFeedbacks?.feedbacks?.length) {
-                const latestSubmission = [...(participation.submissions ?? [])]
-                    .sort((a, b) => ((b as { id?: number }).id ?? 0) - ((a as { id?: number }).id ?? 0))[0] as { id?: number; results?: Array<{ id?: number; feedbacks?: unknown[] }> } | undefined;
-                const latestResult = [...(latestSubmission?.results ?? [])]
-                    .sort((a, b) => (a.id ?? 0) > (b.id ?? 0) ? -1 : 1)[0];
+                const latestSubmission = pickHighestId(participation.submissions);
+                const latestResult = pickHighestId(latestSubmission?.results);
                 if (latestResult) {
                     latestResult.feedbacks = resultWithFeedbacks.feedbacks;
                 }

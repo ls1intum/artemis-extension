@@ -18,6 +18,7 @@ import { ViewActionService } from '../controller/viewActionService';
 import { getViewHtml } from '../controller/viewRouter';
 import { fetchAndEnrichExerciseDetails, fetchArchivedCourseDetail } from '../controller/exerciseDataLoader';
 import { WebSocketMessageHandler } from '../types';
+import { ProblemStatementRenderService } from '../services/problemStatementRenderService';
 import { BaseWebviewProvider } from './baseWebviewProvider';
 import type { BuildErrorCodeLensProvider } from './buildErrorCodeLensProvider';
 import type { CourseDataCache } from '../services/courseDataCache';
@@ -52,6 +53,7 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
     private readonly _websocketService: ArtemisWebsocketService;
     private _websocketHandler: WebSocketMessageHandler;
     private readonly _telemetryManager: TelemetryManager;
+    private readonly _renderService: ProblemStatementRenderService;
 
     private readonly _onDidChangeViewNavigation = new vscode.EventEmitter<{ from: string; to: string }>();
     public readonly onDidChangeViewNavigation = this._onDidChangeViewNavigation.event;
@@ -107,6 +109,8 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
             (msg) => this._postMessageSafe(msg),
             this._courseAccessStorage,
         );
+        this._renderService = new ProblemStatementRenderService(this._artemisApi);
+        this._disposables.push(this._renderService);
         this._buildDiagnosticsService = new BuildDiagnosticsService(this._artemisApi);
         this._buildDiagnosticsService.setCodeLensProvider(buildErrorCodeLensProvider);
         this._exerciseOpeningService = new ExerciseOpeningService(
@@ -147,6 +151,15 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
 
         this._disposables.push(this._onDidChangeViewNavigation);
         this._disposables.push(this._onDidChangePanelVisibility);
+
+        // Re-render SSR when VS Code theme changes (darkMode parameter differs)
+        this._disposables.push(
+            vscode.window.onDidChangeActiveColorTheme(() => {
+                this._renderService.invalidateAll();
+                this._appStateManager.serverRenderedProblemStatement = null;
+                this._backgroundRenderProblemStatement();
+            }),
+        );
     }
 
     // ── Lifecycle ──────────────────────────────────────────────────────
@@ -271,6 +284,10 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
         this._viewInitDataService.sendInitData();
     }
 
+    public backgroundRenderProblemStatement(): void {
+        this._backgroundRenderProblemStatement();
+    }
+
     // ── Public API ─────────────────────────────────────────────────────
 
     // WebViewActionHandler interface implementation
@@ -283,6 +300,9 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
 
         if (didUpdate) {
             this.render();
+
+            // Fire background server render for progressive enhancement
+            this._backgroundRenderProblemStatement();
 
             // Ensure WebSocket is connected for real-time updates
             if (this._websocketService && !this._websocketService.isConnected()) {
@@ -634,6 +654,49 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
             serverUrl,
             principal: { id: info.user?.id, login: info.username || info.user?.login },
         };
+    }
+
+    // ── Server-side problem statement rendering ─────────────────────
+
+    private async _backgroundRenderProblemStatement(): Promise<void> {
+        // SSR is for regular exercise detail only. Exam exercises use a plaintext fallback
+        // and must never have their markdown POSTed to the render endpoint.
+        if (this._appStateManager.currentState !== 'exercise-detail') { return; }
+
+        const exerciseData = this._appStateManager.currentExerciseData as ExerciseDetailsResponse | undefined;
+        if (!exerciseData?.exercise?.problemStatement) {
+            logger.info('[SSR] No exercise data or problemStatement, skipping', LogCategory.GENERAL);
+            return;
+        }
+
+        const exercise = exerciseData.exercise;
+        const exerciseId = exercise.id;
+        const participation = exercise.studentParticipations?.[0];
+
+        logger.info(`[SSR] Starting background render for exercise ${exerciseId}`, LogCategory.GENERAL);
+
+        try {
+            const rendered = await this._renderService.render(exercise, { participation });
+
+            // Guard: verify same exercise is still active after await
+            const current = this._appStateManager.currentExerciseData as ExerciseDetailsResponse | undefined;
+            if (current?.exercise?.id !== exerciseId) { return; }
+
+            if (rendered) {
+                // Store in app state so sendExerciseDetailInit includes it
+                this._appStateManager.serverRenderedProblemStatement = {
+                    html: rendered.html,
+                };
+                // Also send as separate message for cases where init was already sent
+                this._postMessageSafe({
+                    type: ExtensionMsg.ProblemStatementRendered,
+                    html: rendered.html,
+                });
+                logger.info(`[SSR] Server render cached + sent (hash: ${rendered.contentHash.slice(0, 8)})`, LogCategory.GENERAL);
+            }
+        } catch (error) {
+            logger.info(`[SSR] Background render failed: ${error}`, LogCategory.GENERAL);
+        }
     }
 
 }

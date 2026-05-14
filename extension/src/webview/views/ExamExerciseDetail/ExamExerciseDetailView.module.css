@@ -22,3 +22,16 @@
         gap: 1rem;
     }
 }
+
+.problemStatementNotice {
+    color: var(--vscode-descriptionForeground);
+    font-style: italic;
+    margin-bottom: 0.5rem;
+}
+
+.problemStatementPlaintext {
+    font-family: var(--vscode-editor-font-family, monospace);
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    margin: 0;
+}

@@ -15,6 +15,7 @@ import type {
     ExamSummary, StudentExam, IrisChatMode, IrisChatSessionSummary,
 } from '../types';
 import { logger, LogCategory } from '../services/loggingService';
+import type { ProblemStatementRenderRequest, RenderedProblemStatementDTO } from '../domain/problemStatementRendering';
 
 export class ArtemisApiService {
     private authManager: AuthManager;
@@ -377,14 +378,6 @@ export class ArtemisApiService {
             || false;
     }
 
-    // Render PlantUML diagram to SVG
-    async renderPlantUmlToSvg(plantUml: string, useDarkTheme: boolean = false): Promise<string> {
-        const encodedPlantUml = encodeURIComponent(plantUml);
-        const endpoint = `/api/programming/plantuml/svg?plantuml=${encodedPlantUml}&useDarkTheme=${useDarkTheme}`;
-        const response = await this.makeRequest(endpoint);
-        return response.text();
-    }
-
     // ============ IRIS CHAT API ============
 
     // Get Iris settings for a course
@@ -514,4 +507,29 @@ export class ArtemisApiService {
         return response.json() as Promise<StudentExam>;
     }
 
+    // ── Problem Statement Rendering ──
+
+    async renderProblemStatement(request: ProblemStatementRenderRequest): Promise<RenderedProblemStatementDTO> {
+        const response = await this.makeRequest(
+            CONFIG.API.ENDPOINTS.RENDER_PROBLEM_STATEMENT,
+            {
+                method: 'POST',
+                body: JSON.stringify(request),
+            }
+        );
+        const body = await response.json() as unknown;
+        if (!isRenderedProblemStatementDTO(body)) {
+            throw new Error('Invalid response from problem-statement render endpoint');
+        }
+        return body;
+    }
+}
+
+// Body of this DTO is injected via dangerouslySetInnerHTML; validate shape before trusting it.
+function isRenderedProblemStatementDTO(value: unknown): value is RenderedProblemStatementDTO {
+    if (typeof value !== 'object' || value === null) { return false; }
+    const v = value as Record<string, unknown>;
+    return typeof v.html === 'string'
+        && typeof v.contentHash === 'string'
+        && typeof v.rendererVersion === 'string';
 }

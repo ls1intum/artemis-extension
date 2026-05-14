@@ -5,6 +5,7 @@ import { ExerciseDetailView } from '../../../../src/webview/views/ExerciseDetail
 import { useExerciseDetailStore } from '../../../../src/webview/stores/useExerciseDetailStore';
 import type { ExerciseDetailsResponse } from '../../../../src/shared/types/apiResponses';
 import { createMockVsCodeApi, dispatchExtensionMessage } from '../../__helpers__/vscodeApi';
+import { ExtensionMsg } from '../../../../src/shared/messageContracts';
 
 // Mock useWebSocketUpdates — not under test here
 vi.mock('../../../../src/webview/hooks/useWebSocketUpdates', () => ({
@@ -117,11 +118,19 @@ describe('ExerciseDetailView', () => {
 		expect(screen.getByText('My Exercise')).toBeInTheDocument();
 	});
 
-	it('renders problem statement section', () => {
+	it('renders problem statement section once server-rendered HTML arrives', async () => {
 		useExerciseDetailStore.setState({ exerciseData: makeExerciseData(), isLoading: false });
 		const mockApi = createMockVsCodeApi();
 		render(<ExerciseDetailView vscodeApi={mockApi} />);
-		expect(screen.getByText('Solve the problem.')).toBeInTheDocument();
+
+		dispatchExtensionMessage({
+			type: ExtensionMsg.ProblemStatementRendered,
+			html: '<html><body><p>Solve the problem.</p></body></html>',
+		});
+
+		await waitFor(() => {
+			expect(screen.getByText('Solve the problem.')).toBeInTheDocument();
+		});
 	});
 
 	it('shows "Ask Iris" section', () => {

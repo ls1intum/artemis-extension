@@ -22,7 +22,6 @@ export enum LogCategory {
     SUBMISSION = 'Submission',
     AUTH = 'Auth',
     API = 'API',
-    PLANTUML = 'PlantUML',
     FILE_MONITOR = 'File Monitor',
     TELEMETRY = 'Telemetry',
     SESSION = 'Session',

@@ -342,6 +342,7 @@ export class NavigationCommandModule {
                 const data = await fetchAndEnrichExerciseDetails(this.context.artemisApi, exerciseId);
                 this.context.appStateManager.showExerciseDetail(data);
                 this.context.actionHandler.sendInitData();
+                this.context.actionHandler.backgroundRenderProblemStatement();
             }
         } catch (error: unknown) {
             logger.viewError('Reload exercise detail error:', error);

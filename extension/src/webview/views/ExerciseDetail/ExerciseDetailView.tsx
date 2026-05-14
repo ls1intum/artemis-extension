@@ -51,15 +51,29 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
     // Initialize WebSocket updates hook
     useWebSocketUpdates();
 
+    // Server-side rendered problem statement (progressive enhancement)
+    const [serverRenderedPS, setServerRenderedPS] = useState<{
+        html: string;
+    } | null>(null);
     // Listen for exerciseDetailInit messages
     useExtensionMessage((msg) => {
         if (msg.type === ExtensionMsg.ExerciseDetailInit) {
             if (!msg.exerciseData) { return; }
 
             setExerciseData(msg.exerciseData, msg.hideDeveloperTools, msg.repoStatus);
+            // Use cached server render if available on init
+            if (msg.serverRenderedProblemStatement) {
+                setServerRenderedPS(msg.serverRenderedProblemStatement);
+            } else {
+                setServerRenderedPS(null);
+            }
         }
         if (msg.type === ExtensionMsg.ViewInitError) {
             setError(msg.error);
+        }
+        // Progressive upgrade: server-rendered problem statement arrived
+        if (msg.type === ExtensionMsg.ProblemStatementRendered) {
+            setServerRenderedPS({ html: msg.html });
         }
     }, [vscodeApi, setExerciseData, setError]);
 
@@ -238,12 +252,6 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
     const workspaceStatus = !repoStatus ? 'checking'
         : !repoStatus.isConnected ? 'disconnected'
         : repoStatus.hasChanges ? 'dirty' : 'clean';
-
-    // Problem statement (markdown is already processed to HTML by extension)
-    const problemStatementHtml = exercise.problemStatement || 'No description available';
-
-    // Download links extraction (simplified - in real implementation would parse from markdown)
-    const downloadLinks: Array<{ name: string; url: string }> = [];
 
     return (
         <div className={styles.exerciseDetailView}>
@@ -446,11 +454,7 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
             />
 
             {/* Problem Statement */}
-            <ProblemStatement
-                markdown={problemStatementHtml}
-                downloadLinks={downloadLinks}
-                vscodeApi={vscodeApi}
-            />
+            <ProblemStatement serverRenderedHtml={serverRenderedPS?.html} />
 
             {/* Developer Tools */}
             {!hideDeveloperTools && (
@@ -459,6 +463,34 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
                         <Button variant="secondary" onClick={handleOpenRawJSON}>
                             Open Raw JSON
                         </Button>
+                        <Button
+                            variant="secondary"
+                            onClick={() => setServerRenderedPS(null)}
+                        >
+                            Simulate SSR Loading
+                        </Button>
+                        {serverRenderedPS && (
+                            <>
+                                <Button
+                                    variant="secondary"
+                                    onClick={() => postCommand(vscodeApi, 'openInEditor', { data: serverRenderedPS.html, language: 'html' })}
+                                >
+                                    View SSR HTML
+                                </Button>
+                                <Button
+                                    variant="secondary"
+                                    onClick={() => postCommand(vscodeApi, 'freshSsrPreview', { darkMode: false })}
+                                >
+                                    Preview Light
+                                </Button>
+                                <Button
+                                    variant="secondary"
+                                    onClick={() => postCommand(vscodeApi, 'freshSsrPreview', { darkMode: true })}
+                                >
+                                    Preview Dark
+                                </Button>
+                            </>
+                        )}
                     </div>
                 </Container>
             )}

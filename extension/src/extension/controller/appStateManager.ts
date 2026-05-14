@@ -63,6 +63,7 @@ export class AppStateManager {
     private _payload: NavigationPayload = { kind: 'none' };
     private _aiExtensions?: AiExtension[];
     private _recommendedExtensions?: RecommendedExtensionCategory[];
+    private _serverRenderedPS: { html: string } | null = null;
 
     private _onStateChange?: (from: AppState, to: AppState) => void;
 
@@ -119,6 +120,14 @@ export class AppStateManager {
         if (this._payload.kind === 'exam') { return this._payload.data; }
         if (this._payload.kind === 'exam-exercise') { return this._payload.exam; }
         return undefined;
+    }
+
+    get serverRenderedProblemStatement(): { html: string } | null {
+        return this._serverRenderedPS;
+    }
+
+    set serverRenderedProblemStatement(value: { html: string } | null) {
+        this._serverRenderedPS = value;
     }
 
     get aiExtensions(): AiExtension[] | undefined {
@@ -180,6 +189,7 @@ export class AppStateManager {
             throw new Error('showExerciseDetail requires a course in scope; call showCourseDetail first');
         }
         this._payload = { kind: 'exercise', data: exerciseData, parentCourse };
+        this._serverRenderedPS = null; // Clear stale render from previous exercise
         this._setCurrentState('exercise-detail');
     }
 
