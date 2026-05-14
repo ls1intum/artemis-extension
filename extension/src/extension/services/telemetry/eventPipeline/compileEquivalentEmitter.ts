@@ -79,23 +79,21 @@ export class CompileEquivalentEmitter implements vscode.Disposable, SessionReset
     }
 
     /**
-     * Handle a build result from Artemis WebSocket.
-     * Returns the CompileEquivalentEvent if emitted (for direct use by TelemetryManager).
+     * Handle a build result from Artemis WebSocket. Fires onDidEmitCompileEquivalent
+     * when the snapshot is novel; subscribers are the sole consumers.
      */
-    public handleBuildResult(result: ResultDTO): CompileEquivalentEvent | null {
+    public handleBuildResult(result: ResultDTO): void {
         const snapshot = this.createErrorSnapshotFromBuildResult(result);
         if (!this._shouldAddSnapshot(snapshot)) {
-            return null;
+            return;
         }
 
         this._lastSnapshot = snapshot;
-        const event: CompileEquivalentEvent = {
+        this._onDidEmitCompileEquivalent.fire({
             timestamp: snapshot.timestamp,
             source: 'build',
             snapshot,
-        };
-        this._onDidEmitCompileEquivalent.fire(event);
-        return event;
+        });
     }
 
     /**
