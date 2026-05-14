@@ -142,109 +142,186 @@ function registerIrisHealthCheckCommand(
     });
 }
 
+/**
+ * Action labels for the WebSocket-status notification quick-pick.
+ *
+ * Kept as a const-tuple so the same value flows through the notification's
+ * action list and the dispatcher's switch without string drift.
+ */
+const WS_STATUS_ACTION = {
+    LOGIN: 'Login to Artemis',
+    RESET: 'Reset & Retry',
+    RETRY: 'Retry Connection',
+    DETAILS: 'Show Details',
+    CLIPBOARD: 'Copy to Clipboard',
+} as const;
+
+type WSStatusAction = (typeof WS_STATUS_ACTION)[keyof typeof WS_STATUS_ACTION];
+
+interface WSAuthSnapshot {
+    hasCookie: boolean;
+    hasJwtToken: boolean;
+    cookiePreview?: string;
+}
+
+type WSDiagnostics = ReturnType<ArtemisWebsocketService['getDiagnostics']>;
+
+interface WSStatusSnapshot {
+    isConnected: boolean;
+    connectionState: string;
+    diagnostics: WSDiagnostics;
+    auth: WSAuthSnapshot;
+}
+
+async function collectWebSocketStatus(
+    artemisWebsocketService: ArtemisWebsocketService,
+    authManager: AuthManager,
+): Promise<WSStatusSnapshot> {
+    const diagnostics = artemisWebsocketService.getDiagnostics();
+    const isConnected = artemisWebsocketService.isConnected();
+    const connectionState = artemisWebsocketService.connectionState;
+
+    let auth: WSAuthSnapshot = { hasCookie: false, hasJwtToken: false };
+    try {
+        const headers = await authManager.getAuthHeaders();
+        const hasCookie = Object.keys(headers).length > 0;
+        if (hasCookie) {
+            const headerValue = headers['Cookie'] || headers['Authorization'] || '';
+            auth = {
+                hasCookie: true,
+                hasJwtToken: headerValue.length > 0,
+                cookiePreview: `${headerValue.substring(0, 20)}...`,
+            };
+        }
+    } catch (error) {
+        // Auth errors in diagnostics are non-fatal — the snapshot still shows
+        // 'hasCookie: false' which is the diagnostically useful signal. Log
+        // at warn so it shows up in the output channel during a diagnostics
+        // session (this code path runs only on explicit user request).
+        logger.warn(`Auth header lookup failed during WS diagnostics: ${extractErrorMessage(error)}`, LogCategory.WEBSOCKET);
+    }
+
+    return { isConnected, connectionState, diagnostics, auth };
+}
+
+function buildStatusReport(status: WSStatusSnapshot): string {
+    const { isConnected, connectionState, diagnostics: d, auth } = status;
+    const icon = isConnected ? '🟢' : '🔴';
+
+    const lines = [
+        `${icon} **WebSocket Status**`,
+        ``,
+        `**Connection:**`,
+        `• Connected: ${isConnected ? 'Yes ✅' : 'No ❌'}`,
+        `• State: ${connectionState}`,
+        `• Client Active: ${d.clientActive ? 'Yes ✅' : 'No ❌'}`,
+        `• Client Connected: ${d.clientConnected ? 'Yes ✅' : 'No ❌'}`,
+        ``,
+        `**Subscriptions (${d.subscriptionCount}):**`,
+        ...d.subscriptions.map(sub => `• ${sub}`),
+    ];
+
+    if (!isConnected && !auth.hasCookie) {
+        lines.push(``, `⚠️ **Not connected - Please log in to Artemis first**`);
+    }
+
+    lines.push(
+        ``,
+        `**Configuration:**`,
+        `• Server URL: ${d.serverUrl}`,
+        `• WebSocket URL: ${d.websocketUrl}`,
+        ``,
+        `**Authentication:**`,
+        `• Has Cookie: ${auth.hasCookie ? 'Yes ✅' : 'No ❌'}`,
+        `• Has JWT Token: ${auth.hasJwtToken ? 'Yes ✅' : 'No ❌'}`,
+    );
+
+    if (auth.cookiePreview) {
+        lines.push(`• Cookie Preview: ${auth.cookiePreview}`);
+    }
+
+    lines.push(
+        ``,
+        `**Reconnection:**`,
+        `• Attempts: ${d.reconnectAttempts}/${d.maxReconnectAttempts}`,
+        `• Gave Up: ${connectionState === 'gave-up' ? 'Yes ⛔' : 'No'}`,
+        `• Session ID: ${d.sessionId}`,
+    );
+
+    return lines.join('\n');
+}
+
+function decideStatusActions(status: WSStatusSnapshot): WSStatusAction[] {
+    const { isConnected, connectionState, auth } = status;
+    const tail: WSStatusAction[] = [WS_STATUS_ACTION.DETAILS, WS_STATUS_ACTION.CLIPBOARD];
+    if (!auth.hasCookie) { return [WS_STATUS_ACTION.LOGIN, ...tail]; }
+    if (connectionState === 'gave-up') { return [WS_STATUS_ACTION.RESET, ...tail]; }
+    if (!isConnected) { return [WS_STATUS_ACTION.RETRY, ...tail]; }
+    return tail;
+}
+
+function buildStatusHeadline(status: WSStatusSnapshot): string {
+    const { isConnected, connectionState, auth } = status;
+    const icon = isConnected ? '🟢' : '🔴';
+    const suffixes = [
+        connectionState === 'gave-up' ? ' (gave up)' : '',
+        !auth.hasCookie ? ' (Not logged in)' : '',
+    ].join('');
+    return `${icon} WebSocket: ${isConnected ? 'Connected' : 'Disconnected'}${suffixes}`;
+}
+
+async function handleStatusAction(
+    action: WSStatusAction,
+    artemisWebsocketService: ArtemisWebsocketService,
+    report: string,
+): Promise<void> {
+    switch (action) {
+        case WS_STATUS_ACTION.LOGIN:
+            await vscode.commands.executeCommand('artemis.loginView.focus');
+            return;
+        case WS_STATUS_ACTION.RESET:
+        case WS_STATUS_ACTION.RETRY:
+            try {
+                artemisWebsocketService.resetConnectionState();
+                await artemisWebsocketService.connect();
+                vscode.window.showInformationMessage('WebSocket connection attempt started...');
+            } catch (error) {
+                vscode.window.showErrorMessage(`Failed to connect: ${extractErrorMessage(error)}`);
+            }
+            return;
+        case WS_STATUS_ACTION.DETAILS: {
+            const doc = await vscode.workspace.openTextDocument({
+                content: report,
+                language: 'markdown',
+            });
+            await vscode.window.showTextDocument(doc, { preview: true });
+            return;
+        }
+        case WS_STATUS_ACTION.CLIPBOARD:
+            await vscode.env.clipboard.writeText(report);
+            vscode.window.showInformationMessage('WebSocket status copied to clipboard');
+            return;
+    }
+}
+
 function registerWebSocketStatusCommand(
     artemisWebsocketService: ArtemisWebsocketService,
     authManager: AuthManager,
 ): vscode.Disposable {
     return vscode.commands.registerCommand('artemis.checkWebSocketStatus', async () => {
         try {
-            const debugInfo = artemisWebsocketService.getDiagnostics();
-            const isConnected = artemisWebsocketService.isConnected();
-            const connectionState = artemisWebsocketService.connectionState;
+            const status = await collectWebSocketStatus(artemisWebsocketService, authManager);
+            const report = buildStatusReport(status);
+            const actions = decideStatusActions(status);
+            const headline = buildStatusHeadline(status);
 
-            let hasCookie = false;
-            let hasJwtToken = false;
-            let cookiePreview: string | undefined;
-            try {
-                const headers = await authManager.getAuthHeaders();
-                hasCookie = Object.keys(headers).length > 0;
-                if (hasCookie) {
-                    const headerValue = headers['Cookie'] || headers['Authorization'] || '';
-                    hasJwtToken = headerValue.length > 0;
-                    cookiePreview = headerValue.substring(0, 20) + '...';
-                }
-            } catch { /* ignore auth errors in diagnostics */ }
-
-            const icon = isConnected ? '🟢' : '🔴';
-
-            const statusLines = [
-                `${icon} **WebSocket Status**`,
-                ``,
-                `**Connection:**`,
-                `• Connected: ${isConnected ? 'Yes ✅' : 'No ❌'}`,
-                `• State: ${connectionState}`,
-                `• Client Active: ${debugInfo.clientActive ? 'Yes ✅' : 'No ❌'}`,
-                `• Client Connected: ${debugInfo.clientConnected ? 'Yes ✅' : 'No ❌'}`,
-                ``,
-                `**Subscriptions (${debugInfo.subscriptionCount}):**`,
-                ...debugInfo.subscriptions.map(sub => `• ${sub}`),
-            ];
-
-            if (!isConnected && !hasCookie) {
-                statusLines.push(``, `⚠️ **Not connected - Please log in to Artemis first**`);
-            }
-
-            statusLines.push(
-                ``,
-                `**Configuration:**`,
-                `• Server URL: ${debugInfo.serverUrl}`,
-                `• WebSocket URL: ${debugInfo.websocketUrl}`,
-                ``,
-                `**Authentication:**`,
-                `• Has Cookie: ${hasCookie ? 'Yes ✅' : 'No ❌'}`,
-                `• Has JWT Token: ${hasJwtToken ? 'Yes ✅' : 'No ❌'}`,
-            );
-
-            if (cookiePreview) {
-                statusLines.push(`• Cookie Preview: ${cookiePreview}`);
-            }
-
-            statusLines.push(
-                ``,
-                `**Reconnection:**`,
-                `• Attempts: ${debugInfo.reconnectAttempts}/${debugInfo.maxReconnectAttempts}`,
-                `• Gave Up: ${connectionState === 'gave-up' ? 'Yes ⛔' : 'No'}`,
-                `• Session ID: ${debugInfo.sessionId}`,
-            );
-
-            const message = statusLines.join('\n');
-
-            let actions: string[];
-            if (!hasCookie) {
-                actions = ['Login to Artemis', 'Show Details', 'Copy to Clipboard'];
-            } else if (connectionState === 'gave-up') {
-                actions = ['Reset & Retry', 'Show Details', 'Copy to Clipboard'];
-            } else if (!isConnected) {
-                actions = ['Retry Connection', 'Show Details', 'Copy to Clipboard'];
-            } else {
-                actions = ['Show Details', 'Copy to Clipboard'];
-            }
-
-            const action = await vscode.window.showInformationMessage(
-                `${icon} WebSocket: ${isConnected ? 'Connected' : 'Disconnected'}${connectionState === 'gave-up' ? ' (gave up)' : ''}${!hasCookie ? ' (Not logged in)' : ''}`,
+            const chosen = await vscode.window.showInformationMessage(
+                headline,
                 { modal: false },
-                ...actions
+                ...actions,
             );
-
-            if (action === 'Login to Artemis') {
-                await vscode.commands.executeCommand('artemis.loginView.focus');
-            } else if (action === 'Reset & Retry' || action === 'Retry Connection') {
-                try {
-                    artemisWebsocketService.resetConnectionState();
-                    await artemisWebsocketService.connect();
-                    vscode.window.showInformationMessage('WebSocket connection attempt started...');
-                } catch (error) {
-                    vscode.window.showErrorMessage(`Failed to connect: ${extractErrorMessage(error)}`);
-                }
-            } else if (action === 'Show Details') {
-                const doc = await vscode.workspace.openTextDocument({
-                    content: message,
-                    language: 'markdown'
-                });
-                await vscode.window.showTextDocument(doc, { preview: true });
-            } else if (action === 'Copy to Clipboard') {
-                await vscode.env.clipboard.writeText(message);
-                vscode.window.showInformationMessage('WebSocket status copied to clipboard');
+            if (chosen) {
+                await handleStatusAction(chosen as WSStatusAction, artemisWebsocketService, report);
             }
         } catch (error) {
             logger.error('Error checking WebSocket status', LogCategory.WEBSOCKET, error);
