@@ -1,4 +1,4 @@
-export { ApiError } from './errors';
+export { ApiError, MalformedResponseError } from './errors';
 export type {
     ArtemisUser,
     ArtemisParticipation,
