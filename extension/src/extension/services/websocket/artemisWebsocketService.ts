@@ -109,6 +109,43 @@ export class ArtemisWebsocketService {
 
     /** Connect to the Artemis WebSocket server. */
     public async connect(): Promise<void> {
+        const reuse = this._maybeReuseInflightConnect();
+        if (reuse !== undefined) { return reuse; }
+
+        this._transitionTo('connecting');
+        // Generation bumped before deactivation so old lifecycle callbacks are ignored
+        const generation = ++this._connectionGeneration;
+
+        this._connectDeferred = createDeferred<void>();
+        this._startSafetyTimeout();
+
+        try {
+            await this._teardownExistingClient();
+            const { authHeaders, wsUrl } = await this._prepareConnectionContext();
+            this._client = this._createClient(this._buildStompConfig(generation, authHeaders, wsUrl));
+        } catch (error) {
+            this._handleConnectError(error);
+            throw error;
+        }
+
+        if (this._connectionGeneration !== generation) {
+            this._log('Connection aborted: superseded by newer connect/disconnect');
+            this._transitionTo('disconnected');
+            throw new Error('Connection aborted: superseded by newer connect/disconnect');
+        }
+
+        this._client.activate();
+        return this._connectDeferred.promise;
+    }
+
+    /**
+     * If a connect is already in flight (or the STOMP client is mid-handshake),
+     * return the existing deferred so callers join the running attempt instead
+     * of stomping on it. Returns `undefined` when a fresh attempt is required.
+     * Throws for unrecoverable states (`disconnecting`, `gave-up`, stale
+     * `connecting` without a deferred).
+     */
+    private _maybeReuseInflightConnect(): Promise<void> | undefined {
         if (this._connectionState === 'connecting') {
             if (this._connectDeferred) { return this._connectDeferred.promise; }
             throw new Error('Connection attempt already timed out');
@@ -126,132 +163,130 @@ export class ArtemisWebsocketService {
             }
             return this._connectDeferred.promise;
         }
+        return undefined;
+    }
 
-        this._transitionTo('connecting');
-        // Generation bumped before deactivation so old lifecycle callbacks are ignored
-        const generation = ++this._connectionGeneration;
+    /** Tear down a prior STOMP client before reconnecting. */
+    private async _teardownExistingClient(): Promise<void> {
+        if (!this._client) { return; }
+        this._log('Deactivating existing connection before reconnect');
+        await this._client.deactivate();
+        this._clearSubscriptions();
+        this._client = undefined;
+    }
 
-        this._connectDeferred = createDeferred<void>();
-        this._startSafetyTimeout();
+    /**
+     * Resolve server URL, fetch auth headers, validate them, and derive the
+     * WebSocket URL. Throws if there is no usable cookie/JWT — this is the
+     * auth pre-flight check that keeps the connection from racing into a
+     * 4xx-only loop.
+     */
+    private async _prepareConnectionContext(): Promise<{ authHeaders: Record<string, string>; wsUrl: string }> {
+        const serverUrl = resolveServerUrl();
+        this._log(`Connecting to Artemis WebSocket (attempt ${this._reconnectAttempts + 1}/${MAX_CONNECTION_ATTEMPTS})...`);
 
-        try {
-            if (this._client) {
-                this._log('Deactivating existing connection before reconnect');
-                await this._client.deactivate();
-                this._clearSubscriptions();
-                this._client = undefined;
-            }
-
-            const serverUrl = resolveServerUrl();
-            this._log(`Connecting to Artemis WebSocket (attempt ${this._reconnectAttempts + 1}/${MAX_CONNECTION_ATTEMPTS})...`);
-
-            const authHeaders = await this._authManager.getAuthHeaders();
-
-            if (Object.keys(authHeaders).length === 0) {
-                const errorMsg = 'No authentication cookie available. Please log in first.';
-                this._log(`⚠️ ${errorMsg}`);
-                throw new Error(errorMsg);
-            }
-
-            // Extract raw JWT for STOMP connect headers
-            const jwtToken = this._extractJwtFromHeaders(authHeaders);
-
-            if (!jwtToken) {
-                const errorMsg = 'Failed to extract JWT token from auth headers';
-                this._log(`⚠️ ${errorMsg}`);
-                throw new Error(errorMsg);
-            }
-
-            // Construct WebSocket URL
-            const wsUrl = this._buildWebSocketUrl(serverUrl);
-            this._log(`Connecting to ${wsUrl}`);
-
-            // Configure STOMP client - matching Artemis webapp settings
-            this._log(`Reconnect config: delay=${INITIAL_RECONNECT_DELAY_MS}ms, timeout=${CONNECTION_TIMEOUT_MS}ms, heartbeat=${HEARTBEAT_INTERVAL_MS}ms`);
-
-            const stompConfig: StompConfig = {
-                brokerURL: wsUrl,
-                connectHeaders: {},
-                reconnectDelay: INITIAL_RECONNECT_DELAY_MS,
-                reconnectTimeMode: ReconnectionTimeMode.EXPONENTIAL,
-                maxReconnectDelay: MAX_RECONNECT_DELAY_MS,
-                connectionTimeout: CONNECTION_TIMEOUT_MS,
-                // Must match Artemis server heartbeat (10s)
-                heartbeatIncoming: HEARTBEAT_INTERVAL_MS,
-                heartbeatOutgoing: HEARTBEAT_INTERVAL_MS,
-                discardWebsocketOnCommFailure: true,
-
-                webSocketFactory: () => {
-                    this._disconnectCountedThisAttempt = false;
-                    const ws = new WebSocket(wsUrl, {
-                        headers: {
-                            ...authHeaders,
-                            'User-Agent': getUserAgent()
-                        }
-                    });
-
-                    ws.on('error', (err) => {
-                        this._log(`WebSocket error: ${err.message}`);
-                    });
-
-                    // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-return -- STOMP library expects generic WebSocket type
-                    return ws as any;
-                },
-
-                onConnect: () => {
-                    if (this._connectionGeneration !== generation) { return; }
-                    this._onConnected();
-                },
-
-                onStompError: (frame: IFrame) => {
-                    if (this._connectionGeneration !== generation) { return; }
-                    const body = frame.body ? ` body=${frame.body.substring(0, 500)}` : '';
-                    this._onError(`STOMP error: ${frame.headers['message']}${body}`);
-                },
-
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any -- STOMP library onWebSocketError uses generic event type
-                onWebSocketError: (event: any) => {
-                    if (this._connectionGeneration !== generation) { return; }
-                    // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment -- event shape is untyped
-                    const detail = event?.message || event?.type || 'unknown';
-                    this._onError(`WebSocket error: ${detail}`);
-                },
-
-                onDisconnect: () => {
-                    if (this._connectionGeneration !== generation) { return; }
-                    this._onDisconnected();
-                },
-
-                onWebSocketClose: () => {
-                    if (this._connectionGeneration !== generation) { return; }
-                    this._onDisconnected();
-                }
-            };
-
-            this._client = this._createClient(stompConfig);
-        } catch (error) {
-            const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-            this._log(`❌ Failed to connect to WebSocket: ${errorMessage}`);
-            logger.error(`Failed to connect to WebSocket: ${errorMessage}`, LogCategory.WEBSOCKET);
-            this._clearSubscriptions();
-            this._transitionTo('disconnected');
-            // Reject the deferred so any concurrent `connect()` callers that
-            // received this same deferred (via the `connecting` branch at the
-            // top while we were awaiting `_client.deactivate()`) unblock with
-            // the same error instead of hanging forever.
-            const settleError = error instanceof Error ? error : new Error(String(error));
-            this._settleDeferred(settleError);
-            throw error;
+        const authHeaders = await this._authManager.getAuthHeaders();
+        if (Object.keys(authHeaders).length === 0) {
+            const errorMsg = 'No authentication cookie available. Please log in first.';
+            this._log(`⚠️ ${errorMsg}`);
+            throw new Error(errorMsg);
         }
 
-        if (this._connectionGeneration !== generation) {
-            this._log('Connection aborted: superseded by newer connect/disconnect');
-            this._transitionTo('disconnected');
-            throw new Error('Connection aborted: superseded by newer connect/disconnect');
+        // Validation only: the JWT itself isn't forwarded as a STOMP connect
+        // header (connectHeaders stays empty); we just want to fail fast when
+        // the cookie carries no usable token.
+        if (!this._extractJwtFromHeaders(authHeaders)) {
+            const errorMsg = 'Failed to extract JWT token from auth headers';
+            this._log(`⚠️ ${errorMsg}`);
+            throw new Error(errorMsg);
         }
 
-        this._client.activate();
-        return this._connectDeferred.promise;
+        const wsUrl = this._buildWebSocketUrl(serverUrl);
+        this._log(`Connecting to ${wsUrl}`);
+        return { authHeaders, wsUrl };
+    }
+
+    private _buildStompConfig(
+        generation: number,
+        authHeaders: Record<string, string>,
+        wsUrl: string,
+    ): StompConfig {
+        this._log(`Reconnect config: delay=${INITIAL_RECONNECT_DELAY_MS}ms, timeout=${CONNECTION_TIMEOUT_MS}ms, heartbeat=${HEARTBEAT_INTERVAL_MS}ms`);
+
+        return {
+            brokerURL: wsUrl,
+            connectHeaders: {},
+            reconnectDelay: INITIAL_RECONNECT_DELAY_MS,
+            reconnectTimeMode: ReconnectionTimeMode.EXPONENTIAL,
+            maxReconnectDelay: MAX_RECONNECT_DELAY_MS,
+            connectionTimeout: CONNECTION_TIMEOUT_MS,
+            // Must match Artemis server heartbeat (10s)
+            heartbeatIncoming: HEARTBEAT_INTERVAL_MS,
+            heartbeatOutgoing: HEARTBEAT_INTERVAL_MS,
+            discardWebsocketOnCommFailure: true,
+
+            webSocketFactory: () => {
+                this._disconnectCountedThisAttempt = false;
+                const ws = new WebSocket(wsUrl, {
+                    headers: {
+                        ...authHeaders,
+                        'User-Agent': getUserAgent(),
+                    },
+                });
+
+                ws.on('error', (err) => {
+                    this._log(`WebSocket error: ${err.message}`);
+                });
+
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-return -- STOMP library expects generic WebSocket type
+                return ws as any;
+            },
+
+            onConnect: () => {
+                if (this._connectionGeneration !== generation) { return; }
+                this._onConnected();
+            },
+
+            onStompError: (frame: IFrame) => {
+                if (this._connectionGeneration !== generation) { return; }
+                const body = frame.body ? ` body=${frame.body.substring(0, 500)}` : '';
+                this._onError(`STOMP error: ${frame.headers['message']}${body}`);
+            },
+
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any -- STOMP library onWebSocketError uses generic event type
+            onWebSocketError: (event: any) => {
+                if (this._connectionGeneration !== generation) { return; }
+                // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment -- event shape is untyped
+                const detail = event?.message || event?.type || 'unknown';
+                this._onError(`WebSocket error: ${detail}`);
+            },
+
+            onDisconnect: () => {
+                if (this._connectionGeneration !== generation) { return; }
+                this._onDisconnected();
+            },
+
+            onWebSocketClose: () => {
+                if (this._connectionGeneration !== generation) { return; }
+                this._onDisconnected();
+            },
+        };
+    }
+
+    /**
+     * Common cleanup for the `connect()` catch path. Settling the deferred
+     * matters because a concurrent `connect()` that joined while we awaited
+     * `deactivate()` (via `_maybeReuseInflightConnect`) is awaiting the same
+     * promise; failing to reject it would orphan that caller forever.
+     */
+    private _handleConnectError(error: unknown): void {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        this._log(`❌ Failed to connect to WebSocket: ${errorMessage}`);
+        logger.error(`Failed to connect to WebSocket: ${errorMessage}`, LogCategory.WEBSOCKET);
+        this._clearSubscriptions();
+        this._transitionTo('disconnected');
+        const settleError = error instanceof Error ? error : new Error(String(error));
+        this._settleDeferred(settleError);
     }
 
     protected _createClient(config: StompConfig): Client {
