@@ -20,7 +20,6 @@ import {
 } from '@extension/services/workspace/wireWorkspaceDetection';
 import {
     authenticateFromEnvironment,
-    autoCloneIfNeeded,
     detectPlatformCapabilities,
     initializeTheiaContext,
 } from '@extension/theia';
@@ -264,13 +263,6 @@ export async function activate(context: vscode.ExtensionContext) {
 				}
 			}
 		}));
-	}
-
-	// Theia auto-clone
-	if (theiaEnv.isTheia && theiaEnv.gitUri) {
-		void autoCloneIfNeeded(theiaEnv).catch(error => {
-			logger.error('Theia auto-clone failed', LogCategory.GENERAL, error);
-		});
 	}
 }
 
