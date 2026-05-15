@@ -119,6 +119,32 @@ export interface StartupPhaseCompleteEvent {
     timestamp: number;
 }
 
+/**
+ * Provenance event emitted once during the startup-contributor phase before
+ * `startupPhaseComplete`. Captures the values of struggle-detection settings
+ * at session start so analysis can classify control vs treatment sessions.
+ */
+export interface ConfigurationSnapshotEvent {
+    type: 'configurationSnapshot';
+    timestamp: number;
+    struggleDetectionEnabled: boolean;
+    showInterventions: boolean;
+}
+
+/**
+ * Provenance event emitted whenever one of the recorded struggle-detection
+ * settings changes mid-session. Each property is only present when its value
+ * changed in the triggering configuration event.
+ */
+export interface ConfigurationChangeEvent {
+    type: 'configurationChange';
+    timestamp: number;
+    changes: {
+        struggleDetectionEnabled?: boolean;
+        showInterventions?: boolean;
+    };
+}
+
 export interface IrisChatMessageEvent {
     type: 'irisChatMessage';
     timestamp: number;
@@ -185,14 +211,17 @@ export interface EqEngineStateEvent {
 export interface InterventionEvent {
     type: 'intervention';
     timestamp: number;
-    action: 'shown' | 'accepted' | 'dismissed' | 'blocked';
+    action: 'shown' | 'accepted' | 'dismissed' | 'blocked' | 'suppressed';
     level: 'subtle' | 'notification' | 'proactive';
+    /** True for shown/accepted/dismissed/suppressed; false for blocked. */
     shouldIntervene: boolean;
     eq: number;
     confidence: 'sufficient' | 'insufficient';
     triggerType?: 'execution-error' | 'multiline-paste' | 'idle' | 'selection-maintained';
     /** Populated when action='blocked'. Identifies why the intervention was blocked. */
     blockedReason?: 'cooldown' | 'warmup' | 'session-limit' | 'low-confidence';
+    /** Populated when action='suppressed'. Identifies the suppression source. */
+    suppressionReason?: 'user-disabled';
     /** Populated when action='dismissed'. Identifies how the intervention was dismissed. */
     dismissReason?: 'user-action' | 'hidden' | 'replaced' | 'session-end';
     /**
@@ -297,6 +326,59 @@ export interface TextDocumentCloseEvent {
     uri: string;
 }
 
+export type TestResultsOverviewViewEvent =
+    | {
+        type: 'testResultsOverviewView';
+        action: 'opened';
+        timestamp: number;
+        viewId: string;
+        exerciseId: number;
+        participationId?: number;
+        resultId?: number;
+        totalTests: number;
+        passedTests: number;
+        failedTests: number;
+    }
+    | {
+        type: 'testResultsOverviewView';
+        action: 'closed';
+        timestamp: number;
+        viewId: string;
+        exerciseId: number;
+        participationId?: number;
+        resultId?: number;
+        durationMs: number;
+        closeReason: 'button' | 'escape';
+    };
+
+export type TaskFeedbackViewEvent =
+    | {
+        type: 'taskFeedbackView';
+        action: 'opened';
+        timestamp: number;
+        viewId: string;
+        exerciseId: number;
+        participationId?: number;
+        resultId?: number;
+        taskName: string;
+        testIds: number[];
+        totalTests: number;
+        passedTests: number;
+        failedTests: number;
+    }
+    | {
+        type: 'taskFeedbackView';
+        action: 'closed';
+        timestamp: number;
+        viewId: string;
+        exerciseId: number;
+        participationId?: number;
+        resultId?: number;
+        taskName: string;
+        durationMs: number;
+        closeReason: 'button' | 'escape';
+    };
+
 // ── Discriminated union ───────────────────────────────────────────────
 
 export type RecordedEvent =
@@ -310,6 +392,8 @@ export type RecordedEvent =
     | SessionStartEvent
     | SessionEndEvent
     | ConsentChangeEvent
+    | ConfigurationSnapshotEvent
+    | ConfigurationChangeEvent
     | StartupPhaseCompleteEvent
     | IrisChatMessageEvent
     | IrisChatSendAttemptEvent
@@ -328,7 +412,9 @@ export type RecordedEvent =
     | FileDeleteEvent
     | FileRenameEvent
     | TextDocumentOpenEvent
-    | TextDocumentCloseEvent;
+    | TextDocumentCloseEvent
+    | TestResultsOverviewViewEvent
+    | TaskFeedbackViewEvent;
 
 // ── Session metadata ──────────────────────────────────────────────────
 
@@ -337,7 +423,7 @@ export interface SessionMetadata {
     exerciseId: number;
     participantId: string | undefined;
     startTime: number;
-    endTime: number | undefined;
+    endTime: number | null | undefined;
     eventCount: number;
     /** Schema version for forward-compat parsing. Block D introduces version 2. */
     schemaVersion?: number;

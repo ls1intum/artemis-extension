@@ -618,6 +618,10 @@
 .event-badge.fileRename { background: rgba(253, 186, 116, 0.15); color: #fdba74; }
 .event-badge.textDocumentOpen { background: rgba(125, 211, 252, 0.15); color: #7dd3fc; }
 .event-badge.textDocumentClose { background: rgba(147, 197, 253, 0.15); color: #93c5fd; }
+.event-badge.configurationSnapshot { background: rgba(148, 163, 184, 0.12); color: #94a3b8; }
+.event-badge.configurationChange { background: rgba(203, 213, 225, 0.15); color: #cbd5e1; }
+.event-badge.testResultsOverviewView { background: rgba(45, 212, 191, 0.15); color: #2dd4bf; }
+.event-badge.taskFeedbackView { background: rgba(94, 234, 212, 0.15); color: #5eead4; }
 
 /* ── Event details ───────────────────────────────────────────────────── */
 

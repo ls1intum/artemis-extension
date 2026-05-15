@@ -24,6 +24,8 @@ const categories = [
             { badge: 'windowFocus', label: 'WindowFocus', desc: 'Window focus/blur state changes' },
             { badge: 'viewNavigation', label: 'ViewNavigation', desc: 'Extension sidebar screen changes (e.g. course-list \u2192 exercise-detail)' },
             { badge: 'panelVisibility', label: 'PanelVisibility', desc: 'Artemis sidebar or Iris Chat panel shown/hidden' },
+            { badge: 'testResultsOverviewView', label: 'TestResultsOverviewView', desc: 'Test results overview popup (all tests for an exercise) opened/closed with pass/fail counts and duration' },
+            { badge: 'taskFeedbackView', label: 'TaskFeedbackView', desc: 'Task feedback popup (tests for a single task from the problem statement) opened/closed with task name, pass/fail counts and duration' },
             { badge: 'fileSnapshot', label: 'FileSnapshot', desc: 'Initial file content at session start (max 1 MB per file)' },
             { badge: 'fileSnapshotError', label: 'FileSnapshotError', desc: 'Snapshot permanently failed after 3 retries — snapshot is missing for this URI' },
         ],
@@ -52,6 +54,8 @@ const categories = [
             { badge: 'eqSnapshot', label: 'EqSnapshot', desc: 'EQ score (0\u20131) + confidence (sufficient/insufficient)' },
             { badge: 'eqEngineState', label: 'EqEngineState', desc: 'Full EQ engine state (snapshots, pairs, confidence)' },
             { badge: 'intervention', label: 'Intervention', desc: 'Shown/accepted/dismissed interventions with level and EQ context' },
+            { badge: 'configurationSnapshot', label: 'ConfigurationSnapshot', desc: 'Provenance: struggle-detection + intervention settings captured at session start (used to classify control vs treatment runs)' },
+            { badge: 'configurationChange', label: 'ConfigurationChange', desc: 'Provenance: struggle-detection or intervention setting flipped mid-session (only changed keys are recorded)' },
         ],
     },
     {
