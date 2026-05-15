@@ -2,7 +2,7 @@ import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { Virtuoso, type VirtuosoHandle } from 'react-virtuoso';
 import type { Annotation, RecordedEvent, EventType } from '../types.ts';
 import { ALL_LABELS } from '../types.ts';
-import { formatOffset, shortenUri } from '../utils/format.ts';
+import { formatOffset, formatDuration, shortenUri } from '../utils/format.ts';
 
 interface Props {
     events: RecordedEvent[];
@@ -196,6 +196,48 @@ function EventDetail({ event }: { event: RecordedEvent }) {
                     {event.panel} | {event.visible ? 'visible' : 'hidden'}
                 </span>
             );
+        case 'testResultsOverviewView':
+            if (event.action === 'opened') {
+                return (
+                    <span className="event-detail">
+                        Test results overview opened | {event.passedTests}/{event.totalTests} passed ({event.failedTests} failed)
+                    </span>
+                );
+            }
+            return (
+                <span className="event-detail">
+                    Test results overview closed | {formatDuration(event.durationMs)} ({event.closeReason})
+                </span>
+            );
+        case 'taskFeedbackView':
+            if (event.action === 'opened') {
+                return (
+                    <span className="event-detail">
+                        Task "{event.taskName}" opened | {event.passedTests}/{event.totalTests} passed ({event.failedTests} failed)
+                    </span>
+                );
+            }
+            return (
+                <span className="event-detail">
+                    Task "{event.taskName}" closed | {formatDuration(event.durationMs)} ({event.closeReason})
+                </span>
+            );
+        case 'configurationSnapshot':
+            return (
+                <span className="event-detail">
+                    struggleDetection:{event.struggleDetectionEnabled ? 'on' : 'off'} | interventions:{event.showInterventions ? 'on' : 'off'}
+                </span>
+            );
+        case 'configurationChange': {
+            const parts: string[] = [];
+            if (event.changes.struggleDetectionEnabled !== undefined) {
+                parts.push(`struggleDetection:${event.changes.struggleDetectionEnabled ? 'on' : 'off'}`);
+            }
+            if (event.changes.showInterventions !== undefined) {
+                parts.push(`interventions:${event.changes.showInterventions ? 'on' : 'off'}`);
+            }
+            return <span className="event-detail">{parts.join(' | ')}</span>;
+        }
         case 'terminalCommand': {
             const exitOk = event.exitCode === 0;
             return (

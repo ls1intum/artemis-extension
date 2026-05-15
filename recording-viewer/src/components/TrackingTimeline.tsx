@@ -1,7 +1,7 @@
 import { useMemo, useRef, useState, useEffect, useCallback } from 'react';
 import type { Annotation, RecordedEvent, EventType } from '../types';
 import { SWIM_LANE_TYPES } from '../constants';
-import { formatOffset, shortenUri } from '../utils/format';
+import { formatOffset, formatDuration, shortenUri } from '../utils/format';
 import { useTimelinePan } from '../hooks/useTimelinePan';
 import {
     AXIS_HEIGHT,
@@ -98,6 +98,26 @@ function eventSummary(event: RecordedEvent, sessionStartTime: number): React.Rea
             return <><span className="tt-time">{time}</span> {event.from} → {event.to}</>;
         case 'panelVisibility':
             return <><span className="tt-time">{time}</span> {event.panel} | {event.visible ? 'visible' : 'hidden'}</>;
+        case 'testResultsOverviewView':
+            return event.action === 'opened'
+                ? <><span className="tt-time">{time}</span> Test results overview opened | {event.passedTests}/{event.totalTests} passed ({event.failedTests} failed)</>
+                : <><span className="tt-time">{time}</span> Test results overview closed | {formatDuration(event.durationMs)} ({event.closeReason})</>;
+        case 'taskFeedbackView':
+            return event.action === 'opened'
+                ? <><span className="tt-time">{time}</span> Task "{event.taskName}" opened | {event.passedTests}/{event.totalTests} passed ({event.failedTests} failed)</>
+                : <><span className="tt-time">{time}</span> Task "{event.taskName}" closed | {formatDuration(event.durationMs)} ({event.closeReason})</>;
+        case 'configurationSnapshot':
+            return <><span className="tt-time">{time}</span> struggleDetection:{event.struggleDetectionEnabled ? 'on' : 'off'} | interventions:{event.showInterventions ? 'on' : 'off'}</>;
+        case 'configurationChange': {
+            const parts: string[] = [];
+            if (event.changes.struggleDetectionEnabled !== undefined) {
+                parts.push(`struggleDetection:${event.changes.struggleDetectionEnabled ? 'on' : 'off'}`);
+            }
+            if (event.changes.showInterventions !== undefined) {
+                parts.push(`interventions:${event.changes.showInterventions ? 'on' : 'off'}`);
+            }
+            return <><span className="tt-time">{time}</span> {parts.join(' | ')}</>;
+        }
         case 'terminalCommand':
             return <><span className="tt-time">{time}</span> <code>{event.command.length > 40 ? event.command.slice(0, 40) + '...' : event.command}</code> exit: {event.exitCode ?? '?'}</>;
         case 'terminalOpenClose':
