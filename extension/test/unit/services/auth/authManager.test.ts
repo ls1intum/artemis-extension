@@ -150,20 +150,6 @@ suite('AuthManager Test Suite', () => {
         assert.strictEqual(result, false);
     });
 
-    // --- getStoredTokenValue ---
-
-    test('getStoredTokenValue returns undefined when no credentials', async () => {
-        const result = await authManager.getStoredTokenValue();
-        assert.strictEqual(result, undefined);
-    });
-
-    test('getStoredTokenValue returns memory token', async () => {
-        const jwt = 'jwt=memory-token';
-        await authManager.storeArtemisCredentials(jwt, 'url', false);
-        const result = await authManager.getStoredTokenValue();
-        assert.strictEqual(result, jwt);
-    });
-
     // --- getAuthHeaders ---
 
     test('getAuthHeaders returns empty when no credentials stored', async () => {

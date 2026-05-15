@@ -117,7 +117,6 @@ export function importSessionsToStore(
             messageCount,
             createdAt,
             session.id,
-            session.messages || [],
             typeof session.title === 'string' ? session.title : undefined,
         );
         imported++;

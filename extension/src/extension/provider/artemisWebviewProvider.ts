@@ -14,7 +14,6 @@ import { CONFIG, VSCODE_CONFIG, AI_EXTENSIONS_BLOCKLIST, getRecommendedExtension
 import { AppStateManager, type UserInfo } from '../controller/appStateManager';
 import { WebViewMessageHandler } from '../controller/webViewMessageHandler';
 import type { WebViewActionHandler } from '../controller/types';
-import { ViewActionService } from '../controller/viewActionService';
 import { getViewHtml } from '../controller/viewRouter';
 import { fetchAndEnrichExerciseDetails, fetchArchivedCourseDetail } from '../controller/exerciseDataLoader';
 import { WebSocketMessageHandler } from '../types';
@@ -47,7 +46,6 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
     // ── Instance properties ────────────────────────────────────────────
     private _appStateManager: AppStateManager;
     private _messageHandler: WebViewMessageHandler;
-    private _viewActionService: ViewActionService;
     private _viewInitDataService: ViewInitDataService;
     private _submissionWsHandler: SubmissionWebSocketHandler;
     private _fullscreenPanelManager: FullscreenPanelManager;
@@ -105,7 +103,6 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
             this._extensionContext.globalState,
             () => this._currentCourseAccessScope(),
         );
-        this._viewActionService = new ViewActionService(this._appStateManager, this._artemisApi);
         this._messageHandler = new WebViewMessageHandler(
             this._authManager,
             this._artemisApi,
@@ -333,35 +330,55 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
 
     // WebViewActionHandler interface implementation
     public async openJsonInEditor(data: Record<string, unknown>): Promise<void> {
-        await this._viewActionService.openJsonInEditor(data);
+        try {
+            const document = await vscode.workspace.openTextDocument({
+                content: JSON.stringify(data, null, 2),
+                language: 'json',
+            });
+            await vscode.window.showTextDocument(document, {
+                preview: false,
+                viewColumn: vscode.ViewColumn.One,
+            });
+        } catch (error) {
+            logger.error('Error opening JSON in editor:', LogCategory.VIEW, error);
+            vscode.window.showErrorMessage('Failed to open JSON in editor');
+        }
     }
 
     public async openExerciseDetails(exerciseId: number): Promise<void> {
-        const didUpdate = await this._viewActionService.openExerciseDetails(exerciseId);
+        // Split fetch failures (user-facing I/O errors) from state-transition
+        // failures (programmer errors that violate the navigation invariant):
+        // only the fetch is caught and user-reported; invariant breaks propagate.
+        let data: ExerciseDetailsResponse;
+        try {
+            data = await fetchAndEnrichExerciseDetails(this._artemisApi, exerciseId);
+        } catch (error) {
+            logger.error('Error fetching exercise details:', LogCategory.VIEW, error);
+            vscode.window.showErrorMessage('Failed to fetch exercise details');
+            return;
+        }
+        this._appStateManager.showExerciseDetail(data);
+        this.render();
 
-        if (didUpdate) {
-            this.render();
+        // Fire background server render for progressive enhancement
+        this._backgroundRenderProblemStatement();
 
-            // Fire background server render for progressive enhancement
-            this._backgroundRenderProblemStatement();
-
-            // Ensure WebSocket is connected for real-time updates
-            if (this._websocketService && !this._websocketService.isConnected()) {
-                logger.websocket('Exercise opened - ensuring WebSocket connection for real-time updates...');
-                try {
-                    await this._websocketService.connect();
-                } catch (error) {
-                    logger.websocketWarn('Failed to connect WebSocket', error);
-                }
+        // Ensure WebSocket is connected for real-time updates
+        if (this._websocketService && !this._websocketService.isConnected()) {
+            logger.websocket('Exercise opened - ensuring WebSocket connection for real-time updates...');
+            try {
+                await this._websocketService.connect();
+            } catch (error) {
+                logger.websocketWarn('Failed to connect WebSocket', error);
             }
+        }
 
-            // Handle post-open side effects (registry, telemetry, chat notify).
-            // openExerciseDetails always sets ExerciseDetailsResponse (not ExamExerciseData),
-            // so the cast is safe. Exam exercises go through openExamExerciseDetails instead.
-            const exerciseData = this._appStateManager.currentExerciseData as ExerciseDetailsResponse | undefined;
-            if (exerciseData?.exercise) {
-                this._exerciseOpeningService.handleExerciseOpened(exerciseData, exerciseId);
-            }
+        // Handle post-open side effects (registry, telemetry, chat notify).
+        // openExerciseDetails always sets ExerciseDetailsResponse (not ExamExerciseData),
+        // so the cast is safe. Exam exercises go through openExamExerciseDetails instead.
+        const exerciseData = this._appStateManager.currentExerciseData as ExerciseDetailsResponse | undefined;
+        if (exerciseData?.exercise) {
+            this._exerciseOpeningService.handleExerciseOpened(exerciseData, exerciseId);
         }
     }
 
@@ -371,16 +388,15 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
         courseId: number,
         examId: number
     ): Promise<void> {
-        const didUpdate = await this._viewActionService.openExamExerciseDetails(
-            exercise,
-            exerciseIndex,
-            courseId,
-            examId
-        );
-
-        if (didUpdate) {
-            this.render();
+        // Uses data from the studentExam to avoid API calls forbidden during exams.
+        try {
+            this._appStateManager.showExamExerciseDetail(exercise, exerciseIndex, courseId, examId);
+        } catch (error) {
+            logger.error('Error showing exam exercise details:', LogCategory.VIEW, error);
+            vscode.window.showErrorMessage('Failed to show exam exercise details');
+            return;
         }
+        this.render();
     }
 
     public async showDashboard(userInfo: UserInfo): Promise<void> {

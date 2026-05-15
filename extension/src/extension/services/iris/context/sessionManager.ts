@@ -1,4 +1,4 @@
-import type { StoredSession, ActiveContext, ChatContextType, IrisChatMessage } from '../../../types';
+import type { StoredSession, ActiveContext, ChatContextType } from '../../../types';
 
 const SESSION_KEY_SEPARATOR = ':';
 
@@ -56,7 +56,6 @@ export class SessionManager {
         messageCount: number,
         createdAt: number,
         artemisSessionId?: number,
-        _messages?: IrisChatMessage[],
         title?: string,
     ): void {
         const active = this._getActiveContext();

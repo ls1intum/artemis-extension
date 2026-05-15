@@ -222,10 +222,6 @@ export class SessionRecorder implements vscode.Disposable, WebSocketMessageHandl
      * the current generation in one place so the wrapper methods stay
      * declarative payloads.
      *
-     * `timestamp` is spread first so the field stays near the head of the
-     * serialised JSON line (preserves byte-level layout of existing
-     * recordings against the pre-refactor structure).
-     *
      * `RecordedEventWithoutTimestamp` is a *distributive* omit — the built-in
      * `Omit<RecordedEvent, 'timestamp'>` collapses the discriminated union and
      * drops per-variant fields like `action`, `eq`, `panel`, etc.

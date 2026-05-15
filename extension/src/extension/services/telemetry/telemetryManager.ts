@@ -10,7 +10,6 @@ import {
 import type { SessionResettable, SessionStartContext } from './types';
 import { DiagnosticPersistenceService } from './diagnosticPersistenceService';
 import { InactivityService } from './inactivityService';
-import { ThrashingDetector } from './thrashingDetector';
 import { BuildResultTracker } from './buildResultTracker';
 import { InterventionService } from './interventionService';
 import { InterventionFilter } from './interventionFilter';
@@ -42,7 +41,6 @@ export class TelemetryManager implements vscode.Disposable, WebSocketMessageHand
     // Sub-services (kept from old system)
     private readonly _diagnosticService: DiagnosticPersistenceService;
     private readonly _inactivityService: InactivityService;
-    private readonly _thrashingDetector: ThrashingDetector;
     private readonly _buildTracker: BuildResultTracker;
     private readonly _interventionService: InterventionService;
     private readonly _interventionFilter: InterventionFilter;
@@ -103,7 +101,6 @@ export class TelemetryManager implements vscode.Disposable, WebSocketMessageHand
         // Initialize kept services
         this._diagnosticService = new DiagnosticPersistenceService();
         this._inactivityService = new InactivityService();
-        this._thrashingDetector = new ThrashingDetector();
         this._buildTracker = new BuildResultTracker();
         this._interventionService = new InterventionService();
         this._interventionFilter = new InterventionFilter();
@@ -122,7 +119,6 @@ export class TelemetryManager implements vscode.Disposable, WebSocketMessageHand
         this._debugDashboard = new DebugDashboard({
             eqEngine: this._eqEngine,
             inactivityService: this._inactivityService,
-            thrashingDetector: this._thrashingDetector,
             buildTracker: this._buildTracker,
             adaptiveCadence: this._adaptiveCadence,
             outputChannel: this._outputChannel,
@@ -135,7 +131,7 @@ export class TelemetryManager implements vscode.Disposable, WebSocketMessageHand
         this._sessionServices = [
             this._eqEngine, this._compileEmitter, this._triggerEmitter,
             this._inactivityService, this._adaptiveCadence, this._interventionFilter,
-            this._interventionService, this._thrashingDetector, this._buildTracker,
+            this._interventionService, this._buildTracker,
             this._diagnosticService,
         ];
 
@@ -144,7 +140,6 @@ export class TelemetryManager implements vscode.Disposable, WebSocketMessageHand
             this._debugDashboard,
             this._diagnosticService,
             this._inactivityService,
-            this._thrashingDetector,
             this._buildTracker,
             this._interventionService,
             this._compileEmitter,

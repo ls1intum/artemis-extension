@@ -299,13 +299,6 @@ class LoggingService {
         this.output(LogLevel.ERROR, `👁️ ${message}`, LogCategory.VIEW, ...args);
     }
 
-    /**
-     * Log a view warning
-     */
-    public viewWarn(message: string, ...args: unknown[]): void {
-        this.output(LogLevel.WARN, `👁️ ${message}`, LogCategory.VIEW, ...args);
-    }
-
 }
 
 // Export singleton instance

@@ -2,7 +2,6 @@ import * as vscode from 'vscode';
 import { EQConfidence, RecommendedAction } from './types';
 import type { ErrorQuotientEngine } from './metrics/errorQuotientEngine';
 import type { InactivityService } from './inactivityService';
-import type { ThrashingDetector } from './thrashingDetector';
 import type { BuildResultTracker } from './buildResultTracker';
 import type { AdaptiveCadence } from './intervention/adaptiveCadence';
 
@@ -12,7 +11,6 @@ import type { AdaptiveCadence } from './intervention/adaptiveCadence';
 interface DebugDashboardDeps {
     eqEngine: ErrorQuotientEngine;
     inactivityService: InactivityService;
-    thrashingDetector: ThrashingDetector;
     buildTracker: BuildResultTracker;
     adaptiveCadence: AdaptiveCadence;
     outputChannel: vscode.OutputChannel;
@@ -134,7 +132,6 @@ export class DebugDashboard implements vscode.Disposable {
         const { eq, confidence } = this._deps.eqEngine.getCurrentEQ();
         const state = this._deps.eqEngine.getState();
         const pattern = this._deps.inactivityService.getCurrentPattern();
-        const thrashing = this._deps.thrashingDetector.getThrashingScore();
 
         this._deps.outputChannel.appendLine('');
         this._deps.outputChannel.appendLine('═══════════════════════════════════════');
@@ -152,7 +149,6 @@ export class DebugDashboard implements vscode.Disposable {
         this._deps.outputChannel.appendLine('ACTIVITY');
         this._deps.outputChannel.appendLine(`   Pattern: ${pattern}`);
         this._deps.outputChannel.appendLine(`   Time since edit: ${Math.round(this._deps.inactivityService.getTimeSinceLastEdit() / 1000)}s`);
-        this._deps.outputChannel.appendLine(`   Thrashing score: ${thrashing}/100`);
         this._deps.outputChannel.appendLine('');
         this._deps.outputChannel.appendLine('SERVER');
         this._deps.outputChannel.appendLine(`   Consecutive build failures: ${this._deps.buildTracker.getConsecutiveFailures()}`);
@@ -239,7 +235,6 @@ export class DebugDashboard implements vscode.Disposable {
             '── Activity ──',
             `   Pattern: ${this._deps.inactivityService.getCurrentPattern()}`,
             `   Time since edit: ${Math.round(this._deps.inactivityService.getTimeSinceLastEdit() / 1000)}s`,
-            `   Thrashing: ${this._deps.thrashingDetector.getThrashingScore()}/100`,
             '',
             '━━━━━━━━━━━━━━━━━━━━━━━━',
             '$(info) Click for detailed view',

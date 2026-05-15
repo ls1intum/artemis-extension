@@ -86,7 +86,7 @@ export interface DiagnosticDefinition {
 }
 
 /**
- * Edit event - change document content (triggers thrashing/inactivity tracking)
+ * Edit event - change document content (triggers inactivity tracking)
  */
 export interface EditEvent {
     type: 'edit';

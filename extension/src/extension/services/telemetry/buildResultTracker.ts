@@ -1,13 +1,12 @@
 import * as vscode from 'vscode';
 import { BuildResult, SessionResettable, SessionStartContext } from './types';
-import { ResultDTO, WebSocketMessageHandler } from '../../types';
+import { ResultDTO } from '../../types';
 
 /**
  * Service that tracks server-side build results from Artemis.
  * Monitors consecutive failures and build patterns.
  */
-export class BuildResultTracker implements vscode.Disposable, WebSocketMessageHandler, SessionResettable {
-    private readonly _disposables: vscode.Disposable[] = [];
+export class BuildResultTracker implements vscode.Disposable, SessionResettable {
     private readonly _buildHistory: BuildResult[] = [];
     private _consecutiveFailures: number = 0;
 
@@ -17,22 +16,13 @@ export class BuildResultTracker implements vscode.Disposable, WebSocketMessageHa
     private readonly _onDidReceiveBuildResult = new vscode.EventEmitter<BuildResult>();
     public readonly onDidReceiveBuildResult = this._onDidReceiveBuildResult.event;
 
-    constructor() {
-        // WebSocket service will be set via setter injection
-    }
-
     public dispose(): void {
-        while (this._disposables.length > 0) {
-            const disposable = this._disposables.pop();
-            disposable?.dispose();
-        }
-
         this._onDidReceiveBuildResult.dispose();
         this._buildHistory.length = 0;
     }
 
     /**
-     * Handle new result from WebSocket (implements WebSocketMessageHandler)
+     * Handle a new build result, hand-dispatched by {@link TelemetryManager}.
      */
     public onNewResult(result: ResultDTO): void {
         this._processResult(result);
