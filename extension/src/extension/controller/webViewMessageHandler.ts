@@ -141,13 +141,6 @@ export class WebViewMessageHandler {
     }
 
     /**
-     * Check if an exercise has a recently cloned repository.
-     */
-    public hasRecentlyClonedRepo(participationId: number): boolean {
-        return this.repositoryModule.hasRecentlyClonedRepo(participationId);
-    }
-
-    /**
      * Set the repository context so workspace file-save listeners
      * can automatically detect changes without a manual check.
      */

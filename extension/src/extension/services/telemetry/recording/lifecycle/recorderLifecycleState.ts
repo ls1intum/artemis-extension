@@ -1,5 +1,3 @@
-import * as vscode from 'vscode';
-
 /**
  * Finite-state machine phases for the session recorder.
  *
@@ -33,20 +31,9 @@ interface ActiveSessionState {
 }
 
 /**
- * Emitted whenever phase or active session changes. Mirrors the existing
- * `RecordingState` shape for consumer compatibility.
- */
-interface RecordingState {
-    isEnabled: boolean;
-    isRecording: boolean;
-    exerciseId: number | undefined;
-    eventCount: number;
-}
-
-/**
  * Pure state holder for the session recorder lifecycle. No I/O, no VS Code
- * APIs beyond `EventEmitter`. All mutations go through the named methods
- * below; direct field writes are not exposed.
+ * APIs. All mutations go through the named methods below; direct field
+ * writes are not exposed.
  *
  * Invariants:
  *   - `activeSession !== null` iff phase ∈ {starting, recording, ending, disabling}
@@ -61,9 +48,6 @@ export class RecorderLifecycleState {
     private _currentGeneration = 0;
     private _committedGeneration: number | undefined;
     private _activeSession: ActiveSessionState | null = null;
-
-    private readonly _onStateChange = new vscode.EventEmitter<RecordingState>();
-    public readonly onStateChange = this._onStateChange.event;
 
     // ── Read-only views ───────────────────────────────────────────────
 
@@ -95,21 +79,11 @@ export class RecorderLifecycleState {
         return this._phase === 'recording';
     }
 
-    snapshot(): RecordingState {
-        return {
-            isEnabled: this.isEnabled,
-            isRecording: this.isRecording,
-            exerciseId: this._activeSession?.exerciseId,
-            eventCount: this._activeSession?.eventCount ?? 0,
-        };
-    }
-
     // ── Transitions ───────────────────────────────────────────────────
 
     /**
      * Transition `_phase` from one of the expected source states to the target
-     * state. Throws if the current phase is not in `from`. Fires
-     * `onStateChange` as a side effect.
+     * state. Throws if the current phase is not in `from`.
      */
     transitionPhase(from: readonly RecorderPhase[], to: RecorderPhase): void {
         if (!from.includes(this._phase)) {
@@ -118,7 +92,6 @@ export class RecorderLifecycleState {
             );
         }
         this._phase = to;
-        this._fire();
     }
 
     /**
@@ -127,7 +100,6 @@ export class RecorderLifecycleState {
      */
     forcePhase(to: RecorderPhase): void {
         this._phase = to;
-        this._fire();
     }
 
     /** Increment and return the new requested generation. */
@@ -161,7 +133,6 @@ export class RecorderLifecycleState {
             sessionStartWritten: false,
             eventCount: 0,
         };
-        this._fire();
     }
 
     /**
@@ -188,7 +159,6 @@ export class RecorderLifecycleState {
         this._currentGeneration = generation;
         this._committedGeneration = generation;
         this._activeSession.sessionStartWritten = true;
-        this._fire();
     }
 
     /** Transition `'starting' → 'recording'` after `startupPhaseComplete` is written. */
@@ -231,16 +201,5 @@ export class RecorderLifecycleState {
                 `clearActiveSessionAfterFinalize called from unexpected phase '${this._phase}'`,
             );
         }
-        this._fire();
-    }
-
-    // ── Internals ─────────────────────────────────────────────────────
-
-    private _fire(): void {
-        this._onStateChange.fire(this.snapshot());
-    }
-
-    dispose(): void {
-        this._onStateChange.dispose();
     }
 }

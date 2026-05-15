@@ -51,13 +51,6 @@ export class AuthManager {
     }
 
     /**
-     * Returns the raw token value for comparison (e.g., token refresh detection).
-     */
-    public async getStoredTokenValue(): Promise<string | undefined> {
-        return this.getStoredToken();
-    }
-
-    /**
      * Returns the raw JWT string (without any "jwt=" cookie prefix), suitable
      * for use in a `Cookie: jwt=<value>` or `Authorization: Bearer <value>` header.
      *
@@ -87,12 +80,7 @@ export class AuthManager {
             return this.memoryToken;
         }
 
-        const artemisToken = await this.context.secrets.get(CONFIG.SECRET_KEYS.ARTEMIS_TOKEN);
-        if (artemisToken) {
-            return artemisToken;
-        }
-
-        return undefined;
+        return this.context.secrets.get(CONFIG.SECRET_KEYS.ARTEMIS_TOKEN);
     }
 
     public async getAuthHeaders(): Promise<Record<string, string>> {

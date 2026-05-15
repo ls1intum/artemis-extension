@@ -739,7 +739,7 @@ suite('IrisWebSocketSessionClient Subscription Management', () => {
         // Check initial subscription exists in the mock client
         assert.ok(wsService.mockClient!.subscriptions.has(topic), 'Initial subscription');
 
-        // Manually unsubscribe to reset _isSubscribed flag
+        // Manually unsubscribe to clear the active subscription
         sessionManager.unsubscribe();
         
         // Simulate disconnect - this clears the SERVICE's subscriptions map

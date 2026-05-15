@@ -2,7 +2,6 @@ import * as vscode from 'vscode';
 import {
     ActiveContext,
     ContextSnapshot,
-    type IrisChatMessage,
 } from '../../../types';
 import { logger } from '../../loggingService';
 import { SessionManager } from './sessionManager';
@@ -167,10 +166,9 @@ export class ContextStore {
         messageCount: number,
         createdAt: number,
         artemisSessionId?: number,
-        messages?: IrisChatMessage[],
         title?: string,
     ): ContextSnapshot {
-        this._sessionManager.createSessionWithDetails(preview, messageCount, createdAt, artemisSessionId, messages, title);
+        this._sessionManager.createSessionWithDetails(preview, messageCount, createdAt, artemisSessionId, title);
         return this.snapshot();
     }
 

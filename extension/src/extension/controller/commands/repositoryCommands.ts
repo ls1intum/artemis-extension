@@ -140,19 +140,6 @@ export class RepositoryCommandModule {
         };
     }
 
-    public hasRecentlyClonedRepo(participationId: number): boolean {
-        const repoInfo = this.clonedRepositoriesByParticipationId.get(participationId);
-        if (!repoInfo) {
-            return false;
-        }
-        // Validate that the cached path still exists
-        if (!fs.existsSync(repoInfo.path)) {
-            this.clonedRepositoriesByParticipationId.delete(participationId);
-            return false;
-        }
-        return true;
-    }
-
     private handleCheckRepositoryStatus = async (_message: WebviewToExtensionMessage): Promise<void> => {
         const exerciseData = this.context.appStateManager.currentExerciseData;
         const exercise = exerciseData?.exercise;

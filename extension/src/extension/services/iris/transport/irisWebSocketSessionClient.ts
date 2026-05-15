@@ -25,7 +25,6 @@ const MIN_RESUBSCRIBE_INTERVAL_MS = 3000;
  * 1. Stores unsubscribe function for connection state callback
  * 2. Rate-limits resubscription attempts
  * 3. Does NOT call connect() - only subscribes if already connected
- * 4. Tracks subscription state to prevent duplicate subscriptions
  */
 export class IrisWebSocketSessionClient implements vscode.Disposable {
     /**
@@ -38,7 +37,6 @@ export class IrisWebSocketSessionClient implements vscode.Disposable {
     private _irisUnsubscribe?: () => void;
     private _connectionStateSubscription?: vscode.Disposable;
     private _lastResubscribeAttempt: number = 0;
-    private _isSubscribed: boolean = false;
 
     private readonly _onDidReceiveMessage = new vscode.EventEmitter<IrisWebSocketMessage>();
     public readonly onDidReceiveMessage = this._onDidReceiveMessage.event;
@@ -80,7 +78,6 @@ export class IrisWebSocketSessionClient implements vscode.Disposable {
             }
             this._irisUnsubscribe = undefined;
         }
-        this._isSubscribed = false;
     }
 
     /** Unsubscribe AND clear the cached session ID (used on context switch). */
@@ -155,11 +152,9 @@ export class IrisWebSocketSessionClient implements vscode.Disposable {
                 sessionId,
                 (data: unknown) => this._handleWebSocketMessage(data)
             );
-            this._isSubscribed = true;
             logger.session(`Successfully subscribed to session: ${sessionId}`);
         } catch (error) {
             logger.sessionError('Failed to subscribe:', error);
-            this._isSubscribed = false;
         }
     }
 
@@ -189,19 +184,12 @@ export class IrisWebSocketSessionClient implements vscode.Disposable {
             logger.session(`WebSocket connection state changed: ${isConnected}`);
             this._onDidConnectionStateChange.fire(isConnected);
 
-            if (isConnected) {
+            if (isConnected && this._currentArtemisSessionId) {
                 // Every (re)connect creates a fresh STOMP session — all prior STOMP
                 // subscriptions are gone at the protocol level regardless of whether
                 // we received a disconnect notification (which is debounced by 5 s).
-                // Mark ourselves as unsubscribed so we always re-attach.
-                this._isSubscribed = false;
-
-                if (this._currentArtemisSessionId) {
-                    logger.session(`(Re)connected, resubscribing to session: ${this._currentArtemisSessionId}`);
-                    void this._subscribeIfConnected(this._currentArtemisSessionId);
-                }
-            } else {
-                this._isSubscribed = false;
+                logger.session(`(Re)connected, resubscribing to session: ${this._currentArtemisSessionId}`);
+                void this._subscribeIfConnected(this._currentArtemisSessionId);
             }
         });
     }
