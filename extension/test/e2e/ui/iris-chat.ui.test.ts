@@ -1,13 +1,14 @@
 // Covers E2EV-09: IrisChat view E2E smoke test
 // IrisChat is a SEPARATE sidebar panel from Artemis — it has its own webview provider.
-import { VSBrowser, WebDriver, Workbench, ActivityBar } from 'vscode-extension-tester';
 import * as assert from 'assert';
+import { ActivityBar, VSBrowser, WebDriver, Workbench } from 'vscode-extension-tester';
+
 import {
-	switchToWebviewFrame,
-	switchBackFromWebview,
-	waitForElement,
-	takeScreenshot,
 	getCredentials,
+	switchBackFromWebview,
+	switchToWebviewFrame,
+	takeScreenshot,
+	waitForElement,
 } from './helpers';
 
 describe('IrisChat View UI Tests', function () {

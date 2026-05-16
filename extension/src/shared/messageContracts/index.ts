@@ -7,8 +7,8 @@
  * Adding a new message = add const entry + payload entry (compiler enforces completeness).
  */
 
-export * from './domainTypes';
 export * from './domainMappers';
+export * from './domainTypes';
 export * from './extensionMessages';
-export * from './webviewCommands';
 export * from './typeGuards';
+export * from './webviewCommands';

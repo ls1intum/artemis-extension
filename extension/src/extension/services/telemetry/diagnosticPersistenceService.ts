@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
-import { SessionResettable, SessionStartContext, TrackedDiagnostic } from './types';
 import * as crypto from 'crypto';
+
+import { SessionResettable, SessionStartContext, TrackedDiagnostic } from './types';
 
 /**
  * Service that tracks VS Code Language Server diagnostics over time.

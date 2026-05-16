@@ -1,8 +1,10 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor, act } from '@testing-library/react';
+import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { IrisChatView } from '@webview/views/IrisChat/IrisChatView';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
 import { useChatStore } from '@webview/stores/useChatStore';
+import { IrisChatView } from '@webview/views/IrisChat/IrisChatView';
+
 import { createMockVsCodeApi, dispatchExtensionMessage } from '../__helpers__/vscodeApi';
 
 /**

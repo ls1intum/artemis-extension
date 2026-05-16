@@ -1,5 +1,6 @@
 import type * as vscode from 'vscode';
-import { logger, LogCategory } from './loggingService';
+
+import { LogCategory, logger } from './loggingService';
 
 export interface CourseAccessScope {
     serverUrl: string;

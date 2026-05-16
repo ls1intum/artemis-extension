@@ -1,16 +1,18 @@
 import * as vscode from 'vscode';
+
 import type { ArtemisApiService } from '@extension/api';
 import type { UserInfo } from '@extension/controller/appStateManager';
+import type { CourseDashboardEntry, CourseDashboardResponse } from '@extension/types';
+import { VSCODE_CONFIG } from '@extension/utils';
+
+import type { CourseDataCache } from '../courseDataCache';
 import {
-    findWorkspaceCourseInArchive,
-    getWorkspaceRepositoryUrl,
-    findExerciseByRepositoryUrl,
     collectExerciseSources,
     type DetectedExercise,
+    findExerciseByRepositoryUrl,
+    findWorkspaceCourseInArchive,
+    getWorkspaceRepositoryUrl,
 } from '../workspace';
-import { VSCODE_CONFIG } from '@extension/utils';
-import type { CourseDashboardEntry, CourseDashboardResponse } from '@extension/types';
-import type { CourseDataCache } from '../courseDataCache';
 
 // ── Result types ─────────────────────────────────────────────────────
 

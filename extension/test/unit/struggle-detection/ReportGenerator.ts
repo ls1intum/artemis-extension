@@ -5,7 +5,8 @@
  */
 
 import * as fs from 'fs';
-import { TestSuiteReport, ScenarioResult } from './types';
+
+import { ScenarioResult, TestSuiteReport } from './types';
 
 export class ReportGenerator {
 

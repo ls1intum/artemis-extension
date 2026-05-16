@@ -1,6 +1,7 @@
-import type { StoredState } from './contextStateTypes';
 import type { ChatContextType, ContextSnapshot, TrackedExercise } from '@extension/types';
-import { compareExercisesForDisplay, compareCoursesForDisplay } from './contextSorting';
+
+import { compareCoursesForDisplay, compareExercisesForDisplay } from './contextSorting';
+import type { StoredState } from './contextStateTypes';
 
 const SESSION_KEY_SEPARATOR = ':';
 

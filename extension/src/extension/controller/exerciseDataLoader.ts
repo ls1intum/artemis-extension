@@ -1,9 +1,10 @@
-import type { ArtemisApiService } from '../api';
-import type { CourseDashboardResponse, CourseDashboardCourse, ExerciseDetailsResponse } from '../types';
-import { ApiError, MalformedResponseError } from '../types';
 import type { CourseDetailData } from '@shared/messageContracts';
 import { toCourseDetailData } from '@shared/messageContracts';
-import { logger, LogCategory } from '../services/loggingService';
+
+import type { ArtemisApiService } from '../api';
+import { LogCategory, logger } from '../services/loggingService';
+import type { CourseDashboardCourse, CourseDashboardResponse, ExerciseDetailsResponse } from '../types';
+import { ApiError, MalformedResponseError } from '../types';
 import { pickHighestId } from '../utils/participationHelpers';
 
 /**

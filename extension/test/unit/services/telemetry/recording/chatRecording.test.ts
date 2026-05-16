@@ -11,17 +11,18 @@
  *   - Successful send: pending + sent attempt events AND separate irisChatMessage event
  */
 
-import * as assert from 'assert';
 import * as vscode from 'vscode';
+import * as assert from 'assert';
+
 import { SessionRecorder } from '@extension/services/telemetry/recording/sessionRecorder';
+import type { RecordingFs } from '@extension/services/telemetry/recording/storageWriter';
+import { RecordingStorageWriter } from '@extension/services/telemetry/recording/storageWriter';
 import type {
-    RecordedEvent,
-    IrisChatSendAttemptEvent,
     IrisChatFeedbackEvent,
     IrisChatMessageEvent,
+    IrisChatSendAttemptEvent,
+    RecordedEvent,
 } from '@extension/services/telemetry/recording/types';
-import { RecordingStorageWriter } from '@extension/services/telemetry/recording/storageWriter';
-import type { RecordingFs } from '@extension/services/telemetry/recording/storageWriter';
 
 // ── Minimal fake FS ───────────────────────────────────────────────────────────
 

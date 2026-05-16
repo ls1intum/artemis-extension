@@ -1,5 +1,6 @@
-import { describe, it, expect } from 'vitest';
 import { render, screen } from '@testing-library/react';
+import { describe, expect, it } from 'vitest';
+
 import { Skeleton } from '@webview/components/Skeleton/Skeleton';
 import { SkeletonList } from '@webview/components/Skeleton/SkeletonList';
 

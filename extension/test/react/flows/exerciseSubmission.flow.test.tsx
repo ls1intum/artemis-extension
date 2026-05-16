@@ -1,8 +1,10 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { ExerciseDetailView } from '@webview/views/ExerciseDetail/ExerciseDetailView';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
 import { useExerciseDetailStore } from '@webview/stores/useExerciseDetailStore';
+import { ExerciseDetailView } from '@webview/views/ExerciseDetail/ExerciseDetailView';
+
 import { createMockVsCodeApi, dispatchExtensionMessage } from '../__helpers__/vscodeApi';
 
 /**

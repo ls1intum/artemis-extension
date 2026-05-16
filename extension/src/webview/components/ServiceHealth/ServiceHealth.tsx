@@ -1,7 +1,8 @@
-import { useState } from 'react';
 import clsx from 'clsx';
 import ChevronRight from 'lucide-react/dist/esm/icons/chevron-right';
 import RefreshCw from 'lucide-react/dist/esm/icons/refresh-cw';
+import { useState } from 'react';
+
 import { Badge } from '../Badge';
 import styles from './ServiceHealth.module.css';
 

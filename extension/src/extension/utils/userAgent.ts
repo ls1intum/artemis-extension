@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+
 import { getTheiaEnvironment } from '../theia';
 
 let _userAgent: string | undefined;

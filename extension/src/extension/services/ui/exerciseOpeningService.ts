@@ -1,10 +1,12 @@
 import * as vscode from 'vscode';
-import type { ExerciseRegistry } from '../exerciseRegistry';
-import type { IProviderRegistry } from './providerRegistry';
-import type { TelemetryManager } from '../telemetry/telemetryManager';
-import type { CourseAccessStorageService } from '../courseAccessStorageService';
-import { logger, LogCategory } from '../loggingService';
+
 import type { ExerciseDetailsResponse } from '@extension/types';
+
+import type { CourseAccessStorageService } from '../courseAccessStorageService';
+import type { ExerciseRegistry } from '../exerciseRegistry';
+import { LogCategory, logger } from '../loggingService';
+import type { TelemetryManager } from '../telemetry/telemetryManager';
+import type { IProviderRegistry } from './providerRegistry';
 
 export class ExerciseOpeningService {
     constructor(

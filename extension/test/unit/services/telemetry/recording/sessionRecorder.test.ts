@@ -13,17 +13,18 @@
  * stream.
  */
 
-import * as assert from 'assert';
 import * as vscode from 'vscode';
+import * as assert from 'assert';
+
 import { SessionRecorder } from '@extension/services/telemetry/recording/sessionRecorder';
-import type {
-    RecordedEvent,
-    InterventionEvent,
-    ConfigurationSnapshotEvent,
-    ConfigurationChangeEvent,
-} from '@extension/services/telemetry/recording/types';
-import { RecordingStorageWriter } from '@extension/services/telemetry/recording/storageWriter';
 import type { RecordingFs } from '@extension/services/telemetry/recording/storageWriter';
+import { RecordingStorageWriter } from '@extension/services/telemetry/recording/storageWriter';
+import type {
+    ConfigurationChangeEvent,
+    ConfigurationSnapshotEvent,
+    InterventionEvent,
+    RecordedEvent,
+} from '@extension/services/telemetry/recording/types';
 
 // ── Fake FS with full pause-control ───────────────────────────────────────
 

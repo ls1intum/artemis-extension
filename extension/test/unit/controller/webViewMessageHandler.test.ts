@@ -1,12 +1,15 @@
+import * as vscode from 'vscode';
 import * as assert from 'assert';
 import * as sinon from 'sinon';
-import * as vscode from 'vscode';
-import { WebViewMessageHandler } from '@extension/controller/webViewMessageHandler';
-import { MockExtensionContext } from '../mocks/vscodeMocks';
-import { AuthManager } from '@extension/services/auth';
+
+import type { ExtensionToWebviewMessage, WebviewToExtensionMessage } from '@shared/messageContracts';
+
 import { ArtemisApiService } from '@extension/api';
 import { AppStateManager } from '@extension/controller/appStateManager';
-import type { ExtensionToWebviewMessage, WebviewToExtensionMessage } from '@shared/messageContracts';
+import { WebViewMessageHandler } from '@extension/controller/webViewMessageHandler';
+import { AuthManager } from '@extension/services/auth';
+
+import { MockExtensionContext } from '../mocks/vscodeMocks';
 
 class MockAuthManager extends AuthManager {
     constructor(context: vscode.ExtensionContext) {

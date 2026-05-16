@@ -1,14 +1,17 @@
-import { useState, useEffect, useRef, type FormEvent } from 'react';
-import { Container } from '@webview/components/Container';
-import { TextInput } from '@webview/components/TextInput';
+import { type FormEvent, useEffect, useRef, useState } from 'react';
+
+import { ExtensionMsg, postCommand } from '@shared/messageContracts';
+
 import { Button } from '@webview/components/Button';
+import { Container } from '@webview/components/Container';
 import { ServiceHealth, type ServiceInfo } from '@webview/components/ServiceHealth';
 import { StatusMessage } from '@webview/components/StatusMessage';
+import { TextInput } from '@webview/components/TextInput';
 import { useExtensionMessage } from '@webview/hooks/useExtensionMessage';
-import type { LoginViewProps, LoginPersistedState, LoginViewState } from './types';
-import { ExtensionMsg, postCommand } from '@shared/messageContracts';
 import { formatServiceName } from '@webview/utils/formatServiceName';
+
 import styles from './LoginView.module.css';
+import type { LoginPersistedState, LoginViewProps, LoginViewState } from './types';
 
 export function LoginView({ vscodeApi }: LoginViewProps) {
 	// Load persisted state

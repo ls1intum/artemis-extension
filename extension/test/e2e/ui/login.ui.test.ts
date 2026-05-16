@@ -1,12 +1,13 @@
 // Covers E2EV-01: Login view smoke test
-import { VSBrowser, WebDriver } from 'vscode-extension-tester';
 import * as assert from 'assert';
+import { VSBrowser, WebDriver } from 'vscode-extension-tester';
+
 import {
 	openArtemisView,
-	switchToWebviewFrame,
 	switchBackFromWebview,
-	waitForElement,
+	switchToWebviewFrame,
 	takeScreenshot,
+	waitForElement,
 } from './helpers';
 
 describe('Login View UI Tests', function () {

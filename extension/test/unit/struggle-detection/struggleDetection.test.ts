@@ -6,12 +6,13 @@
  */
 
 import * as assert from 'assert';
-import * as path from 'path';
 import * as fs from 'fs';
-import { StruggleTestRunner } from './StruggleTestRunner';
-import { ScenarioLoader, createScenario } from './ScenarioLoader';
+import * as path from 'path';
+
 import { EvaluationEngine } from './EvaluationEngine';
 import { ReportGenerator } from './ReportGenerator';
+import { createScenario, ScenarioLoader } from './ScenarioLoader';
+import { StruggleTestRunner } from './StruggleTestRunner';
 import { StruggleScenario } from './types';
 
 suite('Struggle Detection Test Suite (EQ)', () => {

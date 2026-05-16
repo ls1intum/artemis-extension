@@ -1,12 +1,13 @@
-import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { describe, expect, it, vi } from 'vitest';
+
+import { ContextSelector } from '@webview/views/IrisChat/components/ContextSelector';
 import type {
 	ChatContext,
 	ChatSession,
 	ContextItem,
 } from '@webview/views/IrisChat/types';
-import { ContextSelector } from '@webview/views/IrisChat/components/ContextSelector';
 
 function makeContextItem(id: number, title: string, overrides: Partial<ContextItem> = {}): ContextItem {
 	return { id, title, ...overrides };

@@ -10,19 +10,19 @@
 import * as sinon from 'sinon';
 
 import { ErrorQuotientEngine } from '@extension/services/telemetry/metrics/errorQuotientEngine';
-import { ErrorSnapshot, EQConfidence, RecommendedAction } from '@extension/services/telemetry/types';
+import { EQConfidence, ErrorSnapshot, RecommendedAction } from '@extension/services/telemetry/types';
 
 import {
-    StruggleScenario,
-    ScenarioEvent,
-    ScenarioResult,
-    ScoreSnapshot,
-    ScenarioMetrics,
-    DiagnosticEvent,
+    BuildResultEvent,
     DiagnosticDefinition,
+    DiagnosticEvent,
     EditEvent,
     SaveEvent,
-    BuildResultEvent,
+    ScenarioEvent,
+    ScenarioMetrics,
+    ScenarioResult,
+    ScoreSnapshot,
+    StruggleScenario,
 } from './types';
 
 /** LINT_SOURCE_DENYLIST — matches the production code */

@@ -9,16 +9,17 @@
  *   - Phase guard: all four methods no-op outside 'recording' phase
  */
 
-import * as assert from 'assert';
 import * as vscode from 'vscode';
+import * as assert from 'assert';
+
 import { SessionRecorder } from '@extension/services/telemetry/recording/sessionRecorder';
+import type { RecordingFs } from '@extension/services/telemetry/recording/storageWriter';
+import { RecordingStorageWriter } from '@extension/services/telemetry/recording/storageWriter';
 import type {
     RecordedEvent,
-    TestResultsOverviewViewEvent,
     TaskFeedbackViewEvent,
+    TestResultsOverviewViewEvent,
 } from '@extension/services/telemetry/recording/types';
-import { RecordingStorageWriter } from '@extension/services/telemetry/recording/storageWriter';
-import type { RecordingFs } from '@extension/services/telemetry/recording/storageWriter';
 
 // ── Minimal fake FS ───────────────────────────────────────────────────────────
 

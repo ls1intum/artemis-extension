@@ -8,6 +8,7 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
+
 import type { RecordedEvent, SessionMetadata } from '../recording/types';
 import { replaySession } from './replayEngine';
 

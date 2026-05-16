@@ -15,6 +15,7 @@
  */
 
 import type { ResultDTO } from '@extension/types';
+
 import type { ExerciseRegistry } from '../exerciseRegistry';
 
 export function shouldAcceptBuildResult(

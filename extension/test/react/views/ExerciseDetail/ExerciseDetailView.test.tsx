@@ -1,11 +1,14 @@
-import { describe, it, expect, vi } from 'vitest';
-import { render, screen, waitFor, fireEvent } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { ExerciseDetailView } from '@webview/views/ExerciseDetail/ExerciseDetailView';
-import { useExerciseDetailStore } from '@webview/stores/useExerciseDetailStore';
-import type { ExerciseDetailsResponse } from '@shared/types/apiResponses';
-import { createMockVsCodeApi, dispatchExtensionMessage } from '../../__helpers__/vscodeApi';
+import { describe, expect, it, vi } from 'vitest';
+
 import { ExtensionMsg } from '@shared/messageContracts';
+import type { ExerciseDetailsResponse } from '@shared/types/apiResponses';
+
+import { useExerciseDetailStore } from '@webview/stores/useExerciseDetailStore';
+import { ExerciseDetailView } from '@webview/views/ExerciseDetail/ExerciseDetailView';
+
+import { createMockVsCodeApi, dispatchExtensionMessage } from '../../__helpers__/vscodeApi';
 
 // Mock useWebSocketUpdates — not under test here
 vi.mock('../../../../src/webview/hooks/useWebSocketUpdates', () => ({

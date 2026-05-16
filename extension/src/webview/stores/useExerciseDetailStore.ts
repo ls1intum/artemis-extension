@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { devtools } from 'zustand/middleware';
+
 import { postCommand, type VsCodeApi } from '@shared/messageContracts';
 import type {
     ExerciseDetailsResponse,

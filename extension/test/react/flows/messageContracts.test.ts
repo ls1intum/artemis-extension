@@ -12,12 +12,13 @@
  *
  * Per CONTEXT.md: dedicated tests for type-safe contract verification.
  */
-import { describe, it, expect } from 'vitest';
+import { describe, expect, it } from 'vitest';
+
 import type {
     ExtensionToWebviewMessage,
-    WebviewToExtensionMessage,
     ExtMsg,
     WebCmd,
+    WebviewToExtensionMessage,
 } from '@shared/messageContracts';
 import {
     isExtensionMessage,

@@ -1,5 +1,6 @@
-import { ReactNode, useState, useEffect } from 'react';
 import clsx from 'clsx';
+import { ReactNode, useEffect, useState } from 'react';
+
 import { Badge } from '../Badge';
 import { Button } from '../Button';
 import styles from './SubmissionStatus.module.css';

@@ -1,6 +1,8 @@
-import { describe, it, expect, vi } from 'vitest';
-import { renderHook, act } from '@testing-library/react';
-import { useDashboardStore, RecentCourseNode } from '@webview/stores/useDashboardStore';
+import { act, renderHook } from '@testing-library/react';
+import { describe, expect, it, vi } from 'vitest';
+
+import { RecentCourseNode, useDashboardStore } from '@webview/stores/useDashboardStore';
+
 import { createMockVsCodeApi } from '../__helpers__/vscodeApi';
 
 describe('useDashboardStore', () => {

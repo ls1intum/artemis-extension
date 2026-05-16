@@ -1,6 +1,6 @@
-export type { PlatformCapabilities } from './types';
-export { initializeTheiaContext, getTheiaEnvironment } from './theiaEnvironment';
+export { KNOWN_BRIDGE_KEYS, probeDataBridge } from './dataBridgeReader';
 export { detectPlatformCapabilities } from './featureDetection';
-export { probeDataBridge, KNOWN_BRIDGE_KEYS } from './dataBridgeReader';
 export { authenticateFromEnvironment } from './theiaAuthProvider';
-export { cloneRepositoryProgrammatic, autoCloneIfNeeded } from './theiaCloneService';
+export { autoCloneIfNeeded, cloneRepositoryProgrammatic } from './theiaCloneService';
+export { getTheiaEnvironment, initializeTheiaContext } from './theiaEnvironment';
+export type { PlatformCapabilities } from './types';

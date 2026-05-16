@@ -1,20 +1,23 @@
-import { useEffect, useState } from 'react';
 import ExternalLink from 'lucide-react/dist/esm/icons/external-link';
-import { useExamConductionStore } from '@webview/stores/useExamConductionStore';
-import type { ExamConductionViewProps } from './types';
-import { ExamTimer } from '@webview/components/ExamTimer/ExamTimer';
-import { TimerExpiredOverlay } from '@webview/components/TimerExpiredOverlay/TimerExpiredOverlay';
-import { ExerciseList } from './components/ExerciseList';
-import { SkeletonList } from '@webview/components/Skeleton/SkeletonList';
-import { ErrorMessage } from '@webview/components/ErrorMessage/ErrorMessage';
+import { useEffect, useState } from 'react';
+
+import { ExtensionMsg, postCommand, requestInit } from '@shared/messageContracts';
+
 import { BackLink } from '@webview/components/BackLink/BackLink';
-import { Container } from '@webview/components/Container/Container';
-import { PageHeader } from '@webview/components/PageHeader/PageHeader';
 import { Badge } from '@webview/components/Badge/Badge';
 import { IconButton } from '@webview/components/Button/IconButton';
+import { Container } from '@webview/components/Container/Container';
+import { ErrorMessage } from '@webview/components/ErrorMessage/ErrorMessage';
+import { ExamTimer } from '@webview/components/ExamTimer/ExamTimer';
+import { PageHeader } from '@webview/components/PageHeader/PageHeader';
+import { SkeletonList } from '@webview/components/Skeleton/SkeletonList';
+import { TimerExpiredOverlay } from '@webview/components/TimerExpiredOverlay/TimerExpiredOverlay';
 import { useExtensionMessage } from '@webview/hooks/useExtensionMessage';
-import { ExtensionMsg, postCommand, requestInit } from '@shared/messageContracts';
+import { useExamConductionStore } from '@webview/stores/useExamConductionStore';
+
+import { ExerciseList } from './components/ExerciseList';
 import styles from './ExamConductionView.module.css';
+import type { ExamConductionViewProps } from './types';
 
 /**
  * ExamConduction React view showing exam timer, progress bar, and exercise list.

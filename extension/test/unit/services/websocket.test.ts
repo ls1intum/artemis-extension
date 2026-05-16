@@ -1,12 +1,14 @@
+import { Client, IMessage, StompConfig, StompSubscription } from '@stomp/stompjs';
 import * as assert from 'assert';
 import * as sinon from 'sinon';
-import { ArtemisWebsocketService } from '@extension/services/websocket/artemisWebsocketService';
-import { IrisWebSocketSessionClient } from '@extension/services/iris/transport/irisWebSocketSessionClient';
-import { MockExtensionContext } from '../mocks/vscodeMocks';
-import { AuthManager } from '@extension/services/auth/authManager';
+
 import { ArtemisApiService } from '@extension/api';
-import { Client, StompConfig, IMessage, StompSubscription } from '@stomp/stompjs';
+import { AuthManager } from '@extension/services/auth/authManager';
+import { IrisWebSocketSessionClient } from '@extension/services/iris/transport/irisWebSocketSessionClient';
+import { ArtemisWebsocketService } from '@extension/services/websocket/artemisWebsocketService';
 import { ActiveContext } from '@extension/types';
+
+import { MockExtensionContext } from '../mocks/vscodeMocks';
 
 // Helper to create a valid ActiveContext for tests
 function createTestContext(type: 'exercise' | 'course', id: number, title: string): ActiveContext {

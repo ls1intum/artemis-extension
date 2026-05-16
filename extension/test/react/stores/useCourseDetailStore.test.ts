@@ -1,7 +1,10 @@
-import { describe, it, expect } from 'vitest';
-import { renderHook, act } from '@testing-library/react';
+import { act, renderHook } from '@testing-library/react';
+import { describe, expect, it } from 'vitest';
+
+import type { CourseDetailData, Exam, Exercise } from '@shared/messageContracts';
+
 import { useCourseDetailStore } from '@webview/stores/useCourseDetailStore';
-import type { CourseDetailData, Exercise, Exam } from '@shared/messageContracts';
+
 import { createMockVsCodeApi } from '../__helpers__/vscodeApi';
 
 const makeCourseDetailData = (overrides: Partial<CourseDetailData['course']> = {}): CourseDetailData => ({

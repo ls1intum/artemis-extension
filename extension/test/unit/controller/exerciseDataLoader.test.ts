@@ -12,10 +12,11 @@
  */
 
 import * as assert from 'assert';
-import { fetchAndEnrichExerciseDetails } from '@extension/controller/exerciseDataLoader';
-import { ApiError, MalformedResponseError } from '@extension/types';
+
 import type { ArtemisApiService } from '@extension/api';
+import { fetchAndEnrichExerciseDetails } from '@extension/controller/exerciseDataLoader';
 import type { ExerciseDetailsResponse, ProgrammingSubmission, ResultSummary } from '@extension/types';
+import { ApiError, MalformedResponseError } from '@extension/types';
 
 interface ApiStubOptions {
     pendingSubmissionResult?: ProgrammingSubmission | null | (() => Promise<never>);

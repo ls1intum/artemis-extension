@@ -27,18 +27,19 @@
  *     hardcoded `'save'`.
  */
 
+import * as vscode from 'vscode';
 import * as assert from 'assert';
 import * as sinon from 'sinon';
-import * as vscode from 'vscode';
-import { TelemetryManager } from '@extension/services/telemetry/telemetryManager';
-import { InterventionService } from '@extension/services/telemetry/interventionService';
+
+import type { ResultDTO } from '@extension/domain';
 import type { AdaptiveCadence } from '@extension/services/telemetry/intervention/adaptiveCadence';
+import { InterventionService } from '@extension/services/telemetry/interventionService';
+import { TelemetryManager } from '@extension/services/telemetry/telemetryManager';
 import type {
     InterventionDecision,
     InterventionDismissReason,
     TriggerType,
 } from '@extension/services/telemetry/types';
-import type { ResultDTO } from '@extension/domain';
 
 type DismissPayload = InterventionDecision & { dismissReason: InterventionDismissReason };
 

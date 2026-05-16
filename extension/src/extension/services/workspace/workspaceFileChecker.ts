@@ -1,9 +1,11 @@
 import * as vscode from 'vscode';
-import { promisify } from 'util';
 import { execFile } from 'child_process';
 import * as fs from 'fs';
+import { promisify } from 'util';
+
 import { MAX_FILE_SIZE_BYTES } from '@extension/utils/constants';
-import { logger, LogLevel, LogCategory } from '../loggingService';
+
+import { LogCategory, logger, LogLevel } from '../loggingService';
 
 const execFileAsync = promisify(execFile);
 const readFileAsync = promisify(fs.readFile);

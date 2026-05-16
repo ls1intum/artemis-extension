@@ -1,7 +1,8 @@
-import { ContextStore } from '../context/contextStore';
 import { ArtemisApiService } from '@extension/api';
 import { ExerciseRegistry } from '@extension/services/exerciseRegistry';
 import { logger } from '@extension/services/loggingService';
+
+import { ContextStore } from '../context/contextStore';
 import { fetchSessionsWithMessages } from '../context/sessionSyncUtils';
 
 interface DebugSessionsResult {

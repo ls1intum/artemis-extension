@@ -1,30 +1,32 @@
 import * as vscode from 'vscode';
+
+import { ResultDTO, WebSocketMessageHandler } from '@extension/types';
+import { VSCODE_CONFIG } from '@extension/utils/constants';
+
+import type { ExerciseRegistry } from '../exerciseRegistry';
+import { LogCategory, logger } from '../loggingService';
+import { ArtemisWebsocketService } from '../websocket/artemisWebsocketService';
+import { shouldAcceptBuildResult } from './buildResultGuard';
+import { BuildResultTracker } from './buildResultTracker';
+import { DebugDashboard } from './debugDashboard';
+import { InterventionDecisionEngine } from './decision/interventionDecisionEngine';
+import { DiagnosticPersistenceService } from './diagnosticPersistenceService';
+import { BoundaryTriggerEmitter } from './eventPipeline/boundaryTriggerEmitter';
+import { classifyBuildResult, CompileEquivalentEmitter } from './eventPipeline/compileEquivalentEmitter';
+import { InactivityService } from './inactivityService';
+import { AdaptiveCadence } from './intervention/adaptiveCadence';
+import { InterventionFilter } from './interventionFilter';
+import { InterventionService } from './interventionService';
+import { ErrorQuotientEngine } from './metrics/errorQuotientEngine';
+import type { SessionResettable, SessionStartContext } from './types';
 import {
-    StruggleContext,
-    TriggerType,
     EQConfidence,
     EQState,
     RecommendedAction,
+    StruggleContext,
     SuppressedInterventionPayload,
+    TriggerType,
 } from './types';
-import type { SessionResettable, SessionStartContext } from './types';
-import { DiagnosticPersistenceService } from './diagnosticPersistenceService';
-import { InactivityService } from './inactivityService';
-import { BuildResultTracker } from './buildResultTracker';
-import { InterventionService } from './interventionService';
-import { InterventionFilter } from './interventionFilter';
-import { ErrorQuotientEngine } from './metrics/errorQuotientEngine';
-import { CompileEquivalentEmitter, classifyBuildResult } from './eventPipeline/compileEquivalentEmitter';
-import { BoundaryTriggerEmitter } from './eventPipeline/boundaryTriggerEmitter';
-import { InterventionDecisionEngine } from './decision/interventionDecisionEngine';
-import { AdaptiveCadence } from './intervention/adaptiveCadence';
-import { DebugDashboard } from './debugDashboard';
-import { ArtemisWebsocketService } from '../websocket/artemisWebsocketService';
-import { ResultDTO, WebSocketMessageHandler } from '@extension/types';
-import { VSCODE_CONFIG } from '@extension/utils/constants';
-import { logger, LogCategory } from '../loggingService';
-import type { ExerciseRegistry } from '../exerciseRegistry';
-import { shouldAcceptBuildResult } from './buildResultGuard';
 
 /**
  * Central orchestration service for EQ-based struggle detection.

@@ -1,36 +1,38 @@
 import * as vscode from 'vscode';
+
+import type { CourseDetailData, ExtensionToWebviewMessage, WebviewToExtensionMessage } from '@shared/messageContracts';
+import { ExtensionMsg, toCourseDetailData } from '@shared/messageContracts';
+import type {
+    TaskFeedbackClosedPayload,
+    TaskFeedbackOpenedPayload,
+    TestResultsOverviewClosedPayload,
+    TestResultsOverviewOpenedPayload,
+} from '@shared/messageContracts/webviewCommands';
+
 import { ArtemisApiService } from '../api';
-import { AuthManager, AuthFlowHandler } from '../services/auth';
-import { ArtemisWebsocketService } from '../services/websocket';
-import { ViewInitDataService, FullscreenPanelManager, BuildDiagnosticsService, ExerciseOpeningService, StartPageResolver, SubmissionWebSocketHandler } from '../services/ui';
-import type { IProviderRegistry } from '../services/ui';
-import type { StartPageResult } from '../services/ui';
-import { ExerciseRegistry } from '../services/exerciseRegistry';
-import { findWorkspaceCourseInArchive, collectExerciseSources, getWorkspaceRepositoryUrl, findExerciseByRepositoryUrl } from '../services/workspace';
-import { logger, LogCategory } from '../services/loggingService';
-import { CourseAccessStorageService, type CourseAccessScope } from '../services/courseAccessStorageService';
-import type { TelemetryManager } from '../services/telemetry';
-import { CONFIG, VSCODE_CONFIG, AI_EXTENSIONS_BLOCKLIST, getRecommendedExtensionsByCategory, resolveServerUrl } from '../utils';
 import { AppStateManager, type UserInfo } from '../controller/appStateManager';
-import { WebViewMessageHandler } from '../controller/webViewMessageHandler';
+import { fetchAndEnrichExerciseDetails, fetchArchivedCourseDetail } from '../controller/exerciseDataLoader';
 import type { WebViewActionHandler } from '../controller/types';
 import { getViewHtml } from '../controller/viewRouter';
-import { fetchAndEnrichExerciseDetails, fetchArchivedCourseDetail } from '../controller/exerciseDataLoader';
-import { WebSocketMessageHandler } from '../types';
+import { WebViewMessageHandler } from '../controller/webViewMessageHandler';
+import { AuthFlowHandler, AuthManager } from '../services/auth';
+import { type CourseAccessScope, CourseAccessStorageService } from '../services/courseAccessStorageService';
+import type { CourseDataCache } from '../services/courseDataCache';
+import { ExerciseRegistry } from '../services/exerciseRegistry';
+import { LogCategory, logger } from '../services/loggingService';
 import { ProblemStatementRenderService } from '../services/problemStatementRenderService';
+import type { TelemetryManager } from '../services/telemetry';
+import type { IProviderRegistry } from '../services/ui';
+import type { StartPageResult } from '../services/ui';
+import { BuildDiagnosticsService, ExerciseOpeningService, FullscreenPanelManager, StartPageResolver, SubmissionWebSocketHandler, ViewInitDataService } from '../services/ui';
+import { ArtemisWebsocketService } from '../services/websocket';
+import { collectExerciseSources, findExerciseByRepositoryUrl, findWorkspaceCourseInArchive, getWorkspaceRepositoryUrl } from '../services/workspace';
+import type { ExerciseDetail, ExerciseDetailsResponse } from '../types';
+import { WebSocketMessageHandler } from '../types';
+import type { IArtemisWebviewProvider } from '../types/IArtemisWebviewProvider';
+import { AI_EXTENSIONS_BLOCKLIST, CONFIG, getRecommendedExtensionsByCategory, resolveServerUrl, VSCODE_CONFIG } from '../utils';
 import { BaseWebviewProvider } from './baseWebviewProvider';
 import type { BuildErrorCodeLensProvider } from './buildErrorCodeLensProvider';
-import type { CourseDataCache } from '../services/courseDataCache';
-import { ExtensionMsg, toCourseDetailData } from '@shared/messageContracts';
-import type { ExtensionToWebviewMessage, WebviewToExtensionMessage, CourseDetailData } from '@shared/messageContracts';
-import type { ExerciseDetail, ExerciseDetailsResponse } from '../types';
-import type {
-    TestResultsOverviewOpenedPayload,
-    TestResultsOverviewClosedPayload,
-    TaskFeedbackOpenedPayload,
-    TaskFeedbackClosedPayload,
-} from '@shared/messageContracts/webviewCommands';
-import type { IArtemisWebviewProvider } from '../types/IArtemisWebviewProvider';
 
 /**
  * Main webview provider for the Artemis sidebar panel.

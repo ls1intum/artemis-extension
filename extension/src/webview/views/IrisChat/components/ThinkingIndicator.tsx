@@ -1,4 +1,5 @@
-import { useState, useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
+
 import type { IrisStageDTO } from '../types';
 import styles from './ThinkingIndicator.module.css';
 

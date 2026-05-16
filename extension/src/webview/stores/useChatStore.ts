@@ -1,15 +1,17 @@
 import { create } from 'zustand';
 import { devtools } from 'zustand/middleware';
+
+import type { ExtMsg, WebSocketDisplayStatus } from '@shared/messageContracts';
+
 import type {
+    ChatContext,
     ChatMessage,
     ChatSession,
-    ChatContext,
     ContextItem,
+    IrisStageDTO,
     ReferencedFilesData,
     StreamingState,
-    IrisStageDTO,
 } from '../views/IrisChat/types';
-import type { ExtMsg, WebSocketDisplayStatus } from '@shared/messageContracts';
 
 /**
  * Webview-side connection status. Mirrors the extension's

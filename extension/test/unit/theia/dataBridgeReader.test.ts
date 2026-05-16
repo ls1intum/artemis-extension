@@ -10,9 +10,10 @@
  *    'failure: timeout' (waits for all keys)
  */
 
+import * as vscode from 'vscode';
 import * as assert from 'assert';
 import * as sinon from 'sinon';
-import * as vscode from 'vscode';
+
 import { readEnvVarsViaDataBridge } from '@extension/theia/dataBridgeReader';
 
 const KEYS = ['ARTEMIS_URL', 'ARTEMIS_TOKEN'] as const;

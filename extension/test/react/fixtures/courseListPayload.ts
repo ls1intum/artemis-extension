@@ -1,4 +1,4 @@
-import type { ExtMsg, CourseData, ArchivedCourse } from '@shared/messageContracts';
+import type { ArchivedCourse, CourseData, ExtMsg } from '@shared/messageContracts';
 
 export function createCourseListPayload(
     overrides?: Partial<Omit<ExtMsg<'courseListInit'>, 'type'>>,

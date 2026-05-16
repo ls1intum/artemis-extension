@@ -1,7 +1,8 @@
 import * as vscode from 'vscode';
+
+import { LogCategory, logger } from '../services/loggingService';
 import { readEnvVarsViaDataBridge } from './dataBridgeReader';
-import { logger, LogCategory } from '../services/loggingService';
-import { VSCODE_ENVIRONMENT, type TheiaEnvironment } from './types';
+import { type TheiaEnvironment, VSCODE_ENVIRONMENT } from './types';
 
 /**
  * Environment variable names used for Theia/EduIDE integration.

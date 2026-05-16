@@ -1,4 +1,4 @@
-import { Container, Button } from '..';
+import { Button, Container } from '..';
 import styles from './AskIris.module.css';
 
 interface AskIrisProps {

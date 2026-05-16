@@ -1,36 +1,39 @@
-import { useState } from 'react';
-import { useExerciseDetailStore } from '@webview/stores/useExerciseDetailStore';
-import { useWebSocketUpdates } from '@webview/hooks/useWebSocketUpdates';
-import { useExtensionMessage } from '@webview/hooks/useExtensionMessage';
-import { useExerciseStatusMessages } from '@webview/hooks/useExerciseStatusMessages';
-import type { ExerciseDetailViewProps } from './types';
-import type { ExerciseDetailsResponse } from '@shared/types/apiResponses';
-import { getIcon } from '@webview/utils/iconMap';
 import ChevronDown from 'lucide-react/dist/esm/icons/chevron-down';
+import { useState } from 'react';
+
+import { WebviewCmd } from '@shared/messageContracts';
+import { ExtensionMsg, postCommand, requestInit } from '@shared/messageContracts';
+import type { ExerciseDetailsResponse } from '@shared/types/apiResponses';
+
 import {
+    AskIris,
     BackLink,
-    IconButton,
+    Badge,
     Button,
     Container,
-    Badge,
-    SkeletonList,
-    AskIris,
     ErrorMessage,
+    IconButton,
+    SkeletonList,
 } from '@webview/components';
 import {
-    SubmissionStatus,
     ParticipationActions,
+    SubmissionStatus,
 } from '@webview/components/exercise';
-import { TestResultsOverlay } from '@webview/components/exercise/TestResultsOverlay';
-import { ProblemStatement, ScoreInfo } from './components';
-import { makeViewId } from '@webview/utils/viewId';
-import { filterTestCasesByIds } from '@webview/utils/exerciseStatus';
-import { WebviewCmd } from '@shared/messageContracts';
 import type { ExerciseType } from '@webview/components/exercise/ParticipationActions';
-import { ExtensionMsg, postCommand, requestInit } from '@shared/messageContracts';
-import { determineSubmissionStatus, determineParticipationStatus, getLatestById, transformFeedbacksToTestCases } from '@webview/utils/exerciseStatus';
+import { TestResultsOverlay } from '@webview/components/exercise/TestResultsOverlay';
+import { useExerciseStatusMessages } from '@webview/hooks/useExerciseStatusMessages';
+import { useExtensionMessage } from '@webview/hooks/useExtensionMessage';
+import { useWebSocketUpdates } from '@webview/hooks/useWebSocketUpdates';
+import { useExerciseDetailStore } from '@webview/stores/useExerciseDetailStore';
+import { filterTestCasesByIds } from '@webview/utils/exerciseStatus';
+import { determineParticipationStatus, determineSubmissionStatus, getLatestById, transformFeedbacksToTestCases } from '@webview/utils/exerciseStatus';
 import { formatDate } from '@webview/utils/formatDate';
+import { getIcon } from '@webview/utils/iconMap';
+import { makeViewId } from '@webview/utils/viewId';
+
+import { ProblemStatement, ScoreInfo } from './components';
 import styles from './ExerciseDetailView.module.css';
+import type { ExerciseDetailViewProps } from './types';
 
 interface OpenViewState {
     viewId: string;

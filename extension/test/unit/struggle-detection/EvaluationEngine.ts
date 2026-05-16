@@ -6,9 +6,9 @@
  */
 
 import {
+    CategoryResult,
     ScenarioResult,
     TestSuiteReport,
-    CategoryResult,
 } from './types';
 
 /**

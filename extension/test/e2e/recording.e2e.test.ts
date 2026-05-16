@@ -12,26 +12,26 @@
  * Run: npm run test:recorder-e2e
  */
 
+import * as vscode from 'vscode';
 import * as assert from 'assert';
+import { spawnSync } from 'child_process';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
-import { spawnSync } from 'child_process';
-import * as vscode from 'vscode';
 
 import { SessionRecorder } from '@extension/services/telemetry/recording/sessionRecorder';
 import type {
-    RecordedEvent,
-    TextChangeEvent,
-    SaveEvent,
     FileCreateEvent,
     FileDeleteEvent,
     FileRenameEvent,
     FileSnapshotEvent,
+    RecordedEvent,
+    SaveEvent,
     SelectionChangeEvent,
-    TerminalOpenCloseEvent,
-    SessionStartEvent,
     SessionEndEvent,
+    SessionStartEvent,
+    TerminalOpenCloseEvent,
+    TextChangeEvent,
 } from '@extension/services/telemetry/recording/types';
 
 const sleep = (ms: number) => new Promise<void>(resolve => setTimeout(resolve, ms));
