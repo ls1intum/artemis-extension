@@ -1,16 +1,16 @@
 import * as vscode from 'vscode';
 import * as crypto from 'crypto';
 import type { CommandContext, CommandMap } from './types';
-import { getPayload, getOptionalPayload, WebviewCmd } from '../../../shared/messageContracts';
+import { getPayload, getOptionalPayload, WebviewCmd } from '@shared/messageContracts';
 import type {
     WebviewToExtensionMessage,
     WebCmd,
-} from '../../../shared/messageContracts';
-import { extractErrorMessage, CONFIG, VSCODE_CONFIG } from '../../utils';
-import { executeReplayCommand } from '../../services/telemetry/replay';
-import { logger, LogCategory } from '../../services/loggingService';
-import type { ExerciseDetailsResponse } from '../../types';
-import { ProblemStatementRenderService } from '../../services/problemStatementRenderService';
+} from '@shared/messageContracts';
+import { extractErrorMessage, CONFIG, VSCODE_CONFIG } from '@extension/utils';
+import { executeReplayCommand } from '@extension/services/telemetry/replay';
+import { logger, LogCategory } from '@extension/services/loggingService';
+import type { ExerciseDetailsResponse } from '@extension/types';
+import { ProblemStatementRenderService } from '@extension/services/problemStatementRenderService';
 
 /**
  * Open VS Code settings filtered by the given setting ID.

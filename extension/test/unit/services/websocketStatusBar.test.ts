@@ -1,9 +1,9 @@
 import * as assert from 'assert';
 import * as sinon from 'sinon';
 import * as vscode from 'vscode';
-import { WebSocketStatusBarService } from '../../../src/extension/services/websocket/websocketStatusBar';
-import { ArtemisWebsocketService } from '../../../src/extension/services/websocket/artemisWebsocketService';
-import type { WebSocketDisplayStatus } from '../../../src/shared/messageContracts';
+import { WebSocketStatusBarService } from '@extension/services/websocket/websocketStatusBar';
+import { ArtemisWebsocketService } from '@extension/services/websocket/artemisWebsocketService';
+import type { WebSocketDisplayStatus } from '@shared/messageContracts';
 
 /**
  * Tests for WebSocketStatusBarService visibility logic.

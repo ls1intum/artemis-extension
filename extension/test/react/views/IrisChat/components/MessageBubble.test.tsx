@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import type { ChatMessage } from '../../../../../src/webview/views/IrisChat/types';
+import type { ChatMessage } from '@webview/views/IrisChat/types';
 
 // Mock streamdown since it's an ESM package
 vi.mock('streamdown', () => ({
@@ -30,7 +30,7 @@ vi.mock(
 	})
 );
 
-import { MessageBubble } from '../../../../../src/webview/views/IrisChat/components/MessageBubble';
+import { MessageBubble } from '@webview/views/IrisChat/components/MessageBubble';
 
 function makeMessage(overrides: Partial<ChatMessage> = {}): ChatMessage {
 	return {

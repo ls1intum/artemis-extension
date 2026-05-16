@@ -47,7 +47,7 @@ vi.mock('shiki/langs/css.mjs', () => ({ default: {} }));
 vi.mock('shiki/langs/markdown.mjs', () => ({ default: {} }));
 vi.mock('shiki/langs/xml.mjs', () => ({ default: {} }));
 
-import { CodeBlock } from '../../../../../src/webview/views/IrisChat/components/CodeBlock';
+import { CodeBlock } from '@webview/views/IrisChat/components/CodeBlock';
 
 describe('CodeBlock', () => {
 	beforeEach(() => {

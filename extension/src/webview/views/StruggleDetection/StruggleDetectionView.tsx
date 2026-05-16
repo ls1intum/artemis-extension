@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import { ExtensionMsg, postCommand } from '../../../shared/messageContracts';
-import { BackLink, Container, Badge, PageHeader, SkeletonList } from '../../components';
-import { useExtensionMessage } from '../../hooks/useExtensionMessage';
+import { ExtensionMsg, postCommand } from '@shared/messageContracts';
+import { BackLink, Container, Badge, PageHeader, SkeletonList } from '@webview/components';
+import { useExtensionMessage } from '@webview/hooks/useExtensionMessage';
 import type { StruggleDetectionViewProps, StruggleData } from './types';
 import styles from './StruggleDetectionView.module.css';
 

@@ -1,8 +1,8 @@
 import * as vscode from 'vscode';
 import { ArtemisWebsocketService } from './artemisWebsocketService';
-import { VSCODE_CONFIG } from '../../utils';
+import { VSCODE_CONFIG } from '@extension/utils';
 import { logger, LogCategory } from '../loggingService';
-import type { WebSocketDisplayStatus } from '../../../shared/messageContracts';
+import type { WebSocketDisplayStatus } from '@shared/messageContracts';
 
 /**
  * StatusBar item showing WebSocket connection status.

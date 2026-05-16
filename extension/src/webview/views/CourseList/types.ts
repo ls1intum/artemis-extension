@@ -1,4 +1,4 @@
-import type { VsCodeApi, CourseData, ArchivedCourse } from '../../../shared/messageContracts';
+import type { VsCodeApi, CourseData, ArchivedCourse } from '@shared/messageContracts';
 
 export interface CourseListViewProps {
     vscodeApi: VsCodeApi;

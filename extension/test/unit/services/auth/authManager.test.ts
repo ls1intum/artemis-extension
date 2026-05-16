@@ -1,9 +1,9 @@
 import * as assert from 'assert';
 import * as vscode from 'vscode';
 import * as sinon from 'sinon';
-import { AuthManager } from '../../../../src/extension/services/auth/authManager';
+import { AuthManager } from '@extension/services/auth/authManager';
 import { MockExtensionContext } from '../../mocks/vscodeMocks';
-import { CONFIG } from '../../../../src/extension/utils/constants';
+import { CONFIG } from '@extension/utils/constants';
 
 suite('AuthManager Test Suite', () => {
     let context: MockExtensionContext;

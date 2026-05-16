@@ -1,12 +1,12 @@
 import { useEffect, useState, useRef, useMemo } from 'react';
 import Menu from 'lucide-react/dist/esm/icons/menu';
 import Info from 'lucide-react/dist/esm/icons/info';
-import { ExtensionMsg, postCommand } from '../../../shared/messageContracts';
-import type { VsCodeApi } from '../../../shared/messageContracts';
+import { ExtensionMsg, postCommand } from '@shared/messageContracts';
+import type { VsCodeApi } from '@shared/messageContracts';
 import type { IrisStageDTO } from './types';
-import { useChatStore } from '../../stores/useChatStore';
-import { useExtensionMessage } from '../../hooks/useExtensionMessage';
-import { useClickOutside } from '../../hooks/useClickOutside';
+import { useChatStore } from '@webview/stores/useChatStore';
+import { useExtensionMessage } from '@webview/hooks/useExtensionMessage';
+import { useClickOutside } from '@webview/hooks/useClickOutside';
 import { ChatMessageList } from './components/ChatMessageList';
 import { ChatInput } from './components/ChatInput';
 import { ContextSelector } from './components/ContextSelector';

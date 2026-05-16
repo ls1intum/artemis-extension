@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { Dropdown } from '../../../../src/webview/components/Dropdown/Dropdown';
+import { Dropdown } from '@webview/components/Dropdown/Dropdown';
 
 const defaultOptions = [
 	{ value: 'option1', label: 'Option 1' },

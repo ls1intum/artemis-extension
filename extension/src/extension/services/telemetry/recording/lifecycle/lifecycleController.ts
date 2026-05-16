@@ -6,7 +6,7 @@ import type { SnapshotManager } from '../snapshots/snapshotManager';
 import type { ObservationRegistry } from '../observation/observationRegistry';
 import type { StartupCapture, StartupContext } from '../startup/startupCapture';
 import type { RecorderLifecycleState, RecorderPhase } from './recorderLifecycleState';
-import { logger, LogCategory } from '../../../loggingService';
+import { logger, LogCategory } from '@extension/services/loggingService';
 
 interface RecordInternalOptions {
     allowDuringStartup?: boolean;

@@ -1,13 +1,13 @@
 import { useState, useEffect, useRef, type FormEvent } from 'react';
-import { Container } from '../../components/Container';
-import { TextInput } from '../../components/TextInput';
-import { Button } from '../../components/Button';
-import { ServiceHealth, type ServiceInfo } from '../../components/ServiceHealth';
-import { StatusMessage } from '../../components/StatusMessage';
-import { useExtensionMessage } from '../../hooks/useExtensionMessage';
+import { Container } from '@webview/components/Container';
+import { TextInput } from '@webview/components/TextInput';
+import { Button } from '@webview/components/Button';
+import { ServiceHealth, type ServiceInfo } from '@webview/components/ServiceHealth';
+import { StatusMessage } from '@webview/components/StatusMessage';
+import { useExtensionMessage } from '@webview/hooks/useExtensionMessage';
 import type { LoginViewProps, LoginPersistedState, LoginViewState } from './types';
-import { ExtensionMsg, postCommand } from '../../../shared/messageContracts';
-import { formatServiceName } from '../../utils/formatServiceName';
+import { ExtensionMsg, postCommand } from '@shared/messageContracts';
+import { formatServiceName } from '@webview/utils/formatServiceName';
 import styles from './LoginView.module.css';
 
 export function LoginView({ vscodeApi }: LoginViewProps) {

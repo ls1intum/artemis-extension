@@ -1,7 +1,7 @@
-import { ListItem } from '../../../components/ListItem/ListItem';
-import { Badge } from '../../../components/Badge/Badge';
-import { getIcon } from '../../../utils/iconMap';
-import type { ExerciseDetail } from '../../../../shared/messageContracts';
+import { ListItem } from '@webview/components/ListItem/ListItem';
+import { Badge } from '@webview/components/Badge/Badge';
+import { getIcon } from '@webview/utils/iconMap';
+import type { ExerciseDetail } from '@shared/messageContracts';
 import styles from './ExerciseList.module.css';
 
 interface ExerciseListProps {

@@ -1,7 +1,7 @@
 import type { CommandContext, CommandMap } from './types';
-import { getPayload, WebviewCmd } from '../../../shared/messageContracts';
-import type { WebviewToExtensionMessage, WebCmd } from '../../../shared/messageContracts';
-import { logger, LogCategory } from '../../services/loggingService';
+import { getPayload, WebviewCmd } from '@shared/messageContracts';
+import type { WebviewToExtensionMessage, WebCmd } from '@shared/messageContracts';
+import { logger, LogCategory } from '@extension/services/loggingService';
 
 export class TestResultsTrackingCommandModule {
     constructor(private readonly context: CommandContext) { }

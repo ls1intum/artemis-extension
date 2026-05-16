@@ -1,13 +1,13 @@
-import { ExtensionMsg } from '../../../shared/messageContracts';
-import type { ExtensionToWebviewMessage } from '../../../shared/messageContracts';
+import { ExtensionMsg } from '@shared/messageContracts';
+import type { ExtensionToWebviewMessage } from '@shared/messageContracts';
 import {
     type WebSocketMessageHandler as WSHandler,
     type ResultDTO,
     type ProgrammingSubmission,
     ProgrammingSubmissionState,
     type SubmissionProcessingMessage,
-} from '../../types';
-import type { ResultSummary, SubmissionSummary } from '../../types';
+} from '@extension/types';
+import type { ResultSummary, SubmissionSummary } from '@extension/types';
 
 export class SubmissionWebSocketHandler {
     constructor(

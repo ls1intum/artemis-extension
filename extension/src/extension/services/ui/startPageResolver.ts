@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
-import type { ArtemisApiService } from '../../api';
-import type { UserInfo } from '../../controller/appStateManager';
+import type { ArtemisApiService } from '@extension/api';
+import type { UserInfo } from '@extension/controller/appStateManager';
 import {
     findWorkspaceCourseInArchive,
     getWorkspaceRepositoryUrl,
@@ -8,8 +8,8 @@ import {
     collectExerciseSources,
     type DetectedExercise,
 } from '../workspace';
-import { VSCODE_CONFIG } from '../../utils';
-import type { CourseDashboardEntry, CourseDashboardResponse } from '../../types';
+import { VSCODE_CONFIG } from '@extension/utils';
+import type { CourseDashboardEntry, CourseDashboardResponse } from '@extension/types';
 import type { CourseDataCache } from '../courseDataCache';
 
 // ── Result types ─────────────────────────────────────────────────────

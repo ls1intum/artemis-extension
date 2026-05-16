@@ -1,21 +1,21 @@
 import * as vscode from 'vscode';
-import { getExamErrorMessage } from '../../services/exam/examErrorHandler';
+import { getExamErrorMessage } from '@extension/services/exam/examErrorHandler';
 import type { CommandContext, CommandMap } from './types';
-import { logger } from '../../services/loggingService';
-import { getPayload, ExtensionMsg, WebviewCmd } from '../../../shared/messageContracts';
+import { logger } from '@extension/services/loggingService';
+import { getPayload, ExtensionMsg, WebviewCmd } from '@shared/messageContracts';
 import type {
     WebviewToExtensionMessage,
     WebCmd,
     ExerciseDetail,
     CourseDetailData,
-} from '../../../shared/messageContracts';
-import { toCourseDetailData } from '../../../shared/messageContracts';
+} from '@shared/messageContracts';
+import { toCourseDetailData } from '@shared/messageContracts';
 import { fetchAndEnrichExerciseDetails, fetchArchivedCourseDetail } from '../exerciseDataLoader';
 import type {
     CourseDashboardCourse,
     CourseDashboardEntry,
     ExerciseDetailsResponse,
-} from '../../types';
+} from '@extension/types';
 
 
 export class NavigationCommandModule {

@@ -4,8 +4,8 @@ import type {
     HealthCheckResult,
     ServiceStatusPersistedState,
 } from './types';
-import { ExtensionMsg, postCommand } from '../../../shared/messageContracts';
-import { useExtensionMessage } from '../../hooks/useExtensionMessage';
+import { ExtensionMsg, postCommand } from '@shared/messageContracts';
+import { useExtensionMessage } from '@webview/hooks/useExtensionMessage';
 import {
     BackLink,
     Container,
@@ -14,9 +14,9 @@ import {
     Button,
     ServiceHealth,
     SkeletonList,
-} from '../../components';
-import type { ServiceInfo } from '../../components/ServiceHealth/ServiceHealth';
-import { formatServiceName } from '../../utils/formatServiceName';
+} from '@webview/components';
+import type { ServiceInfo } from '@webview/components/ServiceHealth/ServiceHealth';
+import { formatServiceName } from '@webview/utils/formatServiceName';
 import styles from './ServiceStatusView.module.css';
 
 export function ServiceStatusView({ vscodeApi }: ServiceStatusViewProps) {

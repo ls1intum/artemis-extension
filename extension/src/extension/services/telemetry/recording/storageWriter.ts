@@ -37,7 +37,7 @@ import * as fsPromises from 'fs/promises';
 import * as fsSync from 'fs';
 import * as path from 'path';
 import type { RecordedEvent, SessionMetadata } from './types';
-import { logger, LogCategory } from '../../loggingService';
+import { logger, LogCategory } from '@extension/services/loggingService';
 import pkg from '../../../../../package.json';
 
 const BUFFER_THRESHOLD = 10;

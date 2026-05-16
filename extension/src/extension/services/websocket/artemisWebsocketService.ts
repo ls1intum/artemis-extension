@@ -2,17 +2,17 @@ import { Client, StompConfig, StompSubscription, IFrame, IMessage, ReconnectionT
 import WebSocket from 'ws';
 import * as vscode from 'vscode';
 import { AuthManager } from '../auth';
-import { CONFIG, WEBSOCKET_TOPICS, resolveServerUrl, getUserAgent } from '../../utils';
+import { CONFIG, WEBSOCKET_TOPICS, resolveServerUrl, getUserAgent } from '@extension/utils';
 import { logger, LogCategory } from '../loggingService';
 import {
     parseResultDTO,
     parseProgrammingSubmission,
     parseSubmissionProcessingMessage,
-} from '../../types';
-import type { WebSocketMessageHandler } from '../../types';
+} from '@extension/types';
+import type { WebSocketMessageHandler } from '@extension/types';
 import type { ConnectionState } from './connectionState';
 import { deriveDisplayStatus } from './displayStatus';
-import type { WebSocketDisplayStatus } from '../../../shared/messageContracts';
+import type { WebSocketDisplayStatus } from '@shared/messageContracts';
 
 interface Deferred<T> {
     promise: Promise<T>;

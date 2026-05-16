@@ -1,6 +1,6 @@
 import { getRecommendedExtensionsByCategory, type RecommendedExtensionCategory } from '../utils/recommendedExtensions';
 import type { CourseDashboardResponse, CourseDashboardEntry, ExerciseDetailsResponse, StudentExam, ExerciseDetail } from '../types';
-import type { ArchivedCourse, CourseDetailData } from '../../shared/messageContracts';
+import type { ArchivedCourse, CourseDetailData } from '@shared/messageContracts';
 import type { ArtemisUser } from '../types';
 import type { CourseDataCache } from '../services/courseDataCache';
 

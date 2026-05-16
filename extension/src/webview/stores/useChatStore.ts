@@ -9,7 +9,7 @@ import type {
     StreamingState,
     IrisStageDTO,
 } from '../views/IrisChat/types';
-import type { ExtMsg, WebSocketDisplayStatus } from '../../shared/messageContracts';
+import type { ExtMsg, WebSocketDisplayStatus } from '@shared/messageContracts';
 
 /**
  * Webview-side connection status. Mirrors the extension's

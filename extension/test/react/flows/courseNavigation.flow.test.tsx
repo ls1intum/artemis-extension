@@ -1,12 +1,12 @@
 import { describe, it, expect } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { CourseListView } from '../../../src/webview/views/CourseList/CourseListView';
-import { CourseDetailView } from '../../../src/webview/views/CourseDetail/CourseDetailView';
-import { useCourseListStore } from '../../../src/webview/stores/useCourseListStore';
-import { useCourseDetailStore } from '../../../src/webview/stores/useCourseDetailStore';
+import { CourseListView } from '@webview/views/CourseList/CourseListView';
+import { CourseDetailView } from '@webview/views/CourseDetail/CourseDetailView';
+import { useCourseListStore } from '@webview/stores/useCourseListStore';
+import { useCourseDetailStore } from '@webview/stores/useCourseDetailStore';
 import { createMockVsCodeApi, dispatchExtensionMessage } from '../__helpers__/vscodeApi';
-import type { CourseData } from '../../../src/shared/messageContracts';
+import type { CourseData } from '@shared/messageContracts';
 
 /**
  * Course navigation flow integration tests.

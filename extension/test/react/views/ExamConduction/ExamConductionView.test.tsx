@@ -1,8 +1,8 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { ExamConductionView } from '../../../../src/webview/views/ExamConduction/ExamConductionView';
-import { useExamConductionStore } from '../../../../src/webview/stores/useExamConductionStore';
+import { ExamConductionView } from '@webview/views/ExamConduction/ExamConductionView';
+import { useExamConductionStore } from '@webview/stores/useExamConductionStore';
 import { createMockVsCodeApi, dispatchExtensionMessage } from '../../__helpers__/vscodeApi';
 
 // Mock useExamTimer used by ExamTimer component

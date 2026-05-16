@@ -1,15 +1,15 @@
 import * as assert from 'assert';
 import * as vscode from 'vscode';
 import * as sinon from 'sinon';
-import { ArtemisWebviewProvider } from '../../../src/extension/provider/artemisWebviewProvider';
-import type { BuildErrorCodeLensProvider } from '../../../src/extension/provider/buildErrorCodeLensProvider';
+import { ArtemisWebviewProvider } from '@extension/provider/artemisWebviewProvider';
+import type { BuildErrorCodeLensProvider } from '@extension/provider/buildErrorCodeLensProvider';
 import { MockExtensionContext } from '../mocks/vscodeMocks';
-import { AuthManager } from '../../../src/extension/services/auth';
-import { ArtemisApiService } from '../../../src/extension/api';
-import { ArtemisWebsocketService } from '../../../src/extension/services/websocket';
-import { ExerciseRegistry } from '../../../src/extension/services/exerciseRegistry';
-import { TelemetryManager } from '../../../src/extension/services/telemetry';
-import { createProviderRegistry } from '../../../src/extension/services/ui/providerRegistry';
+import { AuthManager } from '@extension/services/auth';
+import { ArtemisApiService } from '@extension/api';
+import { ArtemisWebsocketService } from '@extension/services/websocket';
+import { ExerciseRegistry } from '@extension/services/exerciseRegistry';
+import { TelemetryManager } from '@extension/services/telemetry';
+import { createProviderRegistry } from '@extension/services/ui/providerRegistry';
 
 class MockAuthManager extends AuthManager {
     constructor(context: vscode.ExtensionContext) {

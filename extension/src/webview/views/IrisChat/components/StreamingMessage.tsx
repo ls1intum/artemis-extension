@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 // @ts-expect-error - streamdown is ESM but TypeScript Node16 resolution complains (TS1479). esbuild handles at bundle time.
 import { Streamdown } from 'streamdown';
-import { useStreamdownConfig } from '../../../hooks/useStreamdownConfig';
+import { useStreamdownConfig } from '@webview/hooks/useStreamdownConfig';
 import styles from './StreamingMessage.module.css';
 
 interface StreamingMessageProps {

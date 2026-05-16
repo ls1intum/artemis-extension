@@ -20,8 +20,8 @@ import { InterventionDecisionEngine } from './decision/interventionDecisionEngin
 import { AdaptiveCadence } from './intervention/adaptiveCadence';
 import { DebugDashboard } from './debugDashboard';
 import { ArtemisWebsocketService } from '../websocket/artemisWebsocketService';
-import { ResultDTO, WebSocketMessageHandler } from '../../types';
-import { VSCODE_CONFIG } from '../../utils/constants';
+import { ResultDTO, WebSocketMessageHandler } from '@extension/types';
+import { VSCODE_CONFIG } from '@extension/utils/constants';
 import { logger, LogCategory } from '../loggingService';
 import type { ExerciseRegistry } from '../exerciseRegistry';
 import { shouldAcceptBuildResult } from './buildResultGuard';

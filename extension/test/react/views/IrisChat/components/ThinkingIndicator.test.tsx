@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, act } from '@testing-library/react';
-import { ThinkingIndicator } from '../../../../../src/webview/views/IrisChat/components/ThinkingIndicator';
-import type { IrisStageDTO } from '../../../../../src/webview/views/IrisChat/types';
+import { ThinkingIndicator } from '@webview/views/IrisChat/components/ThinkingIndicator';
+import type { IrisStageDTO } from '@webview/views/IrisChat/types';
 
 const makeStage = (overrides: Partial<IrisStageDTO> = {}): IrisStageDTO => ({
     name: 'thinking',

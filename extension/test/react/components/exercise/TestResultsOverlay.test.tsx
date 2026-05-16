@@ -1,8 +1,8 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { TestResultsOverlay } from '../../../../src/webview/components/exercise/TestResultsOverlay';
-import type { TestCase } from '../../../../src/webview/components/exercise/SubmissionStatus';
+import { TestResultsOverlay } from '@webview/components/exercise/TestResultsOverlay';
+import type { TestCase } from '@webview/components/exercise/SubmissionStatus';
 
 describe('TestResultsOverlay', () => {
     const testCases: TestCase[] = [

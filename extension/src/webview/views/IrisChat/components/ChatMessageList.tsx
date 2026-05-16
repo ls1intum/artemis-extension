@@ -2,7 +2,7 @@ import { useEffect } from 'react';
 import { MessageBubble } from './MessageBubble';
 import { ThinkingIndicator } from './ThinkingIndicator';
 import { WelcomeState } from './WelcomeState';
-import { useAutoScroll } from '../../../hooks/useAutoScroll';
+import { useAutoScroll } from '@webview/hooks/useAutoScroll';
 import type { ChatMessage, StreamingState, IrisStageDTO } from '../types';
 import styles from './ChatMessageList.module.css';
 

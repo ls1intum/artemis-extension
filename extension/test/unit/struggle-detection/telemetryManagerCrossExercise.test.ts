@@ -15,9 +15,9 @@
 import * as assert from 'assert';
 import * as sinon from 'sinon';
 import * as vscode from 'vscode';
-import { TelemetryManager } from '../../../src/extension/services/telemetry/telemetryManager';
-import { ExerciseRegistry } from '../../../src/extension/services/exerciseRegistry';
-import type { ResultDTO } from '../../../src/extension/domain';
+import { TelemetryManager } from '@extension/services/telemetry/telemetryManager';
+import { ExerciseRegistry } from '@extension/services/exerciseRegistry';
+import type { ResultDTO } from '@extension/domain';
 
 function makeResult(participationId: number | undefined, opts: { buildFailed?: boolean; successful?: boolean } = {}): ResultDTO {
     return {

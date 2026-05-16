@@ -1,9 +1,9 @@
 import * as vscode from 'vscode';
-import { logger, LogCategory } from '../../services/loggingService';
+import { logger, LogCategory } from '@extension/services/loggingService';
 import type { CommandContext, CommandMap } from './types';
-import { getPayload, WebviewCmd } from '../../../shared/messageContracts';
-import type { WebviewToExtensionMessage, WebCmd } from '../../../shared/messageContracts';
-import { extractErrorMessage } from '../../utils';
+import { getPayload, WebviewCmd } from '@shared/messageContracts';
+import type { WebviewToExtensionMessage, WebCmd } from '@shared/messageContracts';
+import { extractErrorMessage } from '@extension/utils';
 
 export class IrisCommandModule {
     constructor(private readonly context: CommandContext) { }

@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
-import { useExerciseDetailStore } from '../../../src/webview/stores/useExerciseDetailStore';
-import type { ExerciseDetailsResponse, ParticipationSummary, ResultSummary, SubmissionSummary } from '../../../src/extension/types';
+import { useExerciseDetailStore } from '@webview/stores/useExerciseDetailStore';
+import type { ExerciseDetailsResponse, ParticipationSummary, ResultSummary, SubmissionSummary } from '@extension/types';
 import { createMockVsCodeApi } from '../__helpers__/vscodeApi';
 
 const makeExerciseData = (overrides: Partial<ExerciseDetailsResponse> = {}): ExerciseDetailsResponse => ({

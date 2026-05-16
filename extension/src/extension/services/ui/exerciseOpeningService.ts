@@ -4,7 +4,7 @@ import type { IProviderRegistry } from './providerRegistry';
 import type { TelemetryManager } from '../telemetry/telemetryManager';
 import type { CourseAccessStorageService } from '../courseAccessStorageService';
 import { logger, LogCategory } from '../loggingService';
-import type { ExerciseDetailsResponse } from '../../types';
+import type { ExerciseDetailsResponse } from '@extension/types';
 
 export class ExerciseOpeningService {
     constructor(

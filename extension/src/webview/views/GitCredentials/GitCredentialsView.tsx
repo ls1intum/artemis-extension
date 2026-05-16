@@ -4,11 +4,11 @@
  */
 
 import { useState, useEffect, useRef } from 'react';
-import { BackLink, Container, TextInput, Button, PageHeader, SkeletonList, StatusMessage } from '../../components';
-import { useExtensionMessage } from '../../hooks/useExtensionMessage';
+import { BackLink, Container, TextInput, Button, PageHeader, SkeletonList, StatusMessage } from '@webview/components';
+import { useExtensionMessage } from '@webview/hooks/useExtensionMessage';
 import styles from './GitCredentialsView.module.css';
 import type { GitCredentialsViewProps, GitCredentialsPersistedState } from './types';
-import { ExtensionMsg, postCommand } from '../../../shared/messageContracts';
+import { ExtensionMsg, postCommand } from '@shared/messageContracts';
 
 export function GitCredentialsView({ vscodeApi }: GitCredentialsViewProps) {
     // Restore persisted state (form values only)

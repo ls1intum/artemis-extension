@@ -18,11 +18,11 @@ import type {
     WebviewToExtensionMessage,
     ExtMsg,
     WebCmd,
-} from '../../../src/shared/messageContracts';
+} from '@shared/messageContracts';
 import {
     isExtensionMessage,
     isWebviewMessage,
-} from '../../../src/shared/messageContracts';
+} from '@shared/messageContracts';
 
 // ============================================================================
 // Extension → Webview message types exist and have correct shape

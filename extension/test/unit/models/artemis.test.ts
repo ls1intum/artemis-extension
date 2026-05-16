@@ -11,7 +11,7 @@ import {
     parseSubmissionProcessingMessage,
     parseResultDTO,
     parseBuildLogEntry,
-} from '../../../src/extension/types';
+} from '@extension/types';
 
 suite('ApiError', () => {
     test('extends Error with status and detail', () => {

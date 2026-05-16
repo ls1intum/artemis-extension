@@ -8,8 +8,8 @@ vi.mock('../../../../src/webview/hooks/useExamTimer', () => ({
 	useExamTimer: vi.fn(() => ({ remaining: 0, expired: false })),
 }));
 
-import { ExamTimer } from '../../../../src/webview/components/ExamTimer/ExamTimer';
-import { useExamTimer } from '../../../../src/webview/hooks/useExamTimer';
+import { ExamTimer } from '@webview/components/ExamTimer/ExamTimer';
+import { useExamTimer } from '@webview/hooks/useExamTimer';
 
 const mockUseExamTimer = vi.mocked(useExamTimer);
 

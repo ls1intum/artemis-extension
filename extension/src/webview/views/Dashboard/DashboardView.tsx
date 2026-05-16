@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import { useDashboardStore } from '../../stores/useDashboardStore';
+import { useDashboardStore } from '@webview/stores/useDashboardStore';
 import type { DashboardViewProps, RecentCourseNode, Exercise } from './types';
-import type { CourseDashboardCourse } from '../../../shared/types/apiResponses';
+import type { CourseDashboardCourse } from '@shared/types/apiResponses';
 import {
     Container,
     Button,
@@ -9,7 +9,7 @@ import {
     ListItem,
     Skeleton,
     SkeletonList,
-} from '../../components';
+} from '@webview/components';
 import GraduationCap from 'lucide-react/dist/esm/icons/graduation-cap';
 import Settings from 'lucide-react/dist/esm/icons/settings';
 import Sparkles from 'lucide-react/dist/esm/icons/sparkles';
@@ -21,10 +21,10 @@ import GitBranch from 'lucide-react/dist/esm/icons/git-branch';
 import Bug from 'lucide-react/dist/esm/icons/bug';
 import LogOut from 'lucide-react/dist/esm/icons/log-out';
 import ChevronRight from 'lucide-react/dist/esm/icons/chevron-right';
-import { getIcon } from '../../utils/iconMap';
+import { getIcon } from '@webview/utils/iconMap';
 import SquareArrowOutUpRight from 'lucide-react/dist/esm/icons/square-arrow-out-up-right';
-import { ExtensionMsg, postCommand } from '../../../shared/messageContracts';
-import { useExtensionMessage } from '../../hooks/useExtensionMessage';
+import { ExtensionMsg, postCommand } from '@shared/messageContracts';
+import { useExtensionMessage } from '@webview/hooks/useExtensionMessage';
 import styles from './DashboardView.module.css';
 
 export function DashboardView({ vscodeApi }: DashboardViewProps) {

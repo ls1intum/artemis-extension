@@ -4,8 +4,8 @@ import {
     getErrorFamilySerialized,
     createSnapshotFromDiagnosticState,
     createSnapshotFromBuildEvent,
-} from '../../../../src/extension/services/telemetry/replay/snapshotReconstructor';
-import type { SerializedDiagnostic, BuildResultEvent } from '../../../../src/extension/services/telemetry/recording/types';
+} from '@extension/services/telemetry/replay/snapshotReconstructor';
+import type { SerializedDiagnostic, BuildResultEvent } from '@extension/services/telemetry/recording/types';
 
 function makeDiag(overrides: Partial<SerializedDiagnostic> = {}): SerializedDiagnostic {
     return {

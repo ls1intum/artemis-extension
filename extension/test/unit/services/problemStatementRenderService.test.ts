@@ -1,9 +1,9 @@
 import * as assert from 'assert';
 import * as vscode from 'vscode';
 import * as sinon from 'sinon';
-import { ProblemStatementRenderService } from '../../../src/extension/services/problemStatementRenderService';
-import type { ArtemisApiService } from '../../../src/extension/api/artemisApi';
-import type { RenderedProblemStatementDTO, ProblemStatementRenderRequest } from '../../../src/extension/domain/problemStatementRendering';
+import { ProblemStatementRenderService } from '@extension/services/problemStatementRenderService';
+import type { ArtemisApiService } from '@extension/api/artemisApi';
+import type { RenderedProblemStatementDTO, ProblemStatementRenderRequest } from '@extension/domain/problemStatementRendering';
 
 suite('ProblemStatementRenderService', () => {
     let sandbox: sinon.SinonSandbox;

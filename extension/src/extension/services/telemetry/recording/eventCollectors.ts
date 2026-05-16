@@ -4,7 +4,7 @@
  */
 
 import * as vscode from 'vscode';
-import type { ResultDTO } from '../../../types';
+import type { ResultDTO } from '@extension/types';
 import type {
     SerializedRange,
     SerializedDiagnostic,

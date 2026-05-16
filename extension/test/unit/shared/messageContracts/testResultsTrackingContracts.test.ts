@@ -1,5 +1,5 @@
 import * as assert from 'assert';
-import { COMMANDS_REQUIRING_PAYLOAD, WebviewCmd } from '../../../../src/shared/messageContracts/webviewCommands';
+import { COMMANDS_REQUIRING_PAYLOAD, WebviewCmd } from '@shared/messageContracts/webviewCommands';
 
 suite('Test-results tracking command contracts', () => {
     test('all four new commands require a payload', () => {

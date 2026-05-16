@@ -1,8 +1,8 @@
-import type { ArtemisApiService } from '../../api';
-import type { ResultDTO } from '../../types';
-import { type ParsedBuildError } from '../../types';
-import { BuildLogParser } from '../../utils';
-import type { BuildErrorCodeLensProvider } from '../../provider/buildErrorCodeLensProvider';
+import type { ArtemisApiService } from '@extension/api';
+import type { ResultDTO } from '@extension/types';
+import { type ParsedBuildError } from '@extension/types';
+import { BuildLogParser } from '@extension/utils';
+import type { BuildErrorCodeLensProvider } from '@extension/provider/buildErrorCodeLensProvider';
 import { logger, LogCategory } from '../loggingService';
 
 export class BuildDiagnosticsService {

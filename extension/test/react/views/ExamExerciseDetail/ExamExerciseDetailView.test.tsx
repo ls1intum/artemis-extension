@@ -1,11 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { ExamExerciseDetailView } from '../../../../src/webview/views/ExamExerciseDetail/ExamExerciseDetailView';
-import { useExamExerciseDetailStore } from '../../../../src/webview/stores/useExamExerciseDetailStore';
-import { useExerciseDetailStore } from '../../../../src/webview/stores/useExerciseDetailStore';
-import type { ExamContext } from '../../../../src/webview/stores/useExamExerciseDetailStore';
-import type { ExerciseDetailsResponse } from '../../../../src/shared/types/apiResponses';
+import { ExamExerciseDetailView } from '@webview/views/ExamExerciseDetail/ExamExerciseDetailView';
+import { useExamExerciseDetailStore } from '@webview/stores/useExamExerciseDetailStore';
+import { useExerciseDetailStore } from '@webview/stores/useExerciseDetailStore';
+import type { ExamContext } from '@webview/stores/useExamExerciseDetailStore';
+import type { ExerciseDetailsResponse } from '@shared/types/apiResponses';
 import { createMockVsCodeApi, dispatchExtensionMessage } from '../../__helpers__/vscodeApi';
 
 // Mock useWebSocketUpdates — not under test here

@@ -1,5 +1,5 @@
-import type { IChatWebviewProvider } from '../../types/IChatWebviewProvider';
-import type { IArtemisWebviewProvider } from '../../types/IArtemisWebviewProvider';
+import type { IChatWebviewProvider } from '@extension/types/IChatWebviewProvider';
+import type { IArtemisWebviewProvider } from '@extension/types/IArtemisWebviewProvider';
 
 export interface IProviderRegistry {
     getChatWebviewProvider(): IChatWebviewProvider | undefined;

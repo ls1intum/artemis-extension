@@ -8,7 +8,7 @@ import {
     SessionResettable,
     SessionStartContext,
 } from '../types';
-import { ResultDTO } from '../../../types';
+import { ResultDTO } from '@extension/types';
 
 import { shouldDedupSnapshot } from '../metrics/snapshotDedup';
 import { LINT_SOURCE_DENYLIST } from './lintDenylist';

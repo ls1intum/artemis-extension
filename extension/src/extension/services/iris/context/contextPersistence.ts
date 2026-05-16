@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import type { StoredState } from './contextStateTypes';
-import type { TrackedExercise, TrackedCourse } from '../../../types';
-import { logger } from '../../loggingService';
+import type { TrackedExercise, TrackedCourse } from '@extension/types';
+import { logger } from '@extension/services/loggingService';
 
 const STORE_KEY = 'iris.contextStore';
 const STORE_VERSION = 2;

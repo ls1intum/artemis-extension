@@ -3,7 +3,7 @@ import type { RecordedEvent, FileSnapshotErrorEvent } from '../types';
 import type { RecordingStorageWriter } from '../storageWriter';
 import { shouldRecordUri } from '../uriFilter';
 import type { RecorderLifecycleState } from '../lifecycle/recorderLifecycleState';
-import { logger, LogCategory } from '../../../loggingService';
+import { logger, LogCategory } from '@extension/services/loggingService';
 
 interface SnapshotManagerDeps {
     state: RecorderLifecycleState;

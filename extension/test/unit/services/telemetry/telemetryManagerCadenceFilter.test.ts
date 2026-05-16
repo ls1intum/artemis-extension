@@ -30,15 +30,15 @@
 import * as assert from 'assert';
 import * as sinon from 'sinon';
 import * as vscode from 'vscode';
-import { TelemetryManager } from '../../../../src/extension/services/telemetry/telemetryManager';
-import { InterventionService } from '../../../../src/extension/services/telemetry/interventionService';
-import type { AdaptiveCadence } from '../../../../src/extension/services/telemetry/intervention/adaptiveCadence';
+import { TelemetryManager } from '@extension/services/telemetry/telemetryManager';
+import { InterventionService } from '@extension/services/telemetry/interventionService';
+import type { AdaptiveCadence } from '@extension/services/telemetry/intervention/adaptiveCadence';
 import type {
     InterventionDecision,
     InterventionDismissReason,
     TriggerType,
-} from '../../../../src/extension/services/telemetry/types';
-import type { ResultDTO } from '../../../../src/extension/domain';
+} from '@extension/services/telemetry/types';
+import type { ResultDTO } from '@extension/domain';
 
 type DismissPayload = InterventionDecision & { dismissReason: InterventionDismissReason };
 

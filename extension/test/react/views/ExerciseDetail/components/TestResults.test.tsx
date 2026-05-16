@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { render, screen } from '@testing-library/react';
-import { TestResults } from '../../../../../src/webview/views/ExerciseDetail/components/TestResults';
-import type { TestCase } from '../../../../../src/webview/views/ExerciseDetail/types';
+import { TestResults } from '@webview/views/ExerciseDetail/components/TestResults';
+import type { TestCase } from '@webview/views/ExerciseDetail/types';
 
 describe('TestResults', () => {
 	it('shows empty state when no test cases provided', () => {

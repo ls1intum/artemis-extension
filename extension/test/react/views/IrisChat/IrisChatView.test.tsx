@@ -1,8 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { IrisChatView } from '../../../../src/webview/views/IrisChat/IrisChatView';
-import { useChatStore } from '../../../../src/webview/stores/useChatStore';
+import { IrisChatView } from '@webview/views/IrisChat/IrisChatView';
+import { useChatStore } from '@webview/stores/useChatStore';
 import { createMockVsCodeApi, dispatchExtensionMessage } from '../../__helpers__/vscodeApi';
 
 // Mock streamdown — ESM-only package

@@ -1,5 +1,5 @@
 import type { StoredState } from './contextStateTypes';
-import type { TrackedExercise, TrackedCourse, ContextSource } from '../../../types';
+import type { TrackedExercise, TrackedCourse, ContextSource } from '@extension/types';
 import { compareExercisesForDisplay, compareCoursesForDisplay } from './contextSorting';
 
 export interface ExerciseInput {

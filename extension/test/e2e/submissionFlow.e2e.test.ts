@@ -15,7 +15,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { execSync } from 'child_process';
-import { logger, LogCategory } from '../../src/extension/services/loggingService';
+import { logger, LogCategory } from '@extension/services/loggingService';
 
 // =============================================================================
 // CONFIGURATION
