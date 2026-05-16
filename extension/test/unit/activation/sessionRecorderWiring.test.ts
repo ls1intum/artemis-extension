@@ -29,7 +29,12 @@ import { wireSessionRecorder } from '@extension/activation/sessionRecorderWiring
 import type { ArtemisWebviewProvider, ChatWebviewProvider } from '@extension/provider';
 import type { ConsentService } from '@extension/services/auth';
 import { SessionRecorder } from '@extension/services/telemetry/recording/sessionRecorder';
-import type { ConfigurationChangeEvent, ConfigurationSnapshotEvent, InterventionEvent, RecordedEvent } from '@extension/services/telemetry/recording/types';
+import type {
+    ConfigurationChangeEvent,
+    ConfigurationSnapshotEvent,
+    InterventionEvent,
+    RecordedEvent,
+} from '@extension/services/telemetry/recording/types';
 import { TelemetryManager } from '@extension/services/telemetry/telemetryManager';
 import type { InterventionDecision } from '@extension/services/telemetry/types';
 import type { ArtemisWebsocketService } from '@extension/services/websocket';

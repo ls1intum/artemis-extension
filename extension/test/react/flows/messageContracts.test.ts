@@ -14,16 +14,8 @@
  */
 import { describe, expect, it } from 'vitest';
 
-import type {
-    ExtensionToWebviewMessage,
-    ExtMsg,
-    WebCmd,
-    WebviewToExtensionMessage,
-} from '@shared/messageContracts';
-import {
-    isExtensionMessage,
-    isWebviewMessage,
-} from '@shared/messageContracts';
+import type { ExtensionToWebviewMessage, ExtMsg, WebCmd, WebviewToExtensionMessage } from '@shared/messageContracts';
+import { isExtensionMessage, isWebviewMessage } from '@shared/messageContracts';
 
 // ============================================================================
 // Extension → Webview message types exist and have correct shape

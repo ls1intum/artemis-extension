@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
-import type { BuildResultEvent, DiagnosticsEvent, RecordedEvent, SaveEvent } from '@extension/services/telemetry/recording/types';
+import type {
+    BuildResultEvent,
+    DiagnosticsEvent,
+    RecordedEvent,
+    SaveEvent,
+} from '@extension/services/telemetry/recording/types';
 import { replaySession } from '@extension/services/telemetry/replay/replayEngine';
 import { DEFAULT_EQ_CONFIG } from '@extension/services/telemetry/types';
 

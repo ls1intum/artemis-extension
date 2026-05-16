@@ -1,21 +1,12 @@
 import * as vscode from 'vscode';
 
-import type {
-    CourseDetailData,
-    ExerciseDetail,
-    WebCmd,
-    WebviewToExtensionMessage,
-} from '@shared/messageContracts';
+import type { CourseDetailData, ExerciseDetail, WebCmd, WebviewToExtensionMessage } from '@shared/messageContracts';
 import { ExtensionMsg, getPayload, WebviewCmd } from '@shared/messageContracts';
 import { toCourseDetailData } from '@shared/messageContracts';
 
 import { getExamErrorMessage } from '@extension/services/exam/examErrorHandler';
 import { logger } from '@extension/services/loggingService';
-import type {
-    CourseDashboardCourse,
-    CourseDashboardEntry,
-    ExerciseDetailsResponse,
-} from '@extension/types';
+import type { CourseDashboardCourse, CourseDashboardEntry, ExerciseDetailsResponse } from '@extension/types';
 
 import { fetchAndEnrichExerciseDetails, fetchArchivedCourseDetail } from '../exerciseDataLoader';
 import type { CommandContext, CommandMap } from './types';

@@ -60,10 +60,17 @@ import type { PlatformCapabilities } from '@extension/theia';
 import { shouldAcceptBuildResult } from '../buildResultGuard';
 import { collectBuildResult } from './eventCollectors';
 import { LifecycleController } from './lifecycle/lifecycleController';
-import { RecorderLifecycleState, type RecorderPhase as RecorderPhaseFromState } from './lifecycle/recorderLifecycleState';
+import {
+    RecorderLifecycleState,
+    type RecorderPhase as RecorderPhaseFromState,
+} from './lifecycle/recorderLifecycleState';
 import { ObservationRegistry } from './observation/observationRegistry';
 import { SnapshotManager } from './snapshots/snapshotManager';
-import { StartupCapture, type StartupContext as StartupContextFromModule, type StartupContributor as StartupContributorFromModule } from './startup/startupCapture';
+import {
+    StartupCapture,
+    type StartupContext as StartupContextFromModule,
+    type StartupContributor as StartupContributorFromModule,
+} from './startup/startupCapture';
 import { RecordingStorageWriter } from './storageWriter';
 
 interface RecordingState {

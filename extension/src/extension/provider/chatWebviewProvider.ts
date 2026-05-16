@@ -9,16 +9,21 @@ import type { CourseDataCache } from '../services/courseDataCache';
 import { ExerciseRegistry } from '../services/exerciseRegistry';
 import type { ChatContextReason, IrisServiceDeps } from '../services/iris';
 import { IrisWebSocketMessageHandler } from '../services/iris';
-import { ChatContextManager, ChatDiagnosticsService, ChatMessageService, ContextStore, IRIS_CHAT_HELP_MARKDOWN, IrisChatSessionService, IrisWebSocketSessionClient } from '../services/iris';
+import {
+    ChatContextManager,
+    ChatDiagnosticsService,
+    ChatMessageService,
+    ContextStore,
+    IRIS_CHAT_HELP_MARKDOWN,
+    IrisChatSessionService,
+    IrisWebSocketSessionClient,
+} from '../services/iris';
 import { LogCategory, logger } from '../services/loggingService';
 import { type StruggleContext, TelemetryManager } from '../services/telemetry';
 import { getReactWebviewHtml } from '../services/ui';
 import { ArtemisWebsocketService } from '../services/websocket';
 import { detectAndRegisterWorkspaceExercise, FileMonitorService, NoAiDetectionService } from '../services/workspace';
-import {
-    ActiveContext,
-    ChatContextType,
-} from '../types';
+import { ActiveContext, ChatContextType } from '../types';
 import type { IChatWebviewProvider } from '../types/IChatWebviewProvider';
 import { BaseWebviewProvider } from './baseWebviewProvider';
 import { ChatViewStatePresenter } from './chatViewStatePresenter';

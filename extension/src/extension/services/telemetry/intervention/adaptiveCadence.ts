@@ -1,4 +1,11 @@
-import { AdaptiveState, DEFAULT_TRIGGER_CONFIG, SessionResettable, SessionStartContext, TriggerConfig, TriggerType } from '../types';
+import {
+    AdaptiveState,
+    DEFAULT_TRIGGER_CONFIG,
+    SessionResettable,
+    SessionStartContext,
+    TriggerConfig,
+    TriggerType,
+} from '../types';
 
 /**
  * Adaptive Cadence — manages escalating thresholds for idle/selection triggers.

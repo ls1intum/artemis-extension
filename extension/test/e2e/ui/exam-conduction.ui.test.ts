@@ -3,12 +3,12 @@ import * as assert from 'assert';
 import { By, until, VSBrowser, WebDriver, Workbench } from 'vscode-extension-tester';
 
 import {
-	getCredentials,
-	openArtemisView,
-	performLogin,
-	switchBackFromWebview,
-	switchToWebviewFrame,
-	takeScreenshot,
+    getCredentials,
+    openArtemisView,
+    performLogin,
+    switchBackFromWebview,
+    switchToWebviewFrame,
+    takeScreenshot,
 } from './helpers';
 
 describe('ExamConduction View UI Tests', function () {

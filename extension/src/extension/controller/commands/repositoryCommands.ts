@@ -2,14 +2,16 @@ import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
 
-import type {
-    WebCmd,
-    WebviewToExtensionMessage,
-} from '@shared/messageContracts';
+import type { WebCmd, WebviewToExtensionMessage } from '@shared/messageContracts';
 import { ExtensionMsg, getOptionalPayload, getPayload, WebviewCmd } from '@shared/messageContracts';
 
 import { LogCategory, logger } from '@extension/services/loggingService';
-import { getWorkspaceRepositoryUrl, getWorkspaceStatus, GitService, normalizeRepositoryUrl } from '@extension/services/workspace';
+import {
+    getWorkspaceRepositoryUrl,
+    getWorkspaceStatus,
+    GitService,
+    normalizeRepositoryUrl,
+} from '@extension/services/workspace';
 import { checkWorkspaceFiles } from '@extension/services/workspace/workspaceFileChecker';
 import { cloneRepositoryProgrammatic, getTheiaEnvironment } from '@extension/theia';
 import { BuildLogParser, extractErrorMessage, VSCODE_CONFIG } from '@extension/utils';

@@ -14,7 +14,12 @@ import { TelemetryManager } from '@extension/services/telemetry';
 import { createProviderRegistry } from '@extension/services/ui';
 import { ArtemisWebsocketService, WebSocketStatusBarService } from '@extension/services/websocket';
 import { NoAiDetectionService } from '@extension/services/workspace';
-import { authenticateFromEnvironment, autoCloneIfNeeded, detectPlatformCapabilities, initializeTheiaContext } from '@extension/theia';
+import {
+    authenticateFromEnvironment,
+    autoCloneIfNeeded,
+    detectPlatformCapabilities,
+    initializeTheiaContext,
+} from '@extension/theia';
 import { VSCODE_CONFIG } from '@extension/utils';
 
 // Module-level references for deactivate() cleanup

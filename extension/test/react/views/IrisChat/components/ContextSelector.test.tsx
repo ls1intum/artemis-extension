@@ -3,11 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 
 import { ContextSelector } from '@webview/views/IrisChat/components/ContextSelector';
-import type {
-	ChatContext,
-	ChatSession,
-	ContextItem,
-} from '@webview/views/IrisChat/types';
+import type { ChatContext, ChatSession, ContextItem } from '@webview/views/IrisChat/types';
 
 function makeContextItem(id: number, title: string, overrides: Partial<ContextItem> = {}): ContextItem {
 	return { id, title, ...overrides };

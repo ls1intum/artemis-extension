@@ -11,12 +11,7 @@
 
 import * as assert from 'assert';
 
-import {
-    expectArray,
-    expectObject,
-    MalformedResponseError,
-    parseApiObject,
-} from '@extension/domain';
+import { expectArray, expectObject, MalformedResponseError, parseApiObject } from '@extension/domain';
 
 suite('expectObject', () => {
     test('returns the value when it is a plain object', () => {

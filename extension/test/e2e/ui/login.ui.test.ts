@@ -3,11 +3,11 @@ import * as assert from 'assert';
 import { VSBrowser, WebDriver } from 'vscode-extension-tester';
 
 import {
-	openArtemisView,
-	switchBackFromWebview,
-	switchToWebviewFrame,
-	takeScreenshot,
-	waitForElement,
+    openArtemisView,
+    switchBackFromWebview,
+    switchToWebviewFrame,
+    takeScreenshot,
+    waitForElement,
 } from './helpers';
 
 describe('Login View UI Tests', function () {

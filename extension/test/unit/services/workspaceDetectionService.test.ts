@@ -7,7 +7,8 @@ import {
     type ExerciseSource,
     findExerciseByRepositoryUrl,
     getWorkspaceRepositoryUrl,
-    normalizeRepositoryUrl} from '@extension/services/workspace/workspaceDetectionService';
+    normalizeRepositoryUrl,
+} from '@extension/services/workspace/workspaceDetectionService';
 
 suite('WorkspaceDetectionService', () => {
     suite('normalizeRepositoryUrl', () => {

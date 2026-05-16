@@ -3,12 +3,12 @@ import * as assert from 'assert';
 import { By, VSBrowser, WebDriver, Workbench } from 'vscode-extension-tester';
 
 import {
-	getCredentials,
-	openArtemisView,
-	switchBackFromWebview,
-	switchToWebviewFrame,
-	takeScreenshot,
-	waitForElement,
+    getCredentials,
+    openArtemisView,
+    switchBackFromWebview,
+    switchToWebviewFrame,
+    takeScreenshot,
+    waitForElement,
 } from './helpers';
 
 describe('Login Flow UI Tests', function () {

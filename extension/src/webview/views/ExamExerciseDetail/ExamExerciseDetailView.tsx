@@ -2,18 +2,9 @@ import { useEffect, useState } from 'react';
 
 import { ExtensionMsg, postCommand, requestInit } from '@shared/messageContracts';
 
-import {
-    BackLink,
-    Container,
-    ErrorMessage,
-    SkeletonList,
-} from '@webview/components';
+import { BackLink, Container, ErrorMessage, SkeletonList } from '@webview/components';
 import { ExamTimer } from '@webview/components/ExamTimer/ExamTimer';
-import {
-    BuildProgress,
-    ParticipationActions,
-    SubmissionStatus,
-} from '@webview/components/exercise';
+import { BuildProgress, ParticipationActions, SubmissionStatus } from '@webview/components/exercise';
 import type { BuildState } from '@webview/components/exercise/BuildProgress';
 import type { ExerciseType } from '@webview/components/exercise/ParticipationActions';
 import { TestResultsOverlay } from '@webview/components/exercise/TestResultsOverlay';
@@ -24,7 +15,12 @@ import { useExtensionMessage } from '@webview/hooks/useExtensionMessage';
 import { useWebSocketUpdates } from '@webview/hooks/useWebSocketUpdates';
 import { useExamExerciseDetailStore } from '@webview/stores/useExamExerciseDetailStore';
 import { useExerciseDetailStore } from '@webview/stores/useExerciseDetailStore';
-import { determineParticipationStatus, determineSubmissionStatus, getLatestById, transformFeedbacksToTestCases } from '@webview/utils/exerciseStatus';
+import {
+    determineParticipationStatus,
+    determineSubmissionStatus,
+    getLatestById,
+    transformFeedbacksToTestCases,
+} from '@webview/utils/exerciseStatus';
 
 import { ScoreInfo, TestResults } from '../ExerciseDetail/components';
 import styles from './ExamExerciseDetailView.module.css';
