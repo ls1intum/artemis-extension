@@ -1,6 +1,6 @@
 // Telemetry services barrel exports
-export * from './types';
 export { TelemetryManager } from './telemetryManager';
+export * from './types';
 
 // Recording
 export * from './recording';

@@ -4,18 +4,20 @@
  */
 
 import * as vscode from 'vscode';
+
 import type { ResultDTO } from '@extension/types';
+
 import type {
-    SerializedRange,
-    SerializedDiagnostic,
-    TextChangeEvent,
-    SaveEvent,
-    FileSwitchEvent,
-    DiagnosticsEvent,
     BuildResultEvent,
-    WindowFocusEvent,
+    DiagnosticsEvent,
+    FileSwitchEvent,
+    SaveEvent,
     SelectionChangeEvent,
+    SerializedDiagnostic,
+    SerializedRange,
+    TextChangeEvent,
     VisibleRangeChangeEvent,
+    WindowFocusEvent,
 } from './types';
 
 // ── Serialization helpers ─────────────────────────────────────────────

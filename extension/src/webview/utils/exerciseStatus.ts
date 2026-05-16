@@ -1,5 +1,5 @@
-import type { SubmissionStatusType, TestCase } from '../components/exercise/SubmissionStatus';
 import type { ParticipationStatusType } from '../components/exercise/ParticipationActions';
+import type { SubmissionStatusType, TestCase } from '../components/exercise/SubmissionStatus';
 import type { PendingSubmissionInfo } from '../stores/useExerciseDetailStore';
 
 export function determineSubmissionStatus(

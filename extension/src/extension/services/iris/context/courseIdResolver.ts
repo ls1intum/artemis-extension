@@ -1,6 +1,8 @@
 import type { ActiveContext } from '@shared/types/context';
-import { logger, LogCategory } from '@extension/services/loggingService';
+
 import type { ArtemisApiService } from '@extension/api';
+import { LogCategory, logger } from '@extension/services/loggingService';
+
 import type { ContextStore } from './contextStore';
 
 /**

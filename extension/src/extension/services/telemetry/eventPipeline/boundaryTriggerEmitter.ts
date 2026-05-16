@@ -1,7 +1,8 @@
 import * as vscode from 'vscode';
-import { TriggerType, DEFAULT_TRIGGER_CONFIG, TriggerConfig, SessionResettable, SessionStartContext } from '../types';
+
 import { InactivityService } from '../inactivityService';
 import { AdaptiveCadence } from '../intervention/adaptiveCadence';
+import { DEFAULT_TRIGGER_CONFIG, SessionResettable, SessionStartContext, TriggerConfig, TriggerType } from '../types';
 import { isLikelyManualPaste } from './compileEquivalentEmitter';
 
 /**

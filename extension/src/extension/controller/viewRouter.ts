@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
-import type { AppState } from './appStateManager';
+
 import { getReactWebviewHtml } from '../services/ui';
+import type { AppState } from './appStateManager';
 
 /** Maps AppState values to React view entry-point names. */
 const STATE_TO_VIEW: Record<AppState, string> = {

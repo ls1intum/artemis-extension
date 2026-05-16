@@ -1,4 +1,4 @@
-import { useEffect, useRef, type RefObject } from 'react';
+import { type RefObject, useEffect, useRef } from 'react';
 
 /**
  * Dismisses a dropdown/popover when the user clicks outside the referenced element.

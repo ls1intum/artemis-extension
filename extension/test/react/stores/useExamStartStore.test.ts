@@ -1,7 +1,8 @@
-import { describe, it, expect } from 'vitest';
-import { renderHook, act } from '@testing-library/react';
-import { useExamStartStore } from '@webview/stores/useExamStartStore';
+import { act, renderHook } from '@testing-library/react';
+import { describe, expect, it } from 'vitest';
+
 import type { StudentExam } from '@extension/types';
+import { useExamStartStore } from '@webview/stores/useExamStartStore';
 
 const makeStudentExam = (overrides: Partial<StudentExam> = {}): StudentExam => ({
 	id: 1,

@@ -1,9 +1,12 @@
-import { describe, it, expect, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { ExamStartView } from '@webview/views/ExamStart/ExamStartView';
-import { useExamStartStore } from '@webview/stores/useExamStartStore';
+import { describe, expect, it, vi } from 'vitest';
+
 import type { StudentExam } from '@shared/types/apiResponses';
+
+import { useExamStartStore } from '@webview/stores/useExamStartStore';
+import { ExamStartView } from '@webview/views/ExamStart/ExamStartView';
+
 import { createMockVsCodeApi, dispatchExtensionMessage } from '../../__helpers__/vscodeApi';
 
 // Mock useExamTimer to avoid Web Worker
@@ -106,7 +109,7 @@ describe('ExamStartView', () => {
 
 	it('displays exam title from store', () => {
 		useExamStartStore.setState({
-			studentExam: makeStudentExam() ,
+			studentExam: makeStudentExam(),
 			courseId: 10,
 			examId: 100,
 			isLoading: false,
@@ -118,7 +121,7 @@ describe('ExamStartView', () => {
 
 	it('shows working time', () => {
 		useExamStartStore.setState({
-			studentExam: makeStudentExam({ workingTime: 3600 }) ,
+			studentExam: makeStudentExam({ workingTime: 3600 }),
 			courseId: 10,
 			examId: 100,
 			isLoading: false,
@@ -130,7 +133,7 @@ describe('ExamStartView', () => {
 
 	it('shows exam rules section', () => {
 		useExamStartStore.setState({
-			studentExam: makeStudentExam() ,
+			studentExam: makeStudentExam(),
 			courseId: 10,
 			examId: 100,
 			isLoading: false,
@@ -142,7 +145,7 @@ describe('ExamStartView', () => {
 
 	it('shows Open in Browser button', () => {
 		useExamStartStore.setState({
-			studentExam: makeStudentExam() ,
+			studentExam: makeStudentExam(),
 			courseId: 10,
 			examId: 100,
 			isLoading: false,
@@ -154,7 +157,7 @@ describe('ExamStartView', () => {
 
 	it('Open in Browser sends openExamInBrowser postMessage', async () => {
 		useExamStartStore.setState({
-			studentExam: makeStudentExam() ,
+			studentExam: makeStudentExam(),
 			courseId: 10,
 			examId: 100,
 			isLoading: false,
@@ -175,7 +178,7 @@ describe('ExamStartView', () => {
 
 	it('shows Refresh button when exam has not started', () => {
 		useExamStartStore.setState({
-			studentExam: makeStudentExam() , // exam starts in future
+			studentExam: makeStudentExam(), // exam starts in future
 			courseId: 10,
 			examId: 100,
 			isLoading: false,
@@ -197,7 +200,7 @@ describe('ExamStartView', () => {
 					endDate: makeFutureDate(2 * 60 * 60 * 1000),
 					startText: 'Please read carefully.',
 				},
-			}) ,
+			}),
 			courseId: 10,
 			examId: 100,
 			isLoading: false,
@@ -218,7 +221,7 @@ describe('ExamStartView', () => {
 					testExam: true,
 					startText: '',
 				},
-			}) ,
+			}),
 			courseId: 10,
 			examId: 100,
 			isLoading: false,
@@ -230,7 +233,7 @@ describe('ExamStartView', () => {
 
 	it('back link sends backToCourseDetails postMessage', async () => {
 		useExamStartStore.setState({
-			studentExam: makeStudentExam() ,
+			studentExam: makeStudentExam(),
 			courseId: 10,
 			examId: 100,
 			isLoading: false,

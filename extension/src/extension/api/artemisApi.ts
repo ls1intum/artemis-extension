@@ -1,22 +1,44 @@
-import { AuthManager } from '../services/auth/authManager';
-import { CONFIG, resolveServerUrl, getUserAgent } from '../utils';
-import {
-    ApiError, MalformedResponseError, PROFILE_IRIS,
-    parseArtemisUser, parseArtemisParticipation,
-    parseIrisHealthStatus, parseProfileInfo, parseProgrammingSubmission, parseBuildLogEntry,
-    expectArray, expectObject, parseApiObject,
-} from '../types';
-import type {
-    ArtemisUser, ArtemisParticipation, AuthenticationResult,
-    IrisHealthStatus, ProfileInfo, ProgrammingSubmission, BuildLogEntry,
-} from '../types';
-import type {
-    CourseDashboardResponse, CourseDashboardEntry, CourseDashboardCourse,
-    ExerciseDetailsResponse, ResultSummary, IrisChatSession, IrisChatMessage, IrisSettingsResponse,
-    ExamSummary, StudentExam, IrisChatMode, IrisChatSessionSummary,
-} from '../types';
-import { logger, LogCategory } from '../services/loggingService';
 import type { ProblemStatementRenderRequest, RenderedProblemStatementDTO } from '../domain/problemStatementRendering';
+import { AuthManager } from '../services/auth/authManager';
+import { LogCategory, logger } from '../services/loggingService';
+import type {
+    ArtemisParticipation,
+    ArtemisUser,
+    AuthenticationResult,
+    BuildLogEntry,
+    IrisHealthStatus,
+    ProfileInfo,
+    ProgrammingSubmission,
+} from '../types';
+import type {
+    CourseDashboardCourse,
+    CourseDashboardEntry,
+    CourseDashboardResponse,
+    ExamSummary,
+    ExerciseDetailsResponse,
+    IrisChatMessage,
+    IrisChatMode,
+    IrisChatSession,
+    IrisChatSessionSummary,
+    IrisSettingsResponse,
+    ResultSummary,
+    StudentExam,
+} from '../types';
+import {
+    ApiError,
+    expectArray,
+    expectObject,
+    MalformedResponseError,
+    parseApiObject,
+    parseArtemisParticipation,
+    parseArtemisUser,
+    parseBuildLogEntry,
+    parseIrisHealthStatus,
+    parseProfileInfo,
+    parseProgrammingSubmission,
+    PROFILE_IRIS,
+} from '../types';
+import { CONFIG, getUserAgent, resolveServerUrl } from '../utils';
 
 export class ArtemisApiService {
     private authManager: AuthManager;

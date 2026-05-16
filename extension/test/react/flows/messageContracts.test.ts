@@ -12,17 +12,10 @@
  *
  * Per CONTEXT.md: dedicated tests for type-safe contract verification.
  */
-import { describe, it, expect } from 'vitest';
-import type {
-    ExtensionToWebviewMessage,
-    WebviewToExtensionMessage,
-    ExtMsg,
-    WebCmd,
-} from '@shared/messageContracts';
-import {
-    isExtensionMessage,
-    isWebviewMessage,
-} from '@shared/messageContracts';
+import { describe, expect, it } from 'vitest';
+
+import type { ExtensionToWebviewMessage, ExtMsg, WebCmd, WebviewToExtensionMessage } from '@shared/messageContracts';
+import { isExtensionMessage, isWebviewMessage } from '@shared/messageContracts';
 
 // ============================================================================
 // Extension → Webview message types exist and have correct shape

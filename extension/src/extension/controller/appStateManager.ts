@@ -1,8 +1,15 @@
-import { getRecommendedExtensionsByCategory, type RecommendedExtensionCategory } from '../utils/recommendedExtensions';
-import type { CourseDashboardResponse, CourseDashboardEntry, ExerciseDetailsResponse, StudentExam, ExerciseDetail } from '../types';
 import type { ArchivedCourse, CourseDetailData } from '@shared/messageContracts';
-import type { ArtemisUser } from '../types';
+
 import type { CourseDataCache } from '../services/courseDataCache';
+import type {
+    CourseDashboardEntry,
+    CourseDashboardResponse,
+    ExerciseDetail,
+    ExerciseDetailsResponse,
+    StudentExam,
+} from '../types';
+import type { ArtemisUser } from '../types';
+import { getRecommendedExtensionsByCategory, type RecommendedExtensionCategory } from '../utils/recommendedExtensions';
 
 export type AppState = 'login' | 'dashboard' | 'course-list' | 'course-detail' | 'exercise-detail' | 'exam-exercise-detail' | 'ai-config' | 'service-status' | 'struggle-detection' | 'recommended-extensions' | 'git-credentials' | 'exam-start' | 'exam-conduction';
 

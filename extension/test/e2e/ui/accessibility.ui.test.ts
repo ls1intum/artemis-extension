@@ -1,17 +1,18 @@
 // Accessibility tests for all 12 webview views (WCAG 2.1 AA via axe-core)
 // Covers A11Y-01: Zero axe violations required across the entire view surface area.
 // Login view is tested pre-authentication; all other views require credentials.
-import { VSBrowser, WebDriver, Workbench, ActivityBar, By, until } from 'vscode-extension-tester';
 import * as assert from 'assert';
+import { ActivityBar, By, until, VSBrowser, WebDriver, Workbench } from 'vscode-extension-tester';
+
 import {
-	openArtemisView,
-	switchToWebviewFrame,
-	switchBackFromWebview,
-	waitForElement,
-	takeScreenshot,
-	getCredentials,
-	runAxeInCurrentFrame,
-	performLogin,
+    getCredentials,
+    openArtemisView,
+    performLogin,
+    runAxeInCurrentFrame,
+    switchBackFromWebview,
+    switchToWebviewFrame,
+    takeScreenshot,
+    waitForElement,
 } from './helpers';
 
 // ---------------------------------------------------------------------------

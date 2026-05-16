@@ -39,7 +39,9 @@
  */
 
 import * as vscode from 'vscode';
-import type { WebSocketMessageHandler, ResultDTO } from '@extension/types';
+
+import type { ResultDTO, WebSocketMessageHandler } from '@extension/types';
+
 import type { RecordedEvent, SerializedErrorSnapshot } from './types';
 
 /**
@@ -51,17 +53,25 @@ type RecordedEventWithoutTimestamp = RecordedEvent extends infer E
         ? Omit<E, 'timestamp'>
         : never
     : never;
-import type { PlatformCapabilities } from '@extension/theia';
 import type { ExerciseRegistry } from '@extension/services/exerciseRegistry';
-import { RecordingStorageWriter } from './storageWriter';
-import { collectBuildResult } from './eventCollectors';
+import { LogCategory, logger } from '@extension/services/loggingService';
+import type { PlatformCapabilities } from '@extension/theia';
+
 import { shouldAcceptBuildResult } from '../buildResultGuard';
-import { logger, LogCategory } from '@extension/services/loggingService';
-import { RecorderLifecycleState, type RecorderPhase as RecorderPhaseFromState } from './lifecycle/recorderLifecycleState';
+import { collectBuildResult } from './eventCollectors';
 import { LifecycleController } from './lifecycle/lifecycleController';
-import { SnapshotManager } from './snapshots/snapshotManager';
-import { StartupCapture, type StartupContext as StartupContextFromModule, type StartupContributor as StartupContributorFromModule } from './startup/startupCapture';
+import {
+    RecorderLifecycleState,
+    type RecorderPhase as RecorderPhaseFromState,
+} from './lifecycle/recorderLifecycleState';
 import { ObservationRegistry } from './observation/observationRegistry';
+import { SnapshotManager } from './snapshots/snapshotManager';
+import {
+    StartupCapture,
+    type StartupContext as StartupContextFromModule,
+    type StartupContributor as StartupContributorFromModule,
+} from './startup/startupCapture';
+import { RecordingStorageWriter } from './storageWriter';
 
 interface RecordingState {
     isEnabled: boolean;

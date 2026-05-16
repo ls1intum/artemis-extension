@@ -1,7 +1,9 @@
 import * as assert from 'assert';
 import * as sinon from 'sinon';
-import { fetchSessionsWithMessages } from '@extension/services/iris/context/sessionSyncUtils';
+
 import type { ActiveContext } from '@shared/types/context';
+
+import { fetchSessionsWithMessages } from '@extension/services/iris/context/sessionSyncUtils';
 
 function makeApi(stubs: Partial<Record<string, sinon.SinonStub>> = {}): any {
     return {

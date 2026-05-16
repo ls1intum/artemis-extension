@@ -11,11 +11,12 @@
  */
 
 import * as assert from 'assert';
+import { execSync } from 'child_process';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
-import { execSync } from 'child_process';
-import { logger, LogCategory } from '@extension/services/loggingService';
+
+import { LogCategory, logger } from '@extension/services/loggingService';
 
 // =============================================================================
 // CONFIGURATION

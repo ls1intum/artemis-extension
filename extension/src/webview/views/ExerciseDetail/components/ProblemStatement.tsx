@@ -1,7 +1,9 @@
-import { useEffect, useMemo, useRef, useState, type MouseEvent } from 'react';
 import katex from 'katex';
+import { type MouseEvent, useEffect, useMemo, useRef, useState } from 'react';
+
 import { Container } from '@webview/components/Container';
 import { Skeleton } from '@webview/components/Skeleton/Skeleton';
+
 import type { ProblemStatementProps } from '../types';
 import styles from './ProblemStatement.module.css';
 

@@ -5,10 +5,10 @@
  * SerializedDiagnostic (from recorded JSONL) instead of vscode.Diagnostic.
  */
 
-import type { ErrorSnapshot } from '../types';
-import type { SerializedDiagnostic, BuildResultEvent } from '../recording/types';
 import { LINT_SOURCE_DENYLIST } from '../eventPipeline/lintDenylist';
+import type { BuildResultEvent, SerializedDiagnostic } from '../recording/types';
 import { shouldRecordUriString } from '../recording/uriFilter';
+import type { ErrorSnapshot } from '../types';
 
 /**
  * Check if a serialized diagnostic is a compiler diagnostic (not lint).

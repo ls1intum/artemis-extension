@@ -1,4 +1,5 @@
 import * as assert from 'assert';
+
 import { COMMANDS_REQUIRING_PAYLOAD, WebviewCmd } from '@shared/messageContracts/webviewCommands';
 
 suite('Test-results tracking command contracts', () => {

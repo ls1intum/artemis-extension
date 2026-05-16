@@ -11,26 +11,33 @@
  *  - Stubs vscode.workspace.getConfiguration with mutable backing values.
  */
 
+import * as vscode from 'vscode';
 import * as assert from 'assert';
 import * as fs from 'fs/promises';
 import * as os from 'os';
 import * as path from 'path';
 import * as sinon from 'sinon';
-import * as vscode from 'vscode';
-import { TelemetryManager } from '@extension/services/telemetry/telemetryManager';
-import { SessionRecorder } from '@extension/services/telemetry/recording/sessionRecorder';
-import { wireSessionRecorder } from '@extension/activation/sessionRecorderWiring';
-import type { RecordedEvent, InterventionEvent, ConfigurationSnapshotEvent, ConfigurationChangeEvent } from '@extension/services/telemetry/recording/types';
-import type { ConsentService } from '@extension/services/auth';
-import type { ArtemisWebsocketService } from '@extension/services/websocket';
-import type { ArtemisWebviewProvider, ChatWebviewProvider } from '@extension/provider';
-import type { InterventionDecision } from '@extension/services/telemetry/types';
+
 import type {
-    TestResultsOverviewOpenedPayload,
-    TestResultsOverviewClosedPayload,
-    TaskFeedbackOpenedPayload,
     TaskFeedbackClosedPayload,
+    TaskFeedbackOpenedPayload,
+    TestResultsOverviewClosedPayload,
+    TestResultsOverviewOpenedPayload,
 } from '@shared/messageContracts/webviewCommands';
+
+import { wireSessionRecorder } from '@extension/activation/sessionRecorderWiring';
+import type { ArtemisWebviewProvider, ChatWebviewProvider } from '@extension/provider';
+import type { ConsentService } from '@extension/services/auth';
+import { SessionRecorder } from '@extension/services/telemetry/recording/sessionRecorder';
+import type {
+    ConfigurationChangeEvent,
+    ConfigurationSnapshotEvent,
+    InterventionEvent,
+    RecordedEvent,
+} from '@extension/services/telemetry/recording/types';
+import { TelemetryManager } from '@extension/services/telemetry/telemetryManager';
+import type { InterventionDecision } from '@extension/services/telemetry/types';
+import type { ArtemisWebsocketService } from '@extension/services/websocket';
 
 interface MutableConfigState {
     enabled: boolean;

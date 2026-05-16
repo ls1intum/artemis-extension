@@ -1,5 +1,6 @@
-import styles from './StatusMessage.module.css';
 import clsx from 'clsx';
+
+import styles from './StatusMessage.module.css';
 
 type StatusType = 'success' | 'error' | 'warning' | 'info';
 

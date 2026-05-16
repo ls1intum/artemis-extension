@@ -1,14 +1,15 @@
 // Covers E2EV-11: RecommendedExtensions view E2E smoke test
 // (E2EV-11 remapped from ProblemStatement — RecommendedExtensions is the 11th actual standalone view)
 import assert from 'assert';
-import { VSBrowser, WebDriver, Workbench, By, until } from 'vscode-extension-tester';
+import { By, until, VSBrowser, WebDriver, Workbench } from 'vscode-extension-tester';
+
 import {
-	openArtemisView,
-	switchToWebviewFrame,
-	switchBackFromWebview,
-	takeScreenshot,
-	getCredentials,
-	performLogin,
+    getCredentials,
+    openArtemisView,
+    performLogin,
+    switchBackFromWebview,
+    switchToWebviewFrame,
+    takeScreenshot,
 } from './helpers';
 
 describe('RecommendedExtensions View UI Tests', function () {

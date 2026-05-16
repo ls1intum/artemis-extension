@@ -1,9 +1,12 @@
 import { useState } from 'react';
+
 import { ExtensionMsg, postCommand } from '@shared/messageContracts';
-import { BackLink, Container, Badge, PageHeader, SkeletonList } from '@webview/components';
+
+import { BackLink, Badge, Container, PageHeader, SkeletonList } from '@webview/components';
 import { useExtensionMessage } from '@webview/hooks/useExtensionMessage';
-import type { AiConfigViewProps, AiExtensionItem } from './types';
+
 import styles from './AiConfigView.module.css';
+import type { AiConfigViewProps, AiExtensionItem } from './types';
 
 export function AiConfigView({ vscodeApi }: AiConfigViewProps) {
     const [extensions, setExtensions] = useState<AiExtensionItem[]>([]);

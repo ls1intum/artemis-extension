@@ -6,23 +6,20 @@
  * behavior against serialized recording data.
  */
 
-import type { EQConfig, ErrorSnapshot } from '../types';
-import { DEFAULT_EQ_CONFIG } from '../types';
 import { ErrorQuotientEngine } from '../metrics/errorQuotientEngine';
 import type {
-    RecordedEvent,
-    SerializedDiagnostic,
-    DiagnosticsEvent,
-    SaveEvent,
     BuildResultEvent,
-    EqSnapshotEvent,
+    DiagnosticsEvent,
     EqEngineStateEvent,
+    EqSnapshotEvent,
+    RecordedEvent,
+    SaveEvent,
+    SerializedDiagnostic,
     SessionStartEvent,
 } from '../recording/types';
-import {
-    createSnapshotFromDiagnosticState,
-    createSnapshotFromBuildEvent,
-} from './snapshotReconstructor';
+import type { EQConfig, ErrorSnapshot } from '../types';
+import { DEFAULT_EQ_CONFIG } from '../types';
+import { createSnapshotFromBuildEvent, createSnapshotFromDiagnosticState } from './snapshotReconstructor';
 
 interface ReplayEqSnapshot {
     timestamp: number;

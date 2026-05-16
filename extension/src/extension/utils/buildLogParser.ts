@@ -1,4 +1,4 @@
-import type { ParsedBuildError, BuildLogEntry } from '../types';
+import type { BuildLogEntry, ParsedBuildError } from '../types';
 import { normalizeRelativePath } from './pathUtils';
 
 /**

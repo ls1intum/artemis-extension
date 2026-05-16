@@ -1,18 +1,19 @@
 import * as vscode from 'vscode';
-import {
-    ErrorSnapshot,
-    CompileEquivalentEvent,
-    BuildResultClassification,
-    EQConfig,
-    DEFAULT_EQ_CONFIG,
-    SessionResettable,
-    SessionStartContext,
-} from '../types';
+
 import { ResultDTO } from '@extension/types';
 
 import { shouldDedupSnapshot } from '../metrics/snapshotDedup';
-import { LINT_SOURCE_DENYLIST } from './lintDenylist';
 import { shouldRecordUri } from '../recording/uriFilter';
+import {
+    BuildResultClassification,
+    CompileEquivalentEvent,
+    DEFAULT_EQ_CONFIG,
+    EQConfig,
+    ErrorSnapshot,
+    SessionResettable,
+    SessionStartContext,
+} from '../types';
+import { LINT_SOURCE_DENYLIST } from './lintDenylist';
 
 /**
  * Emits CompileEquivalentEvents from save events and build results.

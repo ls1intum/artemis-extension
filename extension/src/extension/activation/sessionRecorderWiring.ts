@@ -1,12 +1,16 @@
 import * as vscode from 'vscode';
-import type { ConsentService } from '../services/auth';
-import type { ArtemisWebsocketService } from '../services/websocket';
-import type { TelemetryManager, SessionRecorder } from '../services/telemetry';
-import { RecordingStatusBarService as RecordingStatusBarServiceImpl, SessionRecorder as SessionRecorderImpl } from '../services/telemetry';
-import type { RecordedEvent } from '../services/telemetry/recording/types';
+
 import type { ArtemisWebviewProvider, ChatWebviewProvider } from '../provider';
-import type { PlatformCapabilities } from '../theia';
+import type { ConsentService } from '../services/auth';
 import type { ExerciseRegistry } from '../services/exerciseRegistry';
+import type { SessionRecorder, TelemetryManager } from '../services/telemetry';
+import {
+    RecordingStatusBarService as RecordingStatusBarServiceImpl,
+    SessionRecorder as SessionRecorderImpl,
+} from '../services/telemetry';
+import type { RecordedEvent } from '../services/telemetry/recording/types';
+import type { ArtemisWebsocketService } from '../services/websocket';
+import type { PlatformCapabilities } from '../theia';
 import { VSCODE_CONFIG } from '../utils/constants';
 
 interface RecorderWiringDeps {

@@ -1,13 +1,14 @@
 // Covers E2EV-02: Dashboard view smoke test
-import { VSBrowser, WebDriver, Workbench, By } from 'vscode-extension-tester';
 import * as assert from 'assert';
+import { By, VSBrowser, WebDriver, Workbench } from 'vscode-extension-tester';
+
 import {
-	openArtemisView,
-	switchToWebviewFrame,
-	switchBackFromWebview,
-	takeScreenshot,
-	getCredentials,
-	performLogin,
+    getCredentials,
+    openArtemisView,
+    performLogin,
+    switchBackFromWebview,
+    switchToWebviewFrame,
+    takeScreenshot,
 } from './helpers';
 
 describe('Dashboard View UI Tests', function () {

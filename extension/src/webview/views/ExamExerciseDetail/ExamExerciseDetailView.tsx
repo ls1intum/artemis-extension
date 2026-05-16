@@ -1,31 +1,30 @@
 import { useEffect, useState } from 'react';
+
+import { ExtensionMsg, postCommand, requestInit } from '@shared/messageContracts';
+
+import { BackLink, Container, ErrorMessage, SkeletonList } from '@webview/components';
+import { ExamTimer } from '@webview/components/ExamTimer/ExamTimer';
+import { BuildProgress, ParticipationActions, SubmissionStatus } from '@webview/components/exercise';
+import type { BuildState } from '@webview/components/exercise/BuildProgress';
+import type { ExerciseType } from '@webview/components/exercise/ParticipationActions';
+import { TestResultsOverlay } from '@webview/components/exercise/TestResultsOverlay';
+import { PageHeader } from '@webview/components/PageHeader/PageHeader';
+import { TimerExpiredOverlay } from '@webview/components/TimerExpiredOverlay/TimerExpiredOverlay';
+import { useExerciseStatusMessages } from '@webview/hooks/useExerciseStatusMessages';
+import { useExtensionMessage } from '@webview/hooks/useExtensionMessage';
+import { useWebSocketUpdates } from '@webview/hooks/useWebSocketUpdates';
 import { useExamExerciseDetailStore } from '@webview/stores/useExamExerciseDetailStore';
 import { useExerciseDetailStore } from '@webview/stores/useExerciseDetailStore';
-import { useWebSocketUpdates } from '@webview/hooks/useWebSocketUpdates';
-import { useExtensionMessage } from '@webview/hooks/useExtensionMessage';
-import { useExerciseStatusMessages } from '@webview/hooks/useExerciseStatusMessages';
-import { ExamTimer } from '@webview/components/ExamTimer/ExamTimer';
-import { TimerExpiredOverlay } from '@webview/components/TimerExpiredOverlay/TimerExpiredOverlay';
-import { TestResultsOverlay } from '@webview/components/exercise/TestResultsOverlay';
 import {
-    BackLink,
-    Container,
-    SkeletonList,
-    ErrorMessage,
-} from '@webview/components';
-import { PageHeader } from '@webview/components/PageHeader/PageHeader';
-import {
-    SubmissionStatus,
-    ParticipationActions,
-    BuildProgress,
-} from '@webview/components/exercise';
+    determineParticipationStatus,
+    determineSubmissionStatus,
+    getLatestById,
+    transformFeedbacksToTestCases,
+} from '@webview/utils/exerciseStatus';
+
 import { ScoreInfo, TestResults } from '../ExerciseDetail/components';
-import type { ExamExerciseDetailViewProps } from './types';
-import type { ExerciseType } from '@webview/components/exercise/ParticipationActions';
-import type { BuildState } from '@webview/components/exercise/BuildProgress';
-import { ExtensionMsg, postCommand, requestInit } from '@shared/messageContracts';
-import { determineSubmissionStatus, determineParticipationStatus, getLatestById, transformFeedbacksToTestCases } from '@webview/utils/exerciseStatus';
 import styles from './ExamExerciseDetailView.module.css';
+import type { ExamExerciseDetailViewProps } from './types';
 
 export function ExamExerciseDetailView({ vscodeApi }: ExamExerciseDetailViewProps) {
     const { examContext, isLoading: examLoading, error: examError, setExamExerciseData, setError } =

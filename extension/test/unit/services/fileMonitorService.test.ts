@@ -1,8 +1,9 @@
-import * as assert from 'assert';
 import * as vscode from 'vscode';
+import * as assert from 'assert';
 import * as sinon from 'sinon';
-import { FileMonitorService } from '@extension/services/workspace/fileMonitorService';
+
 import type { FileMonitorUpdate } from '@extension/services/workspace/fileMonitorService';
+import { FileMonitorService } from '@extension/services/workspace/fileMonitorService';
 import * as workspaceFileChecker from '@extension/services/workspace/workspaceFileChecker';
 
 suite('FileMonitorService', () => {

@@ -1,6 +1,8 @@
 import clsx from 'clsx';
-import type { ScoreInfoProps } from '../types';
+
 import { formatDateTime } from '@webview/utils/formatDate';
+
+import type { ScoreInfoProps } from '../types';
 import styles from './ScoreInfo.module.css';
 
 /**

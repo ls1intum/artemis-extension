@@ -1,13 +1,14 @@
 // Covers E2EX-01: Login flow interaction test — credentials → Dashboard
-import { VSBrowser, WebDriver, Workbench, By } from 'vscode-extension-tester';
 import * as assert from 'assert';
+import { By, VSBrowser, WebDriver, Workbench } from 'vscode-extension-tester';
+
 import {
-	openArtemisView,
-	switchToWebviewFrame,
-	switchBackFromWebview,
-	waitForElement,
-	takeScreenshot,
-	getCredentials,
+    getCredentials,
+    openArtemisView,
+    switchBackFromWebview,
+    switchToWebviewFrame,
+    takeScreenshot,
+    waitForElement,
 } from './helpers';
 
 describe('Login Flow UI Tests', function () {

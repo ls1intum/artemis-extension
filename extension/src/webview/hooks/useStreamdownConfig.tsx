@@ -1,4 +1,5 @@
-import { useMemo, type ReactNode } from 'react';
+import { type ReactNode, useMemo } from 'react';
+
 import { CodeBlock } from '../views/IrisChat/components/CodeBlock';
 
 /**

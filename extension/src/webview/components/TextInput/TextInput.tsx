@@ -1,7 +1,8 @@
-import { useState, KeyboardEvent, FocusEvent } from 'react';
 import clsx from 'clsx';
 import Eye from 'lucide-react/dist/esm/icons/eye';
 import EyeOff from 'lucide-react/dist/esm/icons/eye-off';
+import { FocusEvent, KeyboardEvent, useState } from 'react';
+
 import styles from './TextInput.module.css';
 
 interface TextInputProps {

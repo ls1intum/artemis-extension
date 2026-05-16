@@ -1,28 +1,31 @@
 import { useEffect } from 'react';
-import { useCourseDetailStore } from '@webview/stores/useCourseDetailStore';
-import { useExtensionMessage } from '@webview/hooks/useExtensionMessage';
-import type { CourseDetailViewProps, CourseDetailPersistedState } from './types';
+
+import type { Exam, Exercise } from '@shared/messageContracts';
 import { ExtensionMsg, postCommand, requestInit } from '@shared/messageContracts';
-import type { Exercise, Exam } from '@shared/messageContracts';
-import { getIcon } from '@webview/utils/iconMap';
+
+import type { DropdownOption } from '@webview/components';
 import {
+    AskIris,
     BackLink,
-    IconButton,
-    TextInput,
-    Dropdown,
+    Badge,
     Button,
     Container,
-    ListItem,
-    Badge,
-    SkeletonList,
-    AskIris,
+    Dropdown,
     EmptyState,
     ErrorMessage,
+    IconButton,
+    ListItem,
     PageHeader,
+    SkeletonList,
+    TextInput,
 } from '@webview/components';
-import type { DropdownOption } from '@webview/components';
+import { useExtensionMessage } from '@webview/hooks/useExtensionMessage';
+import { useCourseDetailStore } from '@webview/stores/useCourseDetailStore';
 import { formatDate, formatDateTime } from '@webview/utils/formatDate';
+import { getIcon } from '@webview/utils/iconMap';
+
 import styles from './CourseDetailView.module.css';
+import type { CourseDetailPersistedState, CourseDetailViewProps } from './types';
 
 export function CourseDetailView({ vscodeApi }: CourseDetailViewProps) {
     const {

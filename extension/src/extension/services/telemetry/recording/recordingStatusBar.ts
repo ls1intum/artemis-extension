@@ -5,8 +5,10 @@
  */
 
 import * as vscode from 'vscode';
+
+import { LogCategory, logger } from '@extension/services/loggingService';
+
 import type { SessionRecorder } from './sessionRecorder';
-import { logger, LogCategory } from '@extension/services/loggingService';
 
 export class RecordingStatusBarService implements vscode.Disposable {
     private readonly _statusBarItem: vscode.StatusBarItem;

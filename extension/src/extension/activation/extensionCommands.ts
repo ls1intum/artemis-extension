@@ -1,14 +1,15 @@
 import * as vscode from 'vscode';
-import type { AuthManager } from '../services/auth';
+
 import type { ArtemisApiService } from '../api';
-import type { ArtemisWebsocketService } from '../services/websocket';
-import type { IProviderRegistry } from '../services/ui';
-import type { TelemetryManager } from '../services/telemetry';
 import type { ArtemisWebviewProvider, ChatWebviewProvider } from '../provider';
-import { logger, LogCategory } from '../services/loggingService';
-import { normalizeRelativePath, extractErrorMessage, VSCODE_CONFIG } from '../utils';
+import type { AuthManager } from '../services/auth';
+import { LogCategory, logger } from '../services/loggingService';
+import type { TelemetryManager } from '../services/telemetry';
 import { executeReplayCommand } from '../services/telemetry/replay';
-import { getTheiaEnvironment, probeDataBridge, KNOWN_BRIDGE_KEYS } from '../theia';
+import type { IProviderRegistry } from '../services/ui';
+import type { ArtemisWebsocketService } from '../services/websocket';
+import { getTheiaEnvironment, KNOWN_BRIDGE_KEYS, probeDataBridge } from '../theia';
+import { extractErrorMessage, normalizeRelativePath, VSCODE_CONFIG } from '../utils';
 
 // ── Individual command registrations ─────────────────────────────────
 

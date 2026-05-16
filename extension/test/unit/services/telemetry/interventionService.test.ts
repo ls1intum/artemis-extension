@@ -19,12 +19,13 @@
  *  12. Subtle-Show → second show → first decision dismissed as 'replaced'
  */
 
+import * as vscode from 'vscode';
 import * as assert from 'assert';
 import * as sinon from 'sinon';
-import * as vscode from 'vscode';
-import { InterventionService } from '@extension/services/telemetry/interventionService';
+
 import { InterventionDecisionEngine } from '@extension/services/telemetry/decision/interventionDecisionEngine';
 import { InterventionFilter } from '@extension/services/telemetry/interventionFilter';
+import { InterventionService } from '@extension/services/telemetry/interventionService';
 import type { InterventionDecision, InterventionState } from '@extension/services/telemetry/types';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────

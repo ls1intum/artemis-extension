@@ -1,15 +1,17 @@
-import * as assert from 'assert';
 import * as vscode from 'vscode';
+import * as assert from 'assert';
 import * as sinon from 'sinon';
+
+import { ArtemisApiService } from '@extension/api';
 import { ArtemisWebviewProvider } from '@extension/provider/artemisWebviewProvider';
 import type { BuildErrorCodeLensProvider } from '@extension/provider/buildErrorCodeLensProvider';
-import { MockExtensionContext } from '../mocks/vscodeMocks';
 import { AuthManager } from '@extension/services/auth';
-import { ArtemisApiService } from '@extension/api';
-import { ArtemisWebsocketService } from '@extension/services/websocket';
 import { ExerciseRegistry } from '@extension/services/exerciseRegistry';
 import { TelemetryManager } from '@extension/services/telemetry';
 import { createProviderRegistry } from '@extension/services/ui/providerRegistry';
+import { ArtemisWebsocketService } from '@extension/services/websocket';
+
+import { MockExtensionContext } from '../mocks/vscodeMocks';
 
 class MockAuthManager extends AuthManager {
     constructor(context: vscode.ExtensionContext) {

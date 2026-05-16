@@ -1,18 +1,21 @@
-import { useEffect, useState, useRef, useMemo } from 'react';
-import Menu from 'lucide-react/dist/esm/icons/menu';
+import clsx from 'clsx';
 import Info from 'lucide-react/dist/esm/icons/info';
-import { ExtensionMsg, postCommand } from '@shared/messageContracts';
+import Menu from 'lucide-react/dist/esm/icons/menu';
+import { useEffect, useMemo, useRef, useState } from 'react';
+
 import type { VsCodeApi } from '@shared/messageContracts';
-import type { IrisStageDTO } from './types';
-import { useChatStore } from '@webview/stores/useChatStore';
-import { useExtensionMessage } from '@webview/hooks/useExtensionMessage';
+import { ExtensionMsg, postCommand } from '@shared/messageContracts';
+
 import { useClickOutside } from '@webview/hooks/useClickOutside';
-import { ChatMessageList } from './components/ChatMessageList';
+import { useExtensionMessage } from '@webview/hooks/useExtensionMessage';
+import { useChatStore } from '@webview/stores/useChatStore';
+
 import { ChatInput } from './components/ChatInput';
+import { ChatMessageList } from './components/ChatMessageList';
 import { ContextSelector } from './components/ContextSelector';
 import { ReferencedFiles } from './components/ReferencedFiles';
-import clsx from 'clsx';
 import styles from './IrisChatView.module.css';
+import type { IrisStageDTO } from './types';
 
 interface IrisChatViewProps {
     vscodeApi: VsCodeApi;

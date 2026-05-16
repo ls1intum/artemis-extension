@@ -1,31 +1,27 @@
-import { useState } from 'react';
-import { useDashboardStore } from '@webview/stores/useDashboardStore';
-import type { DashboardViewProps, RecentCourseNode, Exercise } from './types';
-import type { CourseDashboardCourse } from '@shared/types/apiResponses';
-import {
-    Container,
-    Button,
-    IconButton,
-    ListItem,
-    Skeleton,
-    SkeletonList,
-} from '@webview/components';
+import Activity from 'lucide-react/dist/esm/icons/activity';
+import Bug from 'lucide-react/dist/esm/icons/bug';
+import ChevronRight from 'lucide-react/dist/esm/icons/chevron-right';
+import ExternalLink from 'lucide-react/dist/esm/icons/external-link';
+import GitBranch from 'lucide-react/dist/esm/icons/git-branch';
 import GraduationCap from 'lucide-react/dist/esm/icons/graduation-cap';
+import HeartPulse from 'lucide-react/dist/esm/icons/heart-pulse';
+import LogOut from 'lucide-react/dist/esm/icons/log-out';
+import Puzzle from 'lucide-react/dist/esm/icons/puzzle';
 import Settings from 'lucide-react/dist/esm/icons/settings';
 import Sparkles from 'lucide-react/dist/esm/icons/sparkles';
-import Puzzle from 'lucide-react/dist/esm/icons/puzzle';
-import ExternalLink from 'lucide-react/dist/esm/icons/external-link';
-import HeartPulse from 'lucide-react/dist/esm/icons/heart-pulse';
-import Activity from 'lucide-react/dist/esm/icons/activity';
-import GitBranch from 'lucide-react/dist/esm/icons/git-branch';
-import Bug from 'lucide-react/dist/esm/icons/bug';
-import LogOut from 'lucide-react/dist/esm/icons/log-out';
-import ChevronRight from 'lucide-react/dist/esm/icons/chevron-right';
-import { getIcon } from '@webview/utils/iconMap';
 import SquareArrowOutUpRight from 'lucide-react/dist/esm/icons/square-arrow-out-up-right';
+import { useState } from 'react';
+
 import { ExtensionMsg, postCommand } from '@shared/messageContracts';
+import type { CourseDashboardCourse } from '@shared/types/apiResponses';
+
+import { Button, Container, IconButton, ListItem, Skeleton, SkeletonList } from '@webview/components';
 import { useExtensionMessage } from '@webview/hooks/useExtensionMessage';
+import { useDashboardStore } from '@webview/stores/useDashboardStore';
+import { getIcon } from '@webview/utils/iconMap';
+
 import styles from './DashboardView.module.css';
+import type { DashboardViewProps, Exercise, RecentCourseNode } from './types';
 
 export function DashboardView({ vscodeApi }: DashboardViewProps) {
     const {

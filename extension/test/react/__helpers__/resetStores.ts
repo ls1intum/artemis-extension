@@ -1,11 +1,12 @@
-import { useDashboardStore } from '@webview/stores/useDashboardStore';
 import { useChatStore } from '@webview/stores/useChatStore';
-import { useCourseListStore } from '@webview/stores/useCourseListStore';
 import { useCourseDetailStore } from '@webview/stores/useCourseDetailStore';
-import { useExerciseDetailStore } from '@webview/stores/useExerciseDetailStore';
-import { useExamStartStore } from '@webview/stores/useExamStartStore';
+import { useCourseListStore } from '@webview/stores/useCourseListStore';
+import { useDashboardStore } from '@webview/stores/useDashboardStore';
 import { useExamConductionStore } from '@webview/stores/useExamConductionStore';
 import { useExamExerciseDetailStore } from '@webview/stores/useExamExerciseDetailStore';
+import { useExamStartStore } from '@webview/stores/useExamStartStore';
+import { useExerciseDetailStore } from '@webview/stores/useExerciseDetailStore';
+
 import { createMockVsCodeApi } from './vscodeApi';
 
 // Capture initial state of each store at module import time — before any test runs

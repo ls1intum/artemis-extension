@@ -1,14 +1,14 @@
 export { FileMonitorService } from './fileMonitorService';
 export { GitService } from './gitService';
 export { NoAiDetectionService } from './noAiDetectionService';
-export * from './workspaceFileChecker';
 export {
+    collectExerciseSources,
+    detectAndRegisterWorkspaceExercise,
+    type DetectedExercise,
     findExerciseByRepositoryUrl,
-    normalizeRepositoryUrl,
+    findWorkspaceCourseInArchive,
     getWorkspaceRepositoryUrl,
     getWorkspaceStatus,
-    detectAndRegisterWorkspaceExercise,
-    findWorkspaceCourseInArchive,
-    collectExerciseSources,
-    type DetectedExercise,
+    normalizeRepositoryUrl,
 } from './workspaceDetectionService';
+export * from './workspaceFileChecker';

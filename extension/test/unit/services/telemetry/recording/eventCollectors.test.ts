@@ -16,8 +16,9 @@
  */
 
 import * as assert from 'assert';
-import { collectBuildResult } from '@extension/services/telemetry/recording/eventCollectors';
+
 import type { ResultDTO } from '@extension/domain';
+import { collectBuildResult } from '@extension/services/telemetry/recording/eventCollectors';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 

@@ -1,4 +1,5 @@
 import * as assert from 'assert';
+
 import { normalizeRelativePath } from '@extension/utils/pathUtils';
 
 suite('Path Utils Test Suite', () => {

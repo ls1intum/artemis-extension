@@ -1,6 +1,7 @@
-import * as assert from 'assert';
 import * as vscode from 'vscode';
+import * as assert from 'assert';
 import * as sinon from 'sinon';
+
 import { NoAiDetectionService } from '@extension/services/workspace/noAiDetectionService';
 
 suite('NoAiDetectionService', () => {

@@ -1,11 +1,13 @@
 import * as assert from 'assert';
+
 import {
-    CourseAccessStorageService,
-    COURSE_ACCESS_STORAGE_LIMIT,
     COURSE_ACCESS_DISPLAY_LIMIT,
+    COURSE_ACCESS_STORAGE_LIMIT,
     type CourseAccessMap,
     type CourseAccessScope,
+    CourseAccessStorageService,
 } from '@extension/services/courseAccessStorageService';
+
 import { MockMemento } from '../mocks/vscodeMocks';
 
 function waitFor(ms: number): Promise<void> {

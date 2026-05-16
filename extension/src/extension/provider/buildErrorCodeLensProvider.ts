@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+
 import type { ParsedBuildError } from '../types';
 import { normalizeRelativePath } from '../utils';
 

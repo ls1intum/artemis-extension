@@ -1,5 +1,3 @@
-export { SubmissionStatus } from './SubmissionStatus';
-
-export { ParticipationActions } from './ParticipationActions';
-
 export { BuildProgress } from './BuildProgress';
+export { ParticipationActions } from './ParticipationActions';
+export { SubmissionStatus } from './SubmissionStatus';

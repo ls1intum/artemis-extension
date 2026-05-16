@@ -1,7 +1,8 @@
-import * as assert from 'assert';
 import * as vscode from 'vscode';
+import * as assert from 'assert';
 import * as sinon from 'sinon';
-import { ConsentService, ConsentLevel } from '@extension/services/auth/consentService';
+
+import { ConsentLevel, ConsentService } from '@extension/services/auth/consentService';
 
 suite('ConsentService', () => {
     let sandbox: sinon.SinonSandbox;

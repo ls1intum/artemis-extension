@@ -1,10 +1,12 @@
 import * as vscode from 'vscode';
-import { promisify } from 'util';
 import { execFile } from 'child_process';
+import { promisify } from 'util';
+
 import type { ArtemisApiService } from '@extension/api';
 import type { CourseDashboardEntry } from '@extension/types';
-import { ExerciseRegistry, type ExerciseRegistryEntry } from '../exerciseRegistry';
+
 import type { CourseDataCache } from '../courseDataCache';
+import { ExerciseRegistry, type ExerciseRegistryEntry } from '../exerciseRegistry';
 import { logger } from '../loggingService';
 import { checkWorkspaceFiles } from './workspaceFileChecker';
 

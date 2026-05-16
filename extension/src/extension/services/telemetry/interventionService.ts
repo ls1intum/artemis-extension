@@ -1,8 +1,9 @@
 import * as vscode from 'vscode';
+
 import {
+    InterventionBlockedReason,
     InterventionDecision,
     InterventionDismissReason,
-    InterventionBlockedReason,
     InterventionState,
     SessionResettable,
     SessionStartContext,

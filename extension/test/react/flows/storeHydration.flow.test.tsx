@@ -1,5 +1,5 @@
-import { describe, it, expect, vi } from 'vitest';
-import { render, screen, act } from '@testing-library/react';
+import { act, render, screen } from '@testing-library/react';
+import { describe, expect, it, vi } from 'vitest';
 
 // Mock the Web Worker-based exam timer hook — the esbuild-plugin-inline-worker
 // transform is not available in Vitest's SSR environment.
@@ -8,45 +8,42 @@ vi.mock('../../../src/webview/hooks/useExamTimer', () => ({
 }));
 
 // View components
-import { GitCredentialsView } from '@webview/views/GitCredentials/GitCredentialsView';
-import { ServiceStatusView } from '@webview/views/ServiceStatus/ServiceStatusView';
-import { RecommendedExtensionsView } from '@webview/views/RecommendedExtensions/RecommendedExtensionsView';
-
-import { DashboardView } from '@webview/views/Dashboard/DashboardView';
-import { CourseListView } from '@webview/views/CourseList/CourseListView';
-import { CourseDetailView } from '@webview/views/CourseDetail/CourseDetailView';
-import { ExerciseDetailView } from '@webview/views/ExerciseDetail/ExerciseDetailView';
-import { ExamStartView } from '@webview/views/ExamStart/ExamStartView';
-import { ExamConductionView } from '@webview/views/ExamConduction/ExamConductionView';
-import { ExamExerciseDetailView } from '@webview/views/ExamExerciseDetail/ExamExerciseDetailView';
-import { IrisChatView } from '@webview/views/IrisChat/IrisChatView';
-
+import { useChatStore } from '@webview/stores/useChatStore';
+import { useCourseDetailStore } from '@webview/stores/useCourseDetailStore';
+import { useCourseListStore } from '@webview/stores/useCourseListStore';
 // Zustand stores
 import { useDashboardStore } from '@webview/stores/useDashboardStore';
-import { useCourseListStore } from '@webview/stores/useCourseListStore';
-import { useCourseDetailStore } from '@webview/stores/useCourseDetailStore';
-import { useExerciseDetailStore } from '@webview/stores/useExerciseDetailStore';
-import { useExamStartStore } from '@webview/stores/useExamStartStore';
 import { useExamConductionStore } from '@webview/stores/useExamConductionStore';
 import { useExamExerciseDetailStore } from '@webview/stores/useExamExerciseDetailStore';
-import { useChatStore } from '@webview/stores/useChatStore';
+import { useExamStartStore } from '@webview/stores/useExamStartStore';
+import { useExerciseDetailStore } from '@webview/stores/useExerciseDetailStore';
+import { CourseDetailView } from '@webview/views/CourseDetail/CourseDetailView';
+import { CourseListView } from '@webview/views/CourseList/CourseListView';
+import { DashboardView } from '@webview/views/Dashboard/DashboardView';
+import { ExamConductionView } from '@webview/views/ExamConduction/ExamConductionView';
+import { ExamExerciseDetailView } from '@webview/views/ExamExerciseDetail/ExamExerciseDetailView';
+import { ExamStartView } from '@webview/views/ExamStart/ExamStartView';
+import { ExerciseDetailView } from '@webview/views/ExerciseDetail/ExerciseDetailView';
+import { GitCredentialsView } from '@webview/views/GitCredentials/GitCredentialsView';
+import { IrisChatView } from '@webview/views/IrisChat/IrisChatView';
+import { RecommendedExtensionsView } from '@webview/views/RecommendedExtensions/RecommendedExtensionsView';
+import { ServiceStatusView } from '@webview/views/ServiceStatus/ServiceStatusView';
 
 // Test helpers
 import { createMockVsCodeApi, dispatchExtensionMessage } from '../__helpers__/vscodeApi';
-
 // Fixture factories
 import {
-    createGitCredentialsPayload,
-    createServiceStatusPayload,
-    createRecommendedExtensionsPayload,
-    createDashboardPayload,
-    createCourseListPayload,
     createCourseDetailPayload,
-    createExerciseDetailPayload,
-    createExamStartPayload,
+    createCourseListPayload,
+    createDashboardPayload,
     createExamConductionPayload,
     createExamExerciseDetailPayload,
+    createExamStartPayload,
+    createExerciseDetailPayload,
+    createGitCredentialsPayload,
     createIrisInitPayload,
+    createRecommendedExtensionsPayload,
+    createServiceStatusPayload,
 } from '../fixtures';
 
 /**

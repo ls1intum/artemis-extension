@@ -1,10 +1,11 @@
 import * as vscode from 'vscode';
+import { execFile } from 'child_process';
 import * as path from 'path';
 import { promisify } from 'util';
-import { execFile } from 'child_process';
-import { logger, LogCategory } from '../services/loggingService';
-import type { TheiaEnvironment } from './types';
+
+import { LogCategory, logger } from '../services/loggingService';
 import { getWorkspaceRepositoryUrl, normalizeRepositoryUrl } from '../services/workspace';
+import type { TheiaEnvironment } from './types';
 
 const execFileAsync = promisify(execFile);
 

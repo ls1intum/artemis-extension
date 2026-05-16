@@ -1,16 +1,15 @@
 import * as vscode from 'vscode';
-import {
-    ActiveContext,
-    ContextSnapshot,
-} from '@extension/types';
+
 import { logger } from '@extension/services/loggingService';
-import { SessionManager } from './sessionManager';
-import type { StoredState } from './contextStateTypes';
+import type { TrackedCourse, TrackedExercise } from '@extension/types';
+import { ActiveContext, ContextSnapshot } from '@extension/types';
+
 import { ContextPersistence } from './contextPersistence';
 import { buildContextSnapshot } from './contextSnapshot';
+import type { StoredState } from './contextStateTypes';
+import { SessionManager } from './sessionManager';
+import type { CourseInput, ExerciseInput } from './trackedItemRepository';
 import { TrackedItemRepository } from './trackedItemRepository';
-import type { ExerciseInput, CourseInput } from './trackedItemRepository';
-import type { TrackedExercise, TrackedCourse } from '@extension/types';
 
 interface ContextStoreOptions {
     exerciseArchiveLimit?: number;

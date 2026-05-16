@@ -1,6 +1,8 @@
-import * as assert from 'assert';
 import * as vscode from 'vscode';
+import * as assert from 'assert';
+
 import { ContextPersistence } from '@extension/services/iris/context/contextPersistence';
+
 import { MockExtensionContext } from '../mocks/vscodeMocks';
 
 suite('ContextPersistence Migration', () => {

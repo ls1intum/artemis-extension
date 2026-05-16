@@ -1,6 +1,8 @@
+import clsx from 'clsx';
+
 import { useExamTimer } from '@webview/hooks/useExamTimer';
 import { formatExamTimer } from '@webview/utils/formatExamTimer';
-import clsx from 'clsx';
+
 import styles from './ExamTimer.module.css';
 
 interface ExamTimerProps {

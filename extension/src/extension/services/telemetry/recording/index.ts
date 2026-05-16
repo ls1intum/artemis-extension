@@ -1,2 +1,2 @@
-export { SessionRecorder } from './sessionRecorder';
 export { RecordingStatusBarService } from './recordingStatusBar';
+export { SessionRecorder } from './sessionRecorder';

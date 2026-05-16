@@ -21,12 +21,13 @@
  *   8. All five new event types are gated by `_phase === 'recording'`: none reach disk after disable()
  */
 
-import * as assert from 'assert';
 import * as vscode from 'vscode';
+import * as assert from 'assert';
+
 import { SessionRecorder } from '@extension/services/telemetry/recording/sessionRecorder';
-import type { RecordedEvent } from '@extension/services/telemetry/recording/types';
-import { RecordingStorageWriter } from '@extension/services/telemetry/recording/storageWriter';
 import type { RecordingFs } from '@extension/services/telemetry/recording/storageWriter';
+import { RecordingStorageWriter } from '@extension/services/telemetry/recording/storageWriter';
+import type { RecordedEvent } from '@extension/services/telemetry/recording/types';
 
 // ── Minimal in-memory FS ──────────────────────────────────────────────────
 

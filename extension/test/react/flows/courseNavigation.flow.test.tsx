@@ -1,12 +1,15 @@
-import { describe, it, expect } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { CourseListView } from '@webview/views/CourseList/CourseListView';
-import { CourseDetailView } from '@webview/views/CourseDetail/CourseDetailView';
-import { useCourseListStore } from '@webview/stores/useCourseListStore';
-import { useCourseDetailStore } from '@webview/stores/useCourseDetailStore';
-import { createMockVsCodeApi, dispatchExtensionMessage } from '../__helpers__/vscodeApi';
+import { describe, expect, it } from 'vitest';
+
 import type { CourseData } from '@shared/messageContracts';
+
+import { useCourseDetailStore } from '@webview/stores/useCourseDetailStore';
+import { useCourseListStore } from '@webview/stores/useCourseListStore';
+import { CourseDetailView } from '@webview/views/CourseDetail/CourseDetailView';
+import { CourseListView } from '@webview/views/CourseList/CourseListView';
+
+import { createMockVsCodeApi, dispatchExtensionMessage } from '../__helpers__/vscodeApi';
 
 /**
  * Course navigation flow integration tests.
