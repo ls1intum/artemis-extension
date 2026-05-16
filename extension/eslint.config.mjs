@@ -69,7 +69,7 @@ export default [{
 },
 // Layer boundary: extension-host code must not import webview modules.
 {
-    files: ["src/extension/**/*.ts", "src/extension/**/*.tsx"],
+    files: ["src/extension.ts", "src/extension/**/*.ts", "src/extension/**/*.tsx"],
     rules: {
         'no-restricted-imports': ['error', {
             paths: [lucideRestriction],
