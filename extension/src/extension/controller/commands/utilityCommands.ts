@@ -1,10 +1,7 @@
 import * as vscode from 'vscode';
 import * as crypto from 'crypto';
 
-import type {
-    WebCmd,
-    WebviewToExtensionMessage,
-} from '@shared/messageContracts';
+import type { WebCmd, WebviewToExtensionMessage } from '@shared/messageContracts';
 import { getOptionalPayload, getPayload, WebviewCmd } from '@shared/messageContracts';
 
 import { LogCategory, logger } from '@extension/services/loggingService';

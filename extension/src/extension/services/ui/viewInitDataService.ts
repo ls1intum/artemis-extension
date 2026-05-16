@@ -12,7 +12,11 @@ import { COURSE_ACCESS_DISPLAY_LIMIT, type CourseAccessStorageService } from '..
 import { LogCategory, logger } from '../loggingService';
 import type { TelemetryManager } from '../telemetry/telemetryManager';
 import { GitService } from '../workspace/gitService';
-import { detectWorkspaceExercise, detectWorkspaceForRepoUris, type ExerciseSource } from '../workspace/workspaceDetectionService';
+import {
+    detectWorkspaceExercise,
+    detectWorkspaceForRepoUris,
+    type ExerciseSource,
+} from '../workspace/workspaceDetectionService';
 import { selectRecentCourses } from './recentCourseSelector';
 
 export class ViewInitDataService {

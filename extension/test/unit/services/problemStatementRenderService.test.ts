@@ -3,7 +3,10 @@ import * as assert from 'assert';
 import * as sinon from 'sinon';
 
 import type { ArtemisApiService } from '@extension/api/artemisApi';
-import type { ProblemStatementRenderRequest, RenderedProblemStatementDTO } from '@extension/domain/problemStatementRendering';
+import type {
+    ProblemStatementRenderRequest,
+    RenderedProblemStatementDTO,
+} from '@extension/domain/problemStatementRendering';
 import { ProblemStatementRenderService } from '@extension/services/problemStatementRenderService';
 
 suite('ProblemStatementRenderService', () => {

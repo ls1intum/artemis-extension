@@ -19,10 +19,7 @@ import type {
 } from '../recording/types';
 import type { EQConfig, ErrorSnapshot } from '../types';
 import { DEFAULT_EQ_CONFIG } from '../types';
-import {
-    createSnapshotFromBuildEvent,
-    createSnapshotFromDiagnosticState,
-} from './snapshotReconstructor';
+import { createSnapshotFromBuildEvent, createSnapshotFromDiagnosticState } from './snapshotReconstructor';
 
 interface ReplayEqSnapshot {
     timestamp: number;

@@ -3,13 +3,7 @@
 import * as assert from 'assert';
 import { ActivityBar, VSBrowser, WebDriver, Workbench } from 'vscode-extension-tester';
 
-import {
-	getCredentials,
-	switchBackFromWebview,
-	switchToWebviewFrame,
-	takeScreenshot,
-	waitForElement,
-} from './helpers';
+import { getCredentials, switchBackFromWebview, switchToWebviewFrame, takeScreenshot, waitForElement } from './helpers';
 
 describe('IrisChat View UI Tests', function () {
 	let driver: WebDriver;

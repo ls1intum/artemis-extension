@@ -2,19 +2,41 @@ import type { ProblemStatementRenderRequest, RenderedProblemStatementDTO } from 
 import { AuthManager } from '../services/auth/authManager';
 import { LogCategory, logger } from '../services/loggingService';
 import type {
-ArtemisParticipation,     ArtemisUser, AuthenticationResult,
-BuildLogEntry,
-    IrisHealthStatus, ProfileInfo, ProgrammingSubmission, } from '../types';
+    ArtemisParticipation,
+    ArtemisUser,
+    AuthenticationResult,
+    BuildLogEntry,
+    IrisHealthStatus,
+    ProfileInfo,
+    ProgrammingSubmission,
+} from '../types';
 import type {
-CourseDashboardCourse,
-CourseDashboardEntry,     CourseDashboardResponse,     ExamSummary,     ExerciseDetailsResponse, IrisChatMessage, IrisChatMode, IrisChatSession, IrisChatSessionSummary,
-IrisSettingsResponse,
-ResultSummary, StudentExam, } from '../types';
+    CourseDashboardCourse,
+    CourseDashboardEntry,
+    CourseDashboardResponse,
+    ExamSummary,
+    ExerciseDetailsResponse,
+    IrisChatMessage,
+    IrisChatMode,
+    IrisChatSession,
+    IrisChatSessionSummary,
+    IrisSettingsResponse,
+    ResultSummary,
+    StudentExam,
+} from '../types';
 import {
-    ApiError,     expectArray, expectObject, MalformedResponseError, parseApiObject,
-parseArtemisParticipation,
-    parseArtemisUser, parseBuildLogEntry,
-    parseIrisHealthStatus, parseProfileInfo, parseProgrammingSubmission, PROFILE_IRIS,
+    ApiError,
+    expectArray,
+    expectObject,
+    MalformedResponseError,
+    parseApiObject,
+    parseArtemisParticipation,
+    parseArtemisUser,
+    parseBuildLogEntry,
+    parseIrisHealthStatus,
+    parseProfileInfo,
+    parseProgrammingSubmission,
+    PROFILE_IRIS,
 } from '../types';
 import { CONFIG, getUserAgent, resolveServerUrl } from '../utils';
 

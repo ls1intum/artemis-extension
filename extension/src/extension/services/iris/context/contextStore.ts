@@ -2,10 +2,7 @@ import * as vscode from 'vscode';
 
 import { logger } from '@extension/services/loggingService';
 import type { TrackedCourse, TrackedExercise } from '@extension/types';
-import {
-    ActiveContext,
-    ContextSnapshot,
-} from '@extension/types';
+import { ActiveContext, ContextSnapshot } from '@extension/types';
 
 import { ContextPersistence } from './contextPersistence';
 import { buildContextSnapshot } from './contextSnapshot';

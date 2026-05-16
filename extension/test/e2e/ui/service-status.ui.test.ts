@@ -3,13 +3,13 @@ import * as assert from 'assert';
 import { By, until, VSBrowser, WebDriver, Workbench } from 'vscode-extension-tester';
 
 import {
-	getCredentials,
-	openArtemisView,
-	performLogin,
-	switchBackFromWebview,
-	switchToWebviewFrame,
-	takeScreenshot,
-	waitForElement,
+    getCredentials,
+    openArtemisView,
+    performLogin,
+    switchBackFromWebview,
+    switchToWebviewFrame,
+    takeScreenshot,
+    waitForElement,
 } from './helpers';
 
 describe('ServiceStatus View UI Tests', function () {

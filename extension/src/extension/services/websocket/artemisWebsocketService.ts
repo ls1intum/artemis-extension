@@ -5,11 +5,7 @@ import WebSocket from 'ws';
 import type { WebSocketDisplayStatus } from '@shared/messageContracts';
 
 import type { WebSocketMessageHandler } from '@extension/types';
-import {
-    parseProgrammingSubmission,
-    parseResultDTO,
-    parseSubmissionProcessingMessage,
-} from '@extension/types';
+import { parseProgrammingSubmission, parseResultDTO, parseSubmissionProcessingMessage } from '@extension/types';
 import { CONFIG, getUserAgent, resolveServerUrl, WEBSOCKET_TOPICS } from '@extension/utils';
 
 import { AuthManager } from '../auth';

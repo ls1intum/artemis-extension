@@ -2,12 +2,12 @@
 import { By, until, VSBrowser, WebDriver, Workbench } from 'vscode-extension-tester';
 
 import {
-	getCredentials,
-	openArtemisView,
-	performLogin,
-	switchBackFromWebview,
-	switchToWebviewFrame,
-	takeScreenshot,
+    getCredentials,
+    openArtemisView,
+    performLogin,
+    switchBackFromWebview,
+    switchToWebviewFrame,
+    takeScreenshot,
 } from './helpers';
 
 describe('ExamStart View UI Tests', function () {

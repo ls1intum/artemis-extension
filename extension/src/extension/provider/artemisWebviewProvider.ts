@@ -24,13 +24,31 @@ import { ProblemStatementRenderService } from '../services/problemStatementRende
 import type { TelemetryManager } from '../services/telemetry';
 import type { IProviderRegistry } from '../services/ui';
 import type { StartPageResult } from '../services/ui';
-import { BuildDiagnosticsService, ExerciseOpeningService, FullscreenPanelManager, StartPageResolver, SubmissionWebSocketHandler, ViewInitDataService } from '../services/ui';
+import {
+    BuildDiagnosticsService,
+    ExerciseOpeningService,
+    FullscreenPanelManager,
+    StartPageResolver,
+    SubmissionWebSocketHandler,
+    ViewInitDataService,
+} from '../services/ui';
 import { ArtemisWebsocketService } from '../services/websocket';
-import { collectExerciseSources, findExerciseByRepositoryUrl, findWorkspaceCourseInArchive, getWorkspaceRepositoryUrl } from '../services/workspace';
+import {
+    collectExerciseSources,
+    findExerciseByRepositoryUrl,
+    findWorkspaceCourseInArchive,
+    getWorkspaceRepositoryUrl,
+} from '../services/workspace';
 import type { ExerciseDetail, ExerciseDetailsResponse } from '../types';
 import { WebSocketMessageHandler } from '../types';
 import type { IArtemisWebviewProvider } from '../types/IArtemisWebviewProvider';
-import { AI_EXTENSIONS_BLOCKLIST, CONFIG, getRecommendedExtensionsByCategory, resolveServerUrl, VSCODE_CONFIG } from '../utils';
+import {
+    AI_EXTENSIONS_BLOCKLIST,
+    CONFIG,
+    getRecommendedExtensionsByCategory,
+    resolveServerUrl,
+    VSCODE_CONFIG,
+} from '../utils';
 import { BaseWebviewProvider } from './baseWebviewProvider';
 import type { BuildErrorCodeLensProvider } from './buildErrorCodeLensProvider';
 

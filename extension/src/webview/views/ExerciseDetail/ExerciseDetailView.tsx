@@ -15,10 +15,7 @@ import {
     IconButton,
     SkeletonList,
 } from '@webview/components';
-import {
-    ParticipationActions,
-    SubmissionStatus,
-} from '@webview/components/exercise';
+import { ParticipationActions, SubmissionStatus } from '@webview/components/exercise';
 import type { ExerciseType } from '@webview/components/exercise/ParticipationActions';
 import { TestResultsOverlay } from '@webview/components/exercise/TestResultsOverlay';
 import { useExerciseStatusMessages } from '@webview/hooks/useExerciseStatusMessages';
@@ -26,7 +23,12 @@ import { useExtensionMessage } from '@webview/hooks/useExtensionMessage';
 import { useWebSocketUpdates } from '@webview/hooks/useWebSocketUpdates';
 import { useExerciseDetailStore } from '@webview/stores/useExerciseDetailStore';
 import { filterTestCasesByIds } from '@webview/utils/exerciseStatus';
-import { determineParticipationStatus, determineSubmissionStatus, getLatestById, transformFeedbacksToTestCases } from '@webview/utils/exerciseStatus';
+import {
+    determineParticipationStatus,
+    determineSubmissionStatus,
+    getLatestById,
+    transformFeedbacksToTestCases,
+} from '@webview/utils/exerciseStatus';
 import { formatDate } from '@webview/utils/formatDate';
 import { getIcon } from '@webview/utils/iconMap';
 import { makeViewId } from '@webview/utils/viewId';

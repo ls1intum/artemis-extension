@@ -5,14 +5,14 @@ import * as assert from 'assert';
 import { ActivityBar, By, until, VSBrowser, WebDriver, Workbench } from 'vscode-extension-tester';
 
 import {
-	getCredentials,
-	openArtemisView,
-	performLogin,
-	runAxeInCurrentFrame,
-	switchBackFromWebview,
-	switchToWebviewFrame,
-	takeScreenshot,
-	waitForElement,
+    getCredentials,
+    openArtemisView,
+    performLogin,
+    runAxeInCurrentFrame,
+    switchBackFromWebview,
+    switchToWebviewFrame,
+    takeScreenshot,
+    waitForElement,
 } from './helpers';
 
 // ---------------------------------------------------------------------------

@@ -6,7 +6,12 @@ import { BackLink, Badge, Button, Container, PageHeader, SkeletonList } from '@w
 import { useExtensionMessage } from '@webview/hooks/useExtensionMessage';
 
 import styles from './RecommendedExtensionsView.module.css';
-import type { Extension, ExtensionCategory, RecommendedExtensionsPersistedState, RecommendedExtensionsViewProps } from './types';
+import type {
+    Extension,
+    ExtensionCategory,
+    RecommendedExtensionsPersistedState,
+    RecommendedExtensionsViewProps,
+} from './types';
 
 export function RecommendedExtensionsView({ vscodeApi }: RecommendedExtensionsViewProps) {
     const [categories, setCategories] = useState<ExtensionCategory[]>([]);

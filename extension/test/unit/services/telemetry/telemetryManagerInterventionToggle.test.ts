@@ -19,10 +19,7 @@ import * as assert from 'assert';
 import * as sinon from 'sinon';
 
 import { TelemetryManager } from '@extension/services/telemetry/telemetryManager';
-import type {
-    InterventionDecision,
-    SuppressedInterventionPayload,
-} from '@extension/services/telemetry/types';
+import type { InterventionDecision, SuppressedInterventionPayload } from '@extension/services/telemetry/types';
 
 interface ConfigStubValues {
     enabled?: boolean;
