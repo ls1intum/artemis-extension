@@ -12,6 +12,12 @@
 		"strict": true,   /* enable all strict type-checking options */
 		"skipLibCheck": true,   /* skip type checking of declaration files in node_modules (standard for multi-test-framework projects) */
 		"resolveJsonModule": true,
+		"baseUrl": ".",
+		"paths": {
+			"@extension/*": ["src/extension/*"],
+			"@webview/*": ["src/webview/*"],
+			"@shared/*": ["src/shared/*"]
+		},
 		"plugins": [
 			{ "name": "typescript-plugin-css-modules" }
 		],

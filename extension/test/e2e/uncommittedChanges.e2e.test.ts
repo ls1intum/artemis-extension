@@ -11,7 +11,7 @@
  */
 
 import * as assert from 'assert';
-import { logger, LogCategory } from '../../src/extension/services/loggingService';
+import { logger, LogCategory } from '@extension/services/loggingService';
 
 // =============================================================================
 // CONFIGURATION

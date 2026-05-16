@@ -1,5 +1,5 @@
-import { useExamTimer } from '../../hooks/useExamTimer';
-import { formatExamTimer } from '../../utils/formatExamTimer';
+import { useExamTimer } from '@webview/hooks/useExamTimer';
+import { formatExamTimer } from '@webview/utils/formatExamTimer';
 import clsx from 'clsx';
 import styles from './ExamTimer.module.css';
 

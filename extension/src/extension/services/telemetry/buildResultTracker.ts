@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import { BuildResult, SessionResettable, SessionStartContext } from './types';
-import { ResultDTO } from '../../types';
+import { ResultDTO } from '@extension/types';
 
 /**
  * Service that tracks server-side build results from Artemis.

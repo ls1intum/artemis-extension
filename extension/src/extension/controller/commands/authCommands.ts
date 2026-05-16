@@ -1,9 +1,9 @@
 import * as vscode from 'vscode';
 import type { CommandContext, CommandMap } from './types';
-import { getPayload, ExtensionMsg, WebviewCmd } from '../../../shared/messageContracts';
-import type { WebviewToExtensionMessage, WebCmd } from '../../../shared/messageContracts';
-import { CONFIG, VSCODE_CONFIG } from '../../utils/constants';
-import { logger, LogCategory } from '../../services/loggingService';
+import { getPayload, ExtensionMsg, WebviewCmd } from '@shared/messageContracts';
+import type { WebviewToExtensionMessage, WebCmd } from '@shared/messageContracts';
+import { CONFIG, VSCODE_CONFIG } from '@extension/utils/constants';
+import { logger, LogCategory } from '@extension/services/loggingService';
 
 export class AuthCommandModule {
     constructor(private readonly context: CommandContext) { }

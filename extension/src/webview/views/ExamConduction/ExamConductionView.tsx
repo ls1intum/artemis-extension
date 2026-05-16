@@ -1,19 +1,19 @@
 import { useEffect, useState } from 'react';
 import ExternalLink from 'lucide-react/dist/esm/icons/external-link';
-import { useExamConductionStore } from '../../stores/useExamConductionStore';
+import { useExamConductionStore } from '@webview/stores/useExamConductionStore';
 import type { ExamConductionViewProps } from './types';
-import { ExamTimer } from '../../components/ExamTimer/ExamTimer';
-import { TimerExpiredOverlay } from '../../components/TimerExpiredOverlay/TimerExpiredOverlay';
+import { ExamTimer } from '@webview/components/ExamTimer/ExamTimer';
+import { TimerExpiredOverlay } from '@webview/components/TimerExpiredOverlay/TimerExpiredOverlay';
 import { ExerciseList } from './components/ExerciseList';
-import { SkeletonList } from '../../components/Skeleton/SkeletonList';
-import { ErrorMessage } from '../../components/ErrorMessage/ErrorMessage';
-import { BackLink } from '../../components/BackLink/BackLink';
-import { Container } from '../../components/Container/Container';
-import { PageHeader } from '../../components/PageHeader/PageHeader';
-import { Badge } from '../../components/Badge/Badge';
-import { IconButton } from '../../components/Button/IconButton';
-import { useExtensionMessage } from '../../hooks/useExtensionMessage';
-import { ExtensionMsg, postCommand, requestInit } from '../../../shared/messageContracts';
+import { SkeletonList } from '@webview/components/Skeleton/SkeletonList';
+import { ErrorMessage } from '@webview/components/ErrorMessage/ErrorMessage';
+import { BackLink } from '@webview/components/BackLink/BackLink';
+import { Container } from '@webview/components/Container/Container';
+import { PageHeader } from '@webview/components/PageHeader/PageHeader';
+import { Badge } from '@webview/components/Badge/Badge';
+import { IconButton } from '@webview/components/Button/IconButton';
+import { useExtensionMessage } from '@webview/hooks/useExtensionMessage';
+import { ExtensionMsg, postCommand, requestInit } from '@shared/messageContracts';
 import styles from './ExamConductionView.module.css';
 
 /**

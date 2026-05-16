@@ -1,5 +1,5 @@
 import * as assert from 'assert';
-import { pickHighestId, extractLatestFeedbacks } from '../../../src/extension/utils/participationHelpers';
+import { pickHighestId, extractLatestFeedbacks } from '@extension/utils/participationHelpers';
 
 suite('participationHelpers', () => {
     suite('pickHighestId', () => {

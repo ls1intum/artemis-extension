@@ -39,7 +39,7 @@
  */
 
 import * as vscode from 'vscode';
-import type { WebSocketMessageHandler, ResultDTO } from '../../../types';
+import type { WebSocketMessageHandler, ResultDTO } from '@extension/types';
 import type { RecordedEvent, SerializedErrorSnapshot } from './types';
 
 /**
@@ -51,12 +51,12 @@ type RecordedEventWithoutTimestamp = RecordedEvent extends infer E
         ? Omit<E, 'timestamp'>
         : never
     : never;
-import type { PlatformCapabilities } from '../../../theia';
-import type { ExerciseRegistry } from '../../exerciseRegistry';
+import type { PlatformCapabilities } from '@extension/theia';
+import type { ExerciseRegistry } from '@extension/services/exerciseRegistry';
 import { RecordingStorageWriter } from './storageWriter';
 import { collectBuildResult } from './eventCollectors';
 import { shouldAcceptBuildResult } from '../buildResultGuard';
-import { logger, LogCategory } from '../../loggingService';
+import { logger, LogCategory } from '@extension/services/loggingService';
 import { RecorderLifecycleState, type RecorderPhase as RecorderPhaseFromState } from './lifecycle/recorderLifecycleState';
 import { LifecycleController } from './lifecycle/lifecycleController';
 import { SnapshotManager } from './snapshots/snapshotManager';

@@ -4,7 +4,7 @@ import type {
     TestResultsOverviewClosedPayload,
     TaskFeedbackOpenedPayload,
     TaskFeedbackClosedPayload,
-} from '../../shared/messageContracts/webviewCommands';
+} from '@shared/messageContracts/webviewCommands';
 
 /**
  * Minimal contract for the Artemis webview provider, exposing only what the

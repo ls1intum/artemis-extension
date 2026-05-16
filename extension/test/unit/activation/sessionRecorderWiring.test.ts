@@ -17,20 +17,20 @@ import * as os from 'os';
 import * as path from 'path';
 import * as sinon from 'sinon';
 import * as vscode from 'vscode';
-import { TelemetryManager } from '../../../src/extension/services/telemetry/telemetryManager';
-import { SessionRecorder } from '../../../src/extension/services/telemetry/recording/sessionRecorder';
-import { wireSessionRecorder } from '../../../src/extension/activation/sessionRecorderWiring';
-import type { RecordedEvent, InterventionEvent, ConfigurationSnapshotEvent, ConfigurationChangeEvent } from '../../../src/extension/services/telemetry/recording/types';
-import type { ConsentService } from '../../../src/extension/services/auth';
-import type { ArtemisWebsocketService } from '../../../src/extension/services/websocket';
-import type { ArtemisWebviewProvider, ChatWebviewProvider } from '../../../src/extension/provider';
-import type { InterventionDecision } from '../../../src/extension/services/telemetry/types';
+import { TelemetryManager } from '@extension/services/telemetry/telemetryManager';
+import { SessionRecorder } from '@extension/services/telemetry/recording/sessionRecorder';
+import { wireSessionRecorder } from '@extension/activation/sessionRecorderWiring';
+import type { RecordedEvent, InterventionEvent, ConfigurationSnapshotEvent, ConfigurationChangeEvent } from '@extension/services/telemetry/recording/types';
+import type { ConsentService } from '@extension/services/auth';
+import type { ArtemisWebsocketService } from '@extension/services/websocket';
+import type { ArtemisWebviewProvider, ChatWebviewProvider } from '@extension/provider';
+import type { InterventionDecision } from '@extension/services/telemetry/types';
 import type {
     TestResultsOverviewOpenedPayload,
     TestResultsOverviewClosedPayload,
     TaskFeedbackOpenedPayload,
     TaskFeedbackClosedPayload,
-} from '../../../src/shared/messageContracts/webviewCommands';
+} from '@shared/messageContracts/webviewCommands';
 
 interface MutableConfigState {
     enabled: boolean;

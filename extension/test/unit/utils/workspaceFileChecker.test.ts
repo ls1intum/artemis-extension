@@ -4,8 +4,8 @@ import * as path from 'path';
 import * as os from 'os';
 import * as vscode from 'vscode';
 import { execSync } from 'child_process';
-import { checkWorkspaceFiles } from '../../../src/extension/services/workspace/workspaceFileChecker';
-import { logger, LogCategory } from '../../../src/extension/services/loggingService';
+import { checkWorkspaceFiles } from '@extension/services/workspace/workspaceFileChecker';
+import { logger, LogCategory } from '@extension/services/loggingService';
 
 suite('Workspace File Checker Test Suite', () => {
     let tempDir: string;

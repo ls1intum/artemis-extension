@@ -11,7 +11,7 @@
 import * as assert from 'assert';
 import * as sinon from 'sinon';
 import * as vscode from 'vscode';
-import { initializeTheiaContext, getTheiaEnvironment } from '../../../src/extension/theia/theiaEnvironment';
+import { initializeTheiaContext, getTheiaEnvironment } from '@extension/theia/theiaEnvironment';
 
 suite('detectTheiaEnvironment / initializeTheiaContext', () => {
     let sandbox: sinon.SinonSandbox;

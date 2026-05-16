@@ -1,8 +1,8 @@
 import { useEffect, useMemo } from 'react';
-import { useCourseListStore } from '../../stores/useCourseListStore';
-import { useExtensionMessage } from '../../hooks/useExtensionMessage';
+import { useCourseListStore } from '@webview/stores/useCourseListStore';
+import { useExtensionMessage } from '@webview/hooks/useExtensionMessage';
 import type { CourseListViewProps, CourseListPersistedState, CourseData, ArchivedCourse } from './types';
-import type { CourseDashboardCourse } from '../../../shared/types/apiResponses';
+import type { CourseDashboardCourse } from '@shared/types/apiResponses';
 import {
     BackLink,
     IconButton,
@@ -14,9 +14,9 @@ import {
     Badge,
     SkeletonList,
     PageHeader,
-} from '../../components';
-import type { DropdownOption } from '../../components';
-import { ExtensionMsg, postCommand } from '../../../shared/messageContracts';
+} from '@webview/components';
+import type { DropdownOption } from '@webview/components';
+import { ExtensionMsg, postCommand } from '@shared/messageContracts';
 import styles from './CourseListView.module.css';
 
 export function CourseListView({ vscodeApi }: CourseListViewProps) {

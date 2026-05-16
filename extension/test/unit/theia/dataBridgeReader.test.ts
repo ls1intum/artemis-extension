@@ -13,7 +13,7 @@
 import * as assert from 'assert';
 import * as sinon from 'sinon';
 import * as vscode from 'vscode';
-import { readEnvVarsViaDataBridge } from '../../../src/extension/theia/dataBridgeReader';
+import { readEnvVarsViaDataBridge } from '@extension/theia/dataBridgeReader';
 
 const KEYS = ['ARTEMIS_URL', 'ARTEMIS_TOKEN'] as const;
 

@@ -1,10 +1,10 @@
 import * as assert from 'assert';
-import { ExerciseOpeningService } from '../../../src/extension/services/ui/exerciseOpeningService';
-import type { ExerciseRegistry } from '../../../src/extension/services/exerciseRegistry';
-import type { IProviderRegistry } from '../../../src/extension/services/ui/providerRegistry';
-import type { TelemetryManager } from '../../../src/extension/services/telemetry';
-import type { CourseAccessStorageService } from '../../../src/extension/services/courseAccessStorageService';
-import type { ExerciseDetailsResponse } from '../../../src/extension/types';
+import { ExerciseOpeningService } from '@extension/services/ui/exerciseOpeningService';
+import type { ExerciseRegistry } from '@extension/services/exerciseRegistry';
+import type { IProviderRegistry } from '@extension/services/ui/providerRegistry';
+import type { TelemetryManager } from '@extension/services/telemetry';
+import type { CourseAccessStorageService } from '@extension/services/courseAccessStorageService';
+import type { ExerciseDetailsResponse } from '@extension/types';
 
 class FakeCourseAccess {
     public readonly recorded: number[] = [];

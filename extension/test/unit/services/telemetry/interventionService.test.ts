@@ -22,10 +22,10 @@
 import * as assert from 'assert';
 import * as sinon from 'sinon';
 import * as vscode from 'vscode';
-import { InterventionService } from '../../../../src/extension/services/telemetry/interventionService';
-import { InterventionDecisionEngine } from '../../../../src/extension/services/telemetry/decision/interventionDecisionEngine';
-import { InterventionFilter } from '../../../../src/extension/services/telemetry/interventionFilter';
-import type { InterventionDecision, InterventionState } from '../../../../src/extension/services/telemetry/types';
+import { InterventionService } from '@extension/services/telemetry/interventionService';
+import { InterventionDecisionEngine } from '@extension/services/telemetry/decision/interventionDecisionEngine';
+import { InterventionFilter } from '@extension/services/telemetry/interventionFilter';
+import type { InterventionDecision, InterventionState } from '@extension/services/telemetry/types';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 

@@ -6,8 +6,8 @@ import {
 import type { IChatWebviewProvider } from '../types/IChatWebviewProvider';
 import { BaseWebviewProvider } from './baseWebviewProvider';
 import { ChatViewStatePresenter } from './chatViewStatePresenter';
-import { ExtensionMsg, WebviewCmd, getPayload } from '../../shared/messageContracts';
-import type { WebCmd, WebviewToExtensionMessage } from '../../shared/messageContracts';
+import { ExtensionMsg, WebviewCmd, getPayload } from '@shared/messageContracts';
+import type { WebCmd, WebviewToExtensionMessage } from '@shared/messageContracts';
 import { openSettings, openFileInWorkspace } from '../controller/commands/utilityCommands';
 import { ArtemisApiService } from '../api';
 import { ArtemisWebsocketService } from '../services/websocket';

@@ -17,7 +17,7 @@
 import * as assert from 'assert';
 import * as vscode from 'vscode';
 import * as path from 'path';
-import { shouldRecordUri, shouldRecordUriString } from '../../../../../src/extension/services/telemetry/recording/uriFilter';
+import { shouldRecordUri, shouldRecordUriString } from '@extension/services/telemetry/recording/uriFilter';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 

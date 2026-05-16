@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { ProblemStatement } from '../../../../../src/webview/views/ExerciseDetail/components/ProblemStatement';
+import { ProblemStatement } from '@webview/views/ExerciseDetail/components/ProblemStatement';
 
 describe('ProblemStatement', () => {
 	beforeEach(() => {

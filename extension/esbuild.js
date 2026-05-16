@@ -41,6 +41,7 @@ async function main() {
 		entryPoints: [
 			'src/extension.ts'
 		],
+		tsconfig: path.join(__dirname, 'tsconfig.json'),
 		bundle: true,
 		format: 'cjs',
 		minify: production,
@@ -61,6 +62,7 @@ async function main() {
 		entryPoints: [
 			'src/webview/index.tsx'
 		],
+		tsconfig: path.join(__dirname, 'tsconfig.json'),
 		bundle: true,
 		format: 'iife',
 		minify: production,

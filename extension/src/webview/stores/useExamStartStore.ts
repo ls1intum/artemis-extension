@@ -1,5 +1,5 @@
 import { createExamStore } from './createExamStore';
-import type { StudentExam } from '../../shared/types/apiResponses';
+import type { StudentExam } from '@shared/types/apiResponses';
 
 export const useExamStartStore = createExamStore(
     'ExamStartStore',

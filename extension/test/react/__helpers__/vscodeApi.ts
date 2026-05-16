@@ -1,5 +1,5 @@
 import { vi } from 'vitest';
-import type { VsCodeApi, ExtensionToWebviewMessage } from '../../../src/shared/messageContracts';
+import type { VsCodeApi, ExtensionToWebviewMessage } from '@shared/messageContracts';
 
 /**
  * Creates a mock VS Code API object for testing.

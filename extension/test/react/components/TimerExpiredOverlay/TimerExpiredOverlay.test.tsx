@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { TimerExpiredOverlay } from '../../../../src/webview/components/TimerExpiredOverlay/TimerExpiredOverlay';
+import { TimerExpiredOverlay } from '@webview/components/TimerExpiredOverlay/TimerExpiredOverlay';
 
 describe('TimerExpiredOverlay', () => {
 	it('renders the expired message when visible', () => {

@@ -5,7 +5,7 @@ import {
     COURSE_ACCESS_DISPLAY_LIMIT,
     type CourseAccessMap,
     type CourseAccessScope,
-} from '../../../src/extension/services/courseAccessStorageService';
+} from '@extension/services/courseAccessStorageService';
 import { MockMemento } from '../mocks/vscodeMocks';
 
 function waitFor(ms: number): Promise<void> {

@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
-import type { ExtensionToWebviewMessage, WebviewToExtensionMessage } from '../../shared/messageContracts';
-import { WebviewMsgType } from '../../shared/messageContracts';
-import { isWebviewMessage } from '../../shared/messageContracts/typeGuards';
+import type { ExtensionToWebviewMessage, WebviewToExtensionMessage } from '@shared/messageContracts';
+import { WebviewMsgType } from '@shared/messageContracts';
+import { isWebviewMessage } from '@shared/messageContracts/typeGuards';
 import { logger, LogCategory } from '../services/loggingService';
 
 /**

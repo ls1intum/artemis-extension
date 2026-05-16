@@ -32,7 +32,7 @@ vi.mock(
 	})
 );
 
-import { StreamingMessage } from '../../../../../src/webview/views/IrisChat/components/StreamingMessage';
+import { StreamingMessage } from '@webview/views/IrisChat/components/StreamingMessage';
 
 describe('StreamingMessage', () => {
 	it('renders without crashing', () => {

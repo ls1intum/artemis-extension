@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { CONFIG } from '../../utils';
+import { CONFIG } from '@extension/utils';
 import { logger, LogCategory } from '../loggingService';
 
 // Manages authentication tokens for both VS Code Desktop and Theia/EduIDE.

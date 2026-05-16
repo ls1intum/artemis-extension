@@ -19,7 +19,7 @@ import * as path from 'path';
 import { spawnSync } from 'child_process';
 import * as vscode from 'vscode';
 
-import { SessionRecorder } from '../../src/extension/services/telemetry/recording/sessionRecorder';
+import { SessionRecorder } from '@extension/services/telemetry/recording/sessionRecorder';
 import type {
     RecordedEvent,
     TextChangeEvent,
@@ -32,7 +32,7 @@ import type {
     TerminalOpenCloseEvent,
     SessionStartEvent,
     SessionEndEvent,
-} from '../../src/extension/services/telemetry/recording/types';
+} from '@extension/services/telemetry/recording/types';
 
 const sleep = (ms: number) => new Promise<void>(resolve => setTimeout(resolve, ms));
 

@@ -1,12 +1,12 @@
 import * as vscode from 'vscode';
 import { AuthManager } from './authManager';
-import { ArtemisApiService } from '../../api';
-import { ExtensionMsg } from '../../../shared/messageContracts';
-import type { ExtensionToWebviewMessage } from '../../../shared/messageContracts';
-import type { UserInfo } from '../../controller/appStateManager';
+import { ArtemisApiService } from '@extension/api';
+import { ExtensionMsg } from '@shared/messageContracts';
+import type { ExtensionToWebviewMessage } from '@shared/messageContracts';
+import type { UserInfo } from '@extension/controller/appStateManager';
 import { logger, LogCategory } from '../loggingService';
-import { CONFIG, VSCODE_CONFIG, resolveServerUrl } from '../../utils';
-import { getTheiaEnvironment } from '../../theia';
+import { CONFIG, VSCODE_CONFIG, resolveServerUrl } from '@extension/utils';
+import { getTheiaEnvironment } from '@extension/theia';
 
 export class AuthFlowHandler {
     constructor(

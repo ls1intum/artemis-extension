@@ -21,15 +21,15 @@ import { ProblemStatementRenderService } from '../services/problemStatementRende
 import { BaseWebviewProvider } from './baseWebviewProvider';
 import type { BuildErrorCodeLensProvider } from './buildErrorCodeLensProvider';
 import type { CourseDataCache } from '../services/courseDataCache';
-import { ExtensionMsg, toCourseDetailData } from '../../shared/messageContracts';
-import type { ExtensionToWebviewMessage, WebviewToExtensionMessage, CourseDetailData } from '../../shared/messageContracts';
+import { ExtensionMsg, toCourseDetailData } from '@shared/messageContracts';
+import type { ExtensionToWebviewMessage, WebviewToExtensionMessage, CourseDetailData } from '@shared/messageContracts';
 import type { ExerciseDetail, ExerciseDetailsResponse } from '../types';
 import type {
     TestResultsOverviewOpenedPayload,
     TestResultsOverviewClosedPayload,
     TaskFeedbackOpenedPayload,
     TaskFeedbackClosedPayload,
-} from '../../shared/messageContracts/webviewCommands';
+} from '@shared/messageContracts/webviewCommands';
 import type { IArtemisWebviewProvider } from '../types/IArtemisWebviewProvider';
 
 /**

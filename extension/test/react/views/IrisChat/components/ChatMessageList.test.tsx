@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
-import type { ChatMessage, StreamingState, IrisStageDTO } from '../../../../../src/webview/views/IrisChat/types';
+import type { ChatMessage, StreamingState, IrisStageDTO } from '@webview/views/IrisChat/types';
 
 // Mock use-stick-to-bottom (ESM package used via useAutoScroll)
 vi.mock('use-stick-to-bottom', () => ({
@@ -29,7 +29,7 @@ vi.mock(
 	})
 );
 
-import { ChatMessageList } from '../../../../../src/webview/views/IrisChat/components/ChatMessageList';
+import { ChatMessageList } from '@webview/views/IrisChat/components/ChatMessageList';
 
 const defaultStreaming: StreamingState = {
 	isStreaming: false,

@@ -1,5 +1,5 @@
 import * as assert from 'assert';
-import { contextToIrisMode } from '../../../../../src/extension/services/iris/context/contextChatMode';
+import { contextToIrisMode } from '@extension/services/iris/context/contextChatMode';
 
 suite('contextToIrisMode', () => {
     test('maps course → COURSE_CHAT', () => {

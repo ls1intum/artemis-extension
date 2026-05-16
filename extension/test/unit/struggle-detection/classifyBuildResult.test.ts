@@ -9,8 +9,8 @@
  */
 
 import * as assert from 'assert';
-import { classifyBuildResult } from '../../../src/extension/services/telemetry/eventPipeline/compileEquivalentEmitter';
-import type { ResultDTO } from '../../../src/extension/domain/submissions';
+import { classifyBuildResult } from '@extension/services/telemetry/eventPipeline/compileEquivalentEmitter';
+import type { ResultDTO } from '@extension/domain/submissions';
 
 function makeResult(overrides: Partial<ResultDTO> = {}): ResultDTO {
     return {

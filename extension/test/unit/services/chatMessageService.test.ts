@@ -1,13 +1,13 @@
 import * as assert from 'assert';
 import * as vscode from 'vscode';
 import * as sinon from 'sinon';
-import { ChatMessageService } from '../../../src/extension/services/iris/chat/chatMessageService';
-import { IrisChatSessionService } from '../../../src/extension/services/iris/chat/chatSessionService';
-import { ContextStore } from '../../../src/extension/services/iris/context/contextStore';
-import { ArtemisApiService } from '../../../src/extension/api';
+import { ChatMessageService } from '@extension/services/iris/chat/chatMessageService';
+import { IrisChatSessionService } from '@extension/services/iris/chat/chatSessionService';
+import { ContextStore } from '@extension/services/iris/context/contextStore';
+import { ArtemisApiService } from '@extension/api';
 import { MockExtensionContext } from '../mocks/vscodeMocks';
-import * as workspaceFileChecker from '../../../src/extension/services/workspace/workspaceFileChecker';
-import type { ActiveContext } from '../../../src/extension/types';
+import * as workspaceFileChecker from '@extension/services/workspace/workspaceFileChecker';
+import type { ActiveContext } from '@extension/types';
 
 suite('ChatMessageService', () => {
     let sandbox: sinon.SinonSandbox;

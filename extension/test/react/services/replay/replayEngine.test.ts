@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import { replaySession } from '../../../../src/extension/services/telemetry/replay/replayEngine';
-import type { RecordedEvent, DiagnosticsEvent, SaveEvent, BuildResultEvent } from '../../../../src/extension/services/telemetry/recording/types';
-import { DEFAULT_EQ_CONFIG } from '../../../../src/extension/services/telemetry/types';
+import { replaySession } from '@extension/services/telemetry/replay/replayEngine';
+import type { RecordedEvent, DiagnosticsEvent, SaveEvent, BuildResultEvent } from '@extension/services/telemetry/recording/types';
+import { DEFAULT_EQ_CONFIG } from '@extension/services/telemetry/types';
 
 function diagEvent(timestamp: number, uri: string, diagnostics: DiagnosticsEvent['diagnostics']): DiagnosticsEvent {
     return { type: 'diagnostics', timestamp, uri, diagnostics };

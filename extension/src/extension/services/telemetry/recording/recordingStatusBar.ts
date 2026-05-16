@@ -6,7 +6,7 @@
 
 import * as vscode from 'vscode';
 import type { SessionRecorder } from './sessionRecorder';
-import { logger, LogCategory } from '../../loggingService';
+import { logger, LogCategory } from '@extension/services/loggingService';
 
 export class RecordingStatusBarService implements vscode.Disposable {
     private readonly _statusBarItem: vscode.StatusBarItem;

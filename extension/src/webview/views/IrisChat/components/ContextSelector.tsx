@@ -1,7 +1,7 @@
 import { useState, useRef, useMemo } from 'react';
 import clsx from 'clsx';
-import { useClickOutside } from '../../../hooks/useClickOutside';
-import { formatRelativeTime } from '../../../utils/formatRelativeTime';
+import { useClickOutside } from '@webview/hooks/useClickOutside';
+import { formatRelativeTime } from '@webview/utils/formatRelativeTime';
 import FolderGit2 from 'lucide-react/dist/esm/icons/folder-git-2';
 import Plus from 'lucide-react/dist/esm/icons/plus';
 import File from 'lucide-react/dist/esm/icons/file';
@@ -12,7 +12,7 @@ import Search from 'lucide-react/dist/esm/icons/search';
 import MessageSquare from 'lucide-react/dist/esm/icons/message-square';
 import Check from 'lucide-react/dist/esm/icons/check';
 import type { ChatContext, ChatSession, ContextItem } from '../types';
-import type { ChatContextType } from '../../../../shared/types/context';
+import type { ChatContextType } from '@shared/types/context';
 import styles from './ContextSelector.module.css';
 
 interface ContextSelectorProps {

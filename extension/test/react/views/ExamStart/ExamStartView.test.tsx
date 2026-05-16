@@ -1,9 +1,9 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { ExamStartView } from '../../../../src/webview/views/ExamStart/ExamStartView';
-import { useExamStartStore } from '../../../../src/webview/stores/useExamStartStore';
-import type { StudentExam } from '../../../../src/shared/types/apiResponses';
+import { ExamStartView } from '@webview/views/ExamStart/ExamStartView';
+import { useExamStartStore } from '@webview/stores/useExamStartStore';
+import type { StudentExam } from '@shared/types/apiResponses';
 import { createMockVsCodeApi, dispatchExtensionMessage } from '../../__helpers__/vscodeApi';
 
 // Mock useExamTimer to avoid Web Worker

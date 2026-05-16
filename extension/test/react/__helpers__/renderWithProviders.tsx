@@ -1,6 +1,6 @@
 import { render, RenderOptions } from '@testing-library/react';
 import { ReactElement } from 'react';
-import { VsCodeApi } from '../../../src/shared/messageContracts';
+import { VsCodeApi } from '@shared/messageContracts';
 import { createMockVsCodeApi } from './vscodeApi';
 
 /**

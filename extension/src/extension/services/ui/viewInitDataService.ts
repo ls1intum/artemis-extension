@@ -1,14 +1,14 @@
 import * as vscode from 'vscode';
-import { AppStateManager } from '../../controller/appStateManager';
+import { AppStateManager } from '@extension/controller/appStateManager';
 import type { TelemetryManager } from '../telemetry/telemetryManager';
-import type { WebViewMessageHandler } from '../../controller/webViewMessageHandler';
-import { ExtensionMsg } from '../../../shared/messageContracts';
-import type { ExtensionToWebviewMessage, CourseDetailData as CourseDetailPayload } from '../../../shared/messageContracts';
-import type { CourseDashboardEntry, ExerciseDetail, ExerciseDetailsResponse } from '../../types';
+import type { WebViewMessageHandler } from '@extension/controller/webViewMessageHandler';
+import { ExtensionMsg } from '@shared/messageContracts';
+import type { ExtensionToWebviewMessage, CourseDetailData as CourseDetailPayload } from '@shared/messageContracts';
+import type { CourseDashboardEntry, ExerciseDetail, ExerciseDetailsResponse } from '@extension/types';
 import { detectWorkspaceExercise, detectWorkspaceForRepoUris, type ExerciseSource } from '../workspace/workspaceDetectionService';
 import { GitService } from '../workspace/gitService';
 import { logger, LogCategory } from '../loggingService';
-import { VSCODE_CONFIG, CONFIG, resolveServerUrl } from '../../utils';
+import { VSCODE_CONFIG, CONFIG, resolveServerUrl } from '@extension/utils';
 import { COURSE_ACCESS_DISPLAY_LIMIT, type CourseAccessStorageService } from '../courseAccessStorageService';
 import { selectRecentCourses } from './recentCourseSelector';
 

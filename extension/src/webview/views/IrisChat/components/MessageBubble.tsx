@@ -5,8 +5,8 @@ import clsx from 'clsx';
 import ThumbsUp from 'lucide-react/dist/esm/icons/thumbs-up';
 import ThumbsDown from 'lucide-react/dist/esm/icons/thumbs-down';
 import { StreamingMessage } from './StreamingMessage';
-import { useStreamdownConfig } from '../../../hooks/useStreamdownConfig';
-import { formatRelativeTime } from '../../../utils/formatRelativeTime';
+import { useStreamdownConfig } from '@webview/hooks/useStreamdownConfig';
+import { formatRelativeTime } from '@webview/utils/formatRelativeTime';
 import type { ChatMessage } from '../types';
 import styles from './MessageBubble.module.css';
 

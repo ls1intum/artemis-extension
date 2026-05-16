@@ -1,4 +1,4 @@
-import type { StoredSession, ActiveContext, ChatContextType } from '../../../types';
+import type { StoredSession, ActiveContext, ChatContextType } from '@extension/types';
 
 const SESSION_KEY_SEPARATOR = ':';
 

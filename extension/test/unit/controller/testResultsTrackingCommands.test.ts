@@ -1,8 +1,8 @@
 import * as assert from 'assert';
 import * as sinon from 'sinon';
-import { TestResultsTrackingCommandModule } from '../../../src/extension/controller/commands/testResultsTrackingCommands';
-import type { CommandContext } from '../../../src/extension/controller/commands/types';
-import { WebviewCmd } from '../../../src/shared/messageContracts/webviewCommands';
+import { TestResultsTrackingCommandModule } from '@extension/controller/commands/testResultsTrackingCommands';
+import type { CommandContext } from '@extension/controller/commands/types';
+import { WebviewCmd } from '@shared/messageContracts/webviewCommands';
 
 suite('TestResultsTrackingCommandModule', () => {
     let fireOverviewOpenedStub: sinon.SinonStub;

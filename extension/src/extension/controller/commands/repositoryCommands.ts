@@ -2,16 +2,16 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
 import type { CommandContext, CommandMap } from './types';
-import { getPayload, getOptionalPayload, ExtensionMsg, WebviewCmd } from '../../../shared/messageContracts';
+import { getPayload, getOptionalPayload, ExtensionMsg, WebviewCmd } from '@shared/messageContracts';
 import type {
     WebviewToExtensionMessage,
     WebCmd,
-} from '../../../shared/messageContracts';
-import { VSCODE_CONFIG, extractErrorMessage, BuildLogParser } from '../../utils';
-import { checkWorkspaceFiles } from '../../services/workspace/workspaceFileChecker';
-import { normalizeRepositoryUrl, getWorkspaceRepositoryUrl, getWorkspaceStatus, GitService } from '../../services/workspace';
-import { logger, LogCategory } from '../../services/loggingService';
-import { cloneRepositoryProgrammatic, getTheiaEnvironment } from '../../theia';
+} from '@shared/messageContracts';
+import { VSCODE_CONFIG, extractErrorMessage, BuildLogParser } from '@extension/utils';
+import { checkWorkspaceFiles } from '@extension/services/workspace/workspaceFileChecker';
+import { normalizeRepositoryUrl, getWorkspaceRepositoryUrl, getWorkspaceStatus, GitService } from '@extension/services/workspace';
+import { logger, LogCategory } from '@extension/services/loggingService';
+import { cloneRepositoryProgrammatic, getTheiaEnvironment } from '@extension/theia';
 
 const GIT_IDENTITY_NOT_CONFIGURED = 'GIT_IDENTITY_NOT_CONFIGURED';
 

@@ -17,11 +17,11 @@
 import * as assert from 'assert';
 import * as sinon from 'sinon';
 import * as vscode from 'vscode';
-import { TelemetryManager } from '../../../../src/extension/services/telemetry/telemetryManager';
+import { TelemetryManager } from '@extension/services/telemetry/telemetryManager';
 import type {
     InterventionDecision,
     SuppressedInterventionPayload,
-} from '../../../../src/extension/services/telemetry/types';
+} from '@extension/services/telemetry/types';
 
 interface ConfigStubValues {
     enabled?: boolean;

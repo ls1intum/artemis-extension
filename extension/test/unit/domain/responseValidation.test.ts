@@ -15,7 +15,7 @@ import {
     expectArray,
     parseApiObject,
     MalformedResponseError,
-} from '../../../src/extension/domain';
+} from '@extension/domain';
 
 suite('expectObject', () => {
     test('returns the value when it is a plain object', () => {

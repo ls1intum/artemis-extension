@@ -1,12 +1,12 @@
 import * as assert from 'assert';
 import * as sinon from 'sinon';
-import { ArtemisWebsocketService } from '../../../src/extension/services/websocket/artemisWebsocketService';
-import { IrisWebSocketSessionClient } from '../../../src/extension/services/iris/transport/irisWebSocketSessionClient';
+import { ArtemisWebsocketService } from '@extension/services/websocket/artemisWebsocketService';
+import { IrisWebSocketSessionClient } from '@extension/services/iris/transport/irisWebSocketSessionClient';
 import { MockExtensionContext } from '../mocks/vscodeMocks';
-import { AuthManager } from '../../../src/extension/services/auth/authManager';
-import { ArtemisApiService } from '../../../src/extension/api';
+import { AuthManager } from '@extension/services/auth/authManager';
+import { ArtemisApiService } from '@extension/api';
 import { Client, StompConfig, IMessage, StompSubscription } from '@stomp/stompjs';
-import { ActiveContext } from '../../../src/extension/types';
+import { ActiveContext } from '@extension/types';
 
 // Helper to create a valid ActiveContext for tests
 function createTestContext(type: 'exercise' | 'course', id: number, title: string): ActiveContext {

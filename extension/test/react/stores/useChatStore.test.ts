@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
-import { useChatStore } from '../../../src/webview/stores/useChatStore';
-import type { ChatMessage, ChatContext, ReferencedFilesData, IrisStageDTO } from '../../../src/webview/views/IrisChat/types';
-import type { ExtMsg } from '../../../src/shared/messageContracts';
+import { useChatStore } from '@webview/stores/useChatStore';
+import type { ChatMessage, ChatContext, ReferencedFilesData, IrisStageDTO } from '@webview/views/IrisChat/types';
+import type { ExtMsg } from '@shared/messageContracts';
 
 const makeMessage = (overrides: Partial<ChatMessage> = {}): ChatMessage => ({
 	localId: 'local-1',

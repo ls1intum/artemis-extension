@@ -1,12 +1,12 @@
 import { create } from 'zustand';
 import { devtools } from 'zustand/middleware';
-import { postCommand, type VsCodeApi } from '../../shared/messageContracts';
+import { postCommand, type VsCodeApi } from '@shared/messageContracts';
 import type {
     ExerciseDetailsResponse,
     ParticipationSummary,
     ResultSummary,
     SubmissionSummary,
-} from '../../shared/types/apiResponses';
+} from '@shared/types/apiResponses';
 
 interface RepoStatus {
     isConnected: boolean;

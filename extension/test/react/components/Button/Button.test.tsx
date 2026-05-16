@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { Button } from '../../../../src/webview/components/Button/Button';
+import { Button } from '@webview/components/Button/Button';
 
 describe('Button', () => {
 	it('renders with correct text', () => {

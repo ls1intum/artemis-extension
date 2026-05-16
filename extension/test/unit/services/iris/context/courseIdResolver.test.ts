@@ -1,7 +1,7 @@
 import * as assert from 'assert';
 import * as sinon from 'sinon';
-import { resolveCourseIdFromContext } from '../../../../../src/extension/services/iris/context/courseIdResolver';
-import type { ActiveContext } from '../../../../../src/shared/types/context';
+import { resolveCourseIdFromContext } from '@extension/services/iris/context/courseIdResolver';
+import type { ActiveContext } from '@shared/types/context';
 
 function makeContextStore(overrides: any = {}): any {
     return {

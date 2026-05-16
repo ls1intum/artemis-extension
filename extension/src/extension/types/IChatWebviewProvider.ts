@@ -1,4 +1,4 @@
-import type { ActiveContext } from '../../shared/types/context';
+import type { ActiveContext } from '@shared/types/context';
 
 /**
  * Minimal interface for ChatWebviewProvider, consumed by ProviderRegistry for dependency inversion.

@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { render, screen } from '@testing-library/react';
-import { Skeleton } from '../../../../src/webview/components/Skeleton/Skeleton';
-import { SkeletonList } from '../../../../src/webview/components/Skeleton/SkeletonList';
+import { Skeleton } from '@webview/components/Skeleton/Skeleton';
+import { SkeletonList } from '@webview/components/Skeleton/SkeletonList';
 
 describe('Skeleton', () => {
 	it('renders a loading placeholder element', () => {

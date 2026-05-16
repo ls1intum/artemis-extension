@@ -1,4 +1,4 @@
-import type { VsCodeApi } from '../../../shared/messageContracts';
+import type { VsCodeApi } from '@shared/messageContracts';
 
 /**
  * Individual extension metadata.

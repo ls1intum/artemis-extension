@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { SubmissionStatus } from '../../../../../src/webview/components/exercise/SubmissionStatus';
+import { SubmissionStatus } from '@webview/components/exercise/SubmissionStatus';
 
 describe('SubmissionStatus', () => {
 	it('shows no-submission state for programming exercise', () => {

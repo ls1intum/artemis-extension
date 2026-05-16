@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { ServiceHealth, ServiceInfo } from '../../../../src/webview/components/ServiceHealth/ServiceHealth';
+import { ServiceHealth, ServiceInfo } from '@webview/components/ServiceHealth/ServiceHealth';
 
 const onlineService: ServiceInfo = {
 	name: 'Artemis API',

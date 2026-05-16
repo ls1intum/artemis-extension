@@ -15,15 +15,15 @@
 
 import * as assert from 'assert';
 import * as vscode from 'vscode';
-import { SessionRecorder } from '../../../../../src/extension/services/telemetry/recording/sessionRecorder';
+import { SessionRecorder } from '@extension/services/telemetry/recording/sessionRecorder';
 import type {
     RecordedEvent,
     InterventionEvent,
     ConfigurationSnapshotEvent,
     ConfigurationChangeEvent,
-} from '../../../../../src/extension/services/telemetry/recording/types';
-import { RecordingStorageWriter } from '../../../../../src/extension/services/telemetry/recording/storageWriter';
-import type { RecordingFs } from '../../../../../src/extension/services/telemetry/recording/storageWriter';
+} from '@extension/services/telemetry/recording/types';
+import { RecordingStorageWriter } from '@extension/services/telemetry/recording/storageWriter';
+import type { RecordingFs } from '@extension/services/telemetry/recording/storageWriter';
 
 // ── Fake FS with full pause-control ───────────────────────────────────────
 

@@ -1,14 +1,14 @@
 import { useEffect, useState } from 'react';
 import DOMPurify from 'dompurify';
-import { useExamStartStore } from '../../stores/useExamStartStore';
-import { useRelativeTime } from '../../hooks/useRelativeTime';
-import { useExamTimer } from '../../hooks/useExamTimer';
-import { useExtensionMessage } from '../../hooks/useExtensionMessage';
-import { ExamTimer } from '../../components/ExamTimer/ExamTimer';
-import { TimerExpiredOverlay } from '../../components/TimerExpiredOverlay/TimerExpiredOverlay';
-import { BackLink, Container, Button, SkeletonList, ErrorMessage, Badge } from '../../components';
+import { useExamStartStore } from '@webview/stores/useExamStartStore';
+import { useRelativeTime } from '@webview/hooks/useRelativeTime';
+import { useExamTimer } from '@webview/hooks/useExamTimer';
+import { useExtensionMessage } from '@webview/hooks/useExtensionMessage';
+import { ExamTimer } from '@webview/components/ExamTimer/ExamTimer';
+import { TimerExpiredOverlay } from '@webview/components/TimerExpiredOverlay/TimerExpiredOverlay';
+import { BackLink, Container, Button, SkeletonList, ErrorMessage, Badge } from '@webview/components';
 import type { ExamStartViewProps } from './types';
-import { ExtensionMsg, postCommand, requestInit } from '../../../shared/messageContracts';
+import { ExtensionMsg, postCommand, requestInit } from '@shared/messageContracts';
 import styles from './ExamStartView.module.css';
 
 export function ExamStartView({ vscodeApi }: ExamStartViewProps) {

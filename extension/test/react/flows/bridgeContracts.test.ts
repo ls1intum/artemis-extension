@@ -10,7 +10,7 @@
  * - One describe block per state transition
  */
 import { describe, it, expect } from 'vitest';
-import { isExtensionMessage } from '../../../src/shared/messageContracts';
+import { isExtensionMessage } from '@shared/messageContracts';
 import {
     createDashboardPayload,
     createCourseListPayload,

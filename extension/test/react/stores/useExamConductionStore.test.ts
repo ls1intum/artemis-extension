@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
-import { useExamConductionStore } from '../../../src/webview/stores/useExamConductionStore';
+import { useExamConductionStore } from '@webview/stores/useExamConductionStore';
 
 const makeExamPayload = (overrides: Record<string, unknown> = {}) => ({
 	studentExam: { id: 1, exercises: [] },
