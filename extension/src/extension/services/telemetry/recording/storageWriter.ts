@@ -33,12 +33,14 @@
  */
 
 import * as crypto from 'crypto';
-import * as fsPromises from 'fs/promises';
 import * as fsSync from 'fs';
+import * as fsPromises from 'fs/promises';
 import * as path from 'path';
-import type { RecordedEvent, SessionMetadata } from './types';
-import { logger, LogCategory } from '@extension/services/loggingService';
+
+import { LogCategory, logger } from '@extension/services/loggingService';
+
 import pkg from '../../../../../package.json';
+import type { RecordedEvent, SessionMetadata } from './types';
 
 const BUFFER_THRESHOLD = 10;
 const FLUSH_INTERVAL_MS = 1_000;

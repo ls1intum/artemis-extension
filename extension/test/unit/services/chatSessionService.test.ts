@@ -1,11 +1,13 @@
+import * as vscode from 'vscode';
 import * as assert from 'assert';
 import * as sinon from 'sinon';
-import * as vscode from 'vscode';
+
+import { ArtemisApiService } from '@extension/api';
 import { IrisChatSessionService } from '@extension/services/iris/chat/chatSessionService';
 import { ContextStore } from '@extension/services/iris/context/contextStore';
-import { ArtemisApiService } from '@extension/api';
 import { IrisWebSocketSessionClient } from '@extension/services/iris/transport/irisWebSocketSessionClient';
 import { ActiveContext } from '@extension/types';
+
 import { MockExtensionContext } from '../mocks/vscodeMocks';
 
 suite('IrisChatSessionService Test Suite', () => {

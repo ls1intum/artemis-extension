@@ -1,10 +1,11 @@
-import { useState, useEffect } from 'react';
+import Check from 'lucide-react/dist/esm/icons/check';
+import Copy from 'lucide-react/dist/esm/icons/copy';
+import { useEffect, useState } from 'react';
 // @ts-expect-error - shiki ESM imports resolved by esbuild at bundle time (TS1479: Node16 module resolution vs ESM)
 import { createHighlighterCore } from 'shiki/core';
 // @ts-expect-error - shiki ESM imports resolved by esbuild at bundle time (TS1479: Node16 module resolution vs ESM)
 import { createJavaScriptRegexEngine } from 'shiki/engine/javascript';
-import Check from 'lucide-react/dist/esm/icons/check';
-import Copy from 'lucide-react/dist/esm/icons/copy';
+
 import styles from './CodeBlock.module.css';
 
 interface CodeBlockProps {

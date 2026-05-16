@@ -2,12 +2,12 @@ import * as fs from 'fs';
 import * as path from 'path';
 import {
 	ActivityBar,
-	SideBarView,
-	WebviewView,
-	VSBrowser,
 	By,
-	WebDriver,
+	SideBarView,
 	until,
+	VSBrowser,
+	WebDriver,
+	WebviewView,
 } from 'vscode-extension-tester';
 
 // Resolve to the source tree screenshots dir (not the out/ compiled dir)

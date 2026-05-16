@@ -1,15 +1,18 @@
-import { useEffect, useState } from 'react';
 import DOMPurify from 'dompurify';
-import { useExamStartStore } from '@webview/stores/useExamStartStore';
-import { useRelativeTime } from '@webview/hooks/useRelativeTime';
-import { useExamTimer } from '@webview/hooks/useExamTimer';
-import { useExtensionMessage } from '@webview/hooks/useExtensionMessage';
+import { useEffect, useState } from 'react';
+
+import { ExtensionMsg, postCommand, requestInit } from '@shared/messageContracts';
+
+import { BackLink, Badge, Button, Container, ErrorMessage, SkeletonList } from '@webview/components';
 import { ExamTimer } from '@webview/components/ExamTimer/ExamTimer';
 import { TimerExpiredOverlay } from '@webview/components/TimerExpiredOverlay/TimerExpiredOverlay';
-import { BackLink, Container, Button, SkeletonList, ErrorMessage, Badge } from '@webview/components';
-import type { ExamStartViewProps } from './types';
-import { ExtensionMsg, postCommand, requestInit } from '@shared/messageContracts';
+import { useExamTimer } from '@webview/hooks/useExamTimer';
+import { useExtensionMessage } from '@webview/hooks/useExtensionMessage';
+import { useRelativeTime } from '@webview/hooks/useRelativeTime';
+import { useExamStartStore } from '@webview/stores/useExamStartStore';
+
 import styles from './ExamStartView.module.css';
+import type { ExamStartViewProps } from './types';
 
 export function ExamStartView({ vscodeApi }: ExamStartViewProps) {
     const { studentExam, courseId, examId, isLoading, error, setExamStartData, setError } = useExamStartStore();

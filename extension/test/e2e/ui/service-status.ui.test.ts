@@ -1,14 +1,15 @@
 // Covers E2EV-12: ServiceStatus view E2E smoke test
-import { VSBrowser, WebDriver, Workbench, By, until } from 'vscode-extension-tester';
 import * as assert from 'assert';
+import { By, until, VSBrowser, WebDriver, Workbench } from 'vscode-extension-tester';
+
 import {
-	openArtemisView,
-	switchToWebviewFrame,
-	switchBackFromWebview,
-	waitForElement,
-	takeScreenshot,
 	getCredentials,
+	openArtemisView,
 	performLogin,
+	switchBackFromWebview,
+	switchToWebviewFrame,
+	takeScreenshot,
+	waitForElement,
 } from './helpers';
 
 describe('ServiceStatus View UI Tests', function () {

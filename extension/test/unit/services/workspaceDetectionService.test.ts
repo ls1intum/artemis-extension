@@ -1,13 +1,13 @@
-import * as assert from 'assert';
 import * as vscode from 'vscode';
+import * as assert from 'assert';
+
 import {
-    normalizeRepositoryUrl,
-    findExerciseByRepositoryUrl,
-    getWorkspaceRepositoryUrl,
+    type DetectedExercise,
     detectWorkspaceExercise,
     type ExerciseSource,
-    type DetectedExercise
-} from '@extension/services/workspace/workspaceDetectionService';
+    findExerciseByRepositoryUrl,
+    getWorkspaceRepositoryUrl,
+    normalizeRepositoryUrl} from '@extension/services/workspace/workspaceDetectionService';
 
 suite('WorkspaceDetectionService', () => {
     suite('normalizeRepositoryUrl', () => {

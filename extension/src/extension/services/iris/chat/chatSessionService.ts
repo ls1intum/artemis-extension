@@ -1,11 +1,13 @@
+import { ExtensionMsg } from '@shared/messageContracts';
+
+import { LogCategory, logger } from '@extension/services/loggingService';
 import { ActiveContext, ApiError, type IrisChatMessage, type IrisSettingsResponse } from '@extension/types';
+
+import { resolveCourseIdFromContext } from '../context/courseIdResolver';
+import type { IrisServiceDeps } from '../context/sessionSyncUtils';
+import { fetchSessionsWithMessages, importSessionsToStore } from '../context/sessionSyncUtils';
 import type { IrisWebSocketSessionClient } from '../transport/irisWebSocketSessionClient';
 import { extractIrisMessageContent } from './messageUtils';
-import { logger, LogCategory } from '@extension/services/loggingService';
-import { ExtensionMsg } from '@shared/messageContracts';
-import { fetchSessionsWithMessages, importSessionsToStore } from '../context/sessionSyncUtils';
-import type { IrisServiceDeps } from '../context/sessionSyncUtils';
-import { resolveCourseIdFromContext } from '../context/courseIdResolver';
 
 /**
  * Orchestrates Iris chat session lifecycle (create, load, switch).

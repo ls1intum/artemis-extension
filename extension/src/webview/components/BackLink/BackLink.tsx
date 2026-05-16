@@ -1,6 +1,7 @@
-import { ReactNode } from 'react';
 import clsx from 'clsx';
 import ChevronLeft from 'lucide-react/dist/esm/icons/chevron-left';
+import { ReactNode } from 'react';
+
 import styles from './BackLink.module.css';
 
 interface BackLinkProps {

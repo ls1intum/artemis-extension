@@ -10,11 +10,12 @@
  */
 
 import * as assert from 'assert';
+
 import {
-    expectObject,
     expectArray,
-    parseApiObject,
+    expectObject,
     MalformedResponseError,
+    parseApiObject,
 } from '@extension/domain';
 
 suite('expectObject', () => {

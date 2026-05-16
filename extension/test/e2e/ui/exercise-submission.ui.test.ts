@@ -1,13 +1,14 @@
 // Covers E2EX-02: Exercise submission interaction test
-import { VSBrowser, WebDriver, Workbench, By } from 'vscode-extension-tester';
 import * as assert from 'assert';
+import { By, VSBrowser, WebDriver, Workbench } from 'vscode-extension-tester';
+
 import {
-	openArtemisView,
-	switchToWebviewFrame,
-	switchBackFromWebview,
-	takeScreenshot,
 	getCredentials,
+	openArtemisView,
 	performLogin,
+	switchBackFromWebview,
+	switchToWebviewFrame,
+	takeScreenshot,
 } from './helpers';
 
 describe('Exercise Submission Flow UI Tests', function () {

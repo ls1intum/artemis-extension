@@ -1,4 +1,5 @@
 import * as assert from 'assert';
+
 import { contextToIrisMode } from '@extension/services/iris/context/contextChatMode';
 
 suite('contextToIrisMode', () => {

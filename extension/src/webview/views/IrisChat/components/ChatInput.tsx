@@ -1,7 +1,8 @@
-import { useState, KeyboardEvent } from 'react';
-import TextareaAutosize from 'react-textarea-autosize';
 import clsx from 'clsx';
 import Send from 'lucide-react/dist/esm/icons/send';
+import { KeyboardEvent, useState } from 'react';
+import TextareaAutosize from 'react-textarea-autosize';
+
 import styles from './ChatInput.module.css';
 
 interface ChatInputProps {

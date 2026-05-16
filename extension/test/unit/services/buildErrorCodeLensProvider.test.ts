@@ -1,5 +1,6 @@
-import * as assert from 'assert';
 import * as vscode from 'vscode';
+import * as assert from 'assert';
+
 import { BuildErrorCodeLensProvider } from '@extension/provider/buildErrorCodeLensProvider';
 import type { ParsedBuildError } from '@extension/types';
 

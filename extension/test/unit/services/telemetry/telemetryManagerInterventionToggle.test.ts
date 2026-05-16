@@ -14,9 +14,10 @@
  *  T9. Setting type guard: non-boolean falls back to true.
  */
 
+import * as vscode from 'vscode';
 import * as assert from 'assert';
 import * as sinon from 'sinon';
-import * as vscode from 'vscode';
+
 import { TelemetryManager } from '@extension/services/telemetry/telemetryManager';
 import type {
     InterventionDecision,

@@ -1,4 +1,20 @@
 import * as vscode from 'vscode';
+
+import type { WebCmd, WebviewToExtensionMessage } from '@shared/messageContracts';
+import { ExtensionMsg, getPayload, WebviewCmd } from '@shared/messageContracts';
+
+import { ArtemisApiService } from '../api';
+import { openFileInWorkspace, openSettings } from '../controller/commands/utilityCommands';
+import type { CourseDataCache } from '../services/courseDataCache';
+import { ExerciseRegistry } from '../services/exerciseRegistry';
+import type { ChatContextReason, IrisServiceDeps } from '../services/iris';
+import { IrisWebSocketMessageHandler } from '../services/iris';
+import { ChatContextManager, ChatDiagnosticsService, ChatMessageService, ContextStore, IRIS_CHAT_HELP_MARKDOWN, IrisChatSessionService, IrisWebSocketSessionClient } from '../services/iris';
+import { LogCategory, logger } from '../services/loggingService';
+import { type StruggleContext, TelemetryManager } from '../services/telemetry';
+import { getReactWebviewHtml } from '../services/ui';
+import { ArtemisWebsocketService } from '../services/websocket';
+import { detectAndRegisterWorkspaceExercise, FileMonitorService, NoAiDetectionService } from '../services/workspace';
 import {
     ActiveContext,
     ChatContextType,
@@ -6,20 +22,6 @@ import {
 import type { IChatWebviewProvider } from '../types/IChatWebviewProvider';
 import { BaseWebviewProvider } from './baseWebviewProvider';
 import { ChatViewStatePresenter } from './chatViewStatePresenter';
-import { ExtensionMsg, WebviewCmd, getPayload } from '@shared/messageContracts';
-import type { WebCmd, WebviewToExtensionMessage } from '@shared/messageContracts';
-import { openSettings, openFileInWorkspace } from '../controller/commands/utilityCommands';
-import { ArtemisApiService } from '../api';
-import { ArtemisWebsocketService } from '../services/websocket';
-import { IrisWebSocketMessageHandler } from '../services/iris';
-import { FileMonitorService, NoAiDetectionService, detectAndRegisterWorkspaceExercise } from '../services/workspace';
-import { IrisWebSocketSessionClient, ChatDiagnosticsService, IrisChatSessionService, ChatMessageService, ChatContextManager, ContextStore, IRIS_CHAT_HELP_MARKDOWN } from '../services/iris';
-import type { IrisServiceDeps, ChatContextReason } from '../services/iris';
-import { TelemetryManager, type StruggleContext } from '../services/telemetry';
-import { ExerciseRegistry } from '../services/exerciseRegistry';
-import type { CourseDataCache } from '../services/courseDataCache';
-import { getReactWebviewHtml } from '../services/ui';
-import { logger, LogCategory } from '../services/loggingService';
 
 interface ExerciseContextChangeEvent {
     exerciseId: number;

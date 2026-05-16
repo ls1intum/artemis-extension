@@ -1,7 +1,9 @@
+import type { WebCmd, WebviewToExtensionMessage } from '@shared/messageContracts';
+import { ExtensionMsg, getPayload, WebviewCmd } from '@shared/messageContracts';
+
+import { LogCategory, logger } from '@extension/services/loggingService';
+
 import type { CommandContext, CommandMap } from './types';
-import { getPayload, ExtensionMsg, WebviewCmd } from '@shared/messageContracts';
-import type { WebviewToExtensionMessage, WebCmd } from '@shared/messageContracts';
-import { logger, LogCategory } from '@extension/services/loggingService';
 
 // Health check result structure
 interface HealthCheckResult {

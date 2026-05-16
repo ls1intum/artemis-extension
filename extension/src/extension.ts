@@ -1,20 +1,21 @@
 import * as vscode from 'vscode';
-import { ArtemisWebviewProvider, ChatWebviewProvider, BuildErrorCodeLensProvider } from '@extension/provider';
-import { AuthManager } from '@extension/services/auth';
-import { ArtemisApiService } from '@extension/api';
-import { ArtemisWebsocketService, WebSocketStatusBarService } from '@extension/services/websocket';
-import { TelemetryManager } from '@extension/services/telemetry';
-import type { SessionRecorder } from '@extension/services/telemetry';
-import { NoAiDetectionService } from '@extension/services/workspace';
-import { ConsentService } from '@extension/services/auth';
-import { ExerciseRegistry } from '@extension/services/exerciseRegistry';
-import { CourseDataCache } from '@extension/services/courseDataCache';
-import { createProviderRegistry } from '@extension/services/ui';
-import { logger, LogCategory } from '@extension/services/loggingService';
-import { VSCODE_CONFIG } from '@extension/utils';
+
 import { registerAllCommands } from '@extension/activation/extensionCommands';
 import { wireSessionRecorder } from '@extension/activation/sessionRecorderWiring';
-import { initializeTheiaContext, detectPlatformCapabilities, authenticateFromEnvironment, autoCloneIfNeeded } from '@extension/theia';
+import { ArtemisApiService } from '@extension/api';
+import { ArtemisWebviewProvider, BuildErrorCodeLensProvider, ChatWebviewProvider } from '@extension/provider';
+import { AuthManager } from '@extension/services/auth';
+import { ConsentService } from '@extension/services/auth';
+import { CourseDataCache } from '@extension/services/courseDataCache';
+import { ExerciseRegistry } from '@extension/services/exerciseRegistry';
+import { LogCategory, logger } from '@extension/services/loggingService';
+import type { SessionRecorder } from '@extension/services/telemetry';
+import { TelemetryManager } from '@extension/services/telemetry';
+import { createProviderRegistry } from '@extension/services/ui';
+import { ArtemisWebsocketService, WebSocketStatusBarService } from '@extension/services/websocket';
+import { NoAiDetectionService } from '@extension/services/workspace';
+import { authenticateFromEnvironment, autoCloneIfNeeded, detectPlatformCapabilities, initializeTheiaContext } from '@extension/theia';
+import { VSCODE_CONFIG } from '@extension/utils';
 
 // Module-level references for deactivate() cleanup
 let activeTelemetryManager: TelemetryManager | undefined;

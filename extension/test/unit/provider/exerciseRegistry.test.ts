@@ -1,4 +1,5 @@
 import * as assert from 'assert';
+
 import { ExerciseRegistry } from '@extension/services/exerciseRegistry';
 
 suite('ExerciseRegistry Test Suite', () => {

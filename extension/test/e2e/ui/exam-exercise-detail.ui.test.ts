@@ -1,13 +1,14 @@
 // Covers E2EV-08: ExamExerciseDetail view smoke test
 import * as assert from 'assert';
-import { VSBrowser, WebDriver, Workbench, By, until } from 'vscode-extension-tester';
+import { By, until, VSBrowser, WebDriver, Workbench } from 'vscode-extension-tester';
+
 import {
-	openArtemisView,
-	switchToWebviewFrame,
-	switchBackFromWebview,
-	takeScreenshot,
 	getCredentials,
+	openArtemisView,
 	performLogin,
+	switchBackFromWebview,
+	switchToWebviewFrame,
+	takeScreenshot,
 } from './helpers';
 
 describe('ExamExerciseDetail View UI Tests', function () {

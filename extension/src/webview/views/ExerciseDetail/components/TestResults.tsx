@@ -1,4 +1,5 @@
 import clsx from 'clsx';
+
 import type { TestResultsProps } from '../types';
 import styles from './TestResults.module.css';
 

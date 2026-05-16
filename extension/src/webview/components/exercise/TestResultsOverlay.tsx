@@ -1,8 +1,9 @@
-import { createPortal } from 'react-dom';
-import { useEffect } from 'react';
 import clsx from 'clsx';
 import CircleCheck from 'lucide-react/dist/esm/icons/circle-check';
 import CircleX from 'lucide-react/dist/esm/icons/circle-x';
+import { useEffect } from 'react';
+import { createPortal } from 'react-dom';
+
 import { IconButton } from '../Button';
 import type { TestCase } from './SubmissionStatus';
 import styles from './TestResultsOverlay.module.css';

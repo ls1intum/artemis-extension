@@ -1,9 +1,9 @@
 import {
-    ErrorSnapshot,
-    EQState,
+    DEFAULT_EQ_CONFIG,
     EQConfidence,
     EQConfig,
-    DEFAULT_EQ_CONFIG,
+    EQState,
+    ErrorSnapshot,
     SessionResettable,
     SessionStartContext,
 } from '../types';

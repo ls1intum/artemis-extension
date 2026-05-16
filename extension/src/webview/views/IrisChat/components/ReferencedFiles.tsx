@@ -1,8 +1,9 @@
-import { useState } from 'react';
 import clsx from 'clsx';
-import FileText from 'lucide-react/dist/esm/icons/file-text';
 import ChevronDown from 'lucide-react/dist/esm/icons/chevron-down';
+import FileText from 'lucide-react/dist/esm/icons/file-text';
 import XCircle from 'lucide-react/dist/esm/icons/x-circle';
+import { useState } from 'react';
+
 import type { ReferencedFilesData } from '../types';
 import styles from './ReferencedFiles.module.css';
 

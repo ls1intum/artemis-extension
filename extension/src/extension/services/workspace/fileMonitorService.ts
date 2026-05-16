@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
-import { checkWorkspaceFiles } from './workspaceFileChecker';
+
 import { logger, LogLevel } from '../loggingService';
+import { checkWorkspaceFiles } from './workspaceFileChecker';
 
 export interface FileMonitorUpdate {
     includedFiles: string[];

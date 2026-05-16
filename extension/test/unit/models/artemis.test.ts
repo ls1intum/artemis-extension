@@ -1,16 +1,17 @@
 import * as assert from 'assert';
+
 import {
     ApiError,
-    parseProfileInfo,
     parseArtemisFeedback,
-    parseArtemisUser,
-    parseArtemisResult,
     parseArtemisParticipation,
-    parseIrisHealthStatus,
-    parseProgrammingSubmission,
-    parseSubmissionProcessingMessage,
-    parseResultDTO,
+    parseArtemisResult,
+    parseArtemisUser,
     parseBuildLogEntry,
+    parseIrisHealthStatus,
+    parseProfileInfo,
+    parseProgrammingSubmission,
+    parseResultDTO,
+    parseSubmissionProcessingMessage,
 } from '@extension/types';
 
 suite('ApiError', () => {

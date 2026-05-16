@@ -1,9 +1,12 @@
 import { useState } from 'react';
+
 import { ExtensionMsg, postCommand } from '@shared/messageContracts';
-import { BackLink, Container, Badge, PageHeader, SkeletonList } from '@webview/components';
+
+import { BackLink, Badge, Container, PageHeader, SkeletonList } from '@webview/components';
 import { useExtensionMessage } from '@webview/hooks/useExtensionMessage';
-import type { StruggleDetectionViewProps, StruggleData } from './types';
+
 import styles from './StruggleDetectionView.module.css';
+import type { StruggleData, StruggleDetectionViewProps } from './types';
 
 function getEqLevel(eq: number): { label: string; color: string } {
     if (eq < 0.15) {

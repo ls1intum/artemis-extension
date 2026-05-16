@@ -4,13 +4,13 @@
 
 import type {
     ExerciseDetailsResponse,
-    StudentExam,
-    ResultSummary,
-    SubmissionSummary,
     IrisStageDTO,
+    ResultSummary,
+    StudentExam,
+    SubmissionSummary,
 } from '../types/apiResponses';
-import type { CourseData, ArchivedCourse, CourseDetailData, RecentCourseNode } from './domainTypes';
 import type { ChatContextType } from '../types/context';
+import type { ArchivedCourse, CourseData, CourseDetailData, RecentCourseNode } from './domainTypes';
 
 /**
  * Display-facing projection of the websocket connection state. Both the chat

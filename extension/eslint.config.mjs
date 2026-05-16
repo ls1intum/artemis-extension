@@ -1,5 +1,6 @@
 import typescriptEslint from "@typescript-eslint/eslint-plugin";
 import tsParser from "@typescript-eslint/parser";
+import simpleImportSort from "eslint-plugin-simple-import-sort";
 
 // Prevent ALL imports from the lucide-react barrel file to ensure tree-shaking.
 // Icons must use direct paths: import Icon from 'lucide-react/dist/esm/icons/icon-name'.
@@ -15,6 +16,7 @@ export default [{
 }, {
     plugins: {
         "@typescript-eslint": typescriptEslint,
+        "simple-import-sort": simpleImportSort,
     },
 
     languageOptions: {
@@ -44,6 +46,26 @@ export default [{
         'no-restricted-imports': ['error', {
             paths: [lucideRestriction],
         }],
+
+        // Sort and group imports/exports. Groups, in order:
+        //   1. side-effect imports (CSS etc.) — kept first, relative order preserved
+        //   2. external packages (node builtins, vscode, npm)
+        //   3. @shared/* layer
+        //   4. @extension/* and @webview/* layers
+        //   5. relative imports
+        // simple-import-sort reorders named members but does not format them;
+        // comma-spacing normalises the separators it leaves behind.
+        'comma-spacing': ['error', { before: false, after: true }],
+        'simple-import-sort/imports': ['error', {
+            groups: [
+                ['^\\u0000'],
+                ['^vscode$', '^node:', '^@(?!extension(?:/|$)|webview(?:/|$)|shared(?:/|$))', '^[a-z]'],
+                ['^@shared(/|$)'],
+                ['^@(extension|webview)(/|$)'],
+                ['^\\.'],
+            ],
+        }],
+        'simple-import-sort/exports': 'error',
 
         // Strict type-checking rules
         "@typescript-eslint/no-explicit-any": "error",

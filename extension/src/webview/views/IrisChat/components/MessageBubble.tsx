@@ -1,14 +1,16 @@
-import { memo, useState, useMemo } from 'react';
+import clsx from 'clsx';
+import ThumbsDown from 'lucide-react/dist/esm/icons/thumbs-down';
+import ThumbsUp from 'lucide-react/dist/esm/icons/thumbs-up';
+import { memo, useMemo, useState } from 'react';
 // @ts-expect-error - streamdown is ESM but TypeScript Node16 resolution complains (TS1479). esbuild handles at bundle time.
 import { Streamdown } from 'streamdown';
-import clsx from 'clsx';
-import ThumbsUp from 'lucide-react/dist/esm/icons/thumbs-up';
-import ThumbsDown from 'lucide-react/dist/esm/icons/thumbs-down';
-import { StreamingMessage } from './StreamingMessage';
+
 import { useStreamdownConfig } from '@webview/hooks/useStreamdownConfig';
 import { formatRelativeTime } from '@webview/utils/formatRelativeTime';
+
 import type { ChatMessage } from '../types';
 import styles from './MessageBubble.module.css';
+import { StreamingMessage } from './StreamingMessage';
 
 interface MessageBubbleProps {
     message: ChatMessage;

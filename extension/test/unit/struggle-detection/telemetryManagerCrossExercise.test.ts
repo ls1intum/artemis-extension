@@ -12,12 +12,13 @@
  * lost while the registry is still populating).
  */
 
+import * as vscode from 'vscode';
 import * as assert from 'assert';
 import * as sinon from 'sinon';
-import * as vscode from 'vscode';
-import { TelemetryManager } from '@extension/services/telemetry/telemetryManager';
-import { ExerciseRegistry } from '@extension/services/exerciseRegistry';
+
 import type { ResultDTO } from '@extension/domain';
+import { ExerciseRegistry } from '@extension/services/exerciseRegistry';
+import { TelemetryManager } from '@extension/services/telemetry/telemetryManager';
 
 function makeResult(participationId: number | undefined, opts: { buildFailed?: boolean; successful?: boolean } = {}): ResultDTO {
     return {

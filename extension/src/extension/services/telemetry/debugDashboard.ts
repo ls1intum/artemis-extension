@@ -1,9 +1,10 @@
 import * as vscode from 'vscode';
-import { EQConfidence, RecommendedAction } from './types';
-import type { ErrorQuotientEngine } from './metrics/errorQuotientEngine';
-import type { InactivityService } from './inactivityService';
+
 import type { BuildResultTracker } from './buildResultTracker';
+import type { InactivityService } from './inactivityService';
 import type { AdaptiveCadence } from './intervention/adaptiveCadence';
+import type { ErrorQuotientEngine } from './metrics/errorQuotientEngine';
+import { EQConfidence, RecommendedAction } from './types';
 
 /**
  * Dependencies injected into DebugDashboard from TelemetryManager.

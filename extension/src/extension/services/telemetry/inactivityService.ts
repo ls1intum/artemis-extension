@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+
 import { InactivityPattern, SessionResettable, SessionStartContext } from './types';
 
 /**

@@ -1,4 +1,4 @@
-import { logger, LogCategory } from '@extension/services/loggingService';
+import { LogCategory, logger } from '@extension/services/loggingService';
 
 /**
  * Base Artemis API test client with authentication and cookie management.

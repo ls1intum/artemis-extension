@@ -1,9 +1,10 @@
 import type * as vscode from 'vscode';
+
 import type {
-    TestResultsOverviewOpenedPayload,
-    TestResultsOverviewClosedPayload,
-    TaskFeedbackOpenedPayload,
     TaskFeedbackClosedPayload,
+    TaskFeedbackOpenedPayload,
+    TestResultsOverviewClosedPayload,
+    TestResultsOverviewOpenedPayload,
 } from '@shared/messageContracts/webviewCommands';
 
 /**

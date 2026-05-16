@@ -1,8 +1,10 @@
 import * as vscode from 'vscode';
-import type { RecordedEvent } from '../types';
+
+import { LogCategory, logger } from '@extension/services/loggingService';
+
 import { collectDiagnostics, collectSelectionChange, collectVisibleRangeChange } from '../eventCollectors';
+import type { RecordedEvent } from '../types';
 import { shouldRecordUri } from '../uriFilter';
-import { logger, LogCategory } from '@extension/services/loggingService';
 
 /**
  * Context supplied to startup contributors. Contributors run synchronously

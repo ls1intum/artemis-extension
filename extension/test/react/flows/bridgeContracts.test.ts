@@ -9,19 +9,21 @@
  * - Pure data shape verification only
  * - One describe block per state transition
  */
-import { describe, it, expect } from 'vitest';
+import { describe, expect, it } from 'vitest';
+
 import { isExtensionMessage } from '@shared/messageContracts';
+
 import {
-    createDashboardPayload,
-    createCourseListPayload,
     createCourseDetailPayload,
-    createExerciseDetailPayload,
-    createExamStartPayload,
+    createCourseListPayload,
+    createDashboardPayload,
     createExamConductionPayload,
     createExamExerciseDetailPayload,
-    createServiceStatusPayload,
+    createExamStartPayload,
+    createExerciseDetailPayload,
     createGitCredentialsPayload,
     createRecommendedExtensionsPayload,
+    createServiceStatusPayload,
 } from '../fixtures';
 
 describe('Bridge Contracts', () => {

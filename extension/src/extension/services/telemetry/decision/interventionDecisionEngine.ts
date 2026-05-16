@@ -1,12 +1,12 @@
-import {
-    InterventionDecision,
-    InterventionBlockedReason,
-    InterventionState,
-    EQConfidence,
-    TriggerType,
-    RecommendedAction,
-} from '../types';
 import { InterventionFilter } from '../interventionFilter';
+import {
+    EQConfidence,
+    InterventionBlockedReason,
+    InterventionDecision,
+    InterventionState,
+    RecommendedAction,
+    TriggerType,
+} from '../types';
 
 /**
  * EQ-to-Intervention thresholds.

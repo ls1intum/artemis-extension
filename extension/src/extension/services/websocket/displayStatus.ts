@@ -1,5 +1,6 @@
-import type { ConnectionState } from './connectionState';
 import type { WebSocketDisplayStatus } from '@shared/messageContracts';
+
+import type { ConnectionState } from './connectionState';
 
 /**
  * Maps the websocket service's domain state to a UI-facing display status that

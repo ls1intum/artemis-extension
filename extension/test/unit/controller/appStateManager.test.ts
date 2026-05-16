@@ -1,7 +1,8 @@
 import * as assert from 'assert';
+
 import { AppStateManager } from '@extension/controller/appStateManager';
 import type { CourseDataCache } from '@extension/services/courseDataCache';
-import type { ExerciseDetailsResponse, CourseDashboardResponse } from '@extension/types';
+import type { CourseDashboardResponse, ExerciseDetailsResponse } from '@extension/types';
 
 /** Minimal mock that satisfies AppStateManager's usage of CourseDataCache */
 function createMockCache(initialData?: CourseDashboardResponse): CourseDataCache {

@@ -1,4 +1,5 @@
 import type { ExerciseRef } from '@shared/types';
+
 import { logger } from './loggingService';
 
 export interface ExerciseRegistryEntry extends ExerciseRef {

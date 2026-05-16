@@ -1,9 +1,10 @@
 import * as assert from 'assert';
-import { ExerciseOpeningService } from '@extension/services/ui/exerciseOpeningService';
-import type { ExerciseRegistry } from '@extension/services/exerciseRegistry';
-import type { IProviderRegistry } from '@extension/services/ui/providerRegistry';
-import type { TelemetryManager } from '@extension/services/telemetry';
+
 import type { CourseAccessStorageService } from '@extension/services/courseAccessStorageService';
+import type { ExerciseRegistry } from '@extension/services/exerciseRegistry';
+import type { TelemetryManager } from '@extension/services/telemetry';
+import { ExerciseOpeningService } from '@extension/services/ui/exerciseOpeningService';
+import type { IProviderRegistry } from '@extension/services/ui/providerRegistry';
 import type { ExerciseDetailsResponse } from '@extension/types';
 
 class FakeCourseAccess {

@@ -1,6 +1,8 @@
 import * as vscode from 'vscode';
+
 import { CONFIG } from '@extension/utils';
-import { logger, LogCategory } from '../loggingService';
+
+import { LogCategory, logger } from '../loggingService';
 
 // Manages authentication tokens for both VS Code Desktop and Theia/EduIDE.
 // Desktop: JWT stored as cookie string ("jwt=<token>"), sent as Cookie header.

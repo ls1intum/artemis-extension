@@ -1,10 +1,12 @@
+import * as vscode from 'vscode';
 import * as assert from 'assert';
 import * as sinon from 'sinon';
-import * as vscode from 'vscode';
+
 import { ChatContextManager, pickBestContextFromSnapshot } from '@extension/services/iris/chat/chatContextManager';
-import { ContextStore } from '@extension/services/iris/context/contextStore';
 import { IrisChatSessionService } from '@extension/services/iris/chat/chatSessionService';
+import { ContextStore } from '@extension/services/iris/context/contextStore';
 import { IrisWebSocketSessionClient } from '@extension/services/iris/transport/irisWebSocketSessionClient';
+
 import { MockExtensionContext } from '../mocks/vscodeMocks';
 
 suite('ChatContextManager Test Suite', () => {

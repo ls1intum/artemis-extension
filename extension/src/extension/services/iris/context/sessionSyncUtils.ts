@@ -1,11 +1,13 @@
-import { ArtemisApiService } from '@extension/api';
-import { ContextStore } from './contextStore';
-import { contextToIrisMode } from './contextChatMode';
-import { resolveCourseIdFromContext } from './courseIdResolver';
-import { extractIrisMessageContent } from '../chat/messageUtils';
-import { logger, LogCategory } from '@extension/services/loggingService';
-import type { ActiveContext, IrisChatSession, IrisChatMessage } from '@extension/types';
 import type { ExtensionToWebviewMessage } from '@shared/messageContracts';
+
+import { ArtemisApiService } from '@extension/api';
+import { LogCategory, logger } from '@extension/services/loggingService';
+import type { ActiveContext, IrisChatMessage, IrisChatSession } from '@extension/types';
+
+import { extractIrisMessageContent } from '../chat/messageUtils';
+import { contextToIrisMode } from './contextChatMode';
+import { ContextStore } from './contextStore';
+import { resolveCourseIdFromContext } from './courseIdResolver';
 
 /**
  * Shared dependency bag for Iris services. Bundles common params so

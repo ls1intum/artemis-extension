@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react';
 import clsx from 'clsx';
+import { useEffect, useState } from 'react';
+
 import styles from './BuildProgress.module.css';
 
 export type BuildState = 'idle' | 'building' | 'queued' | 'success' | 'failed';

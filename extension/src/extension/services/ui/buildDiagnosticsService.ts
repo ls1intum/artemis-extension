@@ -1,9 +1,10 @@
 import type { ArtemisApiService } from '@extension/api';
+import type { BuildErrorCodeLensProvider } from '@extension/provider/buildErrorCodeLensProvider';
 import type { ResultDTO } from '@extension/types';
 import { type ParsedBuildError } from '@extension/types';
 import { BuildLogParser } from '@extension/utils';
-import type { BuildErrorCodeLensProvider } from '@extension/provider/buildErrorCodeLensProvider';
-import { logger, LogCategory } from '../loggingService';
+
+import { LogCategory, logger } from '../loggingService';
 
 export class BuildDiagnosticsService {
     private _codeLensProvider?: BuildErrorCodeLensProvider;

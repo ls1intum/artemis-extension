@@ -1,10 +1,13 @@
-import { describe, it, expect } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { CourseListView } from '@webview/views/CourseList/CourseListView';
-import { useCourseListStore } from '@webview/stores/useCourseListStore';
-import { createMockVsCodeApi, dispatchExtensionMessage } from '../../__helpers__/vscodeApi';
+import { describe, expect, it } from 'vitest';
+
 import type { CourseData } from '@shared/messageContracts';
+
+import { useCourseListStore } from '@webview/stores/useCourseListStore';
+import { CourseListView } from '@webview/views/CourseList/CourseListView';
+
+import { createMockVsCodeApi, dispatchExtensionMessage } from '../../__helpers__/vscodeApi';
 
 const makeCourseData = (overrides: Partial<CourseData['course']> = {}): CourseData => ({
 	course: {

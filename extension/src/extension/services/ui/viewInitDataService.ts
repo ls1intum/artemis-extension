@@ -1,15 +1,18 @@
 import * as vscode from 'vscode';
-import { AppStateManager } from '@extension/controller/appStateManager';
-import type { TelemetryManager } from '../telemetry/telemetryManager';
-import type { WebViewMessageHandler } from '@extension/controller/webViewMessageHandler';
+
+import type { CourseDetailData as CourseDetailPayload, ExtensionToWebviewMessage } from '@shared/messageContracts';
 import { ExtensionMsg } from '@shared/messageContracts';
-import type { ExtensionToWebviewMessage, CourseDetailData as CourseDetailPayload } from '@shared/messageContracts';
+
+import { AppStateManager } from '@extension/controller/appStateManager';
+import type { WebViewMessageHandler } from '@extension/controller/webViewMessageHandler';
 import type { CourseDashboardEntry, ExerciseDetail, ExerciseDetailsResponse } from '@extension/types';
-import { detectWorkspaceExercise, detectWorkspaceForRepoUris, type ExerciseSource } from '../workspace/workspaceDetectionService';
-import { GitService } from '../workspace/gitService';
-import { logger, LogCategory } from '../loggingService';
-import { VSCODE_CONFIG, CONFIG, resolveServerUrl } from '@extension/utils';
+import { CONFIG, resolveServerUrl, VSCODE_CONFIG } from '@extension/utils';
+
 import { COURSE_ACCESS_DISPLAY_LIMIT, type CourseAccessStorageService } from '../courseAccessStorageService';
+import { LogCategory, logger } from '../loggingService';
+import type { TelemetryManager } from '../telemetry/telemetryManager';
+import { GitService } from '../workspace/gitService';
+import { detectWorkspaceExercise, detectWorkspaceForRepoUris, type ExerciseSource } from '../workspace/workspaceDetectionService';
 import { selectRecentCourses } from './recentCourseSelector';
 
 export class ViewInitDataService {

@@ -1,10 +1,12 @@
 import { useEffect } from 'react';
+
+import { useAutoScroll } from '@webview/hooks/useAutoScroll';
+
+import type { ChatMessage, IrisStageDTO, StreamingState } from '../types';
+import styles from './ChatMessageList.module.css';
 import { MessageBubble } from './MessageBubble';
 import { ThinkingIndicator } from './ThinkingIndicator';
 import { WelcomeState } from './WelcomeState';
-import { useAutoScroll } from '@webview/hooks/useAutoScroll';
-import type { ChatMessage, StreamingState, IrisStageDTO } from '../types';
-import styles from './ChatMessageList.module.css';
 
 interface ChatMessageListProps {
     messages: ChatMessage[];

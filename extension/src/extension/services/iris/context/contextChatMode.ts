@@ -1,5 +1,5 @@
-import type { ChatContextType } from '@shared/types/context';
 import type { IrisChatMode } from '@shared/types/apiResponses';
+import type { ChatContextType } from '@shared/types/context';
 
 /**
  * Maps the extension's ChatContextType to the Artemis IrisChatMode enum

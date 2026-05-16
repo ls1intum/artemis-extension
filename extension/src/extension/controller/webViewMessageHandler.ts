@@ -1,24 +1,26 @@
 import * as vscode from 'vscode';
+
+import type { ExtensionToWebviewMessage, WebviewToExtensionMessage } from '@shared/messageContracts';
+import { getCommand } from '@shared/messageContracts';
+
 import { ArtemisApiService } from '../api';
 import { AuthManager } from '../services/auth';
-import { ArtemisWebsocketService } from '../services/websocket';
-import { ExerciseRegistry } from '../services/exerciseRegistry';
-import { logger, LogLevel, LogCategory } from '../services/loggingService';
-import type { IProviderRegistry } from '../services/ui';
-import { AppStateManager } from './appStateManager';
-import type { WebViewActionHandler } from './types';
-import type { CommandContext, CommandHandler } from './commands/types';
-import type { CourseDataCache } from '../services/courseDataCache';
 import type { CourseAccessStorageService } from '../services/courseAccessStorageService';
-import { getCommand } from '@shared/messageContracts';
-import type { WebviewToExtensionMessage, ExtensionToWebviewMessage } from '@shared/messageContracts';
+import type { CourseDataCache } from '../services/courseDataCache';
+import { ExerciseRegistry } from '../services/exerciseRegistry';
+import { LogCategory, logger, LogLevel } from '../services/loggingService';
+import type { IProviderRegistry } from '../services/ui';
+import { ArtemisWebsocketService } from '../services/websocket';
+import { AppStateManager } from './appStateManager';
 import { AuthCommandModule } from './commands/authCommands';
+import { HealthCommandModule } from './commands/healthCommands';
+import { IrisCommandModule } from './commands/irisCommands';
 import { NavigationCommandModule } from './commands/navigationCommands';
 import { RepositoryCommandModule } from './commands/repositoryCommands';
-import { IrisCommandModule } from './commands/irisCommands';
-import { HealthCommandModule } from './commands/healthCommands';
-import { UtilityCommandModule } from './commands/utilityCommands';
 import { TestResultsTrackingCommandModule } from './commands/testResultsTrackingCommands';
+import type { CommandContext, CommandHandler } from './commands/types';
+import { UtilityCommandModule } from './commands/utilityCommands';
+import type { WebViewActionHandler } from './types';
 
 /**
  * Coordinates processing of messages received from the webview by delegating to command modules.

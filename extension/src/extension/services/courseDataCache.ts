@@ -1,7 +1,8 @@
 import * as vscode from 'vscode';
+
 import type { ArtemisApiService } from '../api';
-import type { CourseDashboardResponse, CourseDashboardEntry } from '../types';
-import { logger, LogCategory } from './loggingService';
+import type { CourseDashboardEntry, CourseDashboardResponse } from '../types';
+import { LogCategory, logger } from './loggingService';
 
 /**
  * Single source of truth for course dashboard data.
