@@ -41,13 +41,6 @@ export interface ArchivedCourse {
     color?: string;
 }
 
-export interface Exam {
-    id: number;
-    title?: string;
-    startDate?: string;
-    endDate?: string;
-}
-
 export interface CourseDetailData {
     course: {
         id: number;
@@ -56,7 +49,6 @@ export interface CourseDetailData {
         semester?: string;
         color?: string;
         exercises?: Exercise[];
-        exams?: Exam[];
         numberOfStudents?: number;
         instructorGroupName?: string;
         isArchived?: boolean;

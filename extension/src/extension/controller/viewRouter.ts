@@ -10,14 +10,11 @@ const STATE_TO_VIEW: Record<AppState, string> = {
     'course-list': 'courseList',
     'course-detail': 'courseDetail',
     'exercise-detail': 'exerciseDetail',
-    'exam-exercise-detail': 'examExerciseDetail',
     'ai-config': 'aiConfig',
     'service-status': 'serviceStatus',
     'struggle-detection': 'struggleDetection',
     'recommended-extensions': 'recommendedExtensions',
     'git-credentials': 'gitCredentials',
-    'exam-start': 'examStart',
-    'exam-conduction': 'examConduction',
 };
 
 /** Returns the React webview HTML for the given application state. */

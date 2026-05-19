@@ -1,9 +1,6 @@
 export { createCourseDetailPayload } from './courseDetailPayload';
 export { createCourseListPayload } from './courseListPayload';
 export { createDashboardPayload } from './dashboardPayload';
-export { createExamConductionPayload } from './examConductionPayload';
-export { createExamExerciseDetailPayload } from './examExerciseDetailPayload';
-export { createExamStartPayload } from './examStartPayload';
 export { createExerciseDetailPayload } from './exerciseDetailPayload';
 export { createGitCredentialsPayload } from './gitCredentialsPayload';
 export { createIrisInitPayload } from './irisInitPayload';

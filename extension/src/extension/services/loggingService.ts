@@ -28,8 +28,7 @@ export enum LogCategory {
     BUILD = 'Build',
     TEST = 'Test',
     CONFIG = 'Config',
-    VIEW = 'View',
-    EXAM = 'Exam'
+    VIEW = 'View'
 }
 
 /**

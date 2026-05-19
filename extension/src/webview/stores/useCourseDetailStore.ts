@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { devtools } from 'zustand/middleware';
 
-import { type CourseDetailData, type Exam, type Exercise, postCommand, type VsCodeApi } from '@shared/messageContracts';
+import { type CourseDetailData, type Exercise, postCommand, type VsCodeApi } from '@shared/messageContracts';
 
 interface CourseDetailState {
     courseData: CourseDetailData | null;
@@ -22,7 +22,6 @@ interface CourseDetailState {
 
     // Derived
     filteredExercises: () => Exercise[];
-    sortedExams: () => Exam[];
 }
 
 /**
@@ -77,43 +76,6 @@ function sortExercises(exercises: Exercise[], sortBy: string): Exercise[] {
     }
 }
 
-/**
- * Sort exams by status: active first, then upcoming, then finished.
- */
-function sortExams(exams: Exam[]): Exam[] {
-    const now = new Date().getTime();
-
-    return [...exams].sort((a, b) => {
-        // Calculate status for exam a
-        const aStart = a.startDate ? new Date(a.startDate).getTime() : 0;
-        const aEnd = a.endDate ? new Date(a.endDate).getTime() : 0;
-        const aIsActive = now >= aStart && now <= aEnd;
-        const aIsUpcoming = now < aStart;
-
-        // Calculate status for exam b
-        const bStart = b.startDate ? new Date(b.startDate).getTime() : 0;
-        const bEnd = b.endDate ? new Date(b.endDate).getTime() : 0;
-        const bIsActive = now >= bStart && now <= bEnd;
-        const bIsUpcoming = now < bStart;
-
-        // Priority: Active > Upcoming > Finished
-        if (aIsActive && !bIsActive) {
-            return -1;
-        }
-        if (!aIsActive && bIsActive) {
-            return 1;
-        }
-        if (aIsUpcoming && !bIsUpcoming && !bIsActive) {
-            return -1;
-        }
-        if (!aIsUpcoming && bIsUpcoming && !aIsActive) {
-            return 1;
-        }
-
-        return 0;
-    });
-}
-
 export const useCourseDetailStore = create<CourseDetailState>()(
     devtools(
         (set, get) => ({
@@ -166,17 +128,6 @@ export const useCourseDetailStore = create<CourseDetailState>()(
 
                 const filtered = filterExercises(courseData.course.exercises, exerciseSearchTerm);
                 return sortExercises(filtered, exerciseSortBy);
-            },
-
-            sortedExams: () => {
-                const state = get();
-                const { courseData } = state;
-
-                if (!courseData?.course.exams) {
-                    return [];
-                }
-
-                return sortExams(courseData.course.exams);
             },
         }),
         {

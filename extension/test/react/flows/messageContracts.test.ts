@@ -155,25 +155,6 @@ describe('Message contracts: ExtensionToWebviewMessage types', () => {
         expect(msg.updateType).toBe('newResult');
     });
 
-    it('ExamConductionInitMessage has all required timing fields', () => {
-        const msg = {
-            type: 'examConductionInit' as const,
-            studentExam: { id: 1, exam: { id: 10, course: { id: 100 } } } as ExtMsg<'examConductionInit'>['studentExam'],
-            courseId: 100,
-            examId: 10,
-            endTime: Date.now() + 60 * 60 * 1000,
-            startTime: Date.now(),
-            totalDuration: 60 * 60 * 1000,
-            workspaceExerciseId: null,
-        } satisfies ExtMsg<'examConductionInit'>;
-
-        expect(msg.courseId).toBe(100);
-        expect(msg.examId).toBe(10);
-        expect(typeof msg.endTime).toBe('number');
-        expect(typeof msg.startTime).toBe('number');
-        expect(typeof msg.totalDuration).toBe('number');
-    });
-
     it('UpdateIrisStagesMessage has required stages array', () => {
         const msg = {
             type: 'updateIrisStages' as const,
@@ -250,20 +231,6 @@ describe('Message contracts: WebviewToExtensionMessage types', () => {
 
         expect(msg.command).toBe('viewCourseDetails');
         expect(msg.payload.courseData.course.id).toBe(1);
-    });
-
-    it('OpenExamCommand has examId and courseId payload', () => {
-        const msg = {
-            type: 'command' as const,
-            command: 'openExam' as const,
-            payload: {
-                examId: 42,
-                courseId: 100,
-            },
-        } satisfies WebCmd<'openExam'>;
-
-        expect(msg.payload.examId).toBe(42);
-        expect(msg.payload.courseId).toBe(100);
     });
 
     it('SendMessageCommand has text payload', () => {
@@ -543,21 +510,6 @@ describe('Message contracts: runtime shape validation', () => {
         expect(reloadCmd).toMatchObject({ command: 'reloadCourses' });
         expect(courseListResponse).toMatchObject({ type: 'courseListInit' });
         expect(Array.isArray(courseListResponse.courses)).toBe(true);
-    });
-
-    it('postMessage payload shapes satisfy contract for exam flow', () => {
-        // Simulate exam initiation flow
-        const openExamCmd: WebviewToExtensionMessage = {
-            type: 'command',
-            command: 'openExam',
-            payload: { examId: 42, courseId: 100 },
-        };
-
-        expect(openExamCmd).toMatchObject({ command: 'openExam' });
-        if (openExamCmd.type === 'command' && openExamCmd.command === 'openExam') {
-            expect(openExamCmd.payload.examId).toBe(42);
-            expect(openExamCmd.payload.courseId).toBe(100);
-        }
     });
 
     it('dispatchExtensionMessage payloads match contract shapes for websocket status', () => {

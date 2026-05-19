@@ -14,7 +14,6 @@ import type {
     CourseDashboardCourse,
     CourseDashboardEntry,
     CourseDashboardResponse,
-    ExamSummary,
     ExerciseDetailsResponse,
     IrisChatMessage,
     IrisChatMode,
@@ -22,7 +21,6 @@ import type {
     IrisChatSessionSummary,
     IrisSettingsResponse,
     ResultSummary,
-    StudentExam,
 } from '../types';
 import {
     ApiError,
@@ -206,7 +204,7 @@ export class ArtemisApiService {
     // Get the latest result with feedbacks for a programming exercise participation.
     // Same endpoint the Artemis webapp uses — returns a full Result with feedbacks embedded,
     // no need to know the resultId upfront.
-    // Backend may return 200 with null body (exam results hidden), so this returns null in that case.
+    // Backend may return 200 with a null body when results are hidden, so this returns null in that case.
     async getLatestResultWithFeedbacks(participationId: number): Promise<ResultSummary | null> {
         const response = await this.makeRequest(
             `/api/programming/programming-exercise-participations/${participationId}/latest-result-with-feedbacks?withSubmission=false`
@@ -559,30 +557,6 @@ export class ArtemisApiService {
                 { key: 'mode', type: 'string' },
             ]),
         );
-    }
-
-    // Get exam sidebar data for a specific course (student-accessible).
-    // Returns lightweight exam metadata (id, title, startDate, workingTime, examMaxPoints).
-    // Note: does NOT include endDate — use course.exams from getCourseForDashboard for full data.
-    async getExamSidebarData(courseId: number): Promise<ExamSummary[]> {
-        const response = await this.makeRequest(`/api/exam/courses/${courseId}/real-exams-sidebar-data`);
-        return expectArray<ExamSummary>(
-            'ExamSummary list',
-            await response.json(),
-            (item, i) => expectObject(`ExamSummary[${i}]`, item) as ExamSummary,
-        );
-    }
-
-    // Get the student's own exam for a specific exam (to check status)
-    async getOwnStudentExam(courseId: number, examId: number): Promise<StudentExam> {
-        const response = await this.makeRequest(`/api/exam/courses/${courseId}/exams/${examId}/own-student-exam`);
-        return parseApiObject<StudentExam>('StudentExam', await response.json());
-    }
-
-    // Start the exam and get conduction details
-    async startStudentExam(courseId: number, examId: number, studentExamId: number): Promise<StudentExam> {
-        const response = await this.makeRequest(`/api/exam/courses/${courseId}/exams/${examId}/student-exams/${studentExamId}/conduction`);
-        return parseApiObject<StudentExam>('StudentExam', await response.json());
     }
 
     // ── Problem Statement Rendering ──

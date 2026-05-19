@@ -2,9 +2,6 @@ import { useChatStore } from '@webview/stores/useChatStore';
 import { useCourseDetailStore } from '@webview/stores/useCourseDetailStore';
 import { useCourseListStore } from '@webview/stores/useCourseListStore';
 import { useDashboardStore } from '@webview/stores/useDashboardStore';
-import { useExamConductionStore } from '@webview/stores/useExamConductionStore';
-import { useExamExerciseDetailStore } from '@webview/stores/useExamExerciseDetailStore';
-import { useExamStartStore } from '@webview/stores/useExamStartStore';
 import { useExerciseDetailStore } from '@webview/stores/useExerciseDetailStore';
 
 import { createMockVsCodeApi } from './vscodeApi';
@@ -18,13 +15,10 @@ const storeEntries = [
     { store: useCourseListStore, state: useCourseListStore.getState() },
     { store: useCourseDetailStore, state: useCourseDetailStore.getState() },
     { store: useExerciseDetailStore, state: useExerciseDetailStore.getState() },
-    { store: useExamStartStore, state: useExamStartStore.getState() },
-    { store: useExamConductionStore, state: useExamConductionStore.getState() },
-    { store: useExamExerciseDetailStore, state: useExamExerciseDetailStore.getState() },
 ] as const;
 
 /**
- * Resets all 8 Zustand stores to their import-time initial state and
+ * Resets all Zustand stores to their import-time initial state and
  * re-initialises window.acquireVsCodeApi with a fresh mock.
  *
  * Call this in a global beforeEach to prevent store state leaking between tests.

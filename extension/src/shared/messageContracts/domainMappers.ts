@@ -10,9 +10,11 @@ export function toCourseDetailData(
     course: CourseDashboardCourse,
     opts?: { isArchived?: boolean }
 ): CourseDetailData {
+    // Drop any server-provided exam data — exam mode is not supported.
+    const { exams: _exams, ...rest } = course;
     return {
         course: {
-            ...course,
+            ...rest,
             id: course.id!,
             title: course.title || 'Untitled Course',
             isArchived: opts?.isArchived,

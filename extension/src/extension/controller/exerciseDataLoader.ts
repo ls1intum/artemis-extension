@@ -79,7 +79,6 @@ export async function fetchAndEnrichExerciseDetails(
 
 /**
  * Fetch archived course detail.
- * Exams are already included in the dashboard response (course.exams).
  */
 export async function fetchArchivedCourseDetail(
     api: ArtemisApiService,

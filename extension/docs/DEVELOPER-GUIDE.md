@@ -25,7 +25,7 @@ The Artemis extension follows a **dual-context architecture** with clear separat
 
 The extension provides two separate webview panels:
 
-1. **ArtemisWebviewProvider** — Main views for courses, exercises, exams, login, settings
+1. **ArtemisWebviewProvider** — Main views for courses, exercises, login, settings
 2. **ChatWebviewProvider** — Dedicated Iris AI chat interface
 
 Both use the same React architecture but are rendered in separate webview panels for better lifecycle management.
@@ -91,23 +91,17 @@ extension/
 │   │           │   ├── IconButton/
 │   │           │   ├── ListItem/
 │   │           │   └── TextInput/
-│   │           ├── stores/          # Zustand stores (9 stores)
+│   │           ├── stores/          # Zustand stores
 │   │           │   ├── useChatStore.ts
 │   │           │   ├── useCourseDetailStore.ts
 │   │           │   ├── useCourseListStore.ts
 │   │           │   ├── useDashboardStore.ts
-│   │           │   ├── useExamConductionStore.ts
-│   │           │   ├── useExamExerciseDetailStore.ts
-│   │           │   ├── useExamStartStore.ts
 │   │           │   ├── useExerciseDetailStore.ts
 │   │           │   └── useNavigationStore.ts
-│   │           └── views/           # View components (12 views)
+│   │           └── views/           # View components
 │   │               ├── CourseDetail/
 │   │               ├── CourseList/
 │   │               ├── Dashboard/
-│   │               ├── ExamConduction/
-│   │               ├── ExamExerciseDetail/
-│   │               ├── ExamStart/
 │   │               ├── ExerciseDetail/
 │   │               ├── GitCredentials/
 │   │               ├── IrisChat/
@@ -513,7 +507,7 @@ The `isExtensionMessage` function includes an array of valid type strings. Add y
 
 ## Store Architecture
 
-The extension uses **Zustand** for client-side state management in the webview. There are **9 independent stores**, each managing state for specific views or cross-view concerns.
+The extension uses **Zustand** for client-side state management in the webview. Each store manages state for specific views or cross-view concerns.
 
 ### Current Stores
 
@@ -522,11 +516,8 @@ The extension uses **Zustand** for client-side state management in the webview. 
 | `useNavigationStore` | Current view, view history | None | All views (routing) |
 | `useDashboardStore` | Dashboard courses, workspace exercise | None | DashboardView |
 | `useCourseListStore` | Course list, filters, sorting | Filters only | CourseListView |
-| `useCourseDetailStore` | Single course detail, exercises, exams | None | CourseDetailView |
+| `useCourseDetailStore` | Single course detail, exercises | None | CourseDetailView |
 | `useExerciseDetailStore` | Exercise details, submissions, results | None | ExerciseDetailView |
-| `useExamStartStore` | Exam metadata before starting | None | ExamStartView |
-| `useExamConductionStore` | Active exam state, timer, exercises | None | ExamConductionView |
-| `useExamExerciseDetailStore` | Exercise within exam context | None | ExamExerciseDetailView |
 | `useChatStore` | Iris chat messages, context, sessions | `forceContextPicker` flag | IrisChatView |
 
 ### Store Pattern
@@ -879,7 +870,7 @@ The `pretest` script automatically runs `compile-tests`, `compile`, and `lint` b
 
 - **Views:** Suffix with `View` (e.g., `LoginView`, `DashboardView`)
 - **Components:** Descriptive name without suffix (e.g., `Button`, `Dropdown`, `Container`)
-- **Hooks:** Prefix with `use` (e.g., `useExamTimer`, `useChatStore`)
+- **Hooks:** Prefix with `use` (e.g., `useExtensionMessage`, `useChatStore`)
 
 ### CSS Modules
 

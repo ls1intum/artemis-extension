@@ -111,7 +111,6 @@ describe('Course Navigation Flow', () => {
 							{ id: 101, title: 'Binary Search', type: 'programming' },
 							{ id: 102, title: 'Quick Sort', type: 'programming' },
 						],
-						exams: [],
 					},
 				},
 			});
@@ -139,7 +138,6 @@ describe('Course Navigation Flow', () => {
 						exercises: [
 							{ id: 200, title: 'Unique Exercise Title', type: 'programming' },
 						],
-						exams: [],
 					},
 				},
 			});

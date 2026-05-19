@@ -21,11 +21,6 @@ vi.mock('../../../src/webview/hooks/useWebSocketUpdates', () => ({
 	useWebSocketUpdates: vi.fn(),
 }));
 
-// Mock useExamTimer (used transitively)
-vi.mock('../../../src/webview/hooks/useExamTimer', () => ({
-	useExamTimer: () => ({ remaining: 0, expired: false }),
-}));
-
 function makeExerciseData(overrides: Record<string, unknown> = {}) {
 	return {
 		exercise: {
