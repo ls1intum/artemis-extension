@@ -40,7 +40,6 @@ interface ParticipationActionsProps {
   onCheckWorkspace?: () => void;
   onStartPractice?: () => void;
   className?: string;
-  isExamExercise?: boolean;
   isPracticeMode?: boolean;
   isPracticeAvailable?: boolean;
   showClonedNotice?: boolean;
@@ -73,7 +72,6 @@ export function ParticipationActions({
   onCheckWorkspace,
   onStartPractice,
   className,
-  isExamExercise = false,
   isPracticeMode = false,
   isPracticeAvailable = false,
   showClonedNotice = false,
@@ -185,7 +183,7 @@ export function ParticipationActions({
   // Submit button group
   const renderSubmitButtonGroup = () => {
     const isWorkspaceConnected = workspaceStatus === 'clean' || workspaceStatus === 'dirty';
-    if (!isProgramming || !hasParticipation || !canSubmit || (!isExamExercise && !isWorkspaceConnected)) {return null;}
+    if (!isProgramming || !hasParticipation || !canSubmit || !isWorkspaceConnected) {return null;}
     const noChanges = workspaceStatus === 'clean';
     return (
       <div className={styles.submitButtonGroup}>
@@ -227,11 +225,9 @@ export function ParticipationActions({
             <Button variant="primary" onClick={onStartPractice} fullWidth>
               Practice
             </Button>
-            {!isExamExercise && (
-              <Button variant="secondary" onClick={onOpenInBrowser} fullWidth>
-                Open in browser
-              </Button>
-            )}
+            <Button variant="secondary" onClick={onOpenInBrowser} fullWidth>
+              Open in browser
+            </Button>
           </div>
         </div>
       );
@@ -245,11 +241,9 @@ export function ParticipationActions({
             <Button variant="primary" onClick={onStart} fullWidth>
               Start Exercise
             </Button>
-            {!isExamExercise && (
-              <Button variant="secondary" onClick={onOpenInBrowser} fullWidth>
-                Open in browser
-              </Button>
-            )}
+            <Button variant="secondary" onClick={onOpenInBrowser} fullWidth>
+              Open in browser
+            </Button>
           </div>
         </div>
       );
@@ -299,11 +293,9 @@ export function ParticipationActions({
                     Copy Clone URL with Token
                   </button>
                 )}
-                {!isExamExercise && (
-                  <button className={styles.dropdownItem} onClick={() => { setIsDropdownOpen(false); onOpenInBrowser?.(); }}>
-                    Open in browser
-                  </button>
-                )}
+                <button className={styles.dropdownItem} onClick={() => { setIsDropdownOpen(false); onOpenInBrowser?.(); }}>
+                  Open in browser
+                </button>
               </div>
             )}
           </div>
@@ -314,7 +306,7 @@ export function ParticipationActions({
 
   // Action buttons for non-programming exercises
   const renderNonProgrammingActions = () => {
-    if (isProgramming || isExamExercise) {return null;}
+    if (isProgramming) {return null;}
 
     return (
       <div className={clsx(styles.participationActions, className)}>

@@ -6,7 +6,6 @@ import type {
     ExerciseDetailsResponse,
     IrisStageDTO,
     ResultSummary,
-    StudentExam,
     SubmissionSummary,
 } from '../types/apiResponses';
 import type { ChatContextType } from '../types/context';
@@ -31,9 +30,6 @@ export const ExtensionMsg = {
     CourseListInit: 'courseListInit',
     CourseDetailInit: 'courseDetailInit',
     ExerciseDetailInit: 'exerciseDetailInit',
-    ExamStartInit: 'examStartInit',
-    ExamConductionInit: 'examConductionInit',
-    ExamExerciseDetailInit: 'examExerciseDetailInit',
     ServiceStatusInit: 'serviceStatusInit',
     RecommendedExtensionsInit: 'recommendedExtensionsInit',
     AiConfigInit: 'aiConfigInit',
@@ -114,32 +110,6 @@ interface ExtensionMsgPayloads {
         hideDeveloperTools: boolean;
         repoStatus?: { isConnected: boolean; hasChanges: boolean; isPracticeRepo: boolean };
         serverRenderedProblemStatement?: RenderedProblemStatementPayload;
-    };
-    examStartInit: {
-        studentExam: StudentExam;
-        courseId: number;
-        examId: number;
-    };
-    examConductionInit: {
-        studentExam: StudentExam;
-        courseId: number;
-        examId: number;
-        endTime: number;
-        startTime: number;
-        totalDuration: number;
-        workspaceExerciseId: number | null;
-    };
-    examExerciseDetailInit: {
-        exerciseData: ExerciseDetailsResponse;
-        examContext: {
-            courseId: number;
-            examId: number;
-            studentExam: StudentExam;
-            endTime: number;
-            startTime: number;
-            totalDuration: number;
-        };
-        hideDeveloperTools: boolean;
     };
     serviceStatusInit: {
         serverUrl?: string;

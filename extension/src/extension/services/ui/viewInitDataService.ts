@@ -5,7 +5,7 @@ import { ExtensionMsg } from '@shared/messageContracts';
 
 import { AppStateManager } from '@extension/controller/appStateManager';
 import type { WebViewMessageHandler } from '@extension/controller/webViewMessageHandler';
-import type { CourseDashboardEntry, ExerciseDetail, ExerciseDetailsResponse } from '@extension/types';
+import type { CourseDashboardEntry, ExerciseDetail } from '@extension/types';
 import { CONFIG, resolveServerUrl, VSCODE_CONFIG } from '@extension/utils';
 
 import { COURSE_ACCESS_DISPLAY_LIMIT, type CourseAccessStorageService } from '../courseAccessStorageService';
@@ -42,9 +42,6 @@ export class ViewInitDataService {
             case 'course-list':            return this.sendCourseListInit();
             case 'course-detail':          return this.sendCourseDetailInit();
             case 'exercise-detail':        return this.sendExerciseDetailInit();
-            case 'exam-conduction':        return this.sendExamConductionInit();
-            case 'exam-start':             return this.sendExamStartInit();
-            case 'exam-exercise-detail':   return this.sendExamExerciseDetailInit();
             case 'ai-config':              return this.sendAiConfigInit();
             case 'struggle-detection':     return this.sendStruggleDetectionInit();
             case 'service-status':         return this.sendServiceStatusInit();
@@ -210,7 +207,7 @@ export class ViewInitDataService {
                 }
                 this._postMessage({
                     type: ExtensionMsg.ExerciseDetailInit,
-                    exerciseData: exerciseData as ExerciseDetailsResponse,
+                    exerciseData,
                     hideDeveloperTools: !this._isDeveloperMode(),
                     repoStatus,
                     serverRenderedProblemStatement: this._appStateManager.serverRenderedProblemStatement ?? undefined,
@@ -221,7 +218,7 @@ export class ViewInitDataService {
                 this._messageHandler.clearRepositoryContext();
                 this._postMessage({
                     type: ExtensionMsg.ExerciseDetailInit,
-                    exerciseData: exerciseData as ExerciseDetailsResponse,
+                    exerciseData,
                     hideDeveloperTools: !this._isDeveloperMode(),
                     serverRenderedProblemStatement: this._appStateManager.serverRenderedProblemStatement ?? undefined,
                 });
@@ -230,125 +227,11 @@ export class ViewInitDataService {
             this._messageHandler.clearRepositoryContext();
             this._postMessage({
                 type: ExtensionMsg.ExerciseDetailInit,
-                exerciseData: exerciseData as ExerciseDetailsResponse,
+                exerciseData,
                 hideDeveloperTools: !this._isDeveloperMode(),
                 serverRenderedProblemStatement: this._appStateManager.serverRenderedProblemStatement ?? undefined,
             });
         }
-    }
-
-    public sendExamConductionInit(): void {
-        const examData = this._appStateManager.currentExamData;
-        if (!examData) {
-            logger.error('Exam conduction state missing exam data', LogCategory.VIEW);
-            this._postMessage({ type: ExtensionMsg.ViewInitError, error: 'Exam data is not available. Please go back and try again.' });
-            return;
-        }
-
-        const studentExam = examData.studentExam;
-        const exam = studentExam.exam;
-
-        let startTime: number;
-        let endTime: number;
-        if (exam?.testExam && studentExam.startedDate) {
-            startTime = new Date(studentExam.startedDate).getTime();
-        } else if (exam?.startDate) {
-            startTime = new Date(exam.startDate).getTime();
-        } else {
-            startTime = Date.now();
-        }
-        endTime = startTime + ((studentExam.workingTime || 0) * 1000);
-        const totalDuration = (studentExam.workingTime || 0) * 1000;
-
-        const exercises = studentExam.exercises || [];
-        const gen = this._initGeneration;
-        detectWorkspaceExercise(exercises as ExerciseSource[]).then((detectedExercise: { id?: number } | null) => {
-            if (gen !== this._initGeneration) { return; }
-            this._postMessage({
-                type: ExtensionMsg.ExamConductionInit,
-                studentExam,
-                courseId: examData.courseId,
-                examId: examData.examId,
-                endTime,
-                startTime,
-                totalDuration,
-                workspaceExerciseId: detectedExercise?.id ?? null,
-            });
-        }).catch((error) => {
-            if (gen !== this._initGeneration) { return; }
-            logger.error('Failed to detect workspace exercise for exam conduction', LogCategory.VIEW, error);
-            this._postMessage({
-                type: ExtensionMsg.ExamConductionInit,
-                studentExam,
-                courseId: examData.courseId,
-                examId: examData.examId,
-                endTime,
-                startTime,
-                totalDuration,
-                workspaceExerciseId: null,
-            });
-        });
-    }
-
-    public sendExamStartInit(): void {
-        const examData = this._appStateManager.currentExamData;
-        if (!examData) {
-            logger.error('Exam start state missing exam data', LogCategory.VIEW);
-            this._postMessage({ type: ExtensionMsg.ViewInitError, error: 'Exam data is not available. Please go back and try again.' });
-            return;
-        }
-
-        this._postMessage({
-            type: ExtensionMsg.ExamStartInit,
-            studentExam: examData.studentExam,
-            courseId: examData.courseId,
-            examId: examData.examId,
-        });
-    }
-
-    public sendExamExerciseDetailInit(): void {
-        const appState = this._appStateManager;
-        const exerciseData = appState.currentExerciseData;
-        const examData = appState.currentExamData;
-
-        if (!examData) {
-            logger.error('Exam exercise detail state missing exam data', LogCategory.VIEW);
-            this._postMessage({ type: ExtensionMsg.ViewInitError, error: 'Exam data is not available. Please go back and try again.' });
-            return;
-        }
-        if (!exerciseData) {
-            logger.error('Exam exercise detail state missing exercise data', LogCategory.VIEW);
-            this._postMessage({ type: ExtensionMsg.ViewInitError, error: 'Exam data is not available. Please go back and try again.' });
-            return;
-        }
-
-        const studentExam = examData.studentExam;
-        const exam = studentExam.exam;
-
-        let startTime: number;
-        if (exam?.testExam && studentExam.startedDate) {
-            startTime = new Date(studentExam.startedDate).getTime();
-        } else if (exam?.startDate) {
-            startTime = new Date(exam.startDate).getTime();
-        } else {
-            startTime = Date.now();
-        }
-        const endTime = startTime + ((studentExam.workingTime || 0) * 1000);
-        const totalDuration = (studentExam.workingTime || 0) * 1000;
-
-        this._postMessage({
-            type: ExtensionMsg.ExamExerciseDetailInit,
-            exerciseData: { exercise: exerciseData.exercise },
-            examContext: {
-                courseId: examData.courseId,
-                examId: examData.examId,
-                studentExam,
-                endTime,
-                startTime,
-                totalDuration,
-            },
-            hideDeveloperTools: !this._isDeveloperMode(),
-        });
     }
 
     public sendAiConfigInit(): void {

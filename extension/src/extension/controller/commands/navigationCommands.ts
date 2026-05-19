@@ -1,12 +1,11 @@
 import * as vscode from 'vscode';
 
-import type { CourseDetailData, ExerciseDetail, WebCmd, WebviewToExtensionMessage } from '@shared/messageContracts';
+import type { CourseDetailData, WebCmd, WebviewToExtensionMessage } from '@shared/messageContracts';
 import { ExtensionMsg, getPayload, WebviewCmd } from '@shared/messageContracts';
 import { toCourseDetailData } from '@shared/messageContracts';
 
-import { getExamErrorMessage } from '@extension/services/exam/examErrorHandler';
 import { logger } from '@extension/services/loggingService';
-import type { CourseDashboardCourse, CourseDashboardEntry, ExerciseDetailsResponse } from '@extension/types';
+import type { CourseDashboardCourse, CourseDashboardEntry } from '@extension/types';
 
 import { fetchAndEnrichExerciseDetails, fetchArchivedCourseDetail } from '../exerciseDataLoader';
 import type { CommandContext, CommandMap } from './types';
@@ -21,9 +20,7 @@ export class NavigationCommandModule {
             [WebviewCmd.ViewCourseDetails]: this.handleViewCourseDetails,
             [WebviewCmd.BackToDashboard]: this.handleBackToDashboard,
             [WebviewCmd.OpenExerciseDetails]: this.handleOpenExerciseDetails,
-            [WebviewCmd.OpenExamExerciseDetails]: this.handleOpenExamExerciseDetails,
             [WebviewCmd.BackToCourseDetails]: this.handleBackToCourseDetails,
-            [WebviewCmd.BackToExam]: this.handleBackToExam,
             [WebviewCmd.ShowAiConfig]: this.handleShowAiConfig,
             [WebviewCmd.ShowServiceStatus]: this.handleShowServiceStatus,
             [WebviewCmd.ShowStruggleDetection]: this.handleShowStruggleDetection,
@@ -39,72 +36,7 @@ export class NavigationCommandModule {
             [WebviewCmd.ToggleFullscreen]: this.handleToggleFullscreen,
             [WebviewCmd.ToggleCourseFullscreen]: this.handleToggleCourseFullscreen,
             [WebviewCmd.ToggleCourseListFullscreen]: this.handleToggleCourseListFullscreen,
-            [WebviewCmd.OpenExam]: this.handleOpenExam,
-            [WebviewCmd.RefreshExam]: this.handleRefreshExam,
-            [WebviewCmd.ReloadExamConduction]: this.handleReloadExamConduction,
-            [WebviewCmd.OpenExamInBrowser]: this.handleOpenExamInBrowser,
         };
-    }
-
-    private handleOpenExamInBrowser = async (message: WebviewToExtensionMessage): Promise<void> => {
-        try {
-            const { courseId, examId } = getPayload<WebCmd<'openExamInBrowser'>>(message);
-            const serverUrl = this.context.appStateManager.userInfo?.serverUrl;
-            if (serverUrl) {
-                const url = `${serverUrl}/courses/${courseId}/exams/${examId}`;
-                await vscode.env.openExternal(vscode.Uri.parse(url));
-            } else {
-                vscode.window.showErrorMessage('Could not determine Artemis server URL.');
-            }
-        } catch (error: unknown) {
-            logger.viewError('Error opening exam in browser:', error);
-            vscode.window.showErrorMessage('Failed to open exam in browser.');
-        }
-    };
-
-    private handleOpenExam = async (message: WebviewToExtensionMessage): Promise<void> => {
-        try {
-            const { courseId, examId } = getPayload<WebCmd<'openExam'>>(message);
-            logger.view(`Handling openExam for course ${courseId}, exam ${examId}`);
-            const studentExam = await this.context.artemisApi.getOwnStudentExam(courseId, examId);
-            logger.view(`Fetched student exam:`, studentExam);
-
-            if (studentExam.started) {
-                logger.view(`Exam already started, proceeding to conduction`);
-                // If already started, go directly to conduction (to be implemented)
-                // For now, we can reuse the start exam logic which will fetch conduction details
-                const studentExamId = studentExam.id ?? 0;
-                await this._startExamWithPayload({ courseId, examId, studentExamId });
-            } else {
-                logger.view(`Exam not started, showing start view`);
-                // Show start exam view
-                this.context.appStateManager.showExamStart({ studentExam, courseId, examId });
-                this.context.actionHandler.render();
-            }
-        } catch (error: unknown) {
-            logger.viewError('Error opening exam:', error);
-            const userMessage = getExamErrorMessage(error);
-            vscode.window.showErrorMessage(userMessage);
-        }
-    };
-
-
-    private async _startExamWithPayload(payload: { courseId: number; examId: number; studentExamId: number }): Promise<void> {
-        try {
-            const { courseId, examId, studentExamId } = payload;
-            logger.view(`Starting exam ${examId} for student exam ${studentExamId}`);
-            const conductionDetails = await this.context.artemisApi.startStudentExam(courseId, examId, studentExamId);
-
-            logger.view('Exam started, conduction details:', conductionDetails);
-
-            // Show conduction view
-            this.context.appStateManager.showExamConduction({ studentExam: conductionDetails, courseId, examId });
-            this.context.actionHandler.render();
-
-        } catch (error: unknown) {
-            logger.viewError('Error starting exam:', error);
-            vscode.window.showErrorMessage('Failed to start exam.');
-        }
     }
 
     private handleShowAllCourses = async (_message: WebviewToExtensionMessage): Promise<void> => {
@@ -127,7 +59,6 @@ export class NavigationCommandModule {
                 ? (courseData.course as CourseDashboardCourse | undefined)
                 : courseData;
 
-            // Exams are already included in course.exams from the dashboard response.
             // Convert to CourseDetailData format expected by state manager
             const courseDetailData = toCourseDetailData(
                 ('course' in courseData ? courseData.course! : courseData) as CourseDashboardCourse
@@ -197,23 +128,8 @@ export class NavigationCommandModule {
         }
     };
 
-    private handleOpenExamExerciseDetails = async (message: WebviewToExtensionMessage): Promise<void> => {
-        try {
-            const { exercise, exerciseIndex, courseId, examId } = getPayload<WebCmd<'openExamExerciseDetails'>>(message);
-            await this.context.actionHandler.openExamExerciseDetails(exercise, exerciseIndex, courseId, examId);
-        } catch (error: unknown) {
-            logger.viewError('Open exam exercise details error:', error);
-            vscode.window.showErrorMessage('Error opening exam exercise details');
-        }
-    };
-
     private handleBackToCourseDetails = async (_message: WebviewToExtensionMessage): Promise<void> => {
         this.context.appStateManager.backToCourseDetails();
-        this.context.actionHandler.render();
-    };
-
-    private handleBackToExam = async (_message: WebviewToExtensionMessage): Promise<void> => {
-        this.context.appStateManager.backToExam();
         this.context.actionHandler.render();
     };
 
@@ -299,7 +215,6 @@ export class NavigationCommandModule {
             const courseId = payload.courseId || this.context.appStateManager.currentCourseData?.course?.id;
             if (courseId) {
                 // Fetch fresh course data from the single-course dashboard endpoint.
-                // Exams are already included in course.exams from the dashboard response.
                 const dashboardDTO = await this.context.artemisApi.getCourseForDashboard(courseId);
                 const courseData = toCourseDetailData(dashboardDTO.course as CourseDashboardCourse);
 
@@ -319,18 +234,7 @@ export class NavigationCommandModule {
             const payload = getPayload<WebCmd<'reloadExerciseDetail'>>(message);
             const currentData = this.context.appStateManager.currentExerciseData;
 
-            // Extract exercise ID from various possible structures
-            let exerciseId: number | undefined = payload.exerciseId;
-            if (!exerciseId && currentData) {
-                // Check if it's ExerciseDetailsResponse format
-                if ('exercise' in currentData && currentData.exercise?.id) {
-                    exerciseId = currentData.exercise.id;
-                }
-                // Check if it's direct format (ExamExerciseData)
-                else if ('id' in currentData && typeof currentData.id === 'number') {
-                    exerciseId = currentData.id;
-                }
-            }
+            const exerciseId: number | undefined = payload.exerciseId ?? currentData?.exercise?.id;
 
             if (exerciseId) {
                 const data = await fetchAndEnrichExerciseDetails(this.context.artemisApi, exerciseId);
@@ -413,7 +317,7 @@ export class NavigationCommandModule {
                 return;
             }
 
-            await this.context.actionHandler.openExerciseFullscreen(exerciseData as ExerciseDetailsResponse);
+            await this.context.actionHandler.openExerciseFullscreen(exerciseData);
         } catch (error: unknown) {
             logger.viewError('Error opening exercise in fullscreen:', error);
             vscode.window.showErrorMessage('Failed to open exercise in fullscreen mode');
@@ -441,59 +345,6 @@ export class NavigationCommandModule {
         } catch (error: unknown) {
             logger.viewError('Error opening course in fullscreen:', error);
             vscode.window.showErrorMessage('Failed to open course in fullscreen mode');
-        }
-    };
-
-    private handleRefreshExam = async (message: WebviewToExtensionMessage): Promise<void> => {
-        try {
-            const { courseId, examId, studentExamId } = getPayload<WebCmd<'refreshExam'>>(message);
-            logger.view(`Refreshing exam status for course ${courseId}, exam ${examId}`);
-
-            const studentExam = await this.context.artemisApi.getOwnStudentExam(courseId, examId);
-
-            if (studentExam.started) {
-                logger.view(`Exam started in browser, proceeding to conduction`);
-                // Proceed to conduction by fetching details
-                const effectiveStudentExamId = studentExamId || studentExam.id || 0;
-                await this._startExamWithPayload({ courseId, examId, studentExamId: effectiveStudentExamId });
-            } else {
-                vscode.window.showInformationMessage('Exam has not been started yet. Please start it in the browser.');
-            }
-        } catch (error: unknown) {
-            logger.viewError('Error refreshing exam:', error);
-            vscode.window.showErrorMessage('Failed to refresh exam status.');
-        }
-    };
-
-    private handleReloadExamConduction = async (_message: WebviewToExtensionMessage): Promise<void> => {
-        try {
-            const examData = this.context.appStateManager.currentExamData;
-            if (!examData) {
-                logger.viewError('No exam data available for reload');
-                return;
-            }
-
-            const { courseId, examId } = examData;
-
-            if (typeof courseId !== 'number' || typeof examId !== 'number') {
-                logger.viewError('Invalid exam context - missing courseId or examId');
-                return;
-            }
-
-            logger.view(`Reloading exam conduction for course ${courseId}, exam ${examId}`);
-
-            const studentExam = await this.context.artemisApi.getOwnStudentExam(courseId, examId);
-
-            if (studentExam.started && studentExam.id) {
-                const conductionDetails = await this.context.artemisApi.startStudentExam(courseId, examId, studentExam.id);
-                this.context.appStateManager.showExamConduction({ studentExam: conductionDetails, courseId, examId });
-                this.context.actionHandler.sendInitData();
-            } else {
-                vscode.window.showWarningMessage('Exam has not been started yet.');
-            }
-        } catch (error: unknown) {
-            logger.viewError('Error reloading exam conduction:', error);
-            vscode.window.showErrorMessage('Failed to reload exam conduction.');
         }
     };
 }

@@ -1,11 +1,5 @@
 import { act, render, screen } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
-
-// Mock the Web Worker-based exam timer hook — the esbuild-plugin-inline-worker
-// transform is not available in Vitest's SSR environment.
-vi.mock('../../../src/webview/hooks/useExamTimer', () => ({
-    useExamTimer: vi.fn(() => ({ remaining: 3_600_000, expired: false })),
-}));
+import { describe, expect, it } from 'vitest';
 
 // View components
 import { useChatStore } from '@webview/stores/useChatStore';
@@ -13,16 +7,10 @@ import { useCourseDetailStore } from '@webview/stores/useCourseDetailStore';
 import { useCourseListStore } from '@webview/stores/useCourseListStore';
 // Zustand stores
 import { useDashboardStore } from '@webview/stores/useDashboardStore';
-import { useExamConductionStore } from '@webview/stores/useExamConductionStore';
-import { useExamExerciseDetailStore } from '@webview/stores/useExamExerciseDetailStore';
-import { useExamStartStore } from '@webview/stores/useExamStartStore';
 import { useExerciseDetailStore } from '@webview/stores/useExerciseDetailStore';
 import { CourseDetailView } from '@webview/views/CourseDetail/CourseDetailView';
 import { CourseListView } from '@webview/views/CourseList/CourseListView';
 import { DashboardView } from '@webview/views/Dashboard/DashboardView';
-import { ExamConductionView } from '@webview/views/ExamConduction/ExamConductionView';
-import { ExamExerciseDetailView } from '@webview/views/ExamExerciseDetail/ExamExerciseDetailView';
-import { ExamStartView } from '@webview/views/ExamStart/ExamStartView';
 import { ExerciseDetailView } from '@webview/views/ExerciseDetail/ExerciseDetailView';
 import { GitCredentialsView } from '@webview/views/GitCredentials/GitCredentialsView';
 import { IrisChatView } from '@webview/views/IrisChat/IrisChatView';
@@ -36,9 +24,6 @@ import {
     createCourseDetailPayload,
     createCourseListPayload,
     createDashboardPayload,
-    createExamConductionPayload,
-    createExamExerciseDetailPayload,
-    createExamStartPayload,
     createExerciseDetailPayload,
     createGitCredentialsPayload,
     createIrisInitPayload,
@@ -223,7 +208,6 @@ describe('courseDetailInit hydrates useCourseDetailStore', () => {
                             title: 'Functional Programming',
                             semester: 'WS24/25',
                             exercises: [],
-                            exams: [],
                         },
                     },
                 }),
@@ -260,103 +244,6 @@ describe('exerciseDetailInit hydrates useExerciseDetailStore', () => {
         const state = useExerciseDetailStore.getState();
         expect(state.exerciseData).not.toBeNull();
         expect(state.exerciseData?.exercise?.id).toBe(55);
-        expect(state.isLoading).toBe(false);
-    });
-});
-
-// ============================================================================
-// 9. examStartInit → useExamStartStore
-// ============================================================================
-
-describe('examStartInit hydrates useExamStartStore', () => {
-    it('sets studentExam, courseId, and loading=false on init', async () => {
-        const mockApi = createMockVsCodeApi();
-        render(<ExamStartView vscodeApi={mockApi} />);
-
-        await act(async () => {
-            dispatchExtensionMessage(
-                createExamStartPayload({
-                    studentExam: { id: 11 },
-                    courseId: 3,
-                    examId: 7,
-                }),
-            );
-        });
-
-        const state = useExamStartStore.getState();
-        expect(state.studentExam).not.toBeNull();
-        expect(state.courseId).toBe(3);
-        expect(state.isLoading).toBe(false);
-    });
-});
-
-// ============================================================================
-// 10. examConductionInit → useExamConductionStore
-// ============================================================================
-
-describe('examConductionInit hydrates useExamConductionStore', () => {
-    it('sets studentExam, courseId, and loading=false on init', async () => {
-        const mockApi = createMockVsCodeApi();
-        const now = Date.now();
-
-        await act(async () => {
-            render(<ExamConductionView vscodeApi={mockApi} />);
-        });
-
-        await act(async () => {
-            dispatchExtensionMessage(
-                createExamConductionPayload({
-                    studentExam: { id: 22 },
-                    courseId: 5,
-                    examId: 9,
-                    endTime: now + 3_600_000,
-                    startTime: now,
-                    totalDuration: 3600,
-                    workspaceExerciseId: null,
-                }),
-            );
-        });
-
-        const state = useExamConductionStore.getState();
-        expect(state.studentExam).not.toBeNull();
-        expect(state.courseId).toBe(5);
-        expect(state.isLoading).toBe(false);
-    });
-});
-
-// ============================================================================
-// 11. examExerciseDetailInit → useExamExerciseDetailStore
-// ============================================================================
-
-describe('examExerciseDetailInit hydrates useExamExerciseDetailStore', () => {
-    it('sets examContext and loading=false on init', async () => {
-        const mockApi = createMockVsCodeApi();
-        const now = Date.now();
-
-        await act(async () => {
-            render(<ExamExerciseDetailView vscodeApi={mockApi} />);
-        });
-
-        await act(async () => {
-            dispatchExtensionMessage(
-                createExamExerciseDetailPayload({
-                    exerciseData: { exercise: { id: 33, title: 'Exam Exercise Alpha' } },
-                    examContext: {
-                        courseId: 6,
-                        examId: 12,
-                        studentExam: { id: 5 },
-                        endTime: now + 3_600_000,
-                        startTime: now,
-                        totalDuration: 3600,
-                    },
-                    hideDeveloperTools: false,
-                }),
-            );
-        });
-
-        const state = useExamExerciseDetailStore.getState();
-        expect(state.examContext).not.toBeNull();
-        expect(state.examContext?.courseId).toBe(6);
         expect(state.isLoading).toBe(false);
     });
 });

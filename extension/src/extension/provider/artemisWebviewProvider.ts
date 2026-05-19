@@ -39,7 +39,7 @@ import {
     findWorkspaceCourseInArchive,
     getWorkspaceRepositoryUrl,
 } from '../services/workspace';
-import type { ExerciseDetail, ExerciseDetailsResponse } from '../types';
+import type { ExerciseDetailsResponse } from '../types';
 import { WebSocketMessageHandler } from '../types';
 import type { IArtemisWebviewProvider } from '../types/IArtemisWebviewProvider';
 import {
@@ -269,7 +269,7 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
                     // Swallow fetch errors only — state-transition errors (invariant breaches)
                     // must propagate so latent bugs don't get hidden by this refresh path.
                     if (currentState === 'exercise-detail') {
-                        const exerciseData = this._appStateManager.currentExerciseData as ExerciseDetailsResponse | undefined;
+                        const exerciseData = this._appStateManager.currentExerciseData;
                         const exerciseId = exerciseData?.exercise?.id;
                         if (exerciseId) {
                             let freshData: ExerciseDetailsResponse | undefined;
@@ -394,29 +394,10 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
         }
 
         // Handle post-open side effects (registry, telemetry, chat notify).
-        // openExerciseDetails always sets ExerciseDetailsResponse (not ExamExerciseData),
-        // so the cast is safe. Exam exercises go through openExamExerciseDetails instead.
-        const exerciseData = this._appStateManager.currentExerciseData as ExerciseDetailsResponse | undefined;
+        const exerciseData = this._appStateManager.currentExerciseData;
         if (exerciseData?.exercise) {
             this._exerciseOpeningService.handleExerciseOpened(exerciseData, exerciseId);
         }
-    }
-
-    public async openExamExerciseDetails(
-        exercise: ExerciseDetail,
-        exerciseIndex: number,
-        courseId: number,
-        examId: number
-    ): Promise<void> {
-        // Uses data from the studentExam to avoid API calls forbidden during exams.
-        try {
-            this._appStateManager.showExamExerciseDetail(exercise, exerciseIndex, courseId, examId);
-        } catch (error) {
-            logger.error('Error showing exam exercise details:', LogCategory.VIEW, error);
-            vscode.window.showErrorMessage('Failed to show exam exercise details');
-            return;
-        }
-        this.render();
     }
 
     public async showDashboard(userInfo: UserInfo): Promise<void> {
@@ -736,11 +717,10 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
     // ── Server-side problem statement rendering ─────────────────────
 
     private async _backgroundRenderProblemStatement(): Promise<void> {
-        // SSR is for regular exercise detail only. Exam exercises use a plaintext fallback
-        // and must never have their markdown POSTed to the render endpoint.
+        // SSR is for the exercise detail view only.
         if (this._appStateManager.currentState !== 'exercise-detail') { return; }
 
-        const exerciseData = this._appStateManager.currentExerciseData as ExerciseDetailsResponse | undefined;
+        const exerciseData = this._appStateManager.currentExerciseData;
         if (!exerciseData?.exercise?.problemStatement) {
             logger.info('[SSR] No exercise data or problemStatement, skipping', LogCategory.GENERAL);
             return;
@@ -756,7 +736,7 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
             const rendered = await this._renderService.render(exercise, { participation });
 
             // Guard: verify same exercise is still active after await
-            const current = this._appStateManager.currentExerciseData as ExerciseDetailsResponse | undefined;
+            const current = this._appStateManager.currentExerciseData;
             if (current?.exercise?.id !== exerciseId) { return; }
 
             if (rendered) {

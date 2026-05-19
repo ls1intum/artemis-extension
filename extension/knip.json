@@ -14,7 +14,6 @@
   ],
   "ignoreDependencies": [
     "@types/vscode",
-    "@types/dompurify",
     "@types/katex",
     "@vscode/test-electron",
     "axe-core",

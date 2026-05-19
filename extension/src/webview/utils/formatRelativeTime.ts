@@ -1,7 +1,6 @@
 /**
  * Formats a timestamp as a relative time string ("just now", "5m ago", "2h ago", "3d ago").
  * For use in non-hook contexts (e.g., inside .map() calls).
- * For component-level relative time with auto-refresh, use useRelativeTime hook instead.
  */
 export function formatRelativeTime(timestamp: number): string {
     const diff = Date.now() - timestamp;

@@ -8,15 +8,6 @@ export interface ExerciseDetailViewProps {
 }
 
 /**
- * Test case structure for test results.
- */
-export interface TestCase {
-    name: string;
-    passed: boolean;
-    message?: string;
-}
-
-/**
  * Props for ProblemStatement extracted component.
  */
 export interface ProblemStatementProps {
@@ -33,11 +24,4 @@ export interface ScoreInfoProps {
     bonusPoints?: number;
     assessmentType?: string;
     completionDate?: string;
-}
-
-/**
- * Props for TestResults extracted component.
- */
-export interface TestResultsProps {
-    testCases: TestCase[];
 }

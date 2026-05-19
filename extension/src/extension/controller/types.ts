@@ -1,6 +1,6 @@
 import type { CourseDetailData } from '@shared/messageContracts';
 
-import type { ExerciseDetail, ExerciseDetailsResponse } from '../types';
+import type { ExerciseDetailsResponse } from '../types';
 import type { UserInfo } from './appStateManager';
 
 /**
@@ -17,7 +17,6 @@ export interface WebViewActionHandler {
     showGitCredentials(): void;
     openJsonInEditor(data: unknown): Promise<void>;
     openExerciseDetails(exerciseId: number): Promise<void>;
-    openExamExerciseDetails(exercise: ExerciseDetail, exerciseIndex: number, courseId: number, examId: number): Promise<void>;
     openExerciseFullscreen(exerciseData: ExerciseDetailsResponse): Promise<void>;
     openCourseFullscreen(courseData: CourseDetailData): Promise<void>;
     openCourseListFullscreen(): Promise<void>;

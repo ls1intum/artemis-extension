@@ -28,7 +28,6 @@ export interface CourseDashboardCourse {
     editorGroupName?: string;
     instructorGroupName?: string;
     exercises?: ExerciseDetail[];
-    exams?: ExamSummary[];
     [key: string]: unknown;
 }
 
@@ -173,26 +172,5 @@ export interface IrisSettingsResponse {
         timeframeHours?: number;
         [key: string]: unknown;
     };
-    [key: string]: unknown;
-}
-
-export interface ExamSummary {
-    id?: number;
-    title?: string;
-    startDate?: string;
-    endDate?: string;
-    [key: string]: unknown;
-}
-
-export interface StudentExam {
-    id?: number;
-    started?: boolean;
-    exam?: ExamSummary & {
-        startText?: string;
-    };
-    exercises?: ExerciseDetail[];
-    workingTime?: number;
-    individualEndDate?: string;
-    startedDate?: string;
     [key: string]: unknown;
 }

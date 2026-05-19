@@ -2,7 +2,7 @@
  * Webview -> Extension command contracts.
  */
 
-import type { CourseDashboardCourse, ExerciseDetail } from '../types/apiResponses';
+import type { CourseDashboardCourse } from '../types/apiResponses';
 import type { ChatContextType } from '../types/context';
 
 /** Non-command webview message types (ready, requestInit, error) */
@@ -24,9 +24,7 @@ export const WebviewCmd = {
     ViewCourseDetails: 'viewCourseDetails',
     OpenExercise: 'openExercise',
     OpenExerciseDetails: 'openExerciseDetails',
-    OpenExamExerciseDetails: 'openExamExerciseDetails',
     BackToCourseDetails: 'backToCourseDetails',
-    BackToExam: 'backToExam',
 
     // Course
     ReloadDashboard: 'reloadDashboard',
@@ -52,12 +50,6 @@ export const WebviewCmd = {
     CheckRepositoryStatus: 'checkRepositoryStatus',
     ViewBuildLog: 'viewBuildLog',
     GoToSource: 'goToSource',
-
-    // Exam
-    OpenExam: 'openExam',
-    OpenExamInBrowser: 'openExamInBrowser',
-    RefreshExam: 'refreshExam',
-    ReloadExamConduction: 'reloadExamConduction',
 
     // Utility
     OpenWebsite: 'openWebsite',
@@ -124,9 +116,7 @@ interface WebviewCmdPayloads {
     viewCourseDetails: { courseData: CourseDashboardCourse };
     openExercise: { exerciseId: number; courseId?: number | null };
     openExerciseDetails: { exerciseId: number };
-    openExamExerciseDetails: { exercise: ExerciseDetail; exerciseIndex: number; courseId: number; examId: number };
     backToCourseDetails: undefined;
-    backToExam: undefined;
 
     // Course
     reloadDashboard: undefined;
@@ -152,12 +142,6 @@ interface WebviewCmdPayloads {
     checkRepositoryStatus: undefined;
     viewBuildLog: { participationId: number; resultId?: number };
     goToSource: { participationId: number; resultId?: number };
-
-    // Exam
-    openExam: { examId: number; courseId: number };
-    openExamInBrowser: { courseId: number; examId: number };
-    refreshExam: { courseId: number; examId: number; studentExamId?: number };
-    reloadExamConduction: undefined;
 
     // Utility
     openWebsite: { path?: string };
@@ -247,7 +231,6 @@ export const COMMANDS_REQUIRING_PAYLOAD = new Set<string>([
     WebviewCmd.ViewCourseDetails,
     WebviewCmd.OpenExercise,
     WebviewCmd.OpenExerciseDetails,
-    WebviewCmd.OpenExamExerciseDetails,
     WebviewCmd.ReloadCourseDetail,
     WebviewCmd.AskIrisAboutCourse,
     WebviewCmd.ReloadExerciseDetail,
@@ -257,9 +240,6 @@ export const COMMANDS_REQUIRING_PAYLOAD = new Set<string>([
     WebviewCmd.StartExercise,
     WebviewCmd.StartPractice,
     WebviewCmd.AskIrisAboutExercise,
-    WebviewCmd.OpenExam,
-    WebviewCmd.OpenExamInBrowser,
-    WebviewCmd.RefreshExam,
     WebviewCmd.OpenInEditor,
     WebviewCmd.CopyToClipboard,
     WebviewCmd.OpenExternalLink,

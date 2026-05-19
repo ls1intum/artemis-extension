@@ -2,9 +2,6 @@
  * Domain types shared between extension and webview messages.
  */
 
-// Re-export ExerciseDetail for use in navigationCommands and other consumers
-export type { ExerciseDetail } from '../types/apiResponses';
-
 export interface CourseData {
     course: {
         id?: number;
@@ -41,13 +38,6 @@ export interface ArchivedCourse {
     color?: string;
 }
 
-export interface Exam {
-    id: number;
-    title?: string;
-    startDate?: string;
-    endDate?: string;
-}
-
 export interface CourseDetailData {
     course: {
         id: number;
@@ -56,7 +46,6 @@ export interface CourseDetailData {
         semester?: string;
         color?: string;
         exercises?: Exercise[];
-        exams?: Exam[];
         numberOfStudents?: number;
         instructorGroupName?: string;
         isArchived?: boolean;

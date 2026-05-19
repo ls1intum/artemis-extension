@@ -15,11 +15,6 @@ vi.mock('../../../../src/webview/hooks/useWebSocketUpdates', () => ({
 	useWebSocketUpdates: vi.fn(),
 }));
 
-// Mock useExamTimer (used transitively via ExamTimer component from useWebSocketUpdates)
-vi.mock('../../../../src/webview/hooks/useExamTimer', () => ({
-	useExamTimer: () => ({ remaining: 0, expired: false }),
-}));
-
 // Helper to build minimal exerciseData
 function makeExerciseData(overrides: Partial<ExerciseDetailsResponse> = {}): ExerciseDetailsResponse {
 	return {
