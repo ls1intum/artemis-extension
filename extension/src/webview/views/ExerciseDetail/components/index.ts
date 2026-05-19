@@ -4,4 +4,3 @@
 
 export { ProblemStatement } from './ProblemStatement';
 export { ScoreInfo } from './ScoreInfo';
-export { TestResults } from './TestResults';

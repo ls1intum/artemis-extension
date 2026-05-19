@@ -304,7 +304,6 @@
     "@testing-library/jest-dom": "6.9.1",
     "@testing-library/react": "16.3.2",
     "@testing-library/user-event": "14.6.1",
-    "@types/dompurify": "3.2.0",
     "@types/katex": "0.16.8",
     "@types/mocha": "10.0.10",
     "@types/node": "24.10.9",
@@ -343,7 +342,6 @@
   "dependencies": {
     "@stomp/stompjs": "7.3.0",
     "clsx": "2.1.1",
-    "dompurify": "3.3.3",
     "katex": "0.16.44",
     "lucide-react": "0.575.0",
     "react": "18.3.1",

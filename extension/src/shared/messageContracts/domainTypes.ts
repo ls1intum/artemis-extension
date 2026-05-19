@@ -2,9 +2,6 @@
  * Domain types shared between extension and webview messages.
  */
 
-// Re-export ExerciseDetail for use in navigationCommands and other consumers
-export type { ExerciseDetail } from '../types/apiResponses';
-
 export interface CourseData {
     course: {
         id?: number;
