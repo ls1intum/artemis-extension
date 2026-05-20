@@ -40,8 +40,6 @@ describe('useChatStore', () => {
 		expect(result.current.messages).toEqual([]);
 		expect(result.current.sessions).toEqual([]);
 		expect(result.current.streaming.isStreaming).toBe(false);
-		expect(result.current.streaming.messageLocalId).toBeNull();
-		expect(result.current.streaming.visibleChunks).toEqual([]);
 		expect(result.current.isLoading).toBe(false);
 		expect(result.current.webSocketStatus).toBe('unknown');
 		expect(result.current.disabledMessage).toBeNull();
@@ -97,26 +95,6 @@ describe('useChatStore', () => {
 		expect(result.current.messages[1].role).toBe('assistant');
 	});
 
-	it('setMessages replaces all messages', () => {
-		const { result } = renderHook(() => useChatStore());
-
-		act(() => {
-			result.current.addMessage(makeMessage({ localId: 'old-1' }));
-		});
-
-		const newMessages = [
-			makeMessage({ localId: 'new-1', content: 'New message 1' }),
-			makeMessage({ localId: 'new-2', content: 'New message 2' }),
-		];
-
-		act(() => {
-			result.current.setMessages(newMessages);
-		});
-
-		expect(result.current.messages).toHaveLength(2);
-		expect(result.current.messages[0].localId).toBe('new-1');
-	});
-
 	it('clearMessages resets messages to empty array', () => {
 		const { result } = renderHook(() => useChatStore());
 
@@ -132,106 +110,14 @@ describe('useChatStore', () => {
 		expect(result.current.messages).toEqual([]);
 	});
 
-	it('setMessageStatus updates status of the matching localId message', () => {
+	it('startStreaming sets isStreaming true', () => {
 		const { result } = renderHook(() => useChatStore());
 
 		act(() => {
-			result.current.addMessage(makeMessage({ localId: 'msg-1', status: 'sending' }));
-		});
-
-		act(() => {
-			result.current.setMessageStatus('msg-1', 'sent');
-		});
-
-		expect(result.current.messages[0].status).toBe('sent');
-	});
-
-	it('setMessageStatus sets error status with error message', () => {
-		const { result } = renderHook(() => useChatStore());
-
-		act(() => {
-			result.current.addMessage(makeMessage({ localId: 'msg-1' }));
-		});
-
-		act(() => {
-			result.current.setMessageStatus('msg-1', 'error', 'Network timeout');
-		});
-
-		expect(result.current.messages[0].status).toBe('error');
-		expect(result.current.messages[0].errorMessage).toBe('Network timeout');
-	});
-
-	it('startStreaming sets isStreaming true and initializes streaming state', () => {
-		const { result } = renderHook(() => useChatStore());
-
-		act(() => {
-			result.current.startStreaming('stream-msg-1');
+			result.current.startStreaming();
 		});
 
 		expect(result.current.streaming.isStreaming).toBe(true);
-		expect(result.current.streaming.messageLocalId).toBe('stream-msg-1');
-		expect(result.current.streaming.visibleChunks).toEqual([]);
-	});
-
-	it('appendStreamChunk adds chunk to visibleChunks', () => {
-		const { result } = renderHook(() => useChatStore());
-
-		act(() => {
-			result.current.startStreaming('stream-msg-1');
-		});
-
-		act(() => {
-			result.current.appendStreamChunk('Hello');
-		});
-
-		expect(result.current.streaming.visibleChunks).toHaveLength(1);
-		expect(result.current.streaming.visibleChunks[0]).toBe('Hello');
-	});
-
-	it('appendStreamChunk accumulates multiple chunks', () => {
-		const { result } = renderHook(() => useChatStore());
-
-		act(() => {
-			result.current.startStreaming('stream-msg-1');
-			result.current.appendStreamChunk('Hello');
-			result.current.appendStreamChunk(' World');
-			result.current.appendStreamChunk('!');
-		});
-
-		expect(result.current.streaming.visibleChunks).toEqual(['Hello', ' World', '!']);
-	});
-
-	it('finishStreaming clears streaming state and updates message content', () => {
-		const { result } = renderHook(() => useChatStore());
-
-		act(() => {
-			result.current.addMessage(makeMessage({ localId: 'stream-msg-1', content: '' }));
-			result.current.startStreaming('stream-msg-1');
-			result.current.appendStreamChunk('Complete answer');
-		});
-
-		act(() => {
-			result.current.finishStreaming('Complete answer');
-		});
-
-		expect(result.current.streaming.isStreaming).toBe(false);
-		expect(result.current.streaming.messageLocalId).toBeNull();
-		expect(result.current.streaming.visibleChunks).toEqual([]);
-		expect(result.current.messages[0].content).toBe('Complete answer');
-	});
-
-	it('finishStreaming leaves messages unchanged when no active streaming message', () => {
-		const { result } = renderHook(() => useChatStore());
-
-		act(() => {
-			result.current.addMessage(makeMessage({ localId: 'msg-1', content: 'Original' }));
-		});
-
-		act(() => {
-			result.current.finishStreaming('Should not apply');
-		});
-
-		expect(result.current.messages[0].content).toBe('Original');
 	});
 
 	it('setLoading updates isLoading', () => {
@@ -501,7 +387,7 @@ describe('useChatStore', () => {
 
 		act(() => {
 			result.current.setIrisStages([makeStage()]);
-			result.current.startStreaming('msg-1');
+			result.current.startStreaming();
 		});
 
 		act(() => {
@@ -510,8 +396,6 @@ describe('useChatStore', () => {
 
 		expect(result.current.irisStages).toEqual([]);
 		expect(result.current.streaming.isStreaming).toBe(false);
-		expect(result.current.streaming.messageLocalId).toBeNull();
-		expect(result.current.streaming.visibleChunks).toEqual([]);
 	});
 
 	it('resetTransientChatUi does not clear messages', () => {

@@ -199,8 +199,11 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
             status: 'sending',
         });
 
-        // Start streaming state (thinking indicator will show)
-        store.startStreaming('__thinking__');
+        // Start streaming state (thinking indicator will show until either
+        // the assistant AddMessage arrives — resetTransientChatUi clears it —
+        // or a STATUS frame populates irisStages and the stage indicator
+        // takes over).
+        store.startStreaming();
 
         // Send to extension
         postCommand(vscodeApi, 'sendMessage', { text });

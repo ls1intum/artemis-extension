@@ -58,7 +58,7 @@ describe('IrisChatView', () => {
 			courses: [],
 			messages: [],
 			messageLoad: null,
-			streaming: { isStreaming: false, messageLocalId: null, visibleChunks: [] },
+			streaming: { isStreaming: false },
 			irisStages: [],
 			isLoading: false,
 			webSocketStatus: 'connected',

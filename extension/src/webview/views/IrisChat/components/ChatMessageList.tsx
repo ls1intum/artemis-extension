@@ -29,20 +29,19 @@ export function ChatMessageList({
 }: ChatMessageListProps) {
     const { scrollRef, contentRef, scrollOnSend } = useAutoScroll();
 
-    // Auto-scroll when new messages or streaming chunks arrive
+    // Auto-scroll when new messages arrive
     useEffect(() => {
         scrollOnSend();
-    }, [messages.length, streaming.visibleChunks.length, scrollOnSend]);
+    }, [messages.length, scrollOnSend]);
 
     // Show welcome state when no messages
     const showWelcome = messages.length === 0;
 
-    // Stage indicator takes priority; both suppressed once streaming chunks arrive
-    const hasChunks = streaming.visibleChunks.length > 0;
-    const showStageIndicator = activeStage !== null && !hasChunks;
-    const showLegacyThinking = !showStageIndicator
-        && streaming.isStreaming
-        && !hasChunks;
+    // Stage indicator (real Iris pipeline stages) takes priority; the
+    // legacy thinking-dots fall back when streaming flag is set but no
+    // stages have been published yet.
+    const showStageIndicator = activeStage !== null;
+    const showLegacyThinking = !showStageIndicator && streaming.isStreaming;
     const showThinking = showStageIndicator || showLegacyThinking;
 
     return (
@@ -52,26 +51,17 @@ export function ChatMessageList({
                     <WelcomeState onSendPrompt={onSendPrompt} hasContext={hasContext} isChatDisabled={isChatDisabled} />
                 ) : (
                     <>
-                        {messages.map((message) => {
-                            // Check if this message is currently streaming
-                            const isStreaming =
-                                streaming.isStreaming &&
-                                streaming.messageLocalId === message.localId;
+                        {messages.map((message) => (
+                            <MessageBubble
+                                key={message.localId}
+                                message={message}
+                                onFeedback={onFeedback}
+                            />
+                        ))}
 
-                            return (
-                                <MessageBubble
-                                    key={message.localId}
-                                    message={message}
-                                    isStreaming={isStreaming}
-                                    streamingChunks={
-                                        isStreaming ? streaming.visibleChunks : []
-                                    }
-                                    onFeedback={onFeedback}
-                                />
-                            );
-                        })}
-
-                        {/* Show thinking indicator between user message and first chunk */}
+                        {/* Show thinking indicator while waiting for the assistant
+                            response (cleared by resetTransientChatUi once
+                            AddMessage arrives). */}
                         {showThinking && (
                             <ThinkingIndicator
                                 isVisible={true}

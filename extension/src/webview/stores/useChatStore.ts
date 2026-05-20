@@ -66,19 +66,15 @@ interface ChatState {
 
     // Actions
     setIrisState: (state: ExtMsg<'updateIrisState'>['state']) => void;
-    setMessages: (messages: ChatMessage[]) => void;
     /** Apply messages and record a successful hydration for the given session. */
     applyLoadedMessages: (localSessionId: string, messages: ChatMessage[]) => void;
     /** Record that hydration failed for the given session. */
     setMessageLoadError: (localSessionId: string) => void;
     addMessage: (message: ChatMessage) => void;
     clearMessages: () => void;
-    setMessageStatus: (localId: string, status: 'sending' | 'sent' | 'error', errorMessage?: string) => void;
 
     // Streaming actions
-    startStreaming: (localId: string) => void;
-    appendStreamChunk: (chunk: string) => void;
-    finishStreaming: (finalContent: string) => void;
+    startStreaming: () => void;
 
     // Iris stage actions
     setIrisStages: (stages: IrisStageDTO[]) => void;
@@ -95,8 +91,6 @@ interface ChatState {
 
 const IDLE_STREAMING: StreamingState = {
     isStreaming: false,
-    messageLocalId: null,
-    visibleChunks: [],
 };
 
 export const useChatStore = create<ChatState>()(
@@ -148,10 +142,6 @@ export const useChatStore = create<ChatState>()(
                 }, false, 'setIrisState');
             },
 
-            setMessages: (messages) => {
-                set({ messages }, false, 'setMessages');
-            },
-
             applyLoadedMessages: (localSessionId, messages) => {
                 set({
                     messages,
@@ -180,46 +170,11 @@ export const useChatStore = create<ChatState>()(
                 }, false, 'clearMessages');
             },
 
-            setMessageStatus: (localId, status, errorMessage) => {
-                set((state) => ({
-                    messages: state.messages.map(msg =>
-                        msg.localId === localId ? { ...msg, status, errorMessage } : msg
-                    ),
-                }), false, 'setMessageStatus');
-            },
-
             // Streaming actions
-            startStreaming: (localId) => {
+            startStreaming: () => {
                 set({
-                    streaming: {
-                        isStreaming: true,
-                        messageLocalId: localId,
-                        visibleChunks: [],
-                    },
+                    streaming: { isStreaming: true },
                 }, false, 'startStreaming');
-            },
-
-            appendStreamChunk: (chunk) => {
-                set((state) => ({
-                    streaming: {
-                        ...state.streaming,
-                        visibleChunks: [...state.streaming.visibleChunks, chunk],
-                    },
-                }), false, 'appendStreamChunk');
-            },
-
-            finishStreaming: (finalContent) => {
-                set((state) => {
-                    const { messageLocalId } = state.streaming;
-                    return {
-                        streaming: IDLE_STREAMING,
-                        messages: messageLocalId
-                            ? state.messages.map(msg =>
-                                msg.localId === messageLocalId ? { ...msg, content: finalContent } : msg
-                            )
-                            : state.messages,
-                    };
-                }, false, 'finishStreaming');
             },
 
             setIrisStages: (stages) => {
