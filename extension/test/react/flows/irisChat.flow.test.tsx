@@ -10,14 +10,15 @@ import { createMockVsCodeApi, dispatchExtensionMessage } from '../__helpers__/vs
 /**
  * Iris chat flow integration tests.
  *
- * Tests the full chat lifecycle: context selection -> type message -> send ->
- * streaming response simulation -> final message with code blocks.
- * Also covers conversation history, referenced files, and streaming interruption.
+ * Tests the chat lifecycle: context selection -> type message -> send ->
+ * thinking indicator -> final assistant message clears transient UI.
+ * Also covers conversation history, referenced files, disabled states,
+ * websocket banner, and cold-mount hydration.
  *
- * Streaming simulation uses vi.useFakeTimers() + advanceTimersByTimeAsync().
- * Store-based streaming actions (startStreaming/appendStreamChunk/finishStreaming)
- * are called directly since chatStreamChunk messages come from the WebSocket bridge
- * (not window messages) in the production flow.
+ * The Artemis Iris WebSocket does NOT chunk-stream to this client; only a
+ * single final MESSAGE frame is delivered (see irisWebSocketMessageHandler).
+ * These tests therefore exercise the thinking-indicator -> AddMessage path,
+ * not a chunk simulation.
  */
 
 // Mock streamdown — ESM-only package
@@ -80,7 +81,7 @@ describe('Iris Chat Flow', () => {
 			courses: [],
 			messages: [],
 			messageLoad: null,
-			streaming: { isStreaming: false, messageLocalId: null, visibleChunks: [] },
+			streaming: { isStreaming: false },
 			isLoading: false,
 			webSocketStatus: 'connected',
 			disabledMessage: null,
@@ -247,129 +248,71 @@ describe('Iris Chat Flow', () => {
 		});
 	});
 
-	describe('Streaming response simulation', () => {
-		it('shows streaming indicator when streaming is active', async () => {
+	describe('Thinking indicator lifecycle', () => {
+		it('startStreaming surfaces the thinking indicator', async () => {
 			useChatStore.setState({ context: exerciseContext, ...HYDRATED });
 			const mockApi = createMockVsCodeApi();
 			render(<IrisChatView vscodeApi={mockApi} />);
 
-			// Simulate streaming starting via store action
 			act(() => {
-				useChatStore.getState().startStreaming('response-local-id');
-			});
-
-			// Streaming state should be active in store
-			await waitFor(() => {
-				const state = useChatStore.getState();
-				expect(state.streaming.isStreaming).toBe(true);
-			});
-		});
-
-		it('completes full chat flow with streaming simulation', async () => {
-			useChatStore.setState({ context: exerciseContext, ...HYDRATED });
-			const mockApi = createMockVsCodeApi();
-			render(<IrisChatView vscodeApi={mockApi} />);
-
-			// Step 1: Send a message via store action (simulating what handleSendMessage does)
-			// This avoids fake timers + userEvent deadlock issues
-			act(() => {
-				const localId = 'user-msg-1';
 				useChatStore.getState().addMessage({
-					localId,
+					localId: 'user-msg-1',
 					role: 'user',
-					content: 'How do I implement binary search?',
+					content: 'Question',
 					timestamp: Date.now(),
 					status: 'sending',
 				});
-				// sendCommand is called internally by handleSendMessage, we verify postMessage separately
+				useChatStore.getState().startStreaming();
 			});
 
-			// Step 2: Verify user message appears
 			await waitFor(() => {
-				expect(screen.getByText('How do I implement binary search?')).toBeInTheDocument();
+				expect(useChatStore.getState().streaming.isStreaming).toBe(true);
 			});
-
-			// Step 3: Simulate streaming start
-			act(() => {
-				const responseLocalId = 'response-msg-1';
-				useChatStore.getState().addMessage({
-					localId: responseLocalId,
-					role: 'assistant',
-					content: '',
-					timestamp: Date.now(),
-					status: 'sending',
-				});
-				useChatStore.getState().startStreaming(responseLocalId);
-			});
-
-			// Verify streaming state is active
-			expect(useChatStore.getState().streaming.isStreaming).toBe(true);
-
-			// Step 4: Simulate streaming chunks with fake timer delays
-			vi.useFakeTimers();
-
-			act(() => {
-				useChatStore.getState().appendStreamChunk('Binary search works by ');
-			});
-			await vi.advanceTimersByTimeAsync(50);
-
-			act(() => {
-				useChatStore.getState().appendStreamChunk('dividing the search space in half.');
-			});
-			await vi.advanceTimersByTimeAsync(50);
-
-			// Step 5: Finalize stream
-			const finalContent = 'Binary search works by dividing the search space in half.\n\n```java\nint mid = (lo + hi) / 2;\n```';
-			act(() => {
-				useChatStore.getState().finishStreaming(finalContent);
-			});
-
-			vi.useRealTimers();
-
-			// Step 6: Verify streaming is complete
-			const storeState = useChatStore.getState();
-			expect(storeState.streaming.isStreaming).toBe(false);
-
-			// Step 7: Verify final message content in store
-			const assistantMessage = storeState.messages.find((m) => m.role === 'assistant');
-			expect(assistantMessage).toBeTruthy();
-			expect(assistantMessage?.content).toBe(finalContent);
+			expect(screen.getByTestId('thinking-indicator')).toBeInTheDocument();
 		});
 
-		it('accumulates stream chunks correctly in store', () => {
+		it('assistant addMessage clears the transient thinking + stages UI', async () => {
 			useChatStore.setState({ context: exerciseContext, ...HYDRATED });
+			const mockApi = createMockVsCodeApi();
+			render(<IrisChatView vscodeApi={mockApi} />);
 
-			const localId = 'stream-test-id';
+			// Pre-state: thinking indicator on, stages populated (as if STATUS
+			// frame had pushed pipeline stages).
 			act(() => {
 				useChatStore.getState().addMessage({
-					localId,
-					role: 'assistant',
-					content: '',
+					localId: 'user-msg-1',
+					role: 'user',
+					content: 'Question',
 					timestamp: Date.now(),
 					status: 'sending',
 				});
-				useChatStore.getState().startStreaming(localId);
+				useChatStore.getState().startStreaming();
+				useChatStore.getState().setIrisStages([
+					{ name: 'thinking', weight: 10, state: 'IN_PROGRESS', message: 'Thinking', internal: false },
+				]);
 			});
 
-			act(() => {
-				useChatStore.getState().appendStreamChunk('Hello ');
-				useChatStore.getState().appendStreamChunk('world!');
+			expect(useChatStore.getState().streaming.isStreaming).toBe(true);
+			expect(useChatStore.getState().irisStages).toHaveLength(1);
+
+			// The Artemis MESSAGE frame arrives — extension forwards it as
+			// AddMessage. IrisChatView's handler calls resetTransientChatUi
+			// for assistant messages.
+			dispatchExtensionMessage({
+				type: 'addMessage',
+				message: {
+					id: 99,
+					role: 'assistant',
+					content: 'Final answer.',
+					timestamp: Date.now(),
+				},
 			});
 
-			const state = useChatStore.getState();
-			expect(state.streaming.visibleChunks).toEqual(['Hello ', 'world!']);
-			expect(state.streaming.isStreaming).toBe(true);
-
-			act(() => {
-				useChatStore.getState().finishStreaming('Hello world!');
+			await waitFor(() => {
+				expect(screen.getByText('Final answer.')).toBeInTheDocument();
 			});
-
-			const finalState = useChatStore.getState();
-			expect(finalState.streaming.isStreaming).toBe(false);
-			expect(finalState.streaming.visibleChunks).toHaveLength(0);
-
-			const msg = finalState.messages.find((m) => m.localId === localId);
-			expect(msg?.content).toBe('Hello world!');
+			expect(useChatStore.getState().streaming.isStreaming).toBe(false);
+			expect(useChatStore.getState().irisStages).toEqual([]);
 		});
 	});
 

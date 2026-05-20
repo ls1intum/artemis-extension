@@ -10,19 +10,14 @@ import { formatRelativeTime } from '@webview/utils/formatRelativeTime';
 
 import type { ChatMessage } from '../types';
 import styles from './MessageBubble.module.css';
-import { StreamingMessage } from './StreamingMessage';
 
 interface MessageBubbleProps {
     message: ChatMessage;
-    isStreaming: boolean;
-    streamingChunks: string[];
     onFeedback: (messageId: number, feedback: 'positive' | 'negative') => void;
 }
 
 function MessageBubbleComponent({
     message,
-    isStreaming,
-    streamingChunks,
     onFeedback,
 }: MessageBubbleProps) {
     const [hovering, setHovering] = useState(false);
@@ -71,8 +66,6 @@ function MessageBubbleComponent({
                             Retry
                         </button>
                     </div>
-                ) : isStreaming ? (
-                    <StreamingMessage chunks={streamingChunks} />
                 ) : (
                     <div className={styles.content}>
                         <Streamdown
@@ -131,9 +124,7 @@ const areEqual = (prev: MessageBubbleProps, next: MessageBubbleProps) => {
         prev.message.localId === next.message.localId &&
         prev.message.content === next.message.content &&
         prev.message.helpful === next.message.helpful &&
-        prev.message.status === next.message.status &&
-        prev.isStreaming === next.isStreaming &&
-        prev.streamingChunks?.length === next.streamingChunks?.length
+        prev.message.status === next.message.status
     );
 };
 

@@ -53,9 +53,11 @@ export interface ReferencedFilesData {
     totalCount: number;
 }
 
-// Streaming state
+// Transient flag for "Iris is preparing a response" UI.
+// The Artemis Iris WebSocket never streams chunks to this client — it sends
+// only the final MESSAGE frame (see irisWebSocketMessageHandler) — so the
+// only thing this flag drives is the thinking indicator between send and
+// the final AddMessage push that clears it via resetTransientChatUi.
 export interface StreamingState {
     isStreaming: boolean;
-    messageLocalId: string | null;  // Which message is currently streaming
-    visibleChunks: string[];        // Accumulated visible chunks
 }

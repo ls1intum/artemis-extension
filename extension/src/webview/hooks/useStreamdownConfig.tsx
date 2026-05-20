@@ -4,8 +4,7 @@ import { CodeBlock } from '../views/IrisChat/components/CodeBlock';
 
 /**
  * Shared Streamdown component configuration for rendering fenced code blocks
- * via the CodeBlock component. Used by both MessageBubble (static) and
- * StreamingMessage (streaming).
+ * via the CodeBlock component. Used by MessageBubble.
  */
 export function useStreamdownConfig() {
     return useMemo(() => ({
