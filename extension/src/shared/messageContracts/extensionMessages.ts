@@ -64,6 +64,7 @@ export const ExtensionMsg = {
     HideDisabledState: 'hideDisabledState',
     UpdateNoAiStatus: 'updateNoAiStatus',
     UpdateIrisStages: 'updateIrisStages',
+    SendRejected: 'sendRejected',
 
     // Exercise/Repo responses
     UpdateRepoStatus: 'updateRepoStatus',
@@ -225,6 +226,19 @@ interface ExtensionMsgPayloads {
     };
     updateIrisStages: {
         stages: IrisStageDTO[];
+    };
+    /**
+     * Posted by the extension host when a user-initiated `sendMessage`
+     * command was rejected synchronously (e.g. no chat context, .noai
+     * detected, Iris disabled for this exercise). The webview uses
+     * `localId` + `localSessionId` to find the optimistic user message and
+     * mark it failed so the thinking indicator does not get stuck.
+     */
+    sendRejected: {
+        localId: string;
+        localSessionId: string;
+        reason: 'no-ai' | 'no-context' | 'iris-disabled';
+        errorMessage: string;
     };
 
     // Exercise/Repo responses

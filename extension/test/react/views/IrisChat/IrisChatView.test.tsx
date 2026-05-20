@@ -137,7 +137,14 @@ describe('IrisChatView', () => {
 				expect.objectContaining({
 					type: 'command',
 					command: 'sendMessage',
-					payload: expect.objectContaining({ text: 'Hello Iris' }),
+					payload: expect.objectContaining({
+						text: 'Hello Iris',
+						// #178: payload carries the optimistic message's localId
+						// and the active local session UUID so the host can echo
+						// them back on rejection without races.
+						localId: expect.any(String),
+						localSessionId: 'local-test',
+					}),
 				})
 			);
 		});

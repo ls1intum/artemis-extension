@@ -71,6 +71,19 @@ interface ChatState {
     /** Record that hydration failed for the given session. */
     setMessageLoadError: (localSessionId: string) => void;
     addMessage: (message: ChatMessage) => void;
+    /**
+     * Mark a still-pending user message as failed. Returns `true` only if
+     * a matching message was found AND it was a pending user send
+     * (role === 'user' && status === 'sending'). Returning false lets the
+     * caller skip the transient-UI reset when a rejection is stale
+     * (e.g. arrived after the user already switched session or retried).
+     */
+    markMessageFailed: (
+        localId: string,
+        errorMessage: string,
+        errorReason: NonNullable<ChatMessage['errorReason']>,
+    ) => boolean;
+    removeMessage: (localId: string) => void;
     clearMessages: () => void;
 
     // Streaming actions
@@ -159,6 +172,28 @@ export const useChatStore = create<ChatState>()(
                 set((state) => ({
                     messages: [...state.messages, message],
                 }), false, 'addMessage');
+            },
+
+            markMessageFailed: (localId, errorMessage, errorReason) => {
+                const current = useChatStore.getState().messages;
+                const target = current.find((m) => m.localId === localId);
+                if (!target || target.role !== 'user' || target.status !== 'sending') {
+                    return false;
+                }
+                set((state) => ({
+                    messages: state.messages.map((m) =>
+                        m.localId === localId
+                            ? { ...m, status: 'error' as const, errorMessage, errorReason }
+                            : m,
+                    ),
+                }), false, 'markMessageFailed');
+                return true;
+            },
+
+            removeMessage: (localId) => {
+                set((state) => ({
+                    messages: state.messages.filter((m) => m.localId !== localId),
+                }), false, 'removeMessage');
             },
 
             clearMessages: () => {

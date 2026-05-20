@@ -479,6 +479,173 @@ describe('Iris Chat Flow', () => {
 		});
 	});
 
+	describe('Send rejection lifecycle (#178)', () => {
+		it('SendRejected marks the optimistic message failed, clears thinking, preserves original text', async () => {
+			useChatStore.setState({ context: exerciseContext, ...HYDRATED });
+			const user = userEvent.setup();
+			const mockApi = createMockVsCodeApi();
+			render(<IrisChatView vscodeApi={mockApi} />);
+
+			const textarea = screen.getByRole('textbox', { name: 'Chat input' });
+			await user.type(textarea, 'How do I solve task 2?{Enter}');
+
+			// Capture the localId the webview generated so the simulated
+			// host can echo it back.
+			const sendCall = (mockApi.postMessage as ReturnType<typeof vi.fn>).mock.calls.find(
+				(call) => (call[0] as Record<string, unknown>).command === 'sendMessage'
+			);
+			expect(sendCall).toBeDefined();
+			const payload = (sendCall![0] as { payload: { localId: string; localSessionId: string } }).payload;
+
+			expect(useChatStore.getState().streaming.isStreaming).toBe(true);
+			expect(screen.getByTestId('thinking-indicator')).toBeInTheDocument();
+
+			// Host posts SendRejected.
+			dispatchExtensionMessage({
+				type: 'sendRejected',
+				localId: payload.localId,
+				localSessionId: payload.localSessionId,
+				reason: 'no-context',
+				errorMessage: 'Please select a course or exercise context first.',
+			});
+
+			await waitFor(() => {
+				expect(useChatStore.getState().streaming.isStreaming).toBe(false);
+			});
+
+			// Original user text still visible.
+			expect(screen.getByText('How do I solve task 2?')).toBeInTheDocument();
+			// Error footer rendered.
+			expect(screen.getByText('Not sent')).toBeInTheDocument();
+			expect(
+				screen.getByText('Please select a course or exercise context first.')
+			).toBeInTheDocument();
+			// Message marked error in store.
+			const updated = useChatStore.getState().messages.find((m) => m.localId === payload.localId);
+			expect(updated?.status).toBe('error');
+			expect(updated?.errorReason).toBe('no-context');
+		});
+
+		it('stale SendRejected after session switch is ignored (no transient UI changes)', async () => {
+			useChatStore.setState({ context: exerciseContext, ...HYDRATED });
+			const user = userEvent.setup();
+			const mockApi = createMockVsCodeApi();
+			render(<IrisChatView vscodeApi={mockApi} />);
+
+			const textarea = screen.getByRole('textbox', { name: 'Chat input' });
+			await user.type(textarea, 'Old session question{Enter}');
+
+			const sendCall = (mockApi.postMessage as ReturnType<typeof vi.fn>).mock.calls.find(
+				(call) => (call[0] as Record<string, unknown>).command === 'sendMessage'
+			);
+			const oldLocalSessionId = (sendCall![0] as { payload: { localSessionId: string } }).payload.localSessionId;
+			const oldLocalId = (sendCall![0] as { payload: { localId: string } }).payload.localId;
+
+			// User switches session before the rejection arrives.
+			act(() => {
+				useChatStore.setState({ activeSessionId: 'different-session' });
+			});
+
+			// Stale rejection arrives — must be ignored. Without the
+			// localSessionId guard, this would clear the next session's
+			// transient UI by accident.
+			act(() => {
+				useChatStore.getState().startStreaming(); // simulate new session has a pending send
+			});
+
+			dispatchExtensionMessage({
+				type: 'sendRejected',
+				localId: oldLocalId,
+				localSessionId: oldLocalSessionId,
+				reason: 'no-context',
+				errorMessage: 'Please select a course or exercise context first.',
+			});
+
+			// New session's streaming flag is untouched.
+			expect(useChatStore.getState().streaming.isStreaming).toBe(true);
+		});
+
+		it('Retry on a failed message removes it and resends with a fresh localId', async () => {
+			useChatStore.setState({ context: exerciseContext, ...HYDRATED });
+			const user = userEvent.setup();
+			const mockApi = createMockVsCodeApi();
+			render(<IrisChatView vscodeApi={mockApi} />);
+
+			// Seed a failed user message directly.
+			act(() => {
+				useChatStore.setState({
+					messages: [{
+						localId: 'failed-1',
+						role: 'user',
+						content: 'Retry me',
+						timestamp: Date.now(),
+						status: 'error',
+						errorMessage: 'Please select a course or exercise context first.',
+						errorReason: 'no-context',
+					}],
+				});
+			});
+
+			const retry = screen.getByRole('button', { name: 'Retry sending this message' });
+			await user.click(retry);
+
+			// Failed entry removed.
+			expect(useChatStore.getState().messages.find((m) => m.localId === 'failed-1')).toBeUndefined();
+			// New optimistic message present with same content but different localId.
+			const fresh = useChatStore.getState().messages.find((m) => m.content === 'Retry me');
+			expect(fresh).toBeDefined();
+			expect(fresh!.localId).not.toBe('failed-1');
+			expect(fresh!.status).toBe('sending');
+
+			// sendMessage posted with the fresh localId.
+			const sendCalls = (mockApi.postMessage as ReturnType<typeof vi.fn>).mock.calls.filter(
+				(call) => (call[0] as Record<string, unknown>).command === 'sendMessage'
+			);
+			expect(sendCalls).toHaveLength(1);
+			const lastPayload = (sendCalls[0][0] as { payload: { localId: string; text: string } }).payload;
+			expect(lastPayload.text).toBe('Retry me');
+			expect(lastPayload.localId).toBe(fresh!.localId);
+		});
+
+		it('ChatInput is disabled while a send is in flight', async () => {
+			useChatStore.setState({ context: exerciseContext, ...HYDRATED });
+			const user = userEvent.setup();
+			const mockApi = createMockVsCodeApi();
+			render(<IrisChatView vscodeApi={mockApi} />);
+
+			const textarea = screen.getByRole('textbox', { name: 'Chat input' });
+			await user.type(textarea, 'First send{Enter}');
+
+			// Streaming flips on synchronously inside handleSendMessage.
+			await waitFor(() => {
+				expect(useChatStore.getState().streaming.isStreaming).toBe(true);
+			});
+			expect(textarea).toBeDisabled();
+		});
+
+		it('Retry button is disabled when the rejection reason still holds (no-context)', async () => {
+			// Context cleared but the failed message still references no-context.
+			useChatStore.setState({
+				context: null,
+				...HYDRATED,
+				messages: [{
+					localId: 'stuck-1',
+					role: 'user',
+					content: 'Still no context',
+					timestamp: Date.now(),
+					status: 'error',
+					errorMessage: 'Please select a course or exercise context first.',
+					errorReason: 'no-context',
+				}],
+			});
+			const mockApi = createMockVsCodeApi();
+			render(<IrisChatView vscodeApi={mockApi} />);
+
+			const retry = screen.getByRole('button', { name: 'Retry sending this message' });
+			expect(retry).toBeDisabled();
+		});
+	});
+
 	describe('WebSocket connectivity', () => {
 		it('shows WebSocket disconnected banner when retries are exhausted', () => {
 			useChatStore.setState({ webSocketStatus: 'disconnected' });
