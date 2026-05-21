@@ -66,8 +66,10 @@ echo "=== Phase 5: Running UI tests (isolated per file) ==="
 mkdir -p reports/ui
 
 PASS=0
+SKIP=0
 FAIL=0
 FAILED_FILES=()
+SKIPPED_FILES=()
 
 set +e
 for test_file in out/test/e2e/ui/*.ui.test.js; do
@@ -86,26 +88,53 @@ for test_file in out/test/e2e/ui/*.ui.test.js; do
   extest run-tests "$test_file" --mocha_config .mocharc.ui.yml --code_settings "$SETTINGS_FILE" 2>&1 | tee "$log_file"
   rc=${PIPESTATUS[0]}
 
-  if [ $rc -eq 0 ]; then
-    echo "--- PASS: ${name} ---"
-    PASS=$((PASS + 1))
-  else
+  # Distinguish "actually ran" from "skipped because .env was missing".
+  # mocha-junit-reporter writes the aggregate counts on the top-level
+  # <testsuites> element. A suite where before() called this.skip() shows
+  # tests=N skipped=N (every test pending). We classify the file as
+  # SKIPPED when every test in the file is pending — the user otherwise
+  # cannot tell from the "PASS" line whether the suite did anything.
+  tests_count=""
+  skipped_count=""
+  if [ -f test-results.xml ]; then
+    tests_count=$(sed -n 's/.*<testsuites[^>]*tests="\([0-9]*\)".*/\1/p' test-results.xml | head -1)
+    skipped_count=$(sed -n 's/.*<testsuites[^>]*skipped="\([0-9]*\)".*/\1/p' test-results.xml | head -1)
+  fi
+
+  if [ "$rc" -ne 0 ]; then
     echo "--- FAIL: ${name} (exit $rc) ---"
     FAIL=$((FAIL + 1))
     FAILED_FILES+=("$name")
+  elif [ -n "$tests_count" ] && [ -n "$skipped_count" ] \
+       && [ "$tests_count" = "$skipped_count" ] && [ "$tests_count" != "0" ]; then
+    echo "--- SKIP: ${name} (all ${tests_count} tests pending — missing .env?) ---"
+    SKIP=$((SKIP + 1))
+    SKIPPED_FILES+=("$name")
+  else
+    echo "--- PASS: ${name} ---"
+    PASS=$((PASS + 1))
   fi
 done
 set -e
 
-TOTAL=$((PASS + FAIL))
+TOTAL=$((PASS + SKIP + FAIL))
 
 echo ""
 echo "==============================="
 echo "  UI Test Summary"
 echo "==============================="
-echo "  Total : ${TOTAL}"
-echo "  Passed: ${PASS}"
-echo "  Failed: ${FAIL}"
+echo "  Total :   ${TOTAL}"
+echo "  Passed:   ${PASS}"
+echo "  Skipped:  ${SKIP}"
+echo "  Failed:   ${FAIL}"
+
+if [ ${#SKIPPED_FILES[@]} -gt 0 ]; then
+  echo ""
+  echo "  Skipped suites (typically missing ARTEMIS_USER / ARTEMIS_PASSWORD in .env):"
+  for f in "${SKIPPED_FILES[@]}"; do
+    echo "    - ${f}"
+  done
+fi
 
 if [ ${#FAILED_FILES[@]} -gt 0 ]; then
   echo ""

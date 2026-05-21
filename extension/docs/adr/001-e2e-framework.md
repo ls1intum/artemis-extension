@@ -31,7 +31,7 @@ The existing helper library (`test/e2e/ui/helpers.ts`) provides the core primiti
 
 - `switchToWebviewFrame` / `switchBackFromWebview` — iframe context switching via `WebviewView.switchToFrame()`
 - `waitForElement` — CSS-selector-based element waiting with configurable timeout
-- `getCredentials` — reads `ARTEMIS_USER` / `ARTEMIS_PASS` from environment
+- `getCredentials` — reads `ARTEMIS_USER` / `ARTEMIS_PASSWORD` from environment (the legacy name `ARTEMIS_PASS` is also accepted)
 - `takeScreenshot` — PNG capture to `test/ui/screenshots/` for local debugging
 
 E2E tests run locally only via `npm run test:ui` / `test/e2e/ui/run-tests.sh`. They are not executed in CI.
@@ -43,7 +43,7 @@ E2E tests run locally only via `npm run test:ui` / `test/e2e/ui/run-tests.sh`. T
 ## Consequences
 
 - E2E tests depend on Selenium WebDriver and ChromeDriver managed by `vscode-extension-tester`.
-- Tests require a running Artemis + Iris instance with valid credentials (`ARTEMIS_USER`, `ARTEMIS_PASS` env vars, sourced from a local `.env` file).
+- Tests require a running Artemis + Iris instance with valid credentials (`ARTEMIS_USER`, `ARTEMIS_PASSWORD` env vars, sourced from a local `.env` file; see `.env.example`).
 - Screenshot-on-failure is available locally for debugging via the `takeScreenshot()` helper.
 - CI runs unit tests (Vitest) and integration tests (Mocha + `@vscode/test-electron`) only — E2E tests remain local.
 - Future contributors should not introduce `wdio-vscode-service` or Playwright for E2E testing in this project.

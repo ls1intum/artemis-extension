@@ -9,15 +9,28 @@
 # 4. Shows results
 #
 # Usage:
-#   ./run-e2e-tests.sh [EXERCISE_ID]
+#   IRIS_DIR=/path/to/edutelligence/iris ./run-e2e-tests.sh [ARTEMIS_EXERCISE_ID]
+#
+# Required env vars:
+#   IRIS_DIR  Path to the local edutelligence/iris checkout (used to start
+#             Iris locally on port 8000 if it's not already running).
 #
 
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 EXTENSION_DIR="$(dirname "$SCRIPT_DIR")"
-IRIS_DIR="/Users/liamberger/Documents/private/edutelligence/iris"
-EXERCISE_ID="${1:-1}"
+
+# Source credentials and IRIS_DIR from .env if present (matches what the
+# UI test runner does). .env is gitignored — see .env.example.
+if [ -f "$EXTENSION_DIR/.env" ]; then
+    set -a
+    source "$EXTENSION_DIR/.env"
+    set +a
+fi
+
+IRIS_DIR="${IRIS_DIR:-}"
+ARTEMIS_EXERCISE_ID="${1:-${ARTEMIS_EXERCISE_ID:-1}}"
 
 # Colors
 RED='\033[0;31m'
@@ -68,8 +81,18 @@ start_iris() {
         return 0
     fi
 
+    if [ -z "$IRIS_DIR" ]; then
+        log_error "IRIS_DIR is not set. Either start Iris yourself before running this"
+        log_error "script, or export IRIS_DIR=/path/to/edutelligence/iris (typically via .env)."
+        return 1
+    fi
+    if [ ! -d "$IRIS_DIR" ]; then
+        log_error "IRIS_DIR=${IRIS_DIR} does not exist or is not a directory."
+        return 1
+    fi
+
     log_info "Starting Iris..."
-    
+
     cd "$IRIS_DIR"
     
     if ! docker info > /dev/null 2>&1; then
@@ -119,7 +142,7 @@ run_tests() {
     export ARTEMIS_URL="http://localhost:8080"
     export ARTEMIS_USER="artemis_admin"
     export ARTEMIS_PASSWORD="artemis_admin"
-    export EXERCISE_ID="$EXERCISE_ID"
+    export ARTEMIS_EXERCISE_ID="$ARTEMIS_EXERCISE_ID"
     
     # Run the E2E tests
     npm run test:e2e
@@ -130,7 +153,7 @@ main() {
     
     echo "Configuration:"
     echo "  Extension Dir: $EXTENSION_DIR"
-    echo "  Exercise ID:   $EXERCISE_ID"
+    echo "  Exercise ID:   $ARTEMIS_EXERCISE_ID"
     echo ""
     
     log_section "Step 1: Check Artemis"
