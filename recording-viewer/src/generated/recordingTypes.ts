@@ -326,58 +326,71 @@ export interface TextDocumentCloseEvent {
     uri: string;
 }
 
+/**
+ * Two-step-discriminator view events: `type` identifies the view, `action`
+ * picks the opened/closed arm. Each arm is named so it can be imported and
+ * reused in consumer signatures. Schema on the wire is unchanged.
+ */
+export interface TestResultsOverviewViewOpenedEvent {
+    type: 'testResultsOverviewView';
+    action: 'opened';
+    timestamp: number;
+    viewId: string;
+    exerciseId: number;
+    participationId?: number;
+    resultId?: number;
+    totalTests: number;
+    passedTests: number;
+    failedTests: number;
+}
+
+export interface TestResultsOverviewViewClosedEvent {
+    type: 'testResultsOverviewView';
+    action: 'closed';
+    timestamp: number;
+    viewId: string;
+    exerciseId: number;
+    participationId?: number;
+    resultId?: number;
+    durationMs: number;
+    closeReason: 'button' | 'escape';
+}
+
 export type TestResultsOverviewViewEvent =
-    | {
-        type: 'testResultsOverviewView';
-        action: 'opened';
-        timestamp: number;
-        viewId: string;
-        exerciseId: number;
-        participationId?: number;
-        resultId?: number;
-        totalTests: number;
-        passedTests: number;
-        failedTests: number;
-    }
-    | {
-        type: 'testResultsOverviewView';
-        action: 'closed';
-        timestamp: number;
-        viewId: string;
-        exerciseId: number;
-        participationId?: number;
-        resultId?: number;
-        durationMs: number;
-        closeReason: 'button' | 'escape';
-    };
+    | TestResultsOverviewViewOpenedEvent
+    | TestResultsOverviewViewClosedEvent;
+
+export interface TaskFeedbackViewOpenedEvent {
+    type: 'taskFeedbackView';
+    action: 'opened';
+    timestamp: number;
+    viewId: string;
+    exerciseId: number;
+    participationId?: number;
+    resultId?: number;
+    taskName: string;
+    testIds: number[];
+    totalTests: number;
+    passedTests: number;
+    failedTests: number;
+}
+
+export interface TaskFeedbackViewClosedEvent {
+    type: 'taskFeedbackView';
+    action: 'closed';
+    timestamp: number;
+    viewId: string;
+    exerciseId: number;
+    participationId?: number;
+    resultId?: number;
+    taskName: string;
+    durationMs: number;
+    closeReason: 'button' | 'escape';
+}
 
 export type TaskFeedbackViewEvent =
-    | {
-        type: 'taskFeedbackView';
-        action: 'opened';
-        timestamp: number;
-        viewId: string;
-        exerciseId: number;
-        participationId?: number;
-        resultId?: number;
-        taskName: string;
-        testIds: number[];
-        totalTests: number;
-        passedTests: number;
-        failedTests: number;
-    }
-    | {
-        type: 'taskFeedbackView';
-        action: 'closed';
-        timestamp: number;
-        viewId: string;
-        exerciseId: number;
-        participationId?: number;
-        resultId?: number;
-        taskName: string;
-        durationMs: number;
-        closeReason: 'button' | 'escape';
-    };
+    | TaskFeedbackViewOpenedEvent
+    | TaskFeedbackViewClosedEvent;
 
 // ── Discriminated union ───────────────────────────────────────────────
 
