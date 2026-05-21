@@ -7,7 +7,6 @@ import { getOptionalPayload, getPayload, WebviewCmd } from '@shared/messageContr
 import { LogCategory, logger } from '@extension/services/loggingService';
 import { ProblemStatementRenderService } from '@extension/services/problemStatementRenderService';
 import { executeReplayCommand } from '@extension/services/telemetry/replay';
-import type { ExerciseDetailsResponse } from '@extension/types';
 import { CONFIG, extractErrorMessage, VSCODE_CONFIG } from '@extension/utils';
 
 import type { CommandContext, CommandMap } from './types';
@@ -311,7 +310,7 @@ export class UtilityCommandModule {
 
     private handleFreshSsrPreview = async (message: WebviewToExtensionMessage): Promise<void> => {
         const { darkMode } = getPayload<WebCmd<'freshSsrPreview'>>(message);
-        const exerciseData = this.context.appStateManager.currentExerciseData as ExerciseDetailsResponse | undefined;
+        const exerciseData = this.context.appStateManager.currentExerciseData;
         if (!exerciseData?.exercise) { return; }
 
         const renderService = new ProblemStatementRenderService(this.context.artemisApi);

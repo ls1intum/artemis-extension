@@ -9,7 +9,14 @@ import { useClickOutside } from '@webview/hooks/useClickOutside';
 import { Button } from '../Button';
 import styles from './ParticipationActions.module.css';
 
-export type ExerciseType = 'programming' | 'quiz' | 'modeling' | 'text' | 'file-upload';
+export const EXERCISE_TYPES = ['programming', 'quiz', 'modeling', 'text', 'file-upload'] as const;
+export type ExerciseType = (typeof EXERCISE_TYPES)[number];
+
+/** Narrow an arbitrary string (e.g. from API or persisted state) to a known ExerciseType. */
+export function isExerciseType(value: string | undefined): value is ExerciseType {
+    return value !== undefined && (EXERCISE_TYPES as readonly string[]).includes(value);
+}
+
 export type ParticipationStatusType = 'not-started' | 'in-progress' | 'submitted' | 'graded';
 type RepositoryStatus = 'connected' | 'disconnected' | 'checking' | 'unknown';
 type WorkspaceStatus = 'clean' | 'dirty' | 'checking' | 'disconnected' | 'wrong-repo';

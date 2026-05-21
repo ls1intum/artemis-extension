@@ -16,7 +16,7 @@ import {
     SkeletonList,
 } from '@webview/components';
 import { ParticipationActions, SubmissionStatus } from '@webview/components/exercise';
-import type { ExerciseType } from '@webview/components/exercise/ParticipationActions';
+import { type ExerciseType, isExerciseType } from '@webview/components/exercise/ParticipationActions';
 import { TestResultsOverlay } from '@webview/components/exercise/TestResultsOverlay';
 import { useExerciseStatusMessages } from '@webview/hooks/useExerciseStatusMessages';
 import { useExtensionMessage } from '@webview/hooks/useExtensionMessage';
@@ -191,7 +191,7 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
     }
 
     const exercise = exerciseData.exercise;
-    const exerciseType = (exercise.type || 'programming') as ExerciseType;
+    const exerciseType: ExerciseType = isExerciseType(exercise.type) ? exercise.type : 'programming';
     const isProgramming = exerciseType === 'programming';
 
     // Extract participation data

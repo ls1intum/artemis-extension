@@ -94,6 +94,12 @@ const ICONS = {
  */
 type IconKey = keyof typeof ICONS;
 
+function isIconKey(key: string): key is IconKey {
+  // Use hasOwnProperty so inherited names like 'constructor', 'toString'
+  // don't slip through and return a non-LucideIcon at runtime.
+  return Object.prototype.hasOwnProperty.call(ICONS, key);
+}
+
 /**
  * Get an icon component by type string
  * Normalizes input (lowercase, replace underscores) and falls back to default icon
@@ -109,5 +115,5 @@ type IconKey = keyof typeof ICONS;
  */
 export function getIcon(type: string | undefined): LucideIcon {
   const normalizedType = type?.toLowerCase().replace(/_/g, '-') || 'default';
-  return ICONS[normalizedType as IconKey] || ICONS.default;
+  return isIconKey(normalizedType) ? ICONS[normalizedType] : ICONS.default;
 }
