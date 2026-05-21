@@ -175,12 +175,13 @@ export const useExerciseDetailStore = create<ExerciseDetailState>()(
                     }
                 }
 
-                // Clear the pending entry for this participation only. Other
-                // participations' pending builds are preserved — they were
-                // unaffected by this result. If payload.participationId was
-                // not provided, fall back to the participation we resolved
-                // via the result/submission tree.
-                const clearedParticipationId = payload.participationId ?? participation.id;
+                // Clear the pending entry for the participation we actually
+                // mutated. We use `participation.id` (the resolved owner)
+                // rather than `payload.participationId` so a malformed or
+                // mismatched payload never deletes an unrelated key.
+                // Other participations' pending builds are preserved — they
+                // were unaffected by this result.
+                const clearedParticipationId = participation.id;
                 const nextPending = { ...state.pendingSubmissionsByParticipationId };
                 if (clearedParticipationId !== undefined) {
                     delete nextPending[clearedParticipationId];
