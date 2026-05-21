@@ -106,7 +106,7 @@ export function importSessionsToStore(
             const firstUserMsg = session.messages.find((m: IrisChatMessage) => m.sender === 'USER');
             if (firstUserMsg) {
                 const content = extractIrisMessageContent(firstUserMsg.content);
-                if (content && content !== 'undefined' && content !== 'null') {
+                if (content) {
                     preview = content.substring(0, 50);
                 }
             }
