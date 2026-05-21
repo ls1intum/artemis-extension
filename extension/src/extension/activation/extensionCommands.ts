@@ -159,6 +159,10 @@ const WS_STATUS_ACTION = {
 
 type WSStatusAction = (typeof WS_STATUS_ACTION)[keyof typeof WS_STATUS_ACTION];
 
+function isWSStatusAction(value: string): value is WSStatusAction {
+    return (Object.values(WS_STATUS_ACTION) as string[]).includes(value);
+}
+
 interface WSAuthSnapshot {
     hasCookie: boolean;
     hasJwtToken: boolean;
@@ -321,8 +325,8 @@ function registerWebSocketStatusCommand(
                 { modal: false },
                 ...actions,
             );
-            if (chosen) {
-                await handleStatusAction(chosen as WSStatusAction, artemisWebsocketService, report);
+            if (chosen && isWSStatusAction(chosen)) {
+                await handleStatusAction(chosen, artemisWebsocketService, report);
             }
         } catch (error) {
             logger.error('Error checking WebSocket status', LogCategory.WEBSOCKET, error);
