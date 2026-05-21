@@ -11,6 +11,13 @@ export interface ChatMessage {
     helpful?: boolean | null;  // Feedback state: true=positive, false=negative, null=none
     status?: 'sending' | 'sent' | 'error';  // For optimistic display
     errorMessage?: string;     // Error text for failed messages
+    /**
+     * Reason the send was rejected by the extension host. Set together
+     * with `status: 'error'`. Used by the UI to decide whether Retry is
+     * meaningful right now (e.g. `iris-disabled` is persistent; `no-ai`
+     * stays non-retryable as long as `.noai` is still detected).
+     */
+    errorReason?: 'no-ai' | 'no-context' | 'iris-disabled';
 }
 
 // Chat session summary (from extension)

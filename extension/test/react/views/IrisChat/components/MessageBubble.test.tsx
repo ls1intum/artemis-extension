@@ -54,21 +54,86 @@ describe('MessageBubble', () => {
 		expect(container.querySelector('img')).not.toBeInTheDocument();
 	});
 
-	it('renders error state with error message', () => {
+	it('renders failed user message with original content and inline error footer', () => {
 		const message = makeMessage({
-			role: 'assistant',
+			role: 'user',
+			content: 'How do I solve task 2?',
 			status: 'error',
-			errorMessage: 'Network error occurred',
+			errorMessage: 'Please select a course or exercise context first.',
+			errorReason: 'no-context',
 		});
-		render(<MessageBubble message={message} onFeedback={vi.fn()} />);
-		expect(screen.getByText('Network error occurred')).toBeInTheDocument();
-		expect(screen.getByText('Retry')).toBeInTheDocument();
+		render(<MessageBubble message={message} onFeedback={vi.fn()} onRetry={vi.fn()} />);
+		// Original message content stays visible (this is the bugfix from #178:
+		// previously the bubble replaced its content with the error block).
+		expect(screen.getByText('How do I solve task 2?')).toBeInTheDocument();
+		expect(screen.getByText('Not sent')).toBeInTheDocument();
+		expect(screen.getByText('Please select a course or exercise context first.')).toBeInTheDocument();
+		expect(screen.getByRole('button', { name: 'Retry sending this message' })).toBeInTheDocument();
 	});
 
 	it('renders default error message when no errorMessage provided', () => {
-		const message = makeMessage({ role: 'assistant', status: 'error' });
-		render(<MessageBubble message={message} onFeedback={vi.fn()} />);
+		const message = makeMessage({ role: 'user', content: 'Hi', status: 'error' });
+		render(<MessageBubble message={message} onFeedback={vi.fn()} onRetry={vi.fn()} />);
 		expect(screen.getByText('Failed to send message')).toBeInTheDocument();
+	});
+
+	it('does not render Retry button when onRetry prop is omitted', () => {
+		const message = makeMessage({ role: 'user', content: 'Hi', status: 'error', errorMessage: 'Boom' });
+		render(<MessageBubble message={message} onFeedback={vi.fn()} />);
+		expect(screen.queryByRole('button', { name: 'Retry sending this message' })).not.toBeInTheDocument();
+	});
+
+	it('invokes onRetry with message localId when Retry is clicked', async () => {
+		const onRetry = vi.fn();
+		const message = makeMessage({
+			localId: 'failed-msg-1',
+			role: 'user',
+			content: 'Retry me',
+			status: 'error',
+			errorMessage: 'Boom',
+		});
+		render(<MessageBubble message={message} onFeedback={vi.fn()} onRetry={onRetry} />);
+		await userEvent.click(screen.getByRole('button', { name: 'Retry sending this message' }));
+		expect(onRetry).toHaveBeenCalledWith('failed-msg-1');
+	});
+
+	it('disables Retry button when retryDisabled is true and does not call onRetry on click', async () => {
+		const onRetry = vi.fn();
+		const message = makeMessage({
+			role: 'user',
+			content: 'Stuck',
+			status: 'error',
+			errorMessage: 'No context',
+			errorReason: 'no-context',
+		});
+		render(
+			<MessageBubble
+				message={message}
+				onFeedback={vi.fn()}
+				onRetry={onRetry}
+				retryDisabled={true}
+			/>
+		);
+		const retry = screen.getByRole('button', { name: 'Retry sending this message' });
+		expect(retry).toBeDisabled();
+		await userEvent.click(retry);
+		expect(onRetry).not.toHaveBeenCalled();
+	});
+
+	it('does not render feedback buttons for failed messages', () => {
+		const message = makeMessage({
+			role: 'assistant',
+			content: 'Something',
+			status: 'error',
+			errorMessage: 'Boom',
+		});
+		const { container } = render(
+			<MessageBubble message={message} onFeedback={vi.fn()} onRetry={vi.fn()} />
+		);
+		const wrapper = container.firstChild as HTMLElement;
+		// Even on hover, feedback should not appear for an error-state message.
+		void userEvent.hover(wrapper);
+		expect(screen.queryByRole('button', { name: 'Helpful' })).not.toBeInTheDocument();
 	});
 
 	it('shows feedback buttons for assistant messages on hover', async () => {

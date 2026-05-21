@@ -233,14 +233,20 @@ describe('Message contracts: WebviewToExtensionMessage types', () => {
         expect(msg.payload.courseData.course.id).toBe(1);
     });
 
-    it('SendMessageCommand has text payload', () => {
+    it('SendMessageCommand has text + correlation IDs payload', () => {
         const msg = {
             type: 'command' as const,
             command: 'sendMessage' as const,
-            payload: { text: 'What is a for loop?' },
+            payload: {
+                text: 'What is a for loop?',
+                localId: 'msg-local-1',
+                localSessionId: 'session-local-1',
+            },
         } satisfies WebCmd<'sendMessage'>;
 
         expect(msg.payload.text).toBe('What is a for loop?');
+        expect(msg.payload.localId).toBe('msg-local-1');
+        expect(msg.payload.localSessionId).toBe('session-local-1');
     });
 
     it('SelectChatContextCommand has context, itemId, and itemName payload', () => {

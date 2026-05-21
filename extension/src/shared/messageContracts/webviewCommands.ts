@@ -169,7 +169,7 @@ interface WebviewCmdPayloads {
     performHealthChecks: { serverUrl: string };
 
     // Iris Chat
-    sendMessage: { text: string };
+    sendMessage: { text: string; localId: string; localSessionId: string };
     selectChatContext: { context: ChatContextType; itemId: number; itemName: string; itemShortName?: string };
     switchSession: { sessionId: string };
     createNewSession: undefined;

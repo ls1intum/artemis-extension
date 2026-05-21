@@ -382,8 +382,8 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
         try {
             switch (message.command) {
                 case WebviewCmd.SendMessage: {
-                    const { text } = getPayload<WebCmd<'sendMessage'>>(message);
-                    void this._handleChatMessage({ text }).catch(err => {
+                    const { text, localId, localSessionId } = getPayload<WebCmd<'sendMessage'>>(message);
+                    void this._handleChatMessage({ text, localId, localSessionId }).catch(err => {
                         logger.error('Error handling chat message', LogCategory.IRIS_CHAT, err);
                         vscode.window.showErrorMessage('Failed to send message. Please try again.');
                     });
@@ -484,6 +484,81 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
     }
 
     // ── Private: Helpers ───────────────────────────────────────────────
+
+    /**
+     * Dispatch a synchronous send rejection back to the webview.
+     *
+     * Keeps the existing collateral side-effects (NoAi banner, disabled
+     * banner) so visible chat state stays consistent, AND posts a
+     * targeted SendRejected so the webview can mark the optimistic user
+     * message as failed and clear its thinking indicator. Without that
+     * second post the thinking dots would loop forever (see #178).
+     *
+     * If the webview did not include `localId`/`localSessionId` in the
+     * sendMessage command (older-build edge case), we cannot correlate
+     * the rejection to a message and instead post an assistant-style
+     * AddMessage as a self-healing fallback — the current webview's
+     * AddMessage handler already calls resetTransientChatUi.
+     */
+    private _handleRejectedSend(
+        result: { sent: false; reason: 'no-ai' | 'no-context' | 'iris-disabled'; contextLabel?: string },
+        localId: string | undefined,
+        localSessionId: string | undefined,
+    ): void {
+        const errorMessage = this._friendlyRejectionMessage(result);
+
+        // Existing collateral side-effects per reason.
+        switch (result.reason) {
+            case 'no-ai':
+                this._postNoAiStatus(true);
+                break;
+            case 'no-context':
+                // No persistent UI state to update; the inline failed
+                // message communicates this fully.
+                break;
+            case 'iris-disabled':
+                this._postMessageSafe({
+                    type: ExtensionMsg.ShowDisabledState,
+                    message: `Iris chat is not enabled for this ${result.contextLabel ?? 'context'}. Please contact your instructor.`
+                });
+                break;
+        }
+
+        if (localId && localSessionId) {
+            this._postMessageSafe({
+                type: ExtensionMsg.SendRejected,
+                localId,
+                localSessionId,
+                reason: result.reason,
+                errorMessage,
+            });
+            return;
+        }
+
+        // Fallback for builds that don't carry the new correlation IDs.
+        // Posting an assistant AddMessage causes the existing webview
+        // handler to call resetTransientChatUi, which clears the stuck
+        // indicator at the cost of a slightly noisier UX.
+        this._postMessageSafe({
+            type: ExtensionMsg.AddMessage,
+            message: {
+                role: 'assistant',
+                content: errorMessage,
+                timestamp: Date.now(),
+            }
+        });
+    }
+
+    private _friendlyRejectionMessage(result: { reason: 'no-ai' | 'no-context' | 'iris-disabled'; contextLabel?: string }): string {
+        switch (result.reason) {
+            case 'no-ai':
+                return 'Not sent because AI assistance is disabled for this workspace.';
+            case 'no-context':
+                return 'Please select a course or exercise context first.';
+            case 'iris-disabled':
+                return `Iris chat is disabled for this ${result.contextLabel ?? 'context'}.`;
+        }
+    }
 
     /**
      * Post .noai status to the webview
@@ -603,10 +678,12 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
         );
     }
 
-    private async _handleChatMessage(message: { text?: string }): Promise<void> {
+    private async _handleChatMessage(message: { text?: string; localId?: string; localSessionId?: string }): Promise<void> {
         if (typeof message.text !== 'string') { return; }
 
         const content = message.text;
+        const localId = typeof message.localId === 'string' ? message.localId : undefined;
+        const localSessionId = typeof message.localSessionId === 'string' ? message.localSessionId : undefined;
 
         // Emit pending before the API call so the recording captures send attempts
         // even when the call never returns (e.g. network hang).
@@ -629,20 +706,7 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
                     status: 'failed',
                     errorMessage: `send-rejected: ${result.reason ?? 'unknown'}`,
                 });
-                switch (result.reason) {
-                    case 'no-ai':
-                        this._postNoAiStatus(true);
-                        break;
-                    case 'no-context':
-                        vscode.window.showErrorMessage('Please select a course or exercise context first');
-                        break;
-                    case 'iris-disabled':
-                        this._postMessageSafe({
-                            type: ExtensionMsg.ShowDisabledState,
-                            message: `Iris chat is not enabled for this ${result.contextLabel}. Please contact your instructor.`
-                        });
-                        break;
-                }
+                this._handleRejectedSend(result, localId, localSessionId);
             }
         } catch (error: unknown) {
             const errorMessage = error instanceof Error ? error.message : String(error);

@@ -414,6 +414,123 @@ describe('useChatStore', () => {
 		expect(result.current.irisStages).toEqual([]);
 	});
 
+	describe('markMessageFailed', () => {
+		it('marks a pending user message as failed and returns true', () => {
+			const { result } = renderHook(() => useChatStore());
+
+			act(() => {
+				result.current.addMessage(makeMessage({
+					localId: 'pending-1',
+					role: 'user',
+					status: 'sending',
+				}));
+			});
+
+			let returnValue: boolean | undefined;
+			act(() => {
+				returnValue = result.current.markMessageFailed('pending-1', 'No context', 'no-context');
+			});
+
+			expect(returnValue).toBe(true);
+			expect(result.current.messages[0].status).toBe('error');
+			expect(result.current.messages[0].errorMessage).toBe('No context');
+			expect(result.current.messages[0].errorReason).toBe('no-context');
+		});
+
+		it('returns false and does not mutate when localId does not match', () => {
+			const { result } = renderHook(() => useChatStore());
+
+			act(() => {
+				result.current.addMessage(makeMessage({
+					localId: 'real-1',
+					role: 'user',
+					status: 'sending',
+				}));
+			});
+
+			let returnValue: boolean | undefined;
+			act(() => {
+				returnValue = result.current.markMessageFailed('stale-99', 'No context', 'no-context');
+			});
+
+			expect(returnValue).toBe(false);
+			expect(result.current.messages[0].status).toBe('sending');
+			expect(result.current.messages[0].errorMessage).toBeUndefined();
+		});
+
+		it('returns false and does not mutate when target is not a user role', () => {
+			const { result } = renderHook(() => useChatStore());
+
+			act(() => {
+				result.current.addMessage(makeMessage({
+					localId: 'asst-1',
+					role: 'assistant',
+					status: 'sending',
+				}));
+			});
+
+			let returnValue: boolean | undefined;
+			act(() => {
+				returnValue = result.current.markMessageFailed('asst-1', 'No context', 'no-context');
+			});
+
+			expect(returnValue).toBe(false);
+			expect(result.current.messages[0].status).toBe('sending');
+		});
+
+		it('returns false and does not mutate when target is already sent', () => {
+			const { result } = renderHook(() => useChatStore());
+
+			act(() => {
+				result.current.addMessage(makeMessage({
+					localId: 'sent-1',
+					role: 'user',
+					status: 'sent',
+				}));
+			});
+
+			let returnValue: boolean | undefined;
+			act(() => {
+				returnValue = result.current.markMessageFailed('sent-1', 'Stale rejection', 'no-context');
+			});
+
+			expect(returnValue).toBe(false);
+			expect(result.current.messages[0].status).toBe('sent');
+		});
+	});
+
+	describe('removeMessage', () => {
+		it('removes the matching message by localId', () => {
+			const { result } = renderHook(() => useChatStore());
+
+			act(() => {
+				result.current.addMessage(makeMessage({ localId: 'a' }));
+				result.current.addMessage(makeMessage({ localId: 'b' }));
+			});
+
+			act(() => {
+				result.current.removeMessage('a');
+			});
+
+			expect(result.current.messages).toHaveLength(1);
+			expect(result.current.messages[0].localId).toBe('b');
+		});
+
+		it('is a no-op when no matching localId exists', () => {
+			const { result } = renderHook(() => useChatStore());
+
+			act(() => {
+				result.current.addMessage(makeMessage({ localId: 'a' }));
+			});
+
+			act(() => {
+				result.current.removeMessage('does-not-exist');
+			});
+
+			expect(result.current.messages).toHaveLength(1);
+		});
+	});
+
 	it('clearMessages also clears irisStages', () => {
 		const { result } = renderHook(() => useChatStore());
 

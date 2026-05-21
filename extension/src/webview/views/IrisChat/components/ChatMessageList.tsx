@@ -16,6 +16,15 @@ interface ChatMessageListProps {
     onSendPrompt: (text: string) => void;
     hasContext: boolean;
     isChatDisabled?: boolean;
+    /** Invoked when a failed user message's Retry button is clicked. */
+    onRetry?: (localId: string) => void;
+    /**
+     * Predicate that decides whether the Retry button should be active for
+     * a given failed message. Kept as a function (rather than a Map) so
+     * the parent can derive it from live store state without rebuilding
+     * the map on every render.
+     */
+    isRetryDisabled?: (message: ChatMessage) => boolean;
 }
 
 export function ChatMessageList({
@@ -26,6 +35,8 @@ export function ChatMessageList({
     onSendPrompt,
     hasContext,
     isChatDisabled,
+    onRetry,
+    isRetryDisabled,
 }: ChatMessageListProps) {
     const { scrollRef, contentRef, scrollOnSend } = useAutoScroll();
 
@@ -56,6 +67,10 @@ export function ChatMessageList({
                                 key={message.localId}
                                 message={message}
                                 onFeedback={onFeedback}
+                                onRetry={onRetry}
+                                retryDisabled={
+                                    isRetryDisabled ? isRetryDisabled(message) : false
+                                }
                             />
                         ))}
 
