@@ -5,8 +5,9 @@ import { ExtensionMsg } from '@shared/messageContracts';
 
 import { LogCategory, logger } from '@extension/services/loggingService';
 import { ArtemisWebsocketService } from '@extension/services/websocket/artemisWebsocketService';
-import type { IrisChatMessage, IrisStageDTO } from '@extension/types';
+import type { IrisChatMessage } from '@extension/types';
 
+import { isVisibleIrisStage } from '../parseIrisWs';
 import { IrisWebSocketSessionClient } from '../transport/irisWebSocketSessionClient';
 import { extractIrisMessageContent } from './messageUtils';
 
@@ -91,10 +92,7 @@ export class IrisWebSocketMessageHandler {
         } else if (data.type === 'STATUS') {
             const rawStages = data['stages'];
             if (Array.isArray(rawStages)) {
-                const visibleStages = (rawStages as unknown[]).filter(
-                    (stage): stage is IrisStageDTO =>
-                        typeof stage === 'object' && stage !== null && (stage as IrisStageDTO).internal !== true
-                );
+                const visibleStages = (rawStages as unknown[]).filter(isVisibleIrisStage);
                 logger.info(`Iris status update: ${visibleStages.length} visible stage(s)`, LogCategory.WEBSOCKET);
                 this._postMessage({
                     type: ExtensionMsg.UpdateIrisStages,
