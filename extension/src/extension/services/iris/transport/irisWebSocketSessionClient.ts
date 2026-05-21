@@ -3,16 +3,10 @@ import * as vscode from 'vscode';
 import { ArtemisApiService } from '@extension/api';
 import { logger, LogLevel } from '@extension/services/loggingService';
 import { ArtemisWebsocketService } from '@extension/services/websocket/artemisWebsocketService';
-import { ActiveContext, type IrisChatMessage } from '@extension/types';
+import { ActiveContext } from '@extension/types';
 
 import { contextToIrisMode } from '../context/contextChatMode';
-
-/** WebSocket message structure for Iris chat */
-interface IrisWebSocketMessage {
-    type?: string;
-    message?: IrisChatMessage;
-    [key: string]: unknown;
-}
+import { type IrisWebSocketMessage, isIrisWebSocketMessage } from '../parseIrisWs';
 
 /**
  * Minimum interval between resubscription attempts (milliseconds).
@@ -169,7 +163,15 @@ export class IrisWebSocketSessionClient implements vscode.Disposable {
     }
 
     private _handleWebSocketMessage(data: unknown): void {
-        this._onDidReceiveMessage.fire(data as IrisWebSocketMessage);
+        // Light-touch guard: reject primitives / null / arrays before the
+        // listeners assume the IrisWebSocketMessage object shape. Per-message
+        // narrowing (e.g. type === 'MESSAGE' && has-message) happens
+        // downstream in IrisWebSocketMessageHandler.
+        if (!isIrisWebSocketMessage(data)) {
+            logger.session(`Discarded non-object WebSocket payload: ${typeof data}`);
+            return;
+        }
+        this._onDidReceiveMessage.fire(data);
     }
 
     /**
