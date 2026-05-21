@@ -34,7 +34,41 @@ export interface CourseDashboardCourse {
 export interface ExerciseDetailsResponse {
     exercise?: ExerciseDetail;
     plagiarismCaseInfo?: unknown;
+    /**
+     * Pending build statuses keyed by `participation.id`. Populated by the
+     * extension's exerciseDataLoader after fetching the base details, and
+     * later mutated in the webview store from WebSocket update events.
+     *
+     * Multiple participations may have concurrent pending builds (e.g.
+     * graded + practice). The webview picks the entry that matches its
+     * currently-selected participation. Previously this was a single
+     * field that was silently overwritten per participation (#168).
+     */
+    pendingSubmissionsByParticipationId?: Record<number, PendingSubmissionStatus>;
     [key: string]: unknown;
+}
+
+/**
+ * Pending-build status DTO shared between the extension host and the
+ * webview store.
+ *
+ * Two producers feed this shape with deliberately asymmetric fidelity:
+ *   - The REST `latest-pending-submission` endpoint only signals
+ *     "a build is in flight for this participation" — the loader
+ *     normalizes its `ProgrammingSubmission` response to bare
+ *     `{ participationId }` (no state, no timing).
+ *   - WebSocket `submissionProcessing` events carry the full status
+ *     (queued vs. building, buildTimingInfo) and overwrite the entry.
+ *
+ * UI code is therefore tolerant of missing `state` and `buildTimingInfo`.
+ */
+export interface PendingSubmissionStatus {
+    participationId: number;
+    state?: string;
+    buildTimingInfo?: {
+        buildStartDate?: string;
+        estimatedCompletionDate?: string;
+    };
 }
 
 export interface ExerciseDetail {

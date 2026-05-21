@@ -209,9 +209,9 @@ describe('useExerciseDetailStore', () => {
 			result.current.updateSubmissionProcessing({ state: 'BUILDING', participationId: 555 });
 		});
 
-		// After processing, pendingSubmission should be on store state
+		// After processing, the entry should be present keyed by participation.id (#168 fix).
 		expect(result.current.exerciseData).not.toBeNull();
-		expect(result.current.pendingSubmission?.participationId).toBe(555);
+		expect(result.current.pendingSubmissionsByParticipationId[555]?.participationId).toBe(555);
 	});
 
 	it('updateSubmissionProcessing ignores events for unknown participations', () => {
@@ -229,7 +229,8 @@ describe('useExerciseDetailStore', () => {
 			result.current.updateSubmissionProcessing({ state: 'BUILDING', participationId: 999 });
 		});
 
-		expect(result.current.pendingSubmission).toBeNull();
+		// Unknown participation must not insert into the map.
+		expect(result.current.pendingSubmissionsByParticipationId).toEqual({});
 	});
 
 	it('updateBuildStatus with unknown participationId does not mutate state', () => {
@@ -254,7 +255,7 @@ describe('useExerciseDetailStore', () => {
 		expect(p?.id).toBe(10);
 		expect(p?.submissions).toHaveLength(1);
 		expect(p?.submissions?.[0]?.results).toBeUndefined();
-		expect(result.current.pendingSubmission).toBeNull();
+		expect(result.current.pendingSubmissionsByParticipationId).toEqual({});
 	});
 
 	it('updateSubmission with unknown participationId does not mutate state', () => {
@@ -278,6 +279,157 @@ describe('useExerciseDetailStore', () => {
 		const p = result.current.exerciseData?.exercise?.studentParticipations?.[0];
 		expect(p?.submissions).toHaveLength(1);
 		expect(p?.submissions?.[0]?.id).toBe(200);
+	});
+
+	// --- #168 per-participation pending submission map ---
+
+	it('setExerciseData hydrates pendingSubmissionsByParticipationId from the response', () => {
+		const { result } = renderHook(() => useExerciseDetailStore());
+		const data = makeExerciseData({
+			exercise: {
+				id: 1,
+				studentParticipations: [
+					{ id: 100, testRun: false },
+					{ id: 200, testRun: true },
+				],
+			},
+			pendingSubmissionsByParticipationId: {
+				100: { participationId: 100 },
+				200: { participationId: 200 },
+			},
+		});
+
+		act(() => {
+			result.current.setExerciseData(data, false);
+		});
+
+		expect(result.current.pendingSubmissionsByParticipationId[100]?.participationId).toBe(100);
+		expect(result.current.pendingSubmissionsByParticipationId[200]?.participationId).toBe(200);
+	});
+
+	it('setExerciseData resets stale pending entries when the new response carries no map', () => {
+		const { result } = renderHook(() => useExerciseDetailStore());
+		// Seed a stale map from a previous load.
+		act(() => {
+			result.current.setExerciseData(makeExerciseData({
+				exercise: { id: 1, studentParticipations: [{ id: 100 }] },
+				pendingSubmissionsByParticipationId: { 100: { participationId: 100 } },
+			}), false);
+		});
+		expect(result.current.pendingSubmissionsByParticipationId[100]).toBeTruthy();
+
+		// New exercise loaded; server did not include the map → must clear.
+		act(() => {
+			result.current.setExerciseData(makeExerciseData({
+				exercise: { id: 2, studentParticipations: [] },
+			}), false);
+		});
+
+		expect(result.current.pendingSubmissionsByParticipationId).toEqual({});
+	});
+
+	it('updateSubmissionProcessing preserves existing entries for other participations', () => {
+		const { result } = renderHook(() => useExerciseDetailStore());
+		act(() => {
+			result.current.setExerciseData(makeExerciseData({
+				exercise: {
+					id: 1,
+					studentParticipations: [{ id: 100 }, { id: 200 }],
+				},
+				pendingSubmissionsByParticipationId: { 100: { participationId: 100 } },
+			}), false);
+		});
+
+		act(() => {
+			result.current.updateSubmissionProcessing({
+				state: 'BUILDING',
+				participationId: 200,
+				buildTimingInfo: { buildStartDate: '2026-05-21T10:00:00Z' },
+			});
+		});
+
+		// Both entries must coexist; the pre-fix singleton would have dropped one.
+		expect(result.current.pendingSubmissionsByParticipationId[100]).toBeTruthy();
+		expect(result.current.pendingSubmissionsByParticipationId[200]?.state).toBe('BUILDING');
+		expect(result.current.pendingSubmissionsByParticipationId[200]?.buildTimingInfo?.buildStartDate)
+			.toBe('2026-05-21T10:00:00Z');
+	});
+
+	it('updateBuildStatus removes only the matching participation\'s pending entry', () => {
+		const { result } = renderHook(() => useExerciseDetailStore());
+		act(() => {
+			result.current.setExerciseData(makeExerciseData({
+				exercise: {
+					id: 1,
+					studentParticipations: [
+						makeParticipation({ id: 100, submissions: [makeSubmission({ id: 1 })] }),
+						makeParticipation({ id: 200, submissions: [makeSubmission({ id: 2 })] }),
+					],
+				},
+				pendingSubmissionsByParticipationId: {
+					100: { participationId: 100 },
+					200: { participationId: 200 },
+				},
+			}), false);
+		});
+
+		act(() => {
+			result.current.updateBuildStatus(makeResult({ id: 50, participationId: 100 }));
+		});
+
+		// Participation 100 build finished → its pending entry is cleared.
+		expect(result.current.pendingSubmissionsByParticipationId[100]).toBeUndefined();
+		// Participation 200 is untouched.
+		expect(result.current.pendingSubmissionsByParticipationId[200]).toBeTruthy();
+	});
+
+	it('updateBuildStatus without payload.participationId clears via findParticipationForResult', () => {
+		const { result } = renderHook(() => useExerciseDetailStore());
+		// Seed a submission with a result id we can match later, plus a
+		// pending entry on the same participation.
+		act(() => {
+			result.current.setExerciseData(makeExerciseData({
+				exercise: {
+					id: 1,
+					studentParticipations: [
+						makeParticipation({
+							id: 100,
+							submissions: [{ id: 1, results: [{ id: 777 }] }],
+						}),
+					],
+				},
+				pendingSubmissionsByParticipationId: {
+					100: { participationId: 100 },
+				},
+			}), false);
+		});
+
+		// Payload omits participationId — the store falls back to walking
+		// the submission/result tree to find the owning participation.
+		act(() => {
+			result.current.updateBuildStatus(makeResult({ id: 777 }));
+		});
+
+		expect(result.current.pendingSubmissionsByParticipationId[100]).toBeUndefined();
+	});
+
+	it('clearPendingSubmission clears every entry, not just one', () => {
+		const { result } = renderHook(() => useExerciseDetailStore());
+		act(() => {
+			result.current.setExerciseData(makeExerciseData({
+				exercise: { id: 1, studentParticipations: [{ id: 100 }, { id: 200 }] },
+				pendingSubmissionsByParticipationId: {
+					100: { participationId: 100 },
+					200: { participationId: 200 },
+				},
+			}), false);
+		});
+
+		act(() => {
+			result.current.clearPendingSubmission();
+		});
+
+		expect(result.current.pendingSubmissionsByParticipationId).toEqual({});
 	});
 
 	it('setExerciseData clears stale clonedNotice and dirtyPagesStatus', () => {
