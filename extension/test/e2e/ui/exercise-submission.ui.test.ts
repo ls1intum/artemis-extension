@@ -1,11 +1,12 @@
 // Covers E2EX-02: Exercise submission interaction test
 import * as assert from 'assert';
-import { By, VSBrowser, WebDriver, Workbench } from 'vscode-extension-tester';
+import { By, VSBrowser, WebDriver } from 'vscode-extension-tester';
 
 import {
     getCredentials,
     openArtemisView,
     performLogin,
+    safeLogoutAndCleanup,
     switchBackFromWebview,
     switchToWebviewFrame,
     takeScreenshot,
@@ -41,14 +42,8 @@ describe('Exercise Submission Flow UI Tests', function () {
 	});
 
 	after(async function () {
-		// `before()` skips the suite when credentials are missing; in that
-		// case `driver` is never assigned and the cleanup below would crash
-		// with `Cannot read properties of undefined`. Bail out cleanly.
-		if (!driver) { return; }
 		this.timeout(15000);
-		const workbench = new Workbench();
-		await workbench.executeCommand('Logout from Artemis');
-		await driver.sleep(2000);
+		await safeLogoutAndCleanup(driver);
 	});
 
 	afterEach(async function () {
