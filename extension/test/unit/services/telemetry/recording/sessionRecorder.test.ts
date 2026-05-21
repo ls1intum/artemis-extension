@@ -26,6 +26,23 @@ import type {
     RecordedEvent,
 } from '@extension/services/telemetry/recording/types';
 
+/**
+ * Whitebox accessor for the per-URI debounce maps that live on the
+ * ObservationRegistry the SessionRecorder composes. Tests need to seed
+ * these maps to exercise discard/flush paths without waiting for real
+ * debounce timers to fire. Centralized so the unsafe cast lives in one
+ * place — and so the test's coupling to internal field names is honest.
+ */
+function pendingDebounceMaps(recorder: SessionRecorder): {
+    _pendingSelectionPayloads: Map<string, RecordedEvent>;
+    _pendingVisibleRangePayloads: Map<string, RecordedEvent>;
+} {
+    return (recorder as unknown as { _observation: {
+        _pendingSelectionPayloads: Map<string, RecordedEvent>;
+        _pendingVisibleRangePayloads: Map<string, RecordedEvent>;
+    } })._observation;
+}
+
 // ── Fake FS with full pause-control ───────────────────────────────────────
 
 /**
@@ -598,8 +615,8 @@ suite('SessionRecorder (Block AB+E)', () => {
         await recorder.startSession(5);
 
         // Directly prime _pendingSelectionPayloads (per-URI Map, Block J) via
-        // `as any` to simulate a debounce timer that is pending but has not
-        // yet fired when consent is revoked.
+        // the pendingDebounceMaps() whitebox helper to simulate a debounce
+        // timer that is pending but has not yet fired when consent is revoked.
         const fakeUri = 'file:///fake/Pending.java';
         const pendingPayload: RecordedEvent = {
             type: 'selectionChange',
@@ -608,7 +625,7 @@ suite('SessionRecorder (Block AB+E)', () => {
             selections: [{ startLine: 1, startCharacter: 0, endLine: 1, endCharacter: 5 }],
             kind: undefined,
         };
-        (recorder as any)._pendingSelectionPayloads.set(fakeUri, pendingPayload);
+        pendingDebounceMaps(recorder)._pendingSelectionPayloads.set(fakeUri, pendingPayload);
 
         // Revoke consent — _doDisable must DISCARD, not flush, the pending payload.
         recorder.disable();
@@ -629,9 +646,9 @@ suite('SessionRecorder (Block AB+E)', () => {
         assert.ok(endIdx > consentIdx, 'sessionEnd must come after consentChange');
 
         // The recorder must have cleared all pending payloads.
-        assert.strictEqual((recorder as any)._pendingSelectionPayloads.size, 0,
+        assert.strictEqual(pendingDebounceMaps(recorder)._pendingSelectionPayloads.size, 0,
             '_pendingSelectionPayloads must be empty after disable()');
-        assert.strictEqual((recorder as any)._pendingVisibleRangePayloads.size, 0,
+        assert.strictEqual(pendingDebounceMaps(recorder)._pendingVisibleRangePayloads.size, 0,
             '_pendingVisibleRangePayloads must be empty after disable()');
     });
 
@@ -675,8 +692,8 @@ suite('SessionRecorder (Block AB+E)', () => {
         };
 
         // Simulate two different URIs triggering in quick succession.
-        (recorder as any)._pendingSelectionPayloads.set(uriA, payloadA);
-        (recorder as any)._pendingSelectionPayloads.set(uriB, payloadB);
+        pendingDebounceMaps(recorder)._pendingSelectionPayloads.set(uriA, payloadA);
+        pendingDebounceMaps(recorder)._pendingSelectionPayloads.set(uriB, payloadB);
 
         // Flush on session end must emit both.
         await recorder.endSession();
@@ -703,14 +720,13 @@ suite('SessionRecorder (Block AB+E)', () => {
         };
 
         // Prime the pending map as if the event listener serialized at trigger time.
-        (recorder as any)._pendingSelectionPayloads.set(uri, triggerTimePayload);
+        pendingDebounceMaps(recorder)._pendingSelectionPayloads.set(uri, triggerTimePayload);
 
         // Simulate a post-trigger state change: the map now holds a DIFFERENT payload
         // for the same URI — but we captured triggerTimePayload already, so the
         // timer closure (which holds a reference to triggerTimePayload) will compare
-        // correctly. To test the flush path here, we call _flushPendingDebouncesForEnd
-        // directly (the timer has not been set in this white-box test, so endSession
-        // is the flush path).
+        // correctly. The debounce timer has not been set in this white-box test,
+        // so endSession() is the flush path we exercise here.
         await recorder.endSession();
 
         const events = collectWrittenEvents(fs);
@@ -737,7 +753,7 @@ suite('SessionRecorder (Block AB+E)', () => {
         };
 
         // Prime a pending payload that has not yet fired its timer.
-        (recorder as any)._pendingSelectionPayloads.set(uri, payload);
+        pendingDebounceMaps(recorder)._pendingSelectionPayloads.set(uri, payload);
 
         await recorder.endSession();
 
@@ -762,7 +778,7 @@ suite('SessionRecorder (Block AB+E)', () => {
             kind: undefined,
         };
 
-        (recorder as any)._pendingSelectionPayloads.set(uri, payload);
+        pendingDebounceMaps(recorder)._pendingSelectionPayloads.set(uri, payload);
 
         // Consent revoked — pending payload must be discarded (Option A).
         recorder.disable();
@@ -789,12 +805,12 @@ suite('SessionRecorder (Block AB+E)', () => {
                 selections: [{ startLine: i, startCharacter: 0, endLine: i, endCharacter: 1 }],
                 kind: undefined,
             };
-            (recorder as any)._pendingSelectionPayloads.set(uri, payload);
+            pendingDebounceMaps(recorder)._pendingSelectionPayloads.set(uri, payload);
         }
 
         // After rapid triggers the map must still have exactly one entry for this URI.
         assert.strictEqual(
-            (recorder as any)._pendingSelectionPayloads.size,
+            pendingDebounceMaps(recorder)._pendingSelectionPayloads.size,
             1,
             'per-URI map must hold at most one pending payload per URI (no accumulation)',
         );
@@ -828,8 +844,8 @@ suite('SessionRecorder (Block AB+E)', () => {
         };
 
         // Simulate two different URIs triggering visible-range changes in quick succession.
-        (recorder as any)._pendingVisibleRangePayloads.set(uriA, payloadA);
-        (recorder as any)._pendingVisibleRangePayloads.set(uriB, payloadB);
+        pendingDebounceMaps(recorder)._pendingVisibleRangePayloads.set(uriA, payloadA);
+        pendingDebounceMaps(recorder)._pendingVisibleRangePayloads.set(uriB, payloadB);
 
         // Flush on session end must emit both.
         await recorder.endSession();
@@ -854,7 +870,7 @@ suite('SessionRecorder (Block AB+E)', () => {
             visibleRanges: [{ startLine: 10, startCharacter: 0, endLine: 30, endCharacter: 0 }],
         };
 
-        (recorder as any)._pendingVisibleRangePayloads.set(uri, payload);
+        pendingDebounceMaps(recorder)._pendingVisibleRangePayloads.set(uri, payload);
 
         // Consent revoked — pending payload must be discarded (Option A).
         recorder.disable();

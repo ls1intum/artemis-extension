@@ -106,15 +106,6 @@ export class SessionRecorder implements vscode.Disposable, WebSocketMessageHandl
     private readonly _snapshots: SnapshotManager;
     private readonly _observation: ObservationRegistry;
 
-    // Test-access shims (getters only). Forward to ObservationRegistry —
-    // existing sessionRecorder.test.ts whiteboxes these per-URI maps.
-    private get _pendingSelectionPayloads(): Map<string, RecordedEvent> {
-        return (this._observation as unknown as { _pendingSelectionPayloads: Map<string, RecordedEvent> })._pendingSelectionPayloads;
-    }
-    private get _pendingVisibleRangePayloads(): Map<string, RecordedEvent> {
-        return (this._observation as unknown as { _pendingVisibleRangePayloads: Map<string, RecordedEvent> })._pendingVisibleRangePayloads;
-    }
-
     private readonly _writer: RecordingStorageWriter;
     private readonly _startup: StartupCapture;
 
