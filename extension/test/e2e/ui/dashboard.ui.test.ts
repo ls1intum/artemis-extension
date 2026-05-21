@@ -33,6 +33,10 @@ describe('Dashboard View UI Tests', function () {
 	});
 
 	after(async function () {
+		// `before()` skips the suite when credentials are missing; in that
+		// case `driver` is never assigned and the cleanup below would crash
+		// with `Cannot read properties of undefined`. Bail out cleanly.
+		if (!driver) { return; }
 		this.timeout(15000);
 		const workbench = new Workbench();
 		await workbench.executeCommand('Logout from Artemis');

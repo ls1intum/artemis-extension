@@ -55,7 +55,13 @@ for test_file in out/test/e2e/ui/*.ui.test.js; do
   echo ""
   echo "--- Running: ${name} ---"
 
-  extest run-tests "$test_file" --mocha_config .mocharc.ui.yml 2>&1 | tee "$log_file"
+  # --code_settings disables the GitHub Copilot Chat first-run modal
+  # ("Welcome to VS Code / Sign in to continue") that ships built-in with
+  # recent VS Code builds (observed since 1.116) and blocks Selenium from
+  # reaching extension elements. The load-bearing setting is
+  # `workbench.welcomePage.experimentalOnboarding: false`, identified via
+  # redhat-developer/vscode-extension-tester#2345. See issue #176.
+  extest run-tests "$test_file" --mocha_config .mocharc.ui.yml --code_settings test/e2e/ui/code-settings.json 2>&1 | tee "$log_file"
   rc=${PIPESTATUS[0]}
 
   if [ $rc -eq 0 ]; then
