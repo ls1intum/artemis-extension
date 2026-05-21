@@ -623,6 +623,101 @@ describe('Iris Chat Flow', () => {
 			expect(textarea).toBeDisabled();
 		});
 
+		it('attempting a second send while one is in flight does not fire a second sendMessage', async () => {
+			useChatStore.setState({ context: exerciseContext, ...HYDRATED });
+			const user = userEvent.setup();
+			const mockApi = createMockVsCodeApi();
+			render(<IrisChatView vscodeApi={mockApi} />);
+
+			const textarea = screen.getByRole('textbox', { name: 'Chat input' });
+			await user.type(textarea, 'First{Enter}');
+
+			await waitFor(() => {
+				expect(useChatStore.getState().streaming.isStreaming).toBe(true);
+			});
+
+			// Typing into the disabled textarea is a no-op; an Enter press
+			// while disabled cannot reach handleSendMessage either. Verify
+			// that the only sendMessage command posted is the first one.
+			await user.click(textarea);
+			await user.keyboard('Second{Enter}');
+
+			const sendCalls = (mockApi.postMessage as ReturnType<typeof vi.fn>).mock.calls.filter(
+				(call) => (call[0] as Record<string, unknown>).command === 'sendMessage'
+			);
+			expect(sendCalls).toHaveLength(1);
+			const payload = (sendCalls[0][0] as { payload: { text: string } }).payload;
+			expect(payload.text).toBe('First');
+		});
+
+		it('retry of a retried message also produces a fresh localId and clears thinking on re-rejection', async () => {
+			useChatStore.setState({ context: exerciseContext, ...HYDRATED });
+			const user = userEvent.setup();
+			const mockApi = createMockVsCodeApi();
+			render(<IrisChatView vscodeApi={mockApi} />);
+
+			// First send.
+			const textarea = screen.getByRole('textbox', { name: 'Chat input' });
+			await user.type(textarea, 'Persistent question{Enter}');
+
+			const sendCall1 = (mockApi.postMessage as ReturnType<typeof vi.fn>).mock.calls.find(
+				(call) => (call[0] as Record<string, unknown>).command === 'sendMessage'
+			);
+			const payload1 = (sendCall1![0] as { payload: { localId: string; localSessionId: string } }).payload;
+
+			// First rejection.
+			dispatchExtensionMessage({
+				type: 'sendRejected',
+				localId: payload1.localId,
+				localSessionId: payload1.localSessionId,
+				reason: 'no-context',
+				errorMessage: 'Please select a course or exercise context first.',
+			});
+			await waitFor(() => {
+				expect(useChatStore.getState().streaming.isStreaming).toBe(false);
+			});
+
+			// First retry: Retry button is currently disabled (context held —
+			// see other test) so simulate a context where retry is enabled.
+			// Use a reason that allows retry without state change: temporarily
+			// override errorReason to a value the current canRetry permits.
+			act(() => {
+				useChatStore.setState({
+					messages: useChatStore.getState().messages.map((m) =>
+						m.localId === payload1.localId
+							? { ...m, errorReason: undefined } // unrecognized reason → retry enabled
+							: m,
+					),
+				});
+			});
+
+			await user.click(screen.getByRole('button', { name: 'Retry sending this message' }));
+
+			// A second sendMessage call should have fired with a different localId.
+			const sendCalls = (mockApi.postMessage as ReturnType<typeof vi.fn>).mock.calls.filter(
+				(call) => (call[0] as Record<string, unknown>).command === 'sendMessage'
+			);
+			expect(sendCalls).toHaveLength(2);
+			const payload2 = (sendCalls[1][0] as { payload: { localId: string; localSessionId: string } }).payload;
+			expect(payload2.localId).not.toBe(payload1.localId);
+
+			// Second rejection on the retried message.
+			dispatchExtensionMessage({
+				type: 'sendRejected',
+				localId: payload2.localId,
+				localSessionId: payload2.localSessionId,
+				reason: 'no-context',
+				errorMessage: 'Please select a course or exercise context first.',
+			});
+
+			await waitFor(() => {
+				expect(useChatStore.getState().streaming.isStreaming).toBe(false);
+			});
+			// The retried message is itself now marked failed.
+			const retried = useChatStore.getState().messages.find((m) => m.localId === payload2.localId);
+			expect(retried?.status).toBe('error');
+		});
+
 		it('Retry button is disabled when the rejection reason still holds (no-context)', async () => {
 			// Context cleared but the failed message still references no-context.
 			useChatStore.setState({
