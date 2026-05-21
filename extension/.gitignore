@@ -39,9 +39,11 @@ logs
 test-resources/
 test/ui/screenshots/
 
-# Environment
+# Environment — match repo-root style (Next.js convention: .env.example
+# stays tracked because none of these patterns match it).
 .env
 .env.local
+.env.*.local
 
 # Tool artifacts (RuVector agent memory, Claude Code session locks)
 ruvector.db

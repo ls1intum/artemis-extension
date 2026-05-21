@@ -26,7 +26,9 @@ const CONFIG = {
     artemisUrl: process.env.ARTEMIS_URL || 'http://localhost:8080',
     username: process.env.ARTEMIS_USER || 'artemis_admin',
     password: process.env.ARTEMIS_PASSWORD || 'artemis_admin',
-    exerciseId: parseInt(process.env.EXERCISE_ID || '1'),
+    // Canonical name is ARTEMIS_EXERCISE_ID (matches the UI test); accept
+    // the legacy unprefixed EXERCISE_ID as fallback for back-compat. See #198.
+    exerciseId: parseInt(process.env.ARTEMIS_EXERCISE_ID ?? process.env.EXERCISE_ID ?? '1'),
     pollIntervalMs: 3000,
     buildTimeoutMs: 120_000,
     suiteTimeoutMs: 180_000,

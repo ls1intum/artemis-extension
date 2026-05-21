@@ -29,7 +29,9 @@ describe('Exercise Submission Flow UI Tests', function () {
 		}
 
 		// Require exercise ID — skip entire suite if not set
-		exerciseId = process.env.ARTEMIS_EXERCISE_ID || '';
+		// Canonical name is ARTEMIS_EXERCISE_ID; accept legacy EXERCISE_ID
+		// as fallback for back-compat with older configs. See #198.
+		exerciseId = process.env.ARTEMIS_EXERCISE_ID ?? process.env.EXERCISE_ID ?? '';
 		if (!exerciseId) {
 			this.skip(); // Skip if no exercise ID provided
 		}

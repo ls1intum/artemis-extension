@@ -61,14 +61,18 @@ export async function waitForElement(
 }
 
 /**
- * Read Artemis credentials from environment variables.
- * Throws if either ARTEMIS_USER or ARTEMIS_PASS is not set.
+ * Read Artemis credentials from environment variables. The canonical names
+ * are `ARTEMIS_USER` and `ARTEMIS_PASSWORD` (matching the non-UI E2E tests
+ * and `run-e2e-tests.sh`). `ARTEMIS_PASS` is accepted as a fallback for
+ * back-compat with the original UI-test convention; see issue #198.
+ *
+ * Throws if either is unset.
  */
 export function getCredentials(): { username: string; password: string } {
 	const username = process.env.ARTEMIS_USER;
-	const password = process.env.ARTEMIS_PASS;
+	const password = process.env.ARTEMIS_PASSWORD ?? process.env.ARTEMIS_PASS;
 	if (!username || !password) {
-		throw new Error('Set ARTEMIS_USER and ARTEMIS_PASS environment variables');
+		throw new Error('Set ARTEMIS_USER and ARTEMIS_PASSWORD environment variables');
 	}
 	return { username, password };
 }
