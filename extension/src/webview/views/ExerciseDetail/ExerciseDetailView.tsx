@@ -63,7 +63,7 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
         repoStatus,
         dirtyPagesStatus,
         clonedNotice,
-        pendingSubmission,
+        pendingSubmissionsByParticipationId,
         setExerciseData,
         setError,
         loadExerciseDetail,
@@ -203,6 +203,14 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
     const hasParticipation = !!participation;
     const participationId = participation?.id;
     const repositoryUri = participation?.repositoryUri;
+
+    // Pick the pending build entry that belongs to the participation we
+    // actually surface in this view. The map can carry concurrent pending
+    // builds for other participations (graded + practice) without their
+    // status leaking into the selected view (#168).
+    const pendingSubmission = participationId !== undefined
+        ? pendingSubmissionsByParticipationId[participationId] ?? null
+        : null;
 
     // Extract submission and result data
     // In Artemis, "latest" = highest ID (not date-sorted)

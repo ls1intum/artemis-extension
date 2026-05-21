@@ -38,7 +38,7 @@ function makeExerciseData(overrides: Record<string, unknown> = {}) {
 			studentParticipations: [],
 			...((overrides.exercise as Record<string, unknown>) ?? {}),
 		},
-		pendingSubmission: null,
+		pendingSubmissionsByParticipationId: {},
 		...overrides,
 	};
 }
@@ -221,7 +221,7 @@ describe('Exercise Submission Flow', () => {
 		// Simulate exercise with pending submission (building)
 		const dataWithPending = {
 			...makeExerciseDataWithParticipation(),
-			pendingSubmission: { submissionId: 500 },
+			pendingSubmissionsByParticipationId: { 99: { participationId: 99 } },
 		};
 
 		dispatchExtensionMessage({
@@ -235,9 +235,10 @@ describe('Exercise Submission Flow', () => {
 			expect(screen.getByText('Binary Search Tree')).toBeInTheDocument();
 		});
 
-		// The exercise is in building state — verify the store reflects this
+		// The exercise is in building state — verify the store reflects this,
+		// keyed by participation.id (#168 fix).
 		const storeState = useExerciseDetailStore.getState();
-		expect(storeState.pendingSubmission).toBeTruthy();
+		expect(storeState.pendingSubmissionsByParticipationId[99]).toBeTruthy();
 	});
 
 	it('completes full submission lifecycle with build progress simulation', async () => {
@@ -278,7 +279,7 @@ describe('Exercise Submission Flow', () => {
 			type: 'exerciseDetailInit',
 			exerciseData: {
 				...makeExerciseDataWithParticipation(),
-				pendingSubmission: { submissionId: 500 },
+				pendingSubmissionsByParticipationId: { 99: { participationId: 99 } },
 			},
 			hideDeveloperTools: false,
 		});

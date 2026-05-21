@@ -33,7 +33,7 @@ function makeExerciseData(overrides: Partial<ExerciseDetailsResponse> = {}): Exe
 			studentParticipations: [],
 			...((overrides.exercise as Partial<ExerciseDetailsResponse['exercise']>) ?? {}),
 		},
-		pendingSubmission: null,
+		pendingSubmissionsByParticipationId: {},
 		...overrides,
 	};
 }
