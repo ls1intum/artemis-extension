@@ -1,6 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import { ActivityBar, By, SideBarView, until, VSBrowser, WebDriver, WebviewView } from 'vscode-extension-tester';
+import { ActivityBar, By, SideBarView, until, VSBrowser, WebDriver, WebviewView, Workbench } from 'vscode-extension-tester';
 
 // Resolve to the source tree screenshots dir (not the out/ compiled dir)
 const PROJECT_ROOT = path.resolve(__dirname, '..', '..');
@@ -143,4 +143,19 @@ export async function runAxeInCurrentFrame(
 		  .catch(function(e) { done({ violations: [], error: e.message }); });
 	`);
 	return results as { violations: Array<{ id: string; impact: string; description: string; nodes: unknown[] }> };
+}
+
+/**
+ * Best-effort cleanup for `after()` hooks of credential-gated UI suites.
+ * No-op when `driver` is undefined — covers the case where `before()`
+ * skipped the suite (missing credentials) and never assigned `driver`,
+ * which would otherwise crash the after-hook with
+ * `Cannot read properties of undefined (reading 'sleep')` and mask the
+ * intended skip as a real failure. See #176.
+ */
+export async function safeLogoutAndCleanup(driver: WebDriver | undefined): Promise<void> {
+	if (!driver) { return; }
+	const workbench = new Workbench();
+	await workbench.executeCommand('Logout from Artemis');
+	await driver.sleep(2000);
 }
