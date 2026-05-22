@@ -2,7 +2,6 @@
  * Webview -> Extension command contracts.
  */
 
-import type { CourseDashboardCourse } from '../types/apiResponses';
 import type { ChatContextType } from '../types/context';
 
 /** Non-command webview message types (ready, requestInit, error) */
@@ -113,7 +112,7 @@ interface WebviewCmdPayloads {
     // Navigation
     backToDashboard: undefined;
     showAllCourses: undefined;
-    viewCourseDetails: { courseData: CourseDashboardCourse };
+    viewCourseDetails: { courseId: number };
     openExercise: { exerciseId: number; courseId?: number | null };
     openExerciseDetails: { exerciseId: number };
     backToCourseDetails: undefined;

@@ -75,9 +75,7 @@ describe('Course Navigation Flow', () => {
 				expect.objectContaining({
 					type: 'command',
 					command: 'viewCourseDetails',
-					payload: expect.objectContaining({
-						courseData: expect.objectContaining({ id: 10 }),
-					}),
+					payload: { courseId: 10 },
 				})
 			);
 		});

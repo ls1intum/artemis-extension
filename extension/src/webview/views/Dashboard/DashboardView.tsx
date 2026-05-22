@@ -13,7 +13,6 @@ import SquareArrowOutUpRight from 'lucide-react/dist/esm/icons/square-arrow-out-
 import { useState } from 'react';
 
 import { ExtensionMsg, postCommand } from '@shared/messageContracts';
-import type { CourseDashboardCourse } from '@shared/types/apiResponses';
 
 import { Button, Container, IconButton, ListItem, Skeleton, SkeletonList } from '@webview/components';
 import { useExtensionMessage } from '@webview/hooks/useExtensionMessage';
@@ -61,7 +60,7 @@ export function DashboardView({ vscodeApi }: DashboardViewProps) {
 
     const handleViewCourseDetails = (courseData: RecentCourseNode) => {
         postCommand(vscodeApi, 'viewCourseDetails', {
-            courseData: courseData.courseData.course as CourseDashboardCourse,
+            courseId: courseData.courseData.course.id,
         });
     };
 

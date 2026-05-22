@@ -1,7 +1,6 @@
 import { useEffect, useMemo } from 'react';
 
 import { ExtensionMsg, postCommand } from '@shared/messageContracts';
-import type { CourseDashboardCourse } from '@shared/types/apiResponses';
 
 import type { DropdownOption } from '@webview/components';
 import {
@@ -135,7 +134,7 @@ export function CourseListView({ vscodeApi }: CourseListViewProps) {
     };
 
     const handleViewCourseDetails = (courseData: CourseDetailData) => {
-        postCommand(vscodeApi, 'viewCourseDetails', { courseData: courseData.course as CourseDashboardCourse });
+        postCommand(vscodeApi, 'viewCourseDetails', { courseId: courseData.course.id });
     };
 
     const handleViewArchivedCourse = (courseId: number) => {
