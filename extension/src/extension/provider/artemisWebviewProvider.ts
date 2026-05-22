@@ -627,18 +627,14 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
         const courses = coursesData?.courses || [];
         const archivedCourses = this._appStateManager.archivedCoursesData || undefined;
 
-        const mappedCourses = courses.map((entry) => ({
-            course: {
-                id: entry.course?.id || 0,
-                title: entry.course?.title || 'Untitled Course',
-                description: entry.course?.description,
-                semester: entry.course?.semester,
-                color: entry.course?.color,
-                exercises: entry.course?.exercises,
-                numberOfStudents: entry.course?.numberOfStudents,
-                instructorGroupName: entry.course?.instructorGroupName,
+        const mappedCourses: CourseDetailData[] = courses.flatMap((entry) => {
+            const detail = toCourseDetailData(entry.course);
+            if (!detail) {
+                logger.warn(`Course list fullscreen: dropping course without numeric id (title=${entry.course?.title ?? '<unknown>'})`, LogCategory.VIEW);
+                return [];
             }
-        }));
+            return [detail];
+        });
 
         this._fullscreenPanelManager.openCourseListFullscreen(mappedCourses, archivedCourses);
     }

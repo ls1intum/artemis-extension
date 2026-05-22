@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 
-import type { CourseDetailData as CourseDetailPayload, ExtensionToWebviewMessage } from '@shared/messageContracts';
-import { ExtensionMsg } from '@shared/messageContracts';
+import type { CourseDetailData, ExtensionToWebviewMessage, RecentCourseNode } from '@shared/messageContracts';
+import { ExtensionMsg, toCourseDetailData } from '@shared/messageContracts';
 
 import { AppStateManager } from '@extension/controller/appStateManager';
 import type { WebViewMessageHandler } from '@extension/controller/webViewMessageHandler';
@@ -13,9 +13,9 @@ import { LogCategory, logger } from '../loggingService';
 import type { TelemetryManager } from '../telemetry/telemetryManager';
 import { GitService } from '../workspace/gitService';
 import {
+    collectExerciseSources,
     detectWorkspaceExercise,
     detectWorkspaceForRepoUris,
-    type ExerciseSource,
 } from '../workspace/workspaceDetectionService';
 import { selectRecentCourses } from './recentCourseSelector';
 
@@ -58,9 +58,9 @@ export class ViewInitDataService {
         const accessedIds = this._courseAccessStorage?.getLastAccessedCourses() ?? [];
         const selectedCourses = selectRecentCourses(courses, accessedIds, COURSE_ACCESS_DISPLAY_LIMIT);
 
-        const recentCourseNodes = selectedCourses.map((courseItem: CourseDashboardEntry) => {
-            const course = courseItem.course || courseItem;
-            const exercises = course.exercises || [];
+        const recentCourseNodes: RecentCourseNode[] = selectedCourses.flatMap((courseItem: CourseDashboardEntry) => {
+            const course = courseItem.course ?? courseItem;
+            const exercises = course.exercises ?? [];
 
             const recentExercises = [...exercises]
                 .sort((a: ExerciseDetail, b: ExerciseDetail) => {
@@ -72,31 +72,25 @@ export class ViewInitDataService {
                     return (b.id ?? 0) - (a.id ?? 0);
                 });
 
-            return {
-                courseData: {
-                    course: {
-                        id: (course.id ?? 0) as number,
-                        title: (course.title ?? 'Untitled Course') as string,
-                        exercises: course.exercises,
-                        startDate: course.startDate as string | undefined,
-                    }
-                },
-                exercises: recentExercises,
-            };
+            const detail = toCourseDetailData(course);
+            if (!detail) {
+                logger.warn(`Dashboard init: dropping course without numeric id (title=${course?.title ?? '<unknown>'})`, LogCategory.VIEW);
+                return [];
+            }
+            return [{ courseData: detail, exercises: recentExercises }];
         });
 
-        // Collect all exercises across courses to detect the workspace exercise
-        const allExercises = courses.flatMap((courseItem: CourseDashboardEntry) => {
-            const course = courseItem.course || courseItem;
-            return course.exercises || [];
-        });
+        // Collect typed ExerciseSource list across all courses for workspace detection.
+        // Replaces the previous `as ExerciseSource[]` cast at the detectWorkspaceExercise
+        // call site below.
+        const allExerciseSources = collectExerciseSources(courses);
 
         // null = "no match" (shown to user), undefined = "still loading" (keeps skeleton).
         // We only publish null once the archived-course check has finished,
         // so the UI doesn't flash "no exercise" before a late-arriving archived match.
         const noMatch = this._appStateManager.archiveCheckComplete ? null : undefined;
 
-        if (allExercises.length === 0) {
+        if (allExerciseSources.length === 0) {
             this._postMessage({
                 type: ExtensionMsg.DashboardInit,
                 courses: recentCourseNodes,
@@ -106,7 +100,7 @@ export class ViewInitDataService {
         }
 
         const gen = this._initGeneration;
-        detectWorkspaceExercise(allExercises as ExerciseSource[]).then((detectedExercise) => {
+        detectWorkspaceExercise(allExerciseSources).then((detectedExercise) => {
             if (gen !== this._initGeneration) { return; }
             this._postMessage({
                 type: ExtensionMsg.DashboardInit,
@@ -132,18 +126,14 @@ export class ViewInitDataService {
         const courses = coursesData?.courses || [];
         const archivedCourses = appState.archivedCoursesData || undefined;
 
-        const mappedCourses = courses.map((entry: CourseDashboardEntry) => ({
-            course: {
-                id: entry.course?.id || 0,
-                title: entry.course?.title || 'Untitled Course',
-                description: entry.course?.description,
-                semester: entry.course?.semester,
-                color: entry.course?.color,
-                exercises: entry.course?.exercises,
-                numberOfStudents: entry.course?.numberOfStudents,
-                instructorGroupName: entry.course?.instructorGroupName,
+        const mappedCourses: CourseDetailData[] = courses.flatMap((entry: CourseDashboardEntry) => {
+            const detail = toCourseDetailData(entry.course);
+            if (!detail) {
+                logger.warn(`Course list init: dropping course without numeric id (title=${entry.course?.title ?? '<unknown>'})`, LogCategory.VIEW);
+                return [];
             }
-        }));
+            return [detail];
+        });
 
         this._postMessage({
             type: ExtensionMsg.CourseListInit,
@@ -159,14 +149,17 @@ export class ViewInitDataService {
             return;
         }
 
-        const exercises = courseData.course?.exercises || [];
+        const sources = collectExerciseSources([{
+            course: courseData.course,
+            exercises: courseData.course.exercises,
+        }]);
 
         const gen = this._initGeneration;
-        detectWorkspaceExercise(exercises as ExerciseSource[]).then((detectedExercise: { id?: number } | null) => {
+        detectWorkspaceExercise(sources).then((detectedExercise) => {
             if (gen !== this._initGeneration) { return; }
             this._postMessage({
                 type: ExtensionMsg.CourseDetailInit,
-                courseData: courseData as CourseDetailPayload,
+                courseData,
                 workspaceExerciseId: detectedExercise?.id ?? null,
                 hideDeveloperTools: !this._isDeveloperMode(),
             });
@@ -175,7 +168,7 @@ export class ViewInitDataService {
             logger.error('Failed to detect workspace exercise for course detail', LogCategory.VIEW, error);
             this._postMessage({
                 type: ExtensionMsg.CourseDetailInit,
-                courseData: courseData as CourseDetailPayload,
+                courseData,
                 workspaceExerciseId: null,
                 hideDeveloperTools: !this._isDeveloperMode(),
             });
