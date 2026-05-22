@@ -3,7 +3,7 @@ import { execFile } from 'child_process';
 import { promisify } from 'util';
 
 import type { ArtemisApiService } from '@extension/api';
-import type { CourseDashboardEntry } from '@extension/types';
+import type { CourseDashboardEntry, ExerciseDetail } from '@extension/types';
 
 import type { CourseDataCache } from '../courseDataCache';
 import { ExerciseRegistry, type ExerciseRegistryEntry } from '../exerciseRegistry';
@@ -31,26 +31,64 @@ export interface ExerciseSource {
 }
 
 /**
+ * Return the exercises for a CourseDashboardEntry, preferring the nested
+ * `course.exercises` array and falling back to the flat `entry.exercises`.
+ *
+ * The length check is deliberate: in JavaScript `[] || fallback` evaluates
+ * to `[]` (empty arrays are truthy), so a previous mix of `??` and `||`
+ * across the codebase was effectively identical. The new behavior treats
+ * a nested empty array as "look at flat next", which is what consumers
+ * appear to assume in practice.
+ */
+export function getEntryExercises(entry: CourseDashboardEntry): ExerciseDetail[] {
+    const nested = entry.course?.exercises;
+    return nested?.length ? nested : (entry.exercises ?? []);
+}
+
+/**
+ * Map a raw `ExerciseDetail` (server response) to the narrow `ExerciseSource`
+ * shape used by workspace detection. Returns null when the exercise is missing
+ * a numeric id or a string title — those are the only fields the workspace
+ * matching logic cannot tolerate.
+ *
+ * `courseId` is taken from the argument, not from any nested `course.id`,
+ * because the surrounding traversal knows which course the exercise belongs to.
+ */
+export function toExerciseSource(
+    exercise: ExerciseDetail,
+    courseId?: number,
+): ExerciseSource | null {
+    if (typeof exercise.id !== 'number' || typeof exercise.title !== 'string') {
+        return null;
+    }
+    const rawParticipations = exercise.studentParticipations;
+    const studentParticipations = Array.isArray(rawParticipations)
+        ? rawParticipations.map(p => ({
+            repositoryUri: p.repositoryUri,
+            testRun: p.testRun,
+        }))
+        : undefined;
+    return {
+        id: exercise.id,
+        title: exercise.title,
+        shortName: exercise.shortName,
+        courseId,
+        repositoryUri: exercise.repositoryUri,
+        studentParticipations,
+    };
+}
+
+/**
  * Extracts ExerciseSource objects from course dashboard entries.
  * Handles both nested (entry.course.exercises) and flat (entry.exercises) shapes.
  */
 export function collectExerciseSources(entries: CourseDashboardEntry[]): ExerciseSource[] {
-    const sources: ExerciseSource[] = [];
-    for (const entry of entries) {
-        for (const raw of (entry.course?.exercises ?? entry.exercises ?? [])) {
-            const ex = raw as { id?: number; title?: string; shortName?: string;
-                repositoryUri?: string;
-                studentParticipations?: Array<{ repositoryUri?: string; testRun?: boolean }> };
-            if (ex.id && ex.title) {
-                sources.push({
-                    id: ex.id, title: ex.title, shortName: ex.shortName,
-                    courseId: entry.course?.id, repositoryUri: ex.repositoryUri,
-                    studentParticipations: ex.studentParticipations,
-                });
-            }
-        }
-    }
-    return sources;
+    return entries.flatMap(entry => {
+        const exercises = getEntryExercises(entry);
+        return exercises
+            .map(ex => toExerciseSource(ex, entry.course?.id))
+            .filter((s): s is ExerciseSource => s !== null);
+    });
 }
 
 /**
@@ -307,12 +345,11 @@ export async function findWorkspaceCourseInArchive(
     }
 
     // Check if the exercise is already in active courses
-    const allActiveExercises: ExerciseSource[] = activeCourseEntries.flatMap(entry => {
-        const exercises = entry.course?.exercises || entry.exercises || [];
-        return exercises
-            .filter((ex): ex is typeof ex & { id: number; title: string } => ex.id !== undefined && ex.title !== undefined)
-            .map(ex => ({ ...ex, courseId: entry.course?.id }));
-    });
+    const allActiveExercises: ExerciseSource[] = activeCourseEntries.flatMap(entry =>
+        getEntryExercises(entry)
+            .map(ex => toExerciseSource(ex, entry.course?.id))
+            .filter((s): s is ExerciseSource => s !== null)
+    );
 
     if (findExerciseByRepositoryUrl(repositoryUrl, allActiveExercises)) {
         return null; // Already matched in active courses
@@ -328,9 +365,9 @@ export async function findWorkspaceCourseInArchive(
         }
         try {
             const entry = await artemisApi.getCourseForDashboard(course.id);
-            const exercises: ExerciseSource[] = (entry.course?.exercises || entry.exercises || [])
-                .filter((ex): ex is typeof ex & { id: number; title: string } => ex.id !== undefined && ex.title !== undefined)
-                .map(ex => ({ ...ex, courseId: entry.course?.id }));
+            const exercises: ExerciseSource[] = getEntryExercises(entry)
+                .map(ex => toExerciseSource(ex, entry.course?.id))
+                .filter((s): s is ExerciseSource => s !== null);
 
             if (findExerciseByRepositoryUrl(repositoryUrl, exercises)) {
                 logger.irisChat(`Found workspace match in archived course: ${entry.course?.title}`);
@@ -382,13 +419,7 @@ export async function detectAndRegisterWorkspaceExercise(
 
                 if (courses && Array.isArray(courses) && courses.length > 0) {
                     for (const courseData of courses) {
-                        const courseExercises = courseData?.course?.exercises || courseData?.exercises || [];
-                        if (courseExercises.length > 0) {
-                            registry.registerFromCourseData({
-                                course: courseData.course || courseData,
-                                exercises: courseExercises
-                            });
-                        }
+                        registry.registerFromCourseData(courseData);
                     }
                 }
                 exercises = registry.getAllExercises();
@@ -406,13 +437,7 @@ export async function detectAndRegisterWorkspaceExercise(
             try {
                 const archivedEntry = await findWorkspaceCourseInArchive(artemisApiService, []);
                 if (archivedEntry) {
-                    const courseExercises = archivedEntry.course?.exercises || archivedEntry.exercises || [];
-                    if (courseExercises.length > 0) {
-                        registry.registerFromCourseData({
-                            course: archivedEntry.course || {},
-                            exercises: courseExercises
-                        });
-                    }
+                    registry.registerFromCourseData(archivedEntry);
                     exercises = registry.getAllExercises();
                     detected = await detectWorkspaceExercise(exercises);
                 }

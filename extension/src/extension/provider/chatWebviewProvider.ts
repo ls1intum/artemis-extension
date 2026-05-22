@@ -22,7 +22,13 @@ import { LogCategory, logger } from '../services/loggingService';
 import { type StruggleContext, TelemetryManager } from '../services/telemetry';
 import { getReactWebviewHtml } from '../services/ui';
 import { ArtemisWebsocketService } from '../services/websocket';
-import { detectAndRegisterWorkspaceExercise, FileMonitorService, NoAiDetectionService } from '../services/workspace';
+import {
+    detectAndRegisterWorkspaceExercise,
+    FileMonitorService,
+    getEntryExercises,
+    NoAiDetectionService,
+    toExerciseSource,
+} from '../services/workspace';
 import { ActiveContext, ChatContextType } from '../types';
 import type { IChatWebviewProvider } from '../types/IChatWebviewProvider';
 import { BaseWebviewProvider } from './baseWebviewProvider';
@@ -595,25 +601,23 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
                     source: 'system-default',
                 });
 
-                const exercises = course.exercises || entry.exercises || [];
-                for (const exercise of exercises) {
-                    const ex = exercise as {
-                        id?: number; title?: string; shortName?: string;
-                        releaseDate?: string; startDate?: string; dueDate?: string;
-                        studentParticipations?: Array<{ repositoryUri?: string }>;
-                    };
-                    if (ex.id && ex.title && ex.studentParticipations?.length) {
-                        // Do not set isWorkspace here; workspaceDetectionService owns that flag.
-                        this._chatContextManager.registerExerciseAndAutoSelect({
-                            id: ex.id,
-                            title: ex.title,
-                            shortName: ex.shortName,
-                            courseId: course.id,
-                            releaseDate: ex.releaseDate ?? ex.startDate,
-                            dueDate: ex.dueDate,
-                            source: 'system-default',
-                        });
+                for (const exercise of getEntryExercises(entry)) {
+                    const source = toExerciseSource(exercise, course.id);
+                    if (!source || !source.studentParticipations?.length) {
+                        continue;
                     }
+                    // Do not set isWorkspace here; workspaceDetectionService owns that flag.
+                    // Note: dates are read from the raw exercise because ExerciseSource
+                    // intentionally omits them (kept narrow for workspace-detection use).
+                    this._chatContextManager.registerExerciseAndAutoSelect({
+                        id: source.id,
+                        title: source.title,
+                        shortName: source.shortName,
+                        courseId: course.id,
+                        releaseDate: exercise.releaseDate ?? exercise.startDate,
+                        dueDate: exercise.dueDate,
+                        source: 'system-default',
+                    });
                 }
             }
         } catch (error) {

@@ -1,6 +1,6 @@
+import * as vscode from 'vscode';
 import * as assert from 'assert';
 import * as sinon from 'sinon';
-import * as vscode from 'vscode';
 
 import type { WebCmd } from '@shared/messageContracts';
 

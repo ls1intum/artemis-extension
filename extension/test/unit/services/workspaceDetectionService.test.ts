@@ -6,9 +6,12 @@ import {
     detectWorkspaceExercise,
     type ExerciseSource,
     findExerciseByRepositoryUrl,
+    getEntryExercises,
     getWorkspaceRepositoryUrl,
     normalizeRepositoryUrl,
+    toExerciseSource,
 } from '@extension/services/workspace/workspaceDetectionService';
+import type { CourseDashboardEntry, ExerciseDetail } from '@extension/types';
 
 suite('WorkspaceDetectionService', () => {
     suite('normalizeRepositoryUrl', () => {
@@ -359,4 +362,106 @@ suite('WorkspaceDetectionService', () => {
         });
     });
 
+});
+
+suite('getEntryExercises', () => {
+    test('returns nested exercises when present and non-empty', () => {
+        const entry: CourseDashboardEntry = {
+            course: { id: 1, exercises: [{ id: 10, title: 'A' }] },
+        };
+        const result = getEntryExercises(entry);
+        assert.deepStrictEqual(result.map(e => e.id), [10]);
+    });
+
+    test('falls back to flat exercises when nested is empty array', () => {
+        const entry: CourseDashboardEntry = {
+            course: { id: 1, exercises: [] },
+            exercises: [{ id: 99, title: 'flat' }],
+        };
+        const result = getEntryExercises(entry);
+        assert.deepStrictEqual(result.map(e => e.id), [99]);
+    });
+
+    test('falls back to flat exercises when nested is undefined', () => {
+        const entry: CourseDashboardEntry = {
+            course: { id: 1 },
+            exercises: [{ id: 5, title: 'flat-only' }],
+        };
+        const result = getEntryExercises(entry);
+        assert.deepStrictEqual(result.map(e => e.id), [5]);
+    });
+
+    test('returns empty array when both are missing', () => {
+        const entry: CourseDashboardEntry = { course: { id: 1 } };
+        assert.deepStrictEqual(getEntryExercises(entry), []);
+    });
+});
+
+suite('toExerciseSource', () => {
+    test('returns null when id is not a number', () => {
+        const ex: ExerciseDetail = { title: 'no-id' };
+        assert.strictEqual(toExerciseSource(ex), null);
+    });
+
+    test('returns null when title is not a string', () => {
+        const ex: ExerciseDetail = { id: 1 };
+        assert.strictEqual(toExerciseSource(ex), null);
+    });
+
+    test('preserves direct repositoryUri', () => {
+        const ex: ExerciseDetail = { id: 1, title: 'A', repositoryUri: 'git://x/y.git' };
+        const result = toExerciseSource(ex);
+        assert.ok(result);
+        assert.strictEqual(result.repositoryUri, 'git://x/y.git');
+    });
+
+    test('preserves studentParticipations with only the read fields', () => {
+        const ex: ExerciseDetail = {
+            id: 1, title: 'A',
+            studentParticipations: [
+                { id: 99, repositoryUri: 'r1', testRun: true, type: 'STUDENT' as never },
+                { id: 100, repositoryUri: 'r2', testRun: false, type: 'STUDENT' as never },
+            ],
+        };
+        const result = toExerciseSource(ex);
+        assert.ok(result);
+        assert.deepStrictEqual(
+            result.studentParticipations,
+            [
+                { repositoryUri: 'r1', testRun: true },
+                { repositoryUri: 'r2', testRun: false },
+            ],
+        );
+    });
+
+    test('uses courseId argument over any nested course.id', () => {
+        const ex: ExerciseDetail = { id: 1, title: 'A', course: { id: 999 } };
+        const result = toExerciseSource(ex, 42);
+        assert.ok(result);
+        assert.strictEqual(result.courseId, 42);
+    });
+});
+
+suite('collectExerciseSources', () => {
+    test('handles entries with nested-only, flat-only, and both', () => {
+        // import collectExerciseSources locally to avoid the global suite reorg
+        const { collectExerciseSources } = require('@extension/services/workspace/workspaceDetectionService');
+        const entries: CourseDashboardEntry[] = [
+            { course: { id: 1, exercises: [{ id: 11, title: 'nested' }] } },
+            { course: { id: 2 }, exercises: [{ id: 22, title: 'flat' }] },
+            { course: { id: 3, exercises: [] }, exercises: [{ id: 33, title: 'both' }] },
+        ];
+        const out = collectExerciseSources(entries);
+        assert.deepStrictEqual(out.map((s: { id: number }) => s.id), [11, 22, 33]);
+        assert.deepStrictEqual(out.map((s: { courseId?: number }) => s.courseId), [1, 2, 3]);
+    });
+
+    test('drops malformed entries silently', () => {
+        const { collectExerciseSources } = require('@extension/services/workspace/workspaceDetectionService');
+        const entries: CourseDashboardEntry[] = [
+            { course: { id: 1, exercises: [{ /* no id */ title: 'x' } as ExerciseDetail, { id: 9, title: 'ok' }] } },
+        ];
+        const out = collectExerciseSources(entries);
+        assert.deepStrictEqual(out.map((s: { id: number }) => s.id), [9]);
+    });
 });

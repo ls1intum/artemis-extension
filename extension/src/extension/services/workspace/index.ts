@@ -7,8 +7,10 @@ export {
     type DetectedExercise,
     findExerciseByRepositoryUrl,
     findWorkspaceCourseInArchive,
+    getEntryExercises,
     getWorkspaceRepositoryUrl,
     getWorkspaceStatus,
     normalizeRepositoryUrl,
+    toExerciseSource,
 } from './workspaceDetectionService';
 export * from './workspaceFileChecker';
